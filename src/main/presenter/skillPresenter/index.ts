@@ -569,6 +569,12 @@ export class SkillPresenter implements ISkillPresenter {
 
       const rawContent = fs.readFileSync(metadata.path, 'utf-8')
       const { content } = matter(rawContent)
+      let nextIsPinned = isPinned
+
+      if (options?.conversationId && !isPinned) {
+        await this.setActiveSkills(options.conversationId, [...pinnedSkills, metadata.name])
+        nextIsPinned = true
+      }
 
       return {
         success: true,
@@ -580,7 +586,7 @@ export class SkillPresenter implements ISkillPresenter {
         platforms: metadata.platforms,
         metadata: metadata.metadata,
         linkedFiles: this.listSkillLinkedFiles(metadata.skillRoot),
-        isPinned
+        isPinned: nextIsPinned
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)

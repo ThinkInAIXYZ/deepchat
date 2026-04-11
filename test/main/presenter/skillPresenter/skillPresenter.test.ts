@@ -667,6 +667,82 @@ describe('SkillPresenter', () => {
       ])
     })
 
+    it('activates a skill after viewing the main SKILL.md in a new-agent session', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      ;(eventBus.sendToRenderer as Mock).mockClear()
+
+      const result = await skillPresenter.viewSkill('test-skill', {
+        conversationId: 'conv-view-auto-activate'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          name: 'test-skill',
+          isPinned: true
+        })
+      )
+      expect(await skillPresenter.getActiveSkills('conv-view-auto-activate')).toEqual([
+        'test-skill'
+      ])
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(SKILL_EVENTS.ACTIVATED, 'all', {
+        conversationId: 'conv-view-auto-activate',
+        skills: ['test-skill']
+      })
+    })
+
+    it('does not activate a skill when only viewing a linked file', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      ;(eventBus.sendToRenderer as Mock).mockClear()
+
+      const result = await skillPresenter.viewSkill('test-skill', {
+        conversationId: 'conv-view-file-only',
+        filePath: 'references/guide.md'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          name: 'test-skill',
+          filePath: 'references/guide.md',
+          isPinned: false
+        })
+      )
+      expect(await skillPresenter.getActiveSkills('conv-view-file-only')).toEqual([])
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
+        SKILL_EVENTS.ACTIVATED,
+        'all',
+        expect.objectContaining({
+          conversationId: 'conv-view-file-only'
+        })
+      )
+    })
+
+    it('does not emit a second activation event when viewing an already pinned skill', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      await skillPresenter.setActiveSkills('conv-view-existing', ['test-skill'])
+      ;(eventBus.sendToRenderer as Mock).mockClear()
+
+      const result = await skillPresenter.viewSkill('test-skill', {
+        conversationId: 'conv-view-existing'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          name: 'test-skill',
+          isPinned: true
+        })
+      )
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
+        SKILL_EVENTS.ACTIVATED,
+        'all',
+        expect.objectContaining({
+          conversationId: 'conv-view-existing'
+        })
+      )
+    })
+
     it('rejects oversized skill markdown files before loading content', async () => {
       ;(fs.statSync as Mock).mockReturnValue({
         isFile: () => true,

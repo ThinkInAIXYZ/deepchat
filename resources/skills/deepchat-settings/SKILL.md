@@ -17,10 +17,11 @@ Use this skill to safely change DeepChat *application* settings during a convers
 
 - Only change settings when the user is asking to change **DeepChat** settings.
 - Use the dedicated settings tools; never attempt arbitrary key/value writes.
-- These tools are intended to be available only when this skill is active; if they are missing, activate this skill via `skill_control`.
+- These tools are intended to be available only when this skill is active.
+- Viewing the main `deepchat-settings` `SKILL.md` activates this skill for the current conversation and exposes the `deepchat_settings_*` tools in the next tool loop iteration.
+- Viewing linked files under this skill does **not** activate the skill.
 - If the request is ambiguous, ask a clarifying question before applying.
 - For unsupported or high-risk settings (MCP, prompts, providers, API keys, paths): do **not** apply changes; instead explain where to change it and open Settings.
-- After completing the settings task, deactivate this skill via `skill_control` to keep context small.
 
 ## Supported settings (initial allowlist)
 
@@ -43,15 +44,15 @@ Settings navigation (open-only):
 ## Workflow
 
 1. Confirm the user is requesting a DeepChat settings change.
-2. Determine the target setting and the intended value.
-3. If the setting is supported, call the matching tool:
+2. If the settings tools are not yet present, inspect the main `deepchat-settings` skill document first so the skill becomes active for this conversation.
+3. Determine the target setting and the intended value.
+4. If the setting is supported, call the matching tool:
    - toggles: `deepchat_settings_toggle`
    - language: `deepchat_settings_set_language`
    - theme: `deepchat_settings_set_theme`
    - font size: `deepchat_settings_set_font_size`
-4. Confirm back to the user what changed (include the final value).
-5. If the setting is unsupported, call `deepchat_settings_open` (with `section`) and provide a short pointer to the correct Settings section. Do not call it if the requested change has already been applied.
-6. Deactivate this skill via `skill_control`.
+5. Confirm back to the user what changed (include the final value).
+6. If the setting is unsupported, call `deepchat_settings_open` (with `section`) and provide a short pointer to the correct Settings section. Do not call it if the requested change has already been applied.
 
 ## Examples (activate this skill)
 

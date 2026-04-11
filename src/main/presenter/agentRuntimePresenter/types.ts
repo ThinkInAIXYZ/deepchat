@@ -147,6 +147,7 @@ export interface ProcessResult {
 export interface ProcessParams {
   messages: ChatMessage[]
   tools: MCPToolDefinition[]
+  refreshTools?: () => Promise<MCPToolDefinition[]>
   toolPresenter: IToolPresenter | null
   coreStream: (
     messages: ChatMessage[],

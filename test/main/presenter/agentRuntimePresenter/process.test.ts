@@ -242,6 +242,163 @@ describe('processStream', () => {
     expect(toolResultMsg.content).toBe('Sunny, 72F')
   })
 
+  it('refreshes tools for the next loop iteration after skill_view activates a skill', async () => {
+    let callCount = 0
+    const toolPresenter = {
+      ...createMockToolPresenter(),
+      callTool: vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+          rawData: {
+            toolCallId: 'tc1',
+            content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+            isError: false,
+            toolResult: {
+              activationApplied: true,
+              activationSource: 'skill_md',
+              activatedSkill: 'deepchat-settings'
+            }
+          }
+        })
+        .mockResolvedValueOnce({
+          content: '{"ok":true}',
+          rawData: {
+            toolCallId: 'tc2',
+            content: '{"ok":true}',
+            isError: false
+          }
+        })
+    } as unknown as IToolPresenter
+    const refreshTools = vi
+      .fn()
+      .mockResolvedValue([makeTool('skill_view'), makeTool('deepchat_settings_set_theme')])
+
+    const coreStream = vi.fn(
+      function (_messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
+        callCount++
+        if (callCount === 1) {
+          expect(tools.map((tool) => tool.function.name)).toEqual(['skill_view'])
+          return (async function* () {
+            yield {
+              type: 'tool_call_start',
+              tool_call_id: 'tc1',
+              tool_call_name: 'skill_view'
+            } as LLMCoreStreamEvent
+            yield {
+              type: 'tool_call_end',
+              tool_call_id: 'tc1',
+              tool_call_arguments_complete: '{"name":"deepchat-settings"}'
+            } as LLMCoreStreamEvent
+            yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+          })()
+        }
+        if (callCount === 2) {
+          expect(tools.map((tool) => tool.function.name)).toEqual([
+            'skill_view',
+            'deepchat_settings_set_theme'
+          ])
+          return (async function* () {
+            yield {
+              type: 'tool_call_start',
+              tool_call_id: 'tc2',
+              tool_call_name: 'deepchat_settings_set_theme'
+            } as LLMCoreStreamEvent
+            yield {
+              type: 'tool_call_end',
+              tool_call_id: 'tc2',
+              tool_call_arguments_complete: '{"theme":"dark"}'
+            } as LLMCoreStreamEvent
+            yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+          })()
+        }
+        return (async function* () {
+          yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        })()
+      }
+    ) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('skill_view')],
+      refreshTools
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    expect(refreshTools).toHaveBeenCalledTimes(1)
+    expect(coreStream).toHaveBeenCalledTimes(3)
+    expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not refresh tools after linked-file skill_view reads', async () => {
+    let callCount = 0
+    const toolPresenter = {
+      ...createMockToolPresenter(),
+      callTool: vi.fn().mockResolvedValue({
+        content:
+          '{"success":true,"name":"deepchat-settings","filePath":"references/guide.md","isPinned":false}',
+        rawData: {
+          toolCallId: 'tc1',
+          content:
+            '{"success":true,"name":"deepchat-settings","filePath":"references/guide.md","isPinned":false}',
+          isError: false,
+          toolResult: {
+            activationApplied: false,
+            activationSource: 'file'
+          }
+        }
+      })
+    } as unknown as IToolPresenter
+    const refreshTools = vi.fn().mockResolvedValue([makeTool('deepchat_settings_set_theme')])
+
+    const coreStream = vi.fn(
+      function (_messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
+        callCount++
+        if (callCount === 1) {
+          expect(tools.map((tool) => tool.function.name)).toEqual(['skill_view'])
+          return (async function* () {
+            yield {
+              type: 'tool_call_start',
+              tool_call_id: 'tc1',
+              tool_call_name: 'skill_view'
+            } as LLMCoreStreamEvent
+            yield {
+              type: 'tool_call_end',
+              tool_call_id: 'tc1',
+              tool_call_arguments_complete:
+                '{"name":"deepchat-settings","file_path":"references/guide.md"}'
+            } as LLMCoreStreamEvent
+            yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+          })()
+        }
+        expect(tools.map((tool) => tool.function.name)).toEqual(['skill_view'])
+        return (async function* () {
+          yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        })()
+      }
+    ) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('skill_view')],
+      refreshTools
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    expect(refreshTools).not.toHaveBeenCalled()
+    expect(coreStream).toHaveBeenCalledTimes(2)
+  })
+
   it('offloads large tool results before the next provider call', async () => {
     tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-process-offload-'))
     getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)

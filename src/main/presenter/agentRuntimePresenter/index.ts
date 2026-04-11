@@ -1509,6 +1509,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const result = await processStream({
         messages,
         tools,
+        refreshTools: async () => await this.loadToolDefinitionsForSession(sessionId, projectDir),
         toolPresenter: this.toolPresenter,
         coreStream: async function* (
           requestMessages,
@@ -2262,6 +2263,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (capabilities.canListSkills || capabilities.canViewSkills) {
       lines.push(
         'Before replying, always scan available skills. If any skill plausibly matches the task, call `skill_view` first.'
+      )
+      lines.push(
+        'Viewing a skill root `SKILL.md` pins it to the current conversation; viewing linked skill files is read-only and does not pin the skill.'
       )
       hasContent = true
     }

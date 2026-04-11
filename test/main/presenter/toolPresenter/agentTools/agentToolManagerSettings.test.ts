@@ -18,6 +18,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   const skillPresenter = {
     getActiveSkills: vi.fn(),
     getActiveSkillsAllowedTools: vi.fn(),
+    viewSkill: vi.fn(),
     listSkillScripts: vi.fn().mockResolvedValue([]),
     manageDraftSkill: vi.fn(),
     getSkillExtension: vi.fn().mockResolvedValue({
@@ -63,6 +64,13 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     resolveConversationWorkdir.mockResolvedValue(null)
     resolveConversationSessionInfo.mockResolvedValue(null)
     skillPresenter.listSkillScripts.mockResolvedValue([])
+    skillPresenter.viewSkill.mockResolvedValue({
+      success: true,
+      name: 'code-review',
+      filePath: null,
+      content: '# Code Review',
+      isPinned: false
+    })
     skillPresenter.manageDraftSkill.mockResolvedValue({ success: true, action: 'create' })
     getToolDefinitions.mockReturnValue([])
   })
@@ -146,6 +154,56 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(names).toContain('skill_view')
     expect(names).toContain('skill_manage')
     expect(names).not.toContain('skill_control')
+  })
+
+  it('returns skill_view activation metadata after viewing a main SKILL.md', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillPresenter.viewSkill.mockResolvedValue({
+      success: true,
+      name: 'deepchat-settings',
+      filePath: null,
+      content: '# Skill',
+      isPinned: true
+    })
+
+    const manager = buildManager()
+    const result = (await manager.callTool(
+      'skill_view',
+      { name: 'deepchat-settings' },
+      'conv-1'
+    )) as { content: string; rawData?: { toolResult?: unknown } }
+
+    expect(result.content).toContain('"isPinned":true')
+    expect(result.rawData?.toolResult).toEqual({
+      activationApplied: true,
+      activationSource: 'skill_md',
+      activatedSkill: 'deepchat-settings'
+    })
+  })
+
+  it('does not mark linked file views as skill activations', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillPresenter.viewSkill.mockResolvedValue({
+      success: true,
+      name: 'deepchat-settings',
+      filePath: 'references/guide.md',
+      content: '# Guide',
+      isPinned: false
+    })
+
+    const manager = buildManager()
+    const result = (await manager.callTool(
+      'skill_view',
+      { name: 'deepchat-settings', file_path: 'references/guide.md' },
+      'conv-1'
+    )) as { rawData?: { toolResult?: unknown } }
+
+    expect(result.rawData?.toolResult).toEqual({
+      activationApplied: false,
+      activationSource: 'file'
+    })
   })
 
   it('rejects skill_manage create requests without content before calling the presenter', async () => {
