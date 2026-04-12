@@ -1529,12 +1529,13 @@
   },
   "remote": {
     "title": "Remoto",
-    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
+    "description": "Configure em um só lugar o controle remoto por Telegram, Feishu, QQBot e WeChat iLink.",
     "telegram": {
       "title": "Telegram",
       "description": "Gerencie um único bot do Telegram para controle remoto e entrega de hooks.",
       "botToken": "Token do bot",
-      "botTokenPlaceholder": "Token do bot do Telegram"
+      "botTokenPlaceholder": "Token do bot do Telegram",
+      "botTokenDescription": "Informe o token do bot do Telegram usado para controle remoto e envio de notificações Hook."
     },
     "remoteControl": {
       "title": "Controle remoto",
@@ -1568,7 +1569,12 @@
       "clearBindingsResult": "{count} vínculo(s) limpo(s).",
       "pairDialogInstructionTelegram": "Envie este comando para o bot do Telegram:",
       "pairDialogInstructionFeishu": "Envie este comando ao bot do Feishu em uma mensagem direta:",
-      "pairDialogInstructionQQBot": "Envie este comando no chat do QQ Bot ou no grupo QQ autorizado:"
+      "pairDialogInstructionQQBot": "Envie este comando no chat do QQ Bot ou no grupo QQ autorizado:",
+      "authorizedPrincipalsTitle": "Identidades autorizadas",
+      "authorizedPrincipalsDescription": "Essas contas do {channel} estão autorizadas a fazer o pareamento e controlar sessões.",
+      "authorizedPrincipalsEmpty": "Ainda não há identidades autorizadas.",
+      "sessionBindingsTitle": "Vínculos de sessão",
+      "sessionBindingsDescription": "Cada ponto de acesso remoto abaixo está atualmente vinculado a uma sessão do DeepChat."
     },
     "hooks": {
       "title": "Hooks do Telegram",

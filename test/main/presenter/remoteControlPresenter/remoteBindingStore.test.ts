@@ -183,6 +183,65 @@ describe('RemoteBindingStore', () => {
     )
   })
 
+  it('removes authorized principals without touching other entries', () => {
+    const configPresenter = createConfigPresenter()
+    configPresenter.setSetting('remoteControl', {
+      telegram: {
+        enabled: true,
+        allowlist: [123, 456],
+        streamMode: 'draft',
+        defaultAgentId: 'deepchat',
+        pollOffset: 0,
+        pairing: {
+          code: null,
+          expiresAt: null
+        },
+        bindings: {}
+      },
+      feishu: {
+        appId: 'cli_a',
+        appSecret: 'secret',
+        verificationToken: 'verify',
+        encryptKey: 'encrypt',
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        pairedUserOpenIds: ['ou_1', 'ou_2'],
+        lastFatalError: null,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        },
+        bindings: {}
+      },
+      qqbot: {
+        appId: 'app-1',
+        clientSecret: 'secret',
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        pairedUserIds: ['user_openid_1', 'user_openid_2'],
+        pairedGroupIds: [],
+        lastFatalError: null,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        },
+        bindings: {}
+      }
+    })
+
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    store.removeAllowedUser(456)
+    store.removeFeishuPairedUser('ou_2')
+    store.removeQQBotPairedUser('user_openid_2')
+
+    expect(store.getAllowedUserIds()).toEqual([123])
+    expect(store.getFeishuPairedUserOpenIds()).toEqual(['ou_1'])
+    expect(store.getQQBotPairedUserIds()).toEqual(['user_openid_1'])
+  })
+
   it('keeps valid bindings when another binding is malformed', () => {
     const configPresenter = createConfigPresenter()
     configPresenter.setSetting('remoteControl', {

@@ -8,7 +8,6 @@ import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
   IAgentSessionPresenter,
-  RemoteChannel,
   ITabPresenter,
   IWindowPresenter
 } from '@shared/presenter'
@@ -114,9 +113,7 @@ export class RemoteConversationRunner {
     const projectDir =
       agentType === 'acp' ? await this.resolveDefaultWorkdirForAgent(endpointKey, agentId) : null
     if (agentType === 'acp' && !projectDir) {
-      throw new Error(
-        'ACP agent requires a workdir. Set a Remote default directory or global default directory first.'
-      )
+      throw new Error('ACP agent requires a workdir. Set a global default directory first.')
     }
 
     const session = await this.deps.agentSessionPresenter.createDetachedSession({
@@ -420,34 +417,6 @@ export class RemoteConversationRunner {
     return currentSession?.agentId ?? (await this.deps.resolveDefaultAgentId())
   }
 
-  private resolveChannelFromEndpointKey(endpointKey: string): RemoteChannel {
-    if (endpointKey.startsWith('feishu:')) {
-      return 'feishu'
-    }
-
-    if (endpointKey.startsWith('qqbot:')) {
-      return 'qqbot'
-    }
-
-    if (endpointKey.startsWith('weixin-ilink:')) {
-      return 'weixin-ilink'
-    }
-
-    return 'telegram'
-  }
-
-  private getConfiguredDefaultWorkdir(endpointKey: string): string | null {
-    const channel = this.resolveChannelFromEndpointKey(endpointKey)
-    const config =
-      channel === 'feishu'
-        ? this.bindingStore.getFeishuConfig()
-        : channel === 'qqbot'
-          ? this.bindingStore.getQQBotConfig()
-          : this.bindingStore.getTelegramConfig()
-    const normalized = config.defaultWorkdir?.trim()
-    return normalized ? normalized : null
-  }
-
   private getGlobalDefaultWorkdir(): string | null {
     const projectDir = this.deps.configPresenter.getDefaultProjectPath()
     const normalized = projectDir?.trim()
@@ -455,14 +424,14 @@ export class RemoteConversationRunner {
   }
 
   private async resolveDefaultWorkdirForAgent(
-    endpointKey: string,
+    _endpointKey: string,
     agentId: string
   ): Promise<string | null> {
     if ((await this.deps.configPresenter.getAgentType(agentId)) !== 'acp') {
       return null
     }
 
-    return this.getConfiguredDefaultWorkdir(endpointKey) ?? this.getGlobalDefaultWorkdir()
+    return this.getGlobalDefaultWorkdir()
   }
 
   private async getConversationSnapshot(

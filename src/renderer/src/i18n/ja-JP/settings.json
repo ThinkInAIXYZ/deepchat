@@ -1529,12 +1529,13 @@
   },
   "remote": {
     "title": "リモート",
-    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
+    "description": "Telegram、Feishu、QQBot、WeChat iLink のリモート操作をまとめて設定します。",
     "telegram": {
       "title": "Telegram",
       "description": "1 つの Telegram Bot でリモート操作と Hook 配信を管理します。",
       "botToken": "Bot トークン",
-      "botTokenPlaceholder": "Telegram Bot トークン"
+      "botTokenPlaceholder": "Telegram Bot トークン",
+      "botTokenDescription": "リモート操作と Hook 通知の送信に使う Telegram Bot Token を入力します。"
     },
     "remoteControl": {
       "title": "リモート操作",
@@ -1568,7 +1569,12 @@
       "clearBindingsResult": "{count} 件のバインドをクリアしました。",
       "pairDialogInstructionTelegram": "このコマンドを Telegram Bot に送信してください:",
       "pairDialogInstructionFeishu": "このコマンドを Feishu Bot のダイレクトメッセージに送信してください:",
-      "pairDialogInstructionQQBot": "このコマンドを QQ Bot とのチャットまたは認可済み QQ グループに送信してください:"
+      "pairDialogInstructionQQBot": "このコマンドを QQ Bot とのチャットまたは認可済み QQ グループに送信してください:",
+      "authorizedPrincipalsTitle": "認可済み主体",
+      "authorizedPrincipalsDescription": "これらの {channel} アカウントは認可済みで、ペアリングとセッション操作を行えます。",
+      "authorizedPrincipalsEmpty": "認可済み主体はまだありません。",
+      "sessionBindingsTitle": "セッション紐付け",
+      "sessionBindingsDescription": "下の各リモート入口は現在 1 つの DeepChat セッションに紐付いています。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",

@@ -1529,12 +1529,13 @@
   },
   "remote": {
     "title": "Fjernstyring",
-    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
+    "description": "Konfigurer fjernstyring via Telegram, Feishu, QQBot og WeChat iLink ét sted.",
     "telegram": {
       "title": "Telegram",
       "description": "Administrer én Telegram-bot til fjernstyring og hook-levering.",
       "botToken": "Bot-token",
-      "botTokenPlaceholder": "Telegram bot-token"
+      "botTokenPlaceholder": "Telegram bot-token",
+      "botTokenDescription": "Indtast Telegram-bottens token, som bruges til fjernstyring og levering af Hook-notifikationer."
     },
     "remoteControl": {
       "title": "Fjernstyring",
@@ -1568,7 +1569,12 @@
       "clearBindingsResult": "{count} binding(er) ryddet.",
       "pairDialogInstructionTelegram": "Send denne kommando til Telegram-botten:",
       "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:",
-      "pairDialogInstructionQQBot": "Send denne kommando i QQ-botchatten eller den autoriserede QQ-gruppe:"
+      "pairDialogInstructionQQBot": "Send denne kommando i QQ-botchatten eller den autoriserede QQ-gruppe:",
+      "authorizedPrincipalsTitle": "Autoriserede identiteter",
+      "authorizedPrincipalsDescription": "Disse {channel}-konti er autoriseret til at parre og styre sessioner.",
+      "authorizedPrincipalsEmpty": "Der er endnu ingen autoriserede identiteter.",
+      "sessionBindingsTitle": "Sessionsbindinger",
+      "sessionBindingsDescription": "Hvert fjernendepunkt nedenfor er i øjeblikket bundet til en DeepChat-session."
     },
     "hooks": {
       "title": "Telegram-hooks",

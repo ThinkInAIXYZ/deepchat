@@ -344,6 +344,97 @@ describe('RemoteControlPresenter', () => {
     await expect(presenter.getTelegramBindings()).resolves.toEqual([])
   })
 
+  it('removes authorized principals through the generic presenter contract', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+
+    configPresenter.setSetting('remoteControl', {
+      telegram: {
+        enabled: true,
+        allowlist: [123, 456],
+        streamMode: 'final',
+        defaultAgentId: '',
+        defaultWorkdir: '',
+        pollOffset: 0,
+        pairing: {
+          code: null,
+          expiresAt: null
+        },
+        bindings: {}
+      },
+      feishu: {
+        appId: 'cli_test',
+        appSecret: 'secret',
+        verificationToken: 'verify',
+        encryptKey: '',
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        pairedUserOpenIds: ['ou_1', 'ou_2'],
+        lastFatalError: null,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        },
+        bindings: {}
+      },
+      qqbot: {
+        appId: 'app-1',
+        clientSecret: 'secret',
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        pairedUserIds: ['user_openid_1', 'user_openid_2'],
+        pairedGroupIds: [],
+        lastFatalError: null,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        },
+        bindings: {}
+      }
+    })
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    await presenter.removeChannelPrincipal('telegram', '456')
+    await presenter.removeChannelPrincipal('feishu', 'ou_2')
+    await presenter.removeChannelPrincipal('qqbot', 'user_openid_2')
+
+    await expect(presenter.getTelegramPairingSnapshot()).resolves.toEqual({
+      pairCode: null,
+      pairCodeExpiresAt: null,
+      allowedUserIds: [123]
+    })
+    await expect(presenter.getChannelPairingSnapshot('feishu')).resolves.toEqual({
+      pairCode: null,
+      pairCodeExpiresAt: null,
+      pairedUserOpenIds: ['ou_1']
+    })
+    await expect(presenter.getChannelPairingSnapshot('qqbot')).resolves.toEqual({
+      pairCode: null,
+      pairCodeExpiresAt: null,
+      pairedUserIds: ['user_openid_1']
+    })
+  })
+
   it('falls back to the built-in deepchat agent when saving an invalid default agent', async () => {
     const configPresenter = createConfigPresenter()
     let hooksConfig = createHooksConfig()
@@ -392,9 +483,7 @@ describe('RemoteControlPresenter', () => {
     const saved = await presenter.saveTelegramSettings({
       botToken: 'test-bot-token',
       remoteEnabled: true,
-      allowedUserIds: [],
       defaultAgentId: 'deepchat-alt',
-      defaultWorkdir: '/workspaces/remote',
       hookNotifications: {
         enabled: false,
         chatId: '',
@@ -404,13 +493,11 @@ describe('RemoteControlPresenter', () => {
     })
 
     expect(saved.defaultAgentId).toBe('deepchat')
-    expect(saved.defaultWorkdir).toBe('/workspaces/remote')
     expect(configPresenter.setSetting).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         telegram: expect.objectContaining({
           defaultAgentId: 'deepchat',
-          defaultWorkdir: '/workspaces/remote',
           streamMode: 'final'
         })
       })
@@ -441,9 +528,7 @@ describe('RemoteControlPresenter', () => {
     const saved = await presenter.saveTelegramSettings({
       botToken: 'test-bot-token',
       remoteEnabled: true,
-      allowedUserIds: [],
       defaultAgentId: 'acp-agent',
-      defaultWorkdir: '/workspaces/acp',
       hookNotifications: {
         enabled: false,
         chatId: '',
@@ -453,7 +538,6 @@ describe('RemoteControlPresenter', () => {
     })
 
     expect(saved.defaultAgentId).toBe('acp-agent')
-    expect(saved.defaultWorkdir).toBe('/workspaces/acp')
   })
 
   it('lists builtin remote channels including qqbot and weixin-ilink', async () => {

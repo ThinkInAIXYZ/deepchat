@@ -1529,12 +1529,13 @@
   },
   "remote": {
     "title": "کنترل از راه دور",
-    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
+    "description": "کنترل از راه دور Telegram، Feishu، QQBot و WeChat iLink را در یک‌جا پیکربندی کنید.",
     "telegram": {
       "title": "Telegram",
       "description": "یک ربات تلگرام را برای کنترل از راه دور و ارسال هوک مدیریت کنید.",
       "botToken": "توکن ربات",
-      "botTokenPlaceholder": "توکن ربات تلگرام"
+      "botTokenPlaceholder": "توکن ربات تلگرام",
+      "botTokenDescription": "توکن ربات تلگرام را که برای کنترل از راه دور و ارسال اعلان‌های Hook استفاده می‌شود وارد کنید."
     },
     "remoteControl": {
       "title": "کنترل از راه دور",
@@ -1568,7 +1569,12 @@
       "clearBindingsResult": "{count} اتصال پاک شد.",
       "pairDialogInstructionTelegram": "این فرمان را برای ربات Telegram بفرستید:",
       "pairDialogInstructionFeishu": "این فرمان را در پیام خصوصی برای ربات Feishu بفرستید:",
-      "pairDialogInstructionQQBot": "این دستور را در گفت‌وگوی QQ Bot یا گروه مجاز QQ بفرستید:"
+      "pairDialogInstructionQQBot": "این دستور را در گفت‌وگوی QQ Bot یا گروه مجاز QQ بفرستید:",
+      "authorizedPrincipalsTitle": "شناسه‌های مجاز",
+      "authorizedPrincipalsDescription": "این حساب‌های {channel} مجاز هستند و می‌توانند جفت‌سازی و کنترل نشست‌ها را انجام دهند.",
+      "authorizedPrincipalsEmpty": "هنوز هیچ شناسهٔ مجاز ثبت نشده است.",
+      "sessionBindingsTitle": "پیوندهای نشست",
+      "sessionBindingsDescription": "هر نقطهٔ ورودی راه‌دورِ زیر در حال حاضر به یک نشست DeepChat متصل است."
     },
     "hooks": {
       "title": "هوک‌های تلگرام",

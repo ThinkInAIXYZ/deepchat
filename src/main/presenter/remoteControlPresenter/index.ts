@@ -5,6 +5,7 @@ import type {
   FeishuPairingSnapshot,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
+  PairableRemoteChannel,
   RemoteBindingSummary,
   RemoteChannel,
   RemoteChannelDescriptor,
@@ -118,9 +119,7 @@ export class RemoteControlPresenter {
     return {
       botToken: hooksConfig.botToken,
       remoteEnabled: remoteConfig.enabled,
-      allowedUserIds: remoteConfig.allowlist,
       defaultAgentId: remoteConfig.defaultAgentId,
-      defaultWorkdir: remoteConfig.defaultWorkdir,
       hookNotifications: {
         enabled: hooksConfig.enabled,
         chatId: hooksConfig.chatId,
@@ -138,9 +137,7 @@ export class RemoteControlPresenter {
       verificationToken: remoteConfig.verificationToken,
       encryptKey: remoteConfig.encryptKey,
       remoteEnabled: remoteConfig.enabled,
-      defaultAgentId: remoteConfig.defaultAgentId,
-      defaultWorkdir: remoteConfig.defaultWorkdir,
-      pairedUserOpenIds: [...remoteConfig.pairedUserOpenIds]
+      defaultAgentId: remoteConfig.defaultAgentId
     }
   }
 
@@ -150,9 +147,7 @@ export class RemoteControlPresenter {
       appId: remoteConfig.appId,
       clientSecret: remoteConfig.clientSecret,
       remoteEnabled: remoteConfig.enabled,
-      defaultAgentId: remoteConfig.defaultAgentId,
-      defaultWorkdir: remoteConfig.defaultWorkdir,
-      pairedUserIds: [...remoteConfig.pairedUserIds]
+      defaultAgentId: remoteConfig.defaultAgentId
     }
   }
 
@@ -161,7 +156,6 @@ export class RemoteControlPresenter {
     return {
       remoteEnabled: remoteConfig.enabled,
       defaultAgentId: remoteConfig.defaultAgentId,
-      defaultWorkdir: remoteConfig.defaultWorkdir,
       accounts: remoteConfig.accounts.map((account) => ({
         accountId: account.accountId,
         ownerUserId: account.ownerUserId,
@@ -309,6 +303,30 @@ export class RemoteControlPresenter {
     this.bindingStore.clearBinding(endpointKey)
   }
 
+  async removeChannelPrincipal(channel: PairableRemoteChannel, principalId: string): Promise<void> {
+    const normalizedPrincipalId = principalId.trim()
+    if (!normalizedPrincipalId) {
+      return
+    }
+
+    if (channel === 'telegram') {
+      const parsedUserId = Number.parseInt(normalizedPrincipalId, 10)
+      if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
+        return
+      }
+
+      this.bindingStore.removeAllowedUser(parsedUserId)
+      return
+    }
+
+    if (channel === 'feishu') {
+      this.bindingStore.removeFeishuPairedUser(normalizedPrincipalId)
+      return
+    }
+
+    this.bindingStore.removeQQBotPairedUser(normalizedPrincipalId)
+  }
+
   async getChannelPairingSnapshot(channel: 'telegram'): Promise<TelegramPairingSnapshot>
   async getChannelPairingSnapshot(channel: 'feishu'): Promise<FeishuPairingSnapshot>
   async getChannelPairingSnapshot(channel: 'qqbot'): Promise<QQBotPairingSnapshot>
@@ -370,9 +388,7 @@ export class RemoteControlPresenter {
     this.bindingStore.updateTelegramConfig((config) => ({
       ...config,
       enabled: normalized.remoteEnabled,
-      allowlist: normalized.allowedUserIds,
       defaultAgentId,
-      defaultWorkdir: normalized.defaultWorkdir,
       streamMode: currentRemoteConfig.streamMode,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
@@ -474,8 +490,6 @@ export class RemoteControlPresenter {
       encryptKey: normalized.encryptKey,
       enabled: normalized.remoteEnabled,
       defaultAgentId,
-      defaultWorkdir: normalized.defaultWorkdir,
-      pairedUserOpenIds: normalized.pairedUserOpenIds,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
     }))
@@ -530,8 +544,6 @@ export class RemoteControlPresenter {
       clientSecret: normalized.clientSecret,
       enabled: normalized.remoteEnabled,
       defaultAgentId,
-      defaultWorkdir: normalized.defaultWorkdir,
-      pairedUserIds: normalized.pairedUserIds,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
     }))
@@ -1399,9 +1411,7 @@ export class RemoteControlPresenter {
     return JSON.stringify({
       botToken: settings.botToken.trim(),
       remoteEnabled: settings.remoteEnabled,
-      allowedUserIds: [...settings.allowedUserIds],
       defaultAgentId: settings.defaultAgentId.trim(),
-      defaultWorkdir: settings.defaultWorkdir.trim(),
       hookNotifications: {
         enabled: settings.hookNotifications.enabled,
         chatId: settings.hookNotifications.chatId.trim(),
@@ -1418,9 +1428,7 @@ export class RemoteControlPresenter {
       verificationToken: settings.verificationToken.trim(),
       encryptKey: settings.encryptKey.trim(),
       remoteEnabled: settings.remoteEnabled,
-      defaultAgentId: settings.defaultAgentId.trim(),
-      defaultWorkdir: settings.defaultWorkdir.trim(),
-      pairedUserOpenIds: [...settings.pairedUserOpenIds]
+      defaultAgentId: settings.defaultAgentId.trim()
     })
   }
 
@@ -1429,9 +1437,7 @@ export class RemoteControlPresenter {
       appId: settings.appId.trim(),
       clientSecret: settings.clientSecret.trim(),
       remoteEnabled: settings.remoteEnabled,
-      defaultAgentId: settings.defaultAgentId.trim(),
-      defaultWorkdir: settings.defaultWorkdir.trim(),
-      pairedUserIds: [...settings.pairedUserIds]
+      defaultAgentId: settings.defaultAgentId.trim()
     })
   }
 

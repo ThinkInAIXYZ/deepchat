@@ -1529,12 +1529,13 @@
   },
   "remote": {
     "title": "원격 제어",
-    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
+    "description": "Telegram, Feishu, QQBot, WeChat iLink 원격 제어를 한곳에서 설정합니다.",
     "telegram": {
       "title": "Telegram",
       "description": "하나의 Telegram 봇으로 원격 제어와 Hook 전송을 관리합니다.",
       "botToken": "봇 토큰",
-      "botTokenPlaceholder": "Telegram 봇 토큰"
+      "botTokenPlaceholder": "Telegram 봇 토큰",
+      "botTokenDescription": "원격 제어와 Hook 알림 전송에 사용할 Telegram 봇 토큰을 입력합니다."
     },
     "remoteControl": {
       "title": "원격 제어",
@@ -1568,7 +1569,12 @@
       "clearBindingsResult": "{count}개의 바인딩을 지웠습니다.",
       "pairDialogInstructionTelegram": "이 명령을 Telegram 봇에게 보내세요:",
       "pairDialogInstructionFeishu": "이 명령을 Feishu 봇에게 개인 메시지로 보내세요:",
-      "pairDialogInstructionQQBot": "이 명령을 QQ 봇 채팅 또는 승인된 QQ 그룹으로 보내세요:"
+      "pairDialogInstructionQQBot": "이 명령을 QQ 봇 채팅 또는 승인된 QQ 그룹으로 보내세요:",
+      "authorizedPrincipalsTitle": "승인된 주체",
+      "authorizedPrincipalsDescription": "이 {channel} 계정들은 승인되어 페어링과 세션 제어를 수행할 수 있습니다.",
+      "authorizedPrincipalsEmpty": "아직 승인된 주체가 없습니다.",
+      "sessionBindingsTitle": "세션 바인딩",
+      "sessionBindingsDescription": "아래의 각 원격 엔드포인트는 현재 하나의 DeepChat 세션에 바인딩되어 있습니다."
     },
     "hooks": {
       "title": "Telegram Hook 알림",

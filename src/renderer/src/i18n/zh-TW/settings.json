@@ -1529,12 +1529,13 @@
   },
   "remote": {
     "title": "遠端",
-    "description": "統一配置 Telegram、飛書與 QQBot 遠端控制。",
+    "description": "統一配置 Telegram、飛書、QQBot 和微信 iLink 遠端控制。",
     "telegram": {
       "title": "Telegram",
       "description": "使用同一個 Telegram Bot 管理遠端控制與 Hook 投遞。",
       "botToken": "機器人 Token",
-      "botTokenPlaceholder": "Telegram 機器人 Token"
+      "botTokenPlaceholder": "Telegram 機器人 Token",
+      "botTokenDescription": "填入用於遠端控制與 Hook 通知投遞的 Telegram 機器人 Token。"
     },
     "remoteControl": {
       "title": "遠端控制",
@@ -1568,7 +1569,12 @@
       "clearBindingsResult": "已清除 {count} 個綁定。",
       "pairDialogInstructionTelegram": "到 Telegram Bot 傳送這條指令：",
       "pairDialogInstructionFeishu": "到飛書 Bot 的私訊中傳送這條指令：",
-      "pairDialogInstructionQQBot": "到 QQ 機器人私聊或已授權群聊中發送這條命令："
+      "pairDialogInstructionQQBot": "到 QQ 機器人私聊或已授權群聊中發送這條命令：",
+      "authorizedPrincipalsTitle": "已授權主體",
+      "authorizedPrincipalsDescription": "這些 {channel} 帳號已獲授權，可以配對並操作會話。",
+      "authorizedPrincipalsEmpty": "目前還沒有已授權主體。",
+      "sessionBindingsTitle": "會話綁定",
+      "sessionBindingsDescription": "下方每個遠端入口目前都綁定到一個 DeepChat 會話。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",

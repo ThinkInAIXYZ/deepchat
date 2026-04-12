@@ -1529,12 +1529,13 @@
   },
   "remote": {
     "title": "שליטה מרחוק",
-    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
+    "description": "הגדר במקום אחד שליטה מרחוק דרך Telegram, Feishu, QQBot ו-WeChat iLink.",
     "telegram": {
       "title": "Telegram",
       "description": "נהל בוט Telegram אחד עבור שליטה מרחוק ושליחת Hooks.",
       "botToken": "טוקן בוט",
-      "botTokenPlaceholder": "טוקן בוט Telegram"
+      "botTokenPlaceholder": "טוקן בוט Telegram",
+      "botTokenDescription": "הזן את טוקן הבוט של Telegram המשמש לשליטה מרחוק ולשליחת התראות Hook."
     },
     "remoteControl": {
       "title": "שליטה מרחוק",
@@ -1568,7 +1569,12 @@
       "clearBindingsResult": "{count} קישור(ים) נוקו.",
       "pairDialogInstructionTelegram": "שלחו את הפקודה הזו לבוט Telegram:",
       "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:",
-      "pairDialogInstructionQQBot": "שלח את הפקודה הזו בצ'אט של QQ Bot או בקבוצת QQ מורשית:"
+      "pairDialogInstructionQQBot": "שלח את הפקודה הזו בצ'אט של QQ Bot או בקבוצת QQ מורשית:",
+      "authorizedPrincipalsTitle": "ישויות מורשות",
+      "authorizedPrincipalsDescription": "חשבונות {channel} האלה מורשים לבצע צימוד ולשלוט בסשנים.",
+      "authorizedPrincipalsEmpty": "עדיין אין ישויות מורשות.",
+      "sessionBindingsTitle": "קישורי סשנים",
+      "sessionBindingsDescription": "כל נקודת קצה מרוחקת שלהלן מקושרת כעת לסשן אחד של DeepChat."
     },
     "hooks": {
       "title": "Hooks של Telegram",

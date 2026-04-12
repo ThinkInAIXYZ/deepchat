@@ -1591,12 +1591,13 @@
   },
   "remote": {
     "title": "远程",
-    "description": "统一配置 Telegram、飞书和 QQBot 远程控制。",
+    "description": "统一配置 Telegram、飞书、QQBot 和微信 iLink 远程控制。",
     "telegram": {
       "title": "Telegram",
       "description": "用同一个 Telegram Bot 管理远程控制和 Hook 投递。",
       "botToken": "机器人 Token",
-      "botTokenPlaceholder": "Telegram 机器人 Token"
+      "botTokenPlaceholder": "Telegram 机器人 Token",
+      "botTokenDescription": "填写用于远程控制和 Hook 通知投递的 Telegram 机器人 Token。"
     },
     "feishu": {
       "title": "飞书",
@@ -1646,7 +1647,12 @@
       "bindingsEmpty": "当前还没有绑定的会话。",
       "pairingSuccessTitle": "配对成功",
       "pairingSuccessDescription": "已配对主体列表已刷新。",
-      "pairDialogInstructionQQBot": "去 QQ 机器人私聊或已授权群聊里发送这条命令："
+      "pairDialogInstructionQQBot": "去 QQ 机器人私聊或已授权群聊里发送这条命令：",
+      "authorizedPrincipalsTitle": "已授权主体",
+      "authorizedPrincipalsDescription": "这些 {channel} 账号已经授权，可以配对并操作会话。",
+      "authorizedPrincipalsEmpty": "当前还没有已授权主体。",
+      "sessionBindingsTitle": "会话绑定",
+      "sessionBindingsDescription": "下方每个远程入口当前都绑定到了一个 DeepChat 会话。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",

@@ -32,61 +32,6 @@
           </div>
         </div>
 
-        <div class="grid gap-3 md:grid-cols-2">
-          <div
-            v-for="channel in implementedChannels"
-            :key="channel"
-            class="rounded-lg border bg-muted/20 p-4"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="space-y-1">
-                <div class="text-sm font-medium">
-                  {{ channelTitle(channel) }}
-                </div>
-                <div class="text-xs text-muted-foreground">
-                  {{
-                    t(`settings.remote.status.states.${channelStatus(channel)?.state || 'stopped'}`)
-                  }}
-                </div>
-              </div>
-              <div class="flex flex-col items-end gap-2">
-                <span
-                  :class="[
-                    'inline-flex rounded-full px-2 py-1 text-[11px]',
-                    statusDotClass(channelStatus(channel)?.state || 'stopped')
-                  ]"
-                >
-                  {{
-                    t(`settings.remote.status.states.${channelStatus(channel)?.state || 'stopped'}`)
-                  }}
-                </span>
-                <label class="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{{
-                    channelEnabled(channel) ? t('common.enabled') : t('common.disabled')
-                  }}</span>
-                  <Switch
-                    :data-testid="`remote-overview-toggle-${channel}`"
-                    :model-value="channelEnabled(channel)"
-                    :disabled="saving[channel]"
-                    @update:model-value="
-                      (value) => updateChannelRemoteEnabled(channel, value === true)
-                    "
-                  />
-                </label>
-              </div>
-            </div>
-            <div class="mt-3 text-xs text-muted-foreground">
-              {{ formatOverviewLine(channel) }}
-            </div>
-            <div
-              v-if="channelStatus(channel)?.lastError"
-              class="mt-2 break-all text-xs text-destructive"
-            >
-              {{ channelStatus(channel)?.lastError }}
-            </div>
-          </div>
-        </div>
-
         <Tabs v-model="activeChannel" class="space-y-4">
           <TabsList
             class="grid w-full"
@@ -110,14 +55,52 @@
           </TabsList>
 
           <TabsContent value="telegram" class="space-y-4">
-            <div class="rounded-lg border">
-              <div class="space-y-4 p-4">
+            <div class="rounded-lg border bg-muted/20 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="space-y-1">
-                  <div class="text-base font-medium">
-                    {{ t('settings.remote.sections.credentials') }}
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="text-base font-medium">{{ channelTitle('telegram') }}</div>
+                    <span
+                      :class="[
+                        'inline-flex rounded-full px-2 py-1 text-[11px]',
+                        statusDotClass(telegramStatus.state)
+                      ]"
+                    >
+                      {{ formatStatusLine(telegramStatus) }}
+                    </span>
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.telegram.description') }}
+                  </p>
+                  <p class="text-xs text-muted-foreground">
+                    {{ formatOverviewLine('telegram') }}
+                  </p>
+                  <p v-if="telegramStatus.lastError" class="break-all text-xs text-destructive">
+                    {{ telegramStatus.lastError }}
+                  </p>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>{{
+                    telegramSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
+                  }}</span>
+                  <Switch
+                    data-testid="remote-channel-toggle-telegram"
+                    :model-value="telegramSettings.remoteEnabled"
+                    :disabled="saving.telegram"
+                    @update:model-value="(value) => updateTelegramRemoteEnabled(value === true)"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.sections.credentials') }}
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.telegram.botTokenDescription') }}
                   </p>
                 </div>
 
@@ -146,36 +129,12 @@
                     </Button>
                   </div>
                 </div>
-
-                <div class="rounded-md border bg-muted/30 p-3 text-sm">
-                  <div class="font-medium">{{ t('settings.remote.status.title') }}</div>
-                  <div class="mt-1 text-muted-foreground">
-                    {{ formatStatusLine(telegramStatus) }}
-                  </div>
-                  <div v-if="telegramStatus.botUser" class="mt-1 text-muted-foreground">
-                    {{
-                      t('settings.remote.status.botUser', {
-                        id: telegramStatus.botUser.id,
-                        username: telegramStatus.botUser.username || 'unknown'
-                      })
-                    }}
-                  </div>
-                  <div class="mt-1 text-muted-foreground">
-                    {{
-                      t('settings.remote.status.bindings', {
-                        count: telegramStatus.bindingCount,
-                        pollOffset: telegramStatus.pollOffset
-                      })
-                    }}
-                  </div>
-                  <div v-if="telegramStatus.lastError" class="mt-2 break-all text-destructive">
-                    {{ telegramStatus.lastError }}
-                  </div>
-                </div>
               </div>
+            </div>
 
-              <div class="border-t p-4">
-                <div class="mb-3 space-y-1">
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
                   <div class="text-sm font-medium">
                     {{ t('settings.remote.sections.remoteControl') }}
                   </div>
@@ -184,276 +143,176 @@
                   </p>
                 </div>
 
-                <div
-                  v-if="telegramSettings.remoteEnabled"
-                  data-testid="remote-control-details"
-                  class="space-y-4"
-                >
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.remoteControl.allowedUserIds') }}
-                      </Label>
-                      <Input
-                        data-testid="remote-allowed-user-ids-input"
-                        v-model="telegramAllowedUserIdsText"
-                        :placeholder="t('settings.remote.remoteControl.allowedUserIdsPlaceholder')"
-                        @blur="queueTelegramSettingsPersist"
-                      />
-                    </div>
-
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.remoteControl.defaultAgent') }}
-                      </Label>
-                      <Select
-                        :model-value="telegramSettings.defaultAgentId"
-                        @update:model-value="(value) => updateTelegramDefaultAgentId(String(value))"
-                      >
-                        <SelectTrigger data-testid="remote-default-agent-select" class="h-8!">
-                          <SelectValue
-                            :placeholder="
-                              t('settings.remote.remoteControl.defaultAgentPlaceholder')
-                            "
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="agent in defaultAgentOptions(telegramSettings.defaultAgentId)"
-                            :key="agent.id"
-                            :value="agent.id"
-                          >
-                            {{ agent.name }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div class="space-y-2">
                     <Label class="text-xs text-muted-foreground">
-                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                      {{ t('settings.remote.remoteControl.defaultAgent') }}
                     </Label>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger as-child>
-                        <Button
-                          data-testid="remote-default-workdir-input"
-                          variant="outline"
-                          size="sm"
-                          class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
-                          :title="telegramDefaultWorkdirTitle"
+                    <Select
+                      :model-value="telegramSettings.defaultAgentId"
+                      @update:model-value="(value) => updateTelegramDefaultAgentId(String(value))"
+                    >
+                      <SelectTrigger data-testid="remote-default-agent-select" class="h-8!">
+                        <SelectValue
+                          :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          v-for="agent in defaultAgentOptions(telegramSettings.defaultAgentId)"
+                          :key="agent.id"
+                          :value="agent.id"
                         >
-                          <div class="flex min-w-0 items-center gap-1.5">
-                            <Icon
-                              icon="lucide:folder"
-                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                            />
-                            <span class="truncate">{{ telegramDefaultWorkdirLabel }}</span>
-                          </div>
-                          <Icon
-                            icon="lucide:chevron-down"
-                            class="h-3 w-3 shrink-0 text-muted-foreground"
-                          />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" class="w-[20rem]">
-                        <DropdownMenuItem
-                          v-for="project in telegramDirectoryOptions"
-                          :key="project.path"
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="selectDefaultWorkdir('telegram', project.path)"
-                        >
-                          <Icon
-                            icon="lucide:folder"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <div class="min-w-0 flex-1">
-                            <div class="truncate">{{ project.name }}</div>
-                            <div class="truncate text-[10px] text-muted-foreground">
-                              {{ project.path }}
-                            </div>
-                          </div>
-                          <Icon
-                            v-if="normalizePath(telegramSettings.defaultWorkdir) === project.path"
-                            icon="lucide:check"
-                            class="h-3.5 w-3.5 shrink-0"
-                          />
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          data-testid="remote-default-workdir-open-folder"
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="pickDefaultWorkdir('telegram')"
-                        >
-                          <Icon
-                            icon="lucide:folder-open"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.project.openFolder') }}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          v-if="telegramSettings.defaultWorkdir"
-                          data-testid="remote-default-workdir-clear"
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="clearDefaultWorkdir('telegram')"
-                        >
-                          <Icon
-                            icon="lucide:x"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.clear') }}</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <p class="text-xs text-muted-foreground">
-                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
-                    </p>
+                          {{ agent.name }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                </div>
 
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Button
-                      data-testid="remote-pair-button"
-                      variant="outline"
-                      size="sm"
-                      @click="generatePairCodeAndOpenDialog('telegram')"
-                    >
-                      {{ t('settings.remote.remoteControl.openPairDialog') }}
-                    </Button>
-                    <Button
-                      data-testid="remote-bindings-button"
-                      variant="outline"
-                      size="sm"
-                      @click="openBindingsDialog('telegram')"
-                    >
-                      {{ t('settings.remote.remoteControl.manageBindings') }}
-                    </Button>
-                  </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    data-testid="remote-pair-button"
+                    variant="outline"
+                    size="sm"
+                    :disabled="!telegramSettings.remoteEnabled || saving.telegram"
+                    @click="generatePairCodeAndOpenDialog('telegram')"
+                  >
+                    {{ t('settings.remote.remoteControl.openPairDialog') }}
+                  </Button>
+                  <Button
+                    data-testid="remote-bindings-button"
+                    variant="outline"
+                    size="sm"
+                    :disabled="saving.telegram"
+                    @click="openBindingsDialog('telegram')"
+                  >
+                    {{ t('settings.remote.remoteControl.manageBindings') }}
+                  </Button>
                 </div>
               </div>
+            </div>
 
-              <div class="border-t p-4">
-                <div class="mb-3 flex items-start justify-between gap-4">
-                  <div class="flex-1">
-                    <div class="text-sm font-medium">
-                      {{ t('settings.remote.sections.notifications') }}
-                    </div>
-                    <p class="text-sm text-muted-foreground">
-                      {{ t('settings.remote.hooks.description') }}
-                    </p>
+            <div class="rounded-lg border p-4">
+              <div class="mb-3 flex items-start justify-between gap-4">
+                <div class="flex-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.sections.notifications') }}
                   </div>
-                  <Switch
-                    :model-value="telegramSettings.hookNotifications.enabled"
-                    @update:model-value="(value) => updateHookEnabled(value)"
-                  />
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.hooks.description') }}
+                  </p>
                 </div>
+                <Switch
+                  :model-value="telegramSettings.hookNotifications.enabled"
+                  @update:model-value="(value) => updateHookEnabled(value)"
+                />
+              </div>
 
-                <div
-                  v-if="telegramSettings.hookNotifications.enabled"
-                  data-testid="remote-hooks-details"
-                  class="space-y-4"
-                >
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.hooks.chatId') }}
-                      </Label>
-                      <Input
-                        v-model="telegramSettings.hookNotifications.chatId"
-                        :placeholder="t('settings.remote.hooks.chatIdPlaceholder')"
-                        @blur="queueTelegramSettingsPersist"
-                      />
-                    </div>
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.hooks.threadId') }}
-                      </Label>
-                      <Input
-                        v-model="telegramSettings.hookNotifications.threadId"
-                        :placeholder="t('settings.remote.hooks.threadIdPlaceholder')"
-                        @blur="queueTelegramSettingsPersist"
-                      />
-                    </div>
-                  </div>
-
+              <div
+                v-if="telegramSettings.hookNotifications.enabled"
+                data-testid="remote-hooks-details"
+                class="space-y-4"
+              >
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div class="space-y-2">
                     <Label class="text-xs text-muted-foreground">
-                      {{ t('settings.notificationsHooks.events.title') }}
+                      {{ t('settings.remote.hooks.chatId') }}
                     </Label>
-                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <label
-                        v-for="eventName in eventNames"
-                        :key="`remote-hook-${eventName}`"
-                        class="flex items-center gap-2 text-sm"
-                      >
-                        <Checkbox
-                          :checked="telegramSettings.hookNotifications.events.includes(eventName)"
-                          @update:checked="(value) => updateHookEvent(eventName, value === true)"
-                        />
-                        <span>{{ eventLabel(eventName) }}</span>
-                      </label>
-                    </div>
+                    <Input
+                      v-model="telegramSettings.hookNotifications.chatId"
+                      :placeholder="t('settings.remote.hooks.chatIdPlaceholder')"
+                      @blur="queueTelegramSettingsPersist"
+                    />
                   </div>
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.hooks.threadId') }}
+                    </Label>
+                    <Input
+                      v-model="telegramSettings.hookNotifications.threadId"
+                      :placeholder="t('settings.remote.hooks.threadIdPlaceholder')"
+                      @blur="queueTelegramSettingsPersist"
+                    />
+                  </div>
+                </div>
 
-                  <div class="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      :disabled="telegramTesting"
-                      @click="runTelegramHookTest"
+                <div class="space-y-2">
+                  <Label class="text-xs text-muted-foreground">
+                    {{ t('settings.notificationsHooks.events.title') }}
+                  </Label>
+                  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label
+                      v-for="eventName in eventNames"
+                      :key="`remote-hook-${eventName}`"
+                      class="flex items-center gap-2 text-sm"
                     >
-                      <Icon
-                        :icon="telegramTesting ? 'lucide:loader-2' : 'lucide:send'"
-                        :class="['mr-1 h-4 w-4', telegramTesting && 'animate-spin']"
+                      <Checkbox
+                        :checked="telegramSettings.hookNotifications.events.includes(eventName)"
+                        @update:checked="(value) => updateHookEvent(eventName, value === true)"
                       />
-                      {{
-                        telegramTesting
-                          ? t('settings.notificationsHooks.test.testing')
-                          : t('settings.notificationsHooks.test.button')
-                      }}
-                    </Button>
+                      <span>{{ eventLabel(eventName) }}</span>
+                    </label>
                   </div>
+                </div>
 
-                  <div v-if="telegramTestResult" class="space-y-1 text-xs">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span
-                        :class="
-                          telegramTestResult.success ? 'text-emerald-600' : 'text-destructive'
-                        "
-                      >
-                        {{
-                          telegramTestResult.success
-                            ? t('settings.notificationsHooks.test.success')
-                            : t('settings.notificationsHooks.test.failed')
-                        }}
-                      </span>
-                      <span class="text-muted-foreground">
-                        {{
-                          t('settings.notificationsHooks.test.duration', {
-                            ms: telegramTestResult.durationMs
-                          })
-                        }}
-                      </span>
-                      <span
-                        v-if="telegramTestResult.statusCode !== undefined"
-                        class="text-muted-foreground"
-                      >
-                        {{
-                          t('settings.notificationsHooks.test.statusCode', {
-                            code: telegramTestResult.statusCode
-                          })
-                        }}
-                      </span>
-                      <span v-if="telegramTestResult.retryAfterMs" class="text-muted-foreground">
-                        {{
-                          t('settings.notificationsHooks.test.retryAfter', {
-                            ms: telegramTestResult.retryAfterMs
-                          })
-                        }}
-                      </span>
-                    </div>
-                    <div v-if="telegramTestResult.error" class="break-all text-destructive">
-                      {{ telegramTestResult.error }}
-                    </div>
+                <div class="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="telegramTesting"
+                    @click="runTelegramHookTest"
+                  >
+                    <Icon
+                      :icon="telegramTesting ? 'lucide:loader-2' : 'lucide:send'"
+                      :class="['mr-1 h-4 w-4', telegramTesting && 'animate-spin']"
+                    />
+                    {{
+                      telegramTesting
+                        ? t('settings.notificationsHooks.test.testing')
+                        : t('settings.notificationsHooks.test.button')
+                    }}
+                  </Button>
+                </div>
+
+                <div v-if="telegramTestResult" class="space-y-1 text-xs">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span
+                      :class="telegramTestResult.success ? 'text-emerald-600' : 'text-destructive'"
+                    >
+                      {{
+                        telegramTestResult.success
+                          ? t('settings.notificationsHooks.test.success')
+                          : t('settings.notificationsHooks.test.failed')
+                      }}
+                    </span>
+                    <span class="text-muted-foreground">
+                      {{
+                        t('settings.notificationsHooks.test.duration', {
+                          ms: telegramTestResult.durationMs
+                        })
+                      }}
+                    </span>
+                    <span
+                      v-if="telegramTestResult.statusCode !== undefined"
+                      class="text-muted-foreground"
+                    >
+                      {{
+                        t('settings.notificationsHooks.test.statusCode', {
+                          code: telegramTestResult.statusCode
+                        })
+                      }}
+                    </span>
+                    <span v-if="telegramTestResult.retryAfterMs" class="text-muted-foreground">
+                      {{
+                        t('settings.notificationsHooks.test.retryAfter', {
+                          ms: telegramTestResult.retryAfterMs
+                        })
+                      }}
+                    </span>
+                  </div>
+                  <div v-if="telegramTestResult.error" class="break-all text-destructive">
+                    {{ telegramTestResult.error }}
                   </div>
                 </div>
               </div>
@@ -461,15 +320,50 @@
           </TabsContent>
 
           <TabsContent value="feishu" class="space-y-4">
-            <div class="rounded-lg border">
-              <div class="space-y-4 p-4">
+            <div class="rounded-lg border bg-muted/20 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="space-y-1">
-                  <div class="text-base font-medium">
-                    {{ t('settings.remote.sections.credentials') }}
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="text-base font-medium">{{ channelTitle('feishu') }}</div>
+                    <span
+                      :class="[
+                        'inline-flex rounded-full px-2 py-1 text-[11px]',
+                        statusDotClass(feishuStatus.state)
+                      ]"
+                    >
+                      {{ formatStatusLine(feishuStatus) }}
+                    </span>
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.feishu.description') }}
                   </p>
+                  <p class="text-xs text-muted-foreground">
+                    {{ formatOverviewLine('feishu') }}
+                  </p>
+                  <p v-if="feishuStatus.lastError" class="break-all text-xs text-destructive">
+                    {{ feishuStatus.lastError }}
+                  </p>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>{{
+                    feishuSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
+                  }}</span>
+                  <Switch
+                    data-testid="remote-channel-toggle-feishu"
+                    :model-value="feishuSettings.remoteEnabled"
+                    :disabled="saving.feishu"
+                    @update:model-value="(value) => updateFeishuRemoteEnabled(value === true)"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.sections.credentials') }}
+                  </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -515,36 +409,12 @@
                     />
                   </div>
                 </div>
-
-                <div class="rounded-md border bg-muted/30 p-3 text-sm">
-                  <div class="font-medium">{{ t('settings.remote.status.title') }}</div>
-                  <div class="mt-1 text-muted-foreground">
-                    {{ formatStatusLine(feishuStatus) }}
-                  </div>
-                  <div v-if="feishuStatus.botUser" class="mt-1 text-muted-foreground">
-                    {{
-                      t('settings.remote.feishu.botUser', {
-                        name: feishuStatus.botUser.name || 'unknown',
-                        openId: feishuStatus.botUser.openId
-                      })
-                    }}
-                  </div>
-                  <div class="mt-1 text-muted-foreground">
-                    {{
-                      t('settings.remote.feishu.bindings', {
-                        count: feishuStatus.bindingCount,
-                        pairedUserCount: feishuStatus.pairedUserCount
-                      })
-                    }}
-                  </div>
-                  <div v-if="feishuStatus.lastError" class="mt-2 break-all text-destructive">
-                    {{ feishuStatus.lastError }}
-                  </div>
-                </div>
               </div>
+            </div>
 
-              <div class="border-t p-4">
-                <div class="mb-3 space-y-1">
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
                   <div class="text-sm font-medium">
                     {{ t('settings.remote.sections.remoteControl') }}
                   </div>
@@ -554,171 +424,108 @@
                 </div>
 
                 <div
-                  v-if="feishuSettings.remoteEnabled"
-                  data-testid="feishu-remote-control-details"
-                  class="space-y-4"
+                  class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground"
                 >
-                  <div
-                    class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground"
-                  >
-                    <div>{{ t('settings.remote.feishu.accessRule1') }}</div>
-                    <div class="mt-1">{{ t('settings.remote.feishu.accessRule2') }}</div>
-                  </div>
+                  <div>{{ t('settings.remote.feishu.accessRule1') }}</div>
+                  <div class="mt-1">{{ t('settings.remote.feishu.accessRule2') }}</div>
+                </div>
 
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.feishu.pairedUserOpenIds') }}
-                      </Label>
-                      <Input
-                        v-model="feishuPairedUserOpenIdsText"
-                        data-testid="remote-feishu-paired-user-open-ids-input"
-                        :placeholder="t('settings.remote.feishu.pairedUserOpenIdsPlaceholder')"
-                        @blur="queueFeishuSettingsPersist"
-                      />
-                    </div>
-
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.remoteControl.defaultAgent') }}
-                      </Label>
-                      <Select
-                        :model-value="feishuSettings.defaultAgentId"
-                        @update:model-value="(value) => updateFeishuDefaultAgentId(String(value))"
-                      >
-                        <SelectTrigger class="h-8!">
-                          <SelectValue
-                            :placeholder="
-                              t('settings.remote.remoteControl.defaultAgentPlaceholder')
-                            "
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="agent in defaultAgentOptions(feishuSettings.defaultAgentId)"
-                            :key="agent.id"
-                            :value="agent.id"
-                          >
-                            {{ agent.name }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div class="space-y-2">
                     <Label class="text-xs text-muted-foreground">
-                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                      {{ t('settings.remote.remoteControl.defaultAgent') }}
                     </Label>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger as-child>
-                        <Button
-                          data-testid="remote-feishu-default-workdir-input"
-                          variant="outline"
-                          size="sm"
-                          class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
-                          :title="feishuDefaultWorkdirTitle"
+                    <Select
+                      :model-value="feishuSettings.defaultAgentId"
+                      @update:model-value="(value) => updateFeishuDefaultAgentId(String(value))"
+                    >
+                      <SelectTrigger class="h-8!">
+                        <SelectValue
+                          :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          v-for="agent in defaultAgentOptions(feishuSettings.defaultAgentId)"
+                          :key="agent.id"
+                          :value="agent.id"
                         >
-                          <div class="flex min-w-0 items-center gap-1.5">
-                            <Icon
-                              icon="lucide:folder"
-                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                            />
-                            <span class="truncate">{{ feishuDefaultWorkdirLabel }}</span>
-                          </div>
-                          <Icon
-                            icon="lucide:chevron-down"
-                            class="h-3 w-3 shrink-0 text-muted-foreground"
-                          />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" class="w-[20rem]">
-                        <DropdownMenuItem
-                          v-for="project in feishuDirectoryOptions"
-                          :key="project.path"
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="selectDefaultWorkdir('feishu', project.path)"
-                        >
-                          <Icon
-                            icon="lucide:folder"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <div class="min-w-0 flex-1">
-                            <div class="truncate">{{ project.name }}</div>
-                            <div class="truncate text-[10px] text-muted-foreground">
-                              {{ project.path }}
-                            </div>
-                          </div>
-                          <Icon
-                            v-if="normalizePath(feishuSettings.defaultWorkdir) === project.path"
-                            icon="lucide:check"
-                            class="h-3.5 w-3.5 shrink-0"
-                          />
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          data-testid="remote-feishu-default-workdir-open-folder"
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="pickDefaultWorkdir('feishu')"
-                        >
-                          <Icon
-                            icon="lucide:folder-open"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.project.openFolder') }}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          v-if="feishuSettings.defaultWorkdir"
-                          data-testid="remote-feishu-default-workdir-clear"
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="clearDefaultWorkdir('feishu')"
-                        >
-                          <Icon
-                            icon="lucide:x"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.clear') }}</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <p class="text-xs text-muted-foreground">
-                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
-                    </p>
+                          {{ agent.name }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                </div>
 
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Button
-                      data-testid="feishu-pair-button"
-                      variant="outline"
-                      size="sm"
-                      @click="generatePairCodeAndOpenDialog('feishu')"
-                    >
-                      {{ t('settings.remote.remoteControl.openPairDialog') }}
-                    </Button>
-                    <Button
-                      data-testid="feishu-bindings-button"
-                      variant="outline"
-                      size="sm"
-                      @click="openBindingsDialog('feishu')"
-                    >
-                      {{ t('settings.remote.remoteControl.manageBindings') }}
-                    </Button>
-                  </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    data-testid="feishu-pair-button"
+                    variant="outline"
+                    size="sm"
+                    :disabled="!feishuSettings.remoteEnabled || saving.feishu"
+                    @click="generatePairCodeAndOpenDialog('feishu')"
+                  >
+                    {{ t('settings.remote.remoteControl.openPairDialog') }}
+                  </Button>
+                  <Button
+                    data-testid="feishu-bindings-button"
+                    variant="outline"
+                    size="sm"
+                    :disabled="saving.feishu"
+                    @click="openBindingsDialog('feishu')"
+                  >
+                    {{ t('settings.remote.remoteControl.manageBindings') }}
+                  </Button>
                 </div>
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="qqbot" class="space-y-4">
-            <div class="rounded-lg border">
-              <div class="space-y-4 p-4">
+            <div class="rounded-lg border bg-muted/20 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="space-y-1">
-                  <div class="text-base font-medium">
-                    {{ t('settings.remote.sections.credentials') }}
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="text-base font-medium">{{ channelTitle('qqbot') }}</div>
+                    <span
+                      :class="[
+                        'inline-flex rounded-full px-2 py-1 text-[11px]',
+                        statusDotClass(qqbotStatus.state)
+                      ]"
+                    >
+                      {{ formatStatusLine(qqbotStatus) }}
+                    </span>
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.qqbot.description') }}
                   </p>
+                  <p class="text-xs text-muted-foreground">
+                    {{ formatOverviewLine('qqbot') }}
+                  </p>
+                  <p v-if="qqbotStatus.lastError" class="break-all text-xs text-destructive">
+                    {{ qqbotStatus.lastError }}
+                  </p>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>{{
+                    qqbotSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
+                  }}</span>
+                  <Switch
+                    data-testid="remote-channel-toggle-qqbot"
+                    :model-value="qqbotSettings.remoteEnabled"
+                    :disabled="saving.qqbot"
+                    @update:model-value="(value) => updateQQBotRemoteEnabled(value === true)"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.sections.credentials') }}
+                  </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -745,36 +552,12 @@
                     />
                   </div>
                 </div>
-
-                <div class="rounded-md border bg-muted/30 p-3 text-sm">
-                  <div class="font-medium">{{ t('settings.remote.status.title') }}</div>
-                  <div class="mt-1 text-muted-foreground">
-                    {{ formatStatusLine(qqbotStatus) }}
-                  </div>
-                  <div v-if="qqbotStatus.botUser" class="mt-1 text-muted-foreground">
-                    {{
-                      t('settings.remote.status.botUser', {
-                        id: qqbotStatus.botUser.id,
-                        username: qqbotStatus.botUser.username || 'unknown'
-                      })
-                    }}
-                  </div>
-                  <div class="mt-1 text-muted-foreground">
-                    {{
-                      t('settings.remote.status.bindingOnly', {
-                        count: qqbotStatus.bindingCount,
-                        paired: qqbotStatus.pairedUserCount
-                      })
-                    }}
-                  </div>
-                  <div v-if="qqbotStatus.lastError" class="mt-2 break-all text-destructive">
-                    {{ qqbotStatus.lastError }}
-                  </div>
-                </div>
               </div>
+            </div>
 
-              <div class="border-t p-4">
-                <div class="mb-3 space-y-1">
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
                   <div class="text-sm font-medium">
                     {{ t('settings.remote.sections.remoteControl') }}
                   </div>
@@ -783,172 +566,96 @@
                   </p>
                 </div>
 
-                <div v-if="qqbotSettings.remoteEnabled" class="space-y-4">
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.qqbot.pairedUserIds') }}
-                      </Label>
-                      <Input
-                        v-model="qqbotPairedUserIdsText"
-                        :placeholder="t('settings.remote.qqbot.pairedUserIdsPlaceholder')"
-                        @blur="queueQQBotSettingsPersist"
-                      />
-                    </div>
-
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.remoteControl.defaultAgent') }}
-                      </Label>
-                      <Select
-                        :model-value="qqbotSettings.defaultAgentId"
-                        @update:model-value="(value) => updateQQBotDefaultAgentId(String(value))"
-                      >
-                        <SelectTrigger class="h-8!">
-                          <SelectValue
-                            :placeholder="
-                              t('settings.remote.remoteControl.defaultAgentPlaceholder')
-                            "
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="agent in defaultAgentOptions(qqbotSettings.defaultAgentId)"
-                            :key="agent.id"
-                            :value="agent.id"
-                          >
-                            {{ agent.name }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div class="space-y-2">
                     <Label class="text-xs text-muted-foreground">
-                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                      {{ t('settings.remote.remoteControl.defaultAgent') }}
                     </Label>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger as-child>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
-                          :title="qqbotDefaultWorkdirTitle"
-                        >
-                          <div class="flex min-w-0 items-center gap-1.5">
-                            <Icon
-                              icon="lucide:folder"
-                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                            />
-                            <span class="truncate">{{ qqbotDefaultWorkdirLabel }}</span>
-                          </div>
-                          <Icon
-                            icon="lucide:chevron-down"
-                            class="h-3 w-3 shrink-0 text-muted-foreground"
-                          />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" class="w-[20rem]">
-                        <DropdownMenuItem
-                          v-for="project in qqbotDirectoryOptions"
-                          :key="project.path"
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="selectDefaultWorkdir('qqbot', project.path)"
-                        >
-                          <Icon
-                            icon="lucide:folder"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <div class="min-w-0 flex-1">
-                            <div class="truncate">{{ project.name }}</div>
-                            <div class="truncate text-[10px] text-muted-foreground">
-                              {{ project.path }}
-                            </div>
-                          </div>
-                          <Icon
-                            v-if="normalizePath(qqbotSettings.defaultWorkdir) === project.path"
-                            icon="lucide:check"
-                            class="h-3.5 w-3.5 shrink-0"
-                          />
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="pickDefaultWorkdir('qqbot')"
-                        >
-                          <Icon
-                            icon="lucide:folder-open"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.project.openFolder') }}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          v-if="qqbotSettings.defaultWorkdir"
-                          class="gap-2 px-2 py-1.5 text-xs"
-                          @select="clearDefaultWorkdir('qqbot')"
-                        >
-                          <Icon
-                            icon="lucide:x"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.clear') }}</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <p class="text-xs text-muted-foreground">
-                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
-                    </p>
-                  </div>
-
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      @click="generatePairCodeAndOpenDialog('qqbot')"
+                    <Select
+                      :model-value="qqbotSettings.defaultAgentId"
+                      @update:model-value="(value) => updateQQBotDefaultAgentId(String(value))"
                     >
-                      {{ t('settings.remote.remoteControl.openPairDialog') }}
-                    </Button>
-                    <Button variant="outline" size="sm" @click="openBindingsDialog('qqbot')">
-                      {{ t('settings.remote.remoteControl.manageBindings') }}
-                    </Button>
+                      <SelectTrigger class="h-8!">
+                        <SelectValue
+                          :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          v-for="agent in defaultAgentOptions(qqbotSettings.defaultAgentId)"
+                          :key="agent.id"
+                          :value="agent.id"
+                        >
+                          {{ agent.name }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="!qqbotSettings.remoteEnabled || saving.qqbot"
+                    @click="generatePairCodeAndOpenDialog('qqbot')"
+                  >
+                    {{ t('settings.remote.remoteControl.openPairDialog') }}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="saving.qqbot"
+                    @click="openBindingsDialog('qqbot')"
+                  >
+                    {{ t('settings.remote.remoteControl.manageBindings') }}
+                  </Button>
                 </div>
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="weixin-ilink" class="space-y-4">
-            <div class="rounded-lg border">
-              <div class="space-y-4 p-4">
+            <div class="rounded-lg border bg-muted/20 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="space-y-1">
-                  <div class="text-base font-medium">
-                    {{ t('settings.remote.sections.credentials') }}
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="text-base font-medium">{{ channelTitle('weixin-ilink') }}</div>
+                    <span
+                      :class="[
+                        'inline-flex rounded-full px-2 py-1 text-[11px]',
+                        statusDotClass(weixinIlinkStatus.state)
+                      ]"
+                    >
+                      {{ formatStatusLine(weixinIlinkStatus) }}
+                    </span>
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.weixinIlink.description') }}
                   </p>
-                </div>
-
-                <div class="rounded-md border bg-muted/30 p-3 text-sm">
-                  <div class="font-medium">{{ t('settings.remote.status.title') }}</div>
-                  <div class="mt-1 text-muted-foreground">
-                    {{ formatStatusLine(weixinIlinkStatus) }}
-                  </div>
-                  <div class="mt-1 text-muted-foreground">
-                    {{
-                      t('settings.remote.weixinIlink.statusSummary', {
-                        accounts: weixinIlinkStatus.accountCount,
-                        connected: weixinIlinkStatus.connectedAccountCount,
-                        bindings: weixinIlinkStatus.bindingCount
-                      })
-                    }}
-                  </div>
-                  <div v-if="weixinIlinkStatus.lastError" class="mt-2 break-all text-destructive">
+                  <p class="text-xs text-muted-foreground">
+                    {{ formatOverviewLine('weixin-ilink') }}
+                  </p>
+                  <p v-if="weixinIlinkStatus.lastError" class="break-all text-xs text-destructive">
                     {{ weixinIlinkStatus.lastError }}
-                  </div>
+                  </p>
                 </div>
+                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>{{
+                    weixinIlinkSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
+                  }}</span>
+                  <Switch
+                    data-testid="remote-channel-toggle-weixin-ilink"
+                    :model-value="weixinIlinkSettings.remoteEnabled"
+                    :disabled="saving['weixin-ilink']"
+                    @update:model-value="(value) => updateWeixinIlinkRemoteEnabled(value === true)"
+                  />
+                </label>
+              </div>
+            </div>
 
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
                 <div
                   class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground"
                 >
@@ -972,112 +679,113 @@
                   </Button>
                 </div>
               </div>
+            </div>
 
-              <div class="border-t p-4">
-                <div class="mb-3 space-y-1">
-                  <div class="text-sm font-medium">
-                    {{ t('settings.remote.weixinIlink.accountsTitle') }}
-                  </div>
-                  <p class="text-sm text-muted-foreground">
-                    {{ t('settings.remote.weixinIlink.accountsDescription') }}
-                  </p>
+            <div class="rounded-lg border p-4">
+              <div class="mb-3 space-y-1">
+                <div class="text-sm font-medium">
+                  {{ t('settings.remote.weixinIlink.accountsTitle') }}
                 </div>
+                <p class="text-sm text-muted-foreground">
+                  {{ t('settings.remote.weixinIlink.accountsDescription') }}
+                </p>
+              </div>
 
+              <div
+                v-if="weixinIlinkStatus.accounts.length === 0"
+                class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+              >
+                {{ t('settings.remote.weixinIlink.noAccounts') }}
+              </div>
+              <div v-else class="space-y-3">
                 <div
-                  v-if="weixinIlinkStatus.accounts.length === 0"
-                  class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+                  v-for="account in weixinIlinkStatus.accounts"
+                  :key="account.accountId"
+                  class="rounded-lg border p-3"
                 >
-                  {{ t('settings.remote.weixinIlink.noAccounts') }}
-                </div>
-                <div v-else class="space-y-3">
-                  <div
-                    v-for="account in weixinIlinkStatus.accounts"
-                    :key="account.accountId"
-                    class="rounded-lg border p-3"
-                  >
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                      <div class="min-w-0 flex-1">
-                        <div class="truncate text-sm font-medium">{{ account.accountId }}</div>
-                        <div class="mt-1 text-xs text-muted-foreground">
-                          {{
-                            t('settings.remote.weixinIlink.ownerUserId', {
-                              ownerUserId: account.ownerUserId
-                            })
-                          }}
-                        </div>
-                        <div class="mt-1 truncate text-xs text-muted-foreground">
-                          {{
-                            t('settings.remote.weixinIlink.baseUrl', {
-                              baseUrl: account.baseUrl
-                            })
-                          }}
-                        </div>
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate text-sm font-medium">{{ account.accountId }}</div>
+                      <div class="mt-1 text-xs text-muted-foreground">
+                        {{
+                          t('settings.remote.weixinIlink.ownerUserId', {
+                            ownerUserId: account.ownerUserId
+                          })
+                        }}
                       </div>
-
-                      <div class="flex flex-col items-end gap-2">
-                        <span
-                          :class="[
-                            'inline-flex rounded-full px-2 py-1 text-[11px]',
-                            statusDotClass(account.state)
-                          ]"
-                        >
-                          {{ t(`settings.remote.status.states.${account.state}`) }}
-                        </span>
-                        <label class="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{{
-                            account.enabled ? t('common.enabled') : t('common.disabled')
-                          }}</span>
-                          <Switch
-                            :model-value="account.enabled"
-                            :disabled="saving['weixin-ilink']"
-                            @update:model-value="
-                              (value) =>
-                                toggleWeixinIlinkAccountEnabled(account.accountId, value === true)
-                            "
-                          />
-                        </label>
+                      <div class="mt-1 truncate text-xs text-muted-foreground">
+                        {{
+                          t('settings.remote.weixinIlink.baseUrl', {
+                            baseUrl: account.baseUrl
+                          })
+                        }}
                       </div>
                     </div>
 
-                    <div class="mt-3 text-xs text-muted-foreground">
-                      {{
-                        t('settings.remote.weixinIlink.accountBindings', {
-                          count: account.bindingCount
-                        })
-                      }}
+                    <div class="flex flex-col items-end gap-2">
+                      <span
+                        :class="[
+                          'inline-flex rounded-full px-2 py-1 text-[11px]',
+                          statusDotClass(account.state)
+                        ]"
+                      >
+                        {{ t(`settings.remote.status.states.${account.state}`) }}
+                      </span>
+                      <label class="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{{
+                          account.enabled ? t('common.enabled') : t('common.disabled')
+                        }}</span>
+                        <Switch
+                          :model-value="account.enabled"
+                          :disabled="saving['weixin-ilink']"
+                          @update:model-value="
+                            (value) =>
+                              toggleWeixinIlinkAccountEnabled(account.accountId, value === true)
+                          "
+                        />
+                      </label>
                     </div>
-                    <div v-if="account.lastError" class="mt-2 break-all text-xs text-destructive">
-                      {{ account.lastError }}
-                    </div>
+                  </div>
 
-                    <div class="mt-3 flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        :disabled="
-                          weixinIlinkAccountActionId === account.accountId ||
-                          account.enabled !== true
-                        "
-                        @click="restartWeixinIlinkAccount(account.accountId)"
-                      >
-                        {{ t('settings.remote.weixinIlink.restartAccount') }}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="text-destructive hover:text-destructive"
-                        :disabled="weixinIlinkAccountActionId === account.accountId"
-                        @click="removeWeixinIlinkAccount(account.accountId)"
-                      >
-                        {{ t('settings.remote.weixinIlink.removeAccount') }}
-                      </Button>
-                    </div>
+                  <div class="mt-3 text-xs text-muted-foreground">
+                    {{
+                      t('settings.remote.weixinIlink.accountBindings', {
+                        count: account.bindingCount
+                      })
+                    }}
+                  </div>
+                  <div v-if="account.lastError" class="mt-2 break-all text-xs text-destructive">
+                    {{ account.lastError }}
+                  </div>
+
+                  <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      :disabled="
+                        weixinIlinkAccountActionId === account.accountId || account.enabled !== true
+                      "
+                      @click="restartWeixinIlinkAccount(account.accountId)"
+                    >
+                      {{ t('settings.remote.weixinIlink.restartAccount') }}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="text-destructive hover:text-destructive"
+                      :disabled="weixinIlinkAccountActionId === account.accountId"
+                      @click="removeWeixinIlinkAccount(account.accountId)"
+                    >
+                      {{ t('settings.remote.weixinIlink.removeAccount') }}
+                    </Button>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div class="border-t p-4">
-                <div class="mb-3 space-y-1">
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
                   <div class="text-sm font-medium">
                     {{ t('settings.remote.sections.remoteControl') }}
                   </div>
@@ -1086,43 +794,44 @@
                   </p>
                 </div>
 
-                <div class="space-y-4">
-                  <div class="grid grid-cols-1 gap-4">
-                    <div class="space-y-2">
-                      <Label class="text-xs text-muted-foreground">
-                        {{ t('settings.remote.remoteControl.defaultAgent') }}
-                      </Label>
-                      <Select
-                        :model-value="weixinIlinkSettings.defaultAgentId"
-                        @update:model-value="
-                          (value) => updateWeixinIlinkDefaultAgentId(String(value))
-                        "
-                      >
-                        <SelectTrigger class="h-8!">
-                          <SelectValue
-                            :placeholder="
-                              t('settings.remote.remoteControl.defaultAgentPlaceholder')
-                            "
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="agent in defaultAgentOptions(weixinIlinkSettings.defaultAgentId)"
-                            :key="agent.id"
-                            :value="agent.id"
-                          >
-                            {{ agent.name }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div class="grid grid-cols-1 gap-4">
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultAgent') }}
+                    </Label>
+                    <Select
+                      :model-value="weixinIlinkSettings.defaultAgentId"
+                      @update:model-value="
+                        (value) => updateWeixinIlinkDefaultAgentId(String(value))
+                      "
+                    >
+                      <SelectTrigger class="h-8!">
+                        <SelectValue
+                          :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          v-for="agent in defaultAgentOptions(weixinIlinkSettings.defaultAgentId)"
+                          :key="agent.id"
+                          :value="agent.id"
+                        >
+                          {{ agent.name }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                </div>
 
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" @click="openBindingsDialog('weixin-ilink')">
-                      {{ t('settings.remote.remoteControl.manageBindings') }}
-                    </Button>
-                  </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="saving['weixin-ilink']"
+                    @click="openBindingsDialog('weixin-ilink')"
+                  >
+                    {{ t('settings.remote.remoteControl.manageBindings') }}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1218,48 +927,109 @@
           <div v-if="bindingsLoading" class="text-sm text-muted-foreground">
             {{ t('common.loading') }}
           </div>
-          <div
-            v-else-if="bindings.length === 0"
-            data-testid="remote-bindings-empty"
-            class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
-          >
-            {{ t('settings.remote.remoteControl.bindingsEmpty') }}
-          </div>
-          <div v-else class="space-y-2">
-            <div
-              v-for="binding in bindings"
-              :key="binding.endpointKey"
-              :data-testid="`remote-binding-${binding.endpointKey}`"
-              class="flex items-center justify-between gap-3 rounded-lg border p-3"
-            >
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <div class="truncate text-sm font-medium">{{ binding.sessionId }}</div>
-                  <span
-                    :class="[
-                      'inline-flex rounded-full px-2 py-0.5 text-[11px]',
-                      bindingKindClass(binding.kind)
-                    ]"
-                  >
-                    {{ t(`settings.remote.bindingKinds.${binding.kind}`) }}
-                  </span>
+          <template v-else>
+            <div v-if="bindingsDialogSupportsPrincipals" class="space-y-3">
+              <div class="space-y-1">
+                <div class="text-sm font-medium">
+                  {{ t('settings.remote.remoteControl.authorizedPrincipalsTitle') }}
                 </div>
-                <div class="mt-1 text-xs text-muted-foreground">
-                  {{ binding.channel }}:{{ binding.chatId
-                  }}{{ binding.threadId ? `:${binding.threadId}` : '' }}
+                <p class="text-sm text-muted-foreground">
+                  {{
+                    t('settings.remote.remoteControl.authorizedPrincipalsDescription', {
+                      channel: bindingsDialogChannel ? channelTitle(bindingsDialogChannel) : ''
+                    })
+                  }}
+                </p>
+              </div>
+
+              <div
+                v-if="authorizedPrincipals.length === 0"
+                data-testid="remote-principals-empty"
+                class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+              >
+                {{ t('settings.remote.remoteControl.authorizedPrincipalsEmpty') }}
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="principalId in authorizedPrincipals"
+                  :key="principalId"
+                  :data-testid="`remote-principal-${principalId}`"
+                  class="flex items-center justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-sm font-medium">{{ principalId }}</div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="text-destructive hover:text-destructive"
+                    :disabled="principalRemovingId === principalId"
+                    @click="removePrincipal(principalId)"
+                  >
+                    {{ t('common.delete') }}
+                  </Button>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="text-destructive hover:text-destructive"
-                :disabled="bindingRemovingKey === binding.endpointKey"
-                @click="removeBinding(binding.endpointKey)"
-              >
-                {{ t('common.delete') }}
-              </Button>
             </div>
-          </div>
+
+            <div class="space-y-3">
+              <div class="space-y-1">
+                <div class="text-sm font-medium">
+                  {{ t('settings.remote.remoteControl.sessionBindingsTitle') }}
+                </div>
+                <p class="text-sm text-muted-foreground">
+                  {{
+                    t('settings.remote.remoteControl.sessionBindingsDescription', {
+                      channel: bindingsDialogChannel ? channelTitle(bindingsDialogChannel) : ''
+                    })
+                  }}
+                </p>
+              </div>
+
+              <div
+                v-if="bindings.length === 0"
+                data-testid="remote-bindings-empty"
+                class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+              >
+                {{ t('settings.remote.remoteControl.bindingsEmpty') }}
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="binding in bindings"
+                  :key="binding.endpointKey"
+                  :data-testid="`remote-binding-${binding.endpointKey}`"
+                  class="flex items-center justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <div class="truncate text-sm font-medium">{{ binding.sessionId }}</div>
+                      <span
+                        :class="[
+                          'inline-flex rounded-full px-2 py-0.5 text-[11px]',
+                          bindingKindClass(binding.kind)
+                        ]"
+                      >
+                        {{ t(`settings.remote.bindingKinds.${binding.kind}`) }}
+                      </span>
+                    </div>
+                    <div class="mt-1 text-xs text-muted-foreground">
+                      {{ binding.channel }}:{{ binding.chatId
+                      }}{{ binding.threadId ? `:${binding.threadId}` : '' }}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="text-destructive hover:text-destructive"
+                    :disabled="bindingRemovingKey === binding.endpointKey"
+                    @click="removeBinding(binding.endpointKey)"
+                  >
+                    {{ t('common.delete') }}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
 
         <div class="flex justify-end">
@@ -1318,13 +1088,6 @@ import { Button } from '@shadcn/components/ui/button'
 import { Label } from '@shadcn/components/ui/label'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@shadcn/components/ui/dropdown-menu'
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -1341,7 +1104,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
-import type { Agent, Project } from '@shared/types/agent-interface'
+import type { Agent } from '@shared/types/agent-interface'
 import type { HookEventName, HookTestResult } from '@shared/hooksNotifications'
 import { HOOK_EVENT_NAMES } from '@shared/hooksNotifications'
 import type {
@@ -1409,7 +1172,6 @@ const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
 
 const remoteControlPresenter = useRemoteControlPresenter()
 const agentSessionPresenter = usePresenter('agentSessionPresenter')
-const projectPresenter = usePresenter('projectPresenter')
 const { t } = useI18n()
 const { toast } = useToast()
 
@@ -1440,11 +1202,7 @@ const isLoading = ref(false)
 const showBotToken = ref(false)
 const telegramTesting = ref(false)
 const telegramTestResult = ref<HookTestResult | null>(null)
-const telegramAllowedUserIdsText = ref('')
-const feishuPairedUserOpenIdsText = ref('')
-const qqbotPairedUserIdsText = ref('')
 const availableAgents = ref<Agent[]>([])
-const recentProjects = ref<Project[]>([])
 const activeChannel = ref<RemoteChannel>('telegram')
 const pairDialogChannel = ref<PairableRemoteChannel | null>(null)
 const pairDialogOpen = ref(false)
@@ -1457,7 +1215,9 @@ const bindingsDialogChannel = ref<RemoteChannel | null>(null)
 const bindingsDialogOpen = ref(false)
 const bindingsLoading = ref(false)
 const bindingRemovingKey = ref<string | null>(null)
+const principalRemovingId = ref<string | null>(null)
 const bindings = ref<RemoteBindingSummary[]>([])
+const authorizedPrincipals = ref<string[]>([])
 const weixinIlinkLoginMessage = ref('')
 const weixinIlinkLoginError = ref<string | null>(null)
 const weixinIlinkLoginStarting = ref(false)
@@ -1489,9 +1249,7 @@ let pairDialogRefreshTimer: ReturnType<typeof setInterval> | null = null
 const defaultTelegramSettings = (): TelegramRemoteSettings => ({
   botToken: '',
   remoteEnabled: false,
-  allowedUserIds: [],
   defaultAgentId: 'deepchat',
-  defaultWorkdir: '',
   hookNotifications: {
     enabled: false,
     chatId: '',
@@ -1506,24 +1264,19 @@ const defaultFeishuSettings = (): FeishuRemoteSettings => ({
   verificationToken: '',
   encryptKey: '',
   remoteEnabled: false,
-  defaultAgentId: 'deepchat',
-  defaultWorkdir: '',
-  pairedUserOpenIds: []
+  defaultAgentId: 'deepchat'
 })
 
 const defaultQQBotSettings = (): QQBotRemoteSettings => ({
   appId: '',
   clientSecret: '',
   remoteEnabled: false,
-  defaultAgentId: 'deepchat',
-  defaultWorkdir: '',
-  pairedUserIds: []
+  defaultAgentId: 'deepchat'
 })
 
 const defaultWeixinIlinkSettings = (): WeixinIlinkRemoteSettings => ({
   remoteEnabled: false,
   defaultAgentId: 'deepchat',
-  defaultWorkdir: '',
   accounts: []
 })
 
@@ -1593,6 +1346,7 @@ const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter 
   getChannelStatus?: (channel: RemoteChannel) => Promise<RemoteChannelStatus>
   getChannelBindings?: (channel: RemoteChannel) => Promise<RemoteBindingSummary[]>
   removeChannelBinding?: (channel: RemoteChannel, endpointKey: string) => Promise<void>
+  removeChannelPrincipal?: (channel: PairableRemoteChannel, principalId: string) => Promise<void>
   getChannelPairingSnapshot?: (
     channel: PairableRemoteChannel
   ) => Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot>
@@ -1742,6 +1496,18 @@ const removeChannelBindingCompat = async (
   }
 }
 
+const removeChannelPrincipalCompat = async (
+  channel: PairableRemoteChannel,
+  principalId: string
+): Promise<void> => {
+  if (presenterCompat.removeChannelPrincipal) {
+    await presenterCompat.removeChannelPrincipal(channel, principalId)
+    return
+  }
+
+  throw new Error('removeChannelPrincipal is not available.')
+}
+
 const getChannelPairingSnapshotCompat = async (
   channel: PairableRemoteChannel
 ): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot> => {
@@ -1855,67 +1621,12 @@ const implementedChannelCount = computed(() => Math.max(1, implementedChannels.v
 const isAnySaving = computed(
   () => saving.telegram || saving.feishu || saving.qqbot || saving['weixin-ilink']
 )
-const normalizePath = (value: string | null | undefined): string => value?.trim() ?? ''
-const pathLabel = (value: string) => value.split(/[/\\]/).pop() ?? value
-const buildDirectoryOptions = (currentPath: string) => {
-  const normalizedCurrentPath = normalizePath(currentPath)
-  const options = new Map<string, { path: string; name: string }>()
-
-  if (normalizedCurrentPath) {
-    options.set(normalizedCurrentPath, {
-      path: normalizedCurrentPath,
-      name: pathLabel(normalizedCurrentPath)
-    })
-  }
-
-  for (const project of recentProjects.value) {
-    const normalizedPath = normalizePath(project.path)
-    if (!normalizedPath || options.has(normalizedPath)) {
-      continue
-    }
-
-    options.set(normalizedPath, {
-      path: normalizedPath,
-      name: project.name || pathLabel(normalizedPath)
-    })
-  }
-
-  return Array.from(options.values())
-}
-const telegramDirectoryOptions = computed(() =>
-  buildDirectoryOptions(telegramSettings.value?.defaultWorkdir ?? '')
-)
-const feishuDirectoryOptions = computed(() =>
-  buildDirectoryOptions(feishuSettings.value?.defaultWorkdir ?? '')
-)
-const qqbotDirectoryOptions = computed(() =>
-  buildDirectoryOptions(qqbotSettings.value?.defaultWorkdir ?? '')
-)
-const defaultWorkdirLabel = (value: string | null | undefined) => {
-  const normalized = normalizePath(value)
-  return normalized
-    ? pathLabel(normalized)
-    : t('settings.remote.remoteControl.defaultWorkdirPlaceholder')
-}
-const defaultWorkdirTitle = (value: string | null | undefined) =>
-  normalizePath(value) || t('settings.remote.remoteControl.defaultWorkdirPlaceholder')
-const telegramDefaultWorkdirLabel = computed(() =>
-  defaultWorkdirLabel(telegramSettings.value?.defaultWorkdir)
-)
-const telegramDefaultWorkdirTitle = computed(() =>
-  defaultWorkdirTitle(telegramSettings.value?.defaultWorkdir)
-)
-const feishuDefaultWorkdirLabel = computed(() =>
-  defaultWorkdirLabel(feishuSettings.value?.defaultWorkdir)
-)
-const feishuDefaultWorkdirTitle = computed(() =>
-  defaultWorkdirTitle(feishuSettings.value?.defaultWorkdir)
-)
-const qqbotDefaultWorkdirLabel = computed(() =>
-  defaultWorkdirLabel(qqbotSettings.value?.defaultWorkdir)
-)
-const qqbotDefaultWorkdirTitle = computed(() =>
-  defaultWorkdirTitle(qqbotSettings.value?.defaultWorkdir)
+const isPairableChannel = (
+  channel: RemoteChannel | null | undefined
+): channel is PairableRemoteChannel =>
+  channel === 'telegram' || channel === 'feishu' || channel === 'qqbot'
+const bindingsDialogSupportsPrincipals = computed(() =>
+  isPairableChannel(bindingsDialogChannel.value)
 )
 
 const formatAgentOptionName = (agent: Pick<Agent, 'name' | 'type'>) =>
@@ -1966,26 +1677,6 @@ const weixinIlinkLoginBusy = computed(
   () => weixinIlinkLoginStarting.value || weixinIlinkLoginWaiting.value
 )
 
-const parseAllowedUserIds = (value: string): number[] =>
-  Array.from(
-    new Set(
-      value
-        .split(/[,\s]+/)
-        .map((item) => Number.parseInt(item.trim(), 10))
-        .filter((item) => Number.isInteger(item) && item > 0)
-    )
-  ).sort((left, right) => left - right)
-
-const parseOpenIds = (value: string): string[] =>
-  Array.from(
-    new Set(
-      value
-        .split(/[,\s]+/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-    )
-  ).sort((left, right) => left.localeCompare(right))
-
 const syncTelegramFields = (snapshot: Partial<TelegramRemoteSettings> | null | undefined) => {
   const fallback = defaultTelegramSettings()
   const hookNotifications = snapshot?.hookNotifications
@@ -1993,18 +1684,15 @@ const syncTelegramFields = (snapshot: Partial<TelegramRemoteSettings> | null | u
   telegramSettings.value = {
     ...fallback,
     ...snapshot,
-    defaultWorkdir: normalizePath(snapshot?.defaultWorkdir),
     hookNotifications: {
       ...fallback.hookNotifications,
       ...hookNotifications,
       threadId: hookNotifications?.threadId ?? ''
     }
   }
-  telegramSettings.value.allowedUserIds = [...(snapshot?.allowedUserIds ?? fallback.allowedUserIds)]
   telegramSettings.value.hookNotifications.events = [
     ...(hookNotifications?.events ?? fallback.hookNotifications.events)
   ]
-  telegramAllowedUserIdsText.value = telegramSettings.value.allowedUserIds.join(', ')
 }
 
 const syncFeishuFields = (snapshot: Partial<FeishuRemoteSettings> | null | undefined) => {
@@ -2012,11 +1700,8 @@ const syncFeishuFields = (snapshot: Partial<FeishuRemoteSettings> | null | undef
 
   feishuSettings.value = {
     ...fallback,
-    ...snapshot,
-    defaultWorkdir: normalizePath(snapshot?.defaultWorkdir),
-    pairedUserOpenIds: [...(snapshot?.pairedUserOpenIds ?? fallback.pairedUserOpenIds)]
+    ...snapshot
   }
-  feishuPairedUserOpenIdsText.value = feishuSettings.value.pairedUserOpenIds.join(', ')
 }
 
 const syncQQBotFields = (snapshot: Partial<QQBotRemoteSettings> | null | undefined) => {
@@ -2024,11 +1709,8 @@ const syncQQBotFields = (snapshot: Partial<QQBotRemoteSettings> | null | undefin
 
   qqbotSettings.value = {
     ...fallback,
-    ...snapshot,
-    defaultWorkdir: normalizePath(snapshot?.defaultWorkdir),
-    pairedUserIds: [...(snapshot?.pairedUserIds ?? fallback.pairedUserIds)]
+    ...snapshot
   }
-  qqbotPairedUserIdsText.value = qqbotSettings.value.pairedUserIds.join(', ')
 }
 
 const syncWeixinIlinkFields = (snapshot: Partial<WeixinIlinkRemoteSettings> | null | undefined) => {
@@ -2037,7 +1719,6 @@ const syncWeixinIlinkFields = (snapshot: Partial<WeixinIlinkRemoteSettings> | nu
   weixinIlinkSettings.value = {
     ...fallback,
     ...snapshot,
-    defaultWorkdir: '',
     accounts: [...(snapshot?.accounts ?? fallback.accounts)].map((account) => ({
       accountId: String(account.accountId ?? '').trim(),
       ownerUserId: String(account.ownerUserId ?? '').trim(),
@@ -2097,15 +1778,6 @@ const loadAvailableAgents = async () => {
   availableAgents.value = await agentSessionPresenter.getAgents()
 }
 
-const loadRecentProjects = async () => {
-  try {
-    const result = await projectPresenter.getRecentProjects(8)
-    recentProjects.value = Array.isArray(result) ? result : []
-  } catch {
-    recentProjects.value = []
-  }
-}
-
 const loadState = async () => {
   isLoading.value = true
   try {
@@ -2129,8 +1801,7 @@ const loadState = async () => {
       getChannelStatusCompat('feishu'),
       getChannelStatusCompat('qqbot'),
       getChannelStatusCompat('weixin-ilink'),
-      loadAvailableAgents(),
-      loadRecentProjects()
+      loadAvailableAgents()
     ])
 
     channelDescriptors.value =
@@ -2165,9 +1836,7 @@ const buildTelegramDraftSettings = (): TelegramRemoteSettings | null => {
   }
 
   return {
-    ...telegramSettings.value,
-    defaultWorkdir: normalizePath(telegramSettings.value.defaultWorkdir),
-    allowedUserIds: parseAllowedUserIds(telegramAllowedUserIdsText.value)
+    ...telegramSettings.value
   }
 }
 
@@ -2177,9 +1846,7 @@ const buildFeishuDraftSettings = (): FeishuRemoteSettings | null => {
   }
 
   return {
-    ...feishuSettings.value,
-    defaultWorkdir: normalizePath(feishuSettings.value.defaultWorkdir),
-    pairedUserOpenIds: parseOpenIds(feishuPairedUserOpenIdsText.value)
+    ...feishuSettings.value
   }
 }
 
@@ -2189,9 +1856,7 @@ const buildQQBotDraftSettings = (): QQBotRemoteSettings | null => {
   }
 
   return {
-    ...qqbotSettings.value,
-    defaultWorkdir: normalizePath(qqbotSettings.value.defaultWorkdir),
-    pairedUserIds: parseOpenIds(qqbotPairedUserIdsText.value)
+    ...qqbotSettings.value
   }
 }
 
@@ -2202,7 +1867,6 @@ const buildWeixinIlinkDraftSettings = (): WeixinIlinkRemoteSettings | null => {
 
   return {
     ...weixinIlinkSettings.value,
-    defaultWorkdir: '',
     accounts: weixinIlinkSettings.value.accounts.map((account) => ({
       accountId: String(account.accountId ?? '').trim(),
       ownerUserId: String(account.ownerUserId ?? '').trim(),
@@ -2354,34 +2018,6 @@ const updateWeixinIlinkRemoteEnabled = (value: boolean) => {
   queueWeixinIlinkSettingsPersist()
 }
 
-const channelEnabled = (channel: RemoteChannel): boolean =>
-  channel === 'telegram'
-    ? Boolean(telegramSettings.value?.remoteEnabled)
-    : channel === 'feishu'
-      ? Boolean(feishuSettings.value?.remoteEnabled)
-      : channel === 'qqbot'
-        ? Boolean(qqbotSettings.value?.remoteEnabled)
-        : Boolean(weixinIlinkSettings.value?.remoteEnabled)
-
-const updateChannelRemoteEnabled = (channel: RemoteChannel, value: boolean) => {
-  if (channel === 'telegram') {
-    updateTelegramRemoteEnabled(value)
-    return
-  }
-
-  if (channel === 'feishu') {
-    updateFeishuRemoteEnabled(value)
-    return
-  }
-
-  if (channel === 'qqbot') {
-    updateQQBotRemoteEnabled(value)
-    return
-  }
-
-  updateWeixinIlinkRemoteEnabled(value)
-}
-
 const updateTelegramDefaultAgentId = (value: string) => {
   if (!telegramSettings.value) {
     return
@@ -2412,56 +2048,6 @@ const updateWeixinIlinkDefaultAgentId = (value: string) => {
   }
   weixinIlinkSettings.value.defaultAgentId = value
   queueWeixinIlinkSettingsPersist()
-}
-
-const setDefaultWorkdir = (channel: RemoteChannel, value: string) => {
-  const normalizedValue = normalizePath(value)
-
-  if (channel === 'telegram') {
-    if (!telegramSettings.value) {
-      return
-    }
-    telegramSettings.value.defaultWorkdir = normalizedValue
-    queueTelegramSettingsPersist()
-    return
-  }
-
-  if (channel === 'feishu') {
-    if (!feishuSettings.value) {
-      return
-    }
-    feishuSettings.value.defaultWorkdir = normalizedValue
-    queueFeishuSettingsPersist()
-    return
-  }
-
-  if (channel === 'qqbot') {
-    if (!qqbotSettings.value) {
-      return
-    }
-    qqbotSettings.value.defaultWorkdir = normalizedValue
-    queueQQBotSettingsPersist()
-    return
-  }
-}
-
-const selectDefaultWorkdir = (channel: RemoteChannel, value: string) => {
-  setDefaultWorkdir(channel, value)
-}
-
-const clearDefaultWorkdir = (channel: RemoteChannel) => {
-  setDefaultWorkdir(channel, '')
-}
-
-const pickDefaultWorkdir = async (channel: RemoteChannel) => {
-  try {
-    const selectedPath = await projectPresenter.selectDirectory()
-    if (selectedPath) {
-      setDefaultWorkdir(channel, selectedPath)
-    }
-  } catch (error) {
-    console.warn('[RemoteSettings] Failed to select remote default workdir:', error)
-  }
 }
 
 let weixinIlinkLoginRequestId = 0
@@ -2663,21 +2249,10 @@ const pollPairingSnapshot = async () => {
       return
     }
 
-    if (pairDialogChannel.value === 'telegram') {
-      telegramAllowedUserIdsText.value = normalizeTelegramPairingSnapshot(
-        snapshot as Partial<TelegramPairingSnapshot>
-      ).allowedUserIds.join(', ')
-    } else if (pairDialogChannel.value === 'feishu') {
-      feishuPairedUserOpenIdsText.value = normalizeFeishuPairingSnapshot(
-        snapshot as Partial<FeishuPairingSnapshot>
-      ).pairedUserOpenIds.join(', ')
-    } else {
-      qqbotPairedUserIdsText.value = normalizeQQBotPairingSnapshot(
-        snapshot as Partial<QQBotPairingSnapshot>
-      ).pairedUserIds.join(', ')
-    }
-
     await refreshStatus()
+    if (bindingsDialogChannel.value === pairDialogChannel.value) {
+      await loadBindingsDialogState(pairDialogChannel.value)
+    }
 
     if (!pairDialogCancelling.value && principalsChanged) {
       toast({
@@ -2763,10 +2338,19 @@ const cancelPairDialog = async () => {
   }
 }
 
-const loadBindings = async (channel: RemoteChannel) => {
+const loadBindingsDialogState = async (channel: RemoteChannel) => {
   bindingsLoading.value = true
   try {
-    bindings.value = await getChannelBindingsCompat(channel)
+    const [nextBindings, nextPrincipals] = await Promise.all([
+      getChannelBindingsCompat(channel),
+      isPairableChannel(channel)
+        ? getChannelPairingSnapshotCompat(channel).then((snapshot) =>
+            getSnapshotPrincipalIds(channel, snapshot)
+          )
+        : Promise.resolve([] as string[])
+    ])
+    bindings.value = nextBindings
+    authorizedPrincipals.value = nextPrincipals
   } finally {
     bindingsLoading.value = false
   }
@@ -2780,7 +2364,7 @@ const openBindingsDialog = async (channel: RemoteChannel) => {
   bindingsDialogChannel.value = channel
   bindingsDialogOpen.value = true
   try {
-    await loadBindings(channel)
+    await loadBindingsDialogState(channel)
   } catch (error) {
     toast({
       title: t('common.error.operationFailed'),
@@ -2798,7 +2382,7 @@ const removeBinding = async (endpointKey: string) => {
   bindingRemovingKey.value = endpointKey
   try {
     await removeChannelBindingCompat(bindingsDialogChannel.value, endpointKey)
-    await Promise.all([loadBindings(bindingsDialogChannel.value), refreshStatus()])
+    await Promise.all([loadBindingsDialogState(bindingsDialogChannel.value), refreshStatus()])
   } catch (error) {
     toast({
       title: t('common.error.operationFailed'),
@@ -2807,6 +2391,26 @@ const removeBinding = async (endpointKey: string) => {
     })
   } finally {
     bindingRemovingKey.value = null
+  }
+}
+
+const removePrincipal = async (principalId: string) => {
+  if (!isPairableChannel(bindingsDialogChannel.value)) {
+    return
+  }
+
+  principalRemovingId.value = principalId
+  try {
+    await removeChannelPrincipalCompat(bindingsDialogChannel.value, principalId)
+    await Promise.all([loadBindingsDialogState(bindingsDialogChannel.value), refreshStatus()])
+  } catch (error) {
+    toast({
+      title: t('common.error.operationFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    principalRemovingId.value = null
   }
 }
 

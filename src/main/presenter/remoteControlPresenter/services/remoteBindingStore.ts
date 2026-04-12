@@ -499,6 +499,13 @@ export class RemoteBindingStore {
     }))
   }
 
+  removeAllowedUser(userId: number): void {
+    this.updateTelegramConfig((config) => ({
+      ...config,
+      allowlist: config.allowlist.filter((entry) => entry !== userId)
+    }))
+  }
+
   getFeishuPairedUserOpenIds(): string[] {
     return this.getFeishuConfig().pairedUserOpenIds
   }
@@ -521,6 +528,18 @@ export class RemoteBindingStore {
       pairedUserOpenIds: Array.from(new Set([...config.pairedUserOpenIds, normalized])).sort(
         (left, right) => left.localeCompare(right)
       )
+    }))
+  }
+
+  removeFeishuPairedUser(openId: string): void {
+    const normalized = openId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateFeishuConfig((config) => ({
+      ...config,
+      pairedUserOpenIds: config.pairedUserOpenIds.filter((entry) => entry !== normalized)
     }))
   }
 
@@ -559,6 +578,18 @@ export class RemoteBindingStore {
       pairedUserIds: Array.from(new Set([...config.pairedUserIds, normalized])).sort((a, b) =>
         a.localeCompare(b)
       )
+    }))
+  }
+
+  removeQQBotPairedUser(userId: string): void {
+    const normalized = userId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateQQBotConfig((config) => ({
+      ...config,
+      pairedUserIds: config.pairedUserIds.filter((entry) => entry !== normalized)
     }))
   }
 

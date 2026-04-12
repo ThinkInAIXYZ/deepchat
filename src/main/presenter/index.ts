@@ -125,6 +125,7 @@ export class Presenter implements IPresenter {
     'getChannelStatus',
     'getChannelBindings',
     'removeChannelBinding',
+    'removeChannelPrincipal',
     'getChannelPairingSnapshot',
     'createChannelPairCode',
     'clearChannelPairCode',

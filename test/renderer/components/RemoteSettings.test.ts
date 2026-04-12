@@ -6,9 +6,7 @@ type SetupOptions = {
   settings?: {
     botToken: string
     remoteEnabled: boolean
-    allowedUserIds: number[]
     defaultAgentId: string
-    defaultWorkdir?: string
     hookNotifications: {
       enabled: boolean
       chatId: string
@@ -18,6 +16,7 @@ type SetupOptions = {
   }
   telegramChannelSettingsOverride?: Record<string, unknown>
   feishuChannelSettingsOverride?: Record<string, unknown>
+  qqbotChannelSettingsOverride?: Record<string, unknown>
   status?: {
     enabled: boolean
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
@@ -66,9 +65,7 @@ const setup = async (options: SetupOptions = {}) => {
     settings: {
       botToken: 'telegram-token',
       remoteEnabled: false,
-      allowedUserIds: [123],
       defaultAgentId: 'deepchat',
-      defaultWorkdir: '',
       hookNotifications: {
         enabled: false,
         chatId: '',
@@ -82,7 +79,7 @@ const setup = async (options: SetupOptions = {}) => {
       state: 'disabled' as const,
       pollOffset: 0,
       bindingCount: 0,
-      allowedUserCount: options.settings?.allowedUserIds?.length ?? 1,
+      allowedUserCount: options.pairingSnapshot?.allowedUserIds?.length ?? 1,
       lastError: null,
       botUser: null,
       ...options.status
@@ -90,7 +87,7 @@ const setup = async (options: SetupOptions = {}) => {
     pairingSnapshot: {
       pairCode: null,
       pairCodeExpiresAt: null,
-      allowedUserIds: options.settings?.allowedUserIds ?? [123],
+      allowedUserIds: options.pairingSnapshot?.allowedUserIds ?? [123],
       ...options.pairingSnapshot
     },
     bindings: [...(options.bindings ?? [])]
@@ -103,9 +100,7 @@ const setup = async (options: SetupOptions = {}) => {
       verificationToken: '',
       encryptKey: '',
       remoteEnabled: false,
-      defaultAgentId: 'deepchat',
-      defaultWorkdir: '',
-      pairedUserOpenIds: []
+      defaultAgentId: 'deepchat'
     },
     status: {
       channel: 'feishu' as const,
@@ -137,9 +132,7 @@ const setup = async (options: SetupOptions = {}) => {
       appId: '',
       clientSecret: '',
       remoteEnabled: false,
-      defaultAgentId: 'deepchat',
-      defaultWorkdir: '',
-      pairedUserIds: [] as string[]
+      defaultAgentId: 'deepchat'
     },
     status: {
       channel: 'qqbot' as const,
@@ -170,7 +163,6 @@ const setup = async (options: SetupOptions = {}) => {
     settings: {
       remoteEnabled: false,
       defaultAgentId: 'deepchat',
-      defaultWorkdir: '',
       accounts: [] as Array<{
         accountId: string
         ownerUserId: string
@@ -221,20 +213,12 @@ const setup = async (options: SetupOptions = {}) => {
 
   const feishuSettingsSnapshot = () => ({
     ...feishuState.settings,
-    ...(options.feishuChannelSettingsOverride ?? {}),
-    pairedUserOpenIds:
-      options.feishuChannelSettingsOverride &&
-      Object.prototype.hasOwnProperty.call(
-        options.feishuChannelSettingsOverride,
-        'pairedUserOpenIds'
-      )
-        ? options.feishuChannelSettingsOverride.pairedUserOpenIds
-        : [...feishuState.settings.pairedUserOpenIds]
+    ...(options.feishuChannelSettingsOverride ?? {})
   })
 
   const qqbotSettingsSnapshot = () => ({
     ...qqbotState.settings,
-    pairedUserIds: [...qqbotState.settings.pairedUserIds]
+    ...(options.qqbotChannelSettingsOverride ?? {})
   })
 
   const weixinIlinkSettingsSnapshot = () => ({
@@ -301,8 +285,6 @@ const setup = async (options: SetupOptions = {}) => {
             }
           }
           remoteState.status.enabled = nextSettings.remoteEnabled
-          remoteState.status.allowedUserCount = nextSettings.allowedUserIds.length
-          remoteState.pairingSnapshot.allowedUserIds = [...nextSettings.allowedUserIds]
           return {
             ...remoteState.settings,
             hookNotifications: {
@@ -312,31 +294,15 @@ const setup = async (options: SetupOptions = {}) => {
         }
 
         if (channel === 'feishu') {
-          feishuState.settings = {
-            ...nextSettings,
-            pairedUserOpenIds: [...nextSettings.pairedUserOpenIds]
-          }
+          feishuState.settings = { ...nextSettings }
           feishuState.status.enabled = nextSettings.remoteEnabled
-          feishuState.status.pairedUserCount = nextSettings.pairedUserOpenIds.length
-          feishuState.pairingSnapshot.pairedUserOpenIds = [...nextSettings.pairedUserOpenIds]
-          return {
-            ...feishuState.settings,
-            pairedUserOpenIds: [...feishuState.settings.pairedUserOpenIds]
-          }
+          return { ...feishuState.settings }
         }
 
         if (channel === 'qqbot') {
-          qqbotState.settings = {
-            ...nextSettings,
-            pairedUserIds: [...nextSettings.pairedUserIds]
-          }
+          qqbotState.settings = { ...nextSettings }
           qqbotState.status.enabled = nextSettings.remoteEnabled
-          qqbotState.status.pairedUserCount = nextSettings.pairedUserIds.length
-          qqbotState.pairingSnapshot.pairedUserIds = [...nextSettings.pairedUserIds]
-          return {
-            ...qqbotState.settings,
-            pairedUserIds: [...qqbotState.settings.pairedUserIds]
-          }
+          return { ...qqbotState.settings }
         }
 
         weixinIlinkState.settings = {
@@ -466,6 +432,28 @@ const setup = async (options: SetupOptions = {}) => {
         }
       }
     ),
+    removeChannelPrincipal: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot', principalId) => {
+      if (channel === 'telegram') {
+        remoteState.pairingSnapshot.allowedUserIds =
+          remoteState.pairingSnapshot.allowedUserIds.filter(
+            (value) => String(value) !== principalId
+          )
+        remoteState.status.allowedUserCount = remoteState.pairingSnapshot.allowedUserIds.length
+        return
+      }
+
+      if (channel === 'feishu') {
+        feishuState.pairingSnapshot.pairedUserOpenIds =
+          feishuState.pairingSnapshot.pairedUserOpenIds.filter((value) => value !== principalId)
+        feishuState.status.pairedUserCount = feishuState.pairingSnapshot.pairedUserOpenIds.length
+        return
+      }
+
+      qqbotState.pairingSnapshot.pairedUserIds = qqbotState.pairingSnapshot.pairedUserIds.filter(
+        (value) => value !== principalId
+      )
+      qqbotState.status.pairedUserCount = qqbotState.pairingSnapshot.pairedUserIds.length
+    }),
     getTelegramSettings: vi.fn(async () => ({
       ...telegramSettingsSnapshot()
     })),
@@ -477,8 +465,6 @@ const setup = async (options: SetupOptions = {}) => {
         }
       }
       remoteState.status.enabled = nextSettings.remoteEnabled
-      remoteState.status.allowedUserCount = nextSettings.allowedUserIds.length
-      remoteState.pairingSnapshot.allowedUserIds = [...nextSettings.allowedUserIds]
       return {
         ...remoteState.settings,
         hookNotifications: {
@@ -549,7 +535,6 @@ const setup = async (options: SetupOptions = {}) => {
     ])
   }
   const projectPresenter = {
-    getRecentProjects: vi.fn(async () => options.recentProjects ?? []),
     selectDirectory: vi.fn(async () => options.selectedDirectory ?? null)
   }
 
@@ -852,7 +837,7 @@ describe('RemoteSettings', () => {
     expect(feishuPanel.attributes('style')).toBeUndefined()
   })
 
-  it('toggles telegram remote control from the overview card', async () => {
+  it('toggles telegram remote control from the tab header', async () => {
     const { wrapper, remoteState, remoteControlPresenter } = await setup({
       settings: {
         botToken: 'telegram-token',
@@ -868,7 +853,7 @@ describe('RemoteSettings', () => {
       }
     })
 
-    await wrapper.find('[data-testid="remote-overview-toggle-telegram"]').setValue(true)
+    await wrapper.find('[data-testid="remote-channel-toggle-telegram"]').setValue(true)
     await flushPromises()
 
     expect(remoteState.settings.remoteEnabled).toBe(true)
@@ -878,7 +863,7 @@ describe('RemoteSettings', () => {
         remoteEnabled: true
       })
     )
-    expect(wrapper.find('[data-testid="remote-control-details"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="remote-bindings-button"]').exists()).toBe(true)
   })
 
   it('shows enabled ACP agents in the default agent options', async () => {
@@ -888,7 +873,6 @@ describe('RemoteSettings', () => {
         remoteEnabled: true,
         allowedUserIds: [123],
         defaultAgentId: 'deepchat',
-        defaultWorkdir: '',
         hookNotifications: {
           enabled: false,
           chatId: '',
@@ -901,14 +885,12 @@ describe('RemoteSettings', () => {
     expect(wrapper.text()).toContain('ACP Agent (ACP)')
   })
 
-  it('persists the telegram default workdir when selecting a recent directory', async () => {
+  it('shows and removes authorized principals from the bindings dialog', async () => {
     const { wrapper, remoteState, remoteControlPresenter } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
-        allowedUserIds: [123],
-        defaultAgentId: 'acp-agent',
-        defaultWorkdir: '',
+        defaultAgentId: 'deepchat',
         hookNotifications: {
           enabled: false,
           chatId: '',
@@ -916,37 +898,42 @@ describe('RemoteSettings', () => {
           events: []
         }
       },
-      recentProjects: [{ name: 'remote', path: '/workspaces/remote', icon: null }]
+      pairingSnapshot: {
+        pairCode: null,
+        pairCodeExpiresAt: null,
+        allowedUserIds: [123]
+      },
+      bindings: [
+        {
+          endpointKey: 'telegram:100:0',
+          sessionId: 'session-1',
+          chatId: 100,
+          messageThreadId: 0,
+          updatedAt: 1
+        }
+      ]
     })
 
-    const option = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('/workspaces/remote'))
-
-    expect(option).toBeDefined()
-
-    await option!.trigger('click')
+    await wrapper.find('[data-testid="remote-bindings-button"]').trigger('click')
     await flushPromises()
 
-    expect(remoteState.settings.defaultWorkdir).toBe('/workspaces/remote')
-    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
-      'telegram',
-      expect.objectContaining({
-        defaultWorkdir: '/workspaces/remote'
-      })
-    )
+    expect(wrapper.find('[data-testid="remote-principal-123"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="remote-binding-telegram:100:0"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="remote-principal-123"] button').trigger('click')
+    await flushPromises()
+
+    expect(remoteControlPresenter.removeChannelPrincipal).toHaveBeenCalledWith('telegram', '123')
+    expect(remoteState.pairingSnapshot.allowedUserIds).toEqual([])
+    expect(wrapper.find('[data-testid="remote-principals-empty"]').exists()).toBe(true)
   })
 
-  it('picks and persists the feishu default workdir from the folder chooser', async () => {
-    const { wrapper, feishuState, remoteControlPresenter, projectPresenter, tabsComponents } =
-      await setup({
-        feishuChannelSettingsOverride: {
-          remoteEnabled: true,
-          defaultAgentId: 'acp-agent',
-          defaultWorkdir: ''
-        },
-        selectedDirectory: '/workspaces/feishu'
-      })
+  it('does not render legacy feishu raw ID or default directory inputs', async () => {
+    const { wrapper, tabsComponents } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true
+      }
+    })
 
     const feishuTrigger = wrapper
       .findAllComponents(tabsComponents.TabsTrigger)
@@ -957,17 +944,11 @@ describe('RemoteSettings', () => {
     await feishuTrigger!.trigger('click')
     await flushPromises()
 
-    await wrapper.find('[data-testid="remote-feishu-default-workdir-open-folder"]').trigger('click')
-    await flushPromises()
-
-    expect(projectPresenter.selectDirectory).toHaveBeenCalledTimes(1)
-    expect(feishuState.settings.defaultWorkdir).toBe('/workspaces/feishu')
-    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
-      'feishu',
-      expect.objectContaining({
-        defaultWorkdir: '/workspaces/feishu'
-      })
+    expect(wrapper.find('[data-testid="remote-feishu-paired-user-open-ids-input"]').exists()).toBe(
+      false
     )
+    expect(wrapper.text()).not.toContain('settings.remote.remoteControl.defaultWorkdir')
+    expect(wrapper.find('[data-testid="feishu-bindings-button"]').exists()).toBe(true)
   })
 
   it('normalizes legacy telegram settings without hook notifications', async () => {
@@ -990,11 +971,8 @@ describe('RemoteSettings', () => {
     })
 
     expect(toast).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-testid="remote-control-details"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="remote-allowed-user-ids-input"]').element).toHaveProperty(
-      'value',
-      '123'
-    )
+    expect(wrapper.find('[data-testid="remote-default-agent-select"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="remote-allowed-user-ids-input"]').exists()).toBe(false)
   })
 
   it('normalizes legacy feishu settings without paired user ids', async () => {
@@ -1009,9 +987,10 @@ describe('RemoteSettings', () => {
     await flushPromises()
 
     expect(toast).not.toHaveBeenCalled()
-    expect(
-      wrapper.find('[data-testid="remote-feishu-paired-user-open-ids-input"]').element
-    ).toHaveProperty('value', '')
+    expect(wrapper.find('[data-testid="feishu-bindings-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="remote-feishu-paired-user-open-ids-input"]').exists()).toBe(
+      false
+    )
   })
 
   it('uses remote control as the channel section title', async () => {
@@ -1091,15 +1070,16 @@ describe('RemoteSettings', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="remote-allowed-user-ids-input"]').element).toHaveProperty(
-      'value',
-      '123, 456'
-    )
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'settings.remote.remoteControl.pairingSuccessTitle'
       })
     )
+
+    await wrapper.find('[data-testid="remote-bindings-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="remote-principal-456"]').exists()).toBe(true)
   })
 
   it('does not open the pair dialog when saving telegram settings fails', async () => {
@@ -1139,7 +1119,6 @@ describe('RemoteSettings', () => {
         remoteEnabled: true,
         allowedUserIds: [123],
         defaultAgentId: 'deepchat',
-        defaultWorkdir: '',
         hookNotifications: {
           enabled: false,
           chatId: '',

@@ -1379,9 +1379,7 @@ export const normalizeTelegramSettingsInput = (
 ): TelegramRemoteSettings => ({
   botToken: input.botToken?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
-  allowedUserIds: normalizeTelegramUserIds(input.allowedUserIds),
   defaultAgentId: input.defaultAgentId?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
-  defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
   hookNotifications: {
     enabled: Boolean(input.hookNotifications.enabled),
     chatId: input.hookNotifications.chatId?.trim() ?? '',
@@ -1398,18 +1396,14 @@ export const normalizeFeishuSettingsInput = (
   verificationToken: input.verificationToken?.trim() ?? '',
   encryptKey: input.encryptKey?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
-  defaultAgentId: input.defaultAgentId?.trim() || FEISHU_REMOTE_DEFAULT_AGENT_ID,
-  defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
-  pairedUserOpenIds: normalizeFeishuOpenIds(input.pairedUserOpenIds)
+  defaultAgentId: input.defaultAgentId?.trim() || FEISHU_REMOTE_DEFAULT_AGENT_ID
 })
 
 export const normalizeQQBotSettingsInput = (input: QQBotRemoteSettings): QQBotRemoteSettings => ({
   appId: input.appId?.trim() ?? '',
   clientSecret: input.clientSecret?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
-  defaultAgentId: input.defaultAgentId?.trim() || QQBOT_REMOTE_DEFAULT_AGENT_ID,
-  defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
-  pairedUserIds: normalizeQQBotUserIds(input.pairedUserIds)
+  defaultAgentId: input.defaultAgentId?.trim() || QQBOT_REMOTE_DEFAULT_AGENT_ID
 })
 
 export const normalizeWeixinIlinkSettingsInput = (
@@ -1417,7 +1411,6 @@ export const normalizeWeixinIlinkSettingsInput = (
 ): WeixinIlinkRemoteSettings => ({
   remoteEnabled: Boolean(input.remoteEnabled),
   defaultAgentId: input.defaultAgentId?.trim() || WEIXIN_ILINK_REMOTE_DEFAULT_AGENT_ID,
-  defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
   accounts: normalizeWeixinIlinkAccounts(input.accounts)
 })
 

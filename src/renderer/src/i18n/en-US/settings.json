@@ -1591,12 +1591,13 @@
   },
   "remote": {
     "title": "Remote",
-    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
+    "description": "Configure Telegram, Feishu, QQBot, and WeChat iLink remote control in one place.",
     "telegram": {
       "title": "Telegram",
       "description": "Manage one Telegram bot for remote control and hook delivery.",
       "botToken": "Bot Token",
-      "botTokenPlaceholder": "Telegram bot token"
+      "botTokenPlaceholder": "Telegram bot token",
+      "botTokenDescription": "Enter the Telegram bot token used for remote control and Hook delivery."
     },
     "feishu": {
       "title": "Feishu",
@@ -1646,7 +1647,12 @@
       "bindingsEmpty": "No bindings yet.",
       "pairingSuccessTitle": "Pairing complete",
       "pairingSuccessDescription": "The paired principal list has been refreshed.",
-      "pairDialogInstructionQQBot": "Send this command to the QQ bot chat or authorized QQ group:"
+      "pairDialogInstructionQQBot": "Send this command to the QQ bot chat or authorized QQ group:",
+      "authorizedPrincipalsTitle": "Authorized Principals",
+      "authorizedPrincipalsDescription": "These {channel} accounts are authorized to pair and control sessions.",
+      "authorizedPrincipalsEmpty": "No authorized principals yet.",
+      "sessionBindingsTitle": "Session Bindings",
+      "sessionBindingsDescription": "Each remote endpoint below is currently bound to one DeepChat session."
     },
     "hooks": {
       "title": "Telegram Hooks",

@@ -1529,12 +1529,13 @@
   },
   "remote": {
     "title": "Удалённое управление",
-    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
+    "description": "Здесь можно централизованно настроить удалённое управление через Telegram, Feishu, QQBot и WeChat iLink.",
     "telegram": {
       "title": "Telegram",
       "description": "Управляйте одним ботом Telegram для удалённого управления и доставки хуков.",
       "botToken": "Токен бота",
-      "botTokenPlaceholder": "Токен бота Telegram"
+      "botTokenPlaceholder": "Токен бота Telegram",
+      "botTokenDescription": "Введите токен Telegram-бота, который используется для удалённого управления и отправки Hook-уведомлений."
     },
     "remoteControl": {
       "title": "Удалённое управление",
@@ -1568,7 +1569,12 @@
       "clearBindingsResult": "Очищено привязок: {count}.",
       "pairDialogInstructionTelegram": "Отправьте эту команду боту Telegram:",
       "pairDialogInstructionFeishu": "Отправьте эту команду боту Feishu в личном сообщении:",
-      "pairDialogInstructionQQBot": "Отправьте эту команду в чат с QQ-ботом или в авторизованную группу QQ:"
+      "pairDialogInstructionQQBot": "Отправьте эту команду в чат с QQ-ботом или в авторизованную группу QQ:",
+      "authorizedPrincipalsTitle": "Авторизованные субъекты",
+      "authorizedPrincipalsDescription": "Эти аккаунты {channel} авторизованы и могут выполнять привязку и управлять сессиями.",
+      "authorizedPrincipalsEmpty": "Пока нет авторизованных субъектов.",
+      "sessionBindingsTitle": "Привязки сессий",
+      "sessionBindingsDescription": "Каждая удалённая точка входа ниже сейчас привязана к одной сессии DeepChat."
     },
     "hooks": {
       "title": "Telegram Hook уведомления",

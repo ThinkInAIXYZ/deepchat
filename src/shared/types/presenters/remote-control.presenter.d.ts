@@ -89,9 +89,7 @@ export interface WeixinIlinkAccountSummary {
 export interface TelegramRemoteSettings {
   botToken: string
   remoteEnabled: boolean
-  allowedUserIds: number[]
   defaultAgentId: string
-  defaultWorkdir: string
   hookNotifications: TelegramHookSettings
 }
 
@@ -102,8 +100,6 @@ export interface FeishuRemoteSettings {
   encryptKey: string
   remoteEnabled: boolean
   defaultAgentId: string
-  defaultWorkdir: string
-  pairedUserOpenIds: string[]
 }
 
 export interface QQBotRemoteSettings {
@@ -111,14 +107,11 @@ export interface QQBotRemoteSettings {
   clientSecret: string
   remoteEnabled: boolean
   defaultAgentId: string
-  defaultWorkdir: string
-  pairedUserIds: string[]
 }
 
 export interface WeixinIlinkRemoteSettings {
   remoteEnabled: boolean
   defaultAgentId: string
-  defaultWorkdir: string
   accounts: WeixinIlinkAccountSummary[]
 }
 
@@ -238,6 +231,7 @@ export interface IRemoteControlPresenter {
 
   getChannelBindings(channel: RemoteChannel): Promise<RemoteBindingSummary[]>
   removeChannelBinding(channel: RemoteChannel, endpointKey: string): Promise<void>
+  removeChannelPrincipal(channel: PairableRemoteChannel, principalId: string): Promise<void>
 
   getChannelPairingSnapshot(channel: 'telegram'): Promise<TelegramPairingSnapshot>
   getChannelPairingSnapshot(channel: 'feishu'): Promise<FeishuPairingSnapshot>
