@@ -142,6 +142,45 @@ export class McpClient {
     this.serverConfig = serverConfig
     this.npmRegistry = npmRegistry
     this.uvRegistry = uvRegistry
+    this.runtimeHelper.initializeRuntimes()
+  }
+
+  public processCommandWithArgs(
+    command: string,
+    args: string[]
+  ): { command: string; args: string[] } {
+    this.runtimeHelper.initializeRuntimes()
+    return this.runtimeHelper.processCommandWithArgs(command, args)
+  }
+
+  public expandPath(inputPath: string): string {
+    return this.runtimeHelper.expandPath(inputPath)
+  }
+
+  public get nodeRuntimePath(): string | null {
+    this.runtimeHelper.initializeRuntimes()
+    return this.runtimeHelper.getNodeRuntimePath()
+  }
+
+  public set nodeRuntimePath(value: string | null) {
+    ;(this.runtimeHelper as unknown as { nodeRuntimePath: string | null }).nodeRuntimePath = value
+  }
+
+  public get bunRuntimePath(): string | null {
+    return this.nodeRuntimePath
+  }
+
+  public set bunRuntimePath(value: string | null) {
+    this.nodeRuntimePath = value
+  }
+
+  public get uvRuntimePath(): string | null {
+    this.runtimeHelper.initializeRuntimes()
+    return this.runtimeHelper.getUvRuntimePath()
+  }
+
+  public set uvRuntimePath(value: string | null) {
+    ;(this.runtimeHelper as unknown as { uvRuntimePath: string | null }).uvRuntimePath = value
   }
 
   // Connect to MCP server

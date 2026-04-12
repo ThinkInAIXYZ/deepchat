@@ -1537,6 +1537,43 @@
       "botTokenPlaceholder": "Telegram Bot トークン",
       "botTokenDescription": "リモート操作と Hook 通知の送信に使う Telegram Bot Token を入力します。"
     },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Feishu Bot を接続して、ダイレクトメッセージ、グループチャット、トピックスレッドから操作できます。",
+      "brand": "ブランド",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "アプリ ID",
+      "appIdPlaceholder": "Feishu アプリ ID",
+      "appSecret": "アプリシークレット",
+      "appSecretPlaceholder": "Feishu アプリシークレット",
+      "verificationToken": "検証トークン",
+      "verificationTokenPlaceholder": "Feishu 検証トークン",
+      "encryptKey": "暗号化キー（任意）",
+      "encryptKeyPlaceholder": "イベント暗号化を有効にしていない場合は空欄のままにします",
+      "botUser": "Bot ユーザー: {name} ({openId})",
+      "bindings": "バインド数: {count}、ペア済みユーザー: {pairedUserCount}",
+      "pairedUserOpenIds": "ペア済みユーザー Open ID",
+      "pairedUserOpenIdsPlaceholder": "例: ou_xxx, ou_yyy",
+      "accessRulesDescription": "まずダイレクトメッセージでペアリングしてください。グループでは、{'@'} で Bot をメンションしたペア済みユーザーだけがセッションを操作できます。",
+      "accessRule1": "ダイレクトメッセージで /pair [コード] を送ってペアリングします。",
+      "accessRule2": "グループとトピックでは、ペア済みユーザーが {'@'} で Bot をメンションしたときだけ反応します。"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Discord Bot を接続すると、DM、チャンネルメンション、Slash Commands で遠隔操作できます。",
+      "botToken": "Bot トークン",
+      "botTokenPlaceholder": "Discord Bot トークン",
+      "remoteControlDescription": "Discord の遠隔操作は専用の Bot トークン、Gateway、REST フローを使います。通知 Hook の webhook 設定は再利用しません。",
+      "accessRule1": "DM または対象チャンネルで /pair [code] を送信し、現在の Discord エンドポイントを認可してください。",
+      "accessRule2": "チャンネルメッセージは Bot へのメンションがある場合だけセッションに入るため、通常の雑談を誤って取り込みません。"
+    },
+    "sections": {
+      "credentials": "認証情報",
+      "remoteControl": "リモート操作",
+      "notifications": "通知",
+      "accessRules": "アクセスルール"
+    },
     "remoteControl": {
       "title": "リモート操作",
       "description": "各リモートエンドポイントを 1 つの DeepChat セッションに結び付け、そのセッションをコマンド間で使い続けます。",
@@ -1569,6 +1606,7 @@
       "clearBindingsResult": "{count} 件のバインドをクリアしました。",
       "pairDialogInstructionTelegram": "このコマンドを Telegram Bot に送信してください:",
       "pairDialogInstructionFeishu": "このコマンドを Feishu Bot のダイレクトメッセージに送信してください:",
+      "pairDialogInstructionDiscord": "このコマンドを Discord Bot の DM または対象チャンネルに送信してください:",
       "pairDialogInstructionQQBot": "このコマンドを QQ Bot とのチャットまたは認可済み QQ グループに送信してください:",
       "authorizedPrincipalsTitle": "認可済み主体",
       "authorizedPrincipalsDescription": "これらの {channel} アカウントは認可済みで、ペアリングとセッション操作を行えます。",
@@ -1598,37 +1636,13 @@
       },
       "bindingOnly": "バインド数: {count}、ペア済み主体: {paired}"
     },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Feishu Bot を接続して、ダイレクトメッセージ、グループチャット、トピックスレッドから操作できます。",
-      "appId": "アプリ ID",
-      "appIdPlaceholder": "Feishu アプリ ID",
-      "appSecret": "アプリシークレット",
-      "appSecretPlaceholder": "Feishu アプリシークレット",
-      "verificationToken": "検証トークン",
-      "verificationTokenPlaceholder": "Feishu 検証トークン",
-      "encryptKey": "暗号化キー（任意）",
-      "encryptKeyPlaceholder": "イベント暗号化を有効にしていない場合は空欄のままにします",
-      "botUser": "Bot ユーザー: {name} ({openId})",
-      "bindings": "バインド数: {count}、ペア済みユーザー: {pairedUserCount}",
-      "pairedUserOpenIds": "ペア済みユーザー Open ID",
-      "pairedUserOpenIdsPlaceholder": "例: ou_xxx, ou_yyy",
-      "accessRulesDescription": "まずダイレクトメッセージでペアリングしてください。グループでは、{'@'} で Bot をメンションしたペア済みユーザーだけがセッションを操作できます。",
-      "accessRule1": "ダイレクトメッセージで /pair [コード] を送ってペアリングします。",
-      "accessRule2": "グループとトピックでは、ペア済みユーザーが {'@'} で Bot をメンションしたときだけ反応します。"
-    },
-    "sections": {
-      "credentials": "認証情報",
-      "remoteControl": "リモート操作",
-      "notifications": "通知",
-      "accessRules": "アクセスルール"
-    },
     "overview": {
       "telegram": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー、hooks {hooks}",
       "feishu": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー",
       "hooksOn": "有効",
       "hooksOff": "無効",
       "qqbot": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー",
+      "discord": "{bindingCount} 件のバインド、{pairedCount} 件のペア済みチャンネル",
       "weixinIlink": "{bindingCount} 件のバインディング、{accountCount} 件のアカウント、接続中 {connectedCount} 件"
     },
     "bindingKinds": {

@@ -1537,6 +1537,43 @@
       "botTokenPlaceholder": "توکن ربات تلگرام",
       "botTokenDescription": "توکن ربات تلگرام را که برای کنترل از راه دور و ارسال اعلان‌های Hook استفاده می‌شود وارد کنید."
     },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "یک ربات Feishu را برای پیام خصوصی، گفت‌وگوی گروهی و رشته‌های موضوعی متصل کنید.",
+      "brand": "برند",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "شناسه برنامه",
+      "appIdPlaceholder": "شناسه برنامه Feishu",
+      "appSecret": "رمز برنامه",
+      "appSecretPlaceholder": "رمز برنامه Feishu",
+      "verificationToken": "توکن تأیید",
+      "verificationTokenPlaceholder": "توکن تأیید Feishu",
+      "encryptKey": "کلید رمزنگاری (اختیاری)",
+      "encryptKeyPlaceholder": "اگر رمزنگاری رویداد فعال نیست، خالی بگذارید",
+      "botUser": "کاربر ربات: {name} ({openId})",
+      "bindings": "اتصال‌ها: {count}، کاربران جفت‌شده: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID کاربران جفت‌شده",
+      "pairedUserOpenIdsPlaceholder": "مثلاً ou_xxx، ou_yyy",
+      "accessRulesDescription": "ابتدا در پیام خصوصی جفت‌سازی کنید. در گروه‌ها فقط کاربرانی که جفت شده‌اند و ربات را با {'@'} صدا می‌زنند می‌توانند یک نشست را کنترل کنند.",
+      "accessRule1": "در پیام خصوصی با /pair [کد] جفت‌سازی کنید.",
+      "accessRule2": "در گروه‌ها و موضوع‌ها، ربات فقط وقتی واکنش نشان می‌دهد که یک کاربر جفت‌شده آن را با {'@'} خطاب کند."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "یک ربات Discord را برای پیام‌های مستقیم، منشن در کانال و کنترل از راه دور با اسلش‌کامند متصل کنید.",
+      "botToken": "توکن ربات",
+      "botTokenPlaceholder": "توکن ربات Discord",
+      "remoteControlDescription": "کنترل از راه دور Discord از توکن ربات، درگاه Gateway و جریان REST اختصاصی خودش استفاده می‌کند و تنظیمات webhook اعلان‌ها را دوباره به کار نمی‌گیرد.",
+      "accessRule1": "برای مجاز کردن نقطه‌پایانی فعلی Discord، /pair [code] را در پیام خصوصی یا کانال مقصد بفرستید.",
+      "accessRule2": "پیام‌های کانال فقط وقتی وارد نشست می‌شوند که ربات منشن شده باشد تا گفت‌وگوی عادی بی‌دلیل جذب نشود."
+    },
+    "sections": {
+      "credentials": "اعتبارنامه‌ها",
+      "remoteControl": "کنترل از راه دور",
+      "notifications": "اعلان‌ها",
+      "accessRules": "قوانین دسترسی"
+    },
     "remoteControl": {
       "title": "کنترل از راه دور",
       "description": "هر نقطهٔ پایانیِ راه دور را به یک نشست DeepChat متصل کنید و آن نشست را بین فرمان‌ها حفظ کنید.",
@@ -1569,6 +1606,7 @@
       "clearBindingsResult": "{count} اتصال پاک شد.",
       "pairDialogInstructionTelegram": "این فرمان را برای ربات Telegram بفرستید:",
       "pairDialogInstructionFeishu": "این فرمان را در پیام خصوصی برای ربات Feishu بفرستید:",
+      "pairDialogInstructionDiscord": "این فرمان را در پیام خصوصی یا کانال مقصد برای ربات Discord بفرستید:",
       "pairDialogInstructionQQBot": "این دستور را در گفت‌وگوی QQ Bot یا گروه مجاز QQ بفرستید:",
       "authorizedPrincipalsTitle": "شناسه‌های مجاز",
       "authorizedPrincipalsDescription": "این حساب‌های {channel} مجاز هستند و می‌توانند جفت‌سازی و کنترل نشست‌ها را انجام دهند.",
@@ -1598,37 +1636,13 @@
       },
       "bindingOnly": "اتصال‌ها: {count}، شناسه‌های جفت‌شده: {paired}"
     },
-    "feishu": {
-      "title": "Feishu",
-      "description": "یک ربات Feishu را برای پیام خصوصی، گفت‌وگوی گروهی و رشته‌های موضوعی متصل کنید.",
-      "appId": "شناسه برنامه",
-      "appIdPlaceholder": "شناسه برنامه Feishu",
-      "appSecret": "رمز برنامه",
-      "appSecretPlaceholder": "رمز برنامه Feishu",
-      "verificationToken": "توکن تأیید",
-      "verificationTokenPlaceholder": "توکن تأیید Feishu",
-      "encryptKey": "کلید رمزنگاری (اختیاری)",
-      "encryptKeyPlaceholder": "اگر رمزنگاری رویداد فعال نیست، خالی بگذارید",
-      "botUser": "کاربر ربات: {name} ({openId})",
-      "bindings": "اتصال‌ها: {count}، کاربران جفت‌شده: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID کاربران جفت‌شده",
-      "pairedUserOpenIdsPlaceholder": "مثلاً ou_xxx، ou_yyy",
-      "accessRulesDescription": "ابتدا در پیام خصوصی جفت‌سازی کنید. در گروه‌ها فقط کاربرانی که جفت شده‌اند و ربات را با {'@'} صدا می‌زنند می‌توانند یک نشست را کنترل کنند.",
-      "accessRule1": "در پیام خصوصی با /pair [کد] جفت‌سازی کنید.",
-      "accessRule2": "در گروه‌ها و موضوع‌ها، ربات فقط وقتی واکنش نشان می‌دهد که یک کاربر جفت‌شده آن را با {'@'} خطاب کند."
-    },
-    "sections": {
-      "credentials": "اعتبارنامه‌ها",
-      "remoteControl": "کنترل از راه دور",
-      "notifications": "اعلان‌ها",
-      "accessRules": "قوانین دسترسی"
-    },
     "overview": {
       "telegram": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده، hookها {hooks}",
       "feishu": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
       "hooksOn": "روشن",
       "hooksOff": "خاموش",
       "qqbot": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
+      "discord": "{bindingCount} اتصال، {pairedCount} کانال جفت‌شده",
       "weixinIlink": "{bindingCount} اتصال، {accountCount} حساب، {connectedCount} متصل"
     },
     "bindingKinds": {

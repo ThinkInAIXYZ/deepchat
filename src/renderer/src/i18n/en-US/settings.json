@@ -1591,7 +1591,7 @@
   },
   "remote": {
     "title": "Remote",
-    "description": "Configure Telegram, Feishu, QQBot, and WeChat iLink remote control in one place.",
+    "description": "Configure Telegram, Feishu / Lark, QQBot, Discord, and WeChat iLink remote control in one place.",
     "telegram": {
       "title": "Telegram",
       "description": "Manage one Telegram bot for remote control and hook delivery.",
@@ -1600,8 +1600,11 @@
       "botTokenDescription": "Enter the Telegram bot token used for remote control and Hook delivery."
     },
     "feishu": {
-      "title": "Feishu",
+      "title": "Feishu / Lark",
       "description": "Connect a Feishu bot for direct messages, group chats, and topic threads.",
+      "brand": "Brand",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
       "appId": "App ID",
       "appIdPlaceholder": "Feishu app ID",
       "appSecret": "App Secret",
@@ -1617,6 +1620,15 @@
       "accessRulesDescription": "Pair in a direct message first. In groups, only paired users who {'@'} mention the bot can drive a session.",
       "accessRule1": "Pair in a direct message with /pair [code].",
       "accessRule2": "In groups and topics, the bot only reacts when a paired user {'@'} mentions it."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Connect a Discord bot for DMs, channel mentions, and slash-command remote control.",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Discord bot token",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow. It does not reuse the notification webhook configuration.",
+      "accessRule1": "Send /pair [code] in a DM or target channel to authorize the current Discord endpoint.",
+      "accessRule2": "Channel messages only enter the conversation when the bot is mentioned, which avoids absorbing regular chat."
     },
     "sections": {
       "credentials": "Credentials",
@@ -1642,6 +1654,7 @@
       "pairDialogDescription": "Generate a pairing code and finish pairing from your {channel} bot chat.",
       "pairDialogInstructionTelegram": "Send this command to the Telegram bot:",
       "pairDialogInstructionFeishu": "Send this command to the Feishu bot in a direct message:",
+      "pairDialogInstructionDiscord": "Send this command to the Discord bot in a DM or target channel:",
       "bindingsDialogTitle": "{channel} Bindings",
       "bindingsDialogDescription": "Remove remote endpoint bindings one by one.",
       "bindingsEmpty": "No bindings yet.",
@@ -1682,6 +1695,7 @@
       "hooksOn": "on",
       "hooksOff": "off",
       "qqbot": "{bindingCount} bindings, {pairedCount} paired users",
+      "discord": "{bindingCount} bindings, {pairedCount} paired channels",
       "weixinIlink": "{bindingCount} bindings, {accountCount} accounts, {connectedCount} connected"
     },
     "bindingKinds": {

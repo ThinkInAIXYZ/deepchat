@@ -99,27 +99,66 @@ const setup = async (options: SetupOptions = {}) => {
     show: vi.fn()
   }
   const remoteControlPresenter = {
-    getChannelStatus: vi.fn(async (channel: 'telegram' | 'feishu') =>
-      channel === 'telegram'
-        ? {
-            channel: 'telegram' as const,
-            enabled: remoteStatus.enabled,
-            state: remoteStatus.state,
-            pollOffset: 0,
-            bindingCount: 0,
-            allowedUserCount: 0,
-            lastError: null,
-            botUser: null
-          }
-        : {
-            channel: 'feishu' as const,
-            enabled: false,
-            state: 'disabled' as const,
-            bindingCount: 0,
-            pairedUserCount: 0,
-            lastError: null,
-            botUser: null
-          }
+    listRemoteChannels: vi.fn(async () => [
+      { id: 'telegram', implemented: true },
+      { id: 'feishu', implemented: true },
+      { id: 'qqbot', implemented: true },
+      { id: 'discord', implemented: true },
+      { id: 'weixin-ilink', implemented: true }
+    ]),
+    getChannelStatus: vi.fn(
+      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') =>
+        channel === 'telegram'
+          ? {
+              channel: 'telegram' as const,
+              enabled: remoteStatus.enabled,
+              state: remoteStatus.state,
+              pollOffset: 0,
+              bindingCount: 0,
+              allowedUserCount: 0,
+              lastError: null,
+              botUser: null
+            }
+          : {
+              channel:
+                channel === 'weixin-ilink'
+                  ? ('weixin-ilink' as const)
+                  : channel === 'discord'
+                    ? ('discord' as const)
+                    : channel === 'qqbot'
+                      ? ('qqbot' as const)
+                      : ('feishu' as const),
+              enabled: false,
+              state: 'disabled' as const,
+              ...(channel === 'discord'
+                ? {
+                    bindingCount: 0,
+                    pairedChannelCount: 0,
+                    lastError: null,
+                    botUser: null
+                  }
+                : channel === 'qqbot'
+                  ? {
+                      bindingCount: 0,
+                      pairedUserCount: 0,
+                      lastError: null,
+                      botUser: null
+                    }
+                  : channel === 'weixin-ilink'
+                    ? {
+                        bindingCount: 0,
+                        accountCount: 0,
+                        connectedAccountCount: 0,
+                        lastError: null,
+                        accounts: []
+                      }
+                    : {
+                        bindingCount: 0,
+                        pairedUserCount: 0,
+                        lastError: null,
+                        botUser: null
+                      })
+            }
     ),
     getTelegramStatus: vi.fn().mockResolvedValue({
       enabled: remoteStatus.enabled,

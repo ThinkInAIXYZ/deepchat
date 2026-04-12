@@ -1,6 +1,7 @@
 import type { ChannelAdapterConfig, SendMessageOptions } from '../../types/channel'
 import { ChannelAdapter } from '../../channelAdapter'
 import type { FeishuRuntimeStatusSnapshot, FeishuTransportTarget } from '../../types'
+import type { FeishuBrand } from '@shared/presenter'
 import { FeishuAuthGuard } from '../../services/feishuAuthGuard'
 import { RemoteBindingStore } from '../../services/remoteBindingStore'
 import { RemoteConversationRunner } from '../../services/remoteConversationRunner'
@@ -28,6 +29,7 @@ export class FeishuAdapter extends ChannelAdapter {
   private readonly createConversationRunner: () => RemoteConversationRunner
   private readonly onFatalError?: (message: string) => Promise<void> | void
   private readonly credentials: {
+    brand: FeishuBrand
     appId: string
     appSecret: string
     verificationToken: string
@@ -45,6 +47,7 @@ export class FeishuAdapter extends ChannelAdapter {
     this.createConversationRunner = deps.createConversationRunner
     this.onFatalError = deps.onFatalError
     this.credentials = {
+      brand: config.channelConfig.brand === 'lark' ? 'lark' : 'feishu',
       appId: String(config.channelConfig.appId ?? '').trim(),
       appSecret: String(config.channelConfig.appSecret ?? '').trim(),
       verificationToken: String(config.channelConfig.verificationToken ?? '').trim(),

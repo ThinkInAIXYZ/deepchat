@@ -1537,6 +1537,43 @@
       "botTokenPlaceholder": "Telegram 봇 토큰",
       "botTokenDescription": "원격 제어와 Hook 알림 전송에 사용할 Telegram 봇 토큰을 입력합니다."
     },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Feishu 봇을 연결하여 개인 메시지, 그룹 채팅, 주제 스레드에서 사용할 수 있습니다.",
+      "brand": "브랜드",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "앱 ID",
+      "appIdPlaceholder": "Feishu 앱 ID",
+      "appSecret": "앱 시크릿",
+      "appSecretPlaceholder": "Feishu 앱 시크릿",
+      "verificationToken": "검증 토큰",
+      "verificationTokenPlaceholder": "Feishu 검증 토큰",
+      "encryptKey": "암호화 키(선택)",
+      "encryptKeyPlaceholder": "이벤트 암호화를 사용하지 않으면 비워 두세요",
+      "botUser": "봇 사용자: {name} ({openId})",
+      "bindings": "바인딩: {count}, 페어링된 사용자: {pairedUserCount}",
+      "pairedUserOpenIds": "페어링된 사용자 Open ID",
+      "pairedUserOpenIdsPlaceholder": "예: ou_xxx, ou_yyy",
+      "accessRulesDescription": "먼저 개인 메시지에서 페어링하세요. 그룹에서는 {'@'}로 봇을 멘션한 페어링된 사용자만 세션을 제어할 수 있습니다.",
+      "accessRule1": "개인 메시지에서 /pair [코드]로 페어링하세요.",
+      "accessRule2": "그룹과 토픽에서는 페어링된 사용자가 {'@'}로 봇을 멘션할 때만 반응합니다."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Discord 봇을 연결해 DM, 채널 멘션, Slash Commands로 원격 제어할 수 있습니다.",
+      "botToken": "봇 토큰",
+      "botTokenPlaceholder": "Discord 봇 토큰",
+      "remoteControlDescription": "Discord 원격 제어는 전용 봇 토큰, Gateway, REST 흐름을 사용하며 알림 Hook의 webhook 설정을 재사용하지 않습니다.",
+      "accessRule1": "현재 Discord 엔드포인트를 승인하려면 DM 또는 대상 채널에서 /pair [code]를 보내세요.",
+      "accessRule2": "채널 메시지는 봇이 멘션된 경우에만 세션으로 들어오므로 일반 대화를 잘못 흡수하지 않습니다."
+    },
+    "sections": {
+      "credentials": "자격 증명",
+      "remoteControl": "원격 제어",
+      "notifications": "알림",
+      "accessRules": "접근 규칙"
+    },
     "remoteControl": {
       "title": "원격 제어",
       "description": "각 원격 엔드포인트를 하나의 DeepChat 세션에 바인딩하고, 명령 사이에서도 그 세션을 계속 사용합니다.",
@@ -1569,6 +1606,7 @@
       "clearBindingsResult": "{count}개의 바인딩을 지웠습니다.",
       "pairDialogInstructionTelegram": "이 명령을 Telegram 봇에게 보내세요:",
       "pairDialogInstructionFeishu": "이 명령을 Feishu 봇에게 개인 메시지로 보내세요:",
+      "pairDialogInstructionDiscord": "이 명령을 Discord 봇에게 DM 또는 대상 채널로 보내세요:",
       "pairDialogInstructionQQBot": "이 명령을 QQ 봇 채팅 또는 승인된 QQ 그룹으로 보내세요:",
       "authorizedPrincipalsTitle": "승인된 주체",
       "authorizedPrincipalsDescription": "이 {channel} 계정들은 승인되어 페어링과 세션 제어를 수행할 수 있습니다.",
@@ -1598,37 +1636,13 @@
       },
       "bindingOnly": "바인딩: {count}, 페어링된 주체: {paired}"
     },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Feishu 봇을 연결하여 개인 메시지, 그룹 채팅, 주제 스레드에서 사용할 수 있습니다.",
-      "appId": "앱 ID",
-      "appIdPlaceholder": "Feishu 앱 ID",
-      "appSecret": "앱 시크릿",
-      "appSecretPlaceholder": "Feishu 앱 시크릿",
-      "verificationToken": "검증 토큰",
-      "verificationTokenPlaceholder": "Feishu 검증 토큰",
-      "encryptKey": "암호화 키(선택)",
-      "encryptKeyPlaceholder": "이벤트 암호화를 사용하지 않으면 비워 두세요",
-      "botUser": "봇 사용자: {name} ({openId})",
-      "bindings": "바인딩: {count}, 페어링된 사용자: {pairedUserCount}",
-      "pairedUserOpenIds": "페어링된 사용자 Open ID",
-      "pairedUserOpenIdsPlaceholder": "예: ou_xxx, ou_yyy",
-      "accessRulesDescription": "먼저 개인 메시지에서 페어링하세요. 그룹에서는 {'@'}로 봇을 멘션한 페어링된 사용자만 세션을 제어할 수 있습니다.",
-      "accessRule1": "개인 메시지에서 /pair [코드]로 페어링하세요.",
-      "accessRule2": "그룹과 토픽에서는 페어링된 사용자가 {'@'}로 봇을 멘션할 때만 반응합니다."
-    },
-    "sections": {
-      "credentials": "자격 증명",
-      "remoteControl": "원격 제어",
-      "notifications": "알림",
-      "accessRules": "접근 규칙"
-    },
     "overview": {
       "telegram": "{bindingCount}개 바인딩, {pairedCount}명 페어링됨, hooks {hooks}",
       "feishu": "{bindingCount}개 바인딩, {pairedCount}명 페어링됨",
       "hooksOn": "켜짐",
       "hooksOff": "꺼짐",
       "qqbot": "{bindingCount}개 바인딩, {pairedCount}명의 페어링된 사용자",
+      "discord": "{bindingCount}개 바인딩, {pairedCount}개의 페어링된 채널",
       "weixinIlink": "바인딩 {bindingCount}개, 계정 {accountCount}개, 연결됨 {connectedCount}개"
     },
     "bindingKinds": {

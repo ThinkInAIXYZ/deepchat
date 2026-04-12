@@ -1537,6 +1537,43 @@
       "botTokenPlaceholder": "טוקן בוט Telegram",
       "botTokenDescription": "הזן את טוקן הבוט של Telegram המשמש לשליטה מרחוק ולשליחת התראות Hook."
     },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "חבר בוט Feishu להודעות פרטיות, שיחות קבוצתיות ושרשורי נושאים.",
+      "brand": "מותג",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "מזהה יישום",
+      "appIdPlaceholder": "מזהה יישום של Feishu",
+      "appSecret": "סוד היישום",
+      "appSecretPlaceholder": "סוד היישום של Feishu",
+      "verificationToken": "אסימון אימות",
+      "verificationTokenPlaceholder": "אסימון האימות של Feishu",
+      "encryptKey": "מפתח הצפנה (אופציונלי)",
+      "encryptKeyPlaceholder": "השאר ריק אם הצפנת אירועים לא מופעלת",
+      "botUser": "משתמש הבוט: {name} ({openId})",
+      "bindings": "קישורים: {count}, משתמשים מצומדים: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID של משתמשים מצומדים",
+      "pairedUserOpenIdsPlaceholder": "למשל ou_xxx, ou_yyy",
+      "accessRulesDescription": "צריך לבצע צימוד קודם בהודעה פרטית. בקבוצות, רק משתמשים מצומדים שמזכירים את הבוט עם {'@'} יכולים לשלוט בסשן.",
+      "accessRule1": "בצעו צימוד בהודעה פרטית עם /pair [קוד].",
+      "accessRule2": "בקבוצות ובנושאים, הבוט מגיב רק כאשר משתמש מצומד מזכיר אותו עם {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "חברו בוט Discord להודעות פרטיות, אזכורים בערוצים ושליטה מרחוק באמצעות Slash Commands.",
+      "botToken": "אסימון בוט",
+      "botTokenPlaceholder": "אסימון בוט של Discord",
+      "remoteControlDescription": "השליטה מרחוק ב-Discord משתמשת באסימון בוט, Gateway וזרימת REST נפרדים משלה. היא לא עושה שימוש חוזר בתצורת ה-webhook של ההתראות.",
+      "accessRule1": "שלחו /pair [code] בהודעה פרטית או בערוץ היעד כדי לאשר את נקודת הקצה הנוכחית של Discord.",
+      "accessRule2": "הודעות בערוץ נכנסות לשיחה רק כאשר מזכירים את הבוט, כדי לא לקלוט בטעות צ'אט רגיל."
+    },
+    "sections": {
+      "credentials": "אישורים",
+      "remoteControl": "שליטה מרחוק",
+      "notifications": "התראות",
+      "accessRules": "כללי גישה"
+    },
     "remoteControl": {
       "title": "שליטה מרחוק",
       "description": "קשרו כל יעד מרוחק לסשן DeepChat אחד ושמרו על אותו סשן בין פקודות.",
@@ -1569,6 +1606,7 @@
       "clearBindingsResult": "{count} קישור(ים) נוקו.",
       "pairDialogInstructionTelegram": "שלחו את הפקודה הזו לבוט Telegram:",
       "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:",
+      "pairDialogInstructionDiscord": "שלחו את הפקודה הזו לבוט Discord בהודעה פרטית או בערוץ היעד:",
       "pairDialogInstructionQQBot": "שלח את הפקודה הזו בצ'אט של QQ Bot או בקבוצת QQ מורשית:",
       "authorizedPrincipalsTitle": "ישויות מורשות",
       "authorizedPrincipalsDescription": "חשבונות {channel} האלה מורשים לבצע צימוד ולשלוט בסשנים.",
@@ -1598,37 +1636,13 @@
       },
       "bindingOnly": "קישורים: {count}, ישויות מותאמות: {paired}"
     },
-    "feishu": {
-      "title": "Feishu",
-      "description": "חבר בוט Feishu להודעות פרטיות, שיחות קבוצתיות ושרשורי נושאים.",
-      "appId": "מזהה יישום",
-      "appIdPlaceholder": "מזהה יישום של Feishu",
-      "appSecret": "סוד היישום",
-      "appSecretPlaceholder": "סוד היישום של Feishu",
-      "verificationToken": "אסימון אימות",
-      "verificationTokenPlaceholder": "אסימון האימות של Feishu",
-      "encryptKey": "מפתח הצפנה (אופציונלי)",
-      "encryptKeyPlaceholder": "השאר ריק אם הצפנת אירועים לא מופעלת",
-      "botUser": "משתמש הבוט: {name} ({openId})",
-      "bindings": "קישורים: {count}, משתמשים מצומדים: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID של משתמשים מצומדים",
-      "pairedUserOpenIdsPlaceholder": "למשל ou_xxx, ou_yyy",
-      "accessRulesDescription": "צריך לבצע צימוד קודם בהודעה פרטית. בקבוצות, רק משתמשים מצומדים שמזכירים את הבוט עם {'@'} יכולים לשלוט בסשן.",
-      "accessRule1": "בצעו צימוד בהודעה פרטית עם /pair [קוד].",
-      "accessRule2": "בקבוצות ובנושאים, הבוט מגיב רק כאשר משתמש מצומד מזכיר אותו עם {'@'}."
-    },
-    "sections": {
-      "credentials": "אישורים",
-      "remoteControl": "שליטה מרחוק",
-      "notifications": "התראות",
-      "accessRules": "כללי גישה"
-    },
     "overview": {
       "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים, hooks {hooks}",
       "feishu": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "hooksOn": "מופעלים",
       "hooksOff": "כבויים",
       "qqbot": "{bindingCount} קישורים, {pairedCount} משתמשים מותאמים",
+      "discord": "{bindingCount} קישורים, {pairedCount} ערוצים מצומדים",
       "weixinIlink": "{bindingCount} קישורים, {accountCount} חשבונות, {connectedCount} מחוברים"
     },
     "bindingKinds": {

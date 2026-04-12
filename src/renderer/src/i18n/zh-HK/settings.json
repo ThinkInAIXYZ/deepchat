@@ -1537,6 +1537,43 @@
       "botTokenPlaceholder": "Telegram 機器人 Token",
       "botTokenDescription": "填入用於遠端控制與 Hook 通知投遞的 Telegram 機器人 Token。"
     },
+    "feishu": {
+      "title": "飛書 / Lark",
+      "description": "接入飛書 Bot，支援私聊、群組聊天與話題串的遠端控制。",
+      "brand": "品牌",
+      "brandFeishu": "飛書",
+      "brandLark": "Lark",
+      "appId": "應用 ID",
+      "appIdPlaceholder": "飛書應用 ID",
+      "appSecret": "應用密鑰",
+      "appSecretPlaceholder": "飛書應用密鑰",
+      "verificationToken": "驗證令牌",
+      "verificationTokenPlaceholder": "飛書事件訂閱驗證令牌",
+      "encryptKey": "加密密鑰（可選）",
+      "encryptKeyPlaceholder": "未啟用事件加密時可留空",
+      "botUser": "機器人帳號：{name} ({openId})",
+      "bindings": "綁定數：{count}，已配對使用者：{pairedUserCount}",
+      "pairedUserOpenIds": "已配對使用者 Open ID",
+      "pairedUserOpenIdsPlaceholder": "例如 ou_xxx、ou_yyy",
+      "accessRulesDescription": "請先在私聊完成配對。在群組中，只有已配對且以 {'@'} 提及 Bot 的使用者才能操作會話。",
+      "accessRule1": "先在私聊中發送 /pair [配對碼] 完成配對。",
+      "accessRule2": "在群組與話題串中，只有已配對使用者以 {'@'} 提及 Bot 時，機器人才會回應。"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "接入 Discord Bot，支援私聊、頻道提及和 Slash Commands 遠端控制。",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Discord Bot Token",
+      "remoteControlDescription": "Discord 遠控使用獨立的 Bot Token、Gateway 和 REST，不會重用通知 Hook 的 webhook 設定。",
+      "accessRule1": "在私聊或目標頻道發送 /pair [配對碼]，把當前 DM 或頻道授權給 DeepChat。",
+      "accessRule2": "頻道訊息只有在提及機器人時才會進入會話，避免誤處理普通聊天。"
+    },
+    "sections": {
+      "credentials": "憑證",
+      "remoteControl": "遠端控制",
+      "notifications": "通知",
+      "accessRules": "存取規則"
+    },
     "remoteControl": {
       "title": "遠端控制",
       "description": "將每個遠端入口綁定到一個 DeepChat 會話，並在不同指令之間持續沿用該會話。",
@@ -1569,6 +1606,7 @@
       "clearBindingsResult": "已清除 {count} 個綁定。",
       "pairDialogInstructionTelegram": "到 Telegram Bot 傳送這條指令：",
       "pairDialogInstructionFeishu": "到飛書 Bot 的私聊中傳送這條指令：",
+      "pairDialogInstructionDiscord": "去 Discord 機器人的私聊或目標頻道裡發送這條命令：",
       "pairDialogInstructionQQBot": "到 QQ 機器人私聊或已授權群聊中發送這條命令：",
       "authorizedPrincipalsTitle": "已授權主體",
       "authorizedPrincipalsDescription": "這些 {channel} 帳號已獲授權，可以配對並操作會話。",
@@ -1598,37 +1636,13 @@
       },
       "bindingOnly": "綁定數：{count}，已配對主體：{paired}"
     },
-    "feishu": {
-      "title": "飛書",
-      "description": "接入飛書 Bot，支援私聊、群組聊天與話題串的遠端控制。",
-      "appId": "應用 ID",
-      "appIdPlaceholder": "飛書應用 ID",
-      "appSecret": "應用密鑰",
-      "appSecretPlaceholder": "飛書應用密鑰",
-      "verificationToken": "驗證令牌",
-      "verificationTokenPlaceholder": "飛書事件訂閱驗證令牌",
-      "encryptKey": "加密密鑰（可選）",
-      "encryptKeyPlaceholder": "未啟用事件加密時可留空",
-      "botUser": "機器人帳號：{name} ({openId})",
-      "bindings": "綁定數：{count}，已配對使用者：{pairedUserCount}",
-      "pairedUserOpenIds": "已配對使用者 Open ID",
-      "pairedUserOpenIdsPlaceholder": "例如 ou_xxx、ou_yyy",
-      "accessRulesDescription": "請先在私聊完成配對。在群組中，只有已配對且以 {'@'} 提及 Bot 的使用者才能操作會話。",
-      "accessRule1": "先在私聊中發送 /pair [配對碼] 完成配對。",
-      "accessRule2": "在群組與話題串中，只有已配對使用者以 {'@'} 提及 Bot 時，機器人才會回應。"
-    },
-    "sections": {
-      "credentials": "憑證",
-      "remoteControl": "遠端控制",
-      "notifications": "通知",
-      "accessRules": "存取規則"
-    },
     "overview": {
       "telegram": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者，hooks {hooks}",
       "feishu": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者",
       "hooksOn": "開啟",
       "hooksOff": "關閉",
       "qqbot": "{bindingCount} 個綁定，{pairedCount} 個已配對使用者",
+      "discord": "{bindingCount} 個綁定，{pairedCount} 個已配對頻道",
       "weixinIlink": "{bindingCount} 個綁定，{accountCount} 個帳號，{connectedCount} 個已連接"
     },
     "bindingKinds": {

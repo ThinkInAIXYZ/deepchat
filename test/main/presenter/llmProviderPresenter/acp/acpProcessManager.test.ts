@@ -63,6 +63,8 @@ describe('parseLoadSessionCapability', () => {
 })
 
 describe('AcpProcessManager config cache fallback', () => {
+  const normalizePathValue = (value: string) => value.replace(/\\/g, '/')
+
   const createManager = () =>
     new AcpProcessManager({
       providerId: 'acp',
@@ -244,13 +246,10 @@ describe('AcpProcessManager config cache fallback', () => {
       command: 'pwd'
     })
 
-    expect(createTerminal).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sessionId: 'missing-session',
-        command: 'pwd',
-        cwd: expect.stringContaining(path.join('deepchat-acp', 'sessions'))
-      })
-    )
+    const terminalRequest = createTerminal.mock.calls[0]?.[0]
+    expect(terminalRequest.sessionId).toBe('missing-session')
+    expect(terminalRequest.command).toBe('pwd')
+    expect(normalizePathValue(terminalRequest.cwd)).toContain('/deepchat-acp/sessions')
   })
 
   it('keeps explicit PATH overrides ahead of bundled runtime and shell PATH', async () => {
@@ -316,20 +315,25 @@ describe('AcpProcessManager config cache fallback', () => {
         '/tmp/workspace'
       )
 
-      expect(spawn).toHaveBeenCalledWith(
-        'agent',
-        [],
-        expect.objectContaining({
-          cwd: '/tmp/workspace',
-          env: expect.objectContaining({
-            LAUNCH_ONLY: '1',
-            USER_ONLY: '1',
-            ACP_IDE: 'deepchat',
-            DEEPCHAT_ACP_AGENT_ID: 'agent-1',
-            PATH: expect.stringContaining('/user/bin:/launch/bin:/runtime/bin:/shell/bin')
-          })
-        })
-      )
+      expect(spawn).toHaveBeenCalled()
+      const spawnArgs = vi.mocked(spawn).mock.calls[0]
+      const spawnOptions = spawnArgs?.[2]
+      const env = spawnOptions?.env as Record<string, string>
+      const pathValue = normalizePathValue((env.PATH || env.Path || '').replace(/;/g, ':'))
+
+      expect(spawnArgs?.[0]).toBe('agent')
+      expect(spawnArgs?.[1]).toEqual([])
+      expect(spawnOptions?.cwd).toBe('/tmp/workspace')
+      expect(env.LAUNCH_ONLY).toBe('1')
+      expect(env.USER_ONLY).toBe('1')
+      expect(env.ACP_IDE).toBe('deepchat')
+      expect(env.DEEPCHAT_ACP_AGENT_ID).toBe('agent-1')
+      expect(pathValue).toContain('/user/bin')
+      expect(pathValue).toContain('/launch/bin')
+      expect(pathValue).toContain('/runtime/bin')
+      expect(pathValue).toContain('/shell/bin')
+      expect(pathValue.indexOf('/user/bin')).toBeLessThan(pathValue.indexOf('/launch/bin'))
+      expect(pathValue.indexOf('/launch/bin')).toBeLessThan(pathValue.indexOf('/runtime/bin'))
     } finally {
       process.env.PATH = originalPath
     }

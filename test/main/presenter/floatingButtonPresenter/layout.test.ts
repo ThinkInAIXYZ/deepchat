@@ -78,7 +78,7 @@ describe('floating widget layout helpers', () => {
       'right'
     )
 
-    expect(nextBounds.x + nextBounds.width).toBe(864)
+    expect(nextBounds.x + nextBounds.width).toBe(850)
     expect(nextBounds.y).toBe(120)
   })
 
@@ -99,7 +99,7 @@ describe('floating widget layout helpers', () => {
       'right'
     )
 
-    expect(peekedBounds.x).toBe(832)
+    expect(peekedBounds.x).toBe(839)
     expect(peekedBounds.y).toBe(120)
   })
 

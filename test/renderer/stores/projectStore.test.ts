@@ -22,9 +22,13 @@ const setupStore = async (overrides?: {
     setDefaultProjectPath: vi.fn().mockResolvedValue(undefined)
   }
 
-  vi.doMock('pinia', () => ({
-    defineStore: (_id: string, setup: () => unknown) => setup
-  }))
+  vi.doMock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+    return {
+      ...actual,
+      defineStore: (_id: string, setup: () => unknown) => setup
+    }
+  })
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) =>
       name === 'projectPresenter' ? projectPresenter : configPresenter

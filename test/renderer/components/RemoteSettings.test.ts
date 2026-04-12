@@ -17,6 +17,7 @@ type SetupOptions = {
   telegramChannelSettingsOverride?: Record<string, unknown>
   feishuChannelSettingsOverride?: Record<string, unknown>
   qqbotChannelSettingsOverride?: Record<string, unknown>
+  discordChannelSettingsOverride?: Record<string, unknown>
   status?: {
     enabled: boolean
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
@@ -95,12 +96,15 @@ const setup = async (options: SetupOptions = {}) => {
 
   const feishuState = reactive({
     settings: {
+      brand: 'feishu' as const,
       appId: '',
       appSecret: '',
       verificationToken: '',
       encryptKey: '',
       remoteEnabled: false,
-      defaultAgentId: 'deepchat'
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
+      pairedUserOpenIds: [] as string[]
     },
     status: {
       channel: 'feishu' as const,
@@ -132,7 +136,9 @@ const setup = async (options: SetupOptions = {}) => {
       appId: '',
       clientSecret: '',
       remoteEnabled: false,
-      defaultAgentId: 'deepchat'
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
+      pairedUserIds: [] as string[]
     },
     status: {
       channel: 'qqbot' as const,
@@ -159,10 +165,44 @@ const setup = async (options: SetupOptions = {}) => {
     }>
   })
 
+  const discordState = reactive({
+    settings: {
+      botToken: '',
+      remoteEnabled: false,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
+      pairedChannelIds: [] as string[]
+    },
+    status: {
+      channel: 'discord' as const,
+      enabled: false,
+      state: 'disabled' as const,
+      bindingCount: 0,
+      pairedChannelCount: 0,
+      lastError: null,
+      botUser: null
+    },
+    pairingSnapshot: {
+      pairCode: null,
+      pairCodeExpiresAt: null,
+      pairedChannelIds: [] as string[]
+    },
+    bindings: [] as Array<{
+      channel: 'discord'
+      endpointKey: string
+      sessionId: string
+      chatId: string
+      threadId: string | null
+      kind: 'dm' | 'group' | 'topic'
+      updatedAt: number
+    }>
+  })
+
   const weixinIlinkState = reactive({
     settings: {
       remoteEnabled: false,
       defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
       accounts: [] as Array<{
         accountId: string
         ownerUserId: string
@@ -221,6 +261,11 @@ const setup = async (options: SetupOptions = {}) => {
     ...(options.qqbotChannelSettingsOverride ?? {})
   })
 
+  const discordSettingsSnapshot = () => ({
+    ...discordState.settings,
+    ...(options.discordChannelSettingsOverride ?? {})
+  })
+
   const weixinIlinkSettingsSnapshot = () => ({
     ...weixinIlinkState.settings,
     accounts: [...weixinIlinkState.settings.accounts]
@@ -258,25 +303,35 @@ const setup = async (options: SetupOptions = {}) => {
       { id: 'telegram', implemented: true },
       { id: 'feishu', implemented: true },
       { id: 'qqbot', implemented: true },
+      { id: 'discord', implemented: true },
       { id: 'weixin-ilink', implemented: true }
     ]),
-    getChannelSettings: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot' | 'weixin-ilink') => {
-      if (channel === 'telegram') {
-        return telegramSettingsSnapshot()
-      }
+    getChannelSettings: vi.fn(
+      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') => {
+        if (channel === 'telegram') {
+          return telegramSettingsSnapshot()
+        }
 
-      if (channel === 'feishu') {
-        return feishuSettingsSnapshot()
-      }
+        if (channel === 'feishu') {
+          return feishuSettingsSnapshot()
+        }
 
-      if (channel === 'qqbot') {
-        return qqbotSettingsSnapshot()
-      }
+        if (channel === 'qqbot') {
+          return qqbotSettingsSnapshot()
+        }
 
-      return weixinIlinkSettingsSnapshot()
-    }),
+        if (channel === 'discord') {
+          return discordSettingsSnapshot()
+        }
+
+        return weixinIlinkSettingsSnapshot()
+      }
+    ),
     saveChannelSettings: vi.fn(
-      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'weixin-ilink', nextSettings: any) => {
+      async (
+        channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink',
+        nextSettings: any
+      ) => {
         if (channel === 'telegram') {
           remoteState.settings = {
             ...nextSettings,
@@ -305,6 +360,12 @@ const setup = async (options: SetupOptions = {}) => {
           return { ...qqbotState.settings }
         }
 
+        if (channel === 'discord') {
+          discordState.settings = { ...nextSettings }
+          discordState.status.enabled = nextSettings.remoteEnabled
+          return { ...discordState.settings }
+        }
+
         weixinIlinkState.settings = {
           ...nextSettings,
           accounts: [...nextSettings.accounts]
@@ -316,58 +377,78 @@ const setup = async (options: SetupOptions = {}) => {
         }
       }
     ),
-    getChannelStatus: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot' | 'weixin-ilink') => {
-      if (channel === 'telegram') {
+    getChannelStatus: vi.fn(
+      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') => {
+        if (channel === 'telegram') {
+          return {
+            channel: 'telegram' as const,
+            ...remoteState.status
+          }
+        }
+
+        if (channel === 'feishu') {
+          return {
+            ...feishuState.status
+          }
+        }
+
+        if (channel === 'qqbot') {
+          return {
+            ...qqbotState.status
+          }
+        }
+
+        if (channel === 'discord') {
+          return {
+            ...discordState.status
+          }
+        }
+
         return {
-          channel: 'telegram' as const,
-          ...remoteState.status
+          ...weixinIlinkState.status,
+          accounts: [...weixinIlinkState.status.accounts]
         }
       }
+    ),
+    getChannelPairingSnapshot: vi.fn(
+      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord') => {
+        if (channel === 'telegram') {
+          return {
+            ...remoteState.pairingSnapshot,
+            allowedUserIds: [...remoteState.pairingSnapshot.allowedUserIds]
+          }
+        }
 
-      if (channel === 'feishu') {
+        if (channel === 'feishu') {
+          return {
+            ...feishuState.pairingSnapshot,
+            pairedUserOpenIds: [...feishuState.pairingSnapshot.pairedUserOpenIds]
+          }
+        }
+
+        if (channel === 'discord') {
+          return {
+            ...discordState.pairingSnapshot,
+            pairedChannelIds: [...discordState.pairingSnapshot.pairedChannelIds]
+          }
+        }
+
         return {
-          ...feishuState.status
+          ...qqbotState.pairingSnapshot,
+          pairedUserIds: [...qqbotState.pairingSnapshot.pairedUserIds]
         }
       }
-
-      if (channel === 'qqbot') {
-        return {
-          ...qqbotState.status
-        }
-      }
-
-      return {
-        ...weixinIlinkState.status,
-        accounts: [...weixinIlinkState.status.accounts]
-      }
-    }),
-    getChannelPairingSnapshot: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot') => {
-      if (channel === 'telegram') {
-        return {
-          ...remoteState.pairingSnapshot,
-          allowedUserIds: [...remoteState.pairingSnapshot.allowedUserIds]
-        }
-      }
-
-      if (channel === 'feishu') {
-        return {
-          ...feishuState.pairingSnapshot,
-          pairedUserOpenIds: [...feishuState.pairingSnapshot.pairedUserOpenIds]
-        }
-      }
-
-      return {
-        ...qqbotState.pairingSnapshot,
-        pairedUserIds: [...qqbotState.pairingSnapshot.pairedUserIds]
-      }
-    }),
-    createChannelPairCode: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot') => {
+    ),
+    createChannelPairCode: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord') => {
       if (channel === 'telegram') {
         remoteState.pairingSnapshot.pairCode = '654321'
         remoteState.pairingSnapshot.pairCodeExpiresAt = 123456789
       } else if (channel === 'feishu') {
         feishuState.pairingSnapshot.pairCode = '654321'
         feishuState.pairingSnapshot.pairCodeExpiresAt = 123456789
+      } else if (channel === 'discord') {
+        discordState.pairingSnapshot.pairCode = '654321'
+        discordState.pairingSnapshot.pairCodeExpiresAt = 123456789
       } else {
         qqbotState.pairingSnapshot.pairCode = '654321'
         qqbotState.pairingSnapshot.pairCodeExpiresAt = 123456789
@@ -377,43 +458,55 @@ const setup = async (options: SetupOptions = {}) => {
         expiresAt: 123456789
       }
     }),
-    clearChannelPairCode: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot') => {
+    clearChannelPairCode: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord') => {
       if (channel === 'telegram') {
         remoteState.pairingSnapshot.pairCode = null
         remoteState.pairingSnapshot.pairCodeExpiresAt = null
       } else if (channel === 'feishu') {
         feishuState.pairingSnapshot.pairCode = null
         feishuState.pairingSnapshot.pairCodeExpiresAt = null
+      } else if (channel === 'discord') {
+        discordState.pairingSnapshot.pairCode = null
+        discordState.pairingSnapshot.pairCodeExpiresAt = null
       } else {
         qqbotState.pairingSnapshot.pairCode = null
         qqbotState.pairingSnapshot.pairCodeExpiresAt = null
       }
     }),
-    getChannelBindings: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot' | 'weixin-ilink') => {
-      if (channel === 'telegram') {
-        return remoteState.bindings.map((binding) => ({
-          channel: 'telegram' as const,
-          endpointKey: binding.endpointKey,
-          sessionId: binding.sessionId,
-          chatId: String(binding.chatId),
-          threadId: binding.messageThreadId ? String(binding.messageThreadId) : null,
-          kind: binding.messageThreadId ? 'topic' : 'dm',
-          updatedAt: binding.updatedAt
-        }))
-      }
+    getChannelBindings: vi.fn(
+      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') => {
+        if (channel === 'telegram') {
+          return remoteState.bindings.map((binding) => ({
+            channel: 'telegram' as const,
+            endpointKey: binding.endpointKey,
+            sessionId: binding.sessionId,
+            chatId: String(binding.chatId),
+            threadId: binding.messageThreadId ? String(binding.messageThreadId) : null,
+            kind: binding.messageThreadId ? 'topic' : 'dm',
+            updatedAt: binding.updatedAt
+          }))
+        }
 
-      if (channel === 'feishu') {
-        return [...feishuState.bindings]
-      }
+        if (channel === 'feishu') {
+          return [...feishuState.bindings]
+        }
 
-      if (channel === 'qqbot') {
-        return [...qqbotState.bindings]
-      }
+        if (channel === 'qqbot') {
+          return [...qqbotState.bindings]
+        }
 
-      return []
-    }),
+        if (channel === 'discord') {
+          return [...discordState.bindings]
+        }
+
+        return []
+      }
+    ),
     removeChannelBinding: vi.fn(
-      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'weixin-ilink', endpointKey: string) => {
+      async (
+        channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink',
+        endpointKey: string
+      ) => {
         if (channel === 'telegram') {
           remoteState.bindings = remoteState.bindings.filter(
             (binding) => binding.endpointKey !== endpointKey
@@ -429,31 +522,46 @@ const setup = async (options: SetupOptions = {}) => {
             (binding) => binding.endpointKey !== endpointKey
           )
           qqbotState.status.bindingCount = qqbotState.bindings.length
+        } else if (channel === 'discord') {
+          discordState.bindings = discordState.bindings.filter(
+            (binding) => binding.endpointKey !== endpointKey
+          )
+          discordState.status.bindingCount = discordState.bindings.length
         }
       }
     ),
-    removeChannelPrincipal: vi.fn(async (channel: 'telegram' | 'feishu' | 'qqbot', principalId) => {
-      if (channel === 'telegram') {
-        remoteState.pairingSnapshot.allowedUserIds =
-          remoteState.pairingSnapshot.allowedUserIds.filter(
-            (value) => String(value) !== principalId
-          )
-        remoteState.status.allowedUserCount = remoteState.pairingSnapshot.allowedUserIds.length
-        return
-      }
+    removeChannelPrincipal: vi.fn(
+      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord', principalId) => {
+        if (channel === 'telegram') {
+          remoteState.pairingSnapshot.allowedUserIds =
+            remoteState.pairingSnapshot.allowedUserIds.filter(
+              (value) => String(value) !== principalId
+            )
+          remoteState.status.allowedUserCount = remoteState.pairingSnapshot.allowedUserIds.length
+          return
+        }
 
-      if (channel === 'feishu') {
-        feishuState.pairingSnapshot.pairedUserOpenIds =
-          feishuState.pairingSnapshot.pairedUserOpenIds.filter((value) => value !== principalId)
-        feishuState.status.pairedUserCount = feishuState.pairingSnapshot.pairedUserOpenIds.length
-        return
-      }
+        if (channel === 'feishu') {
+          feishuState.pairingSnapshot.pairedUserOpenIds =
+            feishuState.pairingSnapshot.pairedUserOpenIds.filter((value) => value !== principalId)
+          feishuState.status.pairedUserCount = feishuState.pairingSnapshot.pairedUserOpenIds.length
+          return
+        }
 
-      qqbotState.pairingSnapshot.pairedUserIds = qqbotState.pairingSnapshot.pairedUserIds.filter(
-        (value) => value !== principalId
-      )
-      qqbotState.status.pairedUserCount = qqbotState.pairingSnapshot.pairedUserIds.length
-    }),
+        if (channel === 'discord') {
+          discordState.pairingSnapshot.pairedChannelIds =
+            discordState.pairingSnapshot.pairedChannelIds.filter((value) => value !== principalId)
+          discordState.status.pairedChannelCount =
+            discordState.pairingSnapshot.pairedChannelIds.length
+          return
+        }
+
+        qqbotState.pairingSnapshot.pairedUserIds = qqbotState.pairingSnapshot.pairedUserIds.filter(
+          (value) => value !== principalId
+        )
+        qqbotState.status.pairedUserCount = qqbotState.pairingSnapshot.pairedUserIds.length
+      }
+    ),
     getTelegramSettings: vi.fn(async () => ({
       ...telegramSettingsSnapshot()
     })),
@@ -766,6 +874,7 @@ const setup = async (options: SetupOptions = {}) => {
     remoteState,
     feishuState,
     qqbotState,
+    discordState,
     weixinIlinkState,
     remoteControlPresenter,
     agentSessionPresenter,
@@ -928,7 +1037,7 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="remote-principals-empty"]').exists()).toBe(true)
   })
 
-  it('does not render legacy feishu raw ID or default directory inputs', async () => {
+  it('shows feishu brand switch while keeping legacy paired-user raw inputs hidden', async () => {
     const { wrapper, tabsComponents } = await setup({
       feishuChannelSettingsOverride: {
         remoteEnabled: true
@@ -947,8 +1056,32 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="remote-feishu-paired-user-open-ids-input"]').exists()).toBe(
       false
     )
-    expect(wrapper.text()).not.toContain('settings.remote.remoteControl.defaultWorkdir')
+    expect(wrapper.text()).toContain('settings.remote.feishu.brand')
+    expect(wrapper.text()).toContain('settings.remote.remoteControl.defaultWorkdir')
     expect(wrapper.find('[data-testid="feishu-bindings-button"]').exists()).toBe(true)
+  })
+
+  it('shows a discord tab with bot token and pairing controls, without webhook fields', async () => {
+    const { wrapper, tabsComponents } = await setup({
+      discordChannelSettingsOverride: {
+        remoteEnabled: true
+      }
+    })
+
+    const discordTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-discord')
+
+    expect(discordTrigger).toBeDefined()
+
+    await discordTrigger!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('settings.remote.discord.botToken')
+    expect(wrapper.text()).toContain('settings.remote.discord.remoteControlDescription')
+    expect(wrapper.find('[data-testid="discord-pair-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="discord-bindings-button"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('settings.notificationsHooks.discord.webhookUrl')
   })
 
   it('normalizes legacy telegram settings without hook notifications', async () => {
@@ -1002,7 +1135,19 @@ describe('RemoteSettings', () => {
 
     const text = wrapper.text()
     expect(text).not.toContain('settings.remote.sections.accessRules')
-    expect(text.match(/settings\.remote\.sections\.remoteControl/g)).toHaveLength(4)
+    expect(text.match(/settings\.remote\.sections\.remoteControl/g)).toHaveLength(5)
+  })
+
+  it('does not create a separate lark tab when feishu brand switches to lark', async () => {
+    const { wrapper } = await setup({
+      feishuChannelSettingsOverride: {
+        brand: 'lark',
+        remoteEnabled: true
+      }
+    })
+
+    expect(wrapper.find('[data-testid="remote-tab-feishu"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="remote-tab-lark"]').exists()).toBe(false)
   })
 
   it('starts the wechat ilink qr login flow and shows the dialog', async () => {

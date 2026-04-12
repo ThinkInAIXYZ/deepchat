@@ -540,7 +540,7 @@ describe('RemoteControlPresenter', () => {
     expect(saved.defaultAgentId).toBe('acp-agent')
   })
 
-  it('lists builtin remote channels including qqbot and weixin-ilink', async () => {
+  it('lists builtin remote channels including discord, qqbot, and weixin-ilink', async () => {
     const configPresenter = createConfigPresenter()
     let hooksConfig = createHooksConfig()
 
@@ -564,6 +564,10 @@ describe('RemoteControlPresenter', () => {
     await expect(presenter.listRemoteChannels()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          id: 'discord',
+          implemented: true
+        }),
+        expect.objectContaining({
           id: 'qqbot',
           implemented: true
         }),
@@ -572,6 +576,112 @@ describe('RemoteControlPresenter', () => {
           implemented: true
         })
       ])
+    )
+  })
+
+  it('saves discord remote settings without mutating discord webhook notifications', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = {
+      ...createHooksConfig(),
+      discord: {
+        enabled: true,
+        webhookUrl: 'https://discord.com/api/webhooks/notify',
+        events: ['SessionEnd']
+      }
+    }
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    const saved = await presenter.saveDiscordSettings({
+      botToken: 'discord-bot-token',
+      remoteEnabled: false,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: 'C:/workspaces/discord',
+      pairedChannelIds: ['1234567890']
+    })
+
+    expect(saved).toEqual({
+      botToken: 'discord-bot-token',
+      remoteEnabled: false,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: 'C:/workspaces/discord',
+      pairedChannelIds: ['1234567890']
+    })
+    expect(hooksConfig.discord).toEqual({
+      enabled: true,
+      webhookUrl: 'https://discord.com/api/webhooks/notify',
+      events: ['SessionEnd']
+    })
+    expect(configPresenter.setSetting).toHaveBeenCalledWith(
+      'remoteControl',
+      expect.objectContaining({
+        discord: expect.objectContaining({
+          botToken: 'discord-bot-token',
+          enabled: false,
+          defaultWorkdir: 'C:/workspaces/discord',
+          pairedChannelIds: ['1234567890']
+        })
+      })
+    )
+  })
+
+  it('persists the lark brand inside feishu remote settings', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    const saved = await presenter.saveFeishuSettings({
+      brand: 'lark',
+      appId: 'cli_lark',
+      appSecret: 'secret',
+      verificationToken: 'verify',
+      encryptKey: '',
+      remoteEnabled: false,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
+      pairedUserOpenIds: []
+    })
+
+    expect(saved.brand).toBe('lark')
+    expect(configPresenter.setSetting).toHaveBeenCalledWith(
+      'remoteControl',
+      expect.objectContaining({
+        feishu: expect.objectContaining({
+          brand: 'lark',
+          appId: 'cli_lark'
+        })
+      })
     )
   })
 

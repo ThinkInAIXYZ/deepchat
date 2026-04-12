@@ -1,13 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { createPinia, setActivePinia } from 'pinia'
-import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('providerDeeplinkImportStore', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.doUnmock('pinia')
+    const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')
     setActivePinia(createPinia())
   })
 
-  it('increments preview token for each provider deeplink preview', () => {
+  it('increments preview token for each provider deeplink preview', async () => {
+    const { useProviderDeeplinkImportStore } = await import('@/stores/providerDeeplinkImport')
     const store = useProviderDeeplinkImportStore()
     const firstPreview = {
       kind: 'builtin' as const,

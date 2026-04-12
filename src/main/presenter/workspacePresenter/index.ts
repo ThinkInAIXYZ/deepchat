@@ -765,6 +765,15 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
 
     try {
+      const stats = fs.statSync(filePath)
+      if (!stats.isFile()) {
+        return null
+      }
+    } catch {
+      return null
+    }
+
+    try {
       const preparedFile = await this.filePresenter.prepareFileCompletely(
         filePath,
         undefined,

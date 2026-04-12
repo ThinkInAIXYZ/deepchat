@@ -12,6 +12,8 @@
           !feishuStatus ||
           !qqbotSettings ||
           !qqbotStatus ||
+          !discordSettings ||
+          !discordStatus ||
           !weixinIlinkSettings ||
           !weixinIlinkStatus
         "
@@ -369,6 +371,35 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div class="space-y-2">
                     <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.feishu.brand') }}
+                    </Label>
+                    <Select
+                      :model-value="feishuSettings.brand"
+                      @update:model-value="
+                        (value) => {
+                          if (!feishuSettings) {
+                            return
+                          }
+                          feishuSettings.brand = String(value) === 'lark' ? 'lark' : 'feishu'
+                          queueFeishuSettingsPersist()
+                        }
+                      "
+                    >
+                      <SelectTrigger class="h-8!">
+                        <SelectValue :placeholder="t('settings.remote.feishu.brand')" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="feishu">
+                          {{ t('settings.remote.feishu.brandFeishu') }}
+                        </SelectItem>
+                        <SelectItem value="lark">
+                          {{ t('settings.remote.feishu.brandLark') }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
                       {{ t('settings.remote.feishu.appId') }}
                     </Label>
                     <Input
@@ -454,6 +485,19 @@
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <Input
+                      v-model="feishuSettings.defaultWorkdir"
+                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
+                      @blur="queueFeishuSettingsPersist"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
                   </div>
                 </div>
 
@@ -591,6 +635,19 @@
                       </SelectContent>
                     </Select>
                   </div>
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <Input
+                      v-model="qqbotSettings.defaultWorkdir"
+                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
+                      @blur="queueQQBotSettingsPersist"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
@@ -607,6 +664,163 @@
                     size="sm"
                     :disabled="saving.qqbot"
                     @click="openBindingsDialog('qqbot')"
+                  >
+                    {{ t('settings.remote.remoteControl.manageBindings') }}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="discord" class="space-y-4">
+            <div class="rounded-lg border bg-muted/20 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div class="space-y-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="text-base font-medium">{{ channelTitle('discord') }}</div>
+                    <span
+                      :class="[
+                        'inline-flex rounded-full px-2 py-1 text-[11px]',
+                        statusDotClass(discordStatus.state)
+                      ]"
+                    >
+                      {{ formatStatusLine(discordStatus) }}
+                    </span>
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.discord.description') }}
+                  </p>
+                  <p class="text-xs text-muted-foreground">
+                    {{ formatOverviewLine('discord') }}
+                  </p>
+                  <p v-if="discordStatus.lastError" class="break-all text-xs text-destructive">
+                    {{ discordStatus.lastError }}
+                  </p>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>{{
+                    discordSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
+                  }}</span>
+                  <Switch
+                    data-testid="remote-channel-toggle-discord"
+                    :model-value="discordSettings.remoteEnabled"
+                    :disabled="saving.discord"
+                    @update:model-value="(value) => updateDiscordRemoteEnabled(value === true)"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.sections.credentials') }}
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <Label class="text-xs text-muted-foreground">
+                    {{ t('settings.remote.discord.botToken') }}
+                  </Label>
+                  <div class="relative w-full">
+                    <Input
+                      v-model="discordSettings.botToken"
+                      :type="showDiscordBotToken ? 'text' : 'password'"
+                      :placeholder="t('settings.remote.discord.botTokenPlaceholder')"
+                      class="pr-10"
+                      @blur="queueDiscordSettingsPersist"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
+                      @click="showDiscordBotToken = !showDiscordBotToken"
+                    >
+                      <Icon
+                        :icon="showDiscordBotToken ? 'lucide:eye-off' : 'lucide:eye'"
+                        class="h-4 w-4 text-muted-foreground"
+                      />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border p-4">
+              <div class="space-y-4">
+                <div class="space-y-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.sections.remoteControl') }}
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.discord.remoteControlDescription') }}
+                  </p>
+                </div>
+
+                <div
+                  class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground"
+                >
+                  <div>{{ t('settings.remote.discord.accessRule1') }}</div>
+                  <div class="mt-1">{{ t('settings.remote.discord.accessRule2') }}</div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultAgent') }}
+                    </Label>
+                    <Select
+                      :model-value="discordSettings.defaultAgentId"
+                      @update:model-value="(value) => updateDiscordDefaultAgentId(String(value))"
+                    >
+                      <SelectTrigger class="h-8!">
+                        <SelectValue
+                          :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          v-for="agent in defaultAgentOptions(discordSettings.defaultAgentId)"
+                          :key="agent.id"
+                          :value="agent.id"
+                        >
+                          {{ agent.name }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <Input
+                      v-model="discordSettings.defaultWorkdir"
+                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
+                      @blur="queueDiscordSettingsPersist"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    data-testid="discord-pair-button"
+                    variant="outline"
+                    size="sm"
+                    :disabled="!discordSettings.remoteEnabled || saving.discord"
+                    @click="generatePairCodeAndOpenDialog('discord')"
+                  >
+                    {{ t('settings.remote.remoteControl.openPairDialog') }}
+                  </Button>
+                  <Button
+                    data-testid="discord-bindings-button"
+                    variant="outline"
+                    size="sm"
+                    :disabled="saving.discord"
+                    @click="openBindingsDialog('discord')"
                   >
                     {{ t('settings.remote.remoteControl.manageBindings') }}
                   </Button>
@@ -821,6 +1035,19 @@
                       </SelectContent>
                     </Select>
                   </div>
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <Input
+                      v-model="weixinIlinkSettings.defaultWorkdir"
+                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
+                      @blur="queueWeixinIlinkSettingsPersist"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
@@ -885,7 +1112,9 @@
                   ? t('settings.remote.remoteControl.pairDialogInstructionFeishu')
                   : pairDialogChannel === 'qqbot'
                     ? t('settings.remote.remoteControl.pairDialogInstructionQQBot')
-                    : t('settings.remote.remoteControl.pairDialogInstructionTelegram')
+                    : pairDialogChannel === 'discord'
+                      ? t('settings.remote.remoteControl.pairDialogInstructionDiscord')
+                      : t('settings.remote.remoteControl.pairDialogInstructionTelegram')
               }}
             </div>
             <div class="mt-2 rounded-md bg-background px-3 py-2 font-mono text-sm">
@@ -1108,6 +1337,9 @@ import type { Agent } from '@shared/types/agent-interface'
 import type { HookEventName, HookTestResult } from '@shared/hooksNotifications'
 import { HOOK_EVENT_NAMES } from '@shared/hooksNotifications'
 import type {
+  DiscordPairingSnapshot,
+  DiscordRemoteSettings,
+  DiscordRemoteStatus,
   FeishuPairingSnapshot,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
@@ -1160,6 +1392,15 @@ const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
     supportsNotifications: false
   },
   {
+    id: 'discord',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.discord.title',
+    descriptionKey: 'settings.remote.discord.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
     id: 'weixin-ilink',
     type: 'builtin',
     implemented: true,
@@ -1179,6 +1420,7 @@ const channelI18nKeyMap: Record<RemoteChannel, string> = {
   telegram: 'telegram',
   feishu: 'feishu',
   qqbot: 'qqbot',
+  discord: 'discord',
   'weixin-ilink': 'weixinIlink'
 }
 
@@ -1192,14 +1434,17 @@ function channelTitle(channel: RemoteChannel | null | undefined): string {
 const telegramSettings = ref<TelegramRemoteSettings | null>(null)
 const feishuSettings = ref<FeishuRemoteSettings | null>(null)
 const qqbotSettings = ref<QQBotRemoteSettings | null>(null)
+const discordSettings = ref<DiscordRemoteSettings | null>(null)
 const weixinIlinkSettings = ref<WeixinIlinkRemoteSettings | null>(null)
 const telegramStatus = ref<TelegramRemoteStatus | null>(null)
 const feishuStatus = ref<FeishuRemoteStatus | null>(null)
 const qqbotStatus = ref<QQBotRemoteStatus | null>(null)
+const discordStatus = ref<DiscordRemoteStatus | null>(null)
 const weixinIlinkStatus = ref<WeixinIlinkRemoteStatus | null>(null)
 const channelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackChannelDescriptors)
 const isLoading = ref(false)
 const showBotToken = ref(false)
+const showDiscordBotToken = ref(false)
 const telegramTesting = ref(false)
 const telegramTestResult = ref<HookTestResult | null>(null)
 const availableAgents = ref<Agent[]>([])
@@ -1228,18 +1473,21 @@ const saving = reactive<Record<RemoteChannel, boolean>>({
   telegram: false,
   feishu: false,
   qqbot: false,
+  discord: false,
   'weixin-ilink': false
 })
 const pendingSave = reactive<Record<RemoteChannel, boolean>>({
   telegram: false,
   feishu: false,
   qqbot: false,
+  discord: false,
   'weixin-ilink': false
 })
 const saveTasks: Record<RemoteChannel, Promise<void> | null> = {
   telegram: null,
   feishu: null,
   qqbot: null,
+  discord: null,
   'weixin-ilink': null
 }
 
@@ -1259,24 +1507,38 @@ const defaultTelegramSettings = (): TelegramRemoteSettings => ({
 })
 
 const defaultFeishuSettings = (): FeishuRemoteSettings => ({
+  brand: 'feishu',
   appId: '',
   appSecret: '',
   verificationToken: '',
   encryptKey: '',
   remoteEnabled: false,
-  defaultAgentId: 'deepchat'
+  defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
+  pairedUserOpenIds: []
 })
 
 const defaultQQBotSettings = (): QQBotRemoteSettings => ({
   appId: '',
   clientSecret: '',
   remoteEnabled: false,
-  defaultAgentId: 'deepchat'
+  defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
+  pairedUserIds: []
+})
+
+const defaultDiscordSettings = (): DiscordRemoteSettings => ({
+  botToken: '',
+  remoteEnabled: false,
+  defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
+  pairedChannelIds: []
 })
 
 const defaultWeixinIlinkSettings = (): WeixinIlinkRemoteSettings => ({
   remoteEnabled: false,
   defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
   accounts: []
 })
 
@@ -1300,6 +1562,16 @@ const defaultQQBotStatus = (): QQBotRemoteStatus => ({
   botUser: null
 })
 
+const defaultDiscordStatus = (): DiscordRemoteStatus => ({
+  channel: 'discord',
+  enabled: false,
+  state: 'disabled',
+  bindingCount: 0,
+  pairedChannelCount: 0,
+  lastError: null,
+  botUser: null
+})
+
 const defaultFeishuPairingSnapshot = (): FeishuPairingSnapshot => ({
   pairCode: null,
   pairCodeExpiresAt: null,
@@ -1310,6 +1582,12 @@ const defaultQQBotPairingSnapshot = (): QQBotPairingSnapshot => ({
   pairCode: null,
   pairCodeExpiresAt: null,
   pairedUserIds: []
+})
+
+const defaultDiscordPairingSnapshot = (): DiscordPairingSnapshot => ({
+  pairCode: null,
+  pairCodeExpiresAt: null,
+  pairedChannelIds: []
 })
 
 const normalizeTelegramPairingSnapshot = (
@@ -1336,6 +1614,14 @@ const normalizeQQBotPairingSnapshot = (
   pairedUserIds: [...(snapshot?.pairedUserIds ?? [])]
 })
 
+const normalizeDiscordPairingSnapshot = (
+  snapshot: Partial<DiscordPairingSnapshot> | null | undefined
+): DiscordPairingSnapshot => ({
+  pairCode: snapshot?.pairCode ?? null,
+  pairCodeExpiresAt: snapshot?.pairCodeExpiresAt ?? null,
+  pairedChannelIds: [...(snapshot?.pairedChannelIds ?? [])]
+})
+
 const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
   listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
   getChannelSettings?: (channel: RemoteChannel) => Promise<RemoteChannelSettings>
@@ -1347,9 +1633,7 @@ const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter 
   getChannelBindings?: (channel: RemoteChannel) => Promise<RemoteBindingSummary[]>
   removeChannelBinding?: (channel: RemoteChannel, endpointKey: string) => Promise<void>
   removeChannelPrincipal?: (channel: PairableRemoteChannel, principalId: string) => Promise<void>
-  getChannelPairingSnapshot?: (
-    channel: PairableRemoteChannel
-  ) => Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot>
+  getChannelPairingSnapshot?: (channel: PairableRemoteChannel) => Promise<RemotePairingSnapshot>
   createChannelPairCode?: (channel: PairableRemoteChannel) => Promise<{
     code: string
     expiresAt: number
@@ -1375,6 +1659,7 @@ const listRemoteChannelsCompat = async (): Promise<RemoteChannelDescriptor[]> =>
 function getChannelSettingsCompat(channel: 'telegram'): Promise<TelegramRemoteSettings>
 function getChannelSettingsCompat(channel: 'feishu'): Promise<FeishuRemoteSettings>
 function getChannelSettingsCompat(channel: 'qqbot'): Promise<QQBotRemoteSettings>
+function getChannelSettingsCompat(channel: 'discord'): Promise<DiscordRemoteSettings>
 function getChannelSettingsCompat(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteSettings>
 async function getChannelSettingsCompat(channel: RemoteChannel): Promise<RemoteChannelSettings> {
   if (presenterCompat.getChannelSettings) {
@@ -1387,6 +1672,10 @@ async function getChannelSettingsCompat(channel: RemoteChannel): Promise<RemoteC
 
   if (channel === 'qqbot') {
     return defaultQQBotSettings()
+  }
+
+  if (channel === 'discord') {
+    return defaultDiscordSettings()
   }
 
   if (channel === 'weixin-ilink') {
@@ -1409,6 +1698,10 @@ function saveChannelSettingsCompat(
   input: QQBotRemoteSettings
 ): Promise<QQBotRemoteSettings>
 function saveChannelSettingsCompat(
+  channel: 'discord',
+  input: DiscordRemoteSettings
+): Promise<DiscordRemoteSettings>
+function saveChannelSettingsCompat(
   channel: 'weixin-ilink',
   input: WeixinIlinkRemoteSettings
 ): Promise<WeixinIlinkRemoteSettings>
@@ -1428,6 +1721,10 @@ async function saveChannelSettingsCompat(
     return input as QQBotRemoteSettings
   }
 
+  if (channel === 'discord') {
+    return input as DiscordRemoteSettings
+  }
+
   if (channel === 'weixin-ilink') {
     return await remoteControlPresenter.saveWeixinIlinkSettings(input as WeixinIlinkRemoteSettings)
   }
@@ -1438,6 +1735,7 @@ async function saveChannelSettingsCompat(
 function getChannelStatusCompat(channel: 'telegram'): Promise<TelegramRemoteStatus>
 function getChannelStatusCompat(channel: 'feishu'): Promise<FeishuRemoteStatus>
 function getChannelStatusCompat(channel: 'qqbot'): Promise<QQBotRemoteStatus>
+function getChannelStatusCompat(channel: 'discord'): Promise<DiscordRemoteStatus>
 function getChannelStatusCompat(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteStatus>
 async function getChannelStatusCompat(channel: RemoteChannel): Promise<RemoteChannelStatus> {
   if (presenterCompat.getChannelStatus) {
@@ -1450,6 +1748,10 @@ async function getChannelStatusCompat(channel: RemoteChannel): Promise<RemoteCha
 
   if (channel === 'qqbot') {
     return defaultQQBotStatus()
+  }
+
+  if (channel === 'discord') {
+    return defaultDiscordStatus()
   }
 
   if (channel === 'weixin-ilink') {
@@ -1510,7 +1812,7 @@ const removeChannelPrincipalCompat = async (
 
 const getChannelPairingSnapshotCompat = async (
   channel: PairableRemoteChannel
-): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot> => {
+): Promise<RemotePairingSnapshot> => {
   if (presenterCompat.getChannelPairingSnapshot) {
     return await presenterCompat.getChannelPairingSnapshot(channel)
   }
@@ -1521,6 +1823,10 @@ const getChannelPairingSnapshotCompat = async (
 
   if (channel === 'qqbot') {
     return defaultQQBotPairingSnapshot()
+  }
+
+  if (channel === 'discord') {
+    return defaultDiscordPairingSnapshot()
   }
 
   return defaultFeishuPairingSnapshot()
@@ -1619,12 +1925,12 @@ const implementedChannels = computed(() =>
 )
 const implementedChannelCount = computed(() => Math.max(1, implementedChannels.value.length))
 const isAnySaving = computed(
-  () => saving.telegram || saving.feishu || saving.qqbot || saving['weixin-ilink']
+  () => saving.telegram || saving.feishu || saving.qqbot || saving.discord || saving['weixin-ilink']
 )
 const isPairableChannel = (
   channel: RemoteChannel | null | undefined
 ): channel is PairableRemoteChannel =>
-  channel === 'telegram' || channel === 'feishu' || channel === 'qqbot'
+  channel === 'telegram' || channel === 'feishu' || channel === 'qqbot' || channel === 'discord'
 const bindingsDialogSupportsPrincipals = computed(() =>
   isPairableChannel(bindingsDialogChannel.value)
 )
@@ -1713,6 +2019,15 @@ const syncQQBotFields = (snapshot: Partial<QQBotRemoteSettings> | null | undefin
   }
 }
 
+const syncDiscordFields = (snapshot: Partial<DiscordRemoteSettings> | null | undefined) => {
+  const fallback = defaultDiscordSettings()
+
+  discordSettings.value = {
+    ...fallback,
+    ...snapshot
+  }
+}
+
 const syncWeixinIlinkFields = (snapshot: Partial<WeixinIlinkRemoteSettings> | null | undefined) => {
   const fallback = defaultWeixinIlinkSettings()
 
@@ -1735,11 +2050,13 @@ const channelStatus = (channel: RemoteChannel) =>
       ? feishuStatus.value
       : channel === 'qqbot'
         ? qqbotStatus.value
-        : weixinIlinkStatus.value
+        : channel === 'discord'
+          ? discordStatus.value
+          : weixinIlinkStatus.value
 
 const getSnapshotPrincipalIds = (
   channel: PairableRemoteChannel,
-  snapshot: TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot
+  snapshot: RemotePairingSnapshot
 ): string[] =>
   channel === 'telegram'
     ? normalizeTelegramPairingSnapshot(
@@ -1747,19 +2064,29 @@ const getSnapshotPrincipalIds = (
       ).allowedUserIds.map((value) => String(value))
     : channel === 'feishu'
       ? normalizeFeishuPairingSnapshot(snapshot as Partial<FeishuPairingSnapshot>).pairedUserOpenIds
-      : normalizeQQBotPairingSnapshot(snapshot as Partial<QQBotPairingSnapshot>).pairedUserIds
+      : channel === 'qqbot'
+        ? normalizeQQBotPairingSnapshot(snapshot as Partial<QQBotPairingSnapshot>).pairedUserIds
+        : normalizeDiscordPairingSnapshot(snapshot as Partial<DiscordPairingSnapshot>)
+            .pairedChannelIds
 
 const refreshStatus = async () => {
-  const [nextTelegramStatus, nextFeishuStatus, nextQQBotStatus, nextWeixinIlinkStatus] =
-    await Promise.all([
-      getChannelStatusCompat('telegram'),
-      getChannelStatusCompat('feishu'),
-      getChannelStatusCompat('qqbot'),
-      getChannelStatusCompat('weixin-ilink')
-    ])
+  const [
+    nextTelegramStatus,
+    nextFeishuStatus,
+    nextQQBotStatus,
+    nextDiscordStatus,
+    nextWeixinIlinkStatus
+  ] = await Promise.all([
+    getChannelStatusCompat('telegram'),
+    getChannelStatusCompat('feishu'),
+    getChannelStatusCompat('qqbot'),
+    getChannelStatusCompat('discord'),
+    getChannelStatusCompat('weixin-ilink')
+  ])
   telegramStatus.value = nextTelegramStatus
   feishuStatus.value = nextFeishuStatus
   qqbotStatus.value = nextQQBotStatus
+  discordStatus.value = nextDiscordStatus
   weixinIlinkStatus.value = nextWeixinIlinkStatus
 }
 
@@ -1786,20 +2113,24 @@ const loadState = async () => {
       loadedTelegramSettings,
       loadedFeishuSettings,
       loadedQQBotSettings,
+      loadedDiscordSettings,
       loadedWeixinIlinkSettings,
       loadedTelegramStatus,
       loadedFeishuStatus,
       loadedQQBotStatus,
+      loadedDiscordStatus,
       loadedWeixinIlinkStatus
     ] = await Promise.all([
       listRemoteChannelsCompat(),
       getChannelSettingsCompat('telegram'),
       getChannelSettingsCompat('feishu'),
       getChannelSettingsCompat('qqbot'),
+      getChannelSettingsCompat('discord'),
       getChannelSettingsCompat('weixin-ilink'),
       getChannelStatusCompat('telegram'),
       getChannelStatusCompat('feishu'),
       getChannelStatusCompat('qqbot'),
+      getChannelStatusCompat('discord'),
       getChannelStatusCompat('weixin-ilink'),
       loadAvailableAgents()
     ])
@@ -1809,10 +2140,12 @@ const loadState = async () => {
     syncTelegramFields(loadedTelegramSettings)
     syncFeishuFields(loadedFeishuSettings)
     syncQQBotFields(loadedQQBotSettings)
+    syncDiscordFields(loadedDiscordSettings)
     syncWeixinIlinkFields(loadedWeixinIlinkSettings)
     telegramStatus.value = loadedTelegramStatus
     feishuStatus.value = loadedFeishuStatus
     qqbotStatus.value = loadedQQBotStatus
+    discordStatus.value = loadedDiscordStatus
     weixinIlinkStatus.value = loadedWeixinIlinkStatus
 
     if (!implementedChannels.value.includes(activeChannel.value)) {
@@ -1857,6 +2190,16 @@ const buildQQBotDraftSettings = (): QQBotRemoteSettings | null => {
 
   return {
     ...qqbotSettings.value
+  }
+}
+
+const buildDiscordDraftSettings = (): DiscordRemoteSettings | null => {
+  if (!discordSettings.value) {
+    return null
+  }
+
+  return {
+    ...discordSettings.value
   }
 }
 
@@ -1922,6 +2265,14 @@ const persistChannelSettings = async (channel: RemoteChannel): Promise<void> => 
 
           const saved = await saveChannelSettingsCompat('qqbot', nextSettings)
           syncQQBotFields(saved)
+        } else if (channel === 'discord') {
+          const nextSettings = buildDiscordDraftSettings()
+          if (!nextSettings) {
+            return
+          }
+
+          const saved = await saveChannelSettingsCompat('discord', nextSettings)
+          syncDiscordFields(saved)
         } else {
           const nextSettings = buildWeixinIlinkDraftSettings()
           if (!nextSettings) {
@@ -1966,6 +2317,10 @@ const persistQQBotSettings = async () => {
   await persistChannelSettings('qqbot')
 }
 
+const persistDiscordSettings = async () => {
+  await persistChannelSettings('discord')
+}
+
 const persistWeixinIlinkSettings = async () => {
   await persistChannelSettings('weixin-ilink')
 }
@@ -1980,6 +2335,10 @@ const queueFeishuSettingsPersist = () => {
 
 const queueQQBotSettingsPersist = () => {
   void persistQQBotSettings().catch(() => undefined)
+}
+
+const queueDiscordSettingsPersist = () => {
+  void persistDiscordSettings().catch(() => undefined)
 }
 
 const queueWeixinIlinkSettingsPersist = () => {
@@ -2008,6 +2367,14 @@ const updateQQBotRemoteEnabled = (value: boolean) => {
   }
   qqbotSettings.value.remoteEnabled = Boolean(value)
   queueQQBotSettingsPersist()
+}
+
+const updateDiscordRemoteEnabled = (value: boolean) => {
+  if (!discordSettings.value) {
+    return
+  }
+  discordSettings.value.remoteEnabled = Boolean(value)
+  queueDiscordSettingsPersist()
 }
 
 const updateWeixinIlinkRemoteEnabled = (value: boolean) => {
@@ -2040,6 +2407,14 @@ const updateQQBotDefaultAgentId = (value: string) => {
   }
   qqbotSettings.value.defaultAgentId = value
   queueQQBotSettingsPersist()
+}
+
+const updateDiscordDefaultAgentId = (value: string) => {
+  if (!discordSettings.value) {
+    return
+  }
+  discordSettings.value.defaultAgentId = value
+  queueDiscordSettingsPersist()
 }
 
 const updateWeixinIlinkDefaultAgentId = (value: string) => {
@@ -2282,6 +2657,8 @@ const persistChannelDraftOrAbort = async (channel: RemoteChannel): Promise<boole
       await persistFeishuSettings()
     } else if (channel === 'qqbot') {
       await persistQQBotSettings()
+    } else if (channel === 'discord') {
+      await persistDiscordSettings()
     } else {
       await persistWeixinIlinkSettings()
     }
@@ -2489,6 +2866,13 @@ const formatOverviewLine = (channel: RemoteChannel) => {
     return t('settings.remote.overview.qqbot', {
       bindingCount: status.bindingCount,
       pairedCount: status.pairedUserCount
+    })
+  }
+
+  if (channel === 'discord') {
+    return t('settings.remote.overview.discord', {
+      bindingCount: status.bindingCount,
+      pairedCount: status.pairedChannelCount
     })
   }
 

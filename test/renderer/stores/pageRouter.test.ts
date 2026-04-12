@@ -6,9 +6,13 @@ const setupStore = async (options?: { activeAgentSession?: { id: string } | null
     getActiveSession: vi.fn().mockResolvedValue(options?.activeAgentSession ?? null)
   }
 
-  vi.doMock('pinia', () => ({
-    defineStore: (_id: string, setup: () => unknown) => setup
-  }))
+  vi.doMock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+    return {
+      ...actual,
+      defineStore: (_id: string, setup: () => unknown) => setup
+    }
+  })
 
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) => {
@@ -88,9 +92,13 @@ describe('pageRouter.initialize', () => {
       getActiveSession: vi.fn().mockRejectedValue(new Error('boom'))
     }
 
-    vi.doMock('pinia', () => ({
-      defineStore: (_id: string, setup: () => unknown) => setup
-    }))
+    vi.doMock('pinia', async () => {
+      const actual = await vi.importActual<typeof import('pinia')>('pinia')
+      return {
+        ...actual,
+        defineStore: (_id: string, setup: () => unknown) => setup
+      }
+    })
 
     vi.doMock('@/composables/usePresenter', () => ({
       usePresenter: (name: string) => {

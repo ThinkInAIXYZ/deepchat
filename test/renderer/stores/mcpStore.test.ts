@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPinia, setActivePinia } from 'pinia'
 
 const setMcpServerEnabledMutate = vi.hoisted(() => vi.fn())
 
@@ -76,11 +75,17 @@ vi.mock('@/events', () => ({
   }
 }))
 
-import { useMcpStore } from '@/stores/mcp'
+const setupStore = async () => {
+  vi.resetModules()
+  vi.doUnmock('pinia')
+  const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')
+  setActivePinia(createPinia())
+  const { useMcpStore } = await import('@/stores/mcp')
+  return useMcpStore()
+}
 
 describe('useMcpStore toggleServer rollback', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
+  beforeEach(async () => {
     vi.clearAllMocks()
     setMcpServerEnabledMutate.mockReset()
     mcpPresenterMock.startServer.mockClear()
@@ -88,7 +93,7 @@ describe('useMcpStore toggleServer rollback', () => {
   })
 
   it('restores local state and persisted config when runtime sync fails', async () => {
-    const store = useMcpStore()
+    const store = await setupStore()
 
     store.config = {
       mcpServers: {
@@ -122,8 +127,8 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(mcpPresenterMock.stopServer).not.toHaveBeenCalled()
   })
 
-  it('hides enabled servers when MCP is globally disabled', () => {
-    const store = useMcpStore()
+  it('hides enabled servers when MCP is globally disabled', async () => {
+    const store = await setupStore()
 
     store.config = {
       mcpServers: {

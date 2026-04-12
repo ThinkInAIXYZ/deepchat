@@ -1537,6 +1537,43 @@
       "botTokenPlaceholder": "Jeton du bot Telegram",
       "botTokenDescription": "Saisissez le jeton du bot Telegram utilisé pour le contrôle à distance et l’envoi des notifications Hook."
     },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Connectez un bot Feishu pour les messages privés, les discussions de groupe et les fils de sujet.",
+      "brand": "Marque",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "ID de l’application",
+      "appIdPlaceholder": "ID d’application Feishu",
+      "appSecret": "Secret de l’application",
+      "appSecretPlaceholder": "Secret d’application Feishu",
+      "verificationToken": "Jeton de vérification",
+      "verificationTokenPlaceholder": "Jeton de vérification Feishu",
+      "encryptKey": "Clé de chiffrement (optionnelle)",
+      "encryptKeyPlaceholder": "Laissez vide si le chiffrement des événements n’est pas activé",
+      "botUser": "Utilisateur du bot : {name} ({openId})",
+      "bindings": "Liaisons : {count}, utilisateurs associés : {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID des utilisateurs associés",
+      "pairedUserOpenIdsPlaceholder": "ex. ou_xxx, ou_yyy",
+      "accessRulesDescription": "Associez d’abord dans un message privé. Dans les groupes, seuls les utilisateurs associés qui mentionnent le bot avec {'@'} peuvent piloter une session.",
+      "accessRule1": "Associez dans un message privé avec /pair [code].",
+      "accessRule2": "Dans les groupes et les sujets, le bot ne réagit que lorsqu’un utilisateur associé le mentionne avec {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Connectez un bot Discord pour les messages privés, les mentions de salon et le contrôle à distance par slash commands.",
+      "botToken": "Jeton du bot",
+      "botTokenPlaceholder": "Jeton du bot Discord",
+      "remoteControlDescription": "Le contrôle à distance Discord utilise son propre jeton de bot, sa gateway et son flux REST. Il ne réutilise pas la configuration webhook des notifications.",
+      "accessRule1": "Envoyez /pair [code] dans un message privé ou le salon cible pour autoriser l’endpoint Discord actuel.",
+      "accessRule2": "Les messages de salon n’entrent dans la session que lorsque le bot est mentionné, afin d’éviter d’absorber les conversations ordinaires."
+    },
+    "sections": {
+      "credentials": "Identifiants",
+      "remoteControl": "Contrôle à distance",
+      "notifications": "Notifications",
+      "accessRules": "Règles d’accès"
+    },
     "remoteControl": {
       "title": "Contrôle à distance",
       "description": "Associez chaque point d’accès distant à une session DeepChat et conservez cette session entre les commandes.",
@@ -1569,6 +1606,7 @@
       "clearBindingsResult": "{count} liaison(s) effacée(s).",
       "pairDialogInstructionTelegram": "Envoyez cette commande au bot Telegram :",
       "pairDialogInstructionFeishu": "Envoyez cette commande au bot Feishu dans un message privé :",
+      "pairDialogInstructionDiscord": "Envoyez cette commande au bot Discord dans un message privé ou le salon cible :",
       "pairDialogInstructionQQBot": "Envoyez cette commande dans la discussion QQ Bot ou le groupe QQ autorisé :",
       "authorizedPrincipalsTitle": "Identités autorisées",
       "authorizedPrincipalsDescription": "Ces comptes {channel} sont autorisés à s’associer et à piloter des sessions.",
@@ -1598,37 +1636,13 @@
       },
       "bindingOnly": "Liaisons : {count}, principaux associés : {paired}"
     },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Connectez un bot Feishu pour les messages privés, les discussions de groupe et les fils de sujet.",
-      "appId": "ID de l’application",
-      "appIdPlaceholder": "ID d’application Feishu",
-      "appSecret": "Secret de l’application",
-      "appSecretPlaceholder": "Secret d’application Feishu",
-      "verificationToken": "Jeton de vérification",
-      "verificationTokenPlaceholder": "Jeton de vérification Feishu",
-      "encryptKey": "Clé de chiffrement (optionnelle)",
-      "encryptKeyPlaceholder": "Laissez vide si le chiffrement des événements n’est pas activé",
-      "botUser": "Utilisateur du bot : {name} ({openId})",
-      "bindings": "Liaisons : {count}, utilisateurs associés : {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID des utilisateurs associés",
-      "pairedUserOpenIdsPlaceholder": "ex. ou_xxx, ou_yyy",
-      "accessRulesDescription": "Associez d’abord dans un message privé. Dans les groupes, seuls les utilisateurs associés qui mentionnent le bot avec {'@'} peuvent piloter une session.",
-      "accessRule1": "Associez dans un message privé avec /pair [code].",
-      "accessRule2": "Dans les groupes et les sujets, le bot ne réagit que lorsqu’un utilisateur associé le mentionne avec {'@'}."
-    },
-    "sections": {
-      "credentials": "Identifiants",
-      "remoteControl": "Contrôle à distance",
-      "notifications": "Notifications",
-      "accessRules": "Règles d’accès"
-    },
     "overview": {
       "telegram": "{bindingCount} liaisons, {pairedCount} utilisateurs associés, hooks {hooks}",
       "feishu": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
       "hooksOn": "activés",
       "hooksOff": "désactivés",
       "qqbot": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
+      "discord": "{bindingCount} liaisons, {pairedCount} salons appairés",
       "weixinIlink": "{bindingCount} liaisons, {accountCount} comptes, {connectedCount} connectés"
     },
     "bindingKinds": {

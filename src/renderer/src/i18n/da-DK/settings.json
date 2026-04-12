@@ -1537,6 +1537,43 @@
       "botTokenPlaceholder": "Telegram bot-token",
       "botTokenDescription": "Indtast Telegram-bottens token, som bruges til fjernstyring og levering af Hook-notifikationer."
     },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Tilslut en Feishu-bot til direkte beskeder, gruppechats og emnetråde.",
+      "brand": "Mærke",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "App-id",
+      "appIdPlaceholder": "Feishu app-id",
+      "appSecret": "App-hemmelighed",
+      "appSecretPlaceholder": "Feishu app-hemmelighed",
+      "verificationToken": "Bekræftelsestoken",
+      "verificationTokenPlaceholder": "Feishu bekræftelsestoken",
+      "encryptKey": "Krypteringsnøgle (valgfri)",
+      "encryptKeyPlaceholder": "Lad feltet stå tomt, medmindre hændelseskryptering er slået til",
+      "botUser": "Bot-bruger: {name} ({openId})",
+      "bindings": "Bindinger: {count}, parrede brugere: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID'er for parrede brugere",
+      "pairedUserOpenIdsPlaceholder": "f.eks. ou_xxx, ou_yyy",
+      "accessRulesDescription": "Par først i en direkte besked. I grupper kan kun parrede brugere, der {'@'}-omtaler botten, styre en session.",
+      "accessRule1": "Par i en direkte besked med /pair [kode].",
+      "accessRule2": "I grupper og emner reagerer botten kun, når en parret bruger {'@'}-omtaler den."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Tilslut en Discord-bot til DM'er, kanalomtaler og fjernstyring via slash-kommandoer.",
+      "botToken": "Bot-token",
+      "botTokenPlaceholder": "Discord bot-token",
+      "remoteControlDescription": "Discord-fjernstyring bruger sit eget bot-token, gateway- og REST-flow. Den genbruger ikke webhook-konfigurationen for notifikationer.",
+      "accessRule1": "Send /pair [kode] i en DM eller målkanal for at godkende det aktuelle Discord-endpoint.",
+      "accessRule2": "Kanalbeskeder går kun ind i sessionen, når botten omtales, så almindelig chat ikke opsuges."
+    },
+    "sections": {
+      "credentials": "Oplysninger",
+      "remoteControl": "Fjernstyring",
+      "notifications": "Notifikationer",
+      "accessRules": "Adgangsregler"
+    },
     "remoteControl": {
       "title": "Fjernstyring",
       "description": "Bind hvert fjernendepunkt til én DeepChat-session, og behold sessionen på tværs af kommandoer.",
@@ -1569,6 +1606,7 @@
       "clearBindingsResult": "{count} binding(er) ryddet.",
       "pairDialogInstructionTelegram": "Send denne kommando til Telegram-botten:",
       "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:",
+      "pairDialogInstructionDiscord": "Send denne kommando til Discord-botten i en DM eller målkanal:",
       "pairDialogInstructionQQBot": "Send denne kommando i QQ-botchatten eller den autoriserede QQ-gruppe:",
       "authorizedPrincipalsTitle": "Autoriserede identiteter",
       "authorizedPrincipalsDescription": "Disse {channel}-konti er autoriseret til at parre og styre sessioner.",
@@ -1598,37 +1636,13 @@
       },
       "bindingOnly": "Bindinger: {count}, parrede identiteter: {paired}"
     },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Tilslut en Feishu-bot til direkte beskeder, gruppechats og emnetråde.",
-      "appId": "App-id",
-      "appIdPlaceholder": "Feishu app-id",
-      "appSecret": "App-hemmelighed",
-      "appSecretPlaceholder": "Feishu app-hemmelighed",
-      "verificationToken": "Bekræftelsestoken",
-      "verificationTokenPlaceholder": "Feishu bekræftelsestoken",
-      "encryptKey": "Krypteringsnøgle (valgfri)",
-      "encryptKeyPlaceholder": "Lad feltet stå tomt, medmindre hændelseskryptering er slået til",
-      "botUser": "Bot-bruger: {name} ({openId})",
-      "bindings": "Bindinger: {count}, parrede brugere: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID'er for parrede brugere",
-      "pairedUserOpenIdsPlaceholder": "f.eks. ou_xxx, ou_yyy",
-      "accessRulesDescription": "Par først i en direkte besked. I grupper kan kun parrede brugere, der {'@'}-omtaler botten, styre en session.",
-      "accessRule1": "Par i en direkte besked med /pair [kode].",
-      "accessRule2": "I grupper og emner reagerer botten kun, når en parret bruger {'@'}-omtaler den."
-    },
-    "sections": {
-      "credentials": "Oplysninger",
-      "remoteControl": "Fjernstyring",
-      "notifications": "Notifikationer",
-      "accessRules": "Adgangsregler"
-    },
     "overview": {
       "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere, hooks {hooks}",
       "feishu": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "hooksOn": "til",
       "hooksOff": "fra",
       "qqbot": "{bindingCount} bindinger, {pairedCount} parrede brugere",
+      "discord": "{bindingCount} bindinger, {pairedCount} parrede kanaler",
       "weixinIlink": "{bindingCount} bindinger, {accountCount} konti, {connectedCount} tilsluttet"
     },
     "bindingKinds": {

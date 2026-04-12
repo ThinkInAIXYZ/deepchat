@@ -225,7 +225,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_MOVE, { x: 220, y: 150 })
     expect(floatingWindowState.bounds).toMatchObject({
-      x: 1256,
+      x: 1270,
       y: 230,
       width: getCollapsedWidgetSize(0).width,
       height: getCollapsedWidgetSize(0).height

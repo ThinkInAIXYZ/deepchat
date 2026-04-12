@@ -1591,7 +1591,7 @@
   },
   "remote": {
     "title": "远程",
-    "description": "统一配置 Telegram、飞书、QQBot 和微信 iLink 远程控制。",
+    "description": "统一配置 Telegram、飞书 / Lark、QQBot、Discord 和微信 iLink 远程控制。",
     "telegram": {
       "title": "Telegram",
       "description": "用同一个 Telegram Bot 管理远程控制和 Hook 投递。",
@@ -1600,8 +1600,11 @@
       "botTokenDescription": "填写用于远程控制和 Hook 通知投递的 Telegram 机器人 Token。"
     },
     "feishu": {
-      "title": "飞书",
+      "title": "飞书 / Lark",
       "description": "接入飞书 Bot，支持私聊、群聊和话题线程远程控制。",
+      "brand": "品牌",
+      "brandFeishu": "飞书",
+      "brandLark": "Lark",
       "appId": "应用 ID",
       "appIdPlaceholder": "飞书应用 ID",
       "appSecret": "应用密钥",
@@ -1617,6 +1620,15 @@
       "accessRulesDescription": "先在私聊完成配对。群聊里只有已配对且以 {'@'} 提及机器人的用户，才可以操作会话。",
       "accessRule1": "先私聊机器人发送 /pair [配对码] 完成配对。",
       "accessRule2": "群聊和话题线程里，只有已配对用户以 {'@'} 提及机器人时，消息才会进入会话。"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "接入 Discord Bot，支持私聊、频道提及和 Slash Commands 远程控制。",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Discord Bot Token",
+      "remoteControlDescription": "Discord 远控使用独立的 Bot Token、Gateway 和 REST，不复用通知 Hook 的 webhook 配置。",
+      "accessRule1": "私聊或频道里发送 /pair [配对码]，把当前 DM 或频道授权给 DeepChat。",
+      "accessRule2": "频道消息只有在提及机器人时才会进入会话，避免误处理普通聊天。"
     },
     "sections": {
       "credentials": "凭证",
@@ -1642,6 +1654,7 @@
       "pairDialogDescription": "生成配对码后，请去对应的 {channel} 机器人里完成配对。",
       "pairDialogInstructionTelegram": "去 Telegram 机器人里发送这条命令：",
       "pairDialogInstructionFeishu": "去飞书机器人的私聊里发送这条命令：",
+      "pairDialogInstructionDiscord": "去 Discord 机器人的私聊或目标频道里发送这条命令：",
       "bindingsDialogTitle": "{channel} 绑定",
       "bindingsDialogDescription": "逐条移除远程入口与 DeepChat 会话的绑定关系。",
       "bindingsEmpty": "当前还没有绑定的会话。",
@@ -1682,6 +1695,7 @@
       "hooksOn": "开启",
       "hooksOff": "关闭",
       "qqbot": "{bindingCount} 个绑定，{pairedCount} 个已配对用户",
+      "discord": "{bindingCount} 个绑定，{pairedCount} 个已配对频道",
       "weixinIlink": "{bindingCount} 个绑定，{accountCount} 个账号，{connectedCount} 个已连接"
     },
     "bindingKinds": {

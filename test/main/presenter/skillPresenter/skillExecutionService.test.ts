@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import fs from 'fs'
+import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ISkillPresenter } from '../../../../src/shared/types/skill'
 import { SkillExecutionService } from '../../../../src/main/presenter/skillPresenter/skillExecutionService'
@@ -106,6 +107,8 @@ describe('SkillExecutionService', () => {
     }
   })
 
+  const resolvePath = (targetPath: string) => path.resolve(targetPath)
+
   it('builds spawn plan with session workdir cwd and skill root env', async () => {
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
       command: 'uv',
@@ -121,7 +124,7 @@ describe('SkillExecutionService', () => {
       'conv-1'
     )
 
-    expect(plan.cwd).toBe('/workspace/session')
+    expect(plan.cwd).toBe(resolvePath('/workspace/session'))
     expect(plan.env.PATH).toContain('/shell/bin')
     expect(plan.env.API_KEY).toBe('secret')
     expect(plan.env.SKILL_ROOT).toBe('/skills/ocr')
@@ -144,7 +147,7 @@ describe('SkillExecutionService', () => {
       'conv-1'
     )
 
-    expect(plan.cwd).toBe('/skills/ocr')
+    expect(plan.cwd).toBe(resolvePath('/skills/ocr'))
   })
 
   it('falls back to skill root cwd when the resolved session workdir is not a directory', async () => {
@@ -164,7 +167,7 @@ describe('SkillExecutionService', () => {
       'conv-1'
     )
 
-    expect(plan.cwd).toBe('/skills/ocr')
+    expect(plan.cwd).toBe(resolvePath('/skills/ocr'))
   })
 
   it('falls back to bundled uv for python auto runtime', async () => {

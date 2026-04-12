@@ -1,5 +1,6 @@
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
+  DiscordRemoteSettings,
   FeishuRemoteSettings,
   IConfigPresenter,
   IAgentSessionPresenter,
@@ -33,5 +34,6 @@ export interface RemoteControlPresenterLike
   buildTelegramSettingsSnapshot(): TelegramRemoteSettings
   buildFeishuSettingsSnapshot(): FeishuRemoteSettings
   buildQQBotSettingsSnapshot(): QQBotRemoteSettings
+  buildDiscordSettingsSnapshot(): DiscordRemoteSettings
   buildWeixinIlinkSettingsSnapshot(): WeixinIlinkRemoteSettings
 }

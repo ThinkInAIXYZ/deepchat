@@ -1,10 +1,14 @@
 import type { HookEventName, HookTestResult } from '../../hooksNotifications'
 
-export type RemoteChannelId = 'telegram' | 'feishu' | 'qqbot' | 'weixin-ilink'
+export type RemoteChannelId = 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink'
 export type RemoteChannel = RemoteChannelId
-export type PairableRemoteChannel = Extract<RemoteChannelId, 'telegram' | 'feishu' | 'qqbot'>
+export type PairableRemoteChannel = Extract<
+  RemoteChannelId,
+  'telegram' | 'feishu' | 'qqbot' | 'discord'
+>
 export type RemoteBindingKind = 'dm' | 'group' | 'topic'
 export type TelegramStreamMode = 'draft' | 'final'
+export type FeishuBrand = 'feishu' | 'lark'
 export type RemoteRuntimeState =
   | 'disabled'
   | 'stopped'
@@ -56,6 +60,10 @@ export interface QQBotRemoteBindingSummary extends RemoteBindingSummary {
   channel: 'qqbot'
 }
 
+export interface DiscordRemoteBindingSummary extends RemoteBindingSummary {
+  channel: 'discord'
+}
+
 export interface TelegramPairingSnapshot {
   pairCode: string | null
   pairCodeExpiresAt: number | null
@@ -74,10 +82,17 @@ export interface QQBotPairingSnapshot {
   pairedUserIds: string[]
 }
 
+export interface DiscordPairingSnapshot {
+  pairCode: string | null
+  pairCodeExpiresAt: number | null
+  pairedChannelIds: string[]
+}
+
 export type RemotePairingSnapshot =
   | TelegramPairingSnapshot
   | FeishuPairingSnapshot
   | QQBotPairingSnapshot
+  | DiscordPairingSnapshot
 
 export interface WeixinIlinkAccountSummary {
   accountId: string
@@ -94,12 +109,15 @@ export interface TelegramRemoteSettings {
 }
 
 export interface FeishuRemoteSettings {
+  brand: FeishuBrand
   appId: string
   appSecret: string
   verificationToken: string
   encryptKey: string
   remoteEnabled: boolean
   defaultAgentId: string
+  defaultWorkdir: string
+  pairedUserOpenIds: string[]
 }
 
 export interface QQBotRemoteSettings {
@@ -107,11 +125,22 @@ export interface QQBotRemoteSettings {
   clientSecret: string
   remoteEnabled: boolean
   defaultAgentId: string
+  defaultWorkdir: string
+  pairedUserIds: string[]
+}
+
+export interface DiscordRemoteSettings {
+  botToken: string
+  remoteEnabled: boolean
+  defaultAgentId: string
+  defaultWorkdir: string
+  pairedChannelIds: string[]
 }
 
 export interface WeixinIlinkRemoteSettings {
   remoteEnabled: boolean
   defaultAgentId: string
+  defaultWorkdir: string
   accounts: WeixinIlinkAccountSummary[]
 }
 
@@ -119,6 +148,7 @@ export type RemoteChannelSettings =
   | TelegramRemoteSettings
   | FeishuRemoteSettings
   | QQBotRemoteSettings
+  | DiscordRemoteSettings
   | WeixinIlinkRemoteSettings
 
 export interface TelegramRemoteStatus {
@@ -161,6 +191,20 @@ export interface QQBotRemoteStatus {
   } | null
 }
 
+export interface DiscordRemoteStatus {
+  channel: 'discord'
+  enabled: boolean
+  state: RemoteRuntimeState
+  bindingCount: number
+  pairedChannelCount: number
+  lastError: string | null
+  botUser: {
+    id: string
+    username?: string
+    displayName?: string
+  } | null
+}
+
 export interface WeixinIlinkAccountStatus extends WeixinIlinkAccountSummary {
   state: RemoteRuntimeState
   connected: boolean
@@ -183,6 +227,7 @@ export type RemoteChannelStatus =
   | TelegramRemoteStatus
   | FeishuRemoteStatus
   | QQBotRemoteStatus
+  | DiscordRemoteStatus
   | WeixinIlinkRemoteStatus
 
 export interface WeixinIlinkLoginSession {
@@ -205,6 +250,7 @@ export interface IRemoteControlPresenter {
   getChannelSettings(channel: 'telegram'): Promise<TelegramRemoteSettings>
   getChannelSettings(channel: 'feishu'): Promise<FeishuRemoteSettings>
   getChannelSettings(channel: 'qqbot'): Promise<QQBotRemoteSettings>
+  getChannelSettings(channel: 'discord'): Promise<DiscordRemoteSettings>
   getChannelSettings(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteSettings>
   getChannelSettings(channel: RemoteChannel): Promise<RemoteChannelSettings>
 
@@ -219,6 +265,10 @@ export interface IRemoteControlPresenter {
     input: WeixinIlinkRemoteSettings
   ): Promise<WeixinIlinkRemoteSettings>
   saveChannelSettings(
+    channel: 'discord',
+    input: DiscordRemoteSettings
+  ): Promise<DiscordRemoteSettings>
+  saveChannelSettings(
     channel: RemoteChannel,
     input: RemoteChannelSettings
   ): Promise<RemoteChannelSettings>
@@ -226,6 +276,7 @@ export interface IRemoteControlPresenter {
   getChannelStatus(channel: 'telegram'): Promise<TelegramRemoteStatus>
   getChannelStatus(channel: 'feishu'): Promise<FeishuRemoteStatus>
   getChannelStatus(channel: 'qqbot'): Promise<QQBotRemoteStatus>
+  getChannelStatus(channel: 'discord'): Promise<DiscordRemoteStatus>
   getChannelStatus(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteStatus>
   getChannelStatus(channel: RemoteChannel): Promise<RemoteChannelStatus>
 
@@ -236,6 +287,7 @@ export interface IRemoteControlPresenter {
   getChannelPairingSnapshot(channel: 'telegram'): Promise<TelegramPairingSnapshot>
   getChannelPairingSnapshot(channel: 'feishu'): Promise<FeishuPairingSnapshot>
   getChannelPairingSnapshot(channel: 'qqbot'): Promise<QQBotPairingSnapshot>
+  getChannelPairingSnapshot(channel: 'discord'): Promise<DiscordPairingSnapshot>
   getChannelPairingSnapshot(channel: PairableRemoteChannel): Promise<RemotePairingSnapshot>
 
   createChannelPairCode(
@@ -254,6 +306,10 @@ export interface IRemoteControlPresenter {
   createTelegramPairCode(): Promise<{ code: string; expiresAt: number }>
   clearTelegramPairCode(): Promise<void>
   clearTelegramBindings(): Promise<number>
+
+  getDiscordSettings(): Promise<DiscordRemoteSettings>
+  saveDiscordSettings(input: DiscordRemoteSettings): Promise<DiscordRemoteSettings>
+  getDiscordStatus(): Promise<DiscordRemoteStatus>
 
   getWeixinIlinkSettings(): Promise<WeixinIlinkRemoteSettings>
   saveWeixinIlinkSettings(input: WeixinIlinkRemoteSettings): Promise<WeixinIlinkRemoteSettings>

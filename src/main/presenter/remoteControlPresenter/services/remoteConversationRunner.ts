@@ -424,11 +424,28 @@ export class RemoteConversationRunner {
   }
 
   private async resolveDefaultWorkdirForAgent(
-    _endpointKey: string,
+    endpointKey: string,
     agentId: string
   ): Promise<string | null> {
     if ((await this.deps.configPresenter.getAgentType(agentId)) !== 'acp') {
       return null
+    }
+
+    const channelDefaultWorkdir = endpointKey.startsWith('telegram:')
+      ? this.bindingStore.getTelegramDefaultWorkdir()
+      : endpointKey.startsWith('feishu:')
+        ? this.bindingStore.getFeishuDefaultWorkdir()
+        : endpointKey.startsWith('qqbot:')
+          ? this.bindingStore.getQQBotDefaultWorkdir()
+          : endpointKey.startsWith('discord:')
+            ? this.bindingStore.getDiscordDefaultWorkdir()
+            : endpointKey.startsWith('weixin-ilink:')
+              ? this.bindingStore.getWeixinIlinkDefaultWorkdir()
+              : ''
+
+    const normalizedChannelDefaultWorkdir = channelDefaultWorkdir?.trim()
+    if (normalizedChannelDefaultWorkdir) {
+      return normalizedChannelDefaultWorkdir
     }
 
     return this.getGlobalDefaultWorkdir()

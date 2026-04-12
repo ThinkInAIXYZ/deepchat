@@ -1,5 +1,6 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import type { EventHandles } from '@larksuiteoapi/node-sdk'
+import type { FeishuBrand } from '@shared/presenter'
 import {
   FEISHU_OUTBOUND_TEXT_LIMIT,
   type FeishuInteractiveCardPayload,
@@ -27,6 +28,14 @@ const createTextPayload = (text: string): string =>
   })
 
 const createCardPayload = (card: FeishuInteractiveCardPayload): string => JSON.stringify(card)
+
+const resolveLarkDomain = (brand: FeishuBrand): string | undefined => {
+  if (brand === 'lark') {
+    return ((Lark as any).Domain?.Lark as string | undefined) ?? 'https://open.larksuite.com'
+  }
+
+  return ((Lark as any).Domain?.Feishu as string | undefined) ?? 'https://open.feishu.cn'
+}
 
 export const chunkFeishuText = (
   text: string,
@@ -61,6 +70,7 @@ export class FeishuClient {
 
   constructor(
     private readonly credentials: {
+      brand: FeishuBrand
       appId: string
       appSecret: string
       verificationToken: string
@@ -68,6 +78,7 @@ export class FeishuClient {
     }
   ) {
     this.sdk = new Lark.Client({
+      domain: resolveLarkDomain(credentials.brand),
       appId: credentials.appId,
       appSecret: credentials.appSecret,
       appType: Lark.AppType.SelfBuild
@@ -124,6 +135,7 @@ export class FeishuClient {
     })
 
     this.wsClient = new Lark.WSClient({
+      domain: resolveLarkDomain(this.credentials.brand),
       appId: this.credentials.appId,
       appSecret: this.credentials.appSecret,
       loggerLevel: Lark.LoggerLevel.info

@@ -385,8 +385,8 @@ onMounted(async () => {
   if (!modelStore.allProviderModels.length) {
     await modelStore.refreshAllModels()
   }
-  if (!route.params.providerId && providerStore.sortedProviders.length > 0) {
-    setActiveProvider(providerStore.sortedProviders[0].id)
+  if (!route.params.providerId && visibleProviders.value.length > 0) {
+    setActiveProvider(visibleProviders.value[0].id)
   }
 })
 

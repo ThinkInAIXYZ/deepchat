@@ -50,9 +50,13 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   }
   const listeners = new Map<string, Array<(...args: any[]) => void>>()
 
-  vi.doMock('pinia', () => ({
-    defineStore: (_id: string, setup: () => unknown) => setup
-  }))
+  vi.doMock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+    return {
+      ...actual,
+      defineStore: (_id: string, setup: () => unknown) => setup
+    }
+  })
 
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) => {

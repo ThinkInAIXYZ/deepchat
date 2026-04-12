@@ -52,9 +52,13 @@ const setupStore = async (overrides?: {
     ...overrides?.providerStore
   }
 
-  vi.doMock('pinia', () => ({
-    defineStore: (_id: string, setup: any) => setup
-  }))
+  vi.doMock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+    return {
+      ...actual,
+      defineStore: (_id: string, setup: any) => setup
+    }
+  })
 
   vi.doMock('@pinia/colada', () => ({
     useQueryCache: () => queryCache

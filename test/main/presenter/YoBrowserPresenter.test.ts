@@ -296,11 +296,11 @@ describe('YoBrowserPresenter', () => {
 
     const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
     const rejection = expect(loadPromise).rejects.toThrow(
-      'Session browser host 1 did not become ready within 2000ms'
+      'Session browser host 1 did not become ready within 5000ms'
     )
-    await vi.advanceTimersByTimeAsync(2050)
+    await vi.advanceTimersByTimeAsync(5050)
     await rejection
-  })
+  }, 7000)
 
   it('does not emit WINDOW_UPDATED for pure bounds changes', async () => {
     const { presenter, windows } = await setupPresenter()

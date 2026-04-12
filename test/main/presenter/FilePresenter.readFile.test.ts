@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
+import path from 'path'
 import { FilePresenter } from '../../../src/main/presenter/filePresenter/FilePresenter'
 import type { IConfigPresenter } from '../../../src/shared/presenter'
 
@@ -59,7 +60,10 @@ describe('FilePresenter.readFile', () => {
     const content = await presenter.readFile('notes/today.md')
 
     expect(content).toBe('hello world')
-    expect(fs.readFile).toHaveBeenCalledWith('/mock/user/data/notes/today.md', 'utf-8')
+    expect(fs.readFile).toHaveBeenCalledWith(
+      path.resolve('/mock/user/data/notes/today.md'),
+      'utf-8'
+    )
   })
 
   it('rejects absolute paths', async () => {

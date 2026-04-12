@@ -183,6 +183,51 @@ describe('RemoteBindingStore', () => {
     )
   })
 
+  it('migrates legacy root-level discord config into the nested structure', () => {
+    const configPresenter = createConfigPresenter()
+    configPresenter.setSetting('remoteControl', {
+      botToken: 'discord-token',
+      enabled: true,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: 'C:/discord',
+      pairedChannelIds: ['channel-1', 'channel-2'],
+      lastFatalError: 'fatal discord',
+      pairing: {
+        code: '654321',
+        expiresAt: 999
+      },
+      bindings: {
+        'discord:dm:channel-1': {
+          sessionId: 'session-discord',
+          updatedAt: 3
+        }
+      }
+    })
+
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    expect(store.getDiscordConfig()).toEqual(
+      expect.objectContaining({
+        botToken: 'discord-token',
+        enabled: true,
+        defaultWorkdir: 'C:/discord',
+        pairedChannelIds: ['channel-1', 'channel-2'],
+        lastFatalError: 'fatal discord',
+        pairing: expect.objectContaining({
+          code: '654321',
+          expiresAt: 999,
+          failedAttempts: 0
+        })
+      })
+    )
+    expect(store.getBinding('discord:dm:channel-1')).toEqual(
+      expect.objectContaining({
+        sessionId: 'session-discord',
+        updatedAt: 3
+      })
+    )
+  })
+
   it('removes authorized principals without touching other entries', () => {
     const configPresenter = createConfigPresenter()
     configPresenter.setSetting('remoteControl', {
@@ -228,6 +273,20 @@ describe('RemoteBindingStore', () => {
           failedAttempts: 0
         },
         bindings: {}
+      },
+      discord: {
+        botToken: 'discord-token',
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        pairedChannelIds: ['channel-1', 'channel-2'],
+        lastFatalError: null,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        },
+        bindings: {}
       }
     })
 
@@ -236,10 +295,12 @@ describe('RemoteBindingStore', () => {
     store.removeAllowedUser(456)
     store.removeFeishuPairedUser('ou_2')
     store.removeQQBotPairedUser('user_openid_2')
+    store.removeDiscordPairedChannel('channel-2')
 
     expect(store.getAllowedUserIds()).toEqual([123])
     expect(store.getFeishuPairedUserOpenIds()).toEqual(['ou_1'])
     expect(store.getQQBotPairedUserIds()).toEqual(['user_openid_1'])
+    expect(store.getDiscordPairedChannelIds()).toEqual(['channel-1'])
   })
 
   it('keeps valid bindings when another binding is malformed', () => {

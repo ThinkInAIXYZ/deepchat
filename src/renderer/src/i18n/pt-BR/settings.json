@@ -1537,6 +1537,43 @@
       "botTokenPlaceholder": "Token do bot do Telegram",
       "botTokenDescription": "Informe o token do bot do Telegram usado para controle remoto e envio de notificações Hook."
     },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Conecte um bot do Feishu para mensagens diretas, chats em grupo e tópicos.",
+      "brand": "Marca",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "ID do aplicativo",
+      "appIdPlaceholder": "ID do aplicativo Feishu",
+      "appSecret": "Segredo do aplicativo",
+      "appSecretPlaceholder": "Segredo do aplicativo Feishu",
+      "verificationToken": "Token de verificação",
+      "verificationTokenPlaceholder": "Token de verificação do Feishu",
+      "encryptKey": "Chave de criptografia (opcional)",
+      "encryptKeyPlaceholder": "Deixe em branco se a criptografia de eventos não estiver ativada",
+      "botUser": "Usuário do bot: {name} ({openId})",
+      "bindings": "Vínculos: {count}, usuários pareados: {pairedUserCount}",
+      "pairedUserOpenIds": "Open IDs dos usuários pareados",
+      "pairedUserOpenIdsPlaceholder": "ex.: ou_xxx, ou_yyy",
+      "accessRulesDescription": "Primeiro faça o pareamento em uma mensagem direta. Em grupos, apenas usuários pareados que mencionarem o bot com {'@'} podem controlar uma sessão.",
+      "accessRule1": "Faça o pareamento em uma mensagem direta com /pair [código].",
+      "accessRule2": "Em grupos e tópicos, o bot só reage quando um usuário pareado o menciona com {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Conecte um bot do Discord para DMs, menções em canais e controle remoto por slash commands.",
+      "botToken": "Token do bot",
+      "botTokenPlaceholder": "Token do bot do Discord",
+      "remoteControlDescription": "O controle remoto do Discord usa seu próprio token de bot, gateway e fluxo REST. Ele não reutiliza a configuração de webhook das notificações.",
+      "accessRule1": "Envie /pair [code] em uma DM ou no canal de destino para autorizar o endpoint atual do Discord.",
+      "accessRule2": "Mensagens em canais só entram na sessão quando o bot é mencionado, evitando capturar conversas comuns."
+    },
+    "sections": {
+      "credentials": "Credenciais",
+      "remoteControl": "Controle remoto",
+      "notifications": "Notificações",
+      "accessRules": "Regras de acesso"
+    },
     "remoteControl": {
       "title": "Controle remoto",
       "description": "Vincule cada endpoint remoto a uma sessão do DeepChat e mantenha essa sessão disponível entre os comandos.",
@@ -1569,6 +1606,7 @@
       "clearBindingsResult": "{count} vínculo(s) limpo(s).",
       "pairDialogInstructionTelegram": "Envie este comando para o bot do Telegram:",
       "pairDialogInstructionFeishu": "Envie este comando ao bot do Feishu em uma mensagem direta:",
+      "pairDialogInstructionDiscord": "Envie este comando ao bot do Discord em uma DM ou no canal de destino:",
       "pairDialogInstructionQQBot": "Envie este comando no chat do QQ Bot ou no grupo QQ autorizado:",
       "authorizedPrincipalsTitle": "Identidades autorizadas",
       "authorizedPrincipalsDescription": "Essas contas do {channel} estão autorizadas a fazer o pareamento e controlar sessões.",
@@ -1598,37 +1636,13 @@
       },
       "bindingOnly": "Vínculos: {count}, identidades pareadas: {paired}"
     },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Conecte um bot do Feishu para mensagens diretas, chats em grupo e tópicos.",
-      "appId": "ID do aplicativo",
-      "appIdPlaceholder": "ID do aplicativo Feishu",
-      "appSecret": "Segredo do aplicativo",
-      "appSecretPlaceholder": "Segredo do aplicativo Feishu",
-      "verificationToken": "Token de verificação",
-      "verificationTokenPlaceholder": "Token de verificação do Feishu",
-      "encryptKey": "Chave de criptografia (opcional)",
-      "encryptKeyPlaceholder": "Deixe em branco se a criptografia de eventos não estiver ativada",
-      "botUser": "Usuário do bot: {name} ({openId})",
-      "bindings": "Vínculos: {count}, usuários pareados: {pairedUserCount}",
-      "pairedUserOpenIds": "Open IDs dos usuários pareados",
-      "pairedUserOpenIdsPlaceholder": "ex.: ou_xxx, ou_yyy",
-      "accessRulesDescription": "Primeiro faça o pareamento em uma mensagem direta. Em grupos, apenas usuários pareados que mencionarem o bot com {'@'} podem controlar uma sessão.",
-      "accessRule1": "Faça o pareamento em uma mensagem direta com /pair [código].",
-      "accessRule2": "Em grupos e tópicos, o bot só reage quando um usuário pareado o menciona com {'@'}."
-    },
-    "sections": {
-      "credentials": "Credenciais",
-      "remoteControl": "Controle remoto",
-      "notifications": "Notificações",
-      "accessRules": "Regras de acesso"
-    },
     "overview": {
       "telegram": "{bindingCount} vínculos, {pairedCount} usuários pareados, hooks {hooks}",
       "feishu": "{bindingCount} vínculos, {pairedCount} usuários pareados",
       "hooksOn": "ativos",
       "hooksOff": "desativados",
       "qqbot": "{bindingCount} vínculos, {pairedCount} usuários pareados",
+      "discord": "{bindingCount} vínculos, {pairedCount} canais pareados",
       "weixinIlink": "{bindingCount} vínculos, {accountCount} contas, {connectedCount} conectadas"
     },
     "bindingKinds": {

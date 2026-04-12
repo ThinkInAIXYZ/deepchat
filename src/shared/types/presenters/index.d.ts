@@ -92,7 +92,12 @@ export type {
 } from './agent-session.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {
+  DiscordPairingSnapshot,
+  DiscordRemoteBindingSummary,
+  DiscordRemoteSettings,
+  DiscordRemoteStatus,
   FeishuPairingSnapshot,
+  FeishuBrand,
   FeishuRemoteBindingSummary,
   FeishuRemoteSettings,
   FeishuRemoteStatus,

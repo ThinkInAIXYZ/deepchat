@@ -133,7 +133,7 @@ export class BackgroundExecSessionManager {
 
     const child = spawn(shell, [...args, command], {
       cwd,
-      env: { ...process.env, ...(options?.env ?? {}) },
+      env: { ...process.env, ...options?.env },
       detached: process.platform !== 'win32',
       stdio: ['pipe', 'pipe', 'pipe']
     })
