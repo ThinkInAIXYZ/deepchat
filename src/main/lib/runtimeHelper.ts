@@ -137,12 +137,20 @@ export class RuntimeHelper {
     return this.nodeRuntimePath
   }
 
+  public setNodeRuntimePath(value: string | null): void {
+    this.nodeRuntimePath = value
+  }
+
   /**
    * Get UV runtime path
    * @returns UV runtime path or null if not found
    */
   public getUvRuntimePath(): string | null {
     return this.uvRuntimePath
+  }
+
+  public setUvRuntimePath(value: string | null): void {
+    this.uvRuntimePath = value
   }
 
   /**

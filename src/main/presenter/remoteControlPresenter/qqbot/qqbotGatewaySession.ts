@@ -41,10 +41,6 @@ const QQBOT_HELLO_OP = 10
 const QQBOT_HEARTBEAT_ACK_OP = 11
 const QQBOT_RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 20_000] as const
 
-const sleep = async (ms: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 const parseGatewayMessage = (input: string): QQBotGatewayPayload => {
   const payload = JSON.parse(input) as QQBotGatewayPayload
   return {
@@ -93,9 +89,11 @@ export class QQBotGatewaySession {
   private firstConnectedPromise: Promise<void> | null = null
   private resolveFirstConnected: (() => void) | null = null
   private rejectFirstConnected: ((reason?: unknown) => void) | null = null
+  private firstConnectedSettled = false
   private stopRequested = false
   private ws: WebSocket | null = null
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  private cancelReconnectDelay: (() => void) | null = null
   private sessionId: string | null = null
   private seq: number | null = null
   private resumeGatewayUrl: string | null = null
@@ -104,6 +102,10 @@ export class QQBotGatewaySession {
   constructor(private readonly deps: QQBotGatewaySessionDeps) {}
 
   async start(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError')
+    }
+
     if (this.runPromise) {
       if (this.firstConnectedPromise) {
         return await this.firstConnectedPromise
@@ -112,6 +114,7 @@ export class QQBotGatewaySession {
     }
 
     this.stopRequested = false
+    this.firstConnectedSettled = false
     this.firstConnectedPromise = new Promise<void>((resolve, reject) => {
       this.resolveFirstConnected = resolve
       this.rejectFirstConnected = reject
@@ -119,10 +122,11 @@ export class QQBotGatewaySession {
 
     this.runPromise = this.run(signal)
       .catch((error) => {
-        this.rejectFirstConnected?.(error)
+        this.rejectPendingFirstConnected(error)
       })
       .finally(() => {
         this.cleanupHeartbeat()
+        this.cancelReconnectDelay = null
         this.ws = null
         this.runPromise = null
         this.firstConnectedPromise = null
@@ -136,6 +140,7 @@ export class QQBotGatewaySession {
   async stop(): Promise<void> {
     this.stopRequested = true
     this.cleanupHeartbeat()
+    this.cancelReconnectDelay?.()
     this.ws?.close()
     this.ws = null
     await this.runPromise
@@ -150,6 +155,7 @@ export class QQBotGatewaySession {
         attempt = 0
       } catch (error) {
         if (this.stopRequested || signal?.aborted || isAbortError(error)) {
+          this.rejectPendingFirstConnected(new DOMException('Aborted', 'AbortError'))
           return
         }
 
@@ -181,9 +187,11 @@ export class QQBotGatewaySession {
           state: 'backoff',
           lastError
         })
-        await sleep(delayMs)
+        await this.waitForReconnectDelay(delayMs, signal)
       }
     }
+
+    this.rejectPendingFirstConnected(new DOMException('Aborted', 'AbortError'))
   }
 
   private async connectOnce(signal?: AbortSignal): Promise<void> {
@@ -196,6 +204,32 @@ export class QQBotGatewaySession {
       let finished = false
       let reconnectRequested = false
       let invalidSession = false
+      const closeSocket = () => {
+        if (this.ws === ws) {
+          this.ws = null
+        }
+
+        try {
+          const terminable = ws as WebSocket & {
+            terminate?: () => void
+          }
+          if (typeof terminable.terminate === 'function') {
+            terminable.terminate()
+            return
+          }
+        } catch {
+          // Fall back to close below.
+        }
+
+        try {
+          ws.close()
+        } catch {
+          // Ignore close errors during teardown.
+        }
+      }
+      const handleAbort = () => {
+        settleReject(new DOMException('Aborted', 'AbortError'))
+      }
 
       const cleanup = () => {
         if (finished) {
@@ -208,6 +242,7 @@ export class QQBotGatewaySession {
         ws.removeEventListener('message', handleMessage)
         ws.removeEventListener('error', handleError)
         ws.removeEventListener('close', handleClose)
+        signal?.removeEventListener('abort', handleAbort)
       }
 
       const settleResolve = () => {
@@ -217,6 +252,7 @@ export class QQBotGatewaySession {
 
       const settleReject = (error: unknown) => {
         cleanup()
+        closeSocket()
         reject(error)
       }
 
@@ -231,7 +267,7 @@ export class QQBotGatewaySession {
           state: 'running',
           lastError: null
         })
-        this.resolveFirstConnected?.()
+        this.resolvePendingFirstConnected()
       }
 
       const sendPayload = (payload: unknown) => {
@@ -395,16 +431,62 @@ export class QQBotGatewaySession {
       ws.addEventListener('error', handleError)
       ws.addEventListener('close', handleClose)
 
-      if (signal) {
-        signal.addEventListener(
-          'abort',
-          () => {
-            ws.close()
-            settleReject(new DOMException('Aborted', 'AbortError'))
-          },
-          { once: true }
-        )
+      signal?.addEventListener('abort', handleAbort, { once: true })
+    })
+  }
+
+  private resolvePendingFirstConnected(): void {
+    if (this.firstConnectedSettled) {
+      return
+    }
+
+    this.firstConnectedSettled = true
+    this.resolveFirstConnected?.()
+  }
+
+  private rejectPendingFirstConnected(reason?: unknown): void {
+    if (this.firstConnectedSettled) {
+      return
+    }
+
+    this.firstConnectedSettled = true
+    this.rejectFirstConnected?.(reason)
+  }
+
+  private async waitForReconnectDelay(ms: number, signal?: AbortSignal): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      if (this.stopRequested) {
+        resolve()
+        return
       }
+
+      if (signal?.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'))
+        return
+      }
+
+      const finishResolve = () => {
+        cleanup()
+        resolve()
+      }
+      const finishReject = (error: unknown) => {
+        cleanup()
+        reject(error)
+      }
+      const handleAbort = () => {
+        finishReject(new DOMException('Aborted', 'AbortError'))
+      }
+      const timeout = setTimeout(finishResolve, ms)
+      const cleanup = () => {
+        clearTimeout(timeout)
+        signal?.removeEventListener('abort', handleAbort)
+        if (this.cancelReconnectDelay === finishResolve) {
+          this.cancelReconnectDelay = null
+        }
+      }
+
+      this.cancelReconnectDelay = finishResolve
+      signal?.addEventListener('abort', handleAbort, { once: true })
     })
   }
 

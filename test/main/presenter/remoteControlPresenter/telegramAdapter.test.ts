@@ -123,4 +123,41 @@ describe('TelegramAdapter', () => {
 
     expect(onFatalError).toHaveBeenCalledWith('fatal telegram error')
   })
+
+  it('strictly validates telegram transport target parts', async () => {
+    const adapter = new TelegramAdapter(
+      {
+        channelId: 'default',
+        channelType: 'telegram',
+        agentId: 'deepchat',
+        channelConfig: {
+          botToken: 'test-bot-token'
+        },
+        configSignature: 'telegram:test'
+      },
+      {
+        bindingStore: {} as any,
+        createConversationRunner: () => ({}) as any,
+        registerTelegramCommands: async () => undefined
+      }
+    )
+
+    await adapter.connect()
+
+    await adapter.sendMessage('-100123:', 'hello')
+    expect(clientInstances[0].sendMessage).toHaveBeenCalledWith(
+      {
+        chatId: -100123,
+        messageThreadId: 0
+      },
+      'hello'
+    )
+
+    await expect(adapter.sendMessage('123abc:1', 'hello')).rejects.toThrow(
+      'Invalid Telegram chat id "123abc:1".'
+    )
+    await expect(adapter.sendMessage('123:1abc', 'hello')).rejects.toThrow(
+      'Invalid Telegram chat id "123:1abc".'
+    )
+  })
 })

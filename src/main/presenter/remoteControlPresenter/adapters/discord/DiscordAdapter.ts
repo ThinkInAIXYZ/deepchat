@@ -133,7 +133,12 @@ export class DiscordAdapter extends ChannelAdapter {
   }
 
   private parseTransportTarget(chatId: string): DiscordTransportTarget {
-    const [chatTypePart, channelIdPart] = chatId.split(':')
+    const parts = chatId.split(':')
+    if (parts.length !== 2) {
+      throw new Error(`Invalid Discord transport target "${chatId}".`)
+    }
+
+    const [chatTypePart, channelIdPart] = parts
     const normalizedChatType = chatTypePart?.trim()
     const normalizedChannelId = channelIdPart?.trim() || ''
 

@@ -117,8 +117,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
   let mockFsExistsSync: any
   const runtimeHelper = RuntimeHelper.getInstance() as RuntimeHelper & {
     runtimesInitialized: boolean
-    nodeRuntimePath: string | null
-    uvRuntimePath: string | null
   }
 
   beforeEach(() => {
@@ -127,8 +125,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
     mockFsExistsSync.mockReset()
     mockFsExistsSync.mockReturnValue(false)
     runtimeHelper.runtimesInitialized = false
-    runtimeHelper.nodeRuntimePath = null
-    runtimeHelper.uvRuntimePath = null
+    runtimeHelper.setNodeRuntimePath(null)
+    runtimeHelper.setUvRuntimePath(null)
 
     mockHandleSamplingRequest.mockReset()
     mockCancelSamplingRequest.mockReset()
@@ -210,7 +208,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       const uvRuntimePath = path
         .join('/mock/app/runtime/uv')
         .replace('app.asar', 'app.asar.unpacked')
-      ;(client as any).uvRuntimePath = uvRuntimePath
+      client.uvRuntimePath = uvRuntimePath
 
       const processedCommand = (client as any).processCommandWithArgs('uvx', ['osm-mcp-server'])
 

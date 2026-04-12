@@ -133,19 +133,22 @@ export class TelegramAdapter extends ChannelAdapter {
 
   private parseTransportTarget(chatId: string): TelegramTransportTarget {
     const [chatIdPart, messageThreadIdPart] = chatId.split(':')
-    const parsedChatId = Number.parseInt(chatIdPart, 10)
-    const parsedMessageThreadId =
-      typeof messageThreadIdPart === 'string' && messageThreadIdPart.trim()
-        ? Number.parseInt(messageThreadIdPart, 10)
-        : 0
+    const normalizedChatIdPart = chatIdPart.trim()
+    const normalizedMessageThreadIdPart = messageThreadIdPart?.trim() ?? ''
 
-    if (!Number.isInteger(parsedChatId)) {
+    if (!/^-?\d+$/.test(normalizedChatIdPart)) {
+      throw new Error(`Invalid Telegram chat id "${chatId}".`)
+    }
+
+    if (normalizedMessageThreadIdPart && !/^\d+$/.test(normalizedMessageThreadIdPart)) {
       throw new Error(`Invalid Telegram chat id "${chatId}".`)
     }
 
     return {
-      chatId: parsedChatId,
-      messageThreadId: Number.isInteger(parsedMessageThreadId) ? parsedMessageThreadId : 0
+      chatId: Number.parseInt(normalizedChatIdPart, 10),
+      messageThreadId: normalizedMessageThreadIdPart
+        ? Number.parseInt(normalizedMessageThreadIdPart, 10)
+        : 0
     }
   }
 }

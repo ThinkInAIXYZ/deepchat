@@ -1,8 +1,8 @@
-# QQBot and WeChat iLink
+# Remote Multi-Channel Foundation
 
 ## Summary
 
-DeepChat remote control now has a built-in adapter framework and a registry-driven renderer contract. This iteration ships two new official built-in channels on top of Telegram and Feishu: QQ Bot Open Platform and WeChat iLink.
+DeepChat remote control now has a built-in adapter framework and a registry-driven renderer contract. The shipped built-in channel surface now covers Telegram, Discord, Feishu/Lark, QQ Bot Open Platform, and WeChat iLink. This spec captures the shared multi-channel foundation plus the QQBot and WeChat iLink delivery, while the Discord-specific behavior is detailed separately in `remote-discord-lark`.
 
 The design basis for QQBot follows Tencent official documentation only:
 
@@ -21,9 +21,9 @@ The WeChat iLink design basis follows Tencent official package behavior only:
 
 ## User Stories
 
-- As a desktop user, I can configure Telegram, Feishu, QQBot, and WeChat iLink remote control from one Remote settings page.
+- As a desktop user, I can configure Telegram, Discord, Feishu/Lark, QQBot, and WeChat iLink remote control from one Remote settings page.
 - As a maintainer, I can add future built-in channels by registering descriptors and adapters instead of hardcoding presenter branches.
-- As a maintainer, I can keep Telegram and Feishu behavior stable while adding QQBot and WeChat iLink through the same adapter boundary.
+- As a maintainer, I can keep Telegram, Discord, and Feishu/Lark behavior aligned through the same adapter boundary while extending the channel set with QQBot and WeChat iLink.
 - As a WeChat iLink user, I can connect an official bot account by QR login and manage multiple connected accounts from the built-in settings page.
 
 ## Acceptance Criteria
@@ -31,6 +31,7 @@ The WeChat iLink design basis follows Tencent official package behavior only:
 - `IRemoteControlPresenter` exposes `listRemoteChannels()` and generic per-channel settings / status methods that include `qqbot` and `weixin-ilink`.
 - `RemoteChannelId` includes:
   - `telegram`
+  - `discord`
   - `feishu`
   - `qqbot`
   - `weixin-ilink`
@@ -38,7 +39,7 @@ The WeChat iLink design basis follows Tencent official package behavior only:
   - overview cards
   - tab headers
   - sidebar remote status aggregation
-- Existing Telegram and Feishu runtime behavior remains unchanged.
+- Existing Telegram and Feishu runtime behavior remains unchanged, and the same multi-channel adapter surface also supports the shipped Discord runtime described in `remote-discord-lark`.
 - A built-in `QQBotAdapter` exists and is registered through `ChannelManager`.
 - A built-in `WeixinIlinkAdapter` exists and is registered through `ChannelManager`.
 - QQBot uses official transport primitives only:
@@ -73,7 +74,7 @@ The WeChat iLink design basis follows Tencent official package behavior only:
 ## Non-Goals
 
 - No OneBot, go-cqhttp, unofficial QQ bridges, or personal-WeChat bridges.
-- No Discord or Slack runtime in this iteration.
+- No Slack runtime in this iteration.
 - No secondary WeChat collaborator allowlist or shared-account UI in this iteration.
 - No third-party plugin execution or installation UI in this iteration.
 

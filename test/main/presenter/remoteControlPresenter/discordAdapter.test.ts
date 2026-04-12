@@ -115,4 +115,34 @@ describe('DiscordAdapter', () => {
     expect(clientInstances[0].sendMessage).toHaveBeenCalledWith('12345', 'hello discord')
     expect(clientInstances[0].sendTypingIndicator).toHaveBeenCalledWith('67890')
   })
+
+  it('rejects malformed discord transport targets instead of truncating them', async () => {
+    const adapter = new DiscordAdapter(
+      {
+        channelId: 'default',
+        channelType: 'discord',
+        agentId: 'deepchat',
+        channelConfig: {
+          botToken: 'discord-bot-token'
+        },
+        configSignature: 'discord:test'
+      },
+      {
+        bindingStore: {} as any,
+        createConversationRunner: () => ({}) as any
+      }
+    )
+
+    await adapter.connect()
+
+    await expect(adapter.sendMessage('channel:12345:extra', 'hello discord')).rejects.toThrow(
+      'Invalid Discord transport target "channel:12345:extra".'
+    )
+    await expect(adapter.sendTypingIndicator('group:12345')).rejects.toThrow(
+      'Invalid Discord transport target "group:12345".'
+    )
+    await expect(adapter.sendTypingIndicator('dm:')).rejects.toThrow(
+      'Invalid Discord transport target "dm:".'
+    )
+  })
 })

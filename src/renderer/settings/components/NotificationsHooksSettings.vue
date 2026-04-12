@@ -16,25 +16,16 @@
             </span>
           </div>
           <div class="text-sm text-muted-foreground">
-            {{ t('settings.notificationsHooks.description') }}
+            {{ t('settings.notificationsHooks.commands.description') }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ t('settings.notificationsHooks.commands.hint') }}
           </div>
         </div>
 
         <div class="rounded-lg border p-4">
           <div class="space-y-4">
-            <div class="flex items-center justify-between gap-4">
-              <div class="space-y-1">
-                <div class="text-base font-medium">
-                  {{ t('settings.notificationsHooks.commands.title') }}
-                </div>
-                <p class="text-sm text-muted-foreground">
-                  {{ t('settings.notificationsHooks.commands.description') }}
-                </p>
-                <p class="text-xs text-muted-foreground">
-                  {{ t('settings.notificationsHooks.commands.hint') }}
-                </p>
-              </div>
-
+            <div class="flex justify-end">
               <Button
                 data-testid="notifications-hooks-add"
                 variant="outline"

@@ -62,6 +62,7 @@ export class QQBotRuntime {
   private runId = 0
   private started = false
   private stopRequested = false
+  private fatalErrorEmitted = false
   private readonly gateway: QQBotGatewaySession
   private statusSnapshot: QQBotRuntimeStatusSnapshot = {
     state: 'stopped',
@@ -555,6 +556,40 @@ export class QQBotRuntime {
     }
 
     const syncedSegments = [...state.segments]
+    let reachedPassiveReplyLimit = false
+    for (let index = 0; index < state.segments.length; index += 1) {
+      const segment = segments[index]
+      const existingSegment = syncedSegments[index]
+      if (!segment || !existingSegment) {
+        continue
+      }
+
+      const normalizedText = segment.text.trim()
+      if (normalizedText === existingSegment.lastText) {
+        continue
+      }
+
+      const messageId = await this.sendText(sendContext, segment.text)
+      syncedSegments[index] = {
+        key: segment.key,
+        kind: segment.kind,
+        messageIds: [...existingSegment.messageIds, messageId],
+        lastText: normalizedText
+      }
+
+      if (!messageId && sendContext.sentCount >= QQBOT_MAX_PASSIVE_REPLIES) {
+        reachedPassiveReplyLimit = true
+        break
+      }
+    }
+
+    if (reachedPassiveReplyLimit) {
+      return this.rememberDeliveryState(endpointKey, {
+        sourceMessageId: state.sourceMessageId,
+        segments: syncedSegments
+      })
+    }
+
     for (let index = state.segments.length; index < segments.length; index += 1) {
       const segment = segments[index]
       const messageId = await this.sendText(sendContext, segment.text)
@@ -635,13 +670,20 @@ export class QQBotRuntime {
       state?: QQBotRuntimeStatusSnapshot['state']
     }
   ): void {
-    this.statusSnapshot = {
+    const nextStatus = {
       ...this.statusSnapshot,
       ...patch
     }
+    this.statusSnapshot = nextStatus
     this.deps.onStatusChange?.(this.getStatusSnapshot())
 
-    if (patch.state === 'error' && patch.lastError) {
+    if (nextStatus.state !== 'error') {
+      this.fatalErrorEmitted = false
+      return
+    }
+
+    if (patch.lastError && !this.fatalErrorEmitted) {
+      this.fatalErrorEmitted = true
       this.deps.onFatalError?.(patch.lastError)
     }
   }

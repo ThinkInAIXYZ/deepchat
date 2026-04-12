@@ -163,7 +163,7 @@ export class McpClient {
   }
 
   public set nodeRuntimePath(value: string | null) {
-    ;(this.runtimeHelper as unknown as { nodeRuntimePath: string | null }).nodeRuntimePath = value
+    this.runtimeHelper.setNodeRuntimePath(value)
   }
 
   public get bunRuntimePath(): string | null {
@@ -180,7 +180,7 @@ export class McpClient {
   }
 
   public set uvRuntimePath(value: string | null) {
-    ;(this.runtimeHelper as unknown as { uvRuntimePath: string | null }).uvRuntimePath = value
+    this.runtimeHelper.setUvRuntimePath(value)
   }
 
   // Connect to MCP server
