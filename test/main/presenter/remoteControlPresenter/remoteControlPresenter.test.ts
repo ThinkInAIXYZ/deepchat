@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { BrowserWindow } from 'electron'
 import type { HookEventName, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type { TelegramPollerStatusSnapshot } from '@/presenter/remoteControlPresenter/types'
 
@@ -57,6 +58,7 @@ vi.mock('@/presenter/remoteControlPresenter/telegram/telegramClient', () => ({
 }))
 
 import { RemoteControlPresenter } from '@/presenter/remoteControlPresenter'
+import { WeixinIlinkClient } from '@/presenter/remoteControlPresenter/weixinIlink/weixinIlinkClient'
 
 const createHooksConfig = (): HooksNotificationsSettings => {
   const commandEvents = Object.fromEntries(
@@ -145,7 +147,10 @@ describe('RemoteControlPresenter', () => {
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
-      windowPresenter: {} as any,
+      windowPresenter: {
+        getFocusedWindow: vi.fn(() => undefined),
+        getAllWindows: vi.fn(() => [])
+      } as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
       setHooksNotificationsConfig: (nextConfig) => {
@@ -193,7 +198,10 @@ describe('RemoteControlPresenter', () => {
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
-      windowPresenter: {} as any,
+      windowPresenter: {
+        getFocusedWindow: vi.fn(() => undefined),
+        getAllWindows: vi.fn(() => [])
+      } as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
       setHooksNotificationsConfig: (nextConfig) => {
@@ -228,7 +236,10 @@ describe('RemoteControlPresenter', () => {
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
-      windowPresenter: {} as any,
+      windowPresenter: {
+        getFocusedWindow: vi.fn(() => undefined),
+        getAllWindows: vi.fn(() => [])
+      } as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
       setHooksNotificationsConfig: (nextConfig) => {
@@ -296,7 +307,10 @@ describe('RemoteControlPresenter', () => {
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
-      windowPresenter: {} as any,
+      windowPresenter: {
+        getFocusedWindow: vi.fn(() => undefined),
+        getAllWindows: vi.fn(() => [])
+      } as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
       setHooksNotificationsConfig: (nextConfig) => {
@@ -471,9 +485,142 @@ describe('RemoteControlPresenter', () => {
         }),
         expect.objectContaining({
           id: 'weixin-ilink',
-          implemented: false
+          implemented: true
         })
       ])
     )
+  })
+
+  it('stores a wechat ilink account after qr login completes', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {
+        getFocusedWindow: vi.fn(() => undefined),
+        getAllWindows: vi.fn(() => [])
+      } as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    const startLoginSpy = vi.spyOn(WeixinIlinkClient, 'startLogin').mockResolvedValueOnce({
+      sessionKey: 'wx-session',
+      loginUrl: 'https://liteapp.weixin.qq.com/mock-login',
+      messageKey: 'settings.remote.weixinIlink.loginWindowOpened'
+    })
+    const waitLoginSpy = vi.spyOn(WeixinIlinkClient, 'waitForLogin').mockResolvedValueOnce({
+      connected: true,
+      accountId: 'wx-account-1',
+      ownerUserId: 'owner-1',
+      botToken: 'bot-token-1',
+      baseUrl: 'https://ilinkai.weixin.qq.com',
+      messageKey: 'settings.remote.weixinIlink.loginConnected'
+    })
+
+    await expect(presenter.startWeixinIlinkLogin()).resolves.toEqual({
+      sessionKey: 'wx-session',
+      loginUrl: 'https://liteapp.weixin.qq.com/mock-login',
+      messageKey: 'settings.remote.weixinIlink.loginWindowOpened',
+      message: undefined
+    })
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(BrowserWindow).mock.results[0]?.value.loadURL).toHaveBeenCalledWith(
+      'https://liteapp.weixin.qq.com/mock-login'
+    )
+
+    await expect(
+      presenter.waitForWeixinIlinkLogin({
+        sessionKey: 'wx-session',
+        timeoutMs: 1_000
+      })
+    ).resolves.toEqual({
+      connected: true,
+      account: {
+        accountId: 'wx-account-1',
+        ownerUserId: 'owner-1',
+        baseUrl: 'https://ilinkai.weixin.qq.com',
+        enabled: true
+      },
+      messageKey: 'settings.remote.weixinIlink.loginConnected',
+      message: undefined
+    })
+
+    await expect(presenter.getWeixinIlinkSettings()).resolves.toEqual(
+      expect.objectContaining({
+        accounts: [
+          {
+            accountId: 'wx-account-1',
+            ownerUserId: 'owner-1',
+            baseUrl: 'https://ilinkai.weixin.qq.com',
+            enabled: true
+          }
+        ]
+      })
+    )
+
+    startLoginSpy.mockRestore()
+    waitLoginSpy.mockRestore()
+  })
+
+  it('deduplicates concurrent wechat ilink login waits for the same session', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {
+        getFocusedWindow: vi.fn(() => undefined),
+        getAllWindows: vi.fn(() => [])
+      } as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    const waitLoginSpy = vi.spyOn(WeixinIlinkClient, 'waitForLogin').mockResolvedValue({
+      connected: true,
+      accountId: 'wx-account-1',
+      ownerUserId: 'owner-1',
+      botToken: 'bot-token-1',
+      baseUrl: 'https://ilinkai.weixin.qq.com',
+      messageKey: 'settings.remote.weixinIlink.loginConnected'
+    })
+
+    const [firstResult, secondResult] = await Promise.all([
+      presenter.waitForWeixinIlinkLogin({
+        sessionKey: 'wx-session',
+        timeoutMs: 1_000
+      }),
+      presenter.waitForWeixinIlinkLogin({
+        sessionKey: 'wx-session',
+        timeoutMs: 1_000
+      })
+    ])
+
+    expect(firstResult).toEqual(secondResult)
+    expect(waitLoginSpy).toHaveBeenCalledTimes(1)
+
+    waitLoginSpy.mockRestore()
   })
 })

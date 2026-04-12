@@ -11,7 +11,9 @@
           !feishuSettings ||
           !feishuStatus ||
           !qqbotSettings ||
-          !qqbotStatus
+          !qqbotStatus ||
+          !weixinIlinkSettings ||
+          !weixinIlinkStatus
         "
         class="text-sm text-muted-foreground"
       >
@@ -39,7 +41,7 @@
             <div class="flex items-start justify-between gap-3">
               <div class="space-y-1">
                 <div class="text-sm font-medium">
-                  {{ t(`settings.remote.${channel}.title`) }}
+                  {{ channelTitle(channel) }}
                 </div>
                 <div class="text-xs text-muted-foreground">
                   {{
@@ -103,7 +105,7 @@
                   statusDotClass(channelStatus(channel)?.state || 'stopped', true)
                 ]"
               ></span>
-              {{ t(`settings.remote.${channel}.title`) }}
+              {{ channelTitle(channel) }}
             </TabsTrigger>
           </TabsList>
 
@@ -915,6 +917,216 @@
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="weixin-ilink" class="space-y-4">
+            <div class="rounded-lg border">
+              <div class="space-y-4 p-4">
+                <div class="space-y-1">
+                  <div class="text-base font-medium">
+                    {{ t('settings.remote.sections.credentials') }}
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.weixinIlink.description') }}
+                  </p>
+                </div>
+
+                <div class="rounded-md border bg-muted/30 p-3 text-sm">
+                  <div class="font-medium">{{ t('settings.remote.status.title') }}</div>
+                  <div class="mt-1 text-muted-foreground">
+                    {{ formatStatusLine(weixinIlinkStatus) }}
+                  </div>
+                  <div class="mt-1 text-muted-foreground">
+                    {{
+                      t('settings.remote.weixinIlink.statusSummary', {
+                        accounts: weixinIlinkStatus.accountCount,
+                        connected: weixinIlinkStatus.connectedAccountCount,
+                        bindings: weixinIlinkStatus.bindingCount
+                      })
+                    }}
+                  </div>
+                  <div v-if="weixinIlinkStatus.lastError" class="mt-2 break-all text-destructive">
+                    {{ weixinIlinkStatus.lastError }}
+                  </div>
+                </div>
+
+                <div
+                  class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground"
+                >
+                  <div>{{ t('settings.remote.weixinIlink.loginDescription') }}</div>
+                  <div class="mt-1">{{ t('settings.remote.weixinIlink.ownerOnlyNotice') }}</div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    data-testid="weixin-ilink-connect-button"
+                    variant="outline"
+                    size="sm"
+                    :disabled="weixinIlinkLoginBusy"
+                    @click="startWeixinIlinkLogin()"
+                  >
+                    <Icon
+                      :icon="weixinIlinkLoginBusy ? 'lucide:loader-2' : 'lucide:qr-code'"
+                      :class="['mr-1 h-4 w-4', weixinIlinkLoginBusy && 'animate-spin']"
+                    />
+                    {{ t('settings.remote.weixinIlink.connectButton') }}
+                  </Button>
+                </div>
+              </div>
+
+              <div class="border-t p-4">
+                <div class="mb-3 space-y-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.weixinIlink.accountsTitle') }}
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.weixinIlink.accountsDescription') }}
+                  </p>
+                </div>
+
+                <div
+                  v-if="weixinIlinkStatus.accounts.length === 0"
+                  class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+                >
+                  {{ t('settings.remote.weixinIlink.noAccounts') }}
+                </div>
+                <div v-else class="space-y-3">
+                  <div
+                    v-for="account in weixinIlinkStatus.accounts"
+                    :key="account.accountId"
+                    class="rounded-lg border p-3"
+                  >
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div class="min-w-0 flex-1">
+                        <div class="truncate text-sm font-medium">{{ account.accountId }}</div>
+                        <div class="mt-1 text-xs text-muted-foreground">
+                          {{
+                            t('settings.remote.weixinIlink.ownerUserId', {
+                              ownerUserId: account.ownerUserId
+                            })
+                          }}
+                        </div>
+                        <div class="mt-1 truncate text-xs text-muted-foreground">
+                          {{
+                            t('settings.remote.weixinIlink.baseUrl', {
+                              baseUrl: account.baseUrl
+                            })
+                          }}
+                        </div>
+                      </div>
+
+                      <div class="flex flex-col items-end gap-2">
+                        <span
+                          :class="[
+                            'inline-flex rounded-full px-2 py-1 text-[11px]',
+                            statusDotClass(account.state)
+                          ]"
+                        >
+                          {{ t(`settings.remote.status.states.${account.state}`) }}
+                        </span>
+                        <label class="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{{
+                            account.enabled ? t('common.enabled') : t('common.disabled')
+                          }}</span>
+                          <Switch
+                            :model-value="account.enabled"
+                            :disabled="saving['weixin-ilink']"
+                            @update:model-value="
+                              (value) =>
+                                toggleWeixinIlinkAccountEnabled(account.accountId, value === true)
+                            "
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="mt-3 text-xs text-muted-foreground">
+                      {{
+                        t('settings.remote.weixinIlink.accountBindings', {
+                          count: account.bindingCount
+                        })
+                      }}
+                    </div>
+                    <div v-if="account.lastError" class="mt-2 break-all text-xs text-destructive">
+                      {{ account.lastError }}
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        :disabled="
+                          weixinIlinkAccountActionId === account.accountId ||
+                          account.enabled !== true
+                        "
+                        @click="restartWeixinIlinkAccount(account.accountId)"
+                      >
+                        {{ t('settings.remote.weixinIlink.restartAccount') }}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        class="text-destructive hover:text-destructive"
+                        :disabled="weixinIlinkAccountActionId === account.accountId"
+                        @click="removeWeixinIlinkAccount(account.accountId)"
+                      >
+                        {{ t('settings.remote.weixinIlink.removeAccount') }}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="border-t p-4">
+                <div class="mb-3 space-y-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.sections.remoteControl') }}
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.weixinIlink.remoteControlDescription') }}
+                  </p>
+                </div>
+
+                <div class="space-y-4">
+                  <div class="grid grid-cols-1 gap-4">
+                    <div class="space-y-2">
+                      <Label class="text-xs text-muted-foreground">
+                        {{ t('settings.remote.remoteControl.defaultAgent') }}
+                      </Label>
+                      <Select
+                        :model-value="weixinIlinkSettings.defaultAgentId"
+                        @update:model-value="
+                          (value) => updateWeixinIlinkDefaultAgentId(String(value))
+                        "
+                      >
+                        <SelectTrigger class="h-8!">
+                          <SelectValue
+                            :placeholder="
+                              t('settings.remote.remoteControl.defaultAgentPlaceholder')
+                            "
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="agent in defaultAgentOptions(weixinIlinkSettings.defaultAgentId)"
+                            :key="agent.id"
+                            :value="agent.id"
+                          >
+                            {{ agent.name }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" @click="openBindingsDialog('weixin-ilink')">
+                      {{ t('settings.remote.remoteControl.manageBindings') }}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       </template>
     </div>
@@ -927,14 +1139,14 @@
           <DialogTitle>
             {{
               t('settings.remote.remoteControl.pairDialogTitle', {
-                channel: pairDialogChannel ? t(`settings.remote.${pairDialogChannel}.title`) : ''
+                channel: pairDialogChannel ? channelTitle(pairDialogChannel) : ''
               })
             }}
           </DialogTitle>
           <DialogDescription>
             {{
               t('settings.remote.remoteControl.pairDialogDescription', {
-                channel: pairDialogChannel ? t(`settings.remote.${pairDialogChannel}.title`) : ''
+                channel: pairDialogChannel ? channelTitle(pairDialogChannel) : ''
               })
             }}
           </DialogDescription>
@@ -989,18 +1201,14 @@
           <DialogTitle>
             {{
               t('settings.remote.remoteControl.bindingsDialogTitle', {
-                channel: bindingsDialogChannel
-                  ? t(`settings.remote.${bindingsDialogChannel}.title`)
-                  : ''
+                channel: bindingsDialogChannel ? channelTitle(bindingsDialogChannel) : ''
               })
             }}
           </DialogTitle>
           <DialogDescription>
             {{
               t('settings.remote.remoteControl.bindingsDialogDescription', {
-                channel: bindingsDialogChannel
-                  ? t(`settings.remote.${bindingsDialogChannel}.title`)
-                  : ''
+                channel: bindingsDialogChannel ? channelTitle(bindingsDialogChannel) : ''
               })
             }}
           </DialogDescription>
@@ -1062,6 +1270,41 @@
       </div>
     </DialogContent>
   </Dialog>
+
+  <Dialog v-model:open="weixinIlinkLoginVisible">
+    <DialogContent class="sm:max-w-lg">
+      <div class="space-y-6">
+        <DialogHeader>
+          <DialogTitle>{{ t('settings.remote.weixinIlink.loginDialogTitle') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.remote.weixinIlink.loginDialogDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-4">
+          <div class="rounded-lg border bg-muted/20 p-3 text-sm">
+            <div class="text-muted-foreground">{{ weixinIlinkLoginMessage }}</div>
+            <div v-if="weixinIlinkLoginError" class="mt-2 break-all text-destructive">
+              {{ weixinIlinkLoginError }}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            :disabled="weixinIlinkLoginBusy"
+            @click="restartWeixinIlinkLogin"
+          >
+            {{ t('settings.remote.weixinIlink.refreshQrCode') }}
+          </Button>
+          <Button variant="outline" @click="closeWeixinIlinkLoginDialog">
+            {{ t('common.close') }}
+          </Button>
+        </div>
+      </div>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -1105,17 +1348,24 @@ import type {
   FeishuPairingSnapshot,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
+  PairableRemoteChannel,
   RemoteBindingSummary,
   RemoteChannel,
   RemoteChannelDescriptor,
+  RemoteChannelSettings,
   RemotePairingSnapshot,
   RemoteRuntimeState,
+  RemoteChannelStatus,
   QQBotPairingSnapshot,
   QQBotRemoteSettings,
   QQBotRemoteStatus,
   TelegramPairingSnapshot,
   TelegramRemoteSettings,
-  TelegramRemoteStatus
+  TelegramRemoteStatus,
+  WeixinIlinkLoginResult,
+  WeixinIlinkLoginSession,
+  WeixinIlinkRemoteSettings,
+  WeixinIlinkRemoteStatus
 } from '@shared/presenter'
 
 const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
@@ -1149,7 +1399,7 @@ const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
   {
     id: 'weixin-ilink',
     type: 'builtin',
-    implemented: false,
+    implemented: true,
     titleKey: 'settings.remote.weixinIlink.title',
     descriptionKey: 'settings.remote.weixinIlink.description',
     supportsPairing: false,
@@ -1163,12 +1413,28 @@ const projectPresenter = usePresenter('projectPresenter')
 const { t } = useI18n()
 const { toast } = useToast()
 
+const channelI18nKeyMap: Record<RemoteChannel, string> = {
+  telegram: 'telegram',
+  feishu: 'feishu',
+  qqbot: 'qqbot',
+  'weixin-ilink': 'weixinIlink'
+}
+
+function channelTitle(channel: RemoteChannel | null | undefined): string {
+  if (!channel) {
+    return ''
+  }
+  return t(`settings.remote.${channelI18nKeyMap[channel]}.title`)
+}
+
 const telegramSettings = ref<TelegramRemoteSettings | null>(null)
 const feishuSettings = ref<FeishuRemoteSettings | null>(null)
 const qqbotSettings = ref<QQBotRemoteSettings | null>(null)
+const weixinIlinkSettings = ref<WeixinIlinkRemoteSettings | null>(null)
 const telegramStatus = ref<TelegramRemoteStatus | null>(null)
 const feishuStatus = ref<FeishuRemoteStatus | null>(null)
 const qqbotStatus = ref<QQBotRemoteStatus | null>(null)
+const weixinIlinkStatus = ref<WeixinIlinkRemoteStatus | null>(null)
 const channelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackChannelDescriptors)
 const isLoading = ref(false)
 const showBotToken = ref(false)
@@ -1180,7 +1446,7 @@ const qqbotPairedUserIdsText = ref('')
 const availableAgents = ref<Agent[]>([])
 const recentProjects = ref<Project[]>([])
 const activeChannel = ref<RemoteChannel>('telegram')
-const pairDialogChannel = ref<RemoteChannel | null>(null)
+const pairDialogChannel = ref<PairableRemoteChannel | null>(null)
 const pairDialogOpen = ref(false)
 const pairDialogCode = ref<string | null>(null)
 const pairDialogExpiresAt = ref<number | null>(null)
@@ -1192,20 +1458,29 @@ const bindingsDialogOpen = ref(false)
 const bindingsLoading = ref(false)
 const bindingRemovingKey = ref<string | null>(null)
 const bindings = ref<RemoteBindingSummary[]>([])
+const weixinIlinkLoginMessage = ref('')
+const weixinIlinkLoginError = ref<string | null>(null)
+const weixinIlinkLoginStarting = ref(false)
+const weixinIlinkLoginWaiting = ref(false)
+const weixinIlinkLoginOpen = ref(false)
+const weixinIlinkAccountActionId = ref<string | null>(null)
 const saving = reactive<Record<RemoteChannel, boolean>>({
   telegram: false,
   feishu: false,
-  qqbot: false
+  qqbot: false,
+  'weixin-ilink': false
 })
 const pendingSave = reactive<Record<RemoteChannel, boolean>>({
   telegram: false,
   feishu: false,
-  qqbot: false
+  qqbot: false,
+  'weixin-ilink': false
 })
 const saveTasks: Record<RemoteChannel, Promise<void> | null> = {
   telegram: null,
   feishu: null,
-  qqbot: null
+  qqbot: null,
+  'weixin-ilink': null
 }
 
 let statusRefreshTimer: ReturnType<typeof setInterval> | null = null
@@ -1243,6 +1518,13 @@ const defaultQQBotSettings = (): QQBotRemoteSettings => ({
   defaultAgentId: 'deepchat',
   defaultWorkdir: '',
   pairedUserIds: []
+})
+
+const defaultWeixinIlinkSettings = (): WeixinIlinkRemoteSettings => ({
+  remoteEnabled: false,
+  defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
+  accounts: []
 })
 
 const defaultFeishuStatus = (): FeishuRemoteStatus => ({
@@ -1303,26 +1585,29 @@ const normalizeQQBotPairingSnapshot = (
 
 const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
   listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
-  getChannelSettings?: (
-    channel: RemoteChannel
-  ) => Promise<TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings>
+  getChannelSettings?: (channel: RemoteChannel) => Promise<RemoteChannelSettings>
   saveChannelSettings?: (
     channel: RemoteChannel,
-    input: TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings
-  ) => Promise<TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings>
-  getChannelStatus?: (
-    channel: RemoteChannel
-  ) => Promise<TelegramRemoteStatus | FeishuRemoteStatus | QQBotRemoteStatus>
+    input: RemoteChannelSettings
+  ) => Promise<RemoteChannelSettings>
+  getChannelStatus?: (channel: RemoteChannel) => Promise<RemoteChannelStatus>
   getChannelBindings?: (channel: RemoteChannel) => Promise<RemoteBindingSummary[]>
   removeChannelBinding?: (channel: RemoteChannel, endpointKey: string) => Promise<void>
   getChannelPairingSnapshot?: (
-    channel: RemoteChannel
+    channel: PairableRemoteChannel
   ) => Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot>
-  createChannelPairCode?: (channel: RemoteChannel) => Promise<{
+  createChannelPairCode?: (channel: PairableRemoteChannel) => Promise<{
     code: string
     expiresAt: number
   }>
-  clearChannelPairCode?: (channel: RemoteChannel) => Promise<void>
+  clearChannelPairCode?: (channel: PairableRemoteChannel) => Promise<void>
+  startWeixinIlinkLogin?: (input?: { force?: boolean }) => Promise<WeixinIlinkLoginSession>
+  waitForWeixinIlinkLogin?: (input: {
+    sessionKey: string
+    timeoutMs?: number
+  }) => Promise<WeixinIlinkLoginResult>
+  removeWeixinIlinkAccount?: (accountId: string) => Promise<void>
+  restartWeixinIlinkAccount?: (accountId: string) => Promise<void>
 }
 
 const listRemoteChannelsCompat = async (): Promise<RemoteChannelDescriptor[]> => {
@@ -1336,9 +1621,8 @@ const listRemoteChannelsCompat = async (): Promise<RemoteChannelDescriptor[]> =>
 function getChannelSettingsCompat(channel: 'telegram'): Promise<TelegramRemoteSettings>
 function getChannelSettingsCompat(channel: 'feishu'): Promise<FeishuRemoteSettings>
 function getChannelSettingsCompat(channel: 'qqbot'): Promise<QQBotRemoteSettings>
-async function getChannelSettingsCompat(
-  channel: RemoteChannel
-): Promise<TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings> {
+function getChannelSettingsCompat(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteSettings>
+async function getChannelSettingsCompat(channel: RemoteChannel): Promise<RemoteChannelSettings> {
   if (presenterCompat.getChannelSettings) {
     return await presenterCompat.getChannelSettings(channel)
   }
@@ -1349,6 +1633,10 @@ async function getChannelSettingsCompat(
 
   if (channel === 'qqbot') {
     return defaultQQBotSettings()
+  }
+
+  if (channel === 'weixin-ilink') {
+    return await remoteControlPresenter.getWeixinIlinkSettings()
   }
 
   return defaultFeishuSettings()
@@ -1366,10 +1654,14 @@ function saveChannelSettingsCompat(
   channel: 'qqbot',
   input: QQBotRemoteSettings
 ): Promise<QQBotRemoteSettings>
+function saveChannelSettingsCompat(
+  channel: 'weixin-ilink',
+  input: WeixinIlinkRemoteSettings
+): Promise<WeixinIlinkRemoteSettings>
 async function saveChannelSettingsCompat(
   channel: RemoteChannel,
-  input: TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings
-): Promise<TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings> {
+  input: RemoteChannelSettings
+): Promise<RemoteChannelSettings> {
   if (presenterCompat.saveChannelSettings) {
     return await presenterCompat.saveChannelSettings(channel, input)
   }
@@ -1382,15 +1674,18 @@ async function saveChannelSettingsCompat(
     return input as QQBotRemoteSettings
   }
 
+  if (channel === 'weixin-ilink') {
+    return await remoteControlPresenter.saveWeixinIlinkSettings(input as WeixinIlinkRemoteSettings)
+  }
+
   return input as FeishuRemoteSettings
 }
 
 function getChannelStatusCompat(channel: 'telegram'): Promise<TelegramRemoteStatus>
 function getChannelStatusCompat(channel: 'feishu'): Promise<FeishuRemoteStatus>
 function getChannelStatusCompat(channel: 'qqbot'): Promise<QQBotRemoteStatus>
-async function getChannelStatusCompat(
-  channel: RemoteChannel
-): Promise<TelegramRemoteStatus | FeishuRemoteStatus | QQBotRemoteStatus> {
+function getChannelStatusCompat(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteStatus>
+async function getChannelStatusCompat(channel: RemoteChannel): Promise<RemoteChannelStatus> {
   if (presenterCompat.getChannelStatus) {
     return await presenterCompat.getChannelStatus(channel)
   }
@@ -1401,6 +1696,10 @@ async function getChannelStatusCompat(
 
   if (channel === 'qqbot') {
     return defaultQQBotStatus()
+  }
+
+  if (channel === 'weixin-ilink') {
+    return await remoteControlPresenter.getWeixinIlinkStatus()
   }
 
   return defaultFeishuStatus()
@@ -1444,7 +1743,7 @@ const removeChannelBindingCompat = async (
 }
 
 const getChannelPairingSnapshotCompat = async (
-  channel: RemoteChannel
+  channel: PairableRemoteChannel
 ): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot> => {
   if (presenterCompat.getChannelPairingSnapshot) {
     return await presenterCompat.getChannelPairingSnapshot(channel)
@@ -1462,7 +1761,7 @@ const getChannelPairingSnapshotCompat = async (
 }
 
 const createChannelPairCodeCompat = async (
-  channel: RemoteChannel
+  channel: PairableRemoteChannel
 ): Promise<{
   code: string
   expiresAt: number
@@ -1481,7 +1780,7 @@ const createChannelPairCodeCompat = async (
   }
 }
 
-const clearChannelPairCodeCompat = async (channel: RemoteChannel): Promise<void> => {
+const clearChannelPairCodeCompat = async (channel: PairableRemoteChannel): Promise<void> => {
   if (presenterCompat.clearChannelPairCode) {
     await presenterCompat.clearChannelPairCode(channel)
     return
@@ -1492,15 +1791,70 @@ const clearChannelPairCodeCompat = async (channel: RemoteChannel): Promise<void>
   }
 }
 
+const startWeixinIlinkLoginCompat = async (input?: {
+  force?: boolean
+}): Promise<WeixinIlinkLoginSession> => {
+  if (presenterCompat.startWeixinIlinkLogin) {
+    return await presenterCompat.startWeixinIlinkLogin(input)
+  }
+
+  return await remoteControlPresenter.startWeixinIlinkLogin(input)
+}
+
+const waitForWeixinIlinkLoginCompat = async (input: {
+  sessionKey: string
+  timeoutMs?: number
+}): Promise<WeixinIlinkLoginResult> => {
+  if (presenterCompat.waitForWeixinIlinkLogin) {
+    return await presenterCompat.waitForWeixinIlinkLogin(input)
+  }
+
+  return await remoteControlPresenter.waitForWeixinIlinkLogin(input)
+}
+
+const removeWeixinIlinkAccountCompat = async (accountId: string): Promise<void> => {
+  if (presenterCompat.removeWeixinIlinkAccount) {
+    await presenterCompat.removeWeixinIlinkAccount(accountId)
+    return
+  }
+
+  await remoteControlPresenter.removeWeixinIlinkAccount(accountId)
+}
+
+const restartWeixinIlinkAccountCompat = async (accountId: string): Promise<void> => {
+  if (presenterCompat.restartWeixinIlinkAccount) {
+    await presenterCompat.restartWeixinIlinkAccount(accountId)
+    return
+  }
+
+  await remoteControlPresenter.restartWeixinIlinkAccount(accountId)
+}
+
+const resolveWeixinIlinkLoginMessage = (input: {
+  message?: string | null
+  messageKey?: string | null
+}): string => {
+  if (input.messageKey?.trim()) {
+    return t(input.messageKey.trim())
+  }
+
+  if (input.message?.trim()) {
+    return input.message.trim()
+  }
+
+  return t('settings.remote.weixinIlink.loginFailed')
+}
+
 const eventNames = HOOK_EVENT_NAMES
 const implementedChannels = computed(() =>
   channelDescriptors.value
     .filter((descriptor) => descriptor.implemented)
     .map((descriptor) => descriptor.id)
-    .filter((channel): channel is RemoteChannel => channel !== 'weixin-ilink')
 )
 const implementedChannelCount = computed(() => Math.max(1, implementedChannels.value.length))
-const isAnySaving = computed(() => saving.telegram || saving.feishu || saving.qqbot)
+const isAnySaving = computed(
+  () => saving.telegram || saving.feishu || saving.qqbot || saving['weixin-ilink']
+)
 const normalizePath = (value: string | null | undefined): string => value?.trim() ?? ''
 const pathLabel = (value: string) => value.split(/[/\\]/).pop() ?? value
 const buildDirectoryOptions = (currentPath: string) => {
@@ -1597,6 +1951,21 @@ const pairDialogVisible = computed({
   }
 })
 
+const weixinIlinkLoginVisible = computed({
+  get: () => weixinIlinkLoginOpen.value,
+  set: (open: boolean) => {
+    if (open) {
+      weixinIlinkLoginOpen.value = true
+      return
+    }
+
+    closeWeixinIlinkLoginDialog()
+  }
+})
+const weixinIlinkLoginBusy = computed(
+  () => weixinIlinkLoginStarting.value || weixinIlinkLoginWaiting.value
+)
+
 const parseAllowedUserIds = (value: string): number[] =>
   Array.from(
     new Set(
@@ -1662,15 +2031,33 @@ const syncQQBotFields = (snapshot: Partial<QQBotRemoteSettings> | null | undefin
   qqbotPairedUserIdsText.value = qqbotSettings.value.pairedUserIds.join(', ')
 }
 
+const syncWeixinIlinkFields = (snapshot: Partial<WeixinIlinkRemoteSettings> | null | undefined) => {
+  const fallback = defaultWeixinIlinkSettings()
+
+  weixinIlinkSettings.value = {
+    ...fallback,
+    ...snapshot,
+    defaultWorkdir: '',
+    accounts: [...(snapshot?.accounts ?? fallback.accounts)].map((account) => ({
+      accountId: String(account.accountId ?? '').trim(),
+      ownerUserId: String(account.ownerUserId ?? '').trim(),
+      baseUrl: String(account.baseUrl ?? '').trim(),
+      enabled: account.enabled !== false
+    }))
+  }
+}
+
 const channelStatus = (channel: RemoteChannel) =>
   channel === 'telegram'
     ? telegramStatus.value
     : channel === 'feishu'
       ? feishuStatus.value
-      : qqbotStatus.value
+      : channel === 'qqbot'
+        ? qqbotStatus.value
+        : weixinIlinkStatus.value
 
 const getSnapshotPrincipalIds = (
-  channel: RemoteChannel,
+  channel: PairableRemoteChannel,
   snapshot: TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot
 ): string[] =>
   channel === 'telegram'
@@ -1682,17 +2069,22 @@ const getSnapshotPrincipalIds = (
       : normalizeQQBotPairingSnapshot(snapshot as Partial<QQBotPairingSnapshot>).pairedUserIds
 
 const refreshStatus = async () => {
-  const [nextTelegramStatus, nextFeishuStatus, nextQQBotStatus] = await Promise.all([
-    getChannelStatusCompat('telegram'),
-    getChannelStatusCompat('feishu'),
-    getChannelStatusCompat('qqbot')
-  ])
+  const [nextTelegramStatus, nextFeishuStatus, nextQQBotStatus, nextWeixinIlinkStatus] =
+    await Promise.all([
+      getChannelStatusCompat('telegram'),
+      getChannelStatusCompat('feishu'),
+      getChannelStatusCompat('qqbot'),
+      getChannelStatusCompat('weixin-ilink')
+    ])
   telegramStatus.value = nextTelegramStatus
   feishuStatus.value = nextFeishuStatus
   qqbotStatus.value = nextQQBotStatus
+  weixinIlinkStatus.value = nextWeixinIlinkStatus
 }
 
-const refreshPairingSnapshot = async (channel: RemoteChannel): Promise<RemotePairingSnapshot> => {
+const refreshPairingSnapshot = async (
+  channel: PairableRemoteChannel
+): Promise<RemotePairingSnapshot> => {
   const snapshot = await getChannelPairingSnapshotCompat(channel)
   if (pairDialogChannel.value === channel) {
     pairDialogCode.value = snapshot.pairCode
@@ -1722,17 +2114,21 @@ const loadState = async () => {
       loadedTelegramSettings,
       loadedFeishuSettings,
       loadedQQBotSettings,
+      loadedWeixinIlinkSettings,
       loadedTelegramStatus,
       loadedFeishuStatus,
-      loadedQQBotStatus
+      loadedQQBotStatus,
+      loadedWeixinIlinkStatus
     ] = await Promise.all([
       listRemoteChannelsCompat(),
       getChannelSettingsCompat('telegram'),
       getChannelSettingsCompat('feishu'),
       getChannelSettingsCompat('qqbot'),
+      getChannelSettingsCompat('weixin-ilink'),
       getChannelStatusCompat('telegram'),
       getChannelStatusCompat('feishu'),
       getChannelStatusCompat('qqbot'),
+      getChannelStatusCompat('weixin-ilink'),
       loadAvailableAgents(),
       loadRecentProjects()
     ])
@@ -1742,9 +2138,11 @@ const loadState = async () => {
     syncTelegramFields(loadedTelegramSettings)
     syncFeishuFields(loadedFeishuSettings)
     syncQQBotFields(loadedQQBotSettings)
+    syncWeixinIlinkFields(loadedWeixinIlinkSettings)
     telegramStatus.value = loadedTelegramStatus
     feishuStatus.value = loadedFeishuStatus
     qqbotStatus.value = loadedQQBotStatus
+    weixinIlinkStatus.value = loadedWeixinIlinkStatus
 
     if (!implementedChannels.value.includes(activeChannel.value)) {
       activeChannel.value = implementedChannels.value[0] ?? 'telegram'
@@ -1797,6 +2195,23 @@ const buildQQBotDraftSettings = (): QQBotRemoteSettings | null => {
   }
 }
 
+const buildWeixinIlinkDraftSettings = (): WeixinIlinkRemoteSettings | null => {
+  if (!weixinIlinkSettings.value) {
+    return null
+  }
+
+  return {
+    ...weixinIlinkSettings.value,
+    defaultWorkdir: '',
+    accounts: weixinIlinkSettings.value.accounts.map((account) => ({
+      accountId: String(account.accountId ?? '').trim(),
+      ownerUserId: String(account.ownerUserId ?? '').trim(),
+      baseUrl: String(account.baseUrl ?? '').trim(),
+      enabled: account.enabled !== false
+    }))
+  }
+}
+
 const toastSaveError = (error: unknown) => {
   toast({
     title: t('common.error.operationFailed'),
@@ -1835,7 +2250,7 @@ const persistChannelSettings = async (channel: RemoteChannel): Promise<void> => 
 
           const saved = await saveChannelSettingsCompat('feishu', nextSettings)
           syncFeishuFields(saved)
-        } else {
+        } else if (channel === 'qqbot') {
           const nextSettings = buildQQBotDraftSettings()
           if (!nextSettings) {
             return
@@ -1843,6 +2258,14 @@ const persistChannelSettings = async (channel: RemoteChannel): Promise<void> => 
 
           const saved = await saveChannelSettingsCompat('qqbot', nextSettings)
           syncQQBotFields(saved)
+        } else {
+          const nextSettings = buildWeixinIlinkDraftSettings()
+          if (!nextSettings) {
+            return
+          }
+
+          const saved = await saveChannelSettingsCompat('weixin-ilink', nextSettings)
+          syncWeixinIlinkFields(saved)
         }
 
         await Promise.all([refreshStatus(), loadAvailableAgents()])
@@ -1879,6 +2302,10 @@ const persistQQBotSettings = async () => {
   await persistChannelSettings('qqbot')
 }
 
+const persistWeixinIlinkSettings = async () => {
+  await persistChannelSettings('weixin-ilink')
+}
+
 const queueTelegramSettingsPersist = () => {
   void persistTelegramSettings().catch(() => undefined)
 }
@@ -1889,6 +2316,10 @@ const queueFeishuSettingsPersist = () => {
 
 const queueQQBotSettingsPersist = () => {
   void persistQQBotSettings().catch(() => undefined)
+}
+
+const queueWeixinIlinkSettingsPersist = () => {
+  void persistWeixinIlinkSettings().catch(() => undefined)
 }
 
 const updateTelegramRemoteEnabled = (value: boolean) => {
@@ -1915,12 +2346,22 @@ const updateQQBotRemoteEnabled = (value: boolean) => {
   queueQQBotSettingsPersist()
 }
 
+const updateWeixinIlinkRemoteEnabled = (value: boolean) => {
+  if (!weixinIlinkSettings.value) {
+    return
+  }
+  weixinIlinkSettings.value.remoteEnabled = Boolean(value)
+  queueWeixinIlinkSettingsPersist()
+}
+
 const channelEnabled = (channel: RemoteChannel): boolean =>
   channel === 'telegram'
     ? Boolean(telegramSettings.value?.remoteEnabled)
     : channel === 'feishu'
       ? Boolean(feishuSettings.value?.remoteEnabled)
-      : Boolean(qqbotSettings.value?.remoteEnabled)
+      : channel === 'qqbot'
+        ? Boolean(qqbotSettings.value?.remoteEnabled)
+        : Boolean(weixinIlinkSettings.value?.remoteEnabled)
 
 const updateChannelRemoteEnabled = (channel: RemoteChannel, value: boolean) => {
   if (channel === 'telegram') {
@@ -1933,7 +2374,12 @@ const updateChannelRemoteEnabled = (channel: RemoteChannel, value: boolean) => {
     return
   }
 
-  updateQQBotRemoteEnabled(value)
+  if (channel === 'qqbot') {
+    updateQQBotRemoteEnabled(value)
+    return
+  }
+
+  updateWeixinIlinkRemoteEnabled(value)
 }
 
 const updateTelegramDefaultAgentId = (value: string) => {
@@ -1960,6 +2406,14 @@ const updateQQBotDefaultAgentId = (value: string) => {
   queueQQBotSettingsPersist()
 }
 
+const updateWeixinIlinkDefaultAgentId = (value: string) => {
+  if (!weixinIlinkSettings.value) {
+    return
+  }
+  weixinIlinkSettings.value.defaultAgentId = value
+  queueWeixinIlinkSettingsPersist()
+}
+
 const setDefaultWorkdir = (channel: RemoteChannel, value: string) => {
   const normalizedValue = normalizePath(value)
 
@@ -1981,11 +2435,14 @@ const setDefaultWorkdir = (channel: RemoteChannel, value: string) => {
     return
   }
 
-  if (!qqbotSettings.value) {
+  if (channel === 'qqbot') {
+    if (!qqbotSettings.value) {
+      return
+    }
+    qqbotSettings.value.defaultWorkdir = normalizedValue
+    queueQQBotSettingsPersist()
     return
   }
-  qqbotSettings.value.defaultWorkdir = normalizedValue
-  queueQQBotSettingsPersist()
 }
 
 const selectDefaultWorkdir = (channel: RemoteChannel, value: string) => {
@@ -2004,6 +2461,149 @@ const pickDefaultWorkdir = async (channel: RemoteChannel) => {
     }
   } catch (error) {
     console.warn('[RemoteSettings] Failed to select remote default workdir:', error)
+  }
+}
+
+let weixinIlinkLoginRequestId = 0
+
+const closeWeixinIlinkLoginDialog = () => {
+  weixinIlinkLoginRequestId += 1
+  weixinIlinkLoginOpen.value = false
+  weixinIlinkLoginMessage.value = ''
+  weixinIlinkLoginError.value = null
+  weixinIlinkLoginStarting.value = false
+  weixinIlinkLoginWaiting.value = false
+}
+
+const waitForWeixinIlinkLoginResult = async (requestId: number, sessionKey: string) => {
+  weixinIlinkLoginWaiting.value = true
+
+  try {
+    const result = await waitForWeixinIlinkLoginCompat({
+      sessionKey,
+      timeoutMs: 8 * 60_000
+    })
+    if (requestId !== weixinIlinkLoginRequestId) {
+      return
+    }
+
+    weixinIlinkLoginMessage.value = resolveWeixinIlinkLoginMessage(result)
+    weixinIlinkLoginError.value = result.connected ? null : weixinIlinkLoginMessage.value
+
+    if (result.connected) {
+      await Promise.all([
+        (async () => {
+          const settings = await getChannelSettingsCompat('weixin-ilink')
+          syncWeixinIlinkFields(settings)
+        })(),
+        refreshStatus(),
+        loadAvailableAgents()
+      ])
+
+      toast({
+        title: t('settings.remote.weixinIlink.loginSuccessTitle'),
+        description: result.account
+          ? t('settings.remote.weixinIlink.loginSuccessDescription', {
+              accountId: result.account.accountId
+            })
+          : weixinIlinkLoginMessage.value
+      })
+
+      closeWeixinIlinkLoginDialog()
+    }
+  } catch (error) {
+    if (requestId !== weixinIlinkLoginRequestId) {
+      return
+    }
+
+    weixinIlinkLoginError.value = error instanceof Error ? error.message : String(error)
+    weixinIlinkLoginMessage.value = t('settings.remote.weixinIlink.loginFailed')
+  } finally {
+    if (requestId === weixinIlinkLoginRequestId) {
+      weixinIlinkLoginWaiting.value = false
+    }
+  }
+}
+
+const startWeixinIlinkLogin = async (force = false) => {
+  if (weixinIlinkLoginBusy.value) {
+    return
+  }
+
+  if (!(await persistChannelDraftOrAbort('weixin-ilink'))) {
+    return
+  }
+
+  const requestId = ++weixinIlinkLoginRequestId
+  weixinIlinkLoginOpen.value = true
+  weixinIlinkLoginMessage.value = t('common.loading')
+  weixinIlinkLoginError.value = null
+  weixinIlinkLoginStarting.value = true
+  weixinIlinkLoginWaiting.value = false
+
+  try {
+    const session = await startWeixinIlinkLoginCompat({ force })
+    if (requestId !== weixinIlinkLoginRequestId) {
+      return
+    }
+
+    weixinIlinkLoginMessage.value = resolveWeixinIlinkLoginMessage(session)
+    void waitForWeixinIlinkLoginResult(requestId, session.sessionKey)
+  } catch (error) {
+    if (requestId !== weixinIlinkLoginRequestId) {
+      return
+    }
+
+    weixinIlinkLoginError.value = error instanceof Error ? error.message : String(error)
+    weixinIlinkLoginMessage.value = t('settings.remote.weixinIlink.loginFailed')
+  } finally {
+    if (requestId === weixinIlinkLoginRequestId) {
+      weixinIlinkLoginStarting.value = false
+    }
+  }
+}
+
+const restartWeixinIlinkLogin = async () => {
+  await startWeixinIlinkLogin(true)
+}
+
+const toggleWeixinIlinkAccountEnabled = (accountId: string, value: boolean) => {
+  if (!weixinIlinkSettings.value) {
+    return
+  }
+
+  weixinIlinkSettings.value.accounts = weixinIlinkSettings.value.accounts.map((account) =>
+    account.accountId === accountId ? { ...account, enabled: Boolean(value) } : account
+  )
+  queueWeixinIlinkSettingsPersist()
+}
+
+const removeWeixinIlinkAccount = async (accountId: string) => {
+  weixinIlinkAccountActionId.value = accountId
+  try {
+    await removeWeixinIlinkAccountCompat(accountId)
+    const [settings, status] = await Promise.all([
+      getChannelSettingsCompat('weixin-ilink'),
+      getChannelStatusCompat('weixin-ilink')
+    ])
+    syncWeixinIlinkFields(settings)
+    weixinIlinkStatus.value = status
+  } catch (error) {
+    toastSaveError(error)
+  } finally {
+    weixinIlinkAccountActionId.value = null
+  }
+}
+
+const restartWeixinIlinkAccount = async (accountId: string) => {
+  weixinIlinkAccountActionId.value = accountId
+  try {
+    await restartWeixinIlinkAccountCompat(accountId)
+    await refreshStatus()
+  } catch (error) {
+    toastSaveError(error)
+  } finally {
+    weixinIlinkAccountActionId.value = null
   }
 }
 
@@ -2105,8 +2705,10 @@ const persistChannelDraftOrAbort = async (channel: RemoteChannel): Promise<boole
       await persistTelegramSettings()
     } else if (channel === 'feishu') {
       await persistFeishuSettings()
-    } else {
+    } else if (channel === 'qqbot') {
       await persistQQBotSettings()
+    } else {
+      await persistWeixinIlinkSettings()
     }
     return true
   } catch {
@@ -2114,7 +2716,7 @@ const persistChannelDraftOrAbort = async (channel: RemoteChannel): Promise<boole
   }
 }
 
-const generatePairCodeAndOpenDialog = async (channel: RemoteChannel) => {
+const generatePairCodeAndOpenDialog = async (channel: PairableRemoteChannel) => {
   if (!(await persistChannelDraftOrAbort(channel))) {
     return
   }
@@ -2237,7 +2839,7 @@ const eventLabel = (eventName: HookEventName) =>
 
 const formatTimestamp = (value: number) => new Date(value).toLocaleString()
 
-const formatStatusLine = (value: TelegramRemoteStatus | FeishuRemoteStatus | QQBotRemoteStatus) =>
+const formatStatusLine = (value: RemoteChannelStatus) =>
   t(`settings.remote.status.states.${value.state}`)
 
 const statusDotClass = (state: RemoteRuntimeState, dotOnly = false) => {
@@ -2286,6 +2888,14 @@ const formatOverviewLine = (channel: RemoteChannel) => {
     })
   }
 
+  if (channel === 'weixin-ilink') {
+    return t('settings.remote.overview.weixinIlink', {
+      bindingCount: status.bindingCount,
+      accountCount: status.accountCount,
+      connectedCount: status.connectedAccountCount
+    })
+  }
+
   return t('settings.remote.overview.feishu', {
     bindingCount: status.bindingCount,
     pairedCount: status.pairedUserCount
@@ -2305,5 +2915,6 @@ onUnmounted(() => {
     statusRefreshTimer = null
   }
   stopPairDialogPolling()
+  closeWeixinIlinkLoginDialog()
 })
 </script>

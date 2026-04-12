@@ -7,7 +7,8 @@ import type {
   QQBotRemoteSettings,
   ITabPresenter,
   IWindowPresenter,
-  TelegramRemoteSettings
+  TelegramRemoteSettings,
+  WeixinIlinkRemoteSettings
 } from '@shared/presenter'
 import type { AgentRuntimePresenter } from '../agentRuntimePresenter'
 
@@ -32,4 +33,5 @@ export interface RemoteControlPresenterLike
   buildTelegramSettingsSnapshot(): TelegramRemoteSettings
   buildFeishuSettingsSnapshot(): FeishuRemoteSettings
   buildQQBotSettingsSnapshot(): QQBotRemoteSettings
+  buildWeixinIlinkSettingsSnapshot(): WeixinIlinkRemoteSettings
 }

@@ -17,7 +17,9 @@ import type {
   TelegramRemoteBindingSummary,
   TelegramRemoteSettings,
   TelegramRemoteStatus,
-  TelegramStreamMode
+  TelegramStreamMode,
+  WeixinIlinkAccountSummary,
+  WeixinIlinkRemoteSettings
 } from '@shared/presenter'
 
 export const REMOTE_CONTROL_SETTING_KEY = 'remoteControl'
@@ -42,6 +44,7 @@ export const TELEGRAM_INTERACTION_CALLBACK_TTL_MS = 10 * 60 * 1000
 export const TELEGRAM_REMOTE_DEFAULT_AGENT_ID = 'deepchat'
 export const FEISHU_REMOTE_DEFAULT_AGENT_ID = TELEGRAM_REMOTE_DEFAULT_AGENT_ID
 export const QQBOT_REMOTE_DEFAULT_AGENT_ID = TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+export const WEIXIN_ILINK_REMOTE_DEFAULT_AGENT_ID = TELEGRAM_REMOTE_DEFAULT_AGENT_ID
 export const TELEGRAM_REMOTE_REACTION_EMOJI = '🤯'
 export const QQBOT_GROUP_AND_C2C_INTENT = 1 << 25
 export const TELEGRAM_REMOTE_COMMANDS = [
@@ -253,10 +256,29 @@ export interface QQBotRemoteRuntimeConfig {
   bindings: Record<string, RemoteEndpointBinding>
 }
 
+export interface WeixinIlinkAccountRuntimeConfig {
+  accountId: string
+  ownerUserId: string
+  baseUrl: string
+  botToken: string
+  enabled: boolean
+  syncCursor: string
+  lastFatalError: string | null
+  bindings: Record<string, RemoteEndpointBinding>
+}
+
+export interface WeixinIlinkRemoteRuntimeConfig {
+  enabled: boolean
+  defaultAgentId: string
+  defaultWorkdir: string
+  accounts: WeixinIlinkAccountRuntimeConfig[]
+}
+
 export interface RemoteControlConfig {
   telegram: TelegramRemoteRuntimeConfig
   feishu: FeishuRemoteRuntimeConfig
   qqbot: QQBotRemoteRuntimeConfig
+  weixinIlink: WeixinIlinkRemoteRuntimeConfig
 }
 
 interface TelegramInboundBase {
@@ -316,6 +338,17 @@ export interface QQBotInboundMessage {
   text: string
   command: TelegramCommandPayload | null
   mentionedBot: boolean
+}
+
+export interface WeixinIlinkInboundMessage {
+  kind: 'message'
+  accountId: string
+  userId: string
+  text: string
+  messageId: string
+  contextToken: string | null
+  command: TelegramCommandPayload | null
+  createdAt: number | null
 }
 
 export interface TelegramInlineKeyboardButton {
@@ -486,6 +519,7 @@ const TELEGRAM_INTERACTION_CALLBACK_PREFIX = 'pending'
 const TELEGRAM_ENDPOINT_KEY_REGEX = /^telegram:(-?\d+):(-?\d+)$/
 const FEISHU_ENDPOINT_KEY_REGEX = /^feishu:([^:]+):([^:]+)$/
 const QQBOT_ENDPOINT_KEY_REGEX = /^qqbot:(c2c|group):([^:]+)$/
+const WEIXIN_ILINK_ENDPOINT_KEY_REGEX = /^weixin-ilink:([^:]+):([^:]+)$/
 
 export const createTelegramCallbackToken = (): string =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
@@ -622,6 +656,16 @@ export interface QQBotRuntimeStatusSnapshot {
   botUser: QQBotRemoteStatus['botUser']
 }
 
+export interface WeixinIlinkRuntimeStatusSnapshot {
+  state: RemoteRuntimeState
+  lastError: string | null
+  botUser: {
+    accountId: string
+    ownerUserId: string
+    baseUrl: string
+  } | null
+}
+
 export interface TelegramTransportTarget {
   chatId: number
   messageThreadId: number
@@ -637,6 +681,11 @@ export interface QQBotTransportTarget {
   chatType: 'c2c' | 'group'
   openId: string
   msgId: string
+}
+
+export interface WeixinIlinkTransportTarget {
+  userId: string
+  contextToken?: string
 }
 
 export interface TelegramRemoteHookSettingsInput {
@@ -694,12 +743,18 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
       failedAttempts: 0
     },
     bindings: {}
+  },
+  weixinIlink: {
+    enabled: false,
+    defaultAgentId: WEIXIN_ILINK_REMOTE_DEFAULT_AGENT_ID,
+    defaultWorkdir: '',
+    accounts: []
   }
 })
 
 const RemoteEndpointBindingMetaSchema = z
   .object({
-    channel: z.enum(['telegram', 'feishu', 'qqbot']).optional(),
+    channel: z.enum(['telegram', 'feishu', 'qqbot', 'weixin-ilink']).optional(),
     kind: z.enum(['dm', 'group', 'topic']).optional(),
     chatId: z.string().optional(),
     threadId: z.string().nullable().optional()
@@ -767,17 +822,41 @@ const QQBotRemoteRuntimeConfigSchema = z
   })
   .strip()
 
+const WeixinIlinkAccountRuntimeConfigSchema = z
+  .object({
+    accountId: z.string().optional(),
+    ownerUserId: z.string().optional(),
+    baseUrl: z.string().optional(),
+    botToken: z.string().optional(),
+    enabled: z.boolean().optional(),
+    syncCursor: z.string().optional(),
+    lastFatalError: z.string().nullable().optional(),
+    bindings: z.record(z.string(), z.unknown()).optional()
+  })
+  .strip()
+
+const WeixinIlinkRemoteRuntimeConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    defaultAgentId: z.string().optional(),
+    defaultWorkdir: z.string().optional(),
+    accounts: z.array(WeixinIlinkAccountRuntimeConfigSchema).optional()
+  })
+  .strip()
+
 const RemoteControlConfigSchema = z
   .object({
     telegram: TelegramRemoteRuntimeConfigSchema.optional(),
     feishu: FeishuRemoteRuntimeConfigSchema.optional(),
-    qqbot: QQBotRemoteRuntimeConfigSchema.optional()
+    qqbot: QQBotRemoteRuntimeConfigSchema.optional(),
+    weixinIlink: WeixinIlinkRemoteRuntimeConfigSchema.optional()
   })
   .strip()
 
 type LegacyTelegramRemoteConfig = z.infer<typeof TelegramRemoteRuntimeConfigSchema>
 type LegacyFeishuRemoteConfig = z.infer<typeof FeishuRemoteRuntimeConfigSchema>
 type LegacyQQBotRemoteConfig = z.infer<typeof QQBotRemoteRuntimeConfigSchema>
+type LegacyWeixinIlinkRemoteConfig = z.infer<typeof WeixinIlinkRemoteRuntimeConfigSchema>
 
 const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key)
@@ -852,6 +931,23 @@ const extractLegacyQQBotConfig = (input: unknown): LegacyQQBotRemoteConfig | nul
   return parsed.success ? parsed.data : null
 }
 
+const extractLegacyWeixinIlinkConfig = (input: unknown): LegacyWeixinIlinkRemoteConfig | null => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return null
+  }
+
+  const record = input as Record<string, unknown>
+  if (
+    !hasAnyOwn(record, ['accounts', 'defaultAgentId', 'defaultWorkdir', 'enabled']) &&
+    !hasBindingPrefix(record, 'weixin-ilink:')
+  ) {
+    return null
+  }
+
+  const parsed = WeixinIlinkRemoteRuntimeConfigSchema.safeParse(record)
+  return parsed.success ? parsed.data : null
+}
+
 const normalizeStringList = (input: Array<string | number> | undefined): string[] =>
   Array.from(
     new Set((input ?? []).map((value) => String(value ?? '').trim()).filter(Boolean))
@@ -882,6 +978,69 @@ export const normalizeQQBotUserIds = (input: Array<string | number> | undefined)
 export const normalizeQQBotGroupIds = (input: Array<string | number> | undefined): string[] =>
   normalizeStringList(input)
 
+export const normalizeWeixinIlinkAccounts = (
+  input: Array<Partial<WeixinIlinkAccountSummary>> | undefined
+): WeixinIlinkAccountSummary[] => {
+  const accounts = new Map<string, WeixinIlinkAccountSummary>()
+  for (const entry of input ?? []) {
+    const accountId = String(entry.accountId ?? '').trim()
+    const ownerUserId = String(entry.ownerUserId ?? '').trim()
+    const baseUrl = String(entry.baseUrl ?? '').trim() || 'https://ilinkai.weixin.qq.com'
+    if (!accountId || !ownerUserId) {
+      continue
+    }
+
+    accounts.set(accountId, {
+      accountId,
+      ownerUserId,
+      baseUrl,
+      enabled: entry.enabled !== false
+    })
+  }
+
+  return [...accounts.values()].sort((left, right) => left.accountId.localeCompare(right.accountId))
+}
+
+type LooseWeixinIlinkRuntimeAccountInput = {
+  accountId?: unknown
+  ownerUserId?: unknown
+  baseUrl?: unknown
+  botToken?: unknown
+  enabled?: boolean
+  syncCursor?: unknown
+  lastFatalError?: unknown
+  bindings?: Record<string, unknown>
+}
+
+const normalizeWeixinIlinkRuntimeAccounts = (
+  input: LooseWeixinIlinkRuntimeAccountInput[] | undefined
+): WeixinIlinkAccountRuntimeConfig[] => {
+  const accounts = new Map<string, WeixinIlinkAccountRuntimeConfig>()
+  for (const entry of input ?? []) {
+    const accountId = String(entry.accountId ?? '').trim()
+    const ownerUserId = String(entry.ownerUserId ?? '').trim()
+    if (!accountId || !ownerUserId) {
+      continue
+    }
+
+    accounts.set(accountId, {
+      accountId,
+      ownerUserId,
+      baseUrl: String(entry.baseUrl ?? '').trim() || 'https://ilinkai.weixin.qq.com',
+      botToken: String(entry.botToken ?? '').trim(),
+      enabled: entry.enabled !== false,
+      syncCursor: String(entry.syncCursor ?? '').trim(),
+      lastFatalError:
+        entry.lastFatalError === null || entry.lastFatalError === undefined
+          ? null
+          : String(entry.lastFatalError).trim() || null,
+      bindings: normalizeBindings(entry.bindings, 'weixin-ilink')
+    })
+  }
+
+  return [...accounts.values()].sort((left, right) => left.accountId.localeCompare(right.accountId))
+}
+
 const normalizeBindingMeta = (
   endpointKey: string,
   meta: unknown,
@@ -903,6 +1062,10 @@ const normalizeBindingMeta = (
 
   if (fallbackChannel === 'qqbot') {
     return deriveQQBotBindingMeta(endpointKey) ?? undefined
+  }
+
+  if (fallbackChannel === 'weixin-ilink') {
+    return deriveWeixinIlinkBindingMeta(endpointKey) ?? undefined
   }
 
   return deriveFeishuBindingMeta(endpointKey) ?? undefined
@@ -943,6 +1106,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
   const telegram = parsed.data.telegram ?? extractLegacyTelegramConfig(input) ?? {}
   const feishu = parsed.data.feishu ?? extractLegacyFeishuConfig(input) ?? {}
   const qqbot = parsed.data.qqbot ?? extractLegacyQQBotConfig(input) ?? {}
+  const weixinIlink = parsed.data.weixinIlink ?? extractLegacyWeixinIlinkConfig(input) ?? {}
 
   return {
     telegram: {
@@ -1006,6 +1170,12 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
             : 0
       },
       bindings: normalizeBindings(qqbot.bindings, 'qqbot')
+    },
+    weixinIlink: {
+      enabled: Boolean(weixinIlink.enabled),
+      defaultAgentId: weixinIlink.defaultAgentId?.trim() || defaults.weixinIlink.defaultAgentId,
+      defaultWorkdir: weixinIlink.defaultWorkdir?.trim() || '',
+      accounts: normalizeWeixinIlinkRuntimeAccounts(weixinIlink.accounts)
     }
   }
 }
@@ -1131,6 +1301,45 @@ export const deriveQQBotBindingMeta = (endpointKey: string): RemoteEndpointBindi
   return buildQQBotBindingMeta(endpoint)
 }
 
+export const buildWeixinIlinkEndpointKey = (accountId: string, userId: string): string =>
+  `weixin-ilink:${accountId.trim()}:${userId.trim()}`
+
+export const parseWeixinIlinkEndpointKey = (
+  endpointKey: string
+): { accountId: string; userId: string } | null => {
+  const match = WEIXIN_ILINK_ENDPOINT_KEY_REGEX.exec(endpointKey.trim())
+  if (!match) {
+    return null
+  }
+
+  return {
+    accountId: match[1],
+    userId: match[2]
+  }
+}
+
+export const buildWeixinIlinkBindingMeta = (params: {
+  userId: string
+}): RemoteEndpointBindingMeta => ({
+  channel: 'weixin-ilink',
+  kind: 'dm',
+  chatId: params.userId.trim(),
+  threadId: null
+})
+
+export const deriveWeixinIlinkBindingMeta = (
+  endpointKey: string
+): RemoteEndpointBindingMeta | null => {
+  const endpoint = parseWeixinIlinkEndpointKey(endpointKey)
+  if (!endpoint) {
+    return null
+  }
+
+  return buildWeixinIlinkBindingMeta({
+    userId: endpoint.userId
+  })
+}
+
 export const buildBindingSummary = (
   endpointKey: string,
   binding: RemoteEndpointBinding
@@ -1139,7 +1348,8 @@ export const buildBindingSummary = (
     binding.meta ??
     deriveTelegramBindingMeta(endpointKey) ??
     deriveFeishuBindingMeta(endpointKey) ??
-    deriveQQBotBindingMeta(endpointKey)
+    deriveQQBotBindingMeta(endpointKey) ??
+    deriveWeixinIlinkBindingMeta(endpointKey)
 
   if (!meta) {
     return null
@@ -1200,6 +1410,15 @@ export const normalizeQQBotSettingsInput = (input: QQBotRemoteSettings): QQBotRe
   defaultAgentId: input.defaultAgentId?.trim() || QQBOT_REMOTE_DEFAULT_AGENT_ID,
   defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
   pairedUserIds: normalizeQQBotUserIds(input.pairedUserIds)
+})
+
+export const normalizeWeixinIlinkSettingsInput = (
+  input: WeixinIlinkRemoteSettings
+): WeixinIlinkRemoteSettings => ({
+  remoteEnabled: Boolean(input.remoteEnabled),
+  defaultAgentId: input.defaultAgentId?.trim() || WEIXIN_ILINK_REMOTE_DEFAULT_AGENT_ID,
+  defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
+  accounts: normalizeWeixinIlinkAccounts(input.accounts)
 })
 
 export const buildTelegramPairingSnapshot = (

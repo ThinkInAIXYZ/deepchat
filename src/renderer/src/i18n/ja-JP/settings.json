@@ -1622,7 +1622,8 @@
       "feishu": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー",
       "hooksOn": "有効",
       "hooksOff": "無効",
-      "qqbot": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー"
+      "qqbot": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー",
+      "weixinIlink": "{bindingCount} 件のバインディング、{accountCount} 件のアカウント、接続中 {connectedCount} 件"
     },
     "bindingKinds": {
       "dm": "DM",
@@ -1642,7 +1643,32 @@
     },
     "weixinIlink": {
       "title": "WeChat iLink",
-      "description": "内蔵の WeChat iLink Bot 対応は次のフェーズで追加予定です。"
+      "description": "公式 WeChat iLink Bot を QR ログインで接続し、組み込みアダプター経由でリモート操作セッションを処理します。",
+      "loginDescription": "下のボタンをクリックすると、公式の WeChat ログインウィンドウが開きます。そこで iLink Bot の認証を完了すると、接続されたアカウントが自動的に下の一覧へ追加されます。",
+      "ownerOnlyNotice": "初版では、QR ログインした所有者アカウントのみが DeepChat を操作できます。",
+      "connectButton": "ログインウィンドウを開く",
+      "refreshQrCode": "ログインウィンドウを再度開く",
+      "loginDialogTitle": "WeChat iLink を接続",
+      "loginDialogDescription": "公式の WeChat ログインページは別ウィンドウで開きます。そのウィンドウで QR 認証を完了し、接続が完了するまでこのダイアログを開いたままにしてください。",
+      "loginFailed": "WeChat iLink へのログインに失敗しました。",
+      "loginSuccessTitle": "WeChat iLink を接続しました",
+      "loginSuccessDescription": "アカウント {accountId} を利用できます。",
+      "accountsTitle": "アカウント",
+      "accountsDescription": "接続された各 iLink Bot アカウントは独立して動作し、それぞれのバインディングと実行状態を保持します。",
+      "noAccounts": "まだ WeChat iLink アカウントは接続されていません。",
+      "ownerUserId": "所有者ユーザー ID: {ownerUserId}",
+      "baseUrl": "接続先 URL: {baseUrl}",
+      "accountBindings": "バインディング数: {count}",
+      "remoteControlDescription": "WeChat iLink アカウントで共有する既定のエージェントを設定し、受信セッションで作成されたバインディングを管理します。",
+      "removeAccount": "アカウントを削除",
+      "restartAccount": "アカウントを再起動",
+      "statusSummary": "{accounts} アカウント、接続中 {connected}、バインディング {bindings}",
+      "qrcodeAlt": "WeChat iLink QR コード",
+      "loginWindowOpened": "公式の WeChat ログインウィンドウを開きました。そこで QR 認証を完了してください。",
+      "loginSessionExpired": "このログインセッションは期限切れです。ログインウィンドウを開き直して、もう一度お試しください。",
+      "loginResponseIncomplete": "WeChat iLink のログイン応答が不完全でした。もう一度お試しください。",
+      "loginTimedOut": "WeChat iLink の認証待機がタイムアウトしました。ログインウィンドウを開き直して、もう一度お試しください。",
+      "loginConnected": "WeChat iLink アカウントが接続されました。"
     }
   },
   "deepchatAgents": {

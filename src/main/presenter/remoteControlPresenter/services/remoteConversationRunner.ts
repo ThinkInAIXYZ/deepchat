@@ -429,6 +429,10 @@ export class RemoteConversationRunner {
       return 'qqbot'
     }
 
+    if (endpointKey.startsWith('weixin-ilink:')) {
+      return 'weixin-ilink'
+    }
+
     return 'telegram'
   }
 

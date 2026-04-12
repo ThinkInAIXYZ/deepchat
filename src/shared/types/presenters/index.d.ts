@@ -97,6 +97,11 @@ export type {
   FeishuRemoteSettings,
   FeishuRemoteStatus,
   IRemoteControlPresenter,
+  PairableRemoteChannel,
+  QQBotPairingSnapshot,
+  QQBotRemoteBindingSummary,
+  QQBotRemoteSettings,
+  QQBotRemoteStatus,
   RemoteBindingKind,
   RemoteBindingSummary,
   RemoteChannel,
@@ -106,16 +111,18 @@ export type {
   RemoteChannelStatus,
   RemotePairingSnapshot,
   RemoteRuntimeState,
-  QQBotPairingSnapshot,
-  QQBotRemoteBindingSummary,
-  QQBotRemoteSettings,
-  QQBotRemoteStatus,
   TelegramHookSettings,
   TelegramPairingSnapshot,
   TelegramRemoteBindingSummary,
   TelegramRemoteSettings,
   TelegramRemoteStatus,
-  TelegramStreamMode
+  TelegramStreamMode,
+  WeixinIlinkAccountStatus,
+  WeixinIlinkAccountSummary,
+  WeixinIlinkLoginResult,
+  WeixinIlinkLoginSession,
+  WeixinIlinkRemoteSettings,
+  WeixinIlinkRemoteStatus
 } from './remote-control.presenter'
 
 // Re-export legacy types temporarily for compatibility

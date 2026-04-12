@@ -1,4 +1,4 @@
-# QQBot First, WeChat iLink Next Plan
+# QQBot and WeChat iLink Plan
 
 ## Public Contract
 
@@ -8,6 +8,10 @@
   - `QQBotRemoteSettings`
   - `QQBotRemoteStatus`
   - `QQBotPairingSnapshot`
+  - `WeixinIlinkRemoteSettings`
+  - `WeixinIlinkRemoteStatus`
+  - `WeixinIlinkLoginSession`
+  - `WeixinIlinkLoginResult`
 - Add `listRemoteChannels()` to the remote presenter bridge.
 - Keep Telegram compatibility shims in place for one release cycle.
 
@@ -15,12 +19,22 @@
 
 - Extend `RemoteControlPresenter` to:
   - register QQBot through the built-in adapter registry
-  - rebuild Telegram / Feishu / QQBot independently
+  - register WeChat iLink per account through the same registry
+  - rebuild Telegram / Feishu / QQBot / WeChat iLink independently
   - expose registry descriptors to renderer callers
-- Extend `RemoteBindingStore` and remote config normalization with `remoteControl.qqbot`.
+- Extend `RemoteBindingStore` and remote config normalization with:
+  - `remoteControl.qqbot`
+  - `remoteControl.weixinIlink`
 - Add QQBot runtime modules:
   - HTTP client
   - gateway session manager
+  - parser
+  - auth guard
+  - command router
+  - runtime
+  - adapter
+- Add WeChat iLink runtime modules:
+  - official QR / long-poll HTTP client
   - parser
   - auth guard
   - command router
@@ -39,6 +53,15 @@
 - Route text commands through the existing remote session pipeline.
 - Use official passive reply semantics with `msg_id + msg_seq`.
 
+## WeChat iLink Runtime
+
+- Start official QR login from the fixed iLink base URL.
+- Poll QR status until confirmed, including redirect-host handling.
+- Persist per-account `bot_token`, `baseUrl`, owner user id, and bindings.
+- Run one adapter per connected account with official `getupdates` long polling.
+- Use official `sendmessage`, `getconfig`, and `sendtyping` endpoints only.
+- Keep first-release authorization owner-only.
+
 ## Renderer
 
 - Drive Remote settings overview cards and tab headers from channel descriptors.
@@ -46,7 +69,8 @@
   - Telegram
   - Feishu
   - QQBot
-- Expose WeChat iLink as an unimplemented built-in descriptor only.
+  - WeChat iLink
+- Add WeChat iLink QR login, account list, restart, remove, and shared default-agent/workdir controls.
 - Update the sidebar remote button to aggregate all implemented built-in channel states instead of a hardcoded Telegram / Feishu pair.
 
 ## Validation
@@ -57,6 +81,10 @@
   - auth guard
   - command router
   - adapter
+- Add focused WeChat iLink tests for:
+  - presenter login flow
+  - renderer QR-login UI
+  - multi-account status rendering
 - Update presenter and renderer tests for descriptor-driven multi-channel behavior.
 - Run:
   - `pnpm run format`

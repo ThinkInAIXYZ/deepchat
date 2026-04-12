@@ -1622,7 +1622,8 @@
       "feishu": "{bindingCount}개 바인딩, {pairedCount}명 페어링됨",
       "hooksOn": "켜짐",
       "hooksOff": "꺼짐",
-      "qqbot": "{bindingCount}개 바인딩, {pairedCount}명의 페어링된 사용자"
+      "qqbot": "{bindingCount}개 바인딩, {pairedCount}명의 페어링된 사용자",
+      "weixinIlink": "바인딩 {bindingCount}개, 계정 {accountCount}개, 연결됨 {connectedCount}개"
     },
     "bindingKinds": {
       "dm": "개인 메시지",
@@ -1642,7 +1643,32 @@
     },
     "weixinIlink": {
       "title": "WeChat iLink",
-      "description": "내장 WeChat iLink 봇 지원은 다음 단계에서 추가될 예정입니다."
+      "description": "공식 WeChat iLink Bot을 QR 로그인으로 연결하고, 내장 어댑터를 통해 원격 제어 세션을 처리합니다.",
+      "loginDescription": "아래 버튼을 누르면 공식 WeChat 로그인 창이 열립니다. 그 창에서 iLink Bot 인증을 완료하면 연결된 계정이 아래 목록에 자동으로 추가됩니다.",
+      "ownerOnlyNotice": "현재 첫 버전에서는 QR 로그인한 소유자 계정만 DeepChat을 제어할 수 있습니다.",
+      "connectButton": "로그인 창 열기",
+      "refreshQrCode": "로그인 창 다시 열기",
+      "loginDialogTitle": "WeChat iLink 연결",
+      "loginDialogDescription": "공식 WeChat 로그인 페이지는 별도 창에서 열립니다. 그 창에서 QR 인증을 완료하고 연결이 끝날 때까지 이 대화상자를 열어 두세요.",
+      "loginFailed": "WeChat iLink 로그인에 실패했습니다.",
+      "loginSuccessTitle": "WeChat iLink 연결됨",
+      "loginSuccessDescription": "계정 {accountId} 을(를) 사용할 수 있습니다.",
+      "accountsTitle": "계정",
+      "accountsDescription": "연결된 각 iLink Bot 계정은 독립적으로 실행되며, 각자의 바인딩과 런타임 상태를 유지합니다.",
+      "noAccounts": "연결된 WeChat iLink 계정이 아직 없습니다.",
+      "ownerUserId": "소유자 사용자 ID: {ownerUserId}",
+      "baseUrl": "기본 URL: {baseUrl}",
+      "accountBindings": "바인딩: {count}",
+      "remoteControlDescription": "WeChat iLink 계정이 공유할 기본 에이전트를 설정하고, 들어오는 세션이 만든 바인딩을 관리합니다.",
+      "removeAccount": "계정 제거",
+      "restartAccount": "계정 재시작",
+      "statusSummary": "계정 {accounts}개, 연결됨 {connected}개, 바인딩 {bindings}개",
+      "qrcodeAlt": "WeChat iLink QR 코드",
+      "loginWindowOpened": "공식 WeChat 로그인 창이 열렸습니다. 그 창에서 QR 인증을 완료하세요.",
+      "loginSessionExpired": "이번 로그인 세션이 만료되었습니다. 로그인 창을 다시 열고 다시 시도하세요.",
+      "loginResponseIncomplete": "WeChat iLink 로그인 응답이 완전하지 않았습니다. 다시 시도하세요.",
+      "loginTimedOut": "WeChat iLink 인증 대기 시간이 초과되었습니다. 로그인 창을 다시 열고 다시 시도하세요.",
+      "loginConnected": "WeChat iLink 계정이 연결되었습니다."
     }
   },
   "deepchatAgents": {

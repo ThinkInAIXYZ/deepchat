@@ -1,4 +1,4 @@
-# QQBot First, WeChat iLink Next Tasks
+# QQBot and WeChat iLink Tasks
 
 ## Phase 1: Shared Contract
 
@@ -18,13 +18,14 @@
 - [x] Update Remote settings overview cards and tab headers to use remote channel descriptors.
 - [x] Add a built-in QQBot settings panel.
 - [x] Update the sidebar remote-status button to aggregate implemented channels from descriptors.
-- [x] Reserve `weixin-ilink` as an unimplemented descriptor.
+- [x] Add a built-in WeChat iLink settings panel with QR login and account management.
 
 ## Phase 4: Documentation and Coverage
 
 - [x] Add focused QQBot unit tests for parser, auth guard, command router, and adapter.
-- [x] Update presenter regression coverage for descriptor listing.
-- [x] Update the remote multi-channel spec / plan / tasks documents to reflect QQBot-first delivery.
+- [x] Update presenter regression coverage for descriptor listing and WeChat iLink login persistence.
+- [x] Update renderer regression coverage for WeChat iLink QR login UI.
+- [x] Update the remote multi-channel spec / plan / tasks documents to reflect QQBot + WeChat iLink delivery.
 
 ## Phase 5: Validation
 

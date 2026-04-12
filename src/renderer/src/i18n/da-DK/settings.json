@@ -1622,7 +1622,8 @@
       "feishu": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "hooksOn": "til",
       "hooksOff": "fra",
-      "qqbot": "{bindingCount} bindinger, {pairedCount} parrede brugere"
+      "qqbot": "{bindingCount} bindinger, {pairedCount} parrede brugere",
+      "weixinIlink": "{bindingCount} bindinger, {accountCount} konti, {connectedCount} tilsluttet"
     },
     "bindingKinds": {
       "dm": "Direkte besked",
@@ -1642,7 +1643,32 @@
     },
     "weixinIlink": {
       "title": "WeChat iLink",
-      "description": "Indbygget understøttelse af WeChat iLink-bot er planlagt til næste fase."
+      "description": "Tilslut en officiel WeChat iLink-bot via QR-login, og lad den indbyggede adapter håndtere fjernstyringssessioner.",
+      "loginDescription": "Klik på knappen nedenfor for at åbne det officielle WeChat-logindue. Fuldfør iLink Bot-godkendelsen dér, så bliver den tilsluttede konto automatisk føjet til listen nedenfor.",
+      "ownerOnlyNotice": "I første version kan kun ejeren, der logger ind via QR-koden, styre DeepChat.",
+      "connectButton": "Åbn loginvindue",
+      "refreshQrCode": "Genåbn loginvindue",
+      "loginDialogTitle": "Tilslut WeChat iLink",
+      "loginDialogDescription": "Den officielle WeChat-loginside åbnes i et separat vindue. Fuldfør QR-godkendelsen dér, og lad denne dialog være åben, indtil forbindelsen er færdig.",
+      "loginFailed": "WeChat iLink-login mislykkedes.",
+      "loginSuccessTitle": "WeChat iLink tilsluttet",
+      "loginSuccessDescription": "Kontoen {accountId} er klar.",
+      "accountsTitle": "Konti",
+      "accountsDescription": "Hver tilsluttet iLink-botkonto kører uafhængigt og bevarer sine egne bindinger og sin egen runtime-status.",
+      "noAccounts": "Der er endnu ikke tilsluttet nogen WeChat iLink-konti.",
+      "ownerUserId": "Ejerbruger-ID: {ownerUserId}",
+      "baseUrl": "Basis-URL: {baseUrl}",
+      "accountBindings": "Bindinger: {count}",
+      "remoteControlDescription": "Angiv den standardagent, som deles af WeChat iLink-konti, og administrer derefter bindingerne fra indgående sessioner.",
+      "removeAccount": "Fjern konto",
+      "restartAccount": "Genstart konto",
+      "statusSummary": "{accounts} konti, {connected} tilsluttet, {bindings} bindinger",
+      "qrcodeAlt": "WeChat iLink QR-kode",
+      "loginWindowOpened": "Det officielle WeChat-logindue er blevet åbnet. Fuldfør QR-godkendelsen dér.",
+      "loginSessionExpired": "Denne loginsession er udløbet. Genåbn loginvinduet, og prøv igen.",
+      "loginResponseIncomplete": "WeChat iLink-loginsvaret var ufuldstændigt. Prøv igen.",
+      "loginTimedOut": "Ventetiden på WeChat iLink-godkendelse udløb. Genåbn loginvinduet, og prøv igen.",
+      "loginConnected": "WeChat iLink-kontoen er forbundet."
     }
   },
   "deepchatAgents": {

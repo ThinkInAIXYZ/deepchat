@@ -345,10 +345,12 @@ import { useSpotlightStore } from '@/stores/ui/spotlight'
 import type {
   QQBotRemoteStatus,
   RemoteChannel,
+  RemoteChannelStatus,
   RemoteChannelDescriptor,
   TelegramRemoteStatus,
   FeishuRemoteStatus,
-  RemoteRuntimeState
+  RemoteRuntimeState,
+  WeixinIlinkRemoteStatus
 } from '@shared/presenter'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
@@ -396,6 +398,15 @@ const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
     descriptionKey: 'settings.remote.qqbot.description',
     supportsPairing: true,
     supportsNotifications: false
+  },
+  {
+    id: 'weixin-ilink',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.weixinIlink.title',
+    descriptionKey: 'settings.remote.weixinIlink.description',
+    supportsPairing: false,
+    supportsNotifications: false
   }
 ]
 
@@ -406,10 +417,12 @@ const remoteControlStatus = ref<{
   telegram: TelegramRemoteStatus | null
   feishu: FeishuRemoteStatus | null
   qqbot: QQBotRemoteStatus | null
+  'weixin-ilink': WeixinIlinkRemoteStatus | null
 }>({
   telegram: null,
   feishu: null,
-  qqbot: null
+  qqbot: null,
+  'weixin-ilink': null
 })
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
@@ -421,15 +434,12 @@ const selectedAgentName = computed(
 
 const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
   listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
-  getChannelStatus?: (
-    channel: RemoteChannel
-  ) => Promise<TelegramRemoteStatus | FeishuRemoteStatus | QQBotRemoteStatus>
+  getChannelStatus?: (channel: RemoteChannel) => Promise<RemoteChannelStatus>
 }
 const implementedRemoteChannels = computed(() =>
   remoteChannelDescriptors.value
     .filter((descriptor) => descriptor.implemented)
     .map((descriptor) => descriptor.id)
-    .filter((channel): channel is RemoteChannel => channel !== 'weixin-ilink')
 )
 const showRemoteControlButton = computed(() =>
   implementedRemoteChannels.value.some((channel) =>
@@ -437,7 +447,9 @@ const showRemoteControlButton = computed(() =>
       ? remoteControlStatus.value.telegram?.enabled
       : channel === 'feishu'
         ? remoteControlStatus.value.feishu?.enabled
-        : remoteControlStatus.value.qqbot?.enabled
+        : channel === 'qqbot'
+          ? remoteControlStatus.value.qqbot?.enabled
+          : remoteControlStatus.value['weixin-ilink']?.enabled
   )
 )
 const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
@@ -447,7 +459,9 @@ const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
         ? remoteControlStatus.value.telegram
         : channel === 'feishu'
           ? remoteControlStatus.value.feishu
-          : remoteControlStatus.value.qqbot
+          : channel === 'qqbot'
+            ? remoteControlStatus.value.qqbot
+            : remoteControlStatus.value['weixin-ilink']
     )
     .filter((status) => status?.enabled)
     .map((status) => status?.state as RemoteRuntimeState)
@@ -482,7 +496,9 @@ const remoteControlTooltip = computed(() => {
           ? remoteControlStatus.value.telegram
           : channel === 'feishu'
             ? remoteControlStatus.value.feishu
-            : remoteControlStatus.value.qqbot
+            : channel === 'qqbot'
+              ? remoteControlStatus.value.qqbot
+              : remoteControlStatus.value['weixin-ilink']
       const statusText =
         status?.enabled && status.state
           ? t(`chat.sidebar.remoteControlStatus.${status.state}`)
@@ -646,11 +662,12 @@ const refreshRemoteControlStatus = async () => {
     remoteChannelDescriptors.value = presenterCompat.listRemoteChannels
       ? await presenterCompat.listRemoteChannels()
       : fallbackRemoteChannels
-    const [telegram, feishu, qqbot] = presenterCompat.getChannelStatus
+    const [telegram, feishu, qqbot, weixinIlink] = presenterCompat.getChannelStatus
       ? await Promise.all([
           presenterCompat.getChannelStatus('telegram'),
           presenterCompat.getChannelStatus('feishu'),
-          presenterCompat.getChannelStatus('qqbot')
+          presenterCompat.getChannelStatus('qqbot'),
+          presenterCompat.getChannelStatus('weixin-ilink')
         ])
       : [
           await remoteControlPresenter.getTelegramStatus(),
@@ -671,12 +688,14 @@ const refreshRemoteControlStatus = async () => {
             pairedUserCount: 0,
             lastError: null,
             botUser: null
-          } satisfies QQBotRemoteStatus
+          } satisfies QQBotRemoteStatus,
+          await remoteControlPresenter.getWeixinIlinkStatus()
         ]
     remoteControlStatus.value = {
       telegram,
       feishu,
-      qqbot
+      qqbot,
+      'weixin-ilink': weixinIlink
     }
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)

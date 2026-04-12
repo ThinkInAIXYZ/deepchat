@@ -1622,7 +1622,8 @@
       "feishu": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者",
       "hooksOn": "開啟",
       "hooksOff": "關閉",
-      "qqbot": "{bindingCount} 個綁定，{pairedCount} 個已配對使用者"
+      "qqbot": "{bindingCount} 個綁定，{pairedCount} 個已配對使用者",
+      "weixinIlink": "{bindingCount} 個綁定，{accountCount} 個帳號，{connectedCount} 個已連線"
     },
     "bindingKinds": {
       "dm": "私聊",
@@ -1642,7 +1643,32 @@
     },
     "weixinIlink": {
       "title": "微信 iLink",
-      "description": "內建微信 iLink Bot 支援將在下一階段接入。"
+      "description": "透過掃碼接入官方微信 iLink Bot，並由內建適配器承接遠端控制會話。",
+      "loginDescription": "按下下方按鈕後，DeepChat 會打開官方微信登入視窗，請在該視窗內完成 iLink Bot 掃碼授權。連線成功的帳號會自動加入下方清單。",
+      "ownerOnlyNotice": "目前首版僅允許掃碼登入對應的帳號擁有者控制 DeepChat。",
+      "connectButton": "打開登入視窗",
+      "refreshQrCode": "重新打開登入視窗",
+      "loginDialogTitle": "連線微信 iLink",
+      "loginDialogDescription": "官方微信登入頁會在獨立視窗中打開，請在該視窗內完成掃碼授權，並保持此對話框開啟直到連線完成。",
+      "loginFailed": "微信 iLink 登入失敗。",
+      "loginSuccessTitle": "微信 iLink 已連線",
+      "loginSuccessDescription": "帳號 {accountId} 已可用。",
+      "accountsTitle": "帳號",
+      "accountsDescription": "每個已連線的 iLink Bot 帳號都會獨立運行，並維護各自的綁定與執行狀態。",
+      "noAccounts": "目前尚未連線任何微信 iLink 帳號。",
+      "ownerUserId": "擁有者使用者 ID：{ownerUserId}",
+      "baseUrl": "服務位址：{baseUrl}",
+      "accountBindings": "綁定數：{count}",
+      "remoteControlDescription": "為微信 iLink 帳號設定共用的預設智能體，並管理這些帳號建立的會話綁定。",
+      "removeAccount": "移除帳號",
+      "restartAccount": "重新啟動帳號",
+      "statusSummary": "帳號 {accounts} 個，已連線 {connected} 個，綁定 {bindings} 個",
+      "qrcodeAlt": "微信 iLink 二維碼",
+      "loginWindowOpened": "官方微信登入視窗已打開，請在該視窗內完成掃碼授權。",
+      "loginSessionExpired": "本次登入會話已過期，請重新打開登入視窗後再試。",
+      "loginResponseIncomplete": "微信 iLink 登入返回不完整，請重新嘗試。",
+      "loginTimedOut": "等待微信 iLink 授權逾時，請重新打開登入視窗後再試。",
+      "loginConnected": "微信 iLink 帳號已連線。"
     }
   },
   "deepchatAgents": {

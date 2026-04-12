@@ -41,11 +41,13 @@ export const BrowserWindow = function () {
     webContents: {
       send: (_: string, __?: any) => {},
       on: (_: string, __: any) => {},
+      setWindowOpenHandler: (_: any) => {},
       isDestroyed: () => false
     },
     isDestroyed: () => false,
     close: () => {},
     show: () => {},
+    focus: () => {},
     hide: () => {}
   }
 } as unknown as { new (...args: any[]): any }

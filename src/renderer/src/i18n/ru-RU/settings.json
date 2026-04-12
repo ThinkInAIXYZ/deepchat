@@ -1622,7 +1622,8 @@
       "feishu": "{bindingCount} привязок, {pairedCount} связанных пользователей",
       "hooksOn": "вкл.",
       "hooksOff": "выкл.",
-      "qqbot": "{bindingCount} привязок, {pairedCount} связанных пользователей"
+      "qqbot": "{bindingCount} привязок, {pairedCount} связанных пользователей",
+      "weixinIlink": "{bindingCount} привязок, {accountCount} аккаунтов, подключено {connectedCount}"
     },
     "bindingKinds": {
       "dm": "Личка",
@@ -1642,7 +1643,32 @@
     },
     "weixinIlink": {
       "title": "WeChat iLink",
-      "description": "Встроенная поддержка бота WeChat iLink запланирована на следующую фазу."
+      "description": "Подключите официальный бот WeChat iLink через вход по QR-коду, а встроенный адаптер будет обрабатывать сеансы удалённого управления.",
+      "loginDescription": "Нажмите кнопку ниже, чтобы открыть официальное окно входа WeChat. Завершите там авторизацию iLink Bot, и подключённый аккаунт автоматически появится в списке ниже.",
+      "ownerOnlyNotice": "В первой версии управлять DeepChat может только владелец аккаунта, вошедший через QR-код.",
+      "connectButton": "Открыть окно входа",
+      "refreshQrCode": "Открыть окно входа снова",
+      "loginDialogTitle": "Подключить WeChat iLink",
+      "loginDialogDescription": "Официальная страница входа WeChat открывается в отдельном окне. Завершите там авторизацию по QR-коду и держите этот диалог открытым до завершения подключения.",
+      "loginFailed": "Не удалось войти в WeChat iLink.",
+      "loginSuccessTitle": "WeChat iLink подключён",
+      "loginSuccessDescription": "Аккаунт {accountId} готов к работе.",
+      "accountsTitle": "Аккаунты",
+      "accountsDescription": "Каждый подключённый аккаунт iLink Bot работает отдельно и хранит собственные привязки и состояние.",
+      "noAccounts": "Пока не подключено ни одного аккаунта WeChat iLink.",
+      "ownerUserId": "ID владельца: {ownerUserId}",
+      "baseUrl": "Базовый URL: {baseUrl}",
+      "accountBindings": "Привязки: {count}",
+      "remoteControlDescription": "Настройте общего агента по умолчанию для аккаунтов WeChat iLink, затем управляйте привязками, созданными входящими сеансами.",
+      "removeAccount": "Удалить аккаунт",
+      "restartAccount": "Перезапустить аккаунт",
+      "statusSummary": "аккаунтов: {accounts}, подключено: {connected}, привязок: {bindings}",
+      "qrcodeAlt": "QR-код WeChat iLink",
+      "loginWindowOpened": "Официальное окно входа WeChat открыто. Завершите в нём авторизацию по QR-коду.",
+      "loginSessionExpired": "Срок действия этой сессии входа истёк. Откройте окно входа заново и попробуйте ещё раз.",
+      "loginResponseIncomplete": "Ответ входа WeChat iLink был неполным. Попробуйте ещё раз.",
+      "loginTimedOut": "Истекло время ожидания авторизации WeChat iLink. Откройте окно входа заново и попробуйте ещё раз.",
+      "loginConnected": "Аккаунт WeChat iLink подключён."
     }
   },
   "deepchatAgents": {

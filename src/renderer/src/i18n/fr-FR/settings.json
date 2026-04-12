@@ -1622,7 +1622,8 @@
       "feishu": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
       "hooksOn": "activés",
       "hooksOff": "désactivés",
-      "qqbot": "{bindingCount} liaisons, {pairedCount} utilisateurs associés"
+      "qqbot": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
+      "weixinIlink": "{bindingCount} liaisons, {accountCount} comptes, {connectedCount} connectés"
     },
     "bindingKinds": {
       "dm": "Message privé",
@@ -1642,7 +1643,32 @@
     },
     "weixinIlink": {
       "title": "WeChat iLink",
-      "description": "La prise en charge intégrée du bot WeChat iLink est prévue pour la prochaine phase."
+      "description": "Connectez un bot WeChat iLink officiel par connexion QR, puis laissez l’adaptateur intégré gérer les sessions de contrôle à distance.",
+      "loginDescription": "Cliquez sur le bouton ci-dessous pour ouvrir la fenêtre de connexion officielle WeChat. Terminez-y l'autorisation iLink Bot et le compte connecté sera ajouté automatiquement à la liste ci-dessous.",
+      "ownerOnlyNotice": "Dans cette première version, seul le propriétaire connecté via QR peut contrôler DeepChat.",
+      "connectButton": "Ouvrir la fenêtre de connexion",
+      "refreshQrCode": "Rouvrir la fenêtre de connexion",
+      "loginDialogTitle": "Connecter WeChat iLink",
+      "loginDialogDescription": "La page de connexion officielle WeChat s'ouvre dans une fenêtre séparée. Terminez-y l'autorisation par QR code et laissez cette boîte de dialogue ouverte jusqu'à la fin de la connexion.",
+      "loginFailed": "La connexion WeChat iLink a échoué.",
+      "loginSuccessTitle": "WeChat iLink connecté",
+      "loginSuccessDescription": "Le compte {accountId} est prêt.",
+      "accountsTitle": "Comptes",
+      "accountsDescription": "Chaque compte bot iLink connecté s’exécute séparément et conserve ses propres liaisons et son propre état.",
+      "noAccounts": "Aucun compte WeChat iLink n’est encore connecté.",
+      "ownerUserId": "ID utilisateur propriétaire : {ownerUserId}",
+      "baseUrl": "URL de base : {baseUrl}",
+      "accountBindings": "Liaisons : {count}",
+      "remoteControlDescription": "Définissez l’agent par défaut partagé par les comptes WeChat iLink, puis gérez les liaisons créées par les sessions entrantes.",
+      "removeAccount": "Supprimer le compte",
+      "restartAccount": "Redémarrer le compte",
+      "statusSummary": "{accounts} comptes, {connected} connectés, {bindings} liaisons",
+      "qrcodeAlt": "QR code WeChat iLink",
+      "loginWindowOpened": "La fenêtre de connexion officielle WeChat a été ouverte. Terminez-y l'autorisation par QR code.",
+      "loginSessionExpired": "Cette session de connexion a expiré. Rouvrez la fenêtre de connexion puis réessayez.",
+      "loginResponseIncomplete": "La réponse de connexion WeChat iLink était incomplète. Veuillez réessayer.",
+      "loginTimedOut": "Le délai d'attente pour l'autorisation WeChat iLink est dépassé. Rouvrez la fenêtre de connexion puis réessayez.",
+      "loginConnected": "Le compte WeChat iLink est connecté."
     }
   },
   "deepchatAgents": {

@@ -1622,7 +1622,8 @@
       "feishu": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
       "hooksOn": "روشن",
       "hooksOff": "خاموش",
-      "qqbot": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده"
+      "qqbot": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
+      "weixinIlink": "{bindingCount} اتصال، {accountCount} حساب، {connectedCount} متصل"
     },
     "bindingKinds": {
       "dm": "پیام خصوصی",
@@ -1642,7 +1643,32 @@
     },
     "weixinIlink": {
       "title": "WeChat iLink",
-      "description": "پشتیبانی داخلی از ربات WeChat iLink برای مرحله بعدی برنامه‌ریزی شده است."
+      "description": "یک ربات رسمی WeChat iLink را با ورود QR متصل کنید تا آداپتور داخلی نشست‌های کنترل از راه دور را مدیریت کند.",
+      "loginDescription": "برای باز کردن پنجرهٔ رسمی ورود WeChat روی دکمهٔ زیر کلیک کنید. احراز هویت iLink Bot را در همان پنجره کامل کنید تا حساب متصل‌شده به‌صورت خودکار به فهرست زیر افزوده شود.",
+      "ownerOnlyNotice": "در نسخهٔ اول فقط حساب مالک که با QR وارد شده می‌تواند DeepChat را کنترل کند.",
+      "connectButton": "باز کردن پنجرهٔ ورود",
+      "refreshQrCode": "باز کردن دوبارهٔ پنجرهٔ ورود",
+      "loginDialogTitle": "اتصال WeChat iLink",
+      "loginDialogDescription": "صفحهٔ رسمی ورود WeChat در یک پنجرهٔ جداگانه باز می‌شود. احراز هویت QR را در همان پنجره کامل کنید و این پنجرهٔ گفتگو را تا پایان اتصال باز نگه دارید.",
+      "loginFailed": "ورود به WeChat iLink ناموفق بود.",
+      "loginSuccessTitle": "WeChat iLink متصل شد",
+      "loginSuccessDescription": "حساب {accountId} آماده است.",
+      "accountsTitle": "حساب‌ها",
+      "accountsDescription": "هر حساب متصل iLink Bot به‌صورت مستقل اجرا می‌شود و اتصال‌ها و وضعیت اجرای خودش را نگه می‌دارد.",
+      "noAccounts": "هنوز هیچ حساب WeChat iLink متصل نشده است.",
+      "ownerUserId": "شناسهٔ کاربر مالک: {ownerUserId}",
+      "baseUrl": "نشانی پایه: {baseUrl}",
+      "accountBindings": "اتصال‌ها: {count}",
+      "remoteControlDescription": "عامل پیش‌فرض مشترک بین حساب‌های WeChat iLink را تنظیم کنید و سپس اتصال‌های ساخته‌شده توسط نشست‌های ورودی را مدیریت کنید.",
+      "removeAccount": "حذف حساب",
+      "restartAccount": "راه‌اندازی دوباره حساب",
+      "statusSummary": "{accounts} حساب، {connected} متصل، {bindings} اتصال",
+      "qrcodeAlt": "کد QR WeChat iLink",
+      "loginWindowOpened": "پنجرهٔ رسمی ورود WeChat باز شد. احراز هویت QR را در همان پنجره کامل کنید.",
+      "loginSessionExpired": "این نشست ورود منقضی شده است. پنجرهٔ ورود را دوباره باز کنید و دوباره تلاش کنید.",
+      "loginResponseIncomplete": "پاسخ ورود WeChat iLink ناقص بود. لطفاً دوباره تلاش کنید.",
+      "loginTimedOut": "مهلت انتظار برای احراز هویت WeChat iLink به پایان رسید. پنجرهٔ ورود را دوباره باز کنید و دوباره تلاش کنید.",
+      "loginConnected": "حساب WeChat iLink متصل شد."
     }
   },
   "deepchatAgents": {

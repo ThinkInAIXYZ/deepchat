@@ -138,6 +138,13 @@ export class Presenter implements IPresenter {
     'createTelegramPairCode',
     'clearTelegramPairCode',
     'clearTelegramBindings',
+    'getWeixinIlinkSettings',
+    'saveWeixinIlinkSettings',
+    'getWeixinIlinkStatus',
+    'startWeixinIlinkLogin',
+    'waitForWeixinIlinkLogin',
+    'removeWeixinIlinkAccount',
+    'restartWeixinIlinkAccount',
     'testTelegramHookNotification'
   ])
 

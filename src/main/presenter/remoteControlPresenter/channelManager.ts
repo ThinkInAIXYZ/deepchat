@@ -123,6 +123,21 @@ export class ChannelManager {
     return this.adapters.get(adapterKey(channelType, channelId)) ?? null
   }
 
+  listAdapters(
+    channelType?: string
+  ): Array<{ channelType: string; channelId: string; adapter: IChannelAdapter }> {
+    return [...this.adapters.entries()]
+      .map(([key, adapter]) => {
+        const [resolvedChannelType, ...channelIdParts] = key.split(':')
+        return {
+          channelType: resolvedChannelType,
+          channelId: channelIdParts.join(':'),
+          adapter
+        }
+      })
+      .filter((entry) => (channelType ? entry.channelType === channelType : true))
+  }
+
   getStatusSnapshot(channelType: string, channelId: string): ChannelStatusSnapshot | null {
     const snapshot = this.statusSnapshots.get(adapterKey(channelType, channelId))
     return snapshot ? { ...snapshot } : null

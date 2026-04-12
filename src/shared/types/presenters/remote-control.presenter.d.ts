@@ -1,7 +1,8 @@
 import type { HookEventName, HookTestResult } from '../../hooksNotifications'
 
 export type RemoteChannelId = 'telegram' | 'feishu' | 'qqbot' | 'weixin-ilink'
-export type RemoteChannel = Extract<RemoteChannelId, 'telegram' | 'feishu' | 'qqbot'>
+export type RemoteChannel = RemoteChannelId
+export type PairableRemoteChannel = Extract<RemoteChannelId, 'telegram' | 'feishu' | 'qqbot'>
 export type RemoteBindingKind = 'dm' | 'group' | 'topic'
 export type TelegramStreamMode = 'draft' | 'final'
 export type RemoteRuntimeState =
@@ -78,6 +79,13 @@ export type RemotePairingSnapshot =
   | FeishuPairingSnapshot
   | QQBotPairingSnapshot
 
+export interface WeixinIlinkAccountSummary {
+  accountId: string
+  ownerUserId: string
+  baseUrl: string
+  enabled: boolean
+}
+
 export interface TelegramRemoteSettings {
   botToken: string
   remoteEnabled: boolean
@@ -107,10 +115,18 @@ export interface QQBotRemoteSettings {
   pairedUserIds: string[]
 }
 
+export interface WeixinIlinkRemoteSettings {
+  remoteEnabled: boolean
+  defaultAgentId: string
+  defaultWorkdir: string
+  accounts: WeixinIlinkAccountSummary[]
+}
+
 export type RemoteChannelSettings =
   | TelegramRemoteSettings
   | FeishuRemoteSettings
   | QQBotRemoteSettings
+  | WeixinIlinkRemoteSettings
 
 export interface TelegramRemoteStatus {
   channel: 'telegram'
@@ -152,7 +168,43 @@ export interface QQBotRemoteStatus {
   } | null
 }
 
-export type RemoteChannelStatus = TelegramRemoteStatus | FeishuRemoteStatus | QQBotRemoteStatus
+export interface WeixinIlinkAccountStatus extends WeixinIlinkAccountSummary {
+  state: RemoteRuntimeState
+  connected: boolean
+  bindingCount: number
+  lastError: string | null
+}
+
+export interface WeixinIlinkRemoteStatus {
+  channel: 'weixin-ilink'
+  enabled: boolean
+  state: RemoteRuntimeState
+  bindingCount: number
+  accountCount: number
+  connectedAccountCount: number
+  lastError: string | null
+  accounts: WeixinIlinkAccountStatus[]
+}
+
+export type RemoteChannelStatus =
+  | TelegramRemoteStatus
+  | FeishuRemoteStatus
+  | QQBotRemoteStatus
+  | WeixinIlinkRemoteStatus
+
+export interface WeixinIlinkLoginSession {
+  sessionKey: string
+  loginUrl: string | null
+  message?: string
+  messageKey?: string
+}
+
+export interface WeixinIlinkLoginResult {
+  connected: boolean
+  account: WeixinIlinkAccountSummary | null
+  message?: string
+  messageKey?: string
+}
 
 export interface IRemoteControlPresenter {
   listRemoteChannels(): Promise<RemoteChannelDescriptor[]>
@@ -160,6 +212,7 @@ export interface IRemoteControlPresenter {
   getChannelSettings(channel: 'telegram'): Promise<TelegramRemoteSettings>
   getChannelSettings(channel: 'feishu'): Promise<FeishuRemoteSettings>
   getChannelSettings(channel: 'qqbot'): Promise<QQBotRemoteSettings>
+  getChannelSettings(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteSettings>
   getChannelSettings(channel: RemoteChannel): Promise<RemoteChannelSettings>
 
   saveChannelSettings(
@@ -169,6 +222,10 @@ export interface IRemoteControlPresenter {
   saveChannelSettings(channel: 'feishu', input: FeishuRemoteSettings): Promise<FeishuRemoteSettings>
   saveChannelSettings(channel: 'qqbot', input: QQBotRemoteSettings): Promise<QQBotRemoteSettings>
   saveChannelSettings(
+    channel: 'weixin-ilink',
+    input: WeixinIlinkRemoteSettings
+  ): Promise<WeixinIlinkRemoteSettings>
+  saveChannelSettings(
     channel: RemoteChannel,
     input: RemoteChannelSettings
   ): Promise<RemoteChannelSettings>
@@ -176,6 +233,7 @@ export interface IRemoteControlPresenter {
   getChannelStatus(channel: 'telegram'): Promise<TelegramRemoteStatus>
   getChannelStatus(channel: 'feishu'): Promise<FeishuRemoteStatus>
   getChannelStatus(channel: 'qqbot'): Promise<QQBotRemoteStatus>
+  getChannelStatus(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteStatus>
   getChannelStatus(channel: RemoteChannel): Promise<RemoteChannelStatus>
 
   getChannelBindings(channel: RemoteChannel): Promise<RemoteBindingSummary[]>
@@ -184,10 +242,12 @@ export interface IRemoteControlPresenter {
   getChannelPairingSnapshot(channel: 'telegram'): Promise<TelegramPairingSnapshot>
   getChannelPairingSnapshot(channel: 'feishu'): Promise<FeishuPairingSnapshot>
   getChannelPairingSnapshot(channel: 'qqbot'): Promise<QQBotPairingSnapshot>
-  getChannelPairingSnapshot(channel: RemoteChannel): Promise<RemotePairingSnapshot>
+  getChannelPairingSnapshot(channel: PairableRemoteChannel): Promise<RemotePairingSnapshot>
 
-  createChannelPairCode(channel: RemoteChannel): Promise<{ code: string; expiresAt: number }>
-  clearChannelPairCode(channel: RemoteChannel): Promise<void>
+  createChannelPairCode(
+    channel: PairableRemoteChannel
+  ): Promise<{ code: string; expiresAt: number }>
+  clearChannelPairCode(channel: PairableRemoteChannel): Promise<void>
   clearChannelBindings(channel: RemoteChannel): Promise<number>
   testTelegramHookNotification(): Promise<HookTestResult>
 
@@ -200,4 +260,15 @@ export interface IRemoteControlPresenter {
   createTelegramPairCode(): Promise<{ code: string; expiresAt: number }>
   clearTelegramPairCode(): Promise<void>
   clearTelegramBindings(): Promise<number>
+
+  getWeixinIlinkSettings(): Promise<WeixinIlinkRemoteSettings>
+  saveWeixinIlinkSettings(input: WeixinIlinkRemoteSettings): Promise<WeixinIlinkRemoteSettings>
+  getWeixinIlinkStatus(): Promise<WeixinIlinkRemoteStatus>
+  startWeixinIlinkLogin(input?: { force?: boolean }): Promise<WeixinIlinkLoginSession>
+  waitForWeixinIlinkLogin(input: {
+    sessionKey: string
+    timeoutMs?: number
+  }): Promise<WeixinIlinkLoginResult>
+  removeWeixinIlinkAccount(accountId: string): Promise<void>
+  restartWeixinIlinkAccount(accountId: string): Promise<void>
 }
