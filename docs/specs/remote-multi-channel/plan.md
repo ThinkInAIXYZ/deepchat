@@ -1,67 +1,64 @@
-# Remote Adapter Framework + Plugin Seam Plan
+# QQBot First, WeChat iLink Next Plan
+
+## Public Contract
+
+- Expand shared remote presenter types with:
+  - `RemoteChannelId`
+  - `RemoteChannelDescriptor`
+  - `QQBotRemoteSettings`
+  - `QQBotRemoteStatus`
+  - `QQBotPairingSnapshot`
+- Add `listRemoteChannels()` to the remote presenter bridge.
+- Keep Telegram compatibility shims in place for one release cycle.
 
 ## Main Process
 
-- Add internal channel contracts in `src/main/presenter/remoteControlPresenter/types/channel.ts`:
-  - adapter lifecycle
-  - status snapshots
-  - factory interface
-  - plugin manifest ABI
-- Add `ChannelAdapter` base class for:
-  - connect / disconnect idempotency
-  - status emission
-  - logger integration
-  - shared attachment download helpers
-- Add `ChannelManager` + `AdapterRegistry` for:
-  - factory registration
-  - adapter registration
-  - lifecycle fan-out
-  - status caching
-  - future event / stream dispatch seams
-- Implement built-in `TelegramAdapter` and `FeishuAdapter` as wrappers around existing Telegram / Feishu runtimes.
-- Refactor `RemoteControlPresenter` to:
-  - register built-in factories
-  - rebuild per-channel adapters
-  - read runtime status from `ChannelManager`
-  - keep current presenter API unchanged
+- Extend `RemoteControlPresenter` to:
+  - register QQBot through the built-in adapter registry
+  - rebuild Telegram / Feishu / QQBot independently
+  - expose registry descriptors to renderer callers
+- Extend `RemoteBindingStore` and remote config normalization with `remoteControl.qqbot`.
+- Add QQBot runtime modules:
+  - HTTP client
+  - gateway session manager
+  - parser
+  - auth guard
+  - command router
+  - runtime
+  - adapter
 
-## Behavior Preservation
+## QQBot Runtime
 
-- Keep `RemoteBindingStore`, `RemoteConversationRunner`, and `RemoteBlockRenderer` as the existing source of truth.
-- Keep Telegram command registration and Telegram / Feishu routing logic intact by reusing:
-  - `RemoteCommandRouter`
-  - `FeishuCommandRouter`
-  - `TelegramPoller`
-  - `FeishuRuntime`
-- Preserve current fatal-error behavior by disabling the persisted channel config and unregistering the active adapter.
+- Acquire access token from the official token endpoint.
+- Resolve the official gateway URL and connect through WebSocket.
+- Use official `GROUP_AND_C2C_EVENT (1 << 25)` intents.
+- Maintain heartbeat, resume state, and reconnect backoff.
+- Parse:
+  - `C2C_MESSAGE_CREATE`
+  - `GROUP_AT_MESSAGE_CREATE`
+- Route text commands through the existing remote session pipeline.
+- Use official passive reply semantics with `msg_id + msg_seq`.
 
-## Plugin Seam
+## Renderer
 
-- Define a validated manifest ABI for future channel plugins.
-- Keep plugin source support in the factory registry so built-in and future plugin factories share the same lookup path.
-- Do not execute third-party plugin bundles yet.
-- Document that future plugins must run behind a dedicated host process instead of direct Electron main / renderer imports.
-
-## Testing
-
-- Add unit tests for:
-  - `ChannelAdapter`
-  - `ChannelManager`
-  - plugin manifest parsing
-  - `TelegramAdapter`
-  - `FeishuAdapter`
-- Update `RemoteControlPresenter` tests to verify manager-driven runtime rebuild behavior still preserves:
-  - serialized startup
-  - in-flight startup status
-  - fatal auto-disable
-  - binding / pairing presenter contract
-  - default-agent sanitization
+- Drive Remote settings overview cards and tab headers from channel descriptors.
+- Keep built-in panel components for:
+  - Telegram
+  - Feishu
+  - QQBot
+- Expose WeChat iLink as an unimplemented built-in descriptor only.
+- Update the sidebar remote button to aggregate all implemented built-in channel states instead of a hardcoded Telegram / Feishu pair.
 
 ## Validation
 
-- Run node typecheck first to catch main-process interface mismatches.
-- Run focused Vitest coverage for the new channel framework and presenter regression tests.
-- Finish with repository quality gates:
+- Keep Telegram and Feishu regression tests green.
+- Add focused QQBot tests for:
+  - parser
+  - auth guard
+  - command router
+  - adapter
+- Update presenter and renderer tests for descriptor-driven multi-channel behavior.
+- Run:
   - `pnpm run format`
   - `pnpm run i18n`
   - `pnpm run lint`

@@ -1529,7 +1529,7 @@
   },
   "remote": {
     "title": "Fjernstyring",
-    "description": "Konfigurer Telegram- og Feishu-fjernstyring ét sted.",
+    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
     "telegram": {
       "title": "Telegram",
       "description": "Administrer én Telegram-bot til fjernstyring og hook-levering.",
@@ -1567,7 +1567,8 @@
       "clearBindings": "Ryd bindinger",
       "clearBindingsResult": "{count} binding(er) ryddet.",
       "pairDialogInstructionTelegram": "Send denne kommando til Telegram-botten:",
-      "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:"
+      "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:",
+      "pairDialogInstructionQQBot": "Send denne kommando i QQ-botchatten eller den autoriserede QQ-gruppe:"
     },
     "hooks": {
       "title": "Telegram-hooks",
@@ -1588,7 +1589,8 @@
         "running": "Kører",
         "backoff": "Prøver igen efter fejl",
         "error": "Fejl"
-      }
+      },
+      "bindingOnly": "Bindinger: {count}, parrede identiteter: {paired}"
     },
     "feishu": {
       "title": "Feishu",
@@ -1619,12 +1621,28 @@
       "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere, hooks {hooks}",
       "feishu": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "hooksOn": "til",
-      "hooksOff": "fra"
+      "hooksOff": "fra",
+      "qqbot": "{bindingCount} bindinger, {pairedCount} parrede brugere"
     },
     "bindingKinds": {
       "dm": "Direkte besked",
       "group": "Gruppe",
       "topic": "Emne"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Forbind en officiel QQ Bot til C2C-chats og nævnebaseret botstyring i autoriserede grupper.",
+      "appId": "App-id",
+      "appIdPlaceholder": "QQ Bot app-id",
+      "clientSecret": "Klienthemmelighed",
+      "clientSecretPlaceholder": "QQ Bot klienthemmelighed",
+      "remoteControlDescription": "QQs officielle openid-identifikatorer er forskellige mellem C2C og grupper, så direkte beskeder parrer brugere, mens grupper skal autoriseres separat med /pair.",
+      "pairedUserIds": "Parrede bruger-OpenID'er",
+      "pairedUserIdsPlaceholder": "f.eks. user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Indbygget understøttelse af WeChat iLink-bot er planlagt til næste fase."
     }
   },
   "deepchatAgents": {

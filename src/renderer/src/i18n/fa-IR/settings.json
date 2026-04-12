@@ -1529,7 +1529,7 @@
   },
   "remote": {
     "title": "کنترل از راه دور",
-    "description": "کنترل از راه دور Telegram و Feishu را در یک‌جا پیکربندی کنید.",
+    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
     "telegram": {
       "title": "Telegram",
       "description": "یک ربات تلگرام را برای کنترل از راه دور و ارسال هوک مدیریت کنید.",
@@ -1567,7 +1567,8 @@
       "clearBindings": "پاک کردن اتصال‌ها",
       "clearBindingsResult": "{count} اتصال پاک شد.",
       "pairDialogInstructionTelegram": "این فرمان را برای ربات Telegram بفرستید:",
-      "pairDialogInstructionFeishu": "این فرمان را در پیام خصوصی برای ربات Feishu بفرستید:"
+      "pairDialogInstructionFeishu": "این فرمان را در پیام خصوصی برای ربات Feishu بفرستید:",
+      "pairDialogInstructionQQBot": "این دستور را در گفت‌وگوی QQ Bot یا گروه مجاز QQ بفرستید:"
     },
     "hooks": {
       "title": "هوک‌های تلگرام",
@@ -1588,7 +1589,8 @@
         "running": "در حال اجرا",
         "backoff": "در حال تلاش مجدد پس از خطا",
         "error": "خطا"
-      }
+      },
+      "bindingOnly": "اتصال‌ها: {count}، شناسه‌های جفت‌شده: {paired}"
     },
     "feishu": {
       "title": "Feishu",
@@ -1619,12 +1621,28 @@
       "telegram": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده، hookها {hooks}",
       "feishu": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
       "hooksOn": "روشن",
-      "hooksOff": "خاموش"
+      "hooksOff": "خاموش",
+      "qqbot": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده"
     },
     "bindingKinds": {
       "dm": "پیام خصوصی",
       "group": "گروه",
       "topic": "موضوع"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "یک QQ Bot رسمی را برای گفت‌وگوهای C2C و کنترل ربات بر پایهٔ منشن در گروه‌های مجاز متصل کنید.",
+      "appId": "شناسه برنامه",
+      "appIdPlaceholder": "شناسه برنامه QQ Bot",
+      "clientSecret": "کلید محرمانه کلاینت",
+      "clientSecretPlaceholder": "کلید محرمانه کلاینت QQ Bot",
+      "remoteControlDescription": "شناسه‌های رسمی openid در QQ بین C2C و گروه‌ها متفاوت‌اند؛ بنابراین در پیام خصوصی کاربر جفت می‌شود و گروه باید جداگانه با /pair مجاز شود.",
+      "pairedUserIds": "OpenID کاربران جفت‌شده",
+      "pairedUserIdsPlaceholder": "مثلاً user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "پشتیبانی داخلی از ربات WeChat iLink برای مرحله بعدی برنامه‌ریزی شده است."
     }
   },
   "deepchatAgents": {

@@ -421,7 +421,15 @@ export class RemoteConversationRunner {
   }
 
   private resolveChannelFromEndpointKey(endpointKey: string): RemoteChannel {
-    return endpointKey.startsWith('feishu:') ? 'feishu' : 'telegram'
+    if (endpointKey.startsWith('feishu:')) {
+      return 'feishu'
+    }
+
+    if (endpointKey.startsWith('qqbot:')) {
+      return 'qqbot'
+    }
+
+    return 'telegram'
   }
 
   private getConfiguredDefaultWorkdir(endpointKey: string): string | null {
@@ -429,7 +437,9 @@ export class RemoteConversationRunner {
     const config =
       channel === 'feishu'
         ? this.bindingStore.getFeishuConfig()
-        : this.bindingStore.getTelegramConfig()
+        : channel === 'qqbot'
+          ? this.bindingStore.getQQBotConfig()
+          : this.bindingStore.getTelegramConfig()
     const normalized = config.defaultWorkdir?.trim()
     return normalized ? normalized : null
   }

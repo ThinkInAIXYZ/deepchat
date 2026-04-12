@@ -1529,7 +1529,7 @@
   },
   "remote": {
     "title": "שליטה מרחוק",
-    "description": "הגדר שליטה מרחוק ב-Telegram וב-Feishu במקום אחד.",
+    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
     "telegram": {
       "title": "Telegram",
       "description": "נהל בוט Telegram אחד עבור שליטה מרחוק ושליחת Hooks.",
@@ -1567,7 +1567,8 @@
       "clearBindings": "נקה קישורים",
       "clearBindingsResult": "{count} קישור(ים) נוקו.",
       "pairDialogInstructionTelegram": "שלחו את הפקודה הזו לבוט Telegram:",
-      "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:"
+      "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:",
+      "pairDialogInstructionQQBot": "שלח את הפקודה הזו בצ'אט של QQ Bot או בקבוצת QQ מורשית:"
     },
     "hooks": {
       "title": "Hooks של Telegram",
@@ -1588,7 +1589,8 @@
         "running": "פועל",
         "backoff": "מנסה שוב לאחר כשל",
         "error": "שגיאה"
-      }
+      },
+      "bindingOnly": "קישורים: {count}, ישויות מותאמות: {paired}"
     },
     "feishu": {
       "title": "Feishu",
@@ -1619,12 +1621,28 @@
       "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים, hooks {hooks}",
       "feishu": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "hooksOn": "מופעלים",
-      "hooksOff": "כבויים"
+      "hooksOff": "כבויים",
+      "qqbot": "{bindingCount} קישורים, {pairedCount} משתמשים מותאמים"
     },
     "bindingKinds": {
       "dm": "הודעה פרטית",
       "group": "קבוצה",
       "topic": "נושא"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "חבר QQ Bot רשמי עבור שיחות C2C ושליטה בבוט באמצעות אזכור בקבוצות מורשות.",
+      "appId": "מזהה אפליקציה",
+      "appIdPlaceholder": "מזהה האפליקציה של QQ Bot",
+      "clientSecret": "סוד לקוח",
+      "clientSecretPlaceholder": "סוד הלקוח של QQ Bot",
+      "remoteControlDescription": "מזהי ה-openid הרשמיים של QQ שונים בין C2C לקבוצות, לכן הודעות פרטיות מצמדות משתמשים ואילו קבוצות חייבות לקבל הרשאה בנפרד באמצעות /pair.",
+      "pairedUserIds": "OpenID של משתמשים מותאמים",
+      "pairedUserIdsPlaceholder": "למשל user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "תמיכה מובנית בבוט WeChat iLink מתוכננת לשלב הבא."
     }
   },
   "deepchatAgents": {

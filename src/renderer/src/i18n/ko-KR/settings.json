@@ -1529,7 +1529,7 @@
   },
   "remote": {
     "title": "원격 제어",
-    "description": "한 곳에서 Telegram과 Feishu 원격 제어를 설정합니다.",
+    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
     "telegram": {
       "title": "Telegram",
       "description": "하나의 Telegram 봇으로 원격 제어와 Hook 전송을 관리합니다.",
@@ -1567,7 +1567,8 @@
       "clearBindings": "바인딩 지우기",
       "clearBindingsResult": "{count}개의 바인딩을 지웠습니다.",
       "pairDialogInstructionTelegram": "이 명령을 Telegram 봇에게 보내세요:",
-      "pairDialogInstructionFeishu": "이 명령을 Feishu 봇에게 개인 메시지로 보내세요:"
+      "pairDialogInstructionFeishu": "이 명령을 Feishu 봇에게 개인 메시지로 보내세요:",
+      "pairDialogInstructionQQBot": "이 명령을 QQ 봇 채팅 또는 승인된 QQ 그룹으로 보내세요:"
     },
     "hooks": {
       "title": "Telegram Hook 알림",
@@ -1588,7 +1589,8 @@
         "running": "실행 중",
         "backoff": "실패 후 재시도 중",
         "error": "오류"
-      }
+      },
+      "bindingOnly": "바인딩: {count}, 페어링된 주체: {paired}"
     },
     "feishu": {
       "title": "Feishu",
@@ -1619,12 +1621,28 @@
       "telegram": "{bindingCount}개 바인딩, {pairedCount}명 페어링됨, hooks {hooks}",
       "feishu": "{bindingCount}개 바인딩, {pairedCount}명 페어링됨",
       "hooksOn": "켜짐",
-      "hooksOff": "꺼짐"
+      "hooksOff": "꺼짐",
+      "qqbot": "{bindingCount}개 바인딩, {pairedCount}명의 페어링된 사용자"
     },
     "bindingKinds": {
       "dm": "개인 메시지",
       "group": "그룹",
       "topic": "토픽"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "공식 QQ Bot을 연결해 C2C 채팅과 승인된 그룹에서의 멘션 기반 봇 제어를 사용합니다.",
+      "appId": "앱 ID",
+      "appIdPlaceholder": "QQ Bot 앱 ID",
+      "clientSecret": "클라이언트 시크릿",
+      "clientSecretPlaceholder": "QQ Bot 클라이언트 시크릿",
+      "remoteControlDescription": "QQ 공식 openid 식별자는 C2C와 그룹 간에 다르므로, 개인 메시지에서는 사용자를 페어링하고 그룹은 /pair로 별도로 승인해야 합니다.",
+      "pairedUserIds": "페어링된 사용자 OpenID",
+      "pairedUserIdsPlaceholder": "예: user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "내장 WeChat iLink 봇 지원은 다음 단계에서 추가될 예정입니다."
     }
   },
   "deepchatAgents": {

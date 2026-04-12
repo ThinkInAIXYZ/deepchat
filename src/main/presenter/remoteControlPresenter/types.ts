@@ -5,6 +5,10 @@ import type {
   FeishuPairingSnapshot,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
+  QQBotPairingSnapshot,
+  QQBotRemoteBindingSummary,
+  QQBotRemoteSettings,
+  QQBotRemoteStatus,
   RemoteBindingKind,
   RemoteBindingSummary,
   RemoteChannel,
@@ -22,6 +26,7 @@ export const TELEGRAM_REMOTE_POLL_TIMEOUT_SEC = 30
 export const TELEGRAM_OUTBOUND_TEXT_LIMIT = 4096
 export const TELEGRAM_PAIR_CODE_TTL_MS = 10 * 60 * 1000
 export const FEISHU_PAIR_CODE_TTL_MS = TELEGRAM_PAIR_CODE_TTL_MS
+export const QQBOT_PAIR_CODE_TTL_MS = TELEGRAM_PAIR_CODE_TTL_MS
 export const REMOTE_PAIR_CODE_MAX_FAILURES = 5
 export const FEISHU_INBOUND_DEDUP_TTL_MS = 30 * 60 * 1000
 export const FEISHU_INBOUND_DEDUP_LIMIT = 2048
@@ -36,7 +41,9 @@ export const TELEGRAM_MODEL_MENU_TTL_MS = 10 * 60 * 1000
 export const TELEGRAM_INTERACTION_CALLBACK_TTL_MS = 10 * 60 * 1000
 export const TELEGRAM_REMOTE_DEFAULT_AGENT_ID = 'deepchat'
 export const FEISHU_REMOTE_DEFAULT_AGENT_ID = TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+export const QQBOT_REMOTE_DEFAULT_AGENT_ID = TELEGRAM_REMOTE_DEFAULT_AGENT_ID
 export const TELEGRAM_REMOTE_REACTION_EMOJI = '🤯'
+export const QQBOT_GROUP_AND_C2C_INTENT = 1 << 25
 export const TELEGRAM_REMOTE_COMMANDS = [
   {
     command: 'start',
@@ -131,6 +138,53 @@ export const FEISHU_REMOTE_COMMANDS = [
   }
 ] as const
 
+export const QQBOT_REMOTE_COMMANDS = [
+  {
+    command: 'start',
+    description: 'Show remote control status'
+  },
+  {
+    command: 'help',
+    description: 'Show available commands'
+  },
+  {
+    command: 'pair',
+    description: 'Authorize this QQ account'
+  },
+  {
+    command: 'new',
+    description: 'Start a new session'
+  },
+  {
+    command: 'sessions',
+    description: 'List recent sessions'
+  },
+  {
+    command: 'use',
+    description: 'Bind a listed session'
+  },
+  {
+    command: 'stop',
+    description: 'Stop the active generation'
+  },
+  {
+    command: 'open',
+    description: 'Open the current session on desktop'
+  },
+  {
+    command: 'pending',
+    description: 'Show the current pending interaction'
+  },
+  {
+    command: 'model',
+    description: 'View or switch the current model'
+  },
+  {
+    command: 'status',
+    description: 'Show runtime and session status'
+  }
+] as const
+
 export interface RemoteEndpointBindingMeta {
   channel: RemoteChannel
   kind: RemoteBindingKind
@@ -153,6 +207,7 @@ export type TelegramPairingState = {
 }
 
 export type FeishuPairingState = TelegramPairingState
+export type QQBotPairingState = TelegramPairingState
 
 export type TelegramCommandPayload = {
   name: string
@@ -185,9 +240,23 @@ export interface FeishuRemoteRuntimeConfig {
   bindings: Record<string, RemoteEndpointBinding>
 }
 
+export interface QQBotRemoteRuntimeConfig {
+  appId: string
+  clientSecret: string
+  enabled: boolean
+  defaultAgentId: string
+  defaultWorkdir: string
+  pairedUserIds: string[]
+  pairedGroupIds: string[]
+  lastFatalError: string | null
+  pairing: QQBotPairingState
+  bindings: Record<string, RemoteEndpointBinding>
+}
+
 export interface RemoteControlConfig {
   telegram: TelegramRemoteRuntimeConfig
   feishu: FeishuRemoteRuntimeConfig
+  qqbot: QQBotRemoteRuntimeConfig
 }
 
 interface TelegramInboundBase {
@@ -233,6 +302,20 @@ export interface FeishuInboundMessage {
   command: TelegramCommandPayload | null
   mentionedBot: boolean
   mentions: FeishuRawMention[]
+}
+
+export interface QQBotInboundMessage {
+  kind: 'message'
+  eventId: string
+  chatId: string
+  chatType: 'c2c' | 'group'
+  messageId: string
+  messageSeq: number
+  senderUserId: string | null
+  senderUserName: string
+  text: string
+  command: TelegramCommandPayload | null
+  mentionedBot: boolean
 }
 
 export interface TelegramInlineKeyboardButton {
@@ -402,6 +485,7 @@ const TELEGRAM_MODEL_MENU_CALLBACK_PREFIX = 'model'
 const TELEGRAM_INTERACTION_CALLBACK_PREFIX = 'pending'
 const TELEGRAM_ENDPOINT_KEY_REGEX = /^telegram:(-?\d+):(-?\d+)$/
 const FEISHU_ENDPOINT_KEY_REGEX = /^feishu:([^:]+):([^:]+)$/
+const QQBOT_ENDPOINT_KEY_REGEX = /^qqbot:(c2c|group):([^:]+)$/
 
 export const createTelegramCallbackToken = (): string =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
@@ -532,6 +616,12 @@ export interface FeishuRuntimeStatusSnapshot {
   botUser: FeishuRemoteStatus['botUser']
 }
 
+export interface QQBotRuntimeStatusSnapshot {
+  state: RemoteRuntimeState
+  lastError: string | null
+  botUser: QQBotRemoteStatus['botUser']
+}
+
 export interface TelegramTransportTarget {
   chatId: number
   messageThreadId: number
@@ -541,6 +631,12 @@ export interface FeishuTransportTarget {
   chatId: string
   threadId: string | null
   replyToMessageId?: string | null
+}
+
+export interface QQBotTransportTarget {
+  chatType: 'c2c' | 'group'
+  openId: string
+  msgId: string
 }
 
 export interface TelegramRemoteHookSettingsInput {
@@ -582,12 +678,28 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
       failedAttempts: 0
     },
     bindings: {}
+  },
+  qqbot: {
+    appId: '',
+    clientSecret: '',
+    enabled: false,
+    defaultAgentId: QQBOT_REMOTE_DEFAULT_AGENT_ID,
+    defaultWorkdir: '',
+    pairedUserIds: [],
+    pairedGroupIds: [],
+    lastFatalError: null,
+    pairing: {
+      code: null,
+      expiresAt: null,
+      failedAttempts: 0
+    },
+    bindings: {}
   }
 })
 
 const RemoteEndpointBindingMetaSchema = z
   .object({
-    channel: z.enum(['telegram', 'feishu']).optional(),
+    channel: z.enum(['telegram', 'feishu', 'qqbot']).optional(),
     kind: z.enum(['dm', 'group', 'topic']).optional(),
     chatId: z.string().optional(),
     threadId: z.string().nullable().optional()
@@ -640,15 +752,32 @@ const FeishuRemoteRuntimeConfigSchema = z
   })
   .strip()
 
+const QQBotRemoteRuntimeConfigSchema = z
+  .object({
+    appId: z.string().optional(),
+    clientSecret: z.string().optional(),
+    enabled: z.boolean().optional(),
+    defaultAgentId: z.string().optional(),
+    defaultWorkdir: z.string().optional(),
+    pairedUserIds: z.array(z.union([z.string(), z.number()])).optional(),
+    pairedGroupIds: z.array(z.union([z.string(), z.number()])).optional(),
+    lastFatalError: z.string().nullable().optional(),
+    pairing: PairingStateSchema.optional(),
+    bindings: z.record(z.string(), z.unknown()).optional()
+  })
+  .strip()
+
 const RemoteControlConfigSchema = z
   .object({
     telegram: TelegramRemoteRuntimeConfigSchema.optional(),
-    feishu: FeishuRemoteRuntimeConfigSchema.optional()
+    feishu: FeishuRemoteRuntimeConfigSchema.optional(),
+    qqbot: QQBotRemoteRuntimeConfigSchema.optional()
   })
   .strip()
 
 type LegacyTelegramRemoteConfig = z.infer<typeof TelegramRemoteRuntimeConfigSchema>
 type LegacyFeishuRemoteConfig = z.infer<typeof FeishuRemoteRuntimeConfigSchema>
+type LegacyQQBotRemoteConfig = z.infer<typeof QQBotRemoteRuntimeConfigSchema>
 
 const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key)
@@ -706,6 +835,23 @@ const extractLegacyFeishuConfig = (input: unknown): LegacyFeishuRemoteConfig | n
   return parsed.success ? parsed.data : null
 }
 
+const extractLegacyQQBotConfig = (input: unknown): LegacyQQBotRemoteConfig | null => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return null
+  }
+
+  const record = input as Record<string, unknown>
+  if (
+    !hasAnyOwn(record, ['appId', 'clientSecret', 'pairedUserIds', 'lastFatalError']) &&
+    !hasBindingPrefix(record, 'qqbot:')
+  ) {
+    return null
+  }
+
+  const parsed = QQBotRemoteRuntimeConfigSchema.safeParse(record)
+  return parsed.success ? parsed.data : null
+}
+
 const normalizeStringList = (input: Array<string | number> | undefined): string[] =>
   Array.from(
     new Set((input ?? []).map((value) => String(value ?? '').trim()).filter(Boolean))
@@ -730,6 +876,12 @@ export const normalizeTelegramUserIds = (input: Array<number | string> | undefin
 export const normalizeFeishuOpenIds = (input: Array<string | number> | undefined): string[] =>
   normalizeStringList(input)
 
+export const normalizeQQBotUserIds = (input: Array<string | number> | undefined): string[] =>
+  normalizeStringList(input)
+
+export const normalizeQQBotGroupIds = (input: Array<string | number> | undefined): string[] =>
+  normalizeStringList(input)
+
 const normalizeBindingMeta = (
   endpointKey: string,
   meta: unknown,
@@ -747,6 +899,10 @@ const normalizeBindingMeta = (
 
   if (fallbackChannel === 'telegram') {
     return deriveTelegramBindingMeta(endpointKey) ?? undefined
+  }
+
+  if (fallbackChannel === 'qqbot') {
+    return deriveQQBotBindingMeta(endpointKey) ?? undefined
   }
 
   return deriveFeishuBindingMeta(endpointKey) ?? undefined
@@ -786,6 +942,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
 
   const telegram = parsed.data.telegram ?? extractLegacyTelegramConfig(input) ?? {}
   const feishu = parsed.data.feishu ?? extractLegacyFeishuConfig(input) ?? {}
+  const qqbot = parsed.data.qqbot ?? extractLegacyQQBotConfig(input) ?? {}
 
   return {
     telegram: {
@@ -830,6 +987,25 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
             : 0
       },
       bindings: normalizeBindings(feishu.bindings, 'feishu')
+    },
+    qqbot: {
+      appId: qqbot.appId?.trim() || '',
+      clientSecret: qqbot.clientSecret?.trim() || '',
+      enabled: Boolean(qqbot.enabled),
+      defaultAgentId: qqbot.defaultAgentId?.trim() || defaults.qqbot.defaultAgentId,
+      defaultWorkdir: qqbot.defaultWorkdir?.trim() || '',
+      pairedUserIds: normalizeQQBotUserIds(qqbot.pairedUserIds),
+      pairedGroupIds: normalizeQQBotGroupIds(qqbot.pairedGroupIds),
+      lastFatalError: qqbot.lastFatalError?.trim() || null,
+      pairing: {
+        code: qqbot.pairing?.code?.trim() || null,
+        expiresAt: typeof qqbot.pairing?.expiresAt === 'number' ? qqbot.pairing.expiresAt : null,
+        failedAttempts:
+          typeof qqbot.pairing?.failedAttempts === 'number' && qqbot.pairing.failedAttempts >= 0
+            ? Math.trunc(qqbot.pairing.failedAttempts)
+            : 0
+      },
+      bindings: normalizeBindings(qqbot.bindings, 'qqbot')
     }
   }
 }
@@ -919,12 +1095,51 @@ export const deriveFeishuBindingMeta = (endpointKey: string): RemoteEndpointBind
   }
 }
 
+export const buildQQBotEndpointKey = (chatType: 'c2c' | 'group', chatId: string): string =>
+  `qqbot:${chatType}:${chatId.trim()}`
+
+export const parseQQBotEndpointKey = (
+  endpointKey: string
+): (Pick<QQBotRemoteBindingSummary, 'chatId'> & { chatType: 'c2c' | 'group' }) | null => {
+  const match = QQBOT_ENDPOINT_KEY_REGEX.exec(endpointKey.trim())
+  if (!match) {
+    return null
+  }
+
+  return {
+    chatType: match[1] === 'group' ? 'group' : 'c2c',
+    chatId: match[2]
+  }
+}
+
+export const buildQQBotBindingMeta = (params: {
+  chatId: string
+  chatType: 'c2c' | 'group'
+}): RemoteEndpointBindingMeta => ({
+  channel: 'qqbot',
+  kind: params.chatType === 'group' ? 'group' : 'dm',
+  chatId: params.chatId.trim(),
+  threadId: null
+})
+
+export const deriveQQBotBindingMeta = (endpointKey: string): RemoteEndpointBindingMeta | null => {
+  const endpoint = parseQQBotEndpointKey(endpointKey)
+  if (!endpoint) {
+    return null
+  }
+
+  return buildQQBotBindingMeta(endpoint)
+}
+
 export const buildBindingSummary = (
   endpointKey: string,
   binding: RemoteEndpointBinding
 ): RemoteBindingSummary | null => {
   const meta =
-    binding.meta ?? deriveTelegramBindingMeta(endpointKey) ?? deriveFeishuBindingMeta(endpointKey)
+    binding.meta ??
+    deriveTelegramBindingMeta(endpointKey) ??
+    deriveFeishuBindingMeta(endpointKey) ??
+    deriveQQBotBindingMeta(endpointKey)
 
   if (!meta) {
     return null
@@ -978,6 +1193,15 @@ export const normalizeFeishuSettingsInput = (
   pairedUserOpenIds: normalizeFeishuOpenIds(input.pairedUserOpenIds)
 })
 
+export const normalizeQQBotSettingsInput = (input: QQBotRemoteSettings): QQBotRemoteSettings => ({
+  appId: input.appId?.trim() ?? '',
+  clientSecret: input.clientSecret?.trim() ?? '',
+  remoteEnabled: Boolean(input.remoteEnabled),
+  defaultAgentId: input.defaultAgentId?.trim() || QQBOT_REMOTE_DEFAULT_AGENT_ID,
+  defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
+  pairedUserIds: normalizeQQBotUserIds(input.pairedUserIds)
+})
+
 export const buildTelegramPairingSnapshot = (
   settings: TelegramRemoteRuntimeConfig
 ): TelegramPairingSnapshot => ({
@@ -992,4 +1216,12 @@ export const buildFeishuPairingSnapshot = (
   pairCode: settings.pairing.code,
   pairCodeExpiresAt: settings.pairing.expiresAt,
   pairedUserOpenIds: [...settings.pairedUserOpenIds]
+})
+
+export const buildQQBotPairingSnapshot = (
+  settings: QQBotRemoteRuntimeConfig
+): QQBotPairingSnapshot => ({
+  pairCode: settings.pairing.code,
+  pairCodeExpiresAt: settings.pairing.expiresAt,
+  pairedUserIds: [...settings.pairedUserIds]
 })

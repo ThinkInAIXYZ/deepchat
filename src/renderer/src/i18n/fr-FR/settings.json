@@ -1529,7 +1529,7 @@
   },
   "remote": {
     "title": "Accès distant",
-    "description": "Configurez la télécommande Telegram et Feishu au même endroit.",
+    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
     "telegram": {
       "title": "Telegram",
       "description": "Gérez un seul bot Telegram pour le contrôle à distance et l’envoi des hooks.",
@@ -1567,7 +1567,8 @@
       "clearBindings": "Effacer les liaisons",
       "clearBindingsResult": "{count} liaison(s) effacée(s).",
       "pairDialogInstructionTelegram": "Envoyez cette commande au bot Telegram :",
-      "pairDialogInstructionFeishu": "Envoyez cette commande au bot Feishu dans un message privé :"
+      "pairDialogInstructionFeishu": "Envoyez cette commande au bot Feishu dans un message privé :",
+      "pairDialogInstructionQQBot": "Envoyez cette commande dans la discussion QQ Bot ou le groupe QQ autorisé :"
     },
     "hooks": {
       "title": "Hooks Telegram",
@@ -1588,7 +1589,8 @@
         "running": "En cours",
         "backoff": "Nouvel essai après échec",
         "error": "Erreur"
-      }
+      },
+      "bindingOnly": "Liaisons : {count}, principaux associés : {paired}"
     },
     "feishu": {
       "title": "Feishu",
@@ -1619,12 +1621,28 @@
       "telegram": "{bindingCount} liaisons, {pairedCount} utilisateurs associés, hooks {hooks}",
       "feishu": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
       "hooksOn": "activés",
-      "hooksOff": "désactivés"
+      "hooksOff": "désactivés",
+      "qqbot": "{bindingCount} liaisons, {pairedCount} utilisateurs associés"
     },
     "bindingKinds": {
       "dm": "Message privé",
       "group": "Groupe",
       "topic": "Sujet"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Connectez un QQ Bot officiel pour les conversations C2C et le contrôle du bot par mention dans les groupes autorisés.",
+      "appId": "ID de l’application",
+      "appIdPlaceholder": "ID d’application du QQ Bot",
+      "clientSecret": "Secret client",
+      "clientSecretPlaceholder": "Secret client du QQ Bot",
+      "remoteControlDescription": "Les identifiants openid officiels de QQ sont différents entre les conversations C2C et les groupes. Les messages privés associent donc les utilisateurs, tandis que les groupes doivent être autorisés séparément avec /pair.",
+      "pairedUserIds": "OpenID des utilisateurs associés",
+      "pairedUserIdsPlaceholder": "ex. user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "La prise en charge intégrée du bot WeChat iLink est prévue pour la prochaine phase."
     }
   },
   "deepchatAgents": {

@@ -1591,7 +1591,7 @@
   },
   "remote": {
     "title": "Remote",
-    "description": "Configure Telegram and Feishu remote control from one place.",
+    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
     "telegram": {
       "title": "Telegram",
       "description": "Manage one Telegram bot for remote control and hook delivery.",
@@ -1645,7 +1645,8 @@
       "bindingsDialogDescription": "Remove remote endpoint bindings one by one.",
       "bindingsEmpty": "No bindings yet.",
       "pairingSuccessTitle": "Pairing complete",
-      "pairingSuccessDescription": "The paired principal list has been refreshed."
+      "pairingSuccessDescription": "The paired principal list has been refreshed.",
+      "pairDialogInstructionQQBot": "Send this command to the QQ bot chat or authorized QQ group:"
     },
     "hooks": {
       "title": "Telegram Hooks",
@@ -1666,18 +1667,35 @@
         "running": "Running",
         "backoff": "Retrying after failure",
         "error": "Error"
-      }
+      },
+      "bindingOnly": "Bindings: {count}, paired principals: {paired}"
     },
     "overview": {
       "telegram": "{bindingCount} bindings, {pairedCount} paired users, hooks {hooks}",
       "feishu": "{bindingCount} bindings, {pairedCount} paired users",
       "hooksOn": "on",
-      "hooksOff": "off"
+      "hooksOff": "off",
+      "qqbot": "{bindingCount} bindings, {pairedCount} paired users"
     },
     "bindingKinds": {
       "dm": "DM",
       "group": "Group",
       "topic": "Topic"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Connect an official QQ Bot for C2C chats and authorized group mention-based bot control.",
+      "appId": "App ID",
+      "appIdPlaceholder": "QQ Bot App ID",
+      "clientSecret": "Client Secret",
+      "clientSecretPlaceholder": "QQ Bot client secret",
+      "remoteControlDescription": "QQ official openid identifiers differ between C2C and groups, so direct messages pair users while groups are authorized separately with /pair.",
+      "pairedUserIds": "Paired User OpenIDs",
+      "pairedUserIdsPlaceholder": "e.g. user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Built-in WeChat iLink bot support is planned for the next phase."
     }
   }
 }

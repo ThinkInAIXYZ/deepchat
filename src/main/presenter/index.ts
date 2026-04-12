@@ -119,6 +119,7 @@ export class Presenter implements IPresenter {
   ])
 
   static readonly REMOTE_CONTROL_METHODS = new Set<keyof IRemoteControlPresenter>([
+    'listRemoteChannels',
     'getChannelSettings',
     'saveChannelSettings',
     'getChannelStatus',

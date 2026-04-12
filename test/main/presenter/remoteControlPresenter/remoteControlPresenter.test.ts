@@ -441,4 +441,39 @@ describe('RemoteControlPresenter', () => {
     expect(saved.defaultAgentId).toBe('acp-agent')
     expect(saved.defaultWorkdir).toBe('/workspaces/acp')
   })
+
+  it('lists builtin remote channels including qqbot and weixin-ilink', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    await expect(presenter.listRemoteChannels()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'qqbot',
+          implemented: true
+        }),
+        expect.objectContaining({
+          id: 'weixin-ilink',
+          implemented: false
+        })
+      ])
+    )
+  })
 })

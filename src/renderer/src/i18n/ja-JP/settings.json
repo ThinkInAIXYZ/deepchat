@@ -1529,7 +1529,7 @@
   },
   "remote": {
     "title": "リモート",
-    "description": "Telegram と Feishu のリモート操作を 1 か所で設定します。",
+    "description": "Configure Telegram, Feishu, and QQBot remote control from one place.",
     "telegram": {
       "title": "Telegram",
       "description": "1 つの Telegram Bot でリモート操作と Hook 配信を管理します。",
@@ -1567,7 +1567,8 @@
       "clearBindings": "バインドをクリア",
       "clearBindingsResult": "{count} 件のバインドをクリアしました。",
       "pairDialogInstructionTelegram": "このコマンドを Telegram Bot に送信してください:",
-      "pairDialogInstructionFeishu": "このコマンドを Feishu Bot のダイレクトメッセージに送信してください:"
+      "pairDialogInstructionFeishu": "このコマンドを Feishu Bot のダイレクトメッセージに送信してください:",
+      "pairDialogInstructionQQBot": "このコマンドを QQ Bot とのチャットまたは認可済み QQ グループに送信してください:"
     },
     "hooks": {
       "title": "Telegram Hook 通知",
@@ -1588,7 +1589,8 @@
         "running": "実行中",
         "backoff": "失敗後に再試行中",
         "error": "エラー"
-      }
+      },
+      "bindingOnly": "バインド数: {count}、ペア済み主体: {paired}"
     },
     "feishu": {
       "title": "Feishu",
@@ -1619,12 +1621,28 @@
       "telegram": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー、hooks {hooks}",
       "feishu": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー",
       "hooksOn": "有効",
-      "hooksOff": "無効"
+      "hooksOff": "無効",
+      "qqbot": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー"
     },
     "bindingKinds": {
       "dm": "DM",
       "group": "グループ",
       "topic": "トピック"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "公式 QQ Bot を接続して、C2C チャットと認可済みグループでのメンションによる Bot 操作を利用します。",
+      "appId": "アプリ ID",
+      "appIdPlaceholder": "QQ Bot アプリ ID",
+      "clientSecret": "クライアントシークレット",
+      "clientSecretPlaceholder": "QQ Bot クライアントシークレット",
+      "remoteControlDescription": "QQ 公式の openid は C2C とグループで異なるため、ダイレクトメッセージではユーザーをペアリングし、グループは /pair で個別に認可する必要があります。",
+      "pairedUserIds": "ペア済みユーザー OpenID",
+      "pairedUserIdsPlaceholder": "例: user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "内蔵の WeChat iLink Bot 対応は次のフェーズで追加予定です。"
     }
   },
   "deepchatAgents": {

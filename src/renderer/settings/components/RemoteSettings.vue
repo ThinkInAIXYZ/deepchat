@@ -5,7 +5,14 @@
         {{ t('common.loading') }}
       </div>
       <div
-        v-else-if="!telegramSettings || !telegramStatus || !feishuSettings || !feishuStatus"
+        v-else-if="
+          !telegramSettings ||
+          !telegramStatus ||
+          !feishuSettings ||
+          !feishuStatus ||
+          !qqbotSettings ||
+          !qqbotStatus
+        "
         class="text-sm text-muted-foreground"
       >
         {{ t('common.error.requestFailed') }}
@@ -24,7 +31,11 @@
         </div>
 
         <div class="grid gap-3 md:grid-cols-2">
-          <div v-for="channel in channels" :key="channel" class="rounded-lg border bg-muted/20 p-4">
+          <div
+            v-for="channel in implementedChannels"
+            :key="channel"
+            class="rounded-lg border bg-muted/20 p-4"
+          >
             <div class="flex items-start justify-between gap-3">
               <div class="space-y-1">
                 <div class="text-sm font-medium">
@@ -75,26 +86,24 @@
         </div>
 
         <Tabs v-model="activeChannel" class="space-y-4">
-          <TabsList class="grid w-full grid-cols-2">
+          <TabsList
+            class="grid w-full"
+            :style="{ gridTemplateColumns: `repeat(${implementedChannelCount}, minmax(0, 1fr))` }"
+          >
             <TabsTrigger
-              value="telegram"
-              data-testid="remote-tab-telegram"
+              v-for="channel in implementedChannels"
+              :key="`remote-tab-${channel}`"
+              :value="channel"
+              :data-testid="`remote-tab-${channel}`"
               class="flex items-center gap-2"
             >
               <span
-                :class="['h-2 w-2 rounded-full', statusDotClass(telegramStatus.state, true)]"
+                :class="[
+                  'h-2 w-2 rounded-full',
+                  statusDotClass(channelStatus(channel)?.state || 'stopped', true)
+                ]"
               ></span>
-              {{ t('settings.remote.telegram.title') }}
-            </TabsTrigger>
-            <TabsTrigger
-              value="feishu"
-              data-testid="remote-tab-feishu"
-              class="flex items-center gap-2"
-            >
-              <span
-                :class="['h-2 w-2 rounded-full', statusDotClass(feishuStatus.state, true)]"
-              ></span>
-              {{ t('settings.remote.feishu.title') }}
+              {{ t(`settings.remote.${channel}.title`) }}
             </TabsTrigger>
           </TabsList>
 
@@ -697,6 +706,215 @@
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="qqbot" class="space-y-4">
+            <div class="rounded-lg border">
+              <div class="space-y-4 p-4">
+                <div class="space-y-1">
+                  <div class="text-base font-medium">
+                    {{ t('settings.remote.sections.credentials') }}
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.qqbot.description') }}
+                  </p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.qqbot.appId') }}
+                    </Label>
+                    <Input
+                      v-model="qqbotSettings.appId"
+                      :placeholder="t('settings.remote.qqbot.appIdPlaceholder')"
+                      @blur="queueQQBotSettingsPersist"
+                    />
+                  </div>
+
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.qqbot.clientSecret') }}
+                    </Label>
+                    <Input
+                      v-model="qqbotSettings.clientSecret"
+                      type="password"
+                      :placeholder="t('settings.remote.qqbot.clientSecretPlaceholder')"
+                      @blur="queueQQBotSettingsPersist"
+                    />
+                  </div>
+                </div>
+
+                <div class="rounded-md border bg-muted/30 p-3 text-sm">
+                  <div class="font-medium">{{ t('settings.remote.status.title') }}</div>
+                  <div class="mt-1 text-muted-foreground">
+                    {{ formatStatusLine(qqbotStatus) }}
+                  </div>
+                  <div v-if="qqbotStatus.botUser" class="mt-1 text-muted-foreground">
+                    {{
+                      t('settings.remote.status.botUser', {
+                        id: qqbotStatus.botUser.id,
+                        username: qqbotStatus.botUser.username || 'unknown'
+                      })
+                    }}
+                  </div>
+                  <div class="mt-1 text-muted-foreground">
+                    {{
+                      t('settings.remote.status.bindingOnly', {
+                        count: qqbotStatus.bindingCount,
+                        paired: qqbotStatus.pairedUserCount
+                      })
+                    }}
+                  </div>
+                  <div v-if="qqbotStatus.lastError" class="mt-2 break-all text-destructive">
+                    {{ qqbotStatus.lastError }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="border-t p-4">
+                <div class="mb-3 space-y-1">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.remote.sections.remoteControl') }}
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {{ t('settings.remote.qqbot.remoteControlDescription') }}
+                  </p>
+                </div>
+
+                <div v-if="qqbotSettings.remoteEnabled" class="space-y-4">
+                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div class="space-y-2">
+                      <Label class="text-xs text-muted-foreground">
+                        {{ t('settings.remote.qqbot.pairedUserIds') }}
+                      </Label>
+                      <Input
+                        v-model="qqbotPairedUserIdsText"
+                        :placeholder="t('settings.remote.qqbot.pairedUserIdsPlaceholder')"
+                        @blur="queueQQBotSettingsPersist"
+                      />
+                    </div>
+
+                    <div class="space-y-2">
+                      <Label class="text-xs text-muted-foreground">
+                        {{ t('settings.remote.remoteControl.defaultAgent') }}
+                      </Label>
+                      <Select
+                        :model-value="qqbotSettings.defaultAgentId"
+                        @update:model-value="(value) => updateQQBotDefaultAgentId(String(value))"
+                      >
+                        <SelectTrigger class="h-8!">
+                          <SelectValue
+                            :placeholder="
+                              t('settings.remote.remoteControl.defaultAgentPlaceholder')
+                            "
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="agent in defaultAgentOptions(qqbotSettings.defaultAgentId)"
+                            :key="agent.id"
+                            :value="agent.id"
+                          >
+                            {{ agent.name }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
+                          :title="qqbotDefaultWorkdirTitle"
+                        >
+                          <div class="flex min-w-0 items-center gap-1.5">
+                            <Icon
+                              icon="lucide:folder"
+                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="truncate">{{ qqbotDefaultWorkdirLabel }}</span>
+                          </div>
+                          <Icon
+                            icon="lucide:chevron-down"
+                            class="h-3 w-3 shrink-0 text-muted-foreground"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" class="w-[20rem]">
+                        <DropdownMenuItem
+                          v-for="project in qqbotDirectoryOptions"
+                          :key="project.path"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="selectDefaultWorkdir('qqbot', project.path)"
+                        >
+                          <Icon
+                            icon="lucide:folder"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate">{{ project.name }}</div>
+                            <div class="truncate text-[10px] text-muted-foreground">
+                              {{ project.path }}
+                            </div>
+                          </div>
+                          <Icon
+                            v-if="normalizePath(qqbotSettings.defaultWorkdir) === project.path"
+                            icon="lucide:check"
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="pickDefaultWorkdir('qqbot')"
+                        >
+                          <Icon
+                            icon="lucide:folder-open"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.project.openFolder') }}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="qqbotSettings.defaultWorkdir"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="clearDefaultWorkdir('qqbot')"
+                        >
+                          <Icon
+                            icon="lucide:x"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.clear') }}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      @click="generatePairCodeAndOpenDialog('qqbot')"
+                    >
+                      {{ t('settings.remote.remoteControl.openPairDialog') }}
+                    </Button>
+                    <Button variant="outline" size="sm" @click="openBindingsDialog('qqbot')">
+                      {{ t('settings.remote.remoteControl.manageBindings') }}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       </template>
     </div>
@@ -744,7 +962,9 @@
               {{
                 pairDialogChannel === 'feishu'
                   ? t('settings.remote.remoteControl.pairDialogInstructionFeishu')
-                  : t('settings.remote.remoteControl.pairDialogInstructionTelegram')
+                  : pairDialogChannel === 'qqbot'
+                    ? t('settings.remote.remoteControl.pairDialogInstructionQQBot')
+                    : t('settings.remote.remoteControl.pairDialogInstructionTelegram')
               }}
             </div>
             <div class="mt-2 rounded-md bg-background px-3 py-2 font-mono text-sm">
@@ -887,14 +1107,56 @@ import type {
   FeishuRemoteStatus,
   RemoteBindingSummary,
   RemoteChannel,
+  RemoteChannelDescriptor,
   RemotePairingSnapshot,
   RemoteRuntimeState,
+  QQBotPairingSnapshot,
+  QQBotRemoteSettings,
+  QQBotRemoteStatus,
   TelegramPairingSnapshot,
   TelegramRemoteSettings,
   TelegramRemoteStatus
 } from '@shared/presenter'
 
-const channels: RemoteChannel[] = ['telegram', 'feishu']
+const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
+  {
+    id: 'telegram',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.telegram.title',
+    descriptionKey: 'settings.remote.telegram.description',
+    supportsPairing: true,
+    supportsNotifications: true
+  },
+  {
+    id: 'feishu',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.feishu.title',
+    descriptionKey: 'settings.remote.feishu.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
+    id: 'qqbot',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.qqbot.title',
+    descriptionKey: 'settings.remote.qqbot.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
+    id: 'weixin-ilink',
+    type: 'builtin',
+    implemented: false,
+    titleKey: 'settings.remote.weixinIlink.title',
+    descriptionKey: 'settings.remote.weixinIlink.description',
+    supportsPairing: false,
+    supportsNotifications: false
+  }
+]
+
 const remoteControlPresenter = useRemoteControlPresenter()
 const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const projectPresenter = usePresenter('projectPresenter')
@@ -903,14 +1165,18 @@ const { toast } = useToast()
 
 const telegramSettings = ref<TelegramRemoteSettings | null>(null)
 const feishuSettings = ref<FeishuRemoteSettings | null>(null)
+const qqbotSettings = ref<QQBotRemoteSettings | null>(null)
 const telegramStatus = ref<TelegramRemoteStatus | null>(null)
 const feishuStatus = ref<FeishuRemoteStatus | null>(null)
+const qqbotStatus = ref<QQBotRemoteStatus | null>(null)
+const channelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackChannelDescriptors)
 const isLoading = ref(false)
 const showBotToken = ref(false)
 const telegramTesting = ref(false)
 const telegramTestResult = ref<HookTestResult | null>(null)
 const telegramAllowedUserIdsText = ref('')
 const feishuPairedUserOpenIdsText = ref('')
+const qqbotPairedUserIdsText = ref('')
 const availableAgents = ref<Agent[]>([])
 const recentProjects = ref<Project[]>([])
 const activeChannel = ref<RemoteChannel>('telegram')
@@ -928,15 +1194,18 @@ const bindingRemovingKey = ref<string | null>(null)
 const bindings = ref<RemoteBindingSummary[]>([])
 const saving = reactive<Record<RemoteChannel, boolean>>({
   telegram: false,
-  feishu: false
+  feishu: false,
+  qqbot: false
 })
 const pendingSave = reactive<Record<RemoteChannel, boolean>>({
   telegram: false,
-  feishu: false
+  feishu: false,
+  qqbot: false
 })
 const saveTasks: Record<RemoteChannel, Promise<void> | null> = {
   telegram: null,
-  feishu: null
+  feishu: null,
+  qqbot: null
 }
 
 let statusRefreshTimer: ReturnType<typeof setInterval> | null = null
@@ -967,8 +1236,27 @@ const defaultFeishuSettings = (): FeishuRemoteSettings => ({
   pairedUserOpenIds: []
 })
 
+const defaultQQBotSettings = (): QQBotRemoteSettings => ({
+  appId: '',
+  clientSecret: '',
+  remoteEnabled: false,
+  defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
+  pairedUserIds: []
+})
+
 const defaultFeishuStatus = (): FeishuRemoteStatus => ({
   channel: 'feishu',
+  enabled: false,
+  state: 'disabled',
+  bindingCount: 0,
+  pairedUserCount: 0,
+  lastError: null,
+  botUser: null
+})
+
+const defaultQQBotStatus = (): QQBotRemoteStatus => ({
+  channel: 'qqbot',
   enabled: false,
   state: 'disabled',
   bindingCount: 0,
@@ -981,6 +1269,12 @@ const defaultFeishuPairingSnapshot = (): FeishuPairingSnapshot => ({
   pairCode: null,
   pairCodeExpiresAt: null,
   pairedUserOpenIds: []
+})
+
+const defaultQQBotPairingSnapshot = (): QQBotPairingSnapshot => ({
+  pairCode: null,
+  pairCodeExpiresAt: null,
+  pairedUserIds: []
 })
 
 const normalizeTelegramPairingSnapshot = (
@@ -999,20 +1293,31 @@ const normalizeFeishuPairingSnapshot = (
   pairedUserOpenIds: [...(snapshot?.pairedUserOpenIds ?? [])]
 })
 
+const normalizeQQBotPairingSnapshot = (
+  snapshot: Partial<QQBotPairingSnapshot> | null | undefined
+): QQBotPairingSnapshot => ({
+  pairCode: snapshot?.pairCode ?? null,
+  pairCodeExpiresAt: snapshot?.pairCodeExpiresAt ?? null,
+  pairedUserIds: [...(snapshot?.pairedUserIds ?? [])]
+})
+
 const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
+  listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
   getChannelSettings?: (
     channel: RemoteChannel
-  ) => Promise<TelegramRemoteSettings | FeishuRemoteSettings>
+  ) => Promise<TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings>
   saveChannelSettings?: (
     channel: RemoteChannel,
-    input: TelegramRemoteSettings | FeishuRemoteSettings
-  ) => Promise<TelegramRemoteSettings | FeishuRemoteSettings>
-  getChannelStatus?: (channel: RemoteChannel) => Promise<TelegramRemoteStatus | FeishuRemoteStatus>
+    input: TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings
+  ) => Promise<TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings>
+  getChannelStatus?: (
+    channel: RemoteChannel
+  ) => Promise<TelegramRemoteStatus | FeishuRemoteStatus | QQBotRemoteStatus>
   getChannelBindings?: (channel: RemoteChannel) => Promise<RemoteBindingSummary[]>
   removeChannelBinding?: (channel: RemoteChannel, endpointKey: string) => Promise<void>
   getChannelPairingSnapshot?: (
     channel: RemoteChannel
-  ) => Promise<TelegramPairingSnapshot | FeishuPairingSnapshot>
+  ) => Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot>
   createChannelPairCode?: (channel: RemoteChannel) => Promise<{
     code: string
     expiresAt: number
@@ -1020,17 +1325,30 @@ const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter 
   clearChannelPairCode?: (channel: RemoteChannel) => Promise<void>
 }
 
+const listRemoteChannelsCompat = async (): Promise<RemoteChannelDescriptor[]> => {
+  if (presenterCompat.listRemoteChannels) {
+    return await presenterCompat.listRemoteChannels()
+  }
+
+  return fallbackChannelDescriptors
+}
+
 function getChannelSettingsCompat(channel: 'telegram'): Promise<TelegramRemoteSettings>
 function getChannelSettingsCompat(channel: 'feishu'): Promise<FeishuRemoteSettings>
+function getChannelSettingsCompat(channel: 'qqbot'): Promise<QQBotRemoteSettings>
 async function getChannelSettingsCompat(
   channel: RemoteChannel
-): Promise<TelegramRemoteSettings | FeishuRemoteSettings> {
+): Promise<TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings> {
   if (presenterCompat.getChannelSettings) {
     return await presenterCompat.getChannelSettings(channel)
   }
 
   if (channel === 'telegram') {
     return await remoteControlPresenter.getTelegramSettings()
+  }
+
+  if (channel === 'qqbot') {
+    return defaultQQBotSettings()
   }
 
   return defaultFeishuSettings()
@@ -1044,10 +1362,14 @@ function saveChannelSettingsCompat(
   channel: 'feishu',
   input: FeishuRemoteSettings
 ): Promise<FeishuRemoteSettings>
+function saveChannelSettingsCompat(
+  channel: 'qqbot',
+  input: QQBotRemoteSettings
+): Promise<QQBotRemoteSettings>
 async function saveChannelSettingsCompat(
   channel: RemoteChannel,
-  input: TelegramRemoteSettings | FeishuRemoteSettings
-): Promise<TelegramRemoteSettings | FeishuRemoteSettings> {
+  input: TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings
+): Promise<TelegramRemoteSettings | FeishuRemoteSettings | QQBotRemoteSettings> {
   if (presenterCompat.saveChannelSettings) {
     return await presenterCompat.saveChannelSettings(channel, input)
   }
@@ -1056,20 +1378,29 @@ async function saveChannelSettingsCompat(
     return await remoteControlPresenter.saveTelegramSettings(input as TelegramRemoteSettings)
   }
 
+  if (channel === 'qqbot') {
+    return input as QQBotRemoteSettings
+  }
+
   return input as FeishuRemoteSettings
 }
 
 function getChannelStatusCompat(channel: 'telegram'): Promise<TelegramRemoteStatus>
 function getChannelStatusCompat(channel: 'feishu'): Promise<FeishuRemoteStatus>
+function getChannelStatusCompat(channel: 'qqbot'): Promise<QQBotRemoteStatus>
 async function getChannelStatusCompat(
   channel: RemoteChannel
-): Promise<TelegramRemoteStatus | FeishuRemoteStatus> {
+): Promise<TelegramRemoteStatus | FeishuRemoteStatus | QQBotRemoteStatus> {
   if (presenterCompat.getChannelStatus) {
     return await presenterCompat.getChannelStatus(channel)
   }
 
   if (channel === 'telegram') {
     return await remoteControlPresenter.getTelegramStatus()
+  }
+
+  if (channel === 'qqbot') {
+    return defaultQQBotStatus()
   }
 
   return defaultFeishuStatus()
@@ -1114,13 +1445,17 @@ const removeChannelBindingCompat = async (
 
 const getChannelPairingSnapshotCompat = async (
   channel: RemoteChannel
-): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot> => {
+): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot> => {
   if (presenterCompat.getChannelPairingSnapshot) {
     return await presenterCompat.getChannelPairingSnapshot(channel)
   }
 
   if (channel === 'telegram') {
     return await remoteControlPresenter.getTelegramPairingSnapshot()
+  }
+
+  if (channel === 'qqbot') {
+    return defaultQQBotPairingSnapshot()
   }
 
   return defaultFeishuPairingSnapshot()
@@ -1158,7 +1493,14 @@ const clearChannelPairCodeCompat = async (channel: RemoteChannel): Promise<void>
 }
 
 const eventNames = HOOK_EVENT_NAMES
-const isAnySaving = computed(() => saving.telegram || saving.feishu)
+const implementedChannels = computed(() =>
+  channelDescriptors.value
+    .filter((descriptor) => descriptor.implemented)
+    .map((descriptor) => descriptor.id)
+    .filter((channel): channel is RemoteChannel => channel !== 'weixin-ilink')
+)
+const implementedChannelCount = computed(() => Math.max(1, implementedChannels.value.length))
+const isAnySaving = computed(() => saving.telegram || saving.feishu || saving.qqbot)
 const normalizePath = (value: string | null | undefined): string => value?.trim() ?? ''
 const pathLabel = (value: string) => value.split(/[/\\]/).pop() ?? value
 const buildDirectoryOptions = (currentPath: string) => {
@@ -1192,6 +1534,9 @@ const telegramDirectoryOptions = computed(() =>
 const feishuDirectoryOptions = computed(() =>
   buildDirectoryOptions(feishuSettings.value?.defaultWorkdir ?? '')
 )
+const qqbotDirectoryOptions = computed(() =>
+  buildDirectoryOptions(qqbotSettings.value?.defaultWorkdir ?? '')
+)
 const defaultWorkdirLabel = (value: string | null | undefined) => {
   const normalized = normalizePath(value)
   return normalized
@@ -1211,6 +1556,12 @@ const feishuDefaultWorkdirLabel = computed(() =>
 )
 const feishuDefaultWorkdirTitle = computed(() =>
   defaultWorkdirTitle(feishuSettings.value?.defaultWorkdir)
+)
+const qqbotDefaultWorkdirLabel = computed(() =>
+  defaultWorkdirLabel(qqbotSettings.value?.defaultWorkdir)
+)
+const qqbotDefaultWorkdirTitle = computed(() =>
+  defaultWorkdirTitle(qqbotSettings.value?.defaultWorkdir)
 )
 
 const formatAgentOptionName = (agent: Pick<Agent, 'name' | 'type'>) =>
@@ -1299,26 +1650,46 @@ const syncFeishuFields = (snapshot: Partial<FeishuRemoteSettings> | null | undef
   feishuPairedUserOpenIdsText.value = feishuSettings.value.pairedUserOpenIds.join(', ')
 }
 
+const syncQQBotFields = (snapshot: Partial<QQBotRemoteSettings> | null | undefined) => {
+  const fallback = defaultQQBotSettings()
+
+  qqbotSettings.value = {
+    ...fallback,
+    ...snapshot,
+    defaultWorkdir: normalizePath(snapshot?.defaultWorkdir),
+    pairedUserIds: [...(snapshot?.pairedUserIds ?? fallback.pairedUserIds)]
+  }
+  qqbotPairedUserIdsText.value = qqbotSettings.value.pairedUserIds.join(', ')
+}
+
 const channelStatus = (channel: RemoteChannel) =>
-  channel === 'telegram' ? telegramStatus.value : feishuStatus.value
+  channel === 'telegram'
+    ? telegramStatus.value
+    : channel === 'feishu'
+      ? feishuStatus.value
+      : qqbotStatus.value
 
 const getSnapshotPrincipalIds = (
   channel: RemoteChannel,
-  snapshot: TelegramPairingSnapshot | FeishuPairingSnapshot
+  snapshot: TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot
 ): string[] =>
   channel === 'telegram'
     ? normalizeTelegramPairingSnapshot(
         snapshot as Partial<TelegramPairingSnapshot>
       ).allowedUserIds.map((value) => String(value))
-    : normalizeFeishuPairingSnapshot(snapshot as Partial<FeishuPairingSnapshot>).pairedUserOpenIds
+    : channel === 'feishu'
+      ? normalizeFeishuPairingSnapshot(snapshot as Partial<FeishuPairingSnapshot>).pairedUserOpenIds
+      : normalizeQQBotPairingSnapshot(snapshot as Partial<QQBotPairingSnapshot>).pairedUserIds
 
 const refreshStatus = async () => {
-  const [nextTelegramStatus, nextFeishuStatus] = await Promise.all([
+  const [nextTelegramStatus, nextFeishuStatus, nextQQBotStatus] = await Promise.all([
     getChannelStatusCompat('telegram'),
-    getChannelStatusCompat('feishu')
+    getChannelStatusCompat('feishu'),
+    getChannelStatusCompat('qqbot')
   ])
   telegramStatus.value = nextTelegramStatus
   feishuStatus.value = nextFeishuStatus
+  qqbotStatus.value = nextQQBotStatus
 }
 
 const refreshPairingSnapshot = async (channel: RemoteChannel): Promise<RemotePairingSnapshot> => {
@@ -1346,20 +1717,38 @@ const loadRecentProjects = async () => {
 const loadState = async () => {
   isLoading.value = true
   try {
-    const [loadedTelegramSettings, loadedFeishuSettings, loadedTelegramStatus, loadedFeishuStatus] =
-      await Promise.all([
-        getChannelSettingsCompat('telegram'),
-        getChannelSettingsCompat('feishu'),
-        getChannelStatusCompat('telegram'),
-        getChannelStatusCompat('feishu'),
-        loadAvailableAgents(),
-        loadRecentProjects()
-      ])
+    const [
+      loadedChannelDescriptors,
+      loadedTelegramSettings,
+      loadedFeishuSettings,
+      loadedQQBotSettings,
+      loadedTelegramStatus,
+      loadedFeishuStatus,
+      loadedQQBotStatus
+    ] = await Promise.all([
+      listRemoteChannelsCompat(),
+      getChannelSettingsCompat('telegram'),
+      getChannelSettingsCompat('feishu'),
+      getChannelSettingsCompat('qqbot'),
+      getChannelStatusCompat('telegram'),
+      getChannelStatusCompat('feishu'),
+      getChannelStatusCompat('qqbot'),
+      loadAvailableAgents(),
+      loadRecentProjects()
+    ])
 
+    channelDescriptors.value =
+      loadedChannelDescriptors.length > 0 ? loadedChannelDescriptors : fallbackChannelDescriptors
     syncTelegramFields(loadedTelegramSettings)
     syncFeishuFields(loadedFeishuSettings)
+    syncQQBotFields(loadedQQBotSettings)
     telegramStatus.value = loadedTelegramStatus
     feishuStatus.value = loadedFeishuStatus
+    qqbotStatus.value = loadedQQBotStatus
+
+    if (!implementedChannels.value.includes(activeChannel.value)) {
+      activeChannel.value = implementedChannels.value[0] ?? 'telegram'
+    }
   } catch (error) {
     console.error('Failed to load remote settings:', error)
     toast({
@@ -1396,6 +1785,18 @@ const buildFeishuDraftSettings = (): FeishuRemoteSettings | null => {
   }
 }
 
+const buildQQBotDraftSettings = (): QQBotRemoteSettings | null => {
+  if (!qqbotSettings.value) {
+    return null
+  }
+
+  return {
+    ...qqbotSettings.value,
+    defaultWorkdir: normalizePath(qqbotSettings.value.defaultWorkdir),
+    pairedUserIds: parseOpenIds(qqbotPairedUserIdsText.value)
+  }
+}
+
 const toastSaveError = (error: unknown) => {
   toast({
     title: t('common.error.operationFailed'),
@@ -1426,7 +1827,7 @@ const persistChannelSettings = async (channel: RemoteChannel): Promise<void> => 
 
           const saved = await saveChannelSettingsCompat('telegram', nextSettings)
           syncTelegramFields(saved)
-        } else {
+        } else if (channel === 'feishu') {
           const nextSettings = buildFeishuDraftSettings()
           if (!nextSettings) {
             return
@@ -1434,6 +1835,14 @@ const persistChannelSettings = async (channel: RemoteChannel): Promise<void> => 
 
           const saved = await saveChannelSettingsCompat('feishu', nextSettings)
           syncFeishuFields(saved)
+        } else {
+          const nextSettings = buildQQBotDraftSettings()
+          if (!nextSettings) {
+            return
+          }
+
+          const saved = await saveChannelSettingsCompat('qqbot', nextSettings)
+          syncQQBotFields(saved)
         }
 
         await Promise.all([refreshStatus(), loadAvailableAgents()])
@@ -1466,12 +1875,20 @@ const persistFeishuSettings = async () => {
   await persistChannelSettings('feishu')
 }
 
+const persistQQBotSettings = async () => {
+  await persistChannelSettings('qqbot')
+}
+
 const queueTelegramSettingsPersist = () => {
   void persistTelegramSettings().catch(() => undefined)
 }
 
 const queueFeishuSettingsPersist = () => {
   void persistFeishuSettings().catch(() => undefined)
+}
+
+const queueQQBotSettingsPersist = () => {
+  void persistQQBotSettings().catch(() => undefined)
 }
 
 const updateTelegramRemoteEnabled = (value: boolean) => {
@@ -1490,10 +1907,20 @@ const updateFeishuRemoteEnabled = (value: boolean) => {
   queueFeishuSettingsPersist()
 }
 
+const updateQQBotRemoteEnabled = (value: boolean) => {
+  if (!qqbotSettings.value) {
+    return
+  }
+  qqbotSettings.value.remoteEnabled = Boolean(value)
+  queueQQBotSettingsPersist()
+}
+
 const channelEnabled = (channel: RemoteChannel): boolean =>
   channel === 'telegram'
     ? Boolean(telegramSettings.value?.remoteEnabled)
-    : Boolean(feishuSettings.value?.remoteEnabled)
+    : channel === 'feishu'
+      ? Boolean(feishuSettings.value?.remoteEnabled)
+      : Boolean(qqbotSettings.value?.remoteEnabled)
 
 const updateChannelRemoteEnabled = (channel: RemoteChannel, value: boolean) => {
   if (channel === 'telegram') {
@@ -1501,7 +1928,12 @@ const updateChannelRemoteEnabled = (channel: RemoteChannel, value: boolean) => {
     return
   }
 
-  updateFeishuRemoteEnabled(value)
+  if (channel === 'feishu') {
+    updateFeishuRemoteEnabled(value)
+    return
+  }
+
+  updateQQBotRemoteEnabled(value)
 }
 
 const updateTelegramDefaultAgentId = (value: string) => {
@@ -1520,6 +1952,14 @@ const updateFeishuDefaultAgentId = (value: string) => {
   queueFeishuSettingsPersist()
 }
 
+const updateQQBotDefaultAgentId = (value: string) => {
+  if (!qqbotSettings.value) {
+    return
+  }
+  qqbotSettings.value.defaultAgentId = value
+  queueQQBotSettingsPersist()
+}
+
 const setDefaultWorkdir = (channel: RemoteChannel, value: string) => {
   const normalizedValue = normalizePath(value)
 
@@ -1532,11 +1972,20 @@ const setDefaultWorkdir = (channel: RemoteChannel, value: string) => {
     return
   }
 
-  if (!feishuSettings.value) {
+  if (channel === 'feishu') {
+    if (!feishuSettings.value) {
+      return
+    }
+    feishuSettings.value.defaultWorkdir = normalizedValue
+    queueFeishuSettingsPersist()
     return
   }
-  feishuSettings.value.defaultWorkdir = normalizedValue
-  queueFeishuSettingsPersist()
+
+  if (!qqbotSettings.value) {
+    return
+  }
+  qqbotSettings.value.defaultWorkdir = normalizedValue
+  queueQQBotSettingsPersist()
 }
 
 const selectDefaultWorkdir = (channel: RemoteChannel, value: string) => {
@@ -1618,10 +2067,14 @@ const pollPairingSnapshot = async () => {
       telegramAllowedUserIdsText.value = normalizeTelegramPairingSnapshot(
         snapshot as Partial<TelegramPairingSnapshot>
       ).allowedUserIds.join(', ')
-    } else {
+    } else if (pairDialogChannel.value === 'feishu') {
       feishuPairedUserOpenIdsText.value = normalizeFeishuPairingSnapshot(
         snapshot as Partial<FeishuPairingSnapshot>
       ).pairedUserOpenIds.join(', ')
+    } else {
+      qqbotPairedUserIdsText.value = normalizeQQBotPairingSnapshot(
+        snapshot as Partial<QQBotPairingSnapshot>
+      ).pairedUserIds.join(', ')
     }
 
     await refreshStatus()
@@ -1650,8 +2103,10 @@ const persistChannelDraftOrAbort = async (channel: RemoteChannel): Promise<boole
   try {
     if (channel === 'telegram') {
       await persistTelegramSettings()
-    } else {
+    } else if (channel === 'feishu') {
       await persistFeishuSettings()
+    } else {
+      await persistQQBotSettings()
     }
     return true
   } catch {
@@ -1782,7 +2237,7 @@ const eventLabel = (eventName: HookEventName) =>
 
 const formatTimestamp = (value: number) => new Date(value).toLocaleString()
 
-const formatStatusLine = (value: TelegramRemoteStatus | FeishuRemoteStatus) =>
+const formatStatusLine = (value: TelegramRemoteStatus | FeishuRemoteStatus | QQBotRemoteStatus) =>
   t(`settings.remote.status.states.${value.state}`)
 
 const statusDotClass = (state: RemoteRuntimeState, dotOnly = false) => {
@@ -1821,6 +2276,13 @@ const formatOverviewLine = (channel: RemoteChannel) => {
       hooks: telegramSettings.value?.hookNotifications.enabled
         ? t('settings.remote.overview.hooksOn')
         : t('settings.remote.overview.hooksOff')
+    })
+  }
+
+  if (channel === 'qqbot') {
+    return t('settings.remote.overview.qqbot', {
+      bindingCount: status.bindingCount,
+      pairedCount: status.pairedUserCount
     })
   }
 

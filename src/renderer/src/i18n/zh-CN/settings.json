@@ -1591,7 +1591,7 @@
   },
   "remote": {
     "title": "远程",
-    "description": "统一配置 Telegram 和飞书远程控制。",
+    "description": "统一配置 Telegram、飞书和 QQBot 远程控制。",
     "telegram": {
       "title": "Telegram",
       "description": "用同一个 Telegram Bot 管理远程控制和 Hook 投递。",
@@ -1645,7 +1645,8 @@
       "bindingsDialogDescription": "逐条移除远程入口与 DeepChat 会话的绑定关系。",
       "bindingsEmpty": "当前还没有绑定的会话。",
       "pairingSuccessTitle": "配对成功",
-      "pairingSuccessDescription": "已配对主体列表已刷新。"
+      "pairingSuccessDescription": "已配对主体列表已刷新。",
+      "pairDialogInstructionQQBot": "去 QQ 机器人私聊或已授权群聊里发送这条命令："
     },
     "hooks": {
       "title": "Telegram Hook 通知",
@@ -1666,18 +1667,35 @@
         "running": "运行中",
         "backoff": "失败后重试中",
         "error": "错误"
-      }
+      },
+      "bindingOnly": "绑定数：{count}，已配对主体：{paired}"
     },
     "overview": {
       "telegram": "{bindingCount} 个绑定，{pairedCount} 个已配对用户，hooks {hooks}",
       "feishu": "{bindingCount} 个绑定，{pairedCount} 个已配对用户",
       "hooksOn": "开启",
-      "hooksOff": "关闭"
+      "hooksOff": "关闭",
+      "qqbot": "{bindingCount} 个绑定，{pairedCount} 个已配对用户"
     },
     "bindingKinds": {
       "dm": "私聊",
       "group": "群聊",
       "topic": "话题"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "接入 QQ 机器人开放平台 Bot，支持单聊和已授权群聊提及机器人控制。",
+      "appId": "应用 ID",
+      "appIdPlaceholder": "QQBot 应用 ID",
+      "clientSecret": "客户端密钥",
+      "clientSecretPlaceholder": "QQBot 客户端密钥",
+      "remoteControlDescription": "QQ 官方单聊 user_openid 与群聊 member_openid 不是同一身份空间，所以单聊配对授权用户，群聊需要在群内单独用 /pair 授权。",
+      "pairedUserIds": "已配对用户 OpenID",
+      "pairedUserIdsPlaceholder": "例如 user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "微信 iLink",
+      "description": "内建微信 iLink Bot 支持将在下一阶段接入。"
     }
   }
 }

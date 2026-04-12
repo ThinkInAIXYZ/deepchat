@@ -1,36 +1,36 @@
-# Remote Adapter Framework + Plugin Seam Tasks
+# QQBot First, WeChat iLink Next Tasks
 
-## Phase 1: Internal Contracts
+## Phase 1: Shared Contract
 
-- [x] Add `types/channel.ts` with adapter lifecycle, status, factory, attachment, and plugin manifest types.
-- [x] Add plugin manifest validation helpers and ABI version constants.
-- [x] Add `ChannelAdapter` base class with idempotent lifecycle management, status emission, logger integration, and shared download helpers.
-- [x] Add `ChannelManager` and `AdapterRegistry` with built-in and future plugin source support.
+- [x] Extend remote shared presenter types with `RemoteChannelId`, channel descriptors, and QQBot settings / status / pairing types.
+- [x] Add `listRemoteChannels()` to the remote presenter contract.
+- [x] Keep Telegram compatibility methods intact.
 
-## Phase 2: Built-In Adapter Migration
+## Phase 2: QQBot Main Runtime
 
-- [x] Implement `TelegramAdapter` as a wrapper around the existing Telegram runtime stack.
-- [x] Implement `FeishuAdapter` as a wrapper around the existing Feishu runtime stack.
-- [x] Preserve existing command routing, pairing, binding, callback, pending interaction, and streaming behavior.
-- [x] Preserve fatal auto-disable by disabling persisted config and unregistering the active adapter.
+- [x] Add QQBot config normalization and binding-store support under `remoteControl.qqbot`.
+- [x] Add official QQBot HTTP client and gateway session modules.
+- [x] Add QQBot parser, auth guard, command router, runtime, and adapter.
+- [x] Register QQBot through `ChannelManager` instead of adding another presenter-owned runtime branch.
 
-## Phase 3: Presenter Refactor
+## Phase 3: Registry-Driven Renderer
 
-- [x] Refactor `RemoteControlPresenter` to manage remote runtimes through `ChannelManager`.
-- [x] Register built-in adapter factories for Telegram and Feishu.
-- [x] Rebuild only the affected adapter when channel settings change.
-- [x] Keep renderer-visible presenter methods and `RemoteChannel` compatibility unchanged.
+- [x] Update Remote settings overview cards and tab headers to use remote channel descriptors.
+- [x] Add a built-in QQBot settings panel.
+- [x] Update the sidebar remote-status button to aggregate implemented channels from descriptors.
+- [x] Reserve `weixin-ilink` as an unimplemented descriptor.
 
-## Phase 4: Plugin Seam
+## Phase 4: Documentation and Coverage
 
-- [x] Reserve plugin manifest ABI fields for future third-party channel packages.
-- [x] Keep plugin source support in the adapter registry without executing external bundles.
-- [x] Document the future host-process boundary for third-party channel plugins.
+- [x] Add focused QQBot unit tests for parser, auth guard, command router, and adapter.
+- [x] Update presenter regression coverage for descriptor listing.
+- [x] Update the remote multi-channel spec / plan / tasks documents to reflect QQBot-first delivery.
 
 ## Phase 5: Validation
 
-- [x] Add unit tests for `ChannelAdapter`, `ChannelManager`, plugin manifest validation, `TelegramAdapter`, and `FeishuAdapter`.
-- [x] Update `RemoteControlPresenter` regression tests for manager-driven runtime rebuild behavior.
-- [x] Verify main-process remote control suites still pass after the migration.
-- [x] Verify renderer Remote settings and sidebar compatibility tests still pass.
-- [ ] Run repository-wide format, i18n, lint, and full typecheck gates.
+- [x] Run focused remote main-process Vitest suites.
+- [x] Run focused renderer Remote settings and sidebar Vitest suites.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run `pnpm run typecheck`.

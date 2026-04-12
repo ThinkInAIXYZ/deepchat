@@ -4,6 +4,7 @@ import type {
   IConfigPresenter,
   IAgentSessionPresenter,
   IRemoteControlPresenter,
+  QQBotRemoteSettings,
   ITabPresenter,
   IWindowPresenter,
   TelegramRemoteSettings
@@ -30,4 +31,5 @@ export interface RemoteControlPresenterLike
   extends IRemoteControlPresenter, RemoteRuntimeLifecycle {
   buildTelegramSettingsSnapshot(): TelegramRemoteSettings
   buildFeishuSettingsSnapshot(): FeishuRemoteSettings
+  buildQQBotSettingsSnapshot(): QQBotRemoteSettings
 }

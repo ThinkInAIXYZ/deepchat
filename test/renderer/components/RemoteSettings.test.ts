@@ -793,7 +793,7 @@ describe('RemoteSettings', () => {
     ).toHaveProperty('value', '')
   })
 
-  it('uses remote control as the feishu section title', async () => {
+  it('uses remote control as the channel section title', async () => {
     const { wrapper } = await setup({
       feishuChannelSettingsOverride: {
         remoteEnabled: true
@@ -802,7 +802,7 @@ describe('RemoteSettings', () => {
 
     const text = wrapper.text()
     expect(text).not.toContain('settings.remote.sections.accessRules')
-    expect(text.match(/settings\.remote\.sections\.remoteControl/g)).toHaveLength(2)
+    expect(text.match(/settings\.remote\.sections\.remoteControl/g)).toHaveLength(3)
   })
 
   it('opens the pair dialog and closes it after pairing succeeds', async () => {

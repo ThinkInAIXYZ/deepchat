@@ -1,76 +1,70 @@
-# Remote Adapter Framework + Plugin Seam
+# QQBot First, WeChat iLink Next
 
 ## Summary
 
-Refactor DeepChat remote control from presenter-owned Telegram / Feishu runtimes into a unified adapter framework. Telegram and Feishu remain the only user-visible remote channels in this iteration, but the main-process runtime must expose a stable adapter / factory boundary so future built-in channels and locally installed third-party IM integrations can plug in without rewriting `RemoteControlPresenter`.
+DeepChat remote control now has a built-in adapter framework, but the renderer contract and built-in channel set still need to scale past Telegram and Feishu. This iteration promotes the public remote contract to a registry-driven model and ships the first new official built-in channel: QQ Bot Open Platform.
 
-This iteration does not ship a runnable third-party plugin system. It only reserves the ABI, manifest format, and process-boundary constraints that future channel plugins must follow.
+The design basis for QQBot follows Tencent official documentation only:
+
+- access token and HTTP auth
+- WebSocket gateway and intents
+- official `C2C_MESSAGE_CREATE` and `GROUP_AT_MESSAGE_CREATE` events
+- official `/v2/users/{openid}/messages` and `/v2/groups/{group_openid}/messages` send APIs
+
+WeChat iLink remains the next phase. Its channel id and descriptor are reserved now, but no runtime or auth flow ships in this iteration.
 
 ## User Stories
 
-- As a maintainer, I can add a new built-in remote channel without adding another presenter-owned runtime branch beside Telegram and Feishu.
-- As a maintainer, I can migrate Telegram and Feishu onto the same adapter lifecycle without changing their existing command, pairing, binding, or streaming behavior.
-- As a future plugin author, I can target a documented channel-plugin ABI instead of patching DeepChat internals.
-- As a desktop user, my existing Remote settings page and sidebar status indicator continue to work exactly as before for Telegram and Feishu.
+- As a desktop user, I can configure Telegram, Feishu, and QQBot remote control from one Remote settings page.
+- As a maintainer, I can add future built-in channels by registering descriptors and adapters instead of hardcoding presenter branches.
+- As a maintainer, I can keep Telegram and Feishu behavior stable while adding QQBot through the same adapter boundary.
+- As a future WeChat iLink user, I can already see that the channel exists in the registry even though the runtime is not implemented yet.
 
 ## Acceptance Criteria
 
-- `RemoteControlPresenter` manages remote channels through `ChannelManager` and built-in adapter factories instead of holding `TelegramPoller` / `FeishuRuntime` instances directly.
-- A shared internal contract exists for:
-  - channel adapter lifecycle
-  - channel status snapshots
-  - channel factories / registry
-  - future plugin manifest parsing
-- Telegram remote control behavior remains unchanged:
-  - commands
-  - callback menus
-  - pending interaction flow
-  - binding / pairing rules
-  - fatal auto-disable
-  - streamed delivery behavior
-- Feishu remote control behavior remains unchanged:
-  - direct-message pairing
-  - mention gating in groups / topics
-  - command handling
-  - pending interaction flow
-  - fatal auto-disable
-  - streamed delivery behavior
-- Renderer-visible contracts stay compatible:
-  - `RemoteChannel` remains `'telegram' | 'feishu'`
-  - existing Remote settings tabs remain Telegram + Feishu only
-  - existing sidebar polling remains compatible
-- A channel plugin manifest ABI exists and is validated in tests.
+- `IRemoteControlPresenter` exposes `listRemoteChannels()` and generic per-channel settings / status / pairing methods that include `qqbot`.
+- `RemoteChannelId` includes:
+  - `telegram`
+  - `feishu`
+  - `qqbot`
+  - `weixin-ilink`
+- Renderer remote UI is registry-driven for:
+  - overview cards
+  - tab headers
+  - sidebar remote status aggregation
+- Existing Telegram and Feishu runtime behavior remains unchanged.
+- A built-in `QQBotAdapter` exists and is registered through `ChannelManager`.
+- QQBot uses official transport primitives only:
+  - `POST https://bots.qq.com/app/getAppAccessToken`
+  - `GET https://api.sgroup.qq.com/gateway`
+  - official WebSocket `identify` / `resume` / heartbeat flow
+  - official C2C and group message send endpoints
+- QQBot first-release scope is:
+  - C2C direct messages
+  - group `@bot` messages
+  - text-only passive replies
+- `RemoteBindingStore`, `RemoteConversationRunner`, and `RemoteBlockRenderer` stay the source of truth for bindings, sessions, and rendered delivery text.
+- Remote settings persist QQBot data under `remoteControl.qqbot` without flattening everything into a generic `channels` map.
 
-## Constraints
+## Official Constraints
 
-- Do not load third-party channel JavaScript directly inside Electron main or renderer.
-- Third-party channels are future work and must eventually run behind a dedicated plugin host boundary.
-- This iteration does not add Discord / Slack runtime code, configuration schema, or settings UI.
-- This iteration does not add plugin installation UI, plugin directory scanning, or plugin-host process management.
-- Existing `remoteControl` persisted data, Telegram hook test API, and renderer IPC contract must remain backward compatible.
+- QQ official C2C `user_openid` and group `member_openid` are different identity spaces, so a direct-message-paired user cannot be inferred from a group event.
+- Because of that constraint, QQBot group authorization is handled separately from C2C user pairing.
+- This iteration stores:
+  - paired C2C user ids
+  - internally authorized group ids
+- Group control only reacts to `GROUP_AT_MESSAGE_CREATE` and only after explicit group authorization with `/pair`.
 
 ## Non-Goals
 
-- Shipping a complete third-party channel marketplace or installer.
-- Shipping Discord / Slack / QQ as user-configurable remote channels in this iteration.
-- Reworking Remote settings UI structure beyond compatibility-preserving changes.
-- Replacing current Telegram / Feishu command routers with a fully generic cross-platform command layer.
-
-## Plugin ABI Guardrails
-
-- Future channel plugins use `manifest.json + bundle.js + index.d.ts + optional config.schema.json`.
-- The manifest must declare:
-  - `schemaVersion`
-  - `pluginId`
-  - `apiVersion`
-  - `entry`
-  - `types`
-  - `channelType`
-- The JS bundle exports `createChannelPlugin()`.
-- Future plugin configuration UI must be schema-driven; plugins do not inject renderer code.
+- No OneBot, go-cqhttp, unofficial QQ bridges, or personal-WeChat bridges.
+- No Discord or Slack runtime in this iteration.
+- No WeChat iLink login flow, QR polling, account switching UI, or runtime delivery yet.
+- No third-party plugin execution or installation UI in this iteration.
 
 ## Compatibility
 
-- Existing Telegram and Feishu settings continue to load from the current `remoteControl` config structure.
-- Existing renderer code keeps using the same presenter methods.
-- Existing Telegram / Feishu runtime tests remain valid, and new adapter-layer tests cover the new boundaries.
+- Existing Telegram and Feishu saved settings remain valid.
+- Existing Telegram hook test API remains valid.
+- Existing renderer callers that use Telegram-only compatibility methods continue to work.
+- New generic remote presenter methods become the preferred path for renderer code.

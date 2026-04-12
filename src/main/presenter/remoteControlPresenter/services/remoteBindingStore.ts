@@ -3,6 +3,7 @@ import {
   REMOTE_CONTROL_SETTING_KEY,
   TELEGRAM_INTERACTION_CALLBACK_TTL_MS,
   TELEGRAM_MODEL_MENU_TTL_MS,
+  buildQQBotPairingSnapshot,
   normalizeRemoteControlConfig,
   createPairCode,
   createTelegramCallbackToken,
@@ -11,6 +12,8 @@ import {
   buildTelegramPairingSnapshot,
   type FeishuPairingState,
   type FeishuRemoteRuntimeConfig,
+  type QQBotPairingState,
+  type QQBotRemoteRuntimeConfig,
   type RemoteControlConfig,
   type RemoteEndpointBinding,
   type RemoteEndpointBindingMeta,
@@ -49,7 +52,10 @@ export class RemoteBindingStore {
 
   getChannelConfig(channel: 'telegram'): TelegramRemoteRuntimeConfig
   getChannelConfig(channel: 'feishu'): FeishuRemoteRuntimeConfig
-  getChannelConfig(channel: RemoteChannel): TelegramRemoteRuntimeConfig | FeishuRemoteRuntimeConfig
+  getChannelConfig(channel: 'qqbot'): QQBotRemoteRuntimeConfig
+  getChannelConfig(
+    channel: RemoteChannel
+  ): TelegramRemoteRuntimeConfig | FeishuRemoteRuntimeConfig | QQBotRemoteRuntimeConfig
   getChannelConfig(channel: RemoteChannel) {
     const config = this.getConfig()
     return config[channel]
@@ -61,6 +67,10 @@ export class RemoteBindingStore {
 
   getFeishuConfig(): FeishuRemoteRuntimeConfig {
     return this.getChannelConfig('feishu')
+  }
+
+  getQQBotConfig(): QQBotRemoteRuntimeConfig {
+    return this.getChannelConfig('qqbot')
   }
 
   updateTelegramConfig(
@@ -85,6 +95,18 @@ export class RemoteBindingStore {
     })
     this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
     return next.feishu
+  }
+
+  updateQQBotConfig(
+    updater: (config: QQBotRemoteRuntimeConfig) => QQBotRemoteRuntimeConfig
+  ): QQBotRemoteRuntimeConfig {
+    const current = this.getConfig()
+    const next = normalizeRemoteControlConfig({
+      ...current,
+      qqbot: updater(current.qqbot)
+    })
+    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    return next.qqbot
   }
 
   getEndpointKey(
@@ -152,7 +174,7 @@ export class RemoteBindingStore {
   }> {
     const configs =
       channel === undefined
-        ? (['telegram', 'feishu'] as const).map(
+        ? (['telegram', 'feishu', 'qqbot'] as const).map(
             (key) => [key, this.getChannelBindings(key)] as const
           )
         : ([[channel, this.getChannelBindings(channel)]] as const)
@@ -178,12 +200,21 @@ export class RemoteBindingStore {
         ...config,
         bindings: {}
       }))
+    } else if (channel === 'qqbot') {
+      this.updateQQBotConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
     } else {
       this.updateTelegramConfig((config) => ({
         ...config,
         bindings: {}
       }))
       this.updateFeishuConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+      this.updateQQBotConfig((config) => ({
         ...config,
         bindings: {}
       }))
@@ -231,6 +262,10 @@ export class RemoteBindingStore {
     return this.getFeishuConfig().defaultAgentId
   }
 
+  getQQBotDefaultAgentId(): string {
+    return this.getQQBotConfig().defaultAgentId
+  }
+
   isAllowedUser(userId: number | null | undefined): boolean {
     if (!userId) {
       return false
@@ -272,6 +307,58 @@ export class RemoteBindingStore {
     }))
   }
 
+  getQQBotPairedUserIds(): string[] {
+    return this.getQQBotConfig().pairedUserIds
+  }
+
+  getQQBotPairedGroupIds(): string[] {
+    return this.getQQBotConfig().pairedGroupIds
+  }
+
+  isQQBotPairedUser(userId: string | null | undefined): boolean {
+    if (!userId) {
+      return false
+    }
+
+    return this.getQQBotPairedUserIds().includes(userId.trim())
+  }
+
+  isQQBotPairedGroup(groupId: string | null | undefined): boolean {
+    if (!groupId) {
+      return false
+    }
+
+    return this.getQQBotPairedGroupIds().includes(groupId.trim())
+  }
+
+  addQQBotPairedUser(userId: string): void {
+    const normalized = userId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateQQBotConfig((config) => ({
+      ...config,
+      pairedUserIds: Array.from(new Set([...config.pairedUserIds, normalized])).sort((a, b) =>
+        a.localeCompare(b)
+      )
+    }))
+  }
+
+  addQQBotPairedGroup(groupId: string): void {
+    const normalized = groupId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateQQBotConfig((config) => ({
+      ...config,
+      pairedGroupIds: Array.from(new Set([...config.pairedGroupIds, normalized])).sort((a, b) =>
+        a.localeCompare(b)
+      )
+    }))
+  }
+
   getTelegramPairingState(): TelegramPairingState {
     return this.getTelegramConfig().pairing
   }
@@ -284,12 +371,20 @@ export class RemoteBindingStore {
     return this.getFeishuConfig().pairing
   }
 
+  getQQBotPairingState(): QQBotPairingState {
+    return this.getQQBotConfig().pairing
+  }
+
   getTelegramPairingSnapshot() {
     return buildTelegramPairingSnapshot(this.getTelegramConfig())
   }
 
   getFeishuPairingSnapshot() {
     return buildFeishuPairingSnapshot(this.getFeishuConfig())
+  }
+
+  getQQBotPairingSnapshot() {
+    return buildQQBotPairingSnapshot(this.getQQBotConfig())
   }
 
   createPairCode(channel: RemoteChannel = 'telegram'): { code: string; expiresAt: number } {
@@ -299,8 +394,13 @@ export class RemoteBindingStore {
         ...config,
         pairing
       }))
-    } else {
+    } else if (channel === 'feishu') {
       this.updateFeishuConfig((config) => ({
+        ...config,
+        pairing
+      }))
+    } else {
+      this.updateQQBotConfig((config) => ({
         ...config,
         pairing
       }))
@@ -324,7 +424,19 @@ export class RemoteBindingStore {
       return
     }
 
-    this.updateFeishuConfig((config) => ({
+    if (channel === 'feishu') {
+      this.updateFeishuConfig((config) => ({
+        ...config,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        }
+      }))
+      return
+    }
+
+    this.updateQQBotConfig((config) => ({
       ...config,
       pairing: {
         code: null,
@@ -366,8 +478,31 @@ export class RemoteBindingStore {
               }
         }
       })
-    } else {
+    } else if (channel === 'feishu') {
       this.updateFeishuConfig((config) => {
+        const attempts = config.pairing.failedAttempts + 1
+        const exhausted = attempts >= maxAttempts
+        result = {
+          attempts,
+          exhausted
+        }
+
+        return {
+          ...config,
+          pairing: exhausted
+            ? {
+                code: null,
+                expiresAt: null,
+                failedAttempts: 0
+              }
+            : {
+                ...config.pairing,
+                failedAttempts: attempts
+              }
+        }
+      })
+    } else {
+      this.updateQQBotConfig((config) => {
         const attempts = config.pairing.failedAttempts + 1
         const exhausted = attempts >= maxAttempts
         result = {
@@ -548,7 +683,15 @@ export class RemoteBindingStore {
       return
     }
 
-    this.updateFeishuConfig((config) => ({
+    if (channel === 'feishu') {
+      this.updateFeishuConfig((config) => ({
+        ...config,
+        bindings: updater(config.bindings)
+      }))
+      return
+    }
+
+    this.updateQQBotConfig((config) => ({
       ...config,
       bindings: updater(config.bindings)
     }))
@@ -560,6 +703,9 @@ export class RemoteBindingStore {
     }
     if (endpointKey.startsWith('feishu:')) {
       return 'feishu'
+    }
+    if (endpointKey.startsWith('qqbot:')) {
+      return 'qqbot'
     }
     return null
   }

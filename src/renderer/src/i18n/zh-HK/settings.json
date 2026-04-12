@@ -1529,7 +1529,7 @@
   },
   "remote": {
     "title": "遠端",
-    "description": "統一設定 Telegram 與飛書遠端控制。",
+    "description": "統一配置 Telegram、飛書與 QQBot 遠端控制。",
     "telegram": {
       "title": "Telegram",
       "description": "使用同一個 Telegram Bot 管理遠端控制與 Hook 投遞。",
@@ -1567,7 +1567,8 @@
       "clearBindings": "清除綁定",
       "clearBindingsResult": "已清除 {count} 個綁定。",
       "pairDialogInstructionTelegram": "到 Telegram Bot 傳送這條指令：",
-      "pairDialogInstructionFeishu": "到飛書 Bot 的私聊中傳送這條指令："
+      "pairDialogInstructionFeishu": "到飛書 Bot 的私聊中傳送這條指令：",
+      "pairDialogInstructionQQBot": "到 QQ 機器人私聊或已授權群聊中發送這條命令："
     },
     "hooks": {
       "title": "Telegram Hook 通知",
@@ -1588,7 +1589,8 @@
         "running": "執行中",
         "backoff": "失敗後重試中",
         "error": "錯誤"
-      }
+      },
+      "bindingOnly": "綁定數：{count}，已配對主體：{paired}"
     },
     "feishu": {
       "title": "飛書",
@@ -1619,12 +1621,28 @@
       "telegram": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者，hooks {hooks}",
       "feishu": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者",
       "hooksOn": "開啟",
-      "hooksOff": "關閉"
+      "hooksOff": "關閉",
+      "qqbot": "{bindingCount} 個綁定，{pairedCount} 個已配對使用者"
     },
     "bindingKinds": {
       "dm": "私聊",
       "group": "群組",
       "topic": "話題"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "接入 QQ 機器人開放平台 Bot，支援單聊與已授權群聊提及機器人控制。",
+      "appId": "應用 ID",
+      "appIdPlaceholder": "QQBot 應用 ID",
+      "clientSecret": "客戶端密鑰",
+      "clientSecretPlaceholder": "QQBot 客戶端密鑰",
+      "remoteControlDescription": "QQ 官方單聊 user_openid 與群聊 member_openid 不是同一身份空間，所以單聊配對授權使用者，群聊需要在群內單獨用 /pair 授權。",
+      "pairedUserIds": "已配對使用者 OpenID",
+      "pairedUserIdsPlaceholder": "例如 user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "微信 iLink",
+      "description": "內建微信 iLink Bot 支援將在下一階段接入。"
     }
   },
   "deepchatAgents": {

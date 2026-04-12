@@ -5,21 +5,28 @@ import type {
   FeishuRemoteStatus,
   RemoteBindingSummary,
   RemoteChannel,
+  RemoteChannelDescriptor,
   RemoteChannelSettings,
   RemoteChannelStatus,
+  QQBotPairingSnapshot,
+  QQBotRemoteSettings,
+  QQBotRemoteStatus,
   TelegramPairingSnapshot,
   TelegramRemoteBindingSummary,
   TelegramRemoteSettings,
   TelegramRemoteStatus
 } from '@shared/presenter'
 import {
+  QQBOT_REMOTE_DEFAULT_AGENT_ID,
   TELEGRAM_REMOTE_COMMANDS,
   TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
   buildBindingSummary,
   normalizeFeishuSettingsInput,
+  normalizeQQBotSettingsInput,
   normalizeTelegramSettingsInput,
   parseTelegramEndpointKey,
   type FeishuRuntimeStatusSnapshot,
+  type QQBotRuntimeStatusSnapshot,
   type TelegramPollerStatusSnapshot
 } from './types'
 import type { ChannelAdapterConfig } from './types/channel'
@@ -31,6 +38,7 @@ import { TelegramClient } from './telegram/telegramClient'
 import { ChannelManager } from './channelManager'
 import { TelegramAdapter } from './adapters/telegram/TelegramAdapter'
 import { FeishuAdapter } from './adapters/feishu/FeishuAdapter'
+import { QQBotAdapter } from './adapters/qqbot/QQBotAdapter'
 
 const DEFAULT_CHANNEL_ID = 'default'
 
@@ -41,6 +49,12 @@ const DEFAULT_TELEGRAM_POLLER_STATUS: TelegramPollerStatusSnapshot = {
 }
 
 const DEFAULT_FEISHU_RUNTIME_STATUS: FeishuRuntimeStatusSnapshot = {
+  state: 'stopped',
+  lastError: null,
+  botUser: null
+}
+
+const DEFAULT_QQBOT_RUNTIME_STATUS: QQBotRuntimeStatusSnapshot = {
   state: 'stopped',
   lastError: null,
   botUser: null
@@ -59,7 +73,11 @@ export class RemoteControlPresenter {
 
   async initialize(): Promise<void> {
     await this.enqueueRuntimeOperation(async () => {
-      await Promise.all([this.rebuildTelegramRuntime(), this.rebuildFeishuRuntime()])
+      await Promise.all([
+        this.rebuildTelegramRuntime(),
+        this.rebuildFeishuRuntime(),
+        this.rebuildQQBotRuntime()
+      ])
     })
   }
 
@@ -102,15 +120,73 @@ export class RemoteControlPresenter {
     }
   }
 
+  buildQQBotSettingsSnapshot(): QQBotRemoteSettings {
+    const remoteConfig = this.bindingStore.getQQBotConfig()
+    return {
+      appId: remoteConfig.appId,
+      clientSecret: remoteConfig.clientSecret,
+      remoteEnabled: remoteConfig.enabled,
+      defaultAgentId: remoteConfig.defaultAgentId,
+      defaultWorkdir: remoteConfig.defaultWorkdir,
+      pairedUserIds: [...remoteConfig.pairedUserIds]
+    }
+  }
+
+  async listRemoteChannels(): Promise<RemoteChannelDescriptor[]> {
+    return [
+      {
+        id: 'telegram',
+        type: 'builtin',
+        implemented: true,
+        titleKey: 'settings.remote.telegram.title',
+        descriptionKey: 'settings.remote.telegram.description',
+        supportsPairing: true,
+        supportsNotifications: true
+      },
+      {
+        id: 'feishu',
+        type: 'builtin',
+        implemented: true,
+        titleKey: 'settings.remote.feishu.title',
+        descriptionKey: 'settings.remote.feishu.description',
+        supportsPairing: true,
+        supportsNotifications: false
+      },
+      {
+        id: 'qqbot',
+        type: 'builtin',
+        implemented: true,
+        titleKey: 'settings.remote.qqbot.title',
+        descriptionKey: 'settings.remote.qqbot.description',
+        supportsPairing: true,
+        supportsNotifications: false
+      },
+      {
+        id: 'weixin-ilink',
+        type: 'builtin',
+        implemented: false,
+        titleKey: 'settings.remote.weixinIlink.title',
+        descriptionKey: 'settings.remote.weixinIlink.description',
+        supportsPairing: false,
+        supportsNotifications: false
+      }
+    ]
+  }
+
   async getChannelSettings(channel: 'telegram'): Promise<TelegramRemoteSettings>
   async getChannelSettings(channel: 'feishu'): Promise<FeishuRemoteSettings>
+  async getChannelSettings(channel: 'qqbot'): Promise<QQBotRemoteSettings>
   async getChannelSettings(channel: RemoteChannel): Promise<RemoteChannelSettings>
   async getChannelSettings(channel: RemoteChannel): Promise<RemoteChannelSettings> {
     if (channel === 'telegram') {
       return await this.getTelegramSettings()
     }
 
-    return await this.getFeishuSettings()
+    if (channel === 'feishu') {
+      return await this.getFeishuSettings()
+    }
+
+    return await this.getQQBotSettings()
   }
 
   async saveChannelSettings(
@@ -121,6 +197,10 @@ export class RemoteControlPresenter {
     channel: 'feishu',
     input: FeishuRemoteSettings
   ): Promise<FeishuRemoteSettings>
+  async saveChannelSettings(
+    channel: 'qqbot',
+    input: QQBotRemoteSettings
+  ): Promise<QQBotRemoteSettings>
   async saveChannelSettings(
     channel: RemoteChannel,
     input: RemoteChannelSettings
@@ -133,18 +213,27 @@ export class RemoteControlPresenter {
       return await this.saveTelegramSettings(input as TelegramRemoteSettings)
     }
 
-    return await this.saveFeishuSettings(input as FeishuRemoteSettings)
+    if (channel === 'feishu') {
+      return await this.saveFeishuSettings(input as FeishuRemoteSettings)
+    }
+
+    return await this.saveQQBotSettings(input as QQBotRemoteSettings)
   }
 
   async getChannelStatus(channel: 'telegram'): Promise<TelegramRemoteStatus>
   async getChannelStatus(channel: 'feishu'): Promise<FeishuRemoteStatus>
+  async getChannelStatus(channel: 'qqbot'): Promise<QQBotRemoteStatus>
   async getChannelStatus(channel: RemoteChannel): Promise<RemoteChannelStatus>
   async getChannelStatus(channel: RemoteChannel): Promise<RemoteChannelStatus> {
     if (channel === 'telegram') {
       return await this.getTelegramStatus()
     }
 
-    return await this.getFeishuStatus()
+    if (channel === 'feishu') {
+      return await this.getFeishuStatus()
+    }
+
+    return await this.getQQBotStatus()
   }
 
   async getChannelBindings(channel: RemoteChannel): Promise<RemoteBindingSummary[]> {
@@ -165,17 +254,22 @@ export class RemoteControlPresenter {
 
   async getChannelPairingSnapshot(channel: 'telegram'): Promise<TelegramPairingSnapshot>
   async getChannelPairingSnapshot(channel: 'feishu'): Promise<FeishuPairingSnapshot>
+  async getChannelPairingSnapshot(channel: 'qqbot'): Promise<QQBotPairingSnapshot>
   async getChannelPairingSnapshot(
     channel: RemoteChannel
-  ): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot>
+  ): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot>
   async getChannelPairingSnapshot(
     channel: RemoteChannel
-  ): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot> {
+  ): Promise<TelegramPairingSnapshot | FeishuPairingSnapshot | QQBotPairingSnapshot> {
     if (channel === 'telegram') {
       return this.bindingStore.getTelegramPairingSnapshot()
     }
 
-    return this.bindingStore.getFeishuPairingSnapshot()
+    if (channel === 'feishu') {
+      return this.bindingStore.getFeishuPairingSnapshot()
+    }
+
+    return this.bindingStore.getQQBotPairingSnapshot()
   }
 
   async createChannelPairCode(
@@ -355,6 +449,62 @@ export class RemoteControlPresenter {
     }
   }
 
+  async getQQBotSettings(): Promise<QQBotRemoteSettings> {
+    const snapshot = this.buildQQBotSettingsSnapshot()
+    const defaultAgentId = await this.sanitizeDefaultAgentId('qqbot', snapshot.defaultAgentId)
+    return {
+      ...snapshot,
+      defaultAgentId
+    }
+  }
+
+  async saveQQBotSettings(input: QQBotRemoteSettings): Promise<QQBotRemoteSettings> {
+    const normalized = normalizeQQBotSettingsInput(input)
+    const defaultAgentId = await this.sanitizeDefaultAgentId('qqbot', normalized.defaultAgentId)
+    const currentRemoteConfig = this.bindingStore.getQQBotConfig()
+    const shouldClearFatalError =
+      currentRemoteConfig.enabled !== normalized.remoteEnabled ||
+      currentRemoteConfig.appId !== normalized.appId ||
+      currentRemoteConfig.clientSecret !== normalized.clientSecret
+
+    this.bindingStore.updateQQBotConfig((config) => ({
+      ...config,
+      appId: normalized.appId,
+      clientSecret: normalized.clientSecret,
+      enabled: normalized.remoteEnabled,
+      defaultAgentId,
+      defaultWorkdir: normalized.defaultWorkdir,
+      pairedUserIds: normalized.pairedUserIds,
+      lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
+      pairing: config.pairing
+    }))
+
+    await this.enqueueRuntimeOperation(async () => {
+      await this.rebuildQQBotRuntime()
+    })
+    return await this.getQQBotSettings()
+  }
+
+  async getQQBotStatus(): Promise<QQBotRemoteStatus> {
+    const remoteConfig = this.bindingStore.getQQBotConfig()
+    const runtimeStatus = this.getEffectiveQQBotStatus(
+      remoteConfig.enabled,
+      remoteConfig.lastFatalError,
+      remoteConfig.appId,
+      remoteConfig.clientSecret
+    )
+
+    return {
+      channel: 'qqbot',
+      enabled: remoteConfig.enabled,
+      state: runtimeStatus.state,
+      bindingCount: Object.keys(remoteConfig.bindings).length,
+      pairedUserCount: remoteConfig.pairedUserIds.length,
+      lastError: runtimeStatus.lastError,
+      botUser: runtimeStatus.botUser
+    }
+  }
+
   async testTelegramHookNotification(): Promise<HookTestResult> {
     return await this.deps.testTelegramHookNotification()
   }
@@ -389,6 +539,22 @@ export class RemoteControlPresenter {
           onFatalError: async (message) => {
             await this.enqueueRuntimeOperation(async () => {
               await this.disableFeishuRuntimeForFatalError(config.configSignature ?? '', message)
+            })
+          },
+          configSignature: config.configSignature
+        })
+    })
+
+    this.channelManager.registerFactory({
+      source: 'builtin',
+      channelType: 'qqbot',
+      create: (config) =>
+        new QQBotAdapter(config, {
+          bindingStore: this.bindingStore,
+          createConversationRunner: () => this.createConversationRunner('qqbot'),
+          onFatalError: async (message) => {
+            await this.enqueueRuntimeOperation(async () => {
+              await this.disableQQBotRuntimeForFatalError(config.configSignature ?? '', message)
             })
           },
           configSignature: config.configSignature
@@ -469,6 +635,41 @@ export class RemoteControlPresenter {
           appSecret: settings.appSecret.trim(),
           verificationToken: settings.verificationToken.trim(),
           encryptKey: settings.encryptKey.trim()
+        },
+        configSignature
+      )
+    )
+    this.channelManager.registerAdapter(adapter)
+
+    try {
+      await adapter.connect()
+    } catch {
+      // The adapter status snapshot already captures the failure.
+    }
+  }
+
+  private async rebuildQQBotRuntime(): Promise<void> {
+    const settings = this.buildQQBotSettingsSnapshot()
+
+    if (!settings.remoteEnabled || !settings.appId.trim() || !settings.clientSecret.trim()) {
+      await this.channelManager.unregisterAdapter('qqbot', DEFAULT_CHANNEL_ID)
+      return
+    }
+
+    const configSignature = this.buildQQBotAdapterSignature(settings)
+    const existing = this.channelManager.getAdapter('qqbot', DEFAULT_CHANNEL_ID)
+    if (existing?.configSignature === configSignature && existing.connected) {
+      return
+    }
+
+    await this.channelManager.unregisterAdapter('qqbot', DEFAULT_CHANNEL_ID)
+
+    const adapter = await this.channelManager.createAdapter(
+      await this.buildChannelAdapterConfig(
+        'qqbot',
+        {
+          appId: settings.appId.trim(),
+          clientSecret: settings.clientSecret.trim()
         },
         configSignature
       )
@@ -565,6 +766,48 @@ export class RemoteControlPresenter {
     }
   }
 
+  private getEffectiveQQBotStatus(
+    remoteEnabled: boolean,
+    lastFatalError: string | null,
+    appId: string,
+    clientSecret: string
+  ): QQBotRuntimeStatusSnapshot {
+    if (!remoteEnabled) {
+      if (lastFatalError) {
+        return {
+          state: 'error',
+          lastError: lastFatalError,
+          botUser: null
+        }
+      }
+
+      return {
+        state: 'disabled',
+        lastError: null,
+        botUser: null
+      }
+    }
+
+    if (!appId.trim() || !clientSecret.trim()) {
+      return {
+        state: 'error',
+        lastError: 'App ID and Client Secret are required.',
+        botUser: null
+      }
+    }
+
+    const snapshot = this.channelManager.getStatusSnapshot('qqbot', DEFAULT_CHANNEL_ID)
+    if (!snapshot) {
+      return { ...DEFAULT_QQBOT_RUNTIME_STATUS }
+    }
+
+    return {
+      state: snapshot.state,
+      lastError: snapshot.lastError,
+      botUser: (snapshot.botUser as QQBotRemoteStatus['botUser']) ?? null
+    }
+  }
+
   private async disableTelegramRuntimeForFatalError(
     configSignature: string,
     errorMessage: string
@@ -605,6 +848,27 @@ export class RemoteControlPresenter {
     }))
 
     await this.channelManager.unregisterAdapter('feishu', DEFAULT_CHANNEL_ID)
+  }
+
+  private async disableQQBotRuntimeForFatalError(
+    configSignature: string,
+    errorMessage: string
+  ): Promise<void> {
+    const currentSettings = this.buildQQBotSettingsSnapshot()
+    if (
+      !currentSettings.remoteEnabled ||
+      this.buildQQBotAdapterSignature(currentSettings) !== configSignature
+    ) {
+      return
+    }
+
+    this.bindingStore.updateQQBotConfig((config) => ({
+      ...config,
+      enabled: false,
+      lastFatalError: errorMessage
+    }))
+
+    await this.channelManager.unregisterAdapter('qqbot', DEFAULT_CHANNEL_ID)
   }
 
   private async buildChannelAdapterConfig(
@@ -651,6 +915,17 @@ export class RemoteControlPresenter {
     })
   }
 
+  private buildQQBotAdapterSignature(settings: QQBotRemoteSettings): string {
+    return JSON.stringify({
+      appId: settings.appId.trim(),
+      clientSecret: settings.clientSecret.trim(),
+      remoteEnabled: settings.remoteEnabled,
+      defaultAgentId: settings.defaultAgentId.trim(),
+      defaultWorkdir: settings.defaultWorkdir.trim(),
+      pairedUserIds: [...settings.pairedUserIds]
+    })
+  }
+
   private createConversationRunner(channel: RemoteChannel): RemoteConversationRunner {
     return new RemoteConversationRunner(
       {
@@ -669,7 +944,9 @@ export class RemoteControlPresenter {
   private getDefaultAgentId(channel: RemoteChannel): string {
     return channel === 'telegram'
       ? this.bindingStore.getTelegramDefaultAgentId()
-      : this.bindingStore.getFeishuDefaultAgentId()
+      : channel === 'feishu'
+        ? this.bindingStore.getFeishuDefaultAgentId()
+        : this.bindingStore.getQQBotDefaultAgentId()
   }
 
   private enqueueRuntimeOperation(operation: () => Promise<void>): Promise<void> {
@@ -683,7 +960,8 @@ export class RemoteControlPresenter {
     candidate: string | null | undefined
   ): Promise<string> {
     const normalizedCandidate = resolveAcpAgentAlias(
-      candidate?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+      candidate?.trim() ||
+        (channel === 'qqbot' ? QQBOT_REMOTE_DEFAULT_AGENT_ID : TELEGRAM_REMOTE_DEFAULT_AGENT_ID)
     )
     const agents = await this.deps.configPresenter.listAgents()
     const enabledAgents = agents.filter((agent) => agent.enabled !== false)
@@ -701,8 +979,15 @@ export class RemoteControlPresenter {
           defaultAgentId: nextDefaultAgentId
         }))
       }
-    } else if (this.bindingStore.getFeishuDefaultAgentId() !== nextDefaultAgentId) {
-      this.bindingStore.updateFeishuConfig((config) => ({
+    } else if (channel === 'feishu') {
+      if (this.bindingStore.getFeishuDefaultAgentId() !== nextDefaultAgentId) {
+        this.bindingStore.updateFeishuConfig((config) => ({
+          ...config,
+          defaultAgentId: nextDefaultAgentId
+        }))
+      }
+    } else if (this.bindingStore.getQQBotDefaultAgentId() !== nextDefaultAgentId) {
+      this.bindingStore.updateQQBotConfig((config) => ({
         ...config,
         defaultAgentId: nextDefaultAgentId
       }))
