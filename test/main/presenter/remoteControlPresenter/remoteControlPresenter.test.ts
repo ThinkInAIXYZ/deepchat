@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BrowserWindow } from 'electron'
-import type { HookEventName, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type { TelegramPollerStatusSnapshot } from '@/presenter/remoteControlPresenter/types'
 
 type MockPollerDeps = {
@@ -60,50 +59,13 @@ vi.mock('@/presenter/remoteControlPresenter/telegram/telegramClient', () => ({
 import { RemoteControlPresenter } from '@/presenter/remoteControlPresenter'
 import { WeixinIlinkClient } from '@/presenter/remoteControlPresenter/weixinIlink/weixinIlinkClient'
 
-const createHooksConfig = (): HooksNotificationsSettings => {
-  const commandEvents = Object.fromEntries(
-    [
-      'SessionStart',
-      'UserPromptSubmit',
-      'PreToolUse',
-      'PostToolUse',
-      'PostToolUseFailure',
-      'PermissionRequest',
-      'Stop',
-      'SessionEnd'
-    ].map((eventName) => [eventName, { enabled: false, command: '' }])
-  ) as Record<HookEventName, { enabled: boolean; command: string }>
-
-  return {
-    telegram: {
-      enabled: false,
-      botToken: 'test-bot-token',
-      chatId: '',
-      threadId: undefined,
-      events: []
-    },
-    discord: {
-      enabled: false,
-      webhookUrl: '',
-      events: []
-    },
-    confirmo: {
-      enabled: false,
-      events: []
-    },
-    commands: {
-      enabled: false,
-      events: commandEvents
-    }
-  }
-}
-
 const createConfigPresenter = () => {
   const store = new Map<string, unknown>([
     [
       'remoteControl',
       {
         telegram: {
+          botToken: 'test-bot-token',
           enabled: true,
           allowlist: [],
           streamMode: 'draft',
@@ -141,7 +103,6 @@ describe('RemoteControlPresenter', () => {
 
   it('serializes runtime rebuilds so only one poller starts per token', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
@@ -151,16 +112,7 @@ describe('RemoteControlPresenter', () => {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
       } as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     await Promise.all([presenter.initialize(), presenter.initialize()])
@@ -187,7 +139,6 @@ describe('RemoteControlPresenter', () => {
 
   it('reports starting while the poller startup is still in flight', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
     let resolveStart: (() => void) | null = null
     pollerStartImplementation = () =>
       new Promise<void>((resolve) => {
@@ -202,16 +153,7 @@ describe('RemoteControlPresenter', () => {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
       } as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     const initializePromise = presenter.initialize()
@@ -230,7 +172,6 @@ describe('RemoteControlPresenter', () => {
 
   it('auto-disables remote control after a fatal poller failure', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
@@ -240,16 +181,7 @@ describe('RemoteControlPresenter', () => {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
       } as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     await presenter.initialize()
@@ -280,7 +212,6 @@ describe('RemoteControlPresenter', () => {
 
   it('returns bindings and pairing snapshot through the presenter contract', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     configPresenter.setSetting('remoteControl', {
       telegram: {
@@ -311,16 +242,7 @@ describe('RemoteControlPresenter', () => {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
       } as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     await expect(presenter.getTelegramPairingSnapshot()).resolves.toEqual({
@@ -346,7 +268,6 @@ describe('RemoteControlPresenter', () => {
 
   it('removes authorized principals through the generic presenter contract', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     configPresenter.setSetting('remoteControl', {
       telegram: {
@@ -402,16 +323,7 @@ describe('RemoteControlPresenter', () => {
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     await presenter.removeChannelPrincipal('telegram', '456')
@@ -437,7 +349,6 @@ describe('RemoteControlPresenter', () => {
 
   it('falls back to the built-in deepchat agent when saving an invalid default agent', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
     const listAgents = vi.fn().mockResolvedValue([
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'deepchat-alt', name: 'Alt', type: 'deepchat', enabled: false }
@@ -468,28 +379,13 @@ describe('RemoteControlPresenter', () => {
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     const saved = await presenter.saveTelegramSettings({
       botToken: 'test-bot-token',
       remoteEnabled: true,
-      defaultAgentId: 'deepchat-alt',
-      hookNotifications: {
-        enabled: false,
-        chatId: '',
-        threadId: undefined,
-        events: []
-      }
+      defaultAgentId: 'deepchat-alt'
     })
 
     expect(saved.defaultAgentId).toBe('deepchat')
@@ -506,35 +402,19 @@ describe('RemoteControlPresenter', () => {
 
   it('keeps an enabled ACP agent as the remote default agent', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     const saved = await presenter.saveTelegramSettings({
       botToken: 'test-bot-token',
       remoteEnabled: true,
-      defaultAgentId: 'acp-agent',
-      hookNotifications: {
-        enabled: false,
-        chatId: '',
-        threadId: undefined,
-        events: []
-      }
+      defaultAgentId: 'acp-agent'
     })
 
     expect(saved.defaultAgentId).toBe('acp-agent')
@@ -542,23 +422,13 @@ describe('RemoteControlPresenter', () => {
 
   it('lists builtin remote channels including discord, qqbot, and weixin-ilink', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     await expect(presenter.listRemoteChannels()).resolves.toEqual(
@@ -579,32 +449,15 @@ describe('RemoteControlPresenter', () => {
     )
   })
 
-  it('saves discord remote settings without mutating discord webhook notifications', async () => {
+  it('saves discord remote settings without touching unrelated config', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = {
-      ...createHooksConfig(),
-      discord: {
-        enabled: true,
-        webhookUrl: 'https://discord.com/api/webhooks/notify',
-        events: ['SessionEnd']
-      }
-    }
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     const saved = await presenter.saveDiscordSettings({
@@ -622,11 +475,6 @@ describe('RemoteControlPresenter', () => {
       defaultWorkdir: 'C:/workspaces/discord',
       pairedChannelIds: ['1234567890']
     })
-    expect(hooksConfig.discord).toEqual({
-      enabled: true,
-      webhookUrl: 'https://discord.com/api/webhooks/notify',
-      events: ['SessionEnd']
-    })
     expect(configPresenter.setSetting).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
@@ -642,23 +490,13 @@ describe('RemoteControlPresenter', () => {
 
   it('persists the lark brand inside feishu remote settings', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
       agentSessionPresenter: {} as any,
       agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     const saved = await presenter.saveFeishuSettings({
@@ -687,7 +525,6 @@ describe('RemoteControlPresenter', () => {
 
   it('stores a wechat ilink account after qr login completes', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
@@ -697,16 +534,7 @@ describe('RemoteControlPresenter', () => {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
       } as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     const startLoginSpy = vi.spyOn(WeixinIlinkClient, 'startLogin').mockResolvedValueOnce({
@@ -770,7 +598,6 @@ describe('RemoteControlPresenter', () => {
 
   it('deduplicates concurrent wechat ilink login waits for the same session', async () => {
     const configPresenter = createConfigPresenter()
-    let hooksConfig = createHooksConfig()
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
@@ -780,16 +607,7 @@ describe('RemoteControlPresenter', () => {
         getFocusedWindow: vi.fn(() => undefined),
         getAllWindows: vi.fn(() => [])
       } as any,
-      tabPresenter: {} as any,
-      getHooksNotificationsConfig: () => hooksConfig,
-      setHooksNotificationsConfig: (nextConfig) => {
-        hooksConfig = nextConfig
-        return nextConfig
-      },
-      testTelegramHookNotification: vi.fn().mockResolvedValue({
-        success: true,
-        durationMs: 0
-      })
+      tabPresenter: {} as any
     })
 
     const waitLoginSpy = vi.spyOn(WeixinIlinkClient, 'waitForLogin').mockResolvedValue({

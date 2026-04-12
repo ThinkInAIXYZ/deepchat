@@ -61,11 +61,7 @@ import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from './acpRegistryConstants'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
-import type {
-  HookEventName,
-  HookTestResult,
-  HooksNotificationsSettings
-} from '@shared/hooksNotifications'
+import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   Agent,
   AgentType,
@@ -2438,10 +2434,6 @@ export class ConfigPresenter implements IConfigPresenter {
   getHooksNotificationsConfig(): HooksNotificationsSettings {
     const raw = this.store.get('hooksNotifications')
     const normalized = normalizeHooksNotificationsConfig(raw)
-    const confirmoStatus = presenter?.hooksNotifications?.getConfirmoHookStatus?.()
-    if (confirmoStatus && !confirmoStatus.available) {
-      normalized.confirmo.enabled = false
-    }
     if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
       this.store.set('hooksNotifications', normalized)
     }
@@ -2450,32 +2442,12 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
     const normalized = normalizeHooksNotificationsConfig(config)
-    const confirmoStatus = presenter?.hooksNotifications?.getConfirmoHookStatus?.()
-    if (confirmoStatus && !confirmoStatus.available) {
-      normalized.confirmo.enabled = false
-    }
     this.store.set('hooksNotifications', normalized)
     return normalized
   }
 
-  async testTelegramNotification(): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testTelegram()
-  }
-
-  async testDiscordNotification(): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testDiscord()
-  }
-
-  async testConfirmoNotification(): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testConfirmo()
-  }
-
-  async testHookCommand(eventName: HookEventName): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testHookCommand(eventName)
-  }
-
-  getConfirmoHookStatus(): { available: boolean; path: string } {
-    return presenter.hooksNotifications.getConfirmoHookStatus()
+  async testHookCommand(hookId: string): Promise<HookTestResult> {
+    return await presenter.hooksNotifications.testHookCommand(hookId)
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {

@@ -1,4 +1,3 @@
-import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   DiscordRemoteSettings,
   FeishuRemoteSettings,
@@ -19,9 +18,6 @@ export interface RemoteControlPresenterDeps {
   agentRuntimePresenter: AgentRuntimePresenter
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter
-  getHooksNotificationsConfig: () => HooksNotificationsSettings
-  setHooksNotificationsConfig: (config: HooksNotificationsSettings) => HooksNotificationsSettings
-  testTelegramHookNotification: () => Promise<HookTestResult>
 }
 
 export interface RemoteRuntimeLifecycle {

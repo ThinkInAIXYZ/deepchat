@@ -35,8 +35,8 @@
   - add a Discord tab
   - add Feishu/Lark brand selection in the Feishu tab
   - show per-channel default workdir fields where supported
-  - keep Telegram hook controls unchanged
-  - keep Discord webhook controls out of the remote settings page
+  - keep Telegram settings self-contained in the remote page
+  - keep Hooks controls out of the remote settings page
 - `WindowSideBar.vue`
   - aggregate remote channel status through a channel map instead of hardcoded branches
 
@@ -54,7 +54,7 @@
 - Main:
   - config normalization and migration for Discord
   - Discord parser, auth guard, adapter
-  - presenter separation between Discord remote settings and Discord webhook notifications
+  - presenter separation between Discord remote settings and Hooks config
   - Feishu `brand = lark` domain mapping
   - remote conversation runner channel-specific workdir resolution
 - Renderer:

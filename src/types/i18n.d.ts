@@ -300,6 +300,10 @@ declare module 'vue-i18n' {
       }
       title: string
       description: string
+      draftSuggestions: {
+        title: string
+        description: string
+      }
       openFolder: string
       addSkill: string
       empty: string
@@ -1124,6 +1128,29 @@ declare module 'vue-i18n' {
       exportText: string
       exportNowledgeMem: string
     }
+    sort: {
+      status: string
+      name: string
+    }
+    filter: {
+      label: string
+      clearAll: string
+      visibleCount: string
+      capabilities: string
+      types: string
+      capabilityOptions: {
+        vision: string
+        functionCall: string
+        reasoning: string
+        search: string
+      }
+      typeOptions: {
+        chat: string
+        embedding: string
+        rerank: string
+        imageGeneration: string
+      }
+    }
     tags: {
       reasoning: string
       chat: string
@@ -1390,32 +1417,45 @@ declare module 'vue-i18n' {
         Stop: string
         SessionEnd: string
       }
-      telegram: {
-        title: string
-        description: string
-        botToken: string
-        botTokenPlaceholder: string
-        chatId: string
-        chatIdPlaceholder: string
-        threadId: string
-        threadIdPlaceholder: string
-      }
-      discord: {
-        title: string
-        description: string
-        webhookUrl: string
-        webhookUrlPlaceholder: string
-      }
-      confirmo: {
-        title: string
-        description: string
-        unavailable: string
-      }
       commands: {
         title: string
         description: string
         hint: string
         commandPlaceholder: string
+        commandLabel: string
+        name: string
+        namePlaceholder: string
+        newHook: string
+        empty: string
+        defaultName: string
+        guideTitle: string
+        guideDescription: string
+        deliveryTitle: string
+        deliveryStdin: string
+        deliveryPlaceholder: string
+        deliveryEnv: string
+        metadataOnly: string
+        stdinPreviewLabel: string
+        placeholdersTitle: string
+        placeholdersDescription: string
+        envTitle: string
+        examplesTitle: string
+        exampleNodeLabel: string
+        examplePythonLabel: string
+        examplePowerShellLabel: string
+        fields: {
+          event: string
+          time: string
+          isTest: string
+          conversationId: string
+          workdir: string
+          agentId: string
+          providerId: string
+          modelId: string
+          messageId: string
+          toolName: string
+          toolCallId: string
+        }
       }
       test: {
         button: string
@@ -1949,6 +1989,8 @@ declare module 'vue-i18n' {
       deleteConversation: string
       hideWindow: string
       quitApp: string
+      toggleSidebar: string
+      toggleWorkspace: string
       newWindow: string
       showHideWindow: string
       newConversation: string
@@ -2197,10 +2239,14 @@ declare module 'vue-i18n' {
         description: string
         botToken: string
         botTokenPlaceholder: string
+        botTokenDescription: string
       }
       feishu: {
         title: string
         description: string
+        brand: string
+        brandFeishu: string
+        brandLark: string
         appId: string
         appIdPlaceholder: string
         appSecret: string
@@ -2214,6 +2260,15 @@ declare module 'vue-i18n' {
         pairedUserOpenIds: string
         pairedUserOpenIdsPlaceholder: string
         accessRulesDescription: string
+        accessRule1: string
+        accessRule2: string
+      }
+      discord: {
+        title: string
+        description: string
+        botToken: string
+        botTokenPlaceholder: string
+        remoteControlDescription: string
         accessRule1: string
         accessRule2: string
       }
@@ -2241,11 +2296,18 @@ declare module 'vue-i18n' {
         pairDialogDescription: string
         pairDialogInstructionTelegram: string
         pairDialogInstructionFeishu: string
+        pairDialogInstructionDiscord: string
         bindingsDialogTitle: string
         bindingsDialogDescription: string
         bindingsEmpty: string
         pairingSuccessTitle: string
         pairingSuccessDescription: string
+        pairDialogInstructionQQBot: string
+        authorizedPrincipalsTitle: string
+        authorizedPrincipalsDescription: string
+        authorizedPrincipalsEmpty: string
+        sessionBindingsTitle: string
+        sessionBindingsDescription: string
       }
       hooks: {
         title: string
@@ -2267,17 +2329,61 @@ declare module 'vue-i18n' {
           backoff: string
           error: string
         }
+        bindingOnly: string
       }
       overview: {
         telegram: string
         feishu: string
         hooksOn: string
         hooksOff: string
+        qqbot: string
+        discord: string
+        weixinIlink: string
       }
       bindingKinds: {
         dm: string
         group: string
         topic: string
+      }
+      qqbot: {
+        title: string
+        description: string
+        appId: string
+        appIdPlaceholder: string
+        clientSecret: string
+        clientSecretPlaceholder: string
+        remoteControlDescription: string
+        pairedUserIds: string
+        pairedUserIdsPlaceholder: string
+      }
+      weixinIlink: {
+        title: string
+        description: string
+        loginDescription: string
+        ownerOnlyNotice: string
+        connectButton: string
+        refreshQrCode: string
+        loginDialogTitle: string
+        loginDialogDescription: string
+        loginFailed: string
+        loginSuccessTitle: string
+        loginSuccessDescription: string
+        accountsTitle: string
+        accountsDescription: string
+        noAccounts: string
+        ownerUserId: string
+        baseUrl: string
+        accountBindings: string
+        remoteControlDescription: string
+        removeAccount: string
+        restartAccount: string
+        statusSummary: string
+        qrcodeAlt: string
+        loginWindowOpened: string
+        loginSessionExpired: string
+        loginResponseIncomplete: string
+        loginTimedOut: string
+        loginConnected: string
       }
     }
     success: string

@@ -145,8 +145,7 @@ export class Presenter implements IPresenter {
     'startWeixinIlinkLogin',
     'waitForWeixinIlinkLogin',
     'removeWeixinIlinkAccount',
-    'restartWeixinIlinkAccount',
-    'testTelegramHookNotification'
+    'restartWeixinIlinkAccount'
   ])
 
   windowPresenter: IWindowPresenter
@@ -503,11 +502,7 @@ export class Presenter implements IPresenter {
       agentSessionPresenter: this.agentSessionPresenter,
       agentRuntimePresenter,
       windowPresenter: this.windowPresenter,
-      tabPresenter: this.tabPresenter,
-      getHooksNotificationsConfig: () => this.configPresenter.getHooksNotificationsConfig(),
-      setHooksNotificationsConfig: (config) =>
-        this.configPresenter.setHooksNotificationsConfig(config),
-      testTelegramHookNotification: () => this.configPresenter.testTelegramNotification()
+      tabPresenter: this.tabPresenter
     })
     this.#remoteControlBridge = this.#remoteControlPresenter
 

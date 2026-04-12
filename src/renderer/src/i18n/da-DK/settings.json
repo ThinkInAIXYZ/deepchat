@@ -1431,23 +1431,46 @@
   },
   "notificationsHooks": {
     "commands": {
-      "commandPlaceholder": "Kommandoen der skal udføres",
-      "description": "Udfør kommandoen for hver begivenhed.",
-      "hint": "Skriv payload som JSON til stdin.",
-      "title": "Hooks kommandoer"
+      "title": "Hook-kommandoer",
+      "description": "Kør brugerdefinerede kommandoer for de valgte livscyklusbegivenheder.",
+      "hint": "Hele payloaden skrives til stdin som JSON.",
+      "commandPlaceholder": "Kommando, der skal køres",
+      "commandLabel": "Kommando",
+      "name": "Navn",
+      "namePlaceholder": "Hook-navn",
+      "newHook": "Nyt hook",
+      "empty": "Der er endnu ingen hooks. Tilføj et for at komme i gang.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "Sådan bruges det",
+      "guideDescription": "Når en markeret begivenhed udløses, kører DeepChat kommandoen. Den aktuelle begivenhed kan læses via stdin-JSON, miljøvariabler og kommandolinje-pladsholdere.",
+      "deliveryTitle": "Sådan sendes data",
+      "deliveryStdin": "Hele payloaden skrives til stdin som JSON.",
+      "deliveryPlaceholder": "Du kan bruge kommandolinje-pladsholdere direkte i kommandoen.",
+      "deliveryEnv": "De samme grundlæggende metadata er også tilgængelige som miljøvariabler.",
+      "metadataOnly": "Kommandolinje-pladsholdere er bedst til små metadata. Læs prompt/tool-detaljer, permission, usage, stop og error fra stdin-JSON.",
+      "stdinPreviewLabel": "stdin-eksempel",
+      "placeholdersTitle": "Kommandolinje-pladsholdere",
+      "placeholdersDescription": "Pladsholdere udvides før kørsel og kan sendes som kommandoargumenter.",
+      "envTitle": "Miljøvariabler",
+      "examplesTitle": "Eksempler",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Navnet på den aktuelle begivenhed",
+        "time": "Begivenhedstid i ISO-8601-format",
+        "isTest": "Om kørslen kommer fra testknappen",
+        "conversationId": "ID for den aktuelle samtale / session",
+        "workdir": "Løst arbejdsmappe for sessionen",
+        "agentId": "Aktuelt Agent-ID, når det er tilgængeligt",
+        "providerId": "Aktuelt Provider-ID, når det er tilgængeligt",
+        "modelId": "Aktuelt Model-ID, når det er tilgængeligt",
+        "messageId": "Aktuelt brugerbesked-ID, når det er tilgængeligt",
+        "toolName": "Aktuelt værktøjsnavn, når det er tilgængeligt",
+        "toolCallId": "Aktuelt værktøjskald-ID, når det er tilgængeligt"
+      }
     },
-    "confirmo": {
-      "description": "Send notifikationer via Confirmo Hook (standard sender alle begivenheder).",
-      "title": "Confirmo",
-      "unavailable": "Confirmo Hook ikke fundet: {path}"
-    },
-    "description": "Konfigurer webhook-notifikationer og livscyklus-hooks.",
-    "discord": {
-      "description": "Send notifikationer via Discord webhook.",
-      "title": "Discord",
-      "webhookUrl": "Webhook-URL",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "PermissionRequest": "Tilladelsesforespørgsel",
       "PostToolUse": "Efter værktøjskald",
@@ -1458,16 +1481,6 @@
       "Stop": "stop",
       "UserPromptSubmit": "Brugerindsendelse",
       "title": "begivenhed"
-    },
-    "telegram": {
-      "botToken": "Bot-token",
-      "botTokenPlaceholder": "Telegram Bot Token",
-      "chatId": "Chat-ID",
-      "chatIdPlaceholder": "For eksempel 123456789",
-      "description": "Send notifikationer via Telegram Bot.",
-      "threadId": "Trådid (valgfri)",
-      "threadIdPlaceholder": "Valgfri tråd-ID",
-      "title": "Telegram"
     },
     "test": {
       "button": "Test",
@@ -1532,10 +1545,10 @@
     "description": "Konfigurer fjernstyring via Telegram, Feishu, QQBot og WeChat iLink ét sted.",
     "telegram": {
       "title": "Telegram",
-      "description": "Administrer én Telegram-bot til fjernstyring og hook-levering.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "Bot-token",
       "botTokenPlaceholder": "Telegram bot-token",
-      "botTokenDescription": "Indtast Telegram-bottens token, som bruges til fjernstyring og levering af Hook-notifikationer."
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
     },
     "feishu": {
       "title": "Feishu / Lark",
@@ -1564,7 +1577,7 @@
       "description": "Tilslut en Discord-bot til DM'er, kanalomtaler og fjernstyring via slash-kommandoer.",
       "botToken": "Bot-token",
       "botTokenPlaceholder": "Discord bot-token",
-      "remoteControlDescription": "Discord-fjernstyring bruger sit eget bot-token, gateway- og REST-flow. Den genbruger ikke webhook-konfigurationen for notifikationer.",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
       "accessRule1": "Send /pair [kode] i en DM eller målkanal for at godkende det aktuelle Discord-endpoint.",
       "accessRule2": "Kanalbeskeder går kun ind i sessionen, når botten omtales, så almindelig chat ikke opsuges."
     },
@@ -1637,7 +1650,7 @@
       "bindingOnly": "Bindinger: {count}, parrede identiteter: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "hooksOn": "til",
       "hooksOff": "fra",

@@ -7,12 +7,7 @@ type SetupOptions = {
     botToken: string
     remoteEnabled: boolean
     defaultAgentId: string
-    hookNotifications: {
-      enabled: boolean
-      chatId: string
-      threadId?: string
-      events: string[]
-    }
+    allowedUserIds?: number[]
   }
   telegramChannelSettingsOverride?: Record<string, unknown>
   feishuChannelSettingsOverride?: Record<string, unknown>
@@ -67,12 +62,6 @@ const setup = async (options: SetupOptions = {}) => {
       botToken: 'telegram-token',
       remoteEnabled: false,
       defaultAgentId: 'deepchat',
-      hookNotifications: {
-        enabled: false,
-        chatId: '',
-        threadId: '',
-        events: []
-      },
       ...options.settings
     },
     status: {
@@ -232,23 +221,10 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const telegramSettingsSnapshot = () => {
-    const snapshot = {
+    return {
       ...remoteState.settings,
       ...(options.telegramChannelSettingsOverride ?? {})
-    } as Record<string, unknown>
-
-    if (
-      !Object.prototype.hasOwnProperty.call(
-        options.telegramChannelSettingsOverride ?? {},
-        'hookNotifications'
-      )
-    ) {
-      snapshot.hookNotifications = {
-        ...remoteState.settings.hookNotifications
-      }
     }
-
-    return snapshot
   }
 
   const feishuSettingsSnapshot = () => ({
@@ -333,19 +309,9 @@ const setup = async (options: SetupOptions = {}) => {
         nextSettings: any
       ) => {
         if (channel === 'telegram') {
-          remoteState.settings = {
-            ...nextSettings,
-            hookNotifications: {
-              ...nextSettings.hookNotifications
-            }
-          }
+          remoteState.settings = { ...nextSettings }
           remoteState.status.enabled = nextSettings.remoteEnabled
-          return {
-            ...remoteState.settings,
-            hookNotifications: {
-              ...remoteState.settings.hookNotifications
-            }
-          }
+          return { ...remoteState.settings }
         }
 
         if (channel === 'feishu') {
@@ -566,19 +532,9 @@ const setup = async (options: SetupOptions = {}) => {
       ...telegramSettingsSnapshot()
     })),
     saveTelegramSettings: vi.fn(async (nextSettings) => {
-      remoteState.settings = {
-        ...nextSettings,
-        hookNotifications: {
-          ...nextSettings.hookNotifications
-        }
-      }
+      remoteState.settings = { ...nextSettings }
       remoteState.status.enabled = nextSettings.remoteEnabled
-      return {
-        ...remoteState.settings,
-        hookNotifications: {
-          ...remoteState.settings.hookNotifications
-        }
-      }
+      return { ...remoteState.settings }
     }),
     getTelegramStatus: vi.fn(async () => ({
       ...remoteState.status
@@ -627,11 +583,7 @@ const setup = async (options: SetupOptions = {}) => {
       )
       syncWeixinIlinkStatusFromSettings()
     }),
-    restartWeixinIlinkAccount: vi.fn(async () => undefined),
-    testTelegramHookNotification: vi.fn(async () => ({
-      success: true,
-      durationMs: 10
-    }))
+    restartWeixinIlinkAccount: vi.fn(async () => undefined)
   }
 
   const agentSessionPresenter = {
@@ -885,24 +837,17 @@ const setup = async (options: SetupOptions = {}) => {
 }
 
 describe('RemoteSettings', () => {
-  it('hides remote and hook details when both toggles are disabled', async () => {
-    const { wrapper, tabsComponents } = await setup({
+  it('hides remote details when telegram remote is disabled', async () => {
+    const { wrapper } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: false,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       }
     })
 
     expect(wrapper.find('[data-testid="remote-control-details"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="remote-hooks-details"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('settings.remote.remoteControl.streamMode')
   })
 
@@ -912,13 +857,7 @@ describe('RemoteSettings', () => {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       },
       feishuChannelSettingsOverride: {
         remoteEnabled: true
@@ -952,13 +891,7 @@ describe('RemoteSettings', () => {
         botToken: 'telegram-token',
         remoteEnabled: false,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       }
     })
 
@@ -981,13 +914,7 @@ describe('RemoteSettings', () => {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       }
     })
 
@@ -999,13 +926,7 @@ describe('RemoteSettings', () => {
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       },
       pairingSnapshot: {
         pairCode: null,
@@ -1081,25 +1002,15 @@ describe('RemoteSettings', () => {
     expect(wrapper.text()).toContain('settings.remote.discord.remoteControlDescription')
     expect(wrapper.find('[data-testid="discord-pair-button"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="discord-bindings-button"]').exists()).toBe(true)
-    expect(wrapper.text()).not.toContain('settings.notificationsHooks.discord.webhookUrl')
   })
 
-  it('normalizes legacy telegram settings without hook notifications', async () => {
+  it('loads telegram settings without legacy hook fields', async () => {
     const { wrapper, toast } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
-      },
-      telegramChannelSettingsOverride: {
-        hookNotifications: undefined
+        defaultAgentId: 'deepchat'
       }
     })
 
@@ -1188,13 +1099,7 @@ describe('RemoteSettings', () => {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       }
     })
 
@@ -1233,13 +1138,7 @@ describe('RemoteSettings', () => {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       }
     })
 
@@ -1263,13 +1162,7 @@ describe('RemoteSettings', () => {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       }
     })
 
@@ -1284,13 +1177,7 @@ describe('RemoteSettings', () => {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: false,
-          chatId: '',
-          threadId: '',
-          events: []
-        }
+        defaultAgentId: 'deepchat'
       },
       status: {
         enabled: true,
@@ -1359,41 +1246,6 @@ describe('RemoteSettings', () => {
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({
         description: 'feishu save failed'
-      })
-    )
-  })
-
-  it('does not run the telegram hook test when saving settings fails', async () => {
-    const { wrapper, remoteControlPresenter, toast } = await setup({
-      settings: {
-        botToken: 'telegram-token',
-        remoteEnabled: true,
-        allowedUserIds: [123],
-        defaultAgentId: 'deepchat',
-        hookNotifications: {
-          enabled: true,
-          chatId: '100',
-          threadId: '',
-          events: []
-        }
-      }
-    })
-
-    remoteControlPresenter.saveChannelSettings.mockRejectedValueOnce(new Error('hook save failed'))
-
-    const hookTestButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('settings.notificationsHooks.test.button'))
-
-    expect(hookTestButton).toBeDefined()
-
-    await hookTestButton!.trigger('click')
-    await flushPromises()
-
-    expect(remoteControlPresenter.testTelegramHookNotification).not.toHaveBeenCalled()
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'hook save failed'
       })
     )
   })

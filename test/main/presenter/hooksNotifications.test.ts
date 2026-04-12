@@ -1,13 +1,14 @@
-import { describe, it, expect, vi } from 'vitest'
-import { truncateText, parseRetryAfterMs } from '../../../src/main/presenter/hooksNotifications'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  normalizeHooksNotificationsConfig,
-  createDefaultHooksNotificationsConfig
+  expandHookCommandPlaceholders,
+  truncateText
+} from '../../../src/main/presenter/hooksNotifications'
+import {
+  createDefaultHookCommand,
+  createDefaultHooksNotificationsConfig,
+  normalizeHooksNotificationsConfig
 } from '../../../src/main/presenter/hooksNotifications/config'
-import {
-  DEFAULT_IMPORTANT_HOOK_EVENTS,
-  HOOK_EVENT_NAMES
-} from '../../../src/shared/hooksNotifications'
+import { DEFAULT_IMPORTANT_HOOK_EVENTS } from '../../../src/shared/hooksNotifications'
 
 vi.mock('electron-log', () => ({
   default: {
@@ -28,75 +29,85 @@ describe('hooksNotifications', () => {
     expect(result.length).toBe(20)
   })
 
-  it('parseRetryAfterMs reads seconds header', () => {
-    const response = new Response(null, {
-      status: 429,
-      headers: { 'retry-after': '2' }
-    })
-    expect(parseRetryAfterMs(response)).toBe(2000)
+  it('expandHookCommandPlaceholders resolves quoted env references on posix', () => {
+    expect(
+      expandHookCommandPlaceholders(
+        'node scripts/hook.js {{event}} {{conversationId}} {{toolName}}',
+        'linux'
+      )
+    ).toBe(
+      'node scripts/hook.js "${DEEPCHAT_HOOK_EVENT}" "${DEEPCHAT_CONVERSATION_ID}" "${DEEPCHAT_TOOL_NAME}"'
+    )
   })
 
-  it('parseRetryAfterMs reads ms header', () => {
-    const response = new Response(null, {
-      status: 429,
-      headers: { 'retry-after': '1200' }
-    })
-    expect(parseRetryAfterMs(response)).toBe(1200)
+  it('expandHookCommandPlaceholders resolves quoted env references on windows', () => {
+    expect(
+      expandHookCommandPlaceholders(
+        'powershell -File scripts/hook.ps1 {{event}} {{isTest}}',
+        'win32'
+      )
+    ).toBe('powershell -File scripts/hook.ps1 "%DEEPCHAT_HOOK_EVENT%" "%DEEPCHAT_HOOK_IS_TEST%"')
   })
 
-  it('parseRetryAfterMs reads retry_after from body', () => {
-    const response = new Response(null, { status: 429 })
-    expect(parseRetryAfterMs(response, { retry_after: 3 })).toBe(3000)
+  it('createDefaultHookCommand uses important events', () => {
+    expect(createDefaultHookCommand(0)).toEqual(
+      expect.objectContaining({
+        name: 'Hook 1',
+        enabled: false,
+        command: '',
+        events: DEFAULT_IMPORTANT_HOOK_EVENTS
+      })
+    )
   })
 
-  it('normalizeHooksNotificationsConfig sanitizes events and commands', () => {
-    const input = {
-      telegram: {
-        enabled: true,
-        botToken: 'token',
-        chatId: 'chat',
-        events: ['SessionStart', 'UnknownEvent']
-      },
-      discord: {
-        enabled: true,
-        events: []
-      },
-      confirmo: {
-        enabled: true,
-        events: ['Stop', 'UnknownEvent']
-      },
-      commands: {
-        enabled: true,
-        events: {
-          SessionStart: { enabled: true, command: 'echo ok' },
-          UnknownEvent: { enabled: true, command: 'bad' }
+  it('normalizeHooksNotificationsConfig sanitizes hook entries', () => {
+    const normalized = normalizeHooksNotificationsConfig({
+      hooks: [
+        {
+          id: 'hook-1',
+          name: ' Build Hook ',
+          enabled: true,
+          command: 'echo ok',
+          events: ['SessionStart', 'UnknownEvent', 'SessionStart']
+        },
+        {
+          enabled: false,
+          command: 123
         }
-      },
+      ],
       extra: 'ignored'
-    }
+    })
 
-    const normalized = normalizeHooksNotificationsConfig(input)
-
-    expect(normalized.telegram.enabled).toBe(true)
-    expect(normalized.telegram.botToken).toBe('token')
-    expect(normalized.telegram.chatId).toBe('chat')
-    expect(normalized.telegram.events).toEqual(['SessionStart'])
-
-    expect(normalized.discord.enabled).toBe(true)
-    expect(normalized.discord.events).toEqual(DEFAULT_IMPORTANT_HOOK_EVENTS)
-
-    expect(normalized.confirmo.enabled).toBe(true)
-    expect(normalized.confirmo.events).toEqual([...HOOK_EVENT_NAMES])
-
-    expect(Object.keys(normalized.commands.events)).toEqual([...HOOK_EVENT_NAMES])
-    expect(normalized.commands.events.SessionStart.enabled).toBe(true)
-    expect(normalized.commands.events.SessionStart.command).toBe('echo ok')
+    expect(normalized.hooks).toHaveLength(2)
+    expect(normalized.hooks[0]).toEqual({
+      id: 'hook-1',
+      name: 'Build Hook',
+      enabled: true,
+      command: 'echo ok',
+      events: ['SessionStart']
+    })
+    expect(normalized.hooks[1]).toEqual(
+      expect.objectContaining({
+        name: 'Hook 2',
+        enabled: false,
+        command: '',
+        events: []
+      })
+    )
+    expect(normalized.hooks[1].id).toBeTruthy()
   })
 
-  it('normalizeHooksNotificationsConfig falls back to defaults', () => {
+  it('normalizeHooksNotificationsConfig resets legacy config to defaults', () => {
     const defaults = createDefaultHooksNotificationsConfig()
-    const normalized = normalizeHooksNotificationsConfig(null)
+    const normalized = normalizeHooksNotificationsConfig({
+      telegram: { enabled: true, botToken: 'token' },
+      commands: { enabled: true }
+    })
 
     expect(normalized).toEqual(defaults)
+  })
+
+  it('normalizeHooksNotificationsConfig falls back to defaults for invalid input', () => {
+    expect(normalizeHooksNotificationsConfig(null)).toEqual(createDefaultHooksNotificationsConfig())
   })
 })

@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "הגדרת התראות webhook ו‑hooks של מחזור החיים.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "אירועים",
       "SessionStart": "תחילת סשן",
@@ -90,32 +90,45 @@
       "Stop": "עצירה",
       "SessionEnd": "סיום סשן"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "שליחת התראות דרך בוט טלגרם.",
-      "botToken": "טוקן בוט",
-      "botTokenPlaceholder": "טוקן בוט טלגרם",
-      "chatId": "מזהה צ׳אט",
-      "chatIdPlaceholder": "למשל 123456789",
-      "threadId": "מזהה שרשור (אופציונלי)",
-      "threadIdPlaceholder": "מזהה שרשור אופציונלי"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "שליחת התראות דרך webhook של Discord.",
-      "webhookUrl": "URL של Webhook",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "שליחת התראות דרך hook של Confirmo (כל האירועים).",
-      "unavailable": "ה‑hook של Confirmo לא נמצא: {path}"
-    },
     "commands": {
-      "title": "פקודות Hooks",
-      "description": "הרצת פקודה עבור כל אירוע.",
-      "hint": "ה‑payload נשלח ל‑stdin כ‑JSON.",
-      "commandPlaceholder": "פקודה להרצה"
+      "title": "פקודות Hook",
+      "description": "הרץ פקודות מותאמות אישית עבור אירועי מחזור החיים שנבחרו.",
+      "hint": "כל ה-payload נכתב ל-stdin כ-JSON.",
+      "commandPlaceholder": "פקודה להרצה",
+      "commandLabel": "פקודה",
+      "name": "שם",
+      "namePlaceholder": "שם ה-Hook",
+      "newHook": "Hook חדש",
+      "empty": "עדיין אין Hooks. הוסף אחד כדי להתחיל.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "איך משתמשים",
+      "guideDescription": "כאשר אירוע מסומן מופעל, DeepChat מריץ את הפקודה. את האירוע הנוכחי אפשר לקרוא מ-JSON ב-stdin, ממשתני סביבה וממצייני מיקום בשורת הפקודה.",
+      "deliveryTitle": "איך הנתונים מועברים",
+      "deliveryStdin": "כל ה-payload נכתב ל-stdin כ-JSON.",
+      "deliveryPlaceholder": "אפשר להשתמש במצייני מיקום של שורת הפקודה ישירות בתוך הפקודה.",
+      "deliveryEnv": "אותם נתוני מטא בסיסיים זמינים גם כמשתני סביבה.",
+      "metadataOnly": "מצייני מיקום של שורת הפקודה מתאימים למטא-דאטה קטנה. את פרטי ה-prompt/tool, permission, usage, stop ו-error קראו מתוך ה-JSON שב-stdin.",
+      "stdinPreviewLabel": "דוגמת stdin",
+      "placeholdersTitle": "מצייני מיקום של שורת הפקודה",
+      "placeholdersDescription": "מצייני המיקום מורחבים לפני ההרצה, ואפשר להעביר אותם כארגומנטים של הפקודה.",
+      "envTitle": "משתני סביבה",
+      "examplesTitle": "דוגמאות",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "שם האירוע הנוכחי",
+        "time": "זמן האירוע בפורמט ISO-8601",
+        "isTest": "האם ההרצה הזו הגיעה מכפתור הבדיקה",
+        "conversationId": "מזהה השיחה / הסשן הנוכחי",
+        "workdir": "ספריית העבודה שנפתרה עבור הסשן",
+        "agentId": "מזהה ה-Agent הנוכחי אם זמין",
+        "providerId": "מזהה ה-Provider הנוכחי אם זמין",
+        "modelId": "מזהה ה-Model הנוכחי אם זמין",
+        "messageId": "מזהה הודעת המשתמש הנוכחית אם זמין",
+        "toolName": "שם הכלי הנוכחי אם זמין",
+        "toolCallId": "מזהה קריאת הכלי הנוכחית אם זמין"
+      }
     },
     "test": {
       "button": "בדיקה",
@@ -1532,10 +1545,10 @@
     "description": "הגדר במקום אחד שליטה מרחוק דרך Telegram, Feishu, QQBot ו-WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "נהל בוט Telegram אחד עבור שליטה מרחוק ושליחת Hooks.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "טוקן בוט",
       "botTokenPlaceholder": "טוקן בוט Telegram",
-      "botTokenDescription": "הזן את טוקן הבוט של Telegram המשמש לשליטה מרחוק ולשליחת התראות Hook."
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
     },
     "feishu": {
       "title": "Feishu / Lark",
@@ -1564,7 +1577,7 @@
       "description": "חברו בוט Discord להודעות פרטיות, אזכורים בערוצים ושליטה מרחוק באמצעות Slash Commands.",
       "botToken": "אסימון בוט",
       "botTokenPlaceholder": "אסימון בוט של Discord",
-      "remoteControlDescription": "השליטה מרחוק ב-Discord משתמשת באסימון בוט, Gateway וזרימת REST נפרדים משלה. היא לא עושה שימוש חוזר בתצורת ה-webhook של ההתראות.",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
       "accessRule1": "שלחו /pair [code] בהודעה פרטית או בערוץ היעד כדי לאשר את נקודת הקצה הנוכחית של Discord.",
       "accessRule2": "הודעות בערוץ נכנסות לשיחה רק כאשר מזכירים את הבוט, כדי לא לקלוט בטעות צ'אט רגיל."
     },
@@ -1637,7 +1650,7 @@
       "bindingOnly": "קישורים: {count}, ישויות מותאמות: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "hooksOn": "מופעלים",
       "hooksOff": "כבויים",

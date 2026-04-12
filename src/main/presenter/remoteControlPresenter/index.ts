@@ -1,4 +1,3 @@
-import type { HookTestResult, TelegramNotificationsConfig } from '@shared/hooksNotifications'
 import { BrowserWindow } from 'electron'
 import logger from '@shared/logger'
 import type {
@@ -127,19 +126,12 @@ export class RemoteControlPresenter {
   }
 
   buildTelegramSettingsSnapshot(): TelegramRemoteSettings {
-    const hooksConfig = this.deps.getHooksNotificationsConfig().telegram
     const remoteConfig = this.bindingStore.getTelegramConfig()
 
     return {
-      botToken: hooksConfig.botToken,
+      botToken: remoteConfig.botToken,
       remoteEnabled: remoteConfig.enabled,
-      defaultAgentId: remoteConfig.defaultAgentId,
-      hookNotifications: {
-        enabled: hooksConfig.enabled,
-        chatId: hooksConfig.chatId,
-        threadId: hooksConfig.threadId,
-        events: hooksConfig.events
-      }
+      defaultAgentId: remoteConfig.defaultAgentId
     }
   }
 
@@ -205,7 +197,7 @@ export class RemoteControlPresenter {
         titleKey: 'settings.remote.telegram.title',
         descriptionKey: 'settings.remote.telegram.description',
         supportsPairing: true,
-        supportsNotifications: true
+        supportsNotifications: false
       },
       {
         id: 'feishu',
@@ -445,20 +437,14 @@ export class RemoteControlPresenter {
   async saveTelegramSettings(input: TelegramRemoteSettings): Promise<TelegramRemoteSettings> {
     const normalized = normalizeTelegramSettingsInput(input)
     const defaultAgentId = await this.sanitizeDefaultAgentId('telegram', normalized.defaultAgentId)
-    const currentHooksConfig = this.deps.getHooksNotificationsConfig()
     const currentRemoteConfig = this.bindingStore.getTelegramConfig()
-    const currentBotToken = currentHooksConfig.telegram.botToken.trim()
     const shouldClearFatalError =
       currentRemoteConfig.enabled !== normalized.remoteEnabled ||
-      currentBotToken !== normalized.botToken
-
-    this.deps.setHooksNotificationsConfig({
-      ...currentHooksConfig,
-      telegram: this.buildTelegramHookConfig(normalized, currentHooksConfig.telegram)
-    })
+      currentRemoteConfig.botToken !== normalized.botToken
 
     this.bindingStore.updateTelegramConfig((config) => ({
       ...config,
+      botToken: normalized.botToken,
       enabled: normalized.remoteEnabled,
       defaultAgentId,
       streamMode: currentRemoteConfig.streamMode,
@@ -474,9 +460,8 @@ export class RemoteControlPresenter {
 
   async getTelegramStatus(): Promise<TelegramRemoteStatus> {
     const remoteConfig = this.bindingStore.getTelegramConfig()
-    const hooksConfig = this.deps.getHooksNotificationsConfig().telegram
     const runtimeStatus = this.getEffectiveTelegramStatus(
-      hooksConfig.botToken,
+      remoteConfig.botToken,
       remoteConfig.enabled,
       remoteConfig.lastFatalError
     )
@@ -896,10 +881,6 @@ export class RemoteControlPresenter {
     })
   }
 
-  async testTelegramHookNotification(): Promise<HookTestResult> {
-    return await this.deps.testTelegramHookNotification()
-  }
-
   private registerBuiltInFactories(): void {
     this.channelManager.registerFactory({
       source: 'builtin',
@@ -987,20 +968,6 @@ export class RemoteControlPresenter {
           configSignature: config.configSignature
         })
     })
-  }
-
-  private buildTelegramHookConfig(
-    settings: TelegramRemoteSettings,
-    previous: TelegramNotificationsConfig
-  ): TelegramNotificationsConfig {
-    return {
-      ...previous,
-      enabled: settings.hookNotifications.enabled,
-      botToken: settings.botToken,
-      chatId: settings.hookNotifications.chatId,
-      threadId: settings.hookNotifications.threadId,
-      events: settings.hookNotifications.events
-    }
   }
 
   private async rebuildTelegramRuntime(): Promise<void> {
@@ -1658,13 +1625,7 @@ export class RemoteControlPresenter {
     return JSON.stringify({
       botToken: settings.botToken.trim(),
       remoteEnabled: settings.remoteEnabled,
-      defaultAgentId: settings.defaultAgentId.trim(),
-      hookNotifications: {
-        enabled: settings.hookNotifications.enabled,
-        chatId: settings.hookNotifications.chatId.trim(),
-        threadId: settings.hookNotifications.threadId?.trim() || '',
-        events: [...settings.hookNotifications.events]
-      }
+      defaultAgentId: settings.defaultAgentId.trim()
     })
   }
 

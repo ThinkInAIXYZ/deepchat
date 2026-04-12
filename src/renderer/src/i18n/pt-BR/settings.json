@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "Configure notificações de webhook e hooks de ciclo de vida.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "Eventos",
       "SessionStart": "Início da sessão",
@@ -90,32 +90,45 @@
       "Stop": "Parada",
       "SessionEnd": "Fim da sessão"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "Enviar notificações via bot do Telegram.",
-      "botToken": "Token do bot",
-      "botTokenPlaceholder": "Token do bot do Telegram",
-      "chatId": "ID do chat",
-      "chatIdPlaceholder": "ex.: 123456789",
-      "threadId": "ID da thread (opcional)",
-      "threadIdPlaceholder": "ID de thread opcional"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "Enviar notificações via webhook do Discord.",
-      "webhookUrl": "URL do webhook",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "Enviar notificações via hook Confirmo (todos os eventos).",
-      "unavailable": "Hook do Confirmo não encontrado: {path}"
-    },
     "commands": {
-      "title": "Comandos de hook",
-      "description": "Executar um comando para cada evento.",
-      "hint": "O payload é enviado para o stdin em JSON.",
-      "commandPlaceholder": "Comando a executar"
+      "title": "Comandos de Hook",
+      "description": "Execute comandos personalizados para os eventos de ciclo de vida selecionados.",
+      "hint": "O payload completo é enviado ao stdin como JSON.",
+      "commandPlaceholder": "Comando a executar",
+      "commandLabel": "Comando",
+      "name": "Nome",
+      "namePlaceholder": "Nome do hook",
+      "newHook": "Novo hook",
+      "empty": "Ainda não há hooks. Adicione um para começar.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "Como usar",
+      "guideDescription": "Quando um evento marcado é disparado, o DeepChat executa o comando. O evento atual pode ser lido pelo JSON em stdin, por variáveis de ambiente e por placeholders de linha de comando.",
+      "deliveryTitle": "Como os dados são enviados",
+      "deliveryStdin": "O payload completo é enviado ao stdin como JSON.",
+      "deliveryPlaceholder": "Você pode usar placeholders de linha de comando diretamente no comando.",
+      "deliveryEnv": "Os mesmos metadados básicos também são expostos como variáveis de ambiente.",
+      "metadataOnly": "Placeholders de linha de comando são melhores para metadados pequenos. Leia detalhes de prompt/tool, permission, usage, stop e error a partir do JSON no stdin.",
+      "stdinPreviewLabel": "Exemplo de stdin",
+      "placeholdersTitle": "Placeholders de linha de comando",
+      "placeholdersDescription": "Os placeholders são expandidos antes da execução e podem ser passados como argumentos do comando.",
+      "envTitle": "Variáveis de ambiente",
+      "examplesTitle": "Exemplos",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Nome do evento atual",
+        "time": "Hora do evento no formato ISO-8601",
+        "isTest": "Se esta execução veio do botão de teste",
+        "conversationId": "ID da conversa / sessão atual",
+        "workdir": "Diretório de trabalho resolvido para a sessão",
+        "agentId": "ID do agent atual, quando disponível",
+        "providerId": "ID do provider atual, quando disponível",
+        "modelId": "ID do model atual, quando disponível",
+        "messageId": "ID da mensagem do usuário atual, quando disponível",
+        "toolName": "Nome da ferramenta atual, quando disponível",
+        "toolCallId": "ID da chamada de ferramenta atual, quando disponível"
+      }
     },
     "test": {
       "button": "Testar",
@@ -1532,10 +1545,10 @@
     "description": "Configure em um só lugar o controle remoto por Telegram, Feishu, QQBot e WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "Gerencie um único bot do Telegram para controle remoto e entrega de hooks.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "Token do bot",
       "botTokenPlaceholder": "Token do bot do Telegram",
-      "botTokenDescription": "Informe o token do bot do Telegram usado para controle remoto e envio de notificações Hook."
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
     },
     "feishu": {
       "title": "Feishu / Lark",
@@ -1564,7 +1577,7 @@
       "description": "Conecte um bot do Discord para DMs, menções em canais e controle remoto por slash commands.",
       "botToken": "Token do bot",
       "botTokenPlaceholder": "Token do bot do Discord",
-      "remoteControlDescription": "O controle remoto do Discord usa seu próprio token de bot, gateway e fluxo REST. Ele não reutiliza a configuração de webhook das notificações.",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
       "accessRule1": "Envie /pair [code] em uma DM ou no canal de destino para autorizar o endpoint atual do Discord.",
       "accessRule2": "Mensagens em canais só entram na sessão quando o bot é mencionado, evitando capturar conversas comuns."
     },
@@ -1637,7 +1650,7 @@
       "bindingOnly": "Vínculos: {count}, identidades pareadas: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} vínculos, {pairedCount} usuários pareados, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} vínculos, {pairedCount} usuários pareados",
       "hooksOn": "ativos",
       "hooksOff": "desativados",

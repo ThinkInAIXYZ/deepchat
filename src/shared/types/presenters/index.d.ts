@@ -116,7 +116,6 @@ export type {
   RemoteChannelStatus,
   RemotePairingSnapshot,
   RemoteRuntimeState,
-  TelegramHookSettings,
   TelegramPairingSnapshot,
   TelegramRemoteBindingSummary,
   TelegramRemoteSettings,

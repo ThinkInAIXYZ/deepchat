@@ -45,13 +45,13 @@
 ## Shared / IPC Contract
 
 - Add `src/shared/types/presenters/remote-control.presenter.d.ts`.
-- Expose methods for reading/saving Telegram settings, reading runtime status, listing/removing bindings, reading pairing snapshot, generating/clearing pair codes, clearing bindings, and testing Telegram hooks.
+- Expose methods for reading/saving Telegram settings, reading runtime status, listing/removing bindings, reading pairing snapshot, generating/clearing pair codes, and clearing bindings.
 
 ## Renderer Plan
 
 - Add a new `Remote` settings route and `RemoteSettings.vue`.
 - Move Telegram configuration out of `NotificationsHooksSettings.vue`.
-- Keep `Hooks` for Discord, Confirmo, and command hooks only.
+- Keep `Hooks` as command hooks only.
 - Simplify the first-layer Telegram remote UI to allowed user IDs, default agent selection, pairing, and binding management.
 - Show pairing and binding management inside dialogs; hide remote/hook detail forms when their toggle is off.
 - Reuse existing i18n flow for all renderer-visible strings.
@@ -62,9 +62,8 @@
   - No schema change.
   - Sessions/messages continue to use existing new-agent tables.
 - Electron Store
-  - `hooksNotifications.telegram`
-    - Shared Telegram bot token and hook notification target settings.
   - `remoteControl.telegram`
+    - `botToken`
     - `enabled`
     - `allowlist`
     - `defaultAgentId`
@@ -76,7 +75,7 @@
 ## Event / Request Flow
 
 1. Renderer saves Remote settings through `remoteControlPresenter`.
-2. Main presenter updates `hooksNotifications.telegram` and `remoteControl.telegram`, then rebuilds the Telegram runtime if required.
+2. Main presenter updates `remoteControl.telegram`, then rebuilds the Telegram runtime if required.
 3. Telegram poller receives private updates through `getUpdates`.
 4. Parser normalizes message and callback payloads.
 5. Router applies auth, command handling, and `/model` inline-menu transitions.
@@ -102,5 +101,4 @@
 ## Migration Note
 
 - No SQLite migration is required.
-- Existing Telegram hook settings remain compatible.
 - New remote state is additive and can be removed cleanly by disabling remote control or clearing the config blob.

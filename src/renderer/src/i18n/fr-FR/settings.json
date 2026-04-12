@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "Configurer les notifications webhook et les hooks du cycle de vie.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "Événements",
       "SessionStart": "Début de session",
@@ -90,32 +90,45 @@
       "Stop": "Arrêt",
       "SessionEnd": "Fin de session"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "Envoyer des notifications via un bot Telegram.",
-      "botToken": "Jeton du bot",
-      "botTokenPlaceholder": "Jeton du bot Telegram",
-      "chatId": "ID du chat",
-      "chatIdPlaceholder": "ex. 123456789",
-      "threadId": "ID du fil (optionnel)",
-      "threadIdPlaceholder": "ID du fil optionnel"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "Envoyer des notifications via un webhook Discord.",
-      "webhookUrl": "URL du webhook",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "Envoyer des notifications via le hook Confirmo (tous les événements).",
-      "unavailable": "Hook Confirmo introuvable : {path}"
-    },
     "commands": {
-      "title": "Commandes de hooks",
-      "description": "Exécuter une commande pour chaque événement.",
-      "hint": "La charge utile est envoyée sur stdin au format JSON.",
-      "commandPlaceholder": "Commande à exécuter"
+      "title": "Commandes de hook",
+      "description": "Exécutez des commandes personnalisées pour les événements de cycle de vie sélectionnés.",
+      "hint": "Le payload complet est écrit dans stdin au format JSON.",
+      "commandPlaceholder": "Commande à exécuter",
+      "commandLabel": "Commande",
+      "name": "Nom",
+      "namePlaceholder": "Nom du hook",
+      "newHook": "Nouveau hook",
+      "empty": "Aucun hook pour le moment. Ajoutez-en un pour commencer.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "Mode d’emploi",
+      "guideDescription": "Quand un événement coché se déclenche, DeepChat exécute la commande. L’événement courant est accessible via le JSON sur stdin, les variables d’environnement et les placeholders de ligne de commande.",
+      "deliveryTitle": "Transmission des données",
+      "deliveryStdin": "Le payload complet est écrit dans stdin au format JSON.",
+      "deliveryPlaceholder": "Vous pouvez utiliser directement les placeholders de ligne de commande dans la commande.",
+      "deliveryEnv": "Les mêmes métadonnées de base sont aussi exposées via des variables d’environnement.",
+      "metadataOnly": "Les placeholders de ligne de commande conviennent surtout aux petites métadonnées. Lisez les détails du prompt/tool, permission, usage, stop et error depuis le JSON sur stdin.",
+      "stdinPreviewLabel": "Exemple stdin",
+      "placeholdersTitle": "Placeholders de ligne de commande",
+      "placeholdersDescription": "Les placeholders sont développés avant l’exécution et peuvent être passés comme arguments de commande.",
+      "envTitle": "Variables d’environnement",
+      "examplesTitle": "Exemples",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Nom de l’événement courant",
+        "time": "Heure de l’événement au format ISO-8601",
+        "isTest": "Indique si cette exécution vient du bouton de test",
+        "conversationId": "ID de la conversation / session courante",
+        "workdir": "Répertoire de travail résolu pour la session",
+        "agentId": "ID de l’agent courant si disponible",
+        "providerId": "ID du provider courant si disponible",
+        "modelId": "ID du modèle courant si disponible",
+        "messageId": "ID du message utilisateur courant si disponible",
+        "toolName": "Nom de l’outil courant si disponible",
+        "toolCallId": "ID de l’appel d’outil courant si disponible"
+      }
     },
     "test": {
       "button": "Tester",
@@ -1532,10 +1545,10 @@
     "description": "Configurez au même endroit le contrôle à distance de Telegram, Feishu, QQBot et WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "Gérez un seul bot Telegram pour le contrôle à distance et l’envoi des hooks.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "Jeton du bot",
       "botTokenPlaceholder": "Jeton du bot Telegram",
-      "botTokenDescription": "Saisissez le jeton du bot Telegram utilisé pour le contrôle à distance et l’envoi des notifications Hook."
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
     },
     "feishu": {
       "title": "Feishu / Lark",
@@ -1564,7 +1577,7 @@
       "description": "Connectez un bot Discord pour les messages privés, les mentions de salon et le contrôle à distance par slash commands.",
       "botToken": "Jeton du bot",
       "botTokenPlaceholder": "Jeton du bot Discord",
-      "remoteControlDescription": "Le contrôle à distance Discord utilise son propre jeton de bot, sa gateway et son flux REST. Il ne réutilise pas la configuration webhook des notifications.",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
       "accessRule1": "Envoyez /pair [code] dans un message privé ou le salon cible pour autoriser l’endpoint Discord actuel.",
       "accessRule2": "Les messages de salon n’entrent dans la session que lorsque le bot est mentionné, afin d’éviter d’absorber les conversations ordinaires."
     },
@@ -1637,7 +1650,7 @@
       "bindingOnly": "Liaisons : {count}, principaux associés : {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} liaisons, {pairedCount} utilisateurs associés, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
       "hooksOn": "activés",
       "hooksOff": "désactivés",

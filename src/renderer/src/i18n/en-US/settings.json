@@ -140,7 +140,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "Configure webhook notifications and lifecycle hooks.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "Events",
       "SessionStart": "Session Start",
@@ -152,32 +152,45 @@
       "Stop": "Stop",
       "SessionEnd": "Session End"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "Send notifications via Telegram bot.",
-      "botToken": "Bot Token",
-      "botTokenPlaceholder": "Telegram bot token",
-      "chatId": "Chat ID",
-      "chatIdPlaceholder": "e.g. 123456789",
-      "threadId": "Thread ID (optional)",
-      "threadIdPlaceholder": "Optional thread ID"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "Send notifications via Discord webhook.",
-      "webhookUrl": "Webhook URL",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "Send notifications via Confirmo hook (all events).",
-      "unavailable": "Confirmo hook not found: {path}"
-    },
     "commands": {
       "title": "Hooks Commands",
-      "description": "Run a command for each event.",
-      "hint": "The payload is sent to stdin as JSON.",
-      "commandPlaceholder": "Command to run"
+      "description": "Run custom commands for the selected lifecycle events.",
+      "hint": "The full payload is sent to stdin as JSON.",
+      "commandPlaceholder": "Command to run",
+      "commandLabel": "Command",
+      "name": "Name",
+      "namePlaceholder": "Hook name",
+      "newHook": "New Hook",
+      "empty": "No hooks yet. Add one to get started.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "How To Use",
+      "guideDescription": "When a checked event fires, DeepChat runs the command. The current event is available from stdin JSON, environment variables, and command placeholders.",
+      "deliveryTitle": "How data is passed",
+      "deliveryStdin": "The full payload is written to stdin as JSON.",
+      "deliveryPlaceholder": "You can place command placeholders directly in the command line.",
+      "deliveryEnv": "The same core metadata is also exposed as environment variables.",
+      "metadataOnly": "Command placeholders are best for small metadata. Read prompt/tool details, permission, usage, stop, and error fields from stdin JSON.",
+      "stdinPreviewLabel": "stdin example",
+      "placeholdersTitle": "Command placeholders",
+      "placeholdersDescription": "Placeholders are expanded before execution, so they can be passed as command arguments.",
+      "envTitle": "Environment variables",
+      "examplesTitle": "Examples",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Current event name",
+        "time": "Event time in ISO-8601 format",
+        "isTest": "Whether this run comes from the Test button",
+        "conversationId": "Current conversation/session ID",
+        "workdir": "Resolved working directory for the session",
+        "agentId": "Current agent ID when available",
+        "providerId": "Current provider ID when available",
+        "modelId": "Current model ID when available",
+        "messageId": "Current user message ID when available",
+        "toolName": "Current tool name when available",
+        "toolCallId": "Current tool call ID when available"
+      }
     },
     "test": {
       "button": "Test",
@@ -1594,10 +1607,10 @@
     "description": "Configure Telegram, Feishu / Lark, QQBot, Discord, and WeChat iLink remote control in one place.",
     "telegram": {
       "title": "Telegram",
-      "description": "Manage one Telegram bot for remote control and hook delivery.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "Bot Token",
       "botTokenPlaceholder": "Telegram bot token",
-      "botTokenDescription": "Enter the Telegram bot token used for remote control and Hook delivery."
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
     },
     "feishu": {
       "title": "Feishu / Lark",
@@ -1626,7 +1639,7 @@
       "description": "Connect a Discord bot for DMs, channel mentions, and slash-command remote control.",
       "botToken": "Bot Token",
       "botTokenPlaceholder": "Discord bot token",
-      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow. It does not reuse the notification webhook configuration.",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
       "accessRule1": "Send /pair [code] in a DM or target channel to authorize the current Discord endpoint.",
       "accessRule2": "Channel messages only enter the conversation when the bot is mentioned, which avoids absorbing regular chat."
     },
@@ -1690,7 +1703,7 @@
       "bindingOnly": "Bindings: {count}, paired principals: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} bindings, {pairedCount} paired users, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} bindings, {pairedCount} paired users",
       "hooksOn": "on",
       "hooksOff": "off",

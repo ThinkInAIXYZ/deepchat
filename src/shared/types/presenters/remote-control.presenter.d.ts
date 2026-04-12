@@ -1,5 +1,3 @@
-import type { HookEventName, HookTestResult } from '../../hooksNotifications'
-
 export type RemoteChannelId = 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink'
 export type RemoteChannel = RemoteChannelId
 export type PairableRemoteChannel = Extract<
@@ -25,13 +23,6 @@ export interface RemoteChannelDescriptor {
   descriptionKey: string
   supportsPairing: boolean
   supportsNotifications: boolean
-}
-
-export interface TelegramHookSettings {
-  enabled: boolean
-  chatId: string
-  threadId?: string
-  events: HookEventName[]
 }
 
 export interface RemoteBindingSummary {
@@ -105,7 +96,6 @@ export interface TelegramRemoteSettings {
   botToken: string
   remoteEnabled: boolean
   defaultAgentId: string
-  hookNotifications: TelegramHookSettings
 }
 
 export interface FeishuRemoteSettings {
@@ -295,7 +285,6 @@ export interface IRemoteControlPresenter {
   ): Promise<{ code: string; expiresAt: number }>
   clearChannelPairCode(channel: PairableRemoteChannel): Promise<void>
   clearChannelBindings(channel: RemoteChannel): Promise<number>
-  testTelegramHookNotification(): Promise<HookTestResult>
 
   getTelegramSettings(): Promise<TelegramRemoteSettings>
   saveTelegramSettings(input: TelegramRemoteSettings): Promise<TelegramRemoteSettings>

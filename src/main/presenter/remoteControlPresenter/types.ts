@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { HookEventName } from '@shared/hooksNotifications'
 import type { QuestionOption } from '@shared/types/agent-interface'
 import type {
   DiscordPairingSnapshot,
@@ -273,6 +272,7 @@ export type TelegramCommandPayload = {
 }
 
 export interface TelegramRemoteRuntimeConfig {
+  botToken: string
   enabled: boolean
   allowlist: number[]
   streamMode: TelegramStreamMode
@@ -793,15 +793,9 @@ export interface WeixinIlinkTransportTarget {
   contextToken?: string
 }
 
-export interface TelegramRemoteHookSettingsInput {
-  enabled: boolean
-  chatId: string
-  threadId?: string
-  events: HookEventName[]
-}
-
 export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
   telegram: {
+    botToken: '',
     enabled: false,
     allowlist: [],
     streamMode: 'draft',
@@ -899,6 +893,7 @@ const PairingStateSchema = z
 
 const TelegramRemoteRuntimeConfigSchema = z
   .object({
+    botToken: z.string().optional(),
     enabled: z.boolean().optional(),
     allowlist: z.array(z.union([z.number(), z.string()])).optional(),
     defaultAgentId: z.string().optional(),
@@ -1271,6 +1266,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
 
   return {
     telegram: {
+      botToken: telegram.botToken?.trim() || '',
       enabled: Boolean(telegram.enabled),
       allowlist: normalizeTelegramUserIds(telegram.allowlist),
       streamMode: telegram.streamMode === 'final' ? 'final' : defaults.telegram.streamMode,
@@ -1596,13 +1592,7 @@ export const normalizeTelegramSettingsInput = (
 ): TelegramRemoteSettings => ({
   botToken: input.botToken?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
-  defaultAgentId: input.defaultAgentId?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
-  hookNotifications: {
-    enabled: Boolean(input.hookNotifications.enabled),
-    chatId: input.hookNotifications.chatId?.trim() ?? '',
-    threadId: input.hookNotifications.threadId?.trim() || undefined,
-    events: Array.from(new Set(input.hookNotifications.events ?? []))
-  }
+  defaultAgentId: input.defaultAgentId?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
 })
 
 export const normalizeFeishuSettingsInput = (

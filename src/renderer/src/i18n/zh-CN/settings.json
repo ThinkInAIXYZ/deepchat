@@ -140,7 +140,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "配置 webhook 通知与生命周期 hooks。",
+    "description": "配置生命周期 Hook 命令。",
     "events": {
       "title": "事件",
       "SessionStart": "会话开始",
@@ -152,32 +152,45 @@
       "Stop": "停止",
       "SessionEnd": "会话结束"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "通过 Telegram Bot 发送通知。",
-      "botToken": "机器人 Token",
-      "botTokenPlaceholder": "Telegram 机器人 Token",
-      "chatId": "聊天 ID",
-      "chatIdPlaceholder": "例如 123456789",
-      "threadId": "话题 ID（可选）",
-      "threadIdPlaceholder": "可选的话题 ID"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "通过 Discord webhook 发送通知。",
-      "webhookUrl": "Webhook URL",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "通过 Confirmo Hook 发送通知（默认发送全部事件）。",
-      "unavailable": "未找到 Confirmo Hook：{path}"
-    },
     "commands": {
       "title": "Hooks Commands",
-      "description": "为每个事件执行命令。",
-      "hint": "payload 以 JSON 写入 stdin。",
-      "commandPlaceholder": "要执行的命令"
+      "description": "按选中的生命周期事件执行自定义命令。",
+      "hint": "完整 payload 会以 JSON 写入 stdin。",
+      "commandPlaceholder": "要执行的命令",
+      "commandLabel": "命令",
+      "name": "名称",
+      "namePlaceholder": "Hook 名称",
+      "newHook": "新建 Hook",
+      "empty": "暂无 Hook，点击右上角新建。",
+      "defaultName": "Hook {index}",
+      "guideTitle": "使用说明",
+      "guideDescription": "勾选的事件触发后，DeepChat 会执行该命令。当前事件可通过 stdin JSON、环境变量和命令行占位符读取。",
+      "deliveryTitle": "传参方式",
+      "deliveryStdin": "完整 payload 会以 JSON 写入 stdin。",
+      "deliveryPlaceholder": "可以在命令行中直接使用命令行占位符。",
+      "deliveryEnv": "同一组基础元数据也会同步写入环境变量。",
+      "metadataOnly": "命令行占位符更适合小型元数据；prompt、tool 详情、permission、usage、stop、error 等内容请从 stdin JSON 读取。",
+      "stdinPreviewLabel": "stdin 示例",
+      "placeholdersTitle": "命令行占位符",
+      "placeholdersDescription": "占位符会在执行前展开，可以直接放在命令后面作为参数。",
+      "envTitle": "环境变量",
+      "examplesTitle": "示例命令",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "当前事件名",
+        "time": "事件时间，ISO-8601 格式",
+        "isTest": "是否由测试按钮触发",
+        "conversationId": "当前会话 ID",
+        "workdir": "当前会话解析出的工作目录",
+        "agentId": "当前 Agent ID（如有）",
+        "providerId": "当前 Provider ID（如有）",
+        "modelId": "当前 Model ID（如有）",
+        "messageId": "当前用户消息 ID（如有）",
+        "toolName": "当前工具名（如有）",
+        "toolCallId": "当前工具调用 ID（如有）"
+      }
     },
     "test": {
       "button": "测试",
@@ -1594,10 +1607,10 @@
     "description": "统一配置 Telegram、飞书 / Lark、QQBot、Discord 和微信 iLink 远程控制。",
     "telegram": {
       "title": "Telegram",
-      "description": "用同一个 Telegram Bot 管理远程控制和 Hook 投递。",
+      "description": "接入 Telegram Bot，支持私聊、群聊和话题线程远程控制。",
       "botToken": "机器人 Token",
       "botTokenPlaceholder": "Telegram 机器人 Token",
-      "botTokenDescription": "填写用于远程控制和 Hook 通知投递的 Telegram 机器人 Token。"
+      "botTokenDescription": "填写用于 Telegram 远程控制的机器人 Token。"
     },
     "feishu": {
       "title": "飞书 / Lark",
@@ -1626,7 +1639,7 @@
       "description": "接入 Discord Bot，支持私聊、频道提及和 Slash Commands 远程控制。",
       "botToken": "Bot Token",
       "botTokenPlaceholder": "Discord Bot Token",
-      "remoteControlDescription": "Discord 远控使用独立的 Bot Token、Gateway 和 REST，不复用通知 Hook 的 webhook 配置。",
+      "remoteControlDescription": "Discord 远控使用独立的 Bot Token、Gateway 和 REST 流程。",
       "accessRule1": "私聊或频道里发送 /pair [配对码]，把当前 DM 或频道授权给 DeepChat。",
       "accessRule2": "频道消息只有在提及机器人时才会进入会话，避免误处理普通聊天。"
     },
@@ -1690,7 +1703,7 @@
       "bindingOnly": "绑定数：{count}，已配对主体：{paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} 个绑定，{pairedCount} 个已配对用户，hooks {hooks}",
+      "telegram": "{bindingCount} 个绑定，{pairedCount} 个已配对用户",
       "feishu": "{bindingCount} 个绑定，{pairedCount} 个已配对用户",
       "hooksOn": "开启",
       "hooksOff": "关闭",

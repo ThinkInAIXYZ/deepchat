@@ -194,131 +194,6 @@
                 </div>
               </div>
             </div>
-
-            <div class="rounded-lg border p-4">
-              <div class="mb-3 flex items-start justify-between gap-4">
-                <div class="flex-1">
-                  <div class="text-sm font-medium">
-                    {{ t('settings.remote.sections.notifications') }}
-                  </div>
-                  <p class="text-sm text-muted-foreground">
-                    {{ t('settings.remote.hooks.description') }}
-                  </p>
-                </div>
-                <Switch
-                  :model-value="telegramSettings.hookNotifications.enabled"
-                  @update:model-value="(value) => updateHookEnabled(value)"
-                />
-              </div>
-
-              <div
-                v-if="telegramSettings.hookNotifications.enabled"
-                data-testid="remote-hooks-details"
-                class="space-y-4"
-              >
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div class="space-y-2">
-                    <Label class="text-xs text-muted-foreground">
-                      {{ t('settings.remote.hooks.chatId') }}
-                    </Label>
-                    <Input
-                      v-model="telegramSettings.hookNotifications.chatId"
-                      :placeholder="t('settings.remote.hooks.chatIdPlaceholder')"
-                      @blur="queueTelegramSettingsPersist"
-                    />
-                  </div>
-                  <div class="space-y-2">
-                    <Label class="text-xs text-muted-foreground">
-                      {{ t('settings.remote.hooks.threadId') }}
-                    </Label>
-                    <Input
-                      v-model="telegramSettings.hookNotifications.threadId"
-                      :placeholder="t('settings.remote.hooks.threadIdPlaceholder')"
-                      @blur="queueTelegramSettingsPersist"
-                    />
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <Label class="text-xs text-muted-foreground">
-                    {{ t('settings.notificationsHooks.events.title') }}
-                  </Label>
-                  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <label
-                      v-for="eventName in eventNames"
-                      :key="`remote-hook-${eventName}`"
-                      class="flex items-center gap-2 text-sm"
-                    >
-                      <Checkbox
-                        :checked="telegramSettings.hookNotifications.events.includes(eventName)"
-                        @update:checked="(value) => updateHookEvent(eventName, value === true)"
-                      />
-                      <span>{{ eventLabel(eventName) }}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="telegramTesting"
-                    @click="runTelegramHookTest"
-                  >
-                    <Icon
-                      :icon="telegramTesting ? 'lucide:loader-2' : 'lucide:send'"
-                      :class="['mr-1 h-4 w-4', telegramTesting && 'animate-spin']"
-                    />
-                    {{
-                      telegramTesting
-                        ? t('settings.notificationsHooks.test.testing')
-                        : t('settings.notificationsHooks.test.button')
-                    }}
-                  </Button>
-                </div>
-
-                <div v-if="telegramTestResult" class="space-y-1 text-xs">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span
-                      :class="telegramTestResult.success ? 'text-emerald-600' : 'text-destructive'"
-                    >
-                      {{
-                        telegramTestResult.success
-                          ? t('settings.notificationsHooks.test.success')
-                          : t('settings.notificationsHooks.test.failed')
-                      }}
-                    </span>
-                    <span class="text-muted-foreground">
-                      {{
-                        t('settings.notificationsHooks.test.duration', {
-                          ms: telegramTestResult.durationMs
-                        })
-                      }}
-                    </span>
-                    <span
-                      v-if="telegramTestResult.statusCode !== undefined"
-                      class="text-muted-foreground"
-                    >
-                      {{
-                        t('settings.notificationsHooks.test.statusCode', {
-                          code: telegramTestResult.statusCode
-                        })
-                      }}
-                    </span>
-                    <span v-if="telegramTestResult.retryAfterMs" class="text-muted-foreground">
-                      {{
-                        t('settings.notificationsHooks.test.retryAfter', {
-                          ms: telegramTestResult.retryAfterMs
-                        })
-                      }}
-                    </span>
-                  </div>
-                  <div v-if="telegramTestResult.error" class="break-all text-destructive">
-                    {{ telegramTestResult.error }}
-                  </div>
-                </div>
-              </div>
-            </div>
           </TabsContent>
 
           <TabsContent value="feishu" class="space-y-4">
@@ -1315,7 +1190,6 @@ import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Label } from '@shadcn/components/ui/label'
-import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -1334,8 +1208,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/
 import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
 import type { Agent } from '@shared/types/agent-interface'
-import type { HookEventName, HookTestResult } from '@shared/hooksNotifications'
-import { HOOK_EVENT_NAMES } from '@shared/hooksNotifications'
 import type {
   DiscordPairingSnapshot,
   DiscordRemoteSettings,
@@ -1371,7 +1243,7 @@ const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
     titleKey: 'settings.remote.telegram.title',
     descriptionKey: 'settings.remote.telegram.description',
     supportsPairing: true,
-    supportsNotifications: true
+    supportsNotifications: false
   },
   {
     id: 'feishu',
@@ -1445,8 +1317,6 @@ const channelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackChannelDescrip
 const isLoading = ref(false)
 const showBotToken = ref(false)
 const showDiscordBotToken = ref(false)
-const telegramTesting = ref(false)
-const telegramTestResult = ref<HookTestResult | null>(null)
 const availableAgents = ref<Agent[]>([])
 const activeChannel = ref<RemoteChannel>('telegram')
 const pairDialogChannel = ref<PairableRemoteChannel | null>(null)
@@ -1497,13 +1367,7 @@ let pairDialogRefreshTimer: ReturnType<typeof setInterval> | null = null
 const defaultTelegramSettings = (): TelegramRemoteSettings => ({
   botToken: '',
   remoteEnabled: false,
-  defaultAgentId: 'deepchat',
-  hookNotifications: {
-    enabled: false,
-    chatId: '',
-    threadId: '',
-    events: []
-  }
+  defaultAgentId: 'deepchat'
 })
 
 const defaultFeishuSettings = (): FeishuRemoteSettings => ({
@@ -1917,7 +1781,6 @@ const resolveWeixinIlinkLoginMessage = (input: {
   return t('settings.remote.weixinIlink.loginFailed')
 }
 
-const eventNames = HOOK_EVENT_NAMES
 const implementedChannels = computed(() =>
   channelDescriptors.value
     .filter((descriptor) => descriptor.implemented)
@@ -1985,20 +1848,11 @@ const weixinIlinkLoginBusy = computed(
 
 const syncTelegramFields = (snapshot: Partial<TelegramRemoteSettings> | null | undefined) => {
   const fallback = defaultTelegramSettings()
-  const hookNotifications = snapshot?.hookNotifications
 
   telegramSettings.value = {
     ...fallback,
-    ...snapshot,
-    hookNotifications: {
-      ...fallback.hookNotifications,
-      ...hookNotifications,
-      threadId: hookNotifications?.threadId ?? ''
-    }
+    ...snapshot
   }
-  telegramSettings.value.hookNotifications.events = [
-    ...(hookNotifications?.events ?? fallback.hookNotifications.events)
-  ]
 }
 
 const syncFeishuFields = (snapshot: Partial<FeishuRemoteSettings> | null | undefined) => {
@@ -2568,28 +2422,6 @@ const restartWeixinIlinkAccount = async (accountId: string) => {
   }
 }
 
-const updateHookEnabled = (value: boolean) => {
-  if (!telegramSettings.value) {
-    return
-  }
-  telegramSettings.value.hookNotifications.enabled = Boolean(value)
-  queueTelegramSettingsPersist()
-}
-
-const updateHookEvent = (eventName: HookEventName, checked: boolean) => {
-  if (!telegramSettings.value) {
-    return
-  }
-  const events = new Set(telegramSettings.value.hookNotifications.events)
-  if (checked) {
-    events.add(eventName)
-  } else {
-    events.delete(eventName)
-  }
-  telegramSettings.value.hookNotifications.events = Array.from(events)
-  queueTelegramSettingsPersist()
-}
-
 const stopPairDialogPolling = () => {
   if (pairDialogRefreshTimer) {
     clearInterval(pairDialogRefreshTimer)
@@ -2791,33 +2623,6 @@ const removePrincipal = async (principalId: string) => {
   }
 }
 
-const runTelegramHookTest = async () => {
-  if (telegramTesting.value) {
-    return
-  }
-
-  if (!(await persistChannelDraftOrAbort('telegram'))) {
-    return
-  }
-
-  telegramTesting.value = true
-  telegramTestResult.value = null
-  try {
-    telegramTestResult.value = await remoteControlPresenter.testTelegramHookNotification()
-  } catch (error) {
-    telegramTestResult.value = {
-      success: false,
-      durationMs: 0,
-      error: error instanceof Error ? error.message : String(error)
-    }
-  } finally {
-    telegramTesting.value = false
-  }
-}
-
-const eventLabel = (eventName: HookEventName) =>
-  t(`settings.notificationsHooks.events.${eventName}`)
-
 const formatTimestamp = (value: number) => new Date(value).toLocaleString()
 
 const formatStatusLine = (value: RemoteChannelStatus) =>
@@ -2855,10 +2660,7 @@ const formatOverviewLine = (channel: RemoteChannel) => {
   if (channel === 'telegram') {
     return t('settings.remote.overview.telegram', {
       bindingCount: status.bindingCount,
-      pairedCount: status.allowedUserCount,
-      hooks: telegramSettings.value?.hookNotifications.enabled
-        ? t('settings.remote.overview.hooksOn')
-        : t('settings.remote.overview.hooksOff')
+      pairedCount: status.allowedUserCount
     })
   }
 
