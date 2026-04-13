@@ -48,6 +48,9 @@ export type GroupMode = 'time' | 'project'
 export type StartNewConversationOptions = {
   refresh?: boolean
 }
+export type CloseSessionOptions = {
+  refresh?: boolean
+}
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 const DEFAULT_GROUP_MODE: GroupMode = 'project'
@@ -316,14 +319,14 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function closeSession(): Promise<void> {
+  async function closeSession(options: CloseSessionOptions = {}): Promise<void> {
     error.value = null
     try {
       messageStore.clearStreamingState()
       const webContentsId = getCurrentWebContentsId()
       await agentSessionPresenter.deactivateSession(webContentsId)
       activeSessionId.value = null
-      pageRouter.goToNewThread()
+      pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
     } catch (e) {
       error.value = `Failed to close session: ${e}`
     }
@@ -342,7 +345,7 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     if (hasActiveSession.value) {
-      await closeSession()
+      await closeSession({ refresh: options.refresh ?? true })
       return
     }
 

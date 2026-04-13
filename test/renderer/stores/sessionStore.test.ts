@@ -382,7 +382,7 @@ describe('sessionStore.startNewConversation', () => {
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
     expect(agentSessionPresenter.deactivateSession).toHaveBeenCalledWith(1)
     expect(store.activeSessionId.value).toBeNull()
-    expect(pageRouter.goToNewThread).toHaveBeenCalledWith()
+    expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
   })
 
   it('preserves the selected agent when one is already chosen', async () => {
