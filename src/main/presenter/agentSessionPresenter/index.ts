@@ -526,13 +526,13 @@ export class AgentSessionPresenter {
       throw new Error('Subagent session requires an agentId.')
     }
 
+    const runtimeConfig = await this.resolveSubagentSessionRuntimeConfig(input)
     const projectDir = input.projectDir?.trim() || null
     const subagentMeta: DeepChatSubagentMeta = {
       slotId,
       displayName,
-      targetAgentId: input.targetAgentId?.trim() || null
+      targetAgentId: runtimeConfig.targetAgentId || null
     }
-    const runtimeConfig = await this.resolveSubagentSessionRuntimeConfig(input)
     this.assertAcpSessionHasWorkdir(runtimeConfig.providerId, projectDir)
 
     const agent = await this.resolveAgentImplementation(runtimeConfig.agentId)
@@ -562,17 +562,18 @@ export class AgentSessionPresenter {
           await this.skillPresenter.setActiveSkills(sessionId, runtimeConfig.activeSkills)
         }
 
-        this.emitSessionListUpdated()
-
         const record = this.sessionManager.get(sessionId)
         if (!record) {
           throw new Error(`Subagent session not found after creation: ${sessionId}`)
         }
 
-        return (await this.buildSessionWithState(record)) as SessionWithState
+        const session = (await this.buildSessionWithState(record)) as SessionWithState
+        this.emitSessionListUpdated()
+        return session
       } catch (error) {
         lastError = error
         await this.cleanupFailedSessionInitialization(agent, sessionId, runtimeConfig.providerId)
+        this.emitSessionListUpdated()
 
         if (attempt >= SUBAGENT_SESSION_INIT_MAX_ATTEMPTS) {
           throw error
@@ -1840,6 +1841,7 @@ export class AgentSessionPresenter {
 
   private async resolveSubagentSessionRuntimeConfig(input: {
     agentId: string
+    targetAgentId?: string | null
     providerId: string
     modelId: string
     generationSettings?: Partial<SessionGenerationSettings>
@@ -1847,6 +1849,7 @@ export class AgentSessionPresenter {
     activeSkills?: string[]
   }): Promise<{
     agentId: string
+    targetAgentId: string | null
     providerId: string
     modelId: string
     generationSettings?: Partial<SessionGenerationSettings>
@@ -1854,6 +1857,7 @@ export class AgentSessionPresenter {
     activeSkills: string[]
   }> {
     const resolvedAgentId = resolveAcpAgentAlias(input.agentId)
+    const normalizedTargetAgentId = input.targetAgentId?.trim() ? resolvedAgentId : null
     const agentType = await this.getAgentType(resolvedAgentId)
     if (agentType !== 'deepchat' && agentType !== 'acp') {
       throw new Error(`Agent ${input.agentId} is not a valid subagent target.`)
@@ -1862,6 +1866,7 @@ export class AgentSessionPresenter {
     if (agentType === 'acp') {
       return {
         agentId: resolvedAgentId,
+        targetAgentId: normalizedTargetAgentId,
         providerId: 'acp',
         modelId: resolvedAgentId,
         generationSettings: {
@@ -1874,6 +1879,7 @@ export class AgentSessionPresenter {
 
     return {
       agentId: resolvedAgentId,
+      targetAgentId: normalizedTargetAgentId,
       providerId: input.providerId,
       modelId: input.modelId,
       generationSettings: input.generationSettings,
