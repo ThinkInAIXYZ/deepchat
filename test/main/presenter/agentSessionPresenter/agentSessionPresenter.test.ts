@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { nanoid } from 'nanoid'
 import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
@@ -976,6 +977,180 @@ describe('AgentSessionPresenter', () => {
       )
       expect(session.id).toBe('draft-1')
       expect(session.isDraft).toBe(true)
+    })
+  })
+
+  describe('createSubagentSession', () => {
+    it('routes ACP target subagents to the native ACP provider without inheriting parent tooling state', async () => {
+      const nanoidMock = nanoid as unknown as ReturnType<typeof vi.fn>
+      nanoidMock.mockReturnValueOnce('child-session-acp')
+
+      const sessionRows = new Map<string, any>()
+      sqlitePresenter.newSessionsTable.create.mockImplementation(
+        (id: string, agentId: string, title: string, projectDir: string | null, options: any) => {
+          sessionRows.set(id, {
+            id,
+            agent_id: agentId,
+            title,
+            project_dir: projectDir,
+            is_pinned: 0,
+            is_draft: options?.isDraft ? 1 : 0,
+            subagent_enabled: options?.subagentEnabled ? 1 : 0,
+            session_kind: options?.sessionKind ?? 'regular',
+            parent_session_id: options?.parentSessionId ?? null,
+            subagent_meta_json: options?.subagentMetaJson ?? null,
+            created_at: 1000,
+            updated_at: 1000
+          })
+        }
+      )
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => sessionRows.get(id))
+      sqlitePresenter.newSessionsTable.delete.mockImplementation((id: string) => {
+        sessionRows.delete(id)
+      })
+
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-reviewer',
+        permissionMode: 'full_access'
+      })
+
+      const session = await presenter.createSubagentSession({
+        parentSessionId: 'parent-1',
+        agentId: 'acp-reviewer',
+        slotId: 'reviewer',
+        displayName: 'Reviewer',
+        targetAgentId: 'acp-reviewer',
+        projectDir: '/tmp/workspace',
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+        permissionMode: 'full_access',
+        generationSettings: {
+          systemPrompt: 'Should not be inherited'
+        },
+        disabledAgentTools: ['exec', 'cdp_send'],
+        activeSkills: ['skill-a']
+      })
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        'child-session-acp',
+        expect.objectContaining({
+          agentId: 'acp-reviewer',
+          providerId: 'acp',
+          modelId: 'acp-reviewer',
+          projectDir: '/tmp/workspace',
+          permissionMode: 'full_access',
+          generationSettings: {
+            systemPrompt: ''
+          }
+        })
+      )
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+        'child-session-acp',
+        'acp-reviewer',
+        'Reviewer',
+        '/tmp/workspace',
+        expect.objectContaining({
+          disabledAgentTools: [],
+          sessionKind: 'subagent',
+          parentSessionId: 'parent-1'
+        })
+      )
+      expect(skillPresenter.setActiveSkills).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenCalledWith(
+        'child-session-acp',
+        'acp-reviewer',
+        '/tmp/workspace'
+      )
+      expect(session.id).toBe('child-session-acp')
+      expect(session.providerId).toBe('acp')
+      expect(session.modelId).toBe('acp-reviewer')
+      expect(session.sessionKind).toBe('subagent')
+      expect(session.parentSessionId).toBe('parent-1')
+      expect(session.subagentMeta).toEqual({
+        slotId: 'reviewer',
+        displayName: 'Reviewer',
+        targetAgentId: 'acp-reviewer'
+      })
+    })
+
+    it('retries subagent initialization exactly once when ACP setup fails before the child starts', async () => {
+      const nanoidMock = nanoid as unknown as ReturnType<typeof vi.fn>
+      nanoidMock.mockReturnValueOnce('child-session-1').mockReturnValueOnce('child-session-2')
+
+      const sessionRows = new Map<string, any>()
+      sqlitePresenter.newSessionsTable.create.mockImplementation(
+        (id: string, agentId: string, title: string, projectDir: string | null, options: any) => {
+          sessionRows.set(id, {
+            id,
+            agent_id: agentId,
+            title,
+            project_dir: projectDir,
+            is_pinned: 0,
+            is_draft: options?.isDraft ? 1 : 0,
+            subagent_enabled: options?.subagentEnabled ? 1 : 0,
+            session_kind: options?.sessionKind ?? 'regular',
+            parent_session_id: options?.parentSessionId ?? null,
+            subagent_meta_json: options?.subagentMetaJson ?? null,
+            created_at: 1000,
+            updated_at: 1000
+          })
+        }
+      )
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => sessionRows.get(id))
+      sqlitePresenter.newSessionsTable.delete.mockImplementation((id: string) => {
+        sessionRows.delete(id)
+      })
+
+      llmProviderPresenter.setAcpWorkdir
+        .mockRejectedValueOnce(new Error('warmup failed'))
+        .mockResolvedValueOnce(undefined)
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-reviewer',
+        permissionMode: 'full_access'
+      })
+
+      const session = await presenter.createSubagentSession({
+        parentSessionId: 'parent-1',
+        agentId: 'acp-reviewer',
+        slotId: 'reviewer',
+        displayName: 'Reviewer',
+        targetAgentId: 'acp-reviewer',
+        projectDir: '/tmp/workspace',
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+        permissionMode: 'full_access',
+        generationSettings: {
+          systemPrompt: 'Should not be inherited'
+        },
+        disabledAgentTools: ['exec'],
+        activeSkills: ['skill-a']
+      })
+
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledTimes(2)
+      expect(deepChatAgent.initSession).toHaveBeenCalledTimes(2)
+      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenNthCalledWith(
+        1,
+        'child-session-1',
+        'acp-reviewer',
+        '/tmp/workspace'
+      )
+      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenNthCalledWith(
+        2,
+        'child-session-2',
+        'acp-reviewer',
+        '/tmp/workspace'
+      )
+      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledTimes(1)
+      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('child-session-1')
+      expect(deepChatAgent.destroySession).toHaveBeenCalledTimes(1)
+      expect(deepChatAgent.destroySession).toHaveBeenCalledWith('child-session-1')
+      expect(session.id).toBe('child-session-2')
+      expect(session.providerId).toBe('acp')
+      expect(session.modelId).toBe('acp-reviewer')
     })
   })
 

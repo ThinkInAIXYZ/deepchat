@@ -117,15 +117,28 @@ tool 执行时通过 `IToolPresenter.callTool(..., { onProgress })` 回调：
 模板字段固定：
 
 1. Parent summary
-2. Slot role
-3. Task title
-4. Task prompt
-5. Expected output
-6. Workspace path
+2. Task title
+3. Task prompt
+4. Expected output
+5. Workspace path
+6. Child session rules
 
 模板输出必须英文，避免模型在 child 里混杂工具协议与 UI 本地化文案。
 
-### 4.2 preview 行提取
+额外约束：
+
+1. 不注入 `Slot Description`
+2. 不复制完整父 transcript
+3. ACP-backed child 不追加 runtime/env/skills/tooling system prompt
+
+### 4.2 child target 路由
+
+1. `self` / DeepChat target：继承父 session 的 provider/model/permission/generation settings/disabled tools/active skills
+2. ACP target：使用原生 ACP provider 路由，`providerId='acp'`，`modelId=targetAgentId`
+3. ACP target 只继承 `projectDir` 与 `permissionMode`
+4. 路由决策由 `AgentSessionPresenter` 负责，不由 `subagent_orchestrator` tool 硬编码 provider/model
+
+### 4.3 preview 行提取
 
 从 child 最近一次 assistant blocks 中提取展示行：
 
@@ -140,7 +153,7 @@ tool 执行时通过 `IToolPresenter.callTool(..., { onProgress })` 回调：
 2. 去空白行
 3. 仅保留最近 3 行
 
-### 4.3 waiting 状态判断
+### 4.4 waiting 状态判断
 
 优先级：
 
@@ -150,6 +163,12 @@ tool 执行时通过 `IToolPresenter.callTool(..., { onProgress })` 回调：
 4. aborted by signal -> `cancelled`
 5. runtime status=`error` -> `error`
 6. 否则 `completed`
+
+### 4.5 child 初始化失败重试
+
+1. 只在 child 初始化阶段自动重试 1 次
+2. 首次失败后销毁旧 session runtime，并清理 ACP session
+3. 第二次失败直接结束，不重放已经开始执行的 child 任务内容
 
 ### 4.4 父删子级联
 

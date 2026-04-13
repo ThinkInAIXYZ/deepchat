@@ -46,7 +46,6 @@ type MutableTaskState = {
   expectedOutput?: string
   targetAgentId: string | null
   targetAgentName: string
-  slotDescription: string
   sessionId: string | null
   status: SubagentTerminalStatus
   previewMarkdown: string
@@ -165,9 +164,6 @@ const buildHandoffMessage = (params: {
     `- The parent session delegated this work through \`${SUBAGENT_ORCHESTRATOR_TOOL_NAME}\`.`,
     `- Orchestration mode: ${params.mode}.`,
     `- Total delegated tasks in this run: ${params.totalTasks}.`,
-    '',
-    'Slot Description:',
-    params.task.slotDescription || 'No additional slot description provided.',
     '',
     'Current Subtask:',
     `Title: ${params.task.title}`,
@@ -387,7 +383,6 @@ export class SubagentOrchestratorTool {
         expectedOutput: task.expectedOutput,
         targetAgentId,
         targetAgentName: slot.displayName || targetAgentId,
-        slotDescription: slot.description || '',
         sessionId: null,
         status: 'queued',
         previewMarkdown: '',

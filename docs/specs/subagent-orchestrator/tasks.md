@@ -14,15 +14,18 @@
    - `getSessionList()` 支持 `includeSubagents` / `parentSessionId`
    - `setSessionSubagentEnabled()`
    - 父删子级联
+   - 根据 target agent type 决定 subagent 的 provider/model/tooling 继承矩阵
+   - child 初始化失败时只自动重试 1 次
 3. 增加 runtime port 的 subagent session helper
 
 ## 3. Tool Runtime
 
 1. 在 `AgentToolManager` 增加 `subagent_orchestrator` tool schema / definition / gating
 2. 实现 slot 校验与 `self` slot 继承逻辑
-3. 实现 child session 创建、handoff、parallel / chain 调度
+3. 实现 child session 创建、最小 handoff、parallel / chain 调度
 4. 生成 progress payload 与 final markdown
 5. 接入 abort signal
+6. ACP-backed child 不注入本地 tools 与 DeepChat tool system prompt
 
 ## 4. DeepChat Bridge
 
@@ -44,7 +47,9 @@
 ## 6. Tests & Validation
 
 1. main：migration / presenter / tool execution / progress
-2. renderer：tool cards / overlay / workspace / settings
-3. 运行 `pnpm run format`
-4. 运行 `pnpm run i18n`
-5. 运行 `pnpm run lint`
+2. main：覆盖 ACP target 路由、最小 handoff、一次重试
+3. main：覆盖 ACP-backed child 零本地工具注入，且 regular ACP 不回退
+4. renderer：tool cards / overlay / workspace / settings
+5. 运行 `pnpm run format`
+6. 运行 `pnpm run i18n`
+7. 运行 `pnpm run lint`

@@ -1528,6 +1528,110 @@ describe('AgentRuntimePresenter', () => {
       expect(callArgs.tools).toEqual(tools)
     })
 
+    it('skips DeepChat runtime prompt layers and local tools for ACP-backed subagent sessions', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp-subagent',
+        agent_id: 'acp-reviewer',
+        title: 'Reviewer',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        subagent_enabled: 0,
+        session_kind: 'subagent',
+        parent_session_id: 'parent-1',
+        subagent_meta_json: JSON.stringify({
+          slotId: 'reviewer',
+          displayName: 'Reviewer',
+          targetAgentId: 'acp-reviewer'
+        }),
+        created_at: 1000,
+        updated_at: 1000
+      })
+      toolPresenter.getAllToolDefinitions.mockResolvedValue([
+        {
+          type: 'function',
+          function: {
+            name: 'test_tool',
+            description: 'A test tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
+
+      await agent.initSession('s-acp-subagent', {
+        agentId: 'acp-reviewer',
+        providerId: 'acp',
+        modelId: 'acp-reviewer',
+        projectDir: '/tmp/proj',
+        generationSettings: { systemPrompt: '' }
+      })
+      await agent.processMessage('s-acp-subagent', 'Delegated task')
+
+      expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+      expect(toolPresenter.buildToolSystemPrompt).not.toHaveBeenCalled()
+      expect(buildRuntimeCapabilitiesPrompt).not.toHaveBeenCalled()
+      expect(buildSystemEnvPrompt).not.toHaveBeenCalled()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.tools).toEqual([])
+      expect(callArgs.messages).toEqual([{ role: 'user', content: 'Delegated task' }])
+    })
+
+    it('keeps local tool injection for regular ACP sessions', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp-regular',
+        agent_id: 'acp-reviewer',
+        title: 'Reviewer',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        subagent_enabled: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      const tools = [
+        {
+          type: 'function',
+          function: {
+            name: 'test_tool',
+            description: 'A test tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test', icons: '', description: '' }
+        }
+      ]
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce(tools)
+      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
+
+      await agent.initSession('s-acp-regular', {
+        agentId: 'acp-reviewer',
+        providerId: 'acp',
+        modelId: 'acp-reviewer',
+        projectDir: '/tmp/proj'
+      })
+      await agent.processMessage('s-acp-regular', 'Hello')
+
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatMode: 'agent',
+          conversationId: 's-acp-regular',
+          agentWorkspacePath: '/tmp/proj'
+        })
+      )
+      expect(buildRuntimeCapabilitiesPrompt).toHaveBeenCalled()
+      expect(buildSystemEnvPrompt).toHaveBeenCalled()
+      expect(toolPresenter.buildToolSystemPrompt).toHaveBeenCalled()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.tools).toEqual(tools)
+      expect(callArgs.messages[0].role).toBe('system')
+    })
+
     it('passes empty tools when no toolPresenter or no tools', async () => {
       toolPresenter.getAllToolDefinitions.mockResolvedValue([])
 
