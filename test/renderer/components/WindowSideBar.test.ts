@@ -44,6 +44,7 @@ const setup = async (options: SetupOptions = {}) => {
     groupMode: (options.groupMode ?? 'time') as 'time' | 'project',
     activeSessionId: 'session-1' as string | null,
     hasActiveSession: true,
+    startNewConversation: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn(async (id: string) => {
       operations.push(`select:${id}`)
       sessionStore.activeSessionId = id
@@ -288,14 +289,12 @@ describe('WindowSideBar agent switch', () => {
     expect(operations).toEqual(['close', 'set:acp-a'])
   }, 10000)
 
-  it('refreshes the new thread page when starting a new chat without an active session', async () => {
-    const { wrapper, pageRouterStore, sessionStore } = await setup()
-    sessionStore.hasActiveSession = false
+  it('delegates sidebar new chat clicks to the unified session action', async () => {
+    const { wrapper, sessionStore } = await setup()
 
-    ;(wrapper.vm as any).handleNewChat()
+    await (wrapper.vm as any).handleNewChat()
 
-    expect(sessionStore.closeSession).not.toHaveBeenCalled()
-    expect(pageRouterStore.goToNewThread).toHaveBeenCalledWith({ refresh: true })
+    expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
   })
 
   it('renders pinned sessions outside grouped sections', async () => {

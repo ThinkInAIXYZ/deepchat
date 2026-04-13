@@ -47,7 +47,7 @@
     >
       <EditorContent
         :editor="editor"
-        class="min-h-[80px]"
+        class="min-h-[60px]"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"
       />
@@ -192,7 +192,7 @@ const setCaretToEnd = (editor: Editor) => {
 const editor = new VueEditor({
   editorProps: {
     attributes: {
-      class: 'outline-none min-h-[80px] max-h-[240px] overflow-y-auto overscroll-contain'
+      class: 'outline-none min-h-[60px] max-h-[240px] overflow-y-auto overscroll-contain'
     }
   },
   extensions: [

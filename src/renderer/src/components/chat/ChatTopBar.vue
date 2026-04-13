@@ -1,7 +1,8 @@
 <template>
   <div
     v-bind="attrs"
-    class="sticky top-0 z-10 flex items-center justify-between h-12 px-4 bg-background/60 backdrop-blur-lg window-drag-region"
+    class="sticky top-0 z-10 flex h-12 items-center justify-between bg-background/60 px-4 backdrop-blur-lg window-drag-region transition-[padding] duration-200 ease-out"
+    :class="{ 'pl-12': showCollapsedNewChatSpacer }"
   >
     <div class="flex items-center gap-2 min-w-0">
       <Button
@@ -173,6 +174,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useToast } from '@/components/use-toast'
 
 defineOptions({
@@ -190,6 +192,7 @@ const attrs = useAttrs()
 const { t } = useI18n()
 const sessionStore = useSessionStore()
 const sidepanelStore = useSidepanelStore()
+const sidebarStore = useSidebarStore()
 const { toast } = useToast()
 
 const renameDialogOpen = ref(false)
@@ -200,6 +203,9 @@ const renameValue = ref('')
 const projectName = computed(() => props.project.split('/').pop() ?? props.project)
 const currentSession = computed(
   () => sessionStore.sessions.find((session) => session.id === props.sessionId) ?? null
+)
+const showCollapsedNewChatSpacer = computed(
+  () => sidebarStore.collapsed && Boolean(sessionStore.newConversationTargetAgentId)
 )
 const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))

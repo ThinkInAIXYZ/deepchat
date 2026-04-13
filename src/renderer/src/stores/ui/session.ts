@@ -10,6 +10,7 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import { downloadBlob } from '@/lib/download'
+import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { bindSessionStoreIpc } from './sessionIpc'
@@ -44,6 +45,9 @@ export interface SessionGroup {
 }
 
 export type GroupMode = 'time' | 'project'
+export type StartNewConversationOptions = {
+  refresh?: boolean
+}
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 const DEFAULT_GROUP_MODE: GroupMode = 'project'
@@ -163,6 +167,7 @@ export const useSessionStore = defineStore('session', () => {
   const agentSessionPresenter = usePresenter('agentSessionPresenter')
   const tabPresenter = usePresenter('tabPresenter')
   const configPresenter = usePresenter('configPresenter', { safeCall: false })
+  const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
   const myWebContentsId = getCurrentWebContentsId()
@@ -228,6 +233,25 @@ export const useSessionStore = defineStore('session', () => {
   )
 
   const hasActiveSession: ComputedRef<boolean> = computed(() => activeSessionId.value !== null)
+  const newConversationTargetAgentId = computed(() => {
+    const selectedAgentId =
+      typeof agentStore.selectedAgentId === 'string' ? agentStore.selectedAgentId.trim() : ''
+    if (selectedAgentId) {
+      return selectedAgentId
+    }
+
+    const activeSessionAgentId =
+      typeof activeSession.value?.agentId === 'string' ? activeSession.value.agentId.trim() : ''
+    if (activeSessionAgentId) {
+      return activeSessionAgentId
+    }
+
+    const fallbackAgentId =
+      typeof agentStore.enabledAgents[0]?.id === 'string'
+        ? agentStore.enabledAgents[0].id.trim()
+        : ''
+    return fallbackAgentId || null
+  })
 
   const sessionGroups: ComputedRef<SessionGroup[]> = computed(() => getFilteredGroups(null))
 
@@ -303,6 +327,26 @@ export const useSessionStore = defineStore('session', () => {
     } catch (e) {
       error.value = `Failed to close session: ${e}`
     }
+  }
+
+  async function startNewConversation(options: StartNewConversationOptions = {}): Promise<void> {
+    error.value = null
+
+    const targetAgentId = newConversationTargetAgentId.value
+    if (!targetAgentId) {
+      return
+    }
+
+    if (agentStore.selectedAgentId !== targetAgentId) {
+      agentStore.setSelectedAgent(targetAgentId)
+    }
+
+    if (hasActiveSession.value) {
+      await closeSession()
+      return
+    }
+
+    pageRouter.goToNewThread({ refresh: options.refresh ?? true })
   }
 
   async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
@@ -511,12 +555,14 @@ export const useSessionStore = defineStore('session', () => {
     activeSession,
     sessionGroups,
     hasActiveSession,
+    newConversationTargetAgentId,
     fetchSessions,
     createSession,
     sendMessage,
     setSessionModel,
     selectSession,
     closeSession,
+    startNewConversation,
     renameSession,
     toggleSessionPinned,
     clearSessionMessages,

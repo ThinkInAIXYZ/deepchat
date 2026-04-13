@@ -1,12 +1,34 @@
+import { reactive } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 type SetupStoreOptions = {
   initialSettings?: Record<string, unknown>
   failGetSetting?: boolean
   failSetSetting?: boolean
+  selectedAgentId?: string | null
+  enabledAgents?: Array<{ id: string; name?: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
+
+const createSession = (overrides: Record<string, unknown> = {}) => ({
+  id: 'session-1',
+  title: 'Session',
+  agentId: 'deepchat',
+  status: 'none',
+  projectDir: '/tmp/workspace',
+  providerId: 'openai',
+  modelId: 'gpt-4',
+  isPinned: false,
+  isDraft: false,
+  sessionKind: 'regular',
+  parentSessionId: null,
+  subagentEnabled: false,
+  subagentMeta: null,
+  createdAt: 1,
+  updatedAt: 1,
+  ...overrides
+})
 
 const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.resetModules()
@@ -33,6 +55,18 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     goToNewThread: vi.fn(),
     currentRoute: 'chat'
   }
+  const agentStore = reactive({
+    selectedAgentId: options.selectedAgentId ?? null,
+    enabledAgents: (options.enabledAgents ?? []).map((agent) => ({
+      name: agent.name ?? agent.id,
+      type: agent.type ?? 'deepchat',
+      enabled: agent.enabled ?? true,
+      ...agent
+    })),
+    setSelectedAgent: vi.fn((id: string | null) => {
+      agentStore.selectedAgentId = id
+    })
+  })
   const settings = { ...(options.initialSettings ?? {}) }
   const configPresenter = {
     getSetting: vi.fn(async <T>(key: string) => {
@@ -69,6 +103,9 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouter
   }))
+  vi.doMock('@/stores/ui/agent', () => ({
+    useAgentStore: () => agentStore
+  }))
   const clearStreamingState = vi.fn()
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => ({
@@ -104,6 +141,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     configPresenter,
     clearStreamingState,
     agentSessionPresenter,
+    agentStore,
     pageRouter,
     emitIpc,
     SESSION_EVENTS
@@ -313,6 +351,51 @@ describe('sessionStore group mode preferences', () => {
     await Promise.all([firstToggle, secondToggle])
 
     expect(settings[SIDEBAR_GROUP_MODE_KEY]).toBe('project')
+  })
+})
+
+describe('sessionStore.startNewConversation', () => {
+  it('selects the first enabled agent from the all-agents welcome state', async () => {
+    const { store, agentStore, pageRouter, agentSessionPresenter } = await setupStore({
+      selectedAgentId: null,
+      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+    })
+
+    await store.startNewConversation({ refresh: true })
+
+    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('deepchat')
+    expect(agentSessionPresenter.deactivateSession).not.toHaveBeenCalled()
+    expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
+  })
+
+  it('keeps the active session agent when all agents is selected during a chat', async () => {
+    const { store, agentStore, pageRouter, agentSessionPresenter } = await setupStore({
+      selectedAgentId: null,
+      enabledAgents: []
+    })
+
+    store.sessions.value = [createSession({ id: 'session-active', agentId: 'acp-a' })]
+    store.activeSessionId.value = 'session-active'
+
+    await store.startNewConversation({ refresh: true })
+
+    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
+    expect(agentSessionPresenter.deactivateSession).toHaveBeenCalledWith(1)
+    expect(store.activeSessionId.value).toBeNull()
+    expect(pageRouter.goToNewThread).toHaveBeenCalledWith()
+  })
+
+  it('preserves the selected agent when one is already chosen', async () => {
+    const { store, agentStore, pageRouter, agentSessionPresenter } = await setupStore({
+      selectedAgentId: 'acp-a',
+      enabledAgents: [{ id: 'acp-a', type: 'acp' }]
+    })
+
+    await store.startNewConversation({ refresh: true })
+
+    expect(agentStore.setSelectedAgent).not.toHaveBeenCalled()
+    expect(agentSessionPresenter.deactivateSession).not.toHaveBeenCalled()
+    expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
   })
 })
 

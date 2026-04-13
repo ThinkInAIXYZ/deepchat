@@ -339,7 +339,6 @@ import {
 import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
 import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
-import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import type {
@@ -362,7 +361,6 @@ const windowPresenter = usePresenter('windowPresenter')
 const remoteControlPresenter = useRemoteControlPresenter()
 const { t } = useI18n()
 const agentStore = useAgentStore()
-const pageRouterStore = usePageRouterStore()
 const sessionStore = useSessionStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
@@ -675,12 +673,7 @@ const refreshRemoteControlStatus = async () => {
 }
 
 const handleNewChat = () => {
-  if (sessionStore.hasActiveSession) {
-    void sessionStore.closeSession()
-    return
-  }
-
-  pageRouterStore.goToNewThread({ refresh: true })
+  void sessionStore.startNewConversation({ refresh: true })
 }
 
 const handleAgentSelect = async (id: string | null) => {
