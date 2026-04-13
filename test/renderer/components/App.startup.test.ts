@@ -90,6 +90,7 @@ const mountApp = async (options?: {
   const sessionStore = {
     hasActiveSession,
     activeSessionId: hasActiveSession ? 'session-1' : null,
+    startNewConversation: vi.fn().mockResolvedValue(undefined),
     closeSession: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn()
   }
@@ -347,6 +348,23 @@ describe('App startup welcome flow', () => {
     shortcutHandler?.()
 
     expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(1)
+  })
+
+  it('delegates the create-new-conversation shortcut to the unified session action', async () => {
+    const { ipcOn, sessionStore } = await mountApp({
+      initComplete: true,
+      routeName: 'chat'
+    })
+
+    const shortcutHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION
+    )?.[1]
+
+    expect(shortcutHandler).toBeTypeOf('function')
+
+    await shortcutHandler?.()
+
+    expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
   })
 
   it('toggles the workspace panel from the global shortcut event when a chat session is active', async () => {

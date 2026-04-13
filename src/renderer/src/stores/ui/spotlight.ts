@@ -451,11 +451,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
 
     switch (item.actionId) {
       case 'new-chat':
-        if (sessionStore.hasActiveSession) {
-          await sessionStore.closeSession()
-        } else {
-          pageRouterStore.goToNewThread({ refresh: true })
-        }
+        await sessionStore.startNewConversation({ refresh: true })
         return
       case 'open-settings':
         await windowPresenter.openOrFocusSettingsWindow()

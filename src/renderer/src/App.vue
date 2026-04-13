@@ -228,11 +228,7 @@ const handleZoomResume = () => {
 // Handle creating new conversation
 const handleCreateNewConversation = async () => {
   try {
-    if (sessionStore.hasActiveSession) {
-      await sessionStore.closeSession()
-      return
-    }
-    pageRouterStore.goToNewThread({ refresh: true })
+    await sessionStore.startNewConversation({ refresh: true })
   } catch (error) {
     console.error('Failed to create new conversation:', error)
   }

@@ -35,6 +35,7 @@ const setupStore = async (options?: {
   const sessionStore = reactive({
     sessions: [],
     hasActiveSession: options?.hasActiveSession ?? false,
+    startNewConversation: vi.fn().mockResolvedValue(undefined),
     closeSession: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn()
   })
@@ -118,7 +119,7 @@ describe('spotlightStore new-chat action', () => {
     expect(store.activationKey.value).toBe(2)
   })
 
-  it('refreshes the new thread page when no session is active', async () => {
+  it('delegates the new-chat action to the unified session flow', async () => {
     const { store, sessionStore, pageRouterStore } = await setupStore({
       hasActiveSession: false
     })
@@ -132,25 +133,8 @@ describe('spotlightStore new-chat action', () => {
       score: 1
     })
 
+    expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
     expect(sessionStore.closeSession).not.toHaveBeenCalled()
-    expect(pageRouterStore.goToNewThread).toHaveBeenCalledWith({ refresh: true })
-  })
-
-  it('closes the active session before opening a new chat', async () => {
-    const { store, sessionStore, pageRouterStore } = await setupStore({
-      hasActiveSession: true
-    })
-
-    await store.executeItem({
-      id: 'action:new-chat',
-      kind: 'action',
-      icon: 'lucide:square-pen',
-      actionId: 'new-chat',
-      titleKey: 'common.newChat',
-      score: 1
-    })
-
-    expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
     expect(pageRouterStore.goToNewThread).not.toHaveBeenCalled()
   })
 
