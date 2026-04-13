@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { McpClient } from '../../../src/main/presenter/mcpPresenter/mcpClient'
+import { RuntimeHelper } from '../../../src/main/lib/runtimeHelper'
 import path from 'path'
 import fs from 'fs'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+
+const fsExistsSyncMock = vi.hoisted(() => vi.fn())
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -18,8 +21,9 @@ vi.mock('electron', () => ({
 
 // Mock fs module
 vi.mock('fs', () => ({
+  existsSync: fsExistsSyncMock,
   default: {
-    existsSync: vi.fn()
+    existsSync: fsExistsSyncMock
   }
 }))
 
@@ -111,10 +115,18 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 
 describe('McpClient Runtime Command Processing Tests', () => {
   let mockFsExistsSync: any
+  const runtimeHelper = RuntimeHelper.getInstance() as RuntimeHelper & {
+    runtimesInitialized: boolean
+  }
 
   beforeEach(() => {
     mockFsExistsSync = vi.mocked(fs.existsSync)
     vi.clearAllMocks()
+    mockFsExistsSync.mockReset()
+    mockFsExistsSync.mockReturnValue(false)
+    runtimeHelper.runtimesInitialized = false
+    runtimeHelper.setNodeRuntimePath(null)
+    runtimeHelper.setUvRuntimePath(null)
 
     mockHandleSamplingRequest.mockReset()
     mockCancelSamplingRequest.mockReset()
@@ -127,8 +139,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
     vi.clearAllMocks()
   })
 
-  describe('NPX to Bun X Command Translation', () => {
-    it('should convert npx command to bun x with correct arguments for everything server', () => {
+  describe('NPX Command Processing', () => {
+    it('should keep npx command arguments unchanged for everything server', () => {
       const serverConfig = {
         type: 'stdio',
         command: 'npx',
@@ -143,9 +155,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         '@modelcontextprotocol/server-everything'
       ])
 
-      // Should convert npx to bun and add 'x' as first argument
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['x', '-y', '@modelcontextprotocol/server-everything'])
+      expect(processedCommand.command).toContain('npx')
+      expect(processedCommand.args).toEqual(['-y', '@modelcontextprotocol/server-everything'])
     })
 
     it('should handle npx in command path correctly', () => {
@@ -162,9 +173,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         '@modelcontextprotocol/server-everything'
       ])
 
-      // Should still convert to bun x regardless of npx path
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['x', '-y', '@modelcontextprotocol/server-everything'])
+      expect(processedCommand.command).toContain('npx')
+      expect(processedCommand.args).toEqual(['-y', '@modelcontextprotocol/server-everything'])
     })
   })
 
@@ -198,7 +208,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       const uvRuntimePath = path
         .join('/mock/app/runtime/uv')
         .replace('app.asar', 'app.asar.unpacked')
-      ;(client as any).uvRuntimePath = uvRuntimePath
+      client.uvRuntimePath = uvRuntimePath
 
       const processedCommand = (client as any).processCommandWithArgs('uvx', ['osm-mcp-server'])
 
@@ -208,7 +218,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
           ? path.join(uvRuntimePath, 'uvx.exe')
           : path.join(uvRuntimePath, 'uvx')
 
-      expect(processedCommand.command).toBe(expectedUvxPath)
+      expect(processedCommand.command.replace(/[\\/]+/g, '/')).toBe(
+        expectedUvxPath.replace(/[\\/]+/g, '/')
+      )
       expect(processedCommand.args).toEqual(['osm-mcp-server'])
     })
 
@@ -243,12 +255,11 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const processedCommand = (client as any).processCommandWithArgs('node', ['server.js'])
 
-      // Should replace node with bun
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['server.js']) // No 'x' prefix for node
+      expect(processedCommand.command).toContain('node')
+      expect(processedCommand.args).toEqual(['server.js'])
     })
 
-    it('should handle npm command replacement with bun', () => {
+    it('should keep npm command processing stable', () => {
       const serverConfig = {
         type: 'stdio',
         command: 'npm',
@@ -259,9 +270,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const processedCommand = (client as any).processCommandWithArgs('npm', ['start'])
 
-      // Should replace npm with bun
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['start']) // No 'x' prefix for npm
+      expect(processedCommand.command).toContain('npm')
+      expect(processedCommand.args).toEqual(['start'])
     })
 
     it('should handle uv command replacement correctly', () => {
@@ -275,7 +285,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const processedCommand = (client as any).processCommandWithArgs('uv', ['run', 'server.py'])
 
-      // Should replace uv with runtime uv
       expect(processedCommand.command).toContain('uv')
       expect(processedCommand.args).toEqual(['run', 'server.py'])
     })
@@ -306,8 +315,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const client = new McpClient('test', { type: 'stdio' })
 
-      // Check if uv runtime path is set
       expect((client as any).uvRuntimePath).toBeTruthy()
+      expect((client as any).nodeRuntimePath).toBeNull()
     })
 
     it('should handle missing runtime files gracefully', () => {
@@ -315,7 +324,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const client = new McpClient('test', { type: 'stdio' })
 
-      // Should not set runtime paths when files don't exist
       expect((client as any).bunRuntimePath).toBeNull()
       expect((client as any).uvRuntimePath).toBeNull()
     })

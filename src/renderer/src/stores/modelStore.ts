@@ -55,14 +55,7 @@ export const useModelStore = defineStore('model', () => {
     if (namespace !== 'model-store' || scope !== 'provider-models') return false
     if (!targetProviderId) return true
 
-    // Strict matching: providerId must be a string and exactly match
-    const matches = typeof providerId === 'string' && providerId === targetProviderId
-    if (!matches && targetProviderId) {
-      console.warn(
-        `[ModelStore] matchesProviderModelsEntry: Cache key providerId "${providerId}" does not match target "${targetProviderId}"`
-      )
-    }
-    return matches
+    return typeof providerId === 'string' && providerId === targetProviderId
   }
 
   const invalidateProviderModelsCache = async (providerId?: string) => {
@@ -72,10 +65,6 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const updateProviderModelsCache = (providerId: string, data: MODEL_META[]) => {
-    console.log(
-      `[ModelStore] updateProviderModelsCache: updating cache for provider "${providerId}" with ${data.length} models`
-    )
-
     // Validate that all models have the correct providerId
     const validatedData = data.filter((model) => {
       if (model.providerId !== providerId) {
@@ -92,10 +81,6 @@ export const useModelStore = defineStore('model', () => {
         `[ModelStore] updateProviderModelsCache: Filtered out ${data.length - validatedData.length} models with incorrect providerId for provider "${providerId}"`
       )
     }
-
-    console.log(
-      `[ModelStore] updateProviderModelsCache: updating cache with ${validatedData.length} validated models for provider "${providerId}"`
-    )
 
     queryCache.setQueriesData(
       {
@@ -247,9 +232,6 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const updateEnabledState = (providerId: string, models: RENDERER_MODEL_META[]) => {
-    console.log(
-      `[ModelStore] updateEnabledState: updating enabled state for provider "${providerId}" with ${models.length} models`
-    )
     const enabledModelsList = models.filter((model) => model.enabled)
     const idx = enabledModels.value.findIndex((item) => item.providerId === providerId)
     if (idx !== -1) {
@@ -307,21 +289,12 @@ export const useModelStore = defineStore('model', () => {
 
   const refreshStandardModels = async (providerId: string): Promise<void> => {
     try {
-      console.log(
-        `[ModelStore] refreshStandardModels: refreshing models for provider "${providerId}"`
-      )
       await invalidateProviderModelsCache(providerId)
       let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
-      console.log(
-        `[ModelStore] refreshStandardModels: got ${models.length} models from DB for provider "${providerId}"`
-      )
 
       const providerModelsQuery = getProviderModelsQuery(providerId)
       await providerModelsQuery.refetch()
       let storedModels = providerModelsQuery.data.value ?? []
-      console.log(
-        `[ModelStore] refreshStandardModels: got ${storedModels.length} stored models for provider "${providerId}"`
-      )
 
       if (storedModels.length === 0) {
         // Fallback: try to get models directly from config

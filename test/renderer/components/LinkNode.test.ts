@@ -89,13 +89,10 @@ describe('LinkNode', () => {
   }
 
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      value: {
-        openExternal: vi.fn().mockResolvedValue(undefined)
-      },
-      writable: true,
-      configurable: true
-    })
+    window.api = {
+      ...window.api,
+      openExternal: vi.fn().mockResolvedValue(undefined)
+    }
   })
 
   afterEach(() => {

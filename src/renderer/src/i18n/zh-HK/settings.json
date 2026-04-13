@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "配置 webhook 通知與生命週期 Hooks。",
+    "description": "設定生命週期 Hook 命令。",
     "events": {
       "title": "事件",
       "SessionStart": "會話開始",
@@ -90,32 +90,45 @@
       "Stop": "停止",
       "SessionEnd": "會話結束"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "透過 Telegram 機器人發送通知。",
-      "botToken": "機器人 Token",
-      "botTokenPlaceholder": "Telegram 機器人 Token",
-      "chatId": "聊天 ID",
-      "chatIdPlaceholder": "例如 123456789",
-      "threadId": "話題 ID（可選）",
-      "threadIdPlaceholder": "可選的話題 ID"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "透過 Discord webhook 發送通知。",
-      "webhookUrl": "Webhook URL",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "透過 Confirmo hook 發送通知（所有事件）。",
-      "unavailable": "找不到 Confirmo hook：{path}"
-    },
     "commands": {
-      "title": "Hooks 指令",
-      "description": "每個事件執行一個指令。",
-      "hint": "Payload 會以 JSON 傳送到 stdin。",
-      "commandPlaceholder": "要執行的指令"
+      "title": "Hooks Commands",
+      "description": "按選取的生命週期事件執行自訂命令。",
+      "hint": "完整 payload 會以 JSON 寫入 stdin。",
+      "commandPlaceholder": "要執行的命令",
+      "commandLabel": "命令",
+      "name": "名稱",
+      "namePlaceholder": "Hook 名稱",
+      "newHook": "新增 Hook",
+      "empty": "暫時沒有 Hook，按右上角即可新增。",
+      "defaultName": "Hook {index}",
+      "guideTitle": "使用說明",
+      "guideDescription": "當已勾選的事件觸發時，DeepChat 會執行該命令。當前事件可透過 stdin JSON、環境變數與命令列佔位符讀取。",
+      "deliveryTitle": "傳參方式",
+      "deliveryStdin": "完整 payload 會以 JSON 寫入 stdin。",
+      "deliveryPlaceholder": "可直接在命令列中使用命令列佔位符。",
+      "deliveryEnv": "同一組基礎中繼資料亦會同步寫入環境變數。",
+      "metadataOnly": "命令列佔位符較適合小型中繼資料；prompt、tool 詳情、permission、usage、stop、error 等內容請從 stdin JSON 讀取。",
+      "stdinPreviewLabel": "stdin 範例",
+      "placeholdersTitle": "命令列佔位符",
+      "placeholdersDescription": "佔位符會在執行前展開，可直接放在命令後作為參數。",
+      "envTitle": "環境變數",
+      "examplesTitle": "示例命令",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "當前事件名稱",
+        "time": "事件時間，ISO-8601 格式",
+        "isTest": "是否由測試按鈕觸發",
+        "conversationId": "當前會話 ID",
+        "workdir": "當前會話解析出的工作目錄",
+        "agentId": "當前 Agent ID（如有）",
+        "providerId": "當前 Provider ID（如有）",
+        "modelId": "當前 Model ID（如有）",
+        "messageId": "當前使用者訊息 ID（如有）",
+        "toolName": "當前工具名稱（如有）",
+        "toolCallId": "當前工具呼叫 ID（如有）"
+      }
     },
     "test": {
       "button": "測試",
@@ -1529,12 +1542,50 @@
   },
   "remote": {
     "title": "遠端",
-    "description": "統一設定 Telegram 與飛書遠端控制。",
+    "description": "統一配置 Telegram、飛書、QQBot 和微信 iLink 遠端控制。",
     "telegram": {
       "title": "Telegram",
-      "description": "使用同一個 Telegram Bot 管理遠端控制與 Hook 投遞。",
+      "description": "接入 Telegram Bot，支援私聊、群聊與話題執行緒遠端控制。",
       "botToken": "機器人 Token",
-      "botTokenPlaceholder": "Telegram 機器人 Token"
+      "botTokenPlaceholder": "Telegram 機器人 Token",
+      "botTokenDescription": "填寫用於 Telegram 遠端控制的機器人 Token。"
+    },
+    "feishu": {
+      "title": "飛書 / Lark",
+      "description": "接入飛書 Bot，支援私聊、群組聊天與話題串的遠端控制。",
+      "brand": "品牌",
+      "brandFeishu": "飛書",
+      "brandLark": "Lark",
+      "appId": "應用 ID",
+      "appIdPlaceholder": "飛書應用 ID",
+      "appSecret": "應用密鑰",
+      "appSecretPlaceholder": "飛書應用密鑰",
+      "verificationToken": "驗證令牌",
+      "verificationTokenPlaceholder": "飛書事件訂閱驗證令牌",
+      "encryptKey": "加密密鑰（可選）",
+      "encryptKeyPlaceholder": "未啟用事件加密時可留空",
+      "botUser": "機器人帳號：{name} ({openId})",
+      "bindings": "綁定數：{count}，已配對使用者：{pairedUserCount}",
+      "pairedUserOpenIds": "已配對使用者 Open ID",
+      "pairedUserOpenIdsPlaceholder": "例如 ou_xxx、ou_yyy",
+      "accessRulesDescription": "請先在私聊完成配對。在群組中，只有已配對且以 {'@'} 提及 Bot 的使用者才能操作會話。",
+      "accessRule1": "先在私聊中發送 /pair [配對碼] 完成配對。",
+      "accessRule2": "在群組與話題串中，只有已配對使用者以 {'@'} 提及 Bot 時，機器人才會回應。"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "接入 Discord Bot，支援私聊、頻道提及和 Slash Commands 遠端控制。",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Discord Bot Token",
+      "remoteControlDescription": "Discord 遠控使用獨立的 Bot Token、Gateway 與 REST 流程。",
+      "accessRule1": "在私聊或目標頻道發送 /pair [配對碼]，把當前 DM 或頻道授權給 DeepChat。",
+      "accessRule2": "頻道訊息只有在提及機器人時才會進入會話，避免誤處理普通聊天。"
+    },
+    "sections": {
+      "credentials": "憑證",
+      "remoteControl": "遠端控制",
+      "notifications": "通知",
+      "accessRules": "存取規則"
     },
     "remoteControl": {
       "title": "遠端控制",
@@ -1567,7 +1618,14 @@
       "clearBindings": "清除綁定",
       "clearBindingsResult": "已清除 {count} 個綁定。",
       "pairDialogInstructionTelegram": "到 Telegram Bot 傳送這條指令：",
-      "pairDialogInstructionFeishu": "到飛書 Bot 的私聊中傳送這條指令："
+      "pairDialogInstructionFeishu": "到飛書 Bot 的私聊中傳送這條指令：",
+      "pairDialogInstructionDiscord": "去 Discord 機器人的私聊或目標頻道裡發送這條命令：",
+      "pairDialogInstructionQQBot": "到 QQ 機器人私聊或已授權群聊中發送這條命令：",
+      "authorizedPrincipalsTitle": "已授權主體",
+      "authorizedPrincipalsDescription": "這些 {channel} 帳號已獲授權，可以配對並操作會話。",
+      "authorizedPrincipalsEmpty": "目前還沒有已授權主體。",
+      "sessionBindingsTitle": "會話綁定",
+      "sessionBindingsDescription": "下方每個遠端入口目前都綁定到一個 DeepChat 會話。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",
@@ -1588,43 +1646,62 @@
         "running": "執行中",
         "backoff": "失敗後重試中",
         "error": "錯誤"
-      }
-    },
-    "feishu": {
-      "title": "飛書",
-      "description": "接入飛書 Bot，支援私聊、群組聊天與話題串的遠端控制。",
-      "appId": "應用 ID",
-      "appIdPlaceholder": "飛書應用 ID",
-      "appSecret": "應用密鑰",
-      "appSecretPlaceholder": "飛書應用密鑰",
-      "verificationToken": "驗證令牌",
-      "verificationTokenPlaceholder": "飛書事件訂閱驗證令牌",
-      "encryptKey": "加密密鑰（可選）",
-      "encryptKeyPlaceholder": "未啟用事件加密時可留空",
-      "botUser": "機器人帳號：{name} ({openId})",
-      "bindings": "綁定數：{count}，已配對使用者：{pairedUserCount}",
-      "pairedUserOpenIds": "已配對使用者 Open ID",
-      "pairedUserOpenIdsPlaceholder": "例如 ou_xxx、ou_yyy",
-      "accessRulesDescription": "請先在私聊完成配對。在群組中，只有已配對且以 {'@'} 提及 Bot 的使用者才能操作會話。",
-      "accessRule1": "先在私聊中發送 /pair [配對碼] 完成配對。",
-      "accessRule2": "在群組與話題串中，只有已配對使用者以 {'@'} 提及 Bot 時，機器人才會回應。"
-    },
-    "sections": {
-      "credentials": "憑證",
-      "remoteControl": "遠端控制",
-      "notifications": "通知",
-      "accessRules": "存取規則"
+      },
+      "bindingOnly": "綁定數：{count}，已配對主體：{paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者，hooks {hooks}",
+      "telegram": "{bindingCount} 個綁定，{pairedCount} 個已配對用戶",
       "feishu": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者",
       "hooksOn": "開啟",
-      "hooksOff": "關閉"
+      "hooksOff": "關閉",
+      "qqbot": "{bindingCount} 個綁定，{pairedCount} 個已配對使用者",
+      "discord": "{bindingCount} 個綁定，{pairedCount} 個已配對頻道",
+      "weixinIlink": "{bindingCount} 個綁定，{accountCount} 個帳號，{connectedCount} 個已連接"
     },
     "bindingKinds": {
       "dm": "私聊",
       "group": "群組",
       "topic": "話題"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "接入 QQ 機器人開放平台 Bot，支援單聊與已授權群聊提及機器人控制。",
+      "appId": "應用 ID",
+      "appIdPlaceholder": "QQBot 應用 ID",
+      "clientSecret": "客戶端密鑰",
+      "clientSecretPlaceholder": "QQBot 客戶端密鑰",
+      "remoteControlDescription": "QQ 官方單聊 user_openid 與群聊 member_openid 不是同一身份空間，所以單聊配對授權使用者，群聊需要在群內單獨用 /pair 授權。",
+      "pairedUserIds": "已配對使用者 OpenID",
+      "pairedUserIdsPlaceholder": "例如 user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "微信 iLink",
+      "description": "透過掃碼接入官方微信 iLink Bot，並由內建適配器承接遠端控制會話。",
+      "loginDescription": "按下下方按鈕後，DeepChat 會打開官方微信登入視窗，請在該視窗內完成 iLink Bot 掃碼授權。連接成功的帳號會自動加入下方清單。",
+      "ownerOnlyNotice": "目前首版僅允許掃碼登入對應的帳號擁有者控制 DeepChat。",
+      "connectButton": "打開登入視窗",
+      "refreshQrCode": "重新打開登入視窗",
+      "loginDialogTitle": "連接微信 iLink",
+      "loginDialogDescription": "官方微信登入頁會在獨立視窗中打開，請在該視窗內完成掃碼授權，並保持此對話框開啟直到連接完成。",
+      "loginFailed": "微信 iLink 登入失敗。",
+      "loginSuccessTitle": "微信 iLink 已連接",
+      "loginSuccessDescription": "帳號 {accountId} 已可用。",
+      "accountsTitle": "帳號",
+      "accountsDescription": "每個已連接的 iLink Bot 帳號都會獨立運行，並維護各自的綁定與運行狀態。",
+      "noAccounts": "目前尚未連接任何微信 iLink 帳號。",
+      "ownerUserId": "擁有者使用者 ID：{ownerUserId}",
+      "baseUrl": "服務位址：{baseUrl}",
+      "accountBindings": "綁定數：{count}",
+      "remoteControlDescription": "為微信 iLink 帳號設定共用的預設智能體，並管理這些帳號建立的會話綁定。",
+      "removeAccount": "移除帳號",
+      "restartAccount": "重新啟動帳號",
+      "statusSummary": "帳號 {accounts} 個，已連接 {connected} 個，綁定 {bindings} 個",
+      "qrcodeAlt": "微信 iLink 二維碼",
+      "loginWindowOpened": "官方微信登入視窗已打開，請在該視窗內完成掃碼授權。",
+      "loginSessionExpired": "本次登入會話已過期，請重新打開登入視窗後再試。",
+      "loginResponseIncomplete": "微信 iLink 登入返回不完整，請重新嘗試。",
+      "loginTimedOut": "等待微信 iLink 授權逾時，請重新打開登入視窗後再試。",
+      "loginConnected": "微信 iLink 帳號已連接。"
     }
   },
   "deepchatAgents": {

@@ -1,16 +1,23 @@
-import type { IConfigPresenter, RemoteChannel } from '@shared/presenter'
+import type { IConfigPresenter, PairableRemoteChannel, RemoteChannel } from '@shared/presenter'
 import {
   REMOTE_CONTROL_SETTING_KEY,
   TELEGRAM_INTERACTION_CALLBACK_TTL_MS,
   TELEGRAM_MODEL_MENU_TTL_MS,
+  buildDiscordPairingSnapshot,
+  buildQQBotPairingSnapshot,
   normalizeRemoteControlConfig,
   createPairCode,
   createTelegramCallbackToken,
   buildFeishuPairingSnapshot,
   buildTelegramEndpointKey,
   buildTelegramPairingSnapshot,
+  parseWeixinIlinkEndpointKey,
+  type DiscordPairingState,
+  type DiscordRemoteRuntimeConfig,
   type FeishuPairingState,
   type FeishuRemoteRuntimeConfig,
+  type QQBotPairingState,
+  type QQBotRemoteRuntimeConfig,
   type RemoteControlConfig,
   type RemoteEndpointBinding,
   type RemoteEndpointBindingMeta,
@@ -19,7 +26,9 @@ import {
   type TelegramPendingInteractionState,
   type TelegramModelMenuState,
   type TelegramPairingState,
-  type TelegramRemoteRuntimeConfig
+  type TelegramRemoteRuntimeConfig,
+  type WeixinIlinkAccountRuntimeConfig,
+  type WeixinIlinkRemoteRuntimeConfig
 } from '../types'
 
 export interface RemoteDeliveryState {
@@ -49,10 +58,20 @@ export class RemoteBindingStore {
 
   getChannelConfig(channel: 'telegram'): TelegramRemoteRuntimeConfig
   getChannelConfig(channel: 'feishu'): FeishuRemoteRuntimeConfig
-  getChannelConfig(channel: RemoteChannel): TelegramRemoteRuntimeConfig | FeishuRemoteRuntimeConfig
+  getChannelConfig(channel: 'qqbot'): QQBotRemoteRuntimeConfig
+  getChannelConfig(channel: 'discord'): DiscordRemoteRuntimeConfig
+  getChannelConfig(channel: 'weixin-ilink'): WeixinIlinkRemoteRuntimeConfig
+  getChannelConfig(
+    channel: RemoteChannel
+  ):
+    | TelegramRemoteRuntimeConfig
+    | FeishuRemoteRuntimeConfig
+    | QQBotRemoteRuntimeConfig
+    | DiscordRemoteRuntimeConfig
+    | WeixinIlinkRemoteRuntimeConfig
   getChannelConfig(channel: RemoteChannel) {
     const config = this.getConfig()
-    return config[channel]
+    return channel === 'weixin-ilink' ? config.weixinIlink : config[channel]
   }
 
   getTelegramConfig(): TelegramRemoteRuntimeConfig {
@@ -61,6 +80,18 @@ export class RemoteBindingStore {
 
   getFeishuConfig(): FeishuRemoteRuntimeConfig {
     return this.getChannelConfig('feishu')
+  }
+
+  getQQBotConfig(): QQBotRemoteRuntimeConfig {
+    return this.getChannelConfig('qqbot')
+  }
+
+  getDiscordConfig(): DiscordRemoteRuntimeConfig {
+    return this.getChannelConfig('discord')
+  }
+
+  getWeixinIlinkConfig(): WeixinIlinkRemoteRuntimeConfig {
+    return this.getChannelConfig('weixin-ilink')
   }
 
   updateTelegramConfig(
@@ -87,6 +118,42 @@ export class RemoteBindingStore {
     return next.feishu
   }
 
+  updateQQBotConfig(
+    updater: (config: QQBotRemoteRuntimeConfig) => QQBotRemoteRuntimeConfig
+  ): QQBotRemoteRuntimeConfig {
+    const current = this.getConfig()
+    const next = normalizeRemoteControlConfig({
+      ...current,
+      qqbot: updater(current.qqbot)
+    })
+    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    return next.qqbot
+  }
+
+  updateDiscordConfig(
+    updater: (config: DiscordRemoteRuntimeConfig) => DiscordRemoteRuntimeConfig
+  ): DiscordRemoteRuntimeConfig {
+    const current = this.getConfig()
+    const next = normalizeRemoteControlConfig({
+      ...current,
+      discord: updater(current.discord)
+    })
+    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    return next.discord
+  }
+
+  updateWeixinIlinkConfig(
+    updater: (config: WeixinIlinkRemoteRuntimeConfig) => WeixinIlinkRemoteRuntimeConfig
+  ): WeixinIlinkRemoteRuntimeConfig {
+    const current = this.getConfig()
+    const next = normalizeRemoteControlConfig({
+      ...current,
+      weixinIlink: updater(current.weixinIlink)
+    })
+    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    return next.weixinIlink
+  }
+
   getEndpointKey(
     target: { chatId: number; messageThreadId?: number } | TelegramInboundEvent
   ): string {
@@ -105,6 +172,37 @@ export class RemoteBindingStore {
   setBinding(endpointKey: string, sessionId: string, meta?: RemoteEndpointBindingMeta): void {
     const resolvedChannel = this.resolveChannelFromEndpointKey(endpointKey)
     if (!resolvedChannel) {
+      return
+    }
+
+    if (resolvedChannel === 'weixin-ilink') {
+      const parsed = parseWeixinIlinkEndpointKey(endpointKey)
+      if (!parsed) {
+        return
+      }
+
+      this.updateWeixinIlinkAccount(parsed.accountId, (account) => ({
+        ...account,
+        bindings: {
+          ...account.bindings,
+          [endpointKey]: {
+            sessionId,
+            updatedAt: Date.now(),
+            meta: meta
+              ? {
+                  ...meta,
+                  channel: resolvedChannel
+                }
+              : account.bindings[endpointKey]?.meta
+                ? {
+                    ...account.bindings[endpointKey].meta,
+                    channel: resolvedChannel
+                  }
+                : undefined
+          }
+        }
+      }))
+      this.clearTransientStateForEndpoint(endpointKey)
       return
     }
 
@@ -138,6 +236,24 @@ export class RemoteBindingStore {
       return
     }
 
+    if (channel === 'weixin-ilink') {
+      const parsed = parseWeixinIlinkEndpointKey(endpointKey)
+      if (!parsed) {
+        return
+      }
+
+      this.updateWeixinIlinkAccount(parsed.accountId, (account) => {
+        const nextBindings = { ...account.bindings }
+        delete nextBindings[endpointKey]
+        return {
+          ...account,
+          bindings: nextBindings
+        }
+      })
+      this.clearTransientStateForEndpoint(endpointKey)
+      return
+    }
+
     this.updateBindings(channel, (bindings) => {
       const nextBindings = { ...bindings }
       delete nextBindings[endpointKey]
@@ -152,7 +268,7 @@ export class RemoteBindingStore {
   }> {
     const configs =
       channel === undefined
-        ? (['telegram', 'feishu'] as const).map(
+        ? (['telegram', 'feishu', 'qqbot', 'discord', 'weixin-ilink'] as const).map(
             (key) => [key, this.getChannelBindings(key)] as const
           )
         : ([[channel, this.getChannelBindings(channel)]] as const)
@@ -178,6 +294,24 @@ export class RemoteBindingStore {
         ...config,
         bindings: {}
       }))
+    } else if (channel === 'qqbot') {
+      this.updateQQBotConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+    } else if (channel === 'discord') {
+      this.updateDiscordConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+    } else if (channel === 'weixin-ilink') {
+      this.updateWeixinIlinkConfig((config) => ({
+        ...config,
+        accounts: config.accounts.map((account) => ({
+          ...account,
+          bindings: {}
+        }))
+      }))
     } else {
       this.updateTelegramConfig((config) => ({
         ...config,
@@ -186,6 +320,21 @@ export class RemoteBindingStore {
       this.updateFeishuConfig((config) => ({
         ...config,
         bindings: {}
+      }))
+      this.updateQQBotConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+      this.updateDiscordConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+      this.updateWeixinIlinkConfig((config) => ({
+        ...config,
+        accounts: config.accounts.map((account) => ({
+          ...account,
+          bindings: {}
+        }))
       }))
     }
 
@@ -223,12 +372,169 @@ export class RemoteBindingStore {
     return this.getTelegramConfig().defaultAgentId
   }
 
+  getTelegramDefaultWorkdir(): string {
+    return this.getTelegramConfig().defaultWorkdir
+  }
+
   getDefaultAgentId(): string {
     return this.getTelegramDefaultAgentId()
   }
 
   getFeishuDefaultAgentId(): string {
     return this.getFeishuConfig().defaultAgentId
+  }
+
+  getFeishuDefaultWorkdir(): string {
+    return this.getFeishuConfig().defaultWorkdir
+  }
+
+  getQQBotDefaultAgentId(): string {
+    return this.getQQBotConfig().defaultAgentId
+  }
+
+  getQQBotDefaultWorkdir(): string {
+    return this.getQQBotConfig().defaultWorkdir
+  }
+
+  getDiscordDefaultAgentId(): string {
+    return this.getDiscordConfig().defaultAgentId
+  }
+
+  getDiscordDefaultWorkdir(): string {
+    return this.getDiscordConfig().defaultWorkdir
+  }
+
+  getWeixinIlinkDefaultAgentId(): string {
+    return this.getWeixinIlinkConfig().defaultAgentId
+  }
+
+  getWeixinIlinkDefaultWorkdir(): string {
+    return this.getWeixinIlinkConfig().defaultWorkdir
+  }
+
+  getWeixinIlinkAccounts(): WeixinIlinkAccountRuntimeConfig[] {
+    return this.getWeixinIlinkConfig().accounts.map((account) => ({
+      ...account,
+      bindings: { ...account.bindings }
+    }))
+  }
+
+  getWeixinIlinkAccount(accountId: string): WeixinIlinkAccountRuntimeConfig | null {
+    const normalizedAccountId = accountId.trim()
+    if (!normalizedAccountId) {
+      return null
+    }
+
+    const account = this.getWeixinIlinkConfig().accounts.find(
+      (entry) => entry.accountId === normalizedAccountId
+    )
+    return account
+      ? {
+          ...account,
+          bindings: { ...account.bindings }
+        }
+      : null
+  }
+
+  upsertWeixinIlinkAccount(
+    input: Pick<
+      WeixinIlinkAccountRuntimeConfig,
+      'accountId' | 'ownerUserId' | 'baseUrl' | 'botToken'
+    > &
+      Partial<
+        Pick<
+          WeixinIlinkAccountRuntimeConfig,
+          'enabled' | 'syncCursor' | 'lastFatalError' | 'bindings'
+        >
+      >
+  ): WeixinIlinkAccountRuntimeConfig {
+    const normalizedAccountId = input.accountId.trim()
+    const normalizedOwnerUserId = input.ownerUserId.trim()
+    if (!normalizedAccountId || !normalizedOwnerUserId) {
+      throw new Error('Weixin iLink accountId and ownerUserId are required.')
+    }
+
+    let nextAccount: WeixinIlinkAccountRuntimeConfig | null = null
+    this.updateWeixinIlinkConfig((config) => {
+      const accounts = [...config.accounts]
+      const existingIndex = accounts.findIndex(
+        (account) => account.accountId === normalizedAccountId
+      )
+      const existing = existingIndex >= 0 ? accounts[existingIndex] : null
+      const merged: WeixinIlinkAccountRuntimeConfig = {
+        accountId: normalizedAccountId,
+        ownerUserId: normalizedOwnerUserId,
+        baseUrl: input.baseUrl.trim() || existing?.baseUrl || 'https://ilinkai.weixin.qq.com',
+        botToken: input.botToken.trim() || existing?.botToken || '',
+        enabled: input.enabled ?? existing?.enabled ?? true,
+        syncCursor: input.syncCursor ?? existing?.syncCursor ?? '',
+        lastFatalError: input.lastFatalError ?? existing?.lastFatalError ?? null,
+        bindings: input.bindings ?? existing?.bindings ?? {}
+      }
+
+      if (existingIndex >= 0) {
+        accounts[existingIndex] = merged
+      } else {
+        accounts.push(merged)
+      }
+
+      nextAccount = merged
+      return {
+        ...config,
+        accounts: accounts.sort((left, right) => left.accountId.localeCompare(right.accountId))
+      }
+    })
+
+    return nextAccount!
+  }
+
+  updateWeixinIlinkAccount(
+    accountId: string,
+    updater: (account: WeixinIlinkAccountRuntimeConfig) => WeixinIlinkAccountRuntimeConfig
+  ): WeixinIlinkAccountRuntimeConfig | null {
+    const normalizedAccountId = accountId.trim()
+    if (!normalizedAccountId) {
+      return null
+    }
+
+    let updatedAccount: WeixinIlinkAccountRuntimeConfig | null = null
+    this.updateWeixinIlinkConfig((config) => {
+      const index = config.accounts.findIndex(
+        (account) => account.accountId === normalizedAccountId
+      )
+      if (index < 0) {
+        return config
+      }
+
+      const nextAccounts = [...config.accounts]
+      const nextAccount = updater(nextAccounts[index])
+      updatedAccount = nextAccount
+      nextAccounts[index] = nextAccount
+      return {
+        ...config,
+        accounts: nextAccounts.sort((left, right) => left.accountId.localeCompare(right.accountId))
+      }
+    })
+
+    return updatedAccount
+  }
+
+  removeWeixinIlinkAccount(accountId: string): void {
+    const normalizedAccountId = accountId.trim()
+    if (!normalizedAccountId) {
+      return
+    }
+
+    const bindings = this.getWeixinIlinkBindingsForAccount(normalizedAccountId)
+
+    this.updateWeixinIlinkConfig((config) => ({
+      ...config,
+      accounts: config.accounts.filter((account) => account.accountId !== normalizedAccountId)
+    }))
+
+    for (const [endpointKey] of Object.entries(bindings)) {
+      this.clearTransientStateForEndpoint(endpointKey)
+    }
   }
 
   isAllowedUser(userId: number | null | undefined): boolean {
@@ -244,6 +550,13 @@ export class RemoteBindingStore {
       allowlist: Array.from(new Set([...config.allowlist, userId])).sort(
         (left, right) => left - right
       )
+    }))
+  }
+
+  removeAllowedUser(userId: number): void {
+    this.updateTelegramConfig((config) => ({
+      ...config,
+      allowlist: config.allowlist.filter((entry) => entry !== userId)
     }))
   }
 
@@ -272,6 +585,120 @@ export class RemoteBindingStore {
     }))
   }
 
+  removeFeishuPairedUser(openId: string): void {
+    const normalized = openId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateFeishuConfig((config) => ({
+      ...config,
+      pairedUserOpenIds: config.pairedUserOpenIds.filter((entry) => entry !== normalized)
+    }))
+  }
+
+  getQQBotPairedUserIds(): string[] {
+    return this.getQQBotConfig().pairedUserIds
+  }
+
+  getQQBotPairedGroupIds(): string[] {
+    return this.getQQBotConfig().pairedGroupIds
+  }
+
+  isQQBotPairedUser(userId: string | null | undefined): boolean {
+    if (!userId) {
+      return false
+    }
+
+    return this.getQQBotPairedUserIds().includes(userId.trim())
+  }
+
+  isQQBotPairedGroup(groupId: string | null | undefined): boolean {
+    if (!groupId) {
+      return false
+    }
+
+    return this.getQQBotPairedGroupIds().includes(groupId.trim())
+  }
+
+  addQQBotPairedUser(userId: string): void {
+    const normalized = userId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateQQBotConfig((config) => ({
+      ...config,
+      pairedUserIds: Array.from(new Set([...config.pairedUserIds, normalized])).sort((a, b) =>
+        a.localeCompare(b)
+      )
+    }))
+  }
+
+  removeQQBotPairedUser(userId: string): void {
+    const normalized = userId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateQQBotConfig((config) => ({
+      ...config,
+      pairedUserIds: config.pairedUserIds.filter((entry) => entry !== normalized)
+    }))
+  }
+
+  addQQBotPairedGroup(groupId: string): void {
+    const normalized = groupId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateQQBotConfig((config) => ({
+      ...config,
+      pairedGroupIds: Array.from(new Set([...config.pairedGroupIds, normalized])).sort((a, b) =>
+        a.localeCompare(b)
+      )
+    }))
+  }
+
+  getDiscordPairedChannelIds(): string[] {
+    return this.getDiscordConfig().pairedChannelIds
+  }
+
+  isDiscordPairedChannel(channelId: string | null | undefined): boolean {
+    if (!channelId) {
+      return false
+    }
+
+    return this.getDiscordPairedChannelIds().includes(channelId.trim())
+  }
+
+  addDiscordPairedChannel(channelId: string): void {
+    const normalized = channelId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateDiscordConfig((config) => ({
+      ...config,
+      pairedChannelIds: Array.from(new Set([...config.pairedChannelIds, normalized])).sort((a, b) =>
+        a.localeCompare(b)
+      )
+    }))
+  }
+
+  removeDiscordPairedChannel(channelId: string): void {
+    const normalized = channelId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateDiscordConfig((config) => ({
+      ...config,
+      pairedChannelIds: config.pairedChannelIds.filter((entry) => entry !== normalized)
+    }))
+  }
+
   getTelegramPairingState(): TelegramPairingState {
     return this.getTelegramConfig().pairing
   }
@@ -284,6 +711,14 @@ export class RemoteBindingStore {
     return this.getFeishuConfig().pairing
   }
 
+  getQQBotPairingState(): QQBotPairingState {
+    return this.getQQBotConfig().pairing
+  }
+
+  getDiscordPairingState(): DiscordPairingState {
+    return this.getDiscordConfig().pairing
+  }
+
   getTelegramPairingSnapshot() {
     return buildTelegramPairingSnapshot(this.getTelegramConfig())
   }
@@ -292,15 +727,33 @@ export class RemoteBindingStore {
     return buildFeishuPairingSnapshot(this.getFeishuConfig())
   }
 
-  createPairCode(channel: RemoteChannel = 'telegram'): { code: string; expiresAt: number } {
+  getQQBotPairingSnapshot() {
+    return buildQQBotPairingSnapshot(this.getQQBotConfig())
+  }
+
+  getDiscordPairingSnapshot() {
+    return buildDiscordPairingSnapshot(this.getDiscordConfig())
+  }
+
+  createPairCode(channel: PairableRemoteChannel = 'telegram'): { code: string; expiresAt: number } {
     const pairing = createPairCode()
     if (channel === 'telegram') {
       this.updateTelegramConfig((config) => ({
         ...config,
         pairing
       }))
-    } else {
+    } else if (channel === 'feishu') {
       this.updateFeishuConfig((config) => ({
+        ...config,
+        pairing
+      }))
+    } else if (channel === 'qqbot') {
+      this.updateQQBotConfig((config) => ({
+        ...config,
+        pairing
+      }))
+    } else {
+      this.updateDiscordConfig((config) => ({
         ...config,
         pairing
       }))
@@ -311,7 +764,7 @@ export class RemoteBindingStore {
     }
   }
 
-  clearPairCode(channel: RemoteChannel = 'telegram'): void {
+  clearPairCode(channel: PairableRemoteChannel = 'telegram'): void {
     if (channel === 'telegram') {
       this.updateTelegramConfig((config) => ({
         ...config,
@@ -324,7 +777,31 @@ export class RemoteBindingStore {
       return
     }
 
-    this.updateFeishuConfig((config) => ({
+    if (channel === 'feishu') {
+      this.updateFeishuConfig((config) => ({
+        ...config,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        }
+      }))
+      return
+    }
+
+    if (channel === 'qqbot') {
+      this.updateQQBotConfig((config) => ({
+        ...config,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        }
+      }))
+      return
+    }
+
+    this.updateDiscordConfig((config) => ({
       ...config,
       pairing: {
         code: null,
@@ -335,7 +812,7 @@ export class RemoteBindingStore {
   }
 
   recordPairCodeFailure(
-    channel: RemoteChannel,
+    channel: PairableRemoteChannel,
     maxAttempts: number
   ): { attempts: number; exhausted: boolean } {
     let result = {
@@ -366,8 +843,54 @@ export class RemoteBindingStore {
               }
         }
       })
-    } else {
+    } else if (channel === 'feishu') {
       this.updateFeishuConfig((config) => {
+        const attempts = config.pairing.failedAttempts + 1
+        const exhausted = attempts >= maxAttempts
+        result = {
+          attempts,
+          exhausted
+        }
+
+        return {
+          ...config,
+          pairing: exhausted
+            ? {
+                code: null,
+                expiresAt: null,
+                failedAttempts: 0
+              }
+            : {
+                ...config.pairing,
+                failedAttempts: attempts
+              }
+        }
+      })
+    } else if (channel === 'qqbot') {
+      this.updateQQBotConfig((config) => {
+        const attempts = config.pairing.failedAttempts + 1
+        const exhausted = attempts >= maxAttempts
+        result = {
+          attempts,
+          exhausted
+        }
+
+        return {
+          ...config,
+          pairing: exhausted
+            ? {
+                code: null,
+                expiresAt: null,
+                failedAttempts: 0
+              }
+            : {
+                ...config.pairing,
+                failedAttempts: attempts
+              }
+        }
+      })
+    } else {
+      this.updateDiscordConfig((config) => {
         const attempts = config.pairing.failedAttempts + 1
         const exhausted = attempts >= maxAttempts
         result = {
@@ -530,8 +1053,29 @@ export class RemoteBindingStore {
   }
 
   private getChannelBindings(channel: RemoteChannel): Record<string, RemoteEndpointBinding> {
-    const config = this.getChannelConfig(channel)
-    return config.bindings
+    if (channel === 'weixin-ilink') {
+      return this.getWeixinIlinkAccounts().reduce<Record<string, RemoteEndpointBinding>>(
+        (bindings, account) => ({
+          ...bindings,
+          ...account.bindings
+        }),
+        {}
+      )
+    }
+
+    if (channel === 'telegram') {
+      return this.getTelegramConfig().bindings
+    }
+
+    if (channel === 'feishu') {
+      return this.getFeishuConfig().bindings
+    }
+
+    if (channel === 'qqbot') {
+      return this.getQQBotConfig().bindings
+    }
+
+    return this.getDiscordConfig().bindings
   }
 
   private updateBindings(
@@ -548,10 +1092,29 @@ export class RemoteBindingStore {
       return
     }
 
-    this.updateFeishuConfig((config) => ({
-      ...config,
-      bindings: updater(config.bindings)
-    }))
+    if (channel === 'feishu') {
+      this.updateFeishuConfig((config) => ({
+        ...config,
+        bindings: updater(config.bindings)
+      }))
+      return
+    }
+
+    if (channel === 'qqbot') {
+      this.updateQQBotConfig((config) => ({
+        ...config,
+        bindings: updater(config.bindings)
+      }))
+      return
+    }
+
+    if (channel === 'discord') {
+      this.updateDiscordConfig((config) => ({
+        ...config,
+        bindings: updater(config.bindings)
+      }))
+      return
+    }
   }
 
   private resolveChannelFromEndpointKey(endpointKey: string): RemoteChannel | null {
@@ -561,7 +1124,22 @@ export class RemoteBindingStore {
     if (endpointKey.startsWith('feishu:')) {
       return 'feishu'
     }
+    if (endpointKey.startsWith('qqbot:')) {
+      return 'qqbot'
+    }
+    if (endpointKey.startsWith('discord:')) {
+      return 'discord'
+    }
+    if (endpointKey.startsWith('weixin-ilink:')) {
+      return 'weixin-ilink'
+    }
     return null
+  }
+
+  private getWeixinIlinkBindingsForAccount(
+    accountId: string
+  ): Record<string, RemoteEndpointBinding> {
+    return this.getWeixinIlinkAccount(accountId)?.bindings ?? {}
   }
 
   private clearTransientStateForEndpoint(endpointKey: string): void {

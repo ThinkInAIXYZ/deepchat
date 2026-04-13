@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "הגדרת התראות webhook ו‑hooks של מחזור החיים.",
+    "description": "הגדר פקודות Hook עבור אירועי מחזור החיים.",
     "events": {
       "title": "אירועים",
       "SessionStart": "תחילת סשן",
@@ -90,32 +90,45 @@
       "Stop": "עצירה",
       "SessionEnd": "סיום סשן"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "שליחת התראות דרך בוט טלגרם.",
-      "botToken": "טוקן בוט",
-      "botTokenPlaceholder": "טוקן בוט טלגרם",
-      "chatId": "מזהה צ׳אט",
-      "chatIdPlaceholder": "למשל 123456789",
-      "threadId": "מזהה שרשור (אופציונלי)",
-      "threadIdPlaceholder": "מזהה שרשור אופציונלי"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "שליחת התראות דרך webhook של Discord.",
-      "webhookUrl": "URL של Webhook",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "שליחת התראות דרך hook של Confirmo (כל האירועים).",
-      "unavailable": "ה‑hook של Confirmo לא נמצא: {path}"
-    },
     "commands": {
-      "title": "פקודות Hooks",
-      "description": "הרצת פקודה עבור כל אירוע.",
-      "hint": "ה‑payload נשלח ל‑stdin כ‑JSON.",
-      "commandPlaceholder": "פקודה להרצה"
+      "title": "פקודות Hook",
+      "description": "הרץ פקודות מותאמות אישית עבור אירועי מחזור החיים שנבחרו.",
+      "hint": "כל ה-payload נכתב ל-stdin כ-JSON.",
+      "commandPlaceholder": "פקודה להרצה",
+      "commandLabel": "פקודה",
+      "name": "שם",
+      "namePlaceholder": "שם ה-Hook",
+      "newHook": "Hook חדש",
+      "empty": "עדיין אין Hooks. הוסף אחד כדי להתחיל.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "איך משתמשים",
+      "guideDescription": "כאשר אירוע מסומן מופעל, DeepChat מריץ את הפקודה. את האירוע הנוכחי אפשר לקרוא מ-JSON ב-stdin, ממשתני סביבה וממצייני מיקום בשורת הפקודה.",
+      "deliveryTitle": "איך הנתונים מועברים",
+      "deliveryStdin": "כל ה-payload נכתב ל-stdin כ-JSON.",
+      "deliveryPlaceholder": "אפשר להשתמש במצייני מיקום של שורת הפקודה ישירות בתוך הפקודה.",
+      "deliveryEnv": "אותם נתוני מטא בסיסיים זמינים גם כמשתני סביבה.",
+      "metadataOnly": "מצייני מיקום של שורת הפקודה מתאימים למטא-דאטה קטנה. את פרטי ה-prompt/tool, permission, usage, stop ו-error קראו מתוך ה-JSON שב-stdin.",
+      "stdinPreviewLabel": "דוגמת stdin",
+      "placeholdersTitle": "מצייני מיקום של שורת הפקודה",
+      "placeholdersDescription": "מצייני המיקום מורחבים לפני ההרצה, ואפשר להעביר אותם כארגומנטים של הפקודה.",
+      "envTitle": "משתני סביבה",
+      "examplesTitle": "דוגמאות",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "שם האירוע הנוכחי",
+        "time": "זמן האירוע בפורמט ISO-8601",
+        "isTest": "האם ההרצה הזו הגיעה מכפתור הבדיקה",
+        "conversationId": "מזהה השיחה / הסשן הנוכחי",
+        "workdir": "ספריית העבודה שנפתרה עבור הסשן",
+        "agentId": "מזהה ה-Agent הנוכחי אם זמין",
+        "providerId": "מזהה ה-Provider הנוכחי אם זמין",
+        "modelId": "מזהה ה-Model הנוכחי אם זמין",
+        "messageId": "מזהה הודעת המשתמש הנוכחית אם זמין",
+        "toolName": "שם הכלי הנוכחי אם זמין",
+        "toolCallId": "מזהה קריאת הכלי הנוכחית אם זמין"
+      }
     },
     "test": {
       "button": "בדיקה",
@@ -1529,12 +1542,50 @@
   },
   "remote": {
     "title": "שליטה מרחוק",
-    "description": "הגדר שליטה מרחוק ב-Telegram וב-Feishu במקום אחד.",
+    "description": "הגדר במקום אחד שליטה מרחוק דרך Telegram, Feishu, QQBot ו-WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "נהל בוט Telegram אחד עבור שליטה מרחוק ושליחת Hooks.",
+      "description": "חברו בוט Telegram לשליטה מרחוק דרך הודעות פרטיות, קבוצות ושרשורי נושאים.",
       "botToken": "טוקן בוט",
-      "botTokenPlaceholder": "טוקן בוט Telegram"
+      "botTokenPlaceholder": "טוקן בוט Telegram",
+      "botTokenDescription": "הזינו את טוקן הבוט של Telegram שישמש לשליטה מרחוק דרך Telegram."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "חבר בוט Feishu להודעות פרטיות, שיחות קבוצתיות ושרשורי נושאים.",
+      "brand": "מותג",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "מזהה יישום",
+      "appIdPlaceholder": "מזהה יישום של Feishu",
+      "appSecret": "סוד היישום",
+      "appSecretPlaceholder": "סוד היישום של Feishu",
+      "verificationToken": "אסימון אימות",
+      "verificationTokenPlaceholder": "אסימון האימות של Feishu",
+      "encryptKey": "מפתח הצפנה (אופציונלי)",
+      "encryptKeyPlaceholder": "השאר ריק אם הצפנת אירועים לא מופעלת",
+      "botUser": "משתמש הבוט: {name} ({openId})",
+      "bindings": "קישורים: {count}, משתמשים מצומדים: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID של משתמשים מצומדים",
+      "pairedUserOpenIdsPlaceholder": "למשל ou_xxx, ou_yyy",
+      "accessRulesDescription": "צריך לבצע צימוד קודם בהודעה פרטית. בקבוצות, רק משתמשים מצומדים שמזכירים את הבוט עם {'@'} יכולים לשלוט בסשן.",
+      "accessRule1": "בצעו צימוד בהודעה פרטית עם /pair [קוד].",
+      "accessRule2": "בקבוצות ובנושאים, הבוט מגיב רק כאשר משתמש מצומד מזכיר אותו עם {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "חברו בוט Discord להודעות פרטיות, אזכורים בערוצים ושליטה מרחוק באמצעות Slash Commands.",
+      "botToken": "אסימון בוט",
+      "botTokenPlaceholder": "אסימון בוט של Discord",
+      "remoteControlDescription": "השליטה מרחוק ב-Discord משתמשת בטוקן בוט, Gateway וזרימת REST משלה.",
+      "accessRule1": "שלחו /pair [code] בהודעה פרטית או בערוץ היעד כדי לאשר את נקודת הקצה הנוכחית של Discord.",
+      "accessRule2": "הודעות בערוץ נכנסות לשיחה רק כאשר מזכירים את הבוט, כדי לא לקלוט בטעות צ'אט רגיל."
+    },
+    "sections": {
+      "credentials": "אישורים",
+      "remoteControl": "שליטה מרחוק",
+      "notifications": "התראות",
+      "accessRules": "כללי גישה"
     },
     "remoteControl": {
       "title": "שליטה מרחוק",
@@ -1567,7 +1618,14 @@
       "clearBindings": "נקה קישורים",
       "clearBindingsResult": "{count} קישור(ים) נוקו.",
       "pairDialogInstructionTelegram": "שלחו את הפקודה הזו לבוט Telegram:",
-      "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:"
+      "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:",
+      "pairDialogInstructionDiscord": "שלחו את הפקודה הזו לבוט Discord בהודעה פרטית או בערוץ היעד:",
+      "pairDialogInstructionQQBot": "שלח את הפקודה הזו בצ'אט של QQ Bot או בקבוצת QQ מורשית:",
+      "authorizedPrincipalsTitle": "ישויות מורשות",
+      "authorizedPrincipalsDescription": "חשבונות {channel} האלה מורשים לבצע צימוד ולשלוט בסשנים.",
+      "authorizedPrincipalsEmpty": "עדיין אין ישויות מורשות.",
+      "sessionBindingsTitle": "קישורי סשנים",
+      "sessionBindingsDescription": "כל נקודת קצה מרוחקת שלהלן מקושרת כעת לסשן אחד של DeepChat."
     },
     "hooks": {
       "title": "Hooks של Telegram",
@@ -1588,43 +1646,62 @@
         "running": "פועל",
         "backoff": "מנסה שוב לאחר כשל",
         "error": "שגיאה"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "חבר בוט Feishu להודעות פרטיות, שיחות קבוצתיות ושרשורי נושאים.",
-      "appId": "מזהה יישום",
-      "appIdPlaceholder": "מזהה יישום של Feishu",
-      "appSecret": "סוד היישום",
-      "appSecretPlaceholder": "סוד היישום של Feishu",
-      "verificationToken": "אסימון אימות",
-      "verificationTokenPlaceholder": "אסימון האימות של Feishu",
-      "encryptKey": "מפתח הצפנה (אופציונלי)",
-      "encryptKeyPlaceholder": "השאר ריק אם הצפנת אירועים לא מופעלת",
-      "botUser": "משתמש הבוט: {name} ({openId})",
-      "bindings": "קישורים: {count}, משתמשים מצומדים: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID של משתמשים מצומדים",
-      "pairedUserOpenIdsPlaceholder": "למשל ou_xxx, ou_yyy",
-      "accessRulesDescription": "צריך לבצע צימוד קודם בהודעה פרטית. בקבוצות, רק משתמשים מצומדים שמזכירים את הבוט עם {'@'} יכולים לשלוט בסשן.",
-      "accessRule1": "בצעו צימוד בהודעה פרטית עם /pair [קוד].",
-      "accessRule2": "בקבוצות ובנושאים, הבוט מגיב רק כאשר משתמש מצומד מזכיר אותו עם {'@'}."
-    },
-    "sections": {
-      "credentials": "אישורים",
-      "remoteControl": "שליטה מרחוק",
-      "notifications": "התראות",
-      "accessRules": "כללי גישה"
+      },
+      "bindingOnly": "קישורים: {count}, ישויות מותאמות: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים, hooks {hooks}",
+      "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "feishu": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "hooksOn": "מופעלים",
-      "hooksOff": "כבויים"
+      "hooksOff": "כבויים",
+      "qqbot": "{bindingCount} קישורים, {pairedCount} משתמשים מותאמים",
+      "discord": "{bindingCount} קישורים, {pairedCount} ערוצים מצומדים",
+      "weixinIlink": "{bindingCount} קישורים, {accountCount} חשבונות, {connectedCount} מחוברים"
     },
     "bindingKinds": {
       "dm": "הודעה פרטית",
       "group": "קבוצה",
       "topic": "נושא"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "חבר QQ Bot רשמי עבור שיחות C2C ושליטה בבוט באמצעות אזכור בקבוצות מורשות.",
+      "appId": "מזהה אפליקציה",
+      "appIdPlaceholder": "מזהה האפליקציה של QQ Bot",
+      "clientSecret": "סוד לקוח",
+      "clientSecretPlaceholder": "סוד הלקוח של QQ Bot",
+      "remoteControlDescription": "מזהי ה-openid הרשמיים של QQ שונים בין C2C לקבוצות, לכן הודעות פרטיות מצמדות משתמשים ואילו קבוצות חייבות לקבל הרשאה בנפרד באמצעות /pair.",
+      "pairedUserIds": "OpenID של משתמשים מותאמים",
+      "pairedUserIdsPlaceholder": "למשל user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "חבר בוט WeChat iLink רשמי באמצעות התחברות ב-QR, והמתאם המובנה יטפל בסשני השליטה מרחוק.",
+      "loginDescription": "לחץ על הכפתור למטה כדי לפתוח את חלון ההתחברות הרשמי של WeChat. השלם שם את אישור ה-iLink Bot והחשבון המחובר יתווסף אוטומטית לרשימה למטה.",
+      "ownerOnlyNotice": "בגרסה הראשונה רק חשבון הבעלים שהתחבר דרך קוד ה-QR יכול לשלוט ב-DeepChat.",
+      "connectButton": "פתח חלון התחברות",
+      "refreshQrCode": "פתח שוב את חלון ההתחברות",
+      "loginDialogTitle": "חיבור WeChat iLink",
+      "loginDialogDescription": "דף ההתחברות הרשמי של WeChat נפתח בחלון נפרד. השלם שם את אישור קוד ה-QR והשאר את תיבת הדו-שיח הזו פתוחה עד לסיום החיבור.",
+      "loginFailed": "ההתחברות ל-WeChat iLink נכשלה.",
+      "loginSuccessTitle": "WeChat iLink חובר",
+      "loginSuccessDescription": "החשבון {accountId} מוכן.",
+      "accountsTitle": "חשבונות",
+      "accountsDescription": "כל חשבון iLink Bot מחובר פועל בנפרד ושומר על הקישורים והמצב שלו.",
+      "noAccounts": "עדיין לא חוברו חשבונות WeChat iLink.",
+      "ownerUserId": "מזהה משתמש בעלים: {ownerUserId}",
+      "baseUrl": "כתובת בסיס: {baseUrl}",
+      "accountBindings": "קישורים: {count}",
+      "remoteControlDescription": "הגדר את סוכן ברירת המחדל המשותף לחשבונות WeChat iLink ולאחר מכן נהל את הקישורים שנוצרים מסשנים נכנסים.",
+      "removeAccount": "הסר חשבון",
+      "restartAccount": "הפעל מחדש חשבון",
+      "statusSummary": "{accounts} חשבונות, {connected} מחוברים, {bindings} קישורים",
+      "qrcodeAlt": "קוד QR של WeChat iLink",
+      "loginWindowOpened": "חלון ההתחברות הרשמי של WeChat נפתח. השלם שם את אישור קוד ה-QR.",
+      "loginSessionExpired": "תוקף סשן ההתחברות הזה פג. פתח מחדש את חלון ההתחברות ונסה שוב.",
+      "loginResponseIncomplete": "תגובת ההתחברות של WeChat iLink הייתה חלקית. נסה שוב.",
+      "loginTimedOut": "פג הזמן להמתנה לאישור WeChat iLink. פתח מחדש את חלון ההתחברות ונסה שוב.",
+      "loginConnected": "חשבון WeChat iLink חובר."
     }
   },
   "deepchatAgents": {

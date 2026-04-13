@@ -140,7 +140,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "Configure webhook notifications and lifecycle hooks.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "Events",
       "SessionStart": "Session Start",
@@ -152,32 +152,45 @@
       "Stop": "Stop",
       "SessionEnd": "Session End"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "Send notifications via Telegram bot.",
-      "botToken": "Bot Token",
-      "botTokenPlaceholder": "Telegram bot token",
-      "chatId": "Chat ID",
-      "chatIdPlaceholder": "e.g. 123456789",
-      "threadId": "Thread ID (optional)",
-      "threadIdPlaceholder": "Optional thread ID"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "Send notifications via Discord webhook.",
-      "webhookUrl": "Webhook URL",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "Send notifications via Confirmo hook (all events).",
-      "unavailable": "Confirmo hook not found: {path}"
-    },
     "commands": {
       "title": "Hooks Commands",
-      "description": "Run a command for each event.",
-      "hint": "The payload is sent to stdin as JSON.",
-      "commandPlaceholder": "Command to run"
+      "description": "Run custom commands for the selected lifecycle events.",
+      "hint": "The full payload is sent to stdin as JSON.",
+      "commandPlaceholder": "Command to run",
+      "commandLabel": "Command",
+      "name": "Name",
+      "namePlaceholder": "Hook name",
+      "newHook": "New Hook",
+      "empty": "No hooks yet. Add one to get started.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "How To Use",
+      "guideDescription": "When a checked event fires, DeepChat runs the command. The current event is available from stdin JSON, environment variables, and command placeholders.",
+      "deliveryTitle": "How data is passed",
+      "deliveryStdin": "The full payload is written to stdin as JSON.",
+      "deliveryPlaceholder": "You can place command placeholders directly in the command line.",
+      "deliveryEnv": "The same core metadata is also exposed as environment variables.",
+      "metadataOnly": "Command placeholders are best for small metadata. Read prompt/tool details, permission, usage, stop, and error fields from stdin JSON.",
+      "stdinPreviewLabel": "stdin example",
+      "placeholdersTitle": "Command placeholders",
+      "placeholdersDescription": "Placeholders are expanded before execution, so they can be passed as command arguments.",
+      "envTitle": "Environment variables",
+      "examplesTitle": "Examples",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Current event name",
+        "time": "Event time in ISO-8601 format",
+        "isTest": "Whether this run comes from the Test button",
+        "conversationId": "Current conversation/session ID",
+        "workdir": "Resolved working directory for the session",
+        "agentId": "Current agent ID when available",
+        "providerId": "Current provider ID when available",
+        "modelId": "Current model ID when available",
+        "messageId": "Current user message ID when available",
+        "toolName": "Current tool name when available",
+        "toolCallId": "Current tool call ID when available"
+      }
     },
     "test": {
       "button": "Test",
@@ -1591,16 +1604,20 @@
   },
   "remote": {
     "title": "Remote",
-    "description": "Configure Telegram and Feishu remote control from one place.",
+    "description": "Configure Telegram, Feishu / Lark, QQBot, Discord, and WeChat iLink remote control in one place.",
     "telegram": {
       "title": "Telegram",
-      "description": "Manage one Telegram bot for remote control and hook delivery.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "Bot Token",
-      "botTokenPlaceholder": "Telegram bot token"
+      "botTokenPlaceholder": "Telegram bot token",
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
     },
     "feishu": {
-      "title": "Feishu",
+      "title": "Feishu / Lark",
       "description": "Connect a Feishu bot for direct messages, group chats, and topic threads.",
+      "brand": "Brand",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
       "appId": "App ID",
       "appIdPlaceholder": "Feishu app ID",
       "appSecret": "App Secret",
@@ -1616,6 +1633,15 @@
       "accessRulesDescription": "Pair in a direct message first. In groups, only paired users who {'@'} mention the bot can drive a session.",
       "accessRule1": "Pair in a direct message with /pair [code].",
       "accessRule2": "In groups and topics, the bot only reacts when a paired user {'@'} mentions it."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Connect a Discord bot for DMs, channel mentions, and slash-command remote control.",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Discord bot token",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
+      "accessRule1": "Send /pair [code] in a DM or target channel to authorize the current Discord endpoint.",
+      "accessRule2": "Channel messages only enter the conversation when the bot is mentioned, which avoids absorbing regular chat."
     },
     "sections": {
       "credentials": "Credentials",
@@ -1641,11 +1667,18 @@
       "pairDialogDescription": "Generate a pairing code and finish pairing from your {channel} bot chat.",
       "pairDialogInstructionTelegram": "Send this command to the Telegram bot:",
       "pairDialogInstructionFeishu": "Send this command to the Feishu bot in a direct message:",
+      "pairDialogInstructionDiscord": "Send this command to the Discord bot in a DM or target channel:",
       "bindingsDialogTitle": "{channel} Bindings",
       "bindingsDialogDescription": "Remove remote endpoint bindings one by one.",
       "bindingsEmpty": "No bindings yet.",
       "pairingSuccessTitle": "Pairing complete",
-      "pairingSuccessDescription": "The paired principal list has been refreshed."
+      "pairingSuccessDescription": "The paired principal list has been refreshed.",
+      "pairDialogInstructionQQBot": "Send this command to the QQ bot chat or authorized QQ group:",
+      "authorizedPrincipalsTitle": "Authorized Principals",
+      "authorizedPrincipalsDescription": "These {channel} accounts are authorized to pair and control sessions.",
+      "authorizedPrincipalsEmpty": "No authorized principals yet.",
+      "sessionBindingsTitle": "Session Bindings",
+      "sessionBindingsDescription": "Each remote endpoint below is currently bound to one DeepChat session."
     },
     "hooks": {
       "title": "Telegram Hooks",
@@ -1666,18 +1699,62 @@
         "running": "Running",
         "backoff": "Retrying after failure",
         "error": "Error"
-      }
+      },
+      "bindingOnly": "Bindings: {count}, paired principals: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} bindings, {pairedCount} paired users, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} bindings, {pairedCount} paired users",
       "hooksOn": "on",
-      "hooksOff": "off"
+      "hooksOff": "off",
+      "qqbot": "{bindingCount} bindings, {pairedCount} paired users",
+      "discord": "{bindingCount} bindings, {pairedCount} paired channels",
+      "weixinIlink": "{bindingCount} bindings, {accountCount} accounts, {connectedCount} connected"
     },
     "bindingKinds": {
       "dm": "DM",
       "group": "Group",
       "topic": "Topic"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Connect an official QQ Bot for C2C chats and authorized group mention-based bot control.",
+      "appId": "App ID",
+      "appIdPlaceholder": "QQ Bot App ID",
+      "clientSecret": "Client Secret",
+      "clientSecretPlaceholder": "QQ Bot client secret",
+      "remoteControlDescription": "QQ official openid identifiers differ between C2C and groups, so direct messages pair users while groups are authorized separately with /pair.",
+      "pairedUserIds": "Paired User OpenIDs",
+      "pairedUserIdsPlaceholder": "e.g. user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Connect an official WeChat iLink Bot through QR login, then route remote control sessions through the built-in adapter.",
+      "loginDescription": "Click the button below to open the official WeChat login window. Complete the iLink Bot authorization there, and the connected account will be added here automatically.",
+      "ownerOnlyNotice": "This first version only allows the QR-login owner account to control DeepChat.",
+      "connectButton": "Open Login Window",
+      "refreshQrCode": "Reopen Login Window",
+      "loginDialogTitle": "Connect WeChat iLink",
+      "loginDialogDescription": "The official WeChat login page opens in a separate window. Complete the QR authorization there and keep this dialog open until the connection finishes.",
+      "loginFailed": "WeChat iLink login failed.",
+      "loginSuccessTitle": "WeChat iLink connected",
+      "loginSuccessDescription": "Account {accountId} is ready.",
+      "accountsTitle": "Accounts",
+      "accountsDescription": "Each connected iLink Bot account runs independently and keeps its own bindings and runtime state.",
+      "noAccounts": "No WeChat iLink accounts connected yet.",
+      "ownerUserId": "Owner user ID: {ownerUserId}",
+      "baseUrl": "Base URL: {baseUrl}",
+      "accountBindings": "Bindings: {count}",
+      "remoteControlDescription": "Set the default agent shared by WeChat iLink accounts, then manage the bindings created by incoming sessions.",
+      "removeAccount": "Remove Account",
+      "restartAccount": "Restart Account",
+      "statusSummary": "{accounts} accounts, {connected} connected, {bindings} bindings",
+      "qrcodeAlt": "WeChat iLink QR code",
+      "loginWindowOpened": "The official WeChat login window has been opened. Complete the QR authorization there.",
+      "loginSessionExpired": "This login session has expired. Reopen the login window and try again.",
+      "loginResponseIncomplete": "The WeChat iLink login response was incomplete. Please try again.",
+      "loginTimedOut": "Timed out waiting for WeChat iLink authorization. Reopen the login window and try again.",
+      "loginConnected": "The WeChat iLink account has been connected."
     }
   }
 }

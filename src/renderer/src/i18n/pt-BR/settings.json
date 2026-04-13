@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "Configure notificações de webhook e hooks de ciclo de vida.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "Eventos",
       "SessionStart": "Início da sessão",
@@ -90,32 +90,45 @@
       "Stop": "Parada",
       "SessionEnd": "Fim da sessão"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "Enviar notificações via bot do Telegram.",
-      "botToken": "Token do bot",
-      "botTokenPlaceholder": "Token do bot do Telegram",
-      "chatId": "ID do chat",
-      "chatIdPlaceholder": "ex.: 123456789",
-      "threadId": "ID da thread (opcional)",
-      "threadIdPlaceholder": "ID de thread opcional"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "Enviar notificações via webhook do Discord.",
-      "webhookUrl": "URL do webhook",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "Enviar notificações via hook Confirmo (todos os eventos).",
-      "unavailable": "Hook do Confirmo não encontrado: {path}"
-    },
     "commands": {
-      "title": "Comandos de hook",
-      "description": "Executar um comando para cada evento.",
-      "hint": "O payload é enviado para o stdin em JSON.",
-      "commandPlaceholder": "Comando a executar"
+      "title": "Comandos de Hook",
+      "description": "Execute comandos personalizados para os eventos de ciclo de vida selecionados.",
+      "hint": "O payload completo é enviado ao stdin como JSON.",
+      "commandPlaceholder": "Comando a executar",
+      "commandLabel": "Comando",
+      "name": "Nome",
+      "namePlaceholder": "Nome do hook",
+      "newHook": "Novo hook",
+      "empty": "Ainda não há hooks. Adicione um para começar.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "Como usar",
+      "guideDescription": "Quando um evento marcado é disparado, o DeepChat executa o comando. O evento atual pode ser lido pelo JSON em stdin, por variáveis de ambiente e por placeholders de linha de comando.",
+      "deliveryTitle": "Como os dados são enviados",
+      "deliveryStdin": "O payload completo é enviado ao stdin como JSON.",
+      "deliveryPlaceholder": "Você pode usar placeholders de linha de comando diretamente no comando.",
+      "deliveryEnv": "Os mesmos metadados básicos também são expostos como variáveis de ambiente.",
+      "metadataOnly": "Placeholders de linha de comando são melhores para metadados pequenos. Leia detalhes de prompt/tool, permission, usage, stop e error a partir do JSON no stdin.",
+      "stdinPreviewLabel": "Exemplo de stdin",
+      "placeholdersTitle": "Placeholders de linha de comando",
+      "placeholdersDescription": "Os placeholders são expandidos antes da execução e podem ser passados como argumentos do comando.",
+      "envTitle": "Variáveis de ambiente",
+      "examplesTitle": "Exemplos",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Nome do evento atual",
+        "time": "Hora do evento no formato ISO-8601",
+        "isTest": "Se esta execução veio do botão de teste",
+        "conversationId": "ID da conversa / sessão atual",
+        "workdir": "Diretório de trabalho resolvido para a sessão",
+        "agentId": "ID do agent atual, quando disponível",
+        "providerId": "ID do provider atual, quando disponível",
+        "modelId": "ID do model atual, quando disponível",
+        "messageId": "ID da mensagem do usuário atual, quando disponível",
+        "toolName": "Nome da ferramenta atual, quando disponível",
+        "toolCallId": "ID da chamada de ferramenta atual, quando disponível"
+      }
     },
     "test": {
       "button": "Testar",
@@ -1529,12 +1542,50 @@
   },
   "remote": {
     "title": "Remoto",
-    "description": "Configure o controle remoto do Telegram e do Feishu em um só lugar.",
+    "description": "Configure em um só lugar o controle remoto por Telegram, Feishu, QQBot e WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "Gerencie um único bot do Telegram para controle remoto e entrega de hooks.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "Token do bot",
-      "botTokenPlaceholder": "Token do bot do Telegram"
+      "botTokenPlaceholder": "Token do bot do Telegram",
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Conecte um bot do Feishu para mensagens diretas, chats em grupo e tópicos.",
+      "brand": "Marca",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "ID do aplicativo",
+      "appIdPlaceholder": "ID do aplicativo Feishu",
+      "appSecret": "Segredo do aplicativo",
+      "appSecretPlaceholder": "Segredo do aplicativo Feishu",
+      "verificationToken": "Token de verificação",
+      "verificationTokenPlaceholder": "Token de verificação do Feishu",
+      "encryptKey": "Chave de criptografia (opcional)",
+      "encryptKeyPlaceholder": "Deixe em branco se a criptografia de eventos não estiver ativada",
+      "botUser": "Usuário do bot: {name} ({openId})",
+      "bindings": "Vínculos: {count}, usuários pareados: {pairedUserCount}",
+      "pairedUserOpenIds": "Open IDs dos usuários pareados",
+      "pairedUserOpenIdsPlaceholder": "ex.: ou_xxx, ou_yyy",
+      "accessRulesDescription": "Primeiro faça o pareamento em uma mensagem direta. Em grupos, apenas usuários pareados que mencionarem o bot com {'@'} podem controlar uma sessão.",
+      "accessRule1": "Faça o pareamento em uma mensagem direta com /pair [código].",
+      "accessRule2": "Em grupos e tópicos, o bot só reage quando um usuário pareado o menciona com {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Conecte um bot do Discord para DMs, menções em canais e controle remoto por slash commands.",
+      "botToken": "Token do bot",
+      "botTokenPlaceholder": "Token do bot do Discord",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
+      "accessRule1": "Envie /pair [code] em uma DM ou no canal de destino para autorizar o endpoint atual do Discord.",
+      "accessRule2": "Mensagens em canais só entram na sessão quando o bot é mencionado, evitando capturar conversas comuns."
+    },
+    "sections": {
+      "credentials": "Credenciais",
+      "remoteControl": "Controle remoto",
+      "notifications": "Notificações",
+      "accessRules": "Regras de acesso"
     },
     "remoteControl": {
       "title": "Controle remoto",
@@ -1567,7 +1618,14 @@
       "clearBindings": "Limpar vínculos",
       "clearBindingsResult": "{count} vínculo(s) limpo(s).",
       "pairDialogInstructionTelegram": "Envie este comando para o bot do Telegram:",
-      "pairDialogInstructionFeishu": "Envie este comando ao bot do Feishu em uma mensagem direta:"
+      "pairDialogInstructionFeishu": "Envie este comando ao bot do Feishu em uma mensagem direta:",
+      "pairDialogInstructionDiscord": "Envie este comando ao bot do Discord em uma DM ou no canal de destino:",
+      "pairDialogInstructionQQBot": "Envie este comando no chat do QQ Bot ou no grupo QQ autorizado:",
+      "authorizedPrincipalsTitle": "Identidades autorizadas",
+      "authorizedPrincipalsDescription": "Essas contas do {channel} estão autorizadas a fazer o pareamento e controlar sessões.",
+      "authorizedPrincipalsEmpty": "Ainda não há identidades autorizadas.",
+      "sessionBindingsTitle": "Vínculos de sessão",
+      "sessionBindingsDescription": "Cada ponto de acesso remoto abaixo está atualmente vinculado a uma sessão do DeepChat."
     },
     "hooks": {
       "title": "Hooks do Telegram",
@@ -1588,43 +1646,62 @@
         "running": "Em execução",
         "backoff": "Tentando novamente após falha",
         "error": "Erro"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Conecte um bot do Feishu para mensagens diretas, chats em grupo e tópicos.",
-      "appId": "ID do aplicativo",
-      "appIdPlaceholder": "ID do aplicativo Feishu",
-      "appSecret": "Segredo do aplicativo",
-      "appSecretPlaceholder": "Segredo do aplicativo Feishu",
-      "verificationToken": "Token de verificação",
-      "verificationTokenPlaceholder": "Token de verificação do Feishu",
-      "encryptKey": "Chave de criptografia (opcional)",
-      "encryptKeyPlaceholder": "Deixe em branco se a criptografia de eventos não estiver ativada",
-      "botUser": "Usuário do bot: {name} ({openId})",
-      "bindings": "Vínculos: {count}, usuários pareados: {pairedUserCount}",
-      "pairedUserOpenIds": "Open IDs dos usuários pareados",
-      "pairedUserOpenIdsPlaceholder": "ex.: ou_xxx, ou_yyy",
-      "accessRulesDescription": "Primeiro faça o pareamento em uma mensagem direta. Em grupos, apenas usuários pareados que mencionarem o bot com {'@'} podem controlar uma sessão.",
-      "accessRule1": "Faça o pareamento em uma mensagem direta com /pair [código].",
-      "accessRule2": "Em grupos e tópicos, o bot só reage quando um usuário pareado o menciona com {'@'}."
-    },
-    "sections": {
-      "credentials": "Credenciais",
-      "remoteControl": "Controle remoto",
-      "notifications": "Notificações",
-      "accessRules": "Regras de acesso"
+      },
+      "bindingOnly": "Vínculos: {count}, identidades pareadas: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} vínculos, {pairedCount} usuários pareados, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} vínculos, {pairedCount} usuários pareados",
       "hooksOn": "ativos",
-      "hooksOff": "desativados"
+      "hooksOff": "desativados",
+      "qqbot": "{bindingCount} vínculos, {pairedCount} usuários pareados",
+      "discord": "{bindingCount} vínculos, {pairedCount} canais pareados",
+      "weixinIlink": "{bindingCount} vínculos, {accountCount} contas, {connectedCount} conectadas"
     },
     "bindingKinds": {
       "dm": "Mensagem direta",
       "group": "Grupo",
       "topic": "Tópico"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Conecte um QQ Bot oficial para chats C2C e controle do bot por menção em grupos autorizados.",
+      "appId": "ID do aplicativo",
+      "appIdPlaceholder": "ID do aplicativo do QQ Bot",
+      "clientSecret": "Segredo do cliente",
+      "clientSecretPlaceholder": "Segredo do cliente do QQ Bot",
+      "remoteControlDescription": "Os identificadores openid oficiais do QQ são diferentes entre C2C e grupos, então as mensagens diretas pareiam usuários, enquanto os grupos precisam ser autorizados separadamente com /pair.",
+      "pairedUserIds": "OpenIDs de usuários pareados",
+      "pairedUserIdsPlaceholder": "ex.: user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Conecte um bot WeChat iLink oficial via login por QR code e deixe o adaptador embutido cuidar das sessões de controle remoto.",
+      "loginDescription": "Clique no botão abaixo para abrir a janela oficial de login do WeChat. Conclua ali a autorização do iLink Bot e a conta conectada será adicionada automaticamente à lista abaixo.",
+      "ownerOnlyNotice": "Nesta primeira versão, apenas a conta proprietária autenticada pelo QR pode controlar o DeepChat.",
+      "connectButton": "Abrir janela de login",
+      "refreshQrCode": "Reabrir janela de login",
+      "loginDialogTitle": "Conectar WeChat iLink",
+      "loginDialogDescription": "A página oficial de login do WeChat é aberta em uma janela separada. Conclua ali a autorização por QR code e mantenha esta caixa de diálogo aberta até a conexão terminar.",
+      "loginFailed": "Falha ao entrar no WeChat iLink.",
+      "loginSuccessTitle": "WeChat iLink conectado",
+      "loginSuccessDescription": "A conta {accountId} está pronta.",
+      "accountsTitle": "Contas",
+      "accountsDescription": "Cada conta de bot iLink conectada roda de forma independente e mantém seus próprios vínculos e estado de execução.",
+      "noAccounts": "Nenhuma conta WeChat iLink conectada ainda.",
+      "ownerUserId": "ID do usuário proprietário: {ownerUserId}",
+      "baseUrl": "URL base: {baseUrl}",
+      "accountBindings": "Vínculos: {count}",
+      "remoteControlDescription": "Defina o agente padrão compartilhado pelas contas WeChat iLink e gerencie os vínculos criados pelas sessões recebidas.",
+      "removeAccount": "Remover conta",
+      "restartAccount": "Reiniciar conta",
+      "statusSummary": "{accounts} contas, {connected} conectadas, {bindings} vínculos",
+      "qrcodeAlt": "QR code do WeChat iLink",
+      "loginWindowOpened": "A janela oficial de login do WeChat foi aberta. Conclua ali a autorização por QR code.",
+      "loginSessionExpired": "Esta sessão de login expirou. Reabra a janela de login e tente novamente.",
+      "loginResponseIncomplete": "A resposta de login do WeChat iLink veio incompleta. Tente novamente.",
+      "loginTimedOut": "O tempo de espera pela autorização do WeChat iLink expirou. Reabra a janela de login e tente novamente.",
+      "loginConnected": "A conta do WeChat iLink foi conectada."
     }
   },
   "deepchatAgents": {

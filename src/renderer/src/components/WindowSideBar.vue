@@ -343,8 +343,9 @@ import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import type {
-  TelegramRemoteStatus,
-  FeishuRemoteStatus,
+  RemoteChannel,
+  RemoteChannelStatus,
+  RemoteChannelDescriptor,
   RemoteRuntimeState
 } from '@shared/presenter'
 import AgentAvatar from './icons/AgentAvatar.vue'
@@ -366,15 +367,66 @@ const sessionStore = useSessionStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
 
+const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
+  {
+    id: 'telegram',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.telegram.title',
+    descriptionKey: 'settings.remote.telegram.description',
+    supportsPairing: true,
+    supportsNotifications: true
+  },
+  {
+    id: 'feishu',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.feishu.title',
+    descriptionKey: 'settings.remote.feishu.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
+    id: 'qqbot',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.qqbot.title',
+    descriptionKey: 'settings.remote.qqbot.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
+    id: 'discord',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.discord.title',
+    descriptionKey: 'settings.remote.discord.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
+    id: 'weixin-ilink',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.weixinIlink.title',
+    descriptionKey: 'settings.remote.weixinIlink.description',
+    supportsPairing: false,
+    supportsNotifications: false
+  }
+]
+
 const collapsed = computed(() => sidebarStore.collapsed)
 const sessionSearchQuery = ref('')
-const remoteControlStatus = ref<{
-  telegram: TelegramRemoteStatus | null
-  feishu: FeishuRemoteStatus | null
-}>({
+const remoteChannelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackRemoteChannels)
+const createRemoteStatusMap = (): Record<RemoteChannel, RemoteChannelStatus | null> => ({
   telegram: null,
-  feishu: null
+  feishu: null,
+  qqbot: null,
+  discord: null,
+  'weixin-ilink': null
 })
+const remoteControlStatus =
+  ref<Record<RemoteChannel, RemoteChannelStatus | null>>(createRemoteStatusMap())
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
@@ -384,15 +436,23 @@ const selectedAgentName = computed(
 )
 
 const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
-  getChannelStatus?: (
-    channel: 'telegram' | 'feishu'
-  ) => Promise<TelegramRemoteStatus | FeishuRemoteStatus>
+  listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
+  getChannelStatus?: (channel: RemoteChannel) => Promise<RemoteChannelStatus>
 }
-const showRemoteControlButton = computed(
-  () => remoteControlStatus.value.telegram?.enabled || remoteControlStatus.value.feishu?.enabled
+const implementedRemoteChannels = computed(() =>
+  remoteChannelDescriptors.value
+    .filter((descriptor) => descriptor.implemented)
+    .map((descriptor) => descriptor.id)
+)
+const getRemoteChannelStatus = (channel: RemoteChannel) => remoteControlStatus.value[channel]
+const showRemoteControlButton = computed(() =>
+  implementedRemoteChannels.value.some((channel) =>
+    Boolean(getRemoteChannelStatus(channel)?.enabled)
+  )
 )
 const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
-  const states = [remoteControlStatus.value.telegram, remoteControlStatus.value.feishu]
+  const states = implementedRemoteChannels.value
+    .map((channel) => getRemoteChannelStatus(channel))
     .filter((status) => status?.enabled)
     .map((status) => status?.state as RemoteRuntimeState)
 
@@ -417,14 +477,18 @@ const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
   return 'disabled'
 })
 const remoteControlTooltip = computed(() => {
-  const telegramState = remoteControlStatus.value.telegram?.enabled
-    ? t(`chat.sidebar.remoteControlStatus.${remoteControlStatus.value.telegram.state}`)
-    : t('chat.sidebar.remoteControlDisabled')
-  const feishuState = remoteControlStatus.value.feishu?.enabled
-    ? t(`chat.sidebar.remoteControlStatus.${remoteControlStatus.value.feishu.state}`)
-    : t('chat.sidebar.remoteControlDisabled')
-
-  return [`Telegram: ${telegramState}`, `Feishu: ${feishuState}`].join('\n')
+  return implementedRemoteChannels.value
+    .map((channel) => {
+      const descriptor = remoteChannelDescriptors.value.find((item) => item.id === channel)
+      const title = descriptor ? t(descriptor.titleKey) : channel
+      const status = getRemoteChannelStatus(channel)
+      const statusText =
+        status?.enabled && status.state
+          ? t(`chat.sidebar.remoteControlStatus.${status.state}`)
+          : t('chat.sidebar.remoteControlDisabled')
+      return `${title}: ${statusText}`
+    })
+    .join('\n')
 })
 const remoteControlButtonClass = computed(() => {
   const state = aggregatedRemoteControlState.value
@@ -578,26 +642,32 @@ const openRemoteSettings = async () => {
 
 const refreshRemoteControlStatus = async () => {
   try {
-    const [telegram, feishu] = presenterCompat.getChannelStatus
-      ? await Promise.all([
-          presenterCompat.getChannelStatus('telegram'),
-          presenterCompat.getChannelStatus('feishu')
-        ])
-      : [
-          await remoteControlPresenter.getTelegramStatus(),
-          {
-            channel: 'feishu',
-            enabled: false,
-            state: 'disabled',
-            bindingCount: 0,
-            pairedUserCount: 0,
-            lastError: null,
-            botUser: null
-          } satisfies FeishuRemoteStatus
-        ]
+    remoteChannelDescriptors.value = presenterCompat.listRemoteChannels
+      ? await presenterCompat.listRemoteChannels()
+      : fallbackRemoteChannels
+    if (presenterCompat.getChannelStatus) {
+      const channels = remoteChannelDescriptors.value
+        .filter((descriptor) => descriptor.implemented)
+        .map((descriptor) => descriptor.id)
+      const statuses = await Promise.all(
+        channels.map(
+          async (channel) => [channel, await presenterCompat.getChannelStatus!(channel)] as const
+        )
+      )
+      remoteControlStatus.value = statuses.reduce(
+        (acc, [channel, status]) => ({
+          ...acc,
+          [channel]: status
+        }),
+        createRemoteStatusMap()
+      )
+      return
+    }
+
     remoteControlStatus.value = {
-      telegram,
-      feishu
+      ...createRemoteStatusMap(),
+      telegram: await remoteControlPresenter.getTelegramStatus(),
+      'weixin-ilink': await remoteControlPresenter.getWeixinIlinkStatus()
     }
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)

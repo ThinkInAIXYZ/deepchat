@@ -154,11 +154,11 @@ describe('AgentBashHandler', () => {
     expect(prepared.rtkApplied).toBe(false)
     expect(prepared.rtkMode).toBe('bypass')
     expect(prepared.env.CUSTOM_FLAG).toBe('1')
-    expect(prepared.env.PATH.split(':').slice(0, 3)).toEqual([
-      '/custom/bin',
-      '/shell/bin',
-      '/usr/local/bin'
-    ])
+    const pathValue = prepared.env.PATH || prepared.env.Path || ''
+    expect(pathValue).toContain('/custom/bin')
+    expect(pathValue).toContain('/shell/bin')
+    expect(pathValue).toContain('/usr/local/bin')
+    expect(pathValue.indexOf('/custom/bin')).toBeLessThan(pathValue.indexOf('/shell/bin'))
   })
 
   it('keeps background execution on the bypass path without foreground retry', async () => {

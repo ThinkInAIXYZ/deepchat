@@ -92,24 +92,42 @@ export type {
 } from './agent-session.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {
+  ChannelSettingsMap,
+  DiscordPairingSnapshot,
+  DiscordRemoteBindingSummary,
+  DiscordRemoteSettings,
+  DiscordRemoteStatus,
   FeishuPairingSnapshot,
+  FeishuBrand,
   FeishuRemoteBindingSummary,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
   IRemoteControlPresenter,
+  PairableRemoteChannel,
+  QQBotPairingSnapshot,
+  QQBotRemoteBindingSummary,
+  QQBotRemoteSettings,
+  QQBotRemoteStatus,
   RemoteBindingKind,
   RemoteBindingSummary,
   RemoteChannel,
+  RemoteChannelDescriptor,
+  RemoteChannelId,
   RemoteChannelSettings,
   RemoteChannelStatus,
   RemotePairingSnapshot,
   RemoteRuntimeState,
-  TelegramHookSettings,
   TelegramPairingSnapshot,
   TelegramRemoteBindingSummary,
   TelegramRemoteSettings,
   TelegramRemoteStatus,
-  TelegramStreamMode
+  TelegramStreamMode,
+  WeixinIlinkAccountStatus,
+  WeixinIlinkAccountSummary,
+  WeixinIlinkLoginResult,
+  WeixinIlinkLoginSession,
+  WeixinIlinkRemoteSettings,
+  WeixinIlinkRemoteStatus
 } from './remote-control.presenter'
 
 // Re-export legacy types temporarily for compatibility

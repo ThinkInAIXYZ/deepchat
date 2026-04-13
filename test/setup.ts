@@ -17,11 +17,13 @@ vi.mock('electron', () => ({
     webContents: {
       send: vi.fn(),
       on: vi.fn(),
+      setWindowOpenHandler: vi.fn(),
       isDestroyed: vi.fn(() => false)
     },
     isDestroyed: vi.fn(() => false),
     close: vi.fn(),
     show: vi.fn(),
+    focus: vi.fn(),
     hide: vi.fn()
   })),
   ipcMain: {

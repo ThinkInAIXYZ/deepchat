@@ -105,6 +105,13 @@ setCustomComponents(customId, {
 
 <style scoped>
 @reference '../../assets/style.css';
+
+.think-prose {
+  --ms-text-body: calc(0.75rem * var(--dc-font-scale));
+  --ms-leading-body: calc(1rem * var(--dc-font-scale));
+  --ms-font-sans: var(--dc-font-family);
+}
+
 .think-prose :where(p, ul, li) {
   @apply mb-1 mt-0;
 }
@@ -115,8 +122,6 @@ setCustomComponents(customId, {
   @apply my-1.5;
 }
 .think-prose :where(p, li, ol, ul) {
-  font-size: inherit;
-  line-height: inherit;
   letter-spacing: 0;
 }
 .think-prose :where(ol, ul) {

@@ -76,12 +76,16 @@ const setup = async (options: SetupOptions) => {
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
   }))
-  vi.doMock('pinia', () => ({
-    storeToRefs: () => ({
-      customModels: ref(modelStore.customModels),
-      allProviderModels: ref(modelStore.allProviderModels)
-    })
-  }))
+  vi.doMock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+    return {
+      ...actual,
+      storeToRefs: () => ({
+        customModels: ref(modelStore.customModels),
+        allProviderModels: ref(modelStore.allProviderModels)
+      })
+    }
+  })
   vi.doMock('@/stores/providerStore', () => ({
     useProviderStore: () => providerStore
   }))

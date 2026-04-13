@@ -5,11 +5,7 @@ import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
 import { ApiEndpointType, ModelType } from '@shared/model'
-import type {
-  HookEventName,
-  HookTestResult,
-  HooksNotificationsSettings
-} from '../../hooksNotifications'
+import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import type { AcpConfigState } from './llmprovider.presenter'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
@@ -613,11 +609,7 @@ export interface IConfigPresenter {
   // Hooks & notifications settings
   getHooksNotificationsConfig(): HooksNotificationsSettings
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings
-  getConfirmoHookStatus(): { available: boolean; path: string }
-  testTelegramNotification(): Promise<HookTestResult>
-  testDiscordNotification(): Promise<HookTestResult>
-  testConfirmoNotification(): Promise<HookTestResult>
-  testHookCommand(eventName: HookEventName): Promise<HookTestResult>
+  testHookCommand(hookId: string): Promise<HookTestResult>
   // Skills settings
   getSkillsEnabled(): boolean
   setSkillsEnabled(enabled: boolean): void

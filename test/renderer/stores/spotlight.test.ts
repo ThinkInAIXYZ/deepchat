@@ -46,9 +46,13 @@ const setupStore = async (options?: {
     goToNewThread: vi.fn()
   })
 
-  vi.doMock('pinia', () => ({
-    defineStore: (_id: string, setup: () => unknown) => setup
-  }))
+  vi.doMock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+    return {
+      ...actual,
+      defineStore: (_id: string, setup: () => unknown) => setup
+    }
+  })
 
   vi.doMock('@vueuse/core', () => ({
     useDebounceFn: (fn: (...args: unknown[]) => unknown) => fn

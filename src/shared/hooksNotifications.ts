@@ -19,42 +19,16 @@ export const DEFAULT_IMPORTANT_HOOK_EVENTS: HookEventName[] = [
   'Stop'
 ]
 
-export type HookChannel = 'telegram' | 'discord' | 'confirmo' | 'command'
-
-export interface HookCommandConfig {
+export interface HookCommandItem {
+  id: string
+  name: string
   enabled: boolean
   command: string
-}
-
-export interface HookCommandsConfig {
-  enabled: boolean
-  events: Record<HookEventName, HookCommandConfig>
-}
-
-export interface TelegramNotificationsConfig {
-  enabled: boolean
-  botToken: string
-  chatId: string
-  threadId?: string
-  events: HookEventName[]
-}
-
-export interface DiscordNotificationsConfig {
-  enabled: boolean
-  webhookUrl: string
-  events: HookEventName[]
-}
-
-export interface ConfirmoNotificationsConfig {
-  enabled: boolean
   events: HookEventName[]
 }
 
 export interface HooksNotificationsSettings {
-  telegram: TelegramNotificationsConfig
-  discord: DiscordNotificationsConfig
-  confirmo: ConfirmoNotificationsConfig
-  commands: HookCommandsConfig
+  hooks: HookCommandItem[]
 }
 
 export interface HookEventPayload {

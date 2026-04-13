@@ -1,6 +1,6 @@
 <template>
-  <ScrollArea class="w-full h-full">
-    <div class="w-full h-full flex flex-col gap-4 p-4">
+  <ScrollArea class="h-full w-full">
+    <div class="flex h-full w-full flex-col gap-4 p-4">
       <div v-if="isLoading" class="text-sm text-muted-foreground">
         {{ t('common.loading') }}
       </div>
@@ -16,408 +16,306 @@
             </span>
           </div>
           <div class="text-sm text-muted-foreground">
-            {{ t('settings.notificationsHooks.description') }}
+            {{ t('settings.notificationsHooks.commands.description') }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ t('settings.notificationsHooks.commands.hint') }}
           </div>
         </div>
 
-        <div class="border rounded-lg overflow-hidden">
-          <div class="flex items-start justify-between gap-4 p-4">
-            <div class="flex-1">
-              <div class="text-base font-medium">
-                {{ t('settings.notificationsHooks.discord.title') }}
-              </div>
-              <p class="text-sm text-muted-foreground">
-                {{ t('settings.notificationsHooks.discord.description') }}
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <Switch
-                :model-value="config.discord.enabled"
-                @update:model-value="(value) => updateChannelEnabled('discord', value)"
-              />
+        <div class="rounded-lg border p-4">
+          <div class="space-y-4">
+            <div class="flex justify-end">
               <Button
-                variant="ghost"
-                size="icon"
-                class="h-7 w-7"
-                @click="discordOpen = !discordOpen"
+                data-testid="notifications-hooks-add"
+                variant="outline"
+                size="sm"
+                @click="addHook"
               >
-                <Icon
-                  :icon="discordOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-                  class="w-4 h-4"
-                />
+                <Icon icon="lucide:plus" class="mr-1 h-4 w-4" />
+                {{ t('settings.notificationsHooks.commands.newHook') }}
               </Button>
             </div>
-          </div>
-          <Collapsible v-model:open="discordOpen">
-            <CollapsibleContent>
-              <div class="border-t p-4 space-y-4">
-                <div class="space-y-2">
-                  <Label class="text-xs text-muted-foreground">{{
-                    t('settings.notificationsHooks.discord.webhookUrl')
-                  }}</Label>
-                  <div class="relative w-full">
-                    <Input
-                      v-model="config.discord.webhookUrl"
-                      :type="showDiscordWebhook ? 'text' : 'password'"
-                      :placeholder="t('settings.notificationsHooks.discord.webhookUrlPlaceholder')"
-                      class="pr-10"
-                      @blur="persistConfig"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                      @click="showDiscordWebhook = !showDiscordWebhook"
-                    >
-                      <Icon
-                        :icon="showDiscordWebhook ? 'lucide:eye-off' : 'lucide:eye'"
-                        class="w-4 h-4 text-muted-foreground"
-                      />
-                    </Button>
-                  </div>
-                </div>
 
-                <div class="space-y-2">
-                  <Label class="text-xs text-muted-foreground">{{
-                    t('settings.notificationsHooks.events.title')
-                  }}</Label>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label
-                      v-for="eventName in eventNames"
-                      :key="`discord-${eventName}`"
-                      class="flex items-center gap-2 text-sm"
-                    >
-                      <Checkbox
-                        :checked="config.discord.events.includes(eventName)"
-                        @update:checked="
-                          (value) => updateChannelEvent('discord', eventName, value === true)
-                        "
-                      />
-                      <span>{{ eventLabel(eventName) }}</span>
-                    </label>
+            <Collapsible v-model:open="guideOpen" class="rounded-md border bg-muted/20">
+              <CollapsibleTrigger as-child>
+                <Button variant="ghost" class="flex h-auto w-full items-center justify-between p-4">
+                  <div class="min-w-0 text-left">
+                    <div class="text-sm font-medium">
+                      {{ t('settings.notificationsHooks.commands.guideTitle') }}
+                    </div>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                      {{ t('settings.notificationsHooks.commands.guideDescription') }}
+                    </p>
                   </div>
-                </div>
+                  <Icon
+                    :icon="guideOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                    class="ml-3 h-4 w-4 shrink-0 text-muted-foreground"
+                  />
+                </Button>
+              </CollapsibleTrigger>
 
-                <div class="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="discordTesting"
-                    @click="runDiscordTest"
-                  >
-                    <Icon
-                      :icon="discordTesting ? 'lucide:loader-2' : 'lucide:send'"
-                      :class="['w-4 h-4 mr-1', discordTesting && 'animate-spin']"
-                    />
-                    {{
-                      discordTesting
-                        ? t('settings.notificationsHooks.test.testing')
-                        : t('settings.notificationsHooks.test.button')
-                    }}
-                  </Button>
-                </div>
-
-                <div v-if="discordTestResult" class="text-xs space-y-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span
-                      :class="discordTestResult.success ? 'text-emerald-600' : 'text-destructive'"
-                    >
-                      {{
-                        discordTestResult.success
-                          ? t('settings.notificationsHooks.test.success')
-                          : t('settings.notificationsHooks.test.failed')
-                      }}
-                    </span>
-                    <span class="text-muted-foreground">
-                      {{
-                        t('settings.notificationsHooks.test.duration', {
-                          ms: discordTestResult.durationMs
-                        })
-                      }}
-                    </span>
-                    <span
-                      v-if="discordTestResult.statusCode !== undefined"
-                      class="text-muted-foreground"
-                    >
-                      {{
-                        t('settings.notificationsHooks.test.statusCode', {
-                          code: discordTestResult.statusCode
-                        })
-                      }}
-                    </span>
-                    <span v-if="discordTestResult.retryAfterMs" class="text-muted-foreground">
-                      {{
-                        t('settings.notificationsHooks.test.retryAfter', {
-                          ms: discordTestResult.retryAfterMs
-                        })
-                      }}
-                    </span>
-                  </div>
-                  <div v-if="discordTestResult.error" class="text-destructive break-all">
-                    {{ discordTestResult.error }}
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-
-        <div
-          :class="[
-            'border rounded-lg overflow-hidden',
-            !confirmoAvailable && 'opacity-60 cursor-not-allowed'
-          ]"
-        >
-          <div class="flex items-start justify-between gap-4 p-4">
-            <div class="flex-1">
-              <div class="text-base font-medium">
-                {{ t('settings.notificationsHooks.confirmo.title') }}
-              </div>
-              <p class="text-sm text-muted-foreground">
-                {{
-                  confirmoAvailable
-                    ? t('settings.notificationsHooks.confirmo.description')
-                    : t('settings.notificationsHooks.confirmo.unavailable', {
-                        path: confirmoStatus?.path || ''
-                      })
-                }}
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <Switch
-                :model-value="config.confirmo.enabled"
-                :disabled="!confirmoAvailable"
-                @update:model-value="(value) => updateChannelEnabled('confirmo', value)"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-7 w-7"
-                :disabled="!confirmoAvailable"
-                @click="confirmoOpen = !confirmoOpen"
-              >
-                <Icon
-                  :icon="confirmoOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-                  class="w-4 h-4"
-                />
-              </Button>
-            </div>
-          </div>
-          <Collapsible v-model:open="confirmoOpen">
-            <CollapsibleContent>
-              <div class="border-t p-4 space-y-4">
-                <div class="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="confirmoTesting || !confirmoAvailable"
-                    @click="runConfirmoTest"
-                  >
-                    <Icon
-                      :icon="confirmoTesting ? 'lucide:loader-2' : 'lucide:send'"
-                      :class="['w-4 h-4 mr-1', confirmoTesting && 'animate-spin']"
-                    />
-                    {{
-                      confirmoTesting
-                        ? t('settings.notificationsHooks.test.testing')
-                        : t('settings.notificationsHooks.test.button')
-                    }}
-                  </Button>
-                </div>
-
-                <div v-if="confirmoTestResult" class="text-xs space-y-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span
-                      :class="confirmoTestResult.success ? 'text-emerald-600' : 'text-destructive'"
-                    >
-                      {{
-                        confirmoTestResult.success
-                          ? t('settings.notificationsHooks.test.success')
-                          : t('settings.notificationsHooks.test.failed')
-                      }}
-                    </span>
-                    <span class="text-muted-foreground">
-                      {{
-                        t('settings.notificationsHooks.test.duration', {
-                          ms: confirmoTestResult.durationMs
-                        })
-                      }}
-                    </span>
-                    <span
-                      v-if="confirmoTestResult.exitCode !== undefined"
-                      class="text-muted-foreground"
-                    >
-                      {{
-                        t('settings.notificationsHooks.test.exitCode', {
-                          code: confirmoTestResult.exitCode
-                        })
-                      }}
-                    </span>
-                  </div>
-                  <div v-if="confirmoTestResult.error" class="text-destructive break-all">
-                    {{ confirmoTestResult.error }}
-                  </div>
-                  <div v-if="confirmoTestResult.stdout" class="text-muted-foreground break-all">
-                    <span class="font-medium">{{
-                      t('settings.notificationsHooks.test.stdout')
-                    }}</span
-                    >: {{ formatPreview(confirmoTestResult.stdout) }}
-                  </div>
-                  <div v-if="confirmoTestResult.stderr" class="text-muted-foreground break-all">
-                    <span class="font-medium">{{
-                      t('settings.notificationsHooks.test.stderr')
-                    }}</span
-                    >: {{ formatPreview(confirmoTestResult.stderr) }}
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-
-        <div class="border rounded-lg overflow-hidden">
-          <div class="flex items-start justify-between gap-4 p-4">
-            <div class="flex-1">
-              <div class="text-base font-medium">
-                {{ t('settings.notificationsHooks.commands.title') }}
-              </div>
-              <p class="text-sm text-muted-foreground">
-                {{ t('settings.notificationsHooks.commands.description') }}
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <Switch
-                :model-value="config.commands.enabled"
-                @update:model-value="(value) => updateCommandsEnabled(value)"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-7 w-7"
-                @click="commandsOpen = !commandsOpen"
-              >
-                <Icon
-                  :icon="commandsOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-                  class="w-4 h-4"
-                />
-              </Button>
-            </div>
-          </div>
-          <Collapsible v-model:open="commandsOpen">
-            <CollapsibleContent>
-              <div class="border-t p-4 space-y-4">
-                <div class="text-xs text-muted-foreground">
-                  {{ t('settings.notificationsHooks.commands.hint') }}
-                </div>
-
-                <div class="space-y-3">
-                  <div
-                    v-for="eventName in eventNames"
-                    :key="`command-${eventName}`"
-                    class="border rounded-md p-3 space-y-2"
-                  >
-                    <div class="flex flex-wrap items-center gap-3">
-                      <div class="min-w-[160px]">
-                        <div class="text-sm font-medium">{{ eventLabel(eventName) }}</div>
-                        <div class="text-xs text-muted-foreground">{{ eventName }}</div>
+              <CollapsibleContent class="border-t px-4 pb-4">
+                <div class="space-y-4 pt-4">
+                  <div class="grid gap-4 lg:grid-cols-2">
+                    <div class="space-y-2">
+                      <div class="text-xs font-medium text-muted-foreground">
+                        {{ t('settings.notificationsHooks.commands.deliveryTitle') }}
                       </div>
-                      <Switch
-                        :model-value="config.commands.events[eventName].enabled"
-                        @update:model-value="(value) => updateCommandEnabled(eventName, value)"
-                      />
-                      <div class="flex-1 min-w-[220px]">
-                        <Input
-                          v-model="config.commands.events[eventName].command"
-                          :placeholder="
-                            t('settings.notificationsHooks.commands.commandPlaceholder')
+                      <ul class="space-y-1 text-xs text-muted-foreground">
+                        <li>{{ t('settings.notificationsHooks.commands.deliveryStdin') }}</li>
+                        <li>{{ t('settings.notificationsHooks.commands.deliveryPlaceholder') }}</li>
+                        <li>{{ t('settings.notificationsHooks.commands.deliveryEnv') }}</li>
+                        <li>{{ t('settings.notificationsHooks.commands.metadataOnly') }}</li>
+                      </ul>
+
+                      <div class="rounded-md border bg-background p-3">
+                        <div class="mb-2 text-[11px] font-medium text-muted-foreground">
+                          {{ t('settings.notificationsHooks.commands.stdinPreviewLabel') }}
+                        </div>
+                        <pre
+                          class="overflow-x-auto whitespace-pre-wrap break-all text-[11px] leading-5"
+                          >{{ stdinPreview }}</pre
+                        >
+                      </div>
+                    </div>
+
+                    <div class="space-y-2">
+                      <div class="text-xs font-medium text-muted-foreground">
+                        {{ t('settings.notificationsHooks.commands.placeholdersTitle') }}
+                      </div>
+                      <p class="text-xs text-muted-foreground">
+                        {{ t('settings.notificationsHooks.commands.placeholdersDescription') }}
+                      </p>
+                      <div class="grid gap-2 sm:grid-cols-2">
+                        <div
+                          v-for="item in placeholderDocs"
+                          :key="item.token"
+                          class="rounded-md border bg-background p-3"
+                        >
+                          <div class="text-xs font-medium">
+                            <code>{{ item.token }}</code>
+                          </div>
+                          <div class="mt-1 text-[11px] text-muted-foreground">
+                            {{ fieldDescription(item.field) }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="grid gap-4 lg:grid-cols-2">
+                    <div class="space-y-2">
+                      <div class="text-xs font-medium text-muted-foreground">
+                        {{ t('settings.notificationsHooks.commands.envTitle') }}
+                      </div>
+                      <div class="grid gap-2 sm:grid-cols-2">
+                        <div
+                          v-for="item in envDocs"
+                          :key="item.token"
+                          class="rounded-md border bg-background p-3"
+                        >
+                          <div class="text-xs font-medium">
+                            <code>{{ item.token }}</code>
+                          </div>
+                          <div class="mt-1 text-[11px] text-muted-foreground">
+                            {{ fieldDescription(item.field) }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="space-y-2">
+                      <div class="text-xs font-medium text-muted-foreground">
+                        {{ t('settings.notificationsHooks.commands.examplesTitle') }}
+                      </div>
+                      <div class="space-y-2">
+                        <div
+                          v-for="item in commandExamples"
+                          :key="item.labelKey"
+                          class="rounded-md border bg-background p-3"
+                        >
+                          <div class="mb-2 text-[11px] font-medium text-muted-foreground">
+                            {{ t(item.labelKey) }}
+                          </div>
+                          <pre
+                            class="overflow-x-auto whitespace-pre-wrap break-all text-[11px] leading-5"
+                            >{{ item.command }}</pre
+                          >
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <div
+              v-if="config.hooks.length === 0"
+              data-testid="notifications-hooks-empty"
+              class="rounded-md border border-dashed p-6 text-sm text-muted-foreground"
+            >
+              {{ t('settings.notificationsHooks.commands.empty') }}
+            </div>
+
+            <div v-else class="space-y-3">
+              <div
+                v-for="(hook, index) in config.hooks"
+                :key="hook.id"
+                :data-testid="`notifications-hook-${hook.id}`"
+                class="rounded-md border p-4"
+              >
+                <div class="space-y-4">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="min-w-[180px]">
+                      <div class="text-sm font-medium">
+                        {{ hook.name || fallbackHookName(index) }}
+                      </div>
+                      <div class="text-xs text-muted-foreground">{{ hook.id }}</div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span>{{ hook.enabled ? t('common.enabled') : t('common.disabled') }}</span>
+                        <Switch
+                          :model-value="hook.enabled"
+                          @update:model-value="
+                            (value) => updateHookEnabled(hook.id, value === true)
                           "
-                          @blur="persistConfig"
                         />
-                      </div>
+                      </label>
+
                       <Button
                         variant="outline"
                         size="sm"
-                        :disabled="
-                          commandTesting[eventName] ||
-                          !config.commands.events[eventName].command.trim()
-                        "
-                        @click="runCommandTest(eventName)"
+                        :disabled="isHookTesting(hook.id) || !hook.command.trim()"
+                        @click="runHookTest(hook.id)"
                       >
                         <Icon
-                          :icon="commandTesting[eventName] ? 'lucide:loader-2' : 'lucide:play'"
-                          :class="['w-4 h-4 mr-1', commandTesting[eventName] && 'animate-spin']"
+                          :icon="isHookTesting(hook.id) ? 'lucide:loader-2' : 'lucide:play'"
+                          :class="['mr-1 h-4 w-4', isHookTesting(hook.id) && 'animate-spin']"
                         />
                         {{
-                          commandTesting[eventName]
+                          isHookTesting(hook.id)
                             ? t('settings.notificationsHooks.test.testing')
                             : t('settings.notificationsHooks.test.button')
                         }}
                       </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="text-destructive"
+                        @click="removeHook(hook.id)"
+                      >
+                        <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
+                        {{ t('common.delete') }}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div class="space-y-2">
+                      <Label class="text-xs text-muted-foreground">
+                        {{ t('settings.notificationsHooks.commands.name') }}
+                      </Label>
+                      <Input
+                        v-model="hook.name"
+                        :placeholder="t('settings.notificationsHooks.commands.namePlaceholder')"
+                        @blur="persistConfig"
+                      />
                     </div>
 
-                    <div v-if="commandTestResults[eventName]" class="text-xs space-y-1">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <span
-                          :class="
-                            commandTestResults[eventName]?.success
-                              ? 'text-emerald-600'
-                              : 'text-destructive'
+                    <div class="space-y-2">
+                      <Label class="text-xs text-muted-foreground">
+                        {{ t('settings.notificationsHooks.commands.commandLabel') }}
+                      </Label>
+                      <Input
+                        v-model="hook.command"
+                        :placeholder="t('settings.notificationsHooks.commands.commandPlaceholder')"
+                        @blur="persistConfig"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.notificationsHooks.events.title') }}
+                    </Label>
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <label
+                        v-for="eventName in eventNames"
+                        :key="`${hook.id}-${eventName}`"
+                        class="flex items-center gap-2 text-sm"
+                      >
+                        <Checkbox
+                          :checked="hook.events.includes(eventName)"
+                          @update:checked="
+                            (value) => updateHookEvent(hook.id, eventName, value === true)
                           "
-                        >
-                          {{
-                            commandTestResults[eventName]?.success
-                              ? t('settings.notificationsHooks.test.success')
-                              : t('settings.notificationsHooks.test.failed')
-                          }}
-                        </span>
-                        <span class="text-muted-foreground">
-                          {{
-                            t('settings.notificationsHooks.test.duration', {
-                              ms: commandTestResults[eventName]?.durationMs || 0
-                            })
-                          }}
-                        </span>
-                        <span
-                          v-if="commandTestResults[eventName]?.exitCode !== undefined"
-                          class="text-muted-foreground"
-                        >
-                          {{
-                            t('settings.notificationsHooks.test.exitCode', {
-                              code: commandTestResults[eventName]?.exitCode
-                            })
-                          }}
-                        </span>
-                      </div>
-                      <div
-                        v-if="commandTestResults[eventName]?.error"
-                        class="text-destructive break-all"
+                        />
+                        <span>{{ eventLabel(eventName) }}</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div v-if="testResults[hook.id]" class="space-y-1 text-xs">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span
+                        :class="
+                          testResults[hook.id]?.success ? 'text-emerald-600' : 'text-destructive'
+                        "
                       >
-                        {{ commandTestResults[eventName]?.error }}
-                      </div>
-                      <div
-                        v-if="commandTestResults[eventName]?.stdout"
-                        class="text-muted-foreground break-all"
+                        {{
+                          testResults[hook.id]?.success
+                            ? t('settings.notificationsHooks.test.success')
+                            : t('settings.notificationsHooks.test.failed')
+                        }}
+                      </span>
+                      <span class="text-muted-foreground">
+                        {{
+                          t('settings.notificationsHooks.test.duration', {
+                            ms: testResults[hook.id]?.durationMs || 0
+                          })
+                        }}
+                      </span>
+                      <span
+                        v-if="testResults[hook.id]?.exitCode !== undefined"
+                        class="text-muted-foreground"
                       >
-                        <span class="font-medium">{{
-                          t('settings.notificationsHooks.test.stdout')
-                        }}</span
-                        >: {{ formatPreview(commandTestResults[eventName]?.stdout) }}
-                      </div>
-                      <div
-                        v-if="commandTestResults[eventName]?.stderr"
-                        class="text-muted-foreground break-all"
-                      >
-                        <span class="font-medium">{{
-                          t('settings.notificationsHooks.test.stderr')
-                        }}</span
-                        >: {{ formatPreview(commandTestResults[eventName]?.stderr) }}
-                      </div>
+                        {{
+                          t('settings.notificationsHooks.test.exitCode', {
+                            code: testResults[hook.id]?.exitCode
+                          })
+                        }}
+                      </span>
+                    </div>
+                    <div v-if="testResults[hook.id]?.error" class="break-all text-destructive">
+                      {{ testResults[hook.id]?.error }}
+                    </div>
+                    <div
+                      v-if="testResults[hook.id]?.stdout"
+                      class="break-all text-muted-foreground"
+                    >
+                      <span class="font-medium">
+                        {{ t('settings.notificationsHooks.test.stdout') }}
+                      </span>
+                      : {{ formatPreview(testResults[hook.id]?.stdout) }}
+                    </div>
+                    <div
+                      v-if="testResults[hook.id]?.stderr"
+                      class="break-all text-muted-foreground"
+                    >
+                      <span class="font-medium">
+                        {{ t('settings.notificationsHooks.test.stderr') }}
+                      </span>
+                      : {{ formatPreview(testResults[hook.id]?.stderr) }}
                     </div>
                   </div>
                 </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+            </div>
+          </div>
         </div>
       </template>
     </div>
@@ -425,24 +323,43 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { Button } from '@shadcn/components/ui/button'
+import { Checkbox } from '@shadcn/components/ui/checkbox'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@shadcn/components/ui/collapsible'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
-import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
-import { Label } from '@shadcn/components/ui/label'
-import { Checkbox } from '@shadcn/components/ui/checkbox'
-import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
-import { usePresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
+import { usePresenter } from '@/composables/usePresenter'
 import type {
+  HookCommandItem,
   HookEventName,
   HookTestResult,
   HooksNotificationsSettings
 } from '@shared/hooksNotifications'
-import { HOOK_EVENT_NAMES } from '@shared/hooksNotifications'
+import { DEFAULT_IMPORTANT_HOOK_EVENTS, HOOK_EVENT_NAMES } from '@shared/hooksNotifications'
+
+const PREVIEW_LIMIT = 200
+type HookDocField =
+  | 'event'
+  | 'time'
+  | 'isTest'
+  | 'conversationId'
+  | 'workdir'
+  | 'agentId'
+  | 'providerId'
+  | 'modelId'
+  | 'messageId'
+  | 'toolName'
+  | 'toolCallId'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -451,43 +368,79 @@ const configPresenter = usePresenter('configPresenter')
 const config = ref<HooksNotificationsSettings | null>(null)
 const isLoading = ref(false)
 const isSaving = ref(false)
+const guideOpen = ref(false)
+const testing = ref<Record<string, boolean>>({})
+const testResults = ref<Record<string, HookTestResult | null>>({})
 let pendingSave = false
 
-const discordOpen = ref(false)
-const confirmoOpen = ref(false)
-const commandsOpen = ref(false)
-
-const showDiscordWebhook = ref(false)
-
-const discordTesting = ref(false)
-const confirmoTesting = ref(false)
-const discordTestResult = ref<HookTestResult | null>(null)
-const confirmoTestResult = ref<HookTestResult | null>(null)
-const confirmoStatus = ref<{ available: boolean; path: string } | null>(null)
-const confirmoAvailable = computed(() => confirmoStatus.value?.available ?? false)
-
 const eventNames = HOOK_EVENT_NAMES
+const stdinPreview = `{
+  "event": "SessionStart",
+  "time": "2026-04-13T00:00:00.000Z",
+  "session": {
+    "conversationId": "session-123",
+    "workdir": "/path/to/project"
+  },
+  "user": null,
+  "tool": null
+}`
+const placeholderDocs: Array<{ token: string; field: HookDocField }> = [
+  { token: '{{event}}', field: 'event' },
+  { token: '{{time}}', field: 'time' },
+  { token: '{{isTest}}', field: 'isTest' },
+  { token: '{{conversationId}}', field: 'conversationId' },
+  { token: '{{workdir}}', field: 'workdir' },
+  { token: '{{agentId}}', field: 'agentId' },
+  { token: '{{providerId}}', field: 'providerId' },
+  { token: '{{modelId}}', field: 'modelId' },
+  { token: '{{messageId}}', field: 'messageId' },
+  { token: '{{toolName}}', field: 'toolName' },
+  { token: '{{toolCallId}}', field: 'toolCallId' }
+]
+const envDocs: Array<{ token: string; field: HookDocField }> = [
+  { token: 'DEEPCHAT_HOOK_EVENT', field: 'event' },
+  { token: 'DEEPCHAT_HOOK_TIME', field: 'time' },
+  { token: 'DEEPCHAT_HOOK_IS_TEST', field: 'isTest' },
+  { token: 'DEEPCHAT_CONVERSATION_ID', field: 'conversationId' },
+  { token: 'DEEPCHAT_WORKDIR', field: 'workdir' },
+  { token: 'DEEPCHAT_AGENT_ID', field: 'agentId' },
+  { token: 'DEEPCHAT_PROVIDER_ID', field: 'providerId' },
+  { token: 'DEEPCHAT_MODEL_ID', field: 'modelId' },
+  { token: 'DEEPCHAT_MESSAGE_ID', field: 'messageId' },
+  { token: 'DEEPCHAT_TOOL_NAME', field: 'toolName' },
+  { token: 'DEEPCHAT_TOOL_CALL_ID', field: 'toolCallId' }
+]
+const commandExamples = [
+  {
+    labelKey: 'settings.notificationsHooks.commands.exampleNodeLabel',
+    command: 'node scripts/hook.js {{event}} {{conversationId}}'
+  },
+  {
+    labelKey: 'settings.notificationsHooks.commands.examplePythonLabel',
+    command: 'python scripts/hook.py --event {{event}} --session {{conversationId}}'
+  },
+  {
+    labelKey: 'settings.notificationsHooks.commands.examplePowerShellLabel',
+    command: 'powershell -File scripts/hook.ps1 {{event}} {{isTest}}'
+  }
+]
 
-const buildEventRecord = <T>(value: T) =>
-  Object.fromEntries(eventNames.map((name) => [name, value])) as Record<HookEventName, T>
+const createHookDraft = (index: number): HookCommandItem => ({
+  id: crypto.randomUUID(),
+  name: fallbackHookName(index),
+  enabled: false,
+  command: '',
+  events: [...DEFAULT_IMPORTANT_HOOK_EVENTS]
+})
 
-const commandTesting = ref<Record<HookEventName, boolean>>(buildEventRecord(false))
-const commandTestResults = ref<Record<HookEventName, HookTestResult | null>>(buildEventRecord(null))
+function fallbackHookName(index: number): string {
+  return t('settings.notificationsHooks.commands.defaultName', { index: index + 1 })
+}
 
 const loadConfig = async () => {
   isLoading.value = true
   try {
-    const [loadedConfig, status] = await Promise.all([
-      configPresenter.getHooksNotificationsConfig(),
-      Promise.resolve()
-        .then(() => configPresenter.getConfirmoHookStatus())
-        .catch((error) => {
-          console.warn('Failed to load confirmo status:', error)
-          return null
-        })
-    ])
-    config.value = loadedConfig
-    confirmoStatus.value = status ?? { available: false, path: '' }
+    config.value = await configPresenter.getHooksNotificationsConfig()
   } catch (error) {
     console.error('Failed to load hooks config:', error)
     toast({
@@ -501,11 +454,14 @@ const loadConfig = async () => {
 }
 
 const persistConfig = async () => {
-  if (!config.value) return
+  if (!config.value) {
+    return
+  }
   if (isSaving.value) {
     pendingSave = true
     return
   }
+
   isSaving.value = true
   try {
     const updated = await configPresenter.setHooksNotificationsConfig(config.value)
@@ -528,124 +484,102 @@ const persistConfig = async () => {
   }
 }
 
-const updateChannelEnabled = (channel: 'discord' | 'confirmo', value: boolean) => {
-  if (!config.value) return
-  if (channel === 'confirmo' && !confirmoAvailable.value) return
-  const nextEnabled = Boolean(value)
-  const wasEnabled = config.value[channel].enabled
-  config.value[channel].enabled = nextEnabled
-  if (!wasEnabled && nextEnabled) {
-    if (channel === 'discord') {
-      discordOpen.value = true
-    } else if (channel === 'confirmo') {
-      confirmoOpen.value = true
-    }
+const addHook = () => {
+  if (!config.value) {
+    return
   }
-  persistConfig()
+  config.value.hooks.push(createHookDraft(config.value.hooks.length))
+  void persistConfig()
 }
 
-const updateCommandsEnabled = (value: boolean) => {
-  if (!config.value) return
-  const nextEnabled = Boolean(value)
-  const wasEnabled = config.value.commands.enabled
-  config.value.commands.enabled = nextEnabled
-  if (!wasEnabled && nextEnabled) {
-    commandsOpen.value = true
+const removeHook = (hookId: string) => {
+  if (!config.value) {
+    return
   }
-  persistConfig()
+  config.value.hooks = config.value.hooks.filter((hook) => hook.id !== hookId)
+  delete testing.value[hookId]
+  delete testResults.value[hookId]
+  void persistConfig()
 }
 
-const updateChannelEvent = (
-  channel: 'discord' | 'confirmo',
-  eventName: HookEventName,
-  checked: boolean
-) => {
-  if (!config.value) return
-  if (channel === 'confirmo' && !confirmoAvailable.value) return
-  const events = new Set(config.value[channel].events)
+const updateHookEnabled = (hookId: string, enabled: boolean) => {
+  const hook = config.value?.hooks.find((item) => item.id === hookId)
+  if (!hook) {
+    return
+  }
+  hook.enabled = enabled
+  void persistConfig()
+}
+
+const updateHookEvent = (hookId: string, eventName: HookEventName, checked: boolean) => {
+  const hook = config.value?.hooks.find((item) => item.id === hookId)
+  if (!hook) {
+    return
+  }
+
+  const events = new Set(hook.events)
   if (checked) {
     events.add(eventName)
   } else {
     events.delete(eventName)
   }
-  config.value[channel].events = Array.from(events)
-  persistConfig()
+  hook.events = Array.from(events)
+  void persistConfig()
 }
 
-const updateCommandEnabled = (eventName: HookEventName, value: boolean) => {
-  if (!config.value) return
-  config.value.commands.events[eventName].enabled = Boolean(value)
-  persistConfig()
-}
+const runHookTest = async (hookId: string) => {
+  if (testing.value[hookId]) {
+    return
+  }
 
-const runDiscordTest = async () => {
-  if (discordTesting.value) return
-  await persistConfig()
-  discordTesting.value = true
-  discordTestResult.value = null
+  testing.value = {
+    ...testing.value,
+    [hookId]: true
+  }
+  testResults.value = {
+    ...testResults.value,
+    [hookId]: null
+  }
+
   try {
-    const result = await configPresenter.testDiscordNotification()
-    discordTestResult.value = result
+    await persistConfig()
+    const result = await configPresenter.testHookCommand(hookId)
+    testResults.value = {
+      ...testResults.value,
+      [hookId]: result
+    }
   } catch (error) {
-    discordTestResult.value = {
-      success: false,
-      durationMs: 0,
-      error: error instanceof Error ? error.message : String(error)
+    testResults.value = {
+      ...testResults.value,
+      [hookId]: {
+        success: false,
+        durationMs: 0,
+        error: error instanceof Error ? error.message : String(error)
+      }
     }
   } finally {
-    discordTesting.value = false
+    testing.value = {
+      ...testing.value,
+      [hookId]: false
+    }
   }
 }
 
-const runConfirmoTest = async () => {
-  if (confirmoTesting.value || !confirmoAvailable.value) return
-  await persistConfig()
-  confirmoTesting.value = true
-  confirmoTestResult.value = null
-  try {
-    const result = await configPresenter.testConfirmoNotification()
-    confirmoTestResult.value = result
-  } catch (error) {
-    confirmoTestResult.value = {
-      success: false,
-      durationMs: 0,
-      error: error instanceof Error ? error.message : String(error)
-    }
-  } finally {
-    confirmoTesting.value = false
-  }
-}
-
-const runCommandTest = async (eventName: HookEventName) => {
-  if (commandTesting.value[eventName]) return
-  await persistConfig()
-  commandTesting.value[eventName] = true
-  commandTestResults.value[eventName] = null
-  try {
-    const result = await configPresenter.testHookCommand(eventName)
-    commandTestResults.value[eventName] = result
-  } catch (error) {
-    commandTestResults.value[eventName] = {
-      success: false,
-      durationMs: 0,
-      error: error instanceof Error ? error.message : String(error)
-    }
-  } finally {
-    commandTesting.value[eventName] = false
-  }
-}
+const isHookTesting = (hookId: string) => testing.value[hookId] === true
 
 const eventLabel = (eventName: HookEventName) =>
   t(`settings.notificationsHooks.events.${eventName}`)
+const fieldDescription = (field: HookDocField) =>
+  t(`settings.notificationsHooks.commands.fields.${field}`)
 
-const PREVIEW_LIMIT = 200
 const formatPreview = (value?: string) => {
-  if (!value) return ''
-  if (value.length <= PREVIEW_LIMIT) return value
-  return `${value.slice(0, PREVIEW_LIMIT)}…`
+  if (!value) {
+    return ''
+  }
+  return value.length <= PREVIEW_LIMIT ? value : `${value.slice(0, PREVIEW_LIMIT)}…`
 }
 
 onMounted(() => {
-  loadConfig()
+  void loadConfig()
 })
 </script>

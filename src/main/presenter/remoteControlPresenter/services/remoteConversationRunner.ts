@@ -8,7 +8,6 @@ import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
   IAgentSessionPresenter,
-  RemoteChannel,
   ITabPresenter,
   IWindowPresenter
 } from '@shared/presenter'
@@ -114,9 +113,7 @@ export class RemoteConversationRunner {
     const projectDir =
       agentType === 'acp' ? await this.resolveDefaultWorkdirForAgent(endpointKey, agentId) : null
     if (agentType === 'acp' && !projectDir) {
-      throw new Error(
-        'ACP agent requires a workdir. Set a Remote default directory or global default directory first.'
-      )
+      throw new Error('ACP agent requires a workdir. Set a global default directory first.')
     }
 
     const session = await this.deps.agentSessionPresenter.createDetachedSession({
@@ -420,20 +417,6 @@ export class RemoteConversationRunner {
     return currentSession?.agentId ?? (await this.deps.resolveDefaultAgentId())
   }
 
-  private resolveChannelFromEndpointKey(endpointKey: string): RemoteChannel {
-    return endpointKey.startsWith('feishu:') ? 'feishu' : 'telegram'
-  }
-
-  private getConfiguredDefaultWorkdir(endpointKey: string): string | null {
-    const channel = this.resolveChannelFromEndpointKey(endpointKey)
-    const config =
-      channel === 'feishu'
-        ? this.bindingStore.getFeishuConfig()
-        : this.bindingStore.getTelegramConfig()
-    const normalized = config.defaultWorkdir?.trim()
-    return normalized ? normalized : null
-  }
-
   private getGlobalDefaultWorkdir(): string | null {
     const projectDir = this.deps.configPresenter.getDefaultProjectPath()
     const normalized = projectDir?.trim()
@@ -448,7 +431,24 @@ export class RemoteConversationRunner {
       return null
     }
 
-    return this.getConfiguredDefaultWorkdir(endpointKey) ?? this.getGlobalDefaultWorkdir()
+    const channelDefaultWorkdir = endpointKey.startsWith('telegram:')
+      ? this.bindingStore.getTelegramDefaultWorkdir()
+      : endpointKey.startsWith('feishu:')
+        ? this.bindingStore.getFeishuDefaultWorkdir()
+        : endpointKey.startsWith('qqbot:')
+          ? this.bindingStore.getQQBotDefaultWorkdir()
+          : endpointKey.startsWith('discord:')
+            ? this.bindingStore.getDiscordDefaultWorkdir()
+            : endpointKey.startsWith('weixin-ilink:')
+              ? this.bindingStore.getWeixinIlinkDefaultWorkdir()
+              : ''
+
+    const normalizedChannelDefaultWorkdir = channelDefaultWorkdir?.trim()
+    if (normalizedChannelDefaultWorkdir) {
+      return normalizedChannelDefaultWorkdir
+    }
+
+    return this.getGlobalDefaultWorkdir()
   }
 
   private async getConversationSnapshot(

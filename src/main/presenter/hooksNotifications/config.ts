@@ -1,146 +1,96 @@
+import { randomUUID } from 'node:crypto'
 import log from 'electron-log'
 import { z } from 'zod'
 import {
   DEFAULT_IMPORTANT_HOOK_EVENTS,
   HOOK_EVENT_NAMES,
+  HookCommandItem,
   HookEventName,
   HooksNotificationsSettings
 } from '@shared/hooksNotifications'
 
-const HookCommandConfigSchema = z
+const HookCommandItemSchema = z
   .object({
-    enabled: z.boolean().optional(),
-    command: z.string().optional()
-  })
-  .strip()
-
-const HookCommandsSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    events: z.record(z.string(), HookCommandConfigSchema).optional()
-  })
-  .strip()
-
-const TelegramSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    botToken: z.string().optional(),
-    chatId: z.string().optional(),
-    threadId: z.union([z.string(), z.number()]).optional(),
-    events: z.array(z.string()).optional()
-  })
-  .strip()
-
-const DiscordSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    webhookUrl: z.string().optional(),
-    events: z.array(z.string()).optional()
-  })
-  .strip()
-
-const ConfirmoSchema = z
-  .object({
-    enabled: z.boolean().optional(),
+    id: z.unknown().optional(),
+    name: z.unknown().optional(),
+    enabled: z.unknown().optional(),
+    command: z.unknown().optional(),
     events: z.array(z.string()).optional()
   })
   .strip()
 
 const HooksNotificationsSchema = z
   .object({
-    telegram: TelegramSchema.optional(),
-    discord: DiscordSchema.optional(),
-    confirmo: ConfirmoSchema.optional(),
-    commands: HookCommandsSchema.optional()
+    hooks: z.array(z.unknown()).optional()
   })
   .strip()
 
-const normalizeOptionalString = (value?: string | number | null): string | undefined => {
-  if (value === null || value === undefined) return undefined
-  const text = String(value).trim()
-  return text.length > 0 ? text : undefined
-}
+type LooseHookCommandItem = z.infer<typeof HookCommandItemSchema>
 
 const sanitizeEvents = (events?: string[] | null): HookEventName[] => {
-  if (!Array.isArray(events)) return []
-  const set = new Set<HookEventName>()
-  for (const item of events) {
-    if (HOOK_EVENT_NAMES.includes(item as HookEventName)) {
-      set.add(item as HookEventName)
+  if (!Array.isArray(events)) {
+    return []
+  }
+
+  const sanitized = new Set<HookEventName>()
+  for (const eventName of events) {
+    if (HOOK_EVENT_NAMES.includes(eventName as HookEventName)) {
+      sanitized.add(eventName as HookEventName)
     }
   }
-  return Array.from(set)
+  return Array.from(sanitized)
 }
-
-const createDefaultCommandEvents = () => {
-  const events: HooksNotificationsSettings['commands']['events'] =
-    {} as HooksNotificationsSettings['commands']['events']
-  for (const name of HOOK_EVENT_NAMES) {
-    events[name] = { enabled: false, command: '' }
-  }
-  return events
-}
-
-export const createDefaultHooksNotificationsConfig = (): HooksNotificationsSettings => ({
-  telegram: {
-    enabled: false,
-    botToken: '',
-    chatId: '',
-    threadId: undefined,
-    events: [...DEFAULT_IMPORTANT_HOOK_EVENTS]
-  },
-  discord: {
-    enabled: false,
-    webhookUrl: '',
-    events: [...DEFAULT_IMPORTANT_HOOK_EVENTS]
-  },
-  confirmo: {
-    enabled: false,
-    events: [...HOOK_EVENT_NAMES]
-  },
-  commands: {
-    enabled: false,
-    events: createDefaultCommandEvents()
-  }
-})
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value))
 
 const warnUnknownKeys = (label: string, value: unknown, allowed: string[]) => {
-  if (!isRecord(value)) return
-  const unknown = Object.keys(value).filter((key) => !allowed.includes(key))
-  if (unknown.length) {
-    log.warn(`[HooksNotifications] Unknown keys at ${label}: ${unknown.join(', ')}`)
+  if (!isRecord(value)) {
+    return
+  }
+
+  const unknownKeys = Object.keys(value).filter((key) => !allowed.includes(key))
+  if (unknownKeys.length > 0) {
+    log.warn(`[HooksNotifications] Unknown keys at ${label}: ${unknownKeys.join(', ')}`)
   }
 }
 
+const normalizeHookItem = (
+  input: LooseHookCommandItem | undefined,
+  index: number
+): HookCommandItem => ({
+  id: typeof input?.id === 'string' && input.id.trim() ? input.id.trim() : randomUUID(),
+  name:
+    typeof input?.name === 'string' && input.name.trim() ? input.name.trim() : `Hook ${index + 1}`,
+  enabled: input?.enabled === true,
+  command: typeof input?.command === 'string' ? input.command : '',
+  events: sanitizeEvents(input?.events)
+})
+
+export const createDefaultHookCommand = (index: number): HookCommandItem => ({
+  id: randomUUID(),
+  name: `Hook ${index + 1}`,
+  enabled: false,
+  command: '',
+  events: [...DEFAULT_IMPORTANT_HOOK_EVENTS]
+})
+
+export const createDefaultHooksNotificationsConfig = (): HooksNotificationsSettings => ({
+  hooks: []
+})
+
 export const normalizeHooksNotificationsConfig = (input: unknown): HooksNotificationsSettings => {
-  warnUnknownKeys('hooksNotifications', input, ['telegram', 'discord', 'confirmo', 'commands'])
-  if (isRecord(input)) {
-    warnUnknownKeys('hooksNotifications.telegram', input.telegram, [
-      'enabled',
-      'botToken',
-      'chatId',
-      'threadId',
-      'events'
-    ])
-    warnUnknownKeys('hooksNotifications.discord', input.discord, [
-      'enabled',
-      'webhookUrl',
-      'events'
-    ])
-    warnUnknownKeys('hooksNotifications.confirmo', input.confirmo, ['enabled', 'events'])
-    warnUnknownKeys('hooksNotifications.commands', input.commands, ['enabled', 'events'])
-    const commandInput = isRecord(input.commands) ? input.commands : null
-    if (commandInput && isRecord(commandInput.events)) {
-      const unknownEvents = Object.keys(commandInput.events).filter(
-        (name) => !HOOK_EVENT_NAMES.includes(name as HookEventName)
-      )
-      if (unknownEvents.length) {
-        log.warn(`[HooksNotifications] Unknown command events: ${unknownEvents.join(', ')}`)
-      }
-    }
+  warnUnknownKeys('hooksNotifications', input, ['hooks'])
+  if (isRecord(input) && Array.isArray(input.hooks)) {
+    input.hooks.forEach((item, index) => {
+      warnUnknownKeys(`hooksNotifications.hooks[${index}]`, item, [
+        'id',
+        'name',
+        'enabled',
+        'command',
+        'events'
+      ])
+    })
   }
 
   const defaults = createDefaultHooksNotificationsConfig()
@@ -150,54 +100,19 @@ export const normalizeHooksNotificationsConfig = (input: unknown): HooksNotifica
     return defaults
   }
 
-  const telegram = (parsed.data.telegram ?? {}) as Partial<HooksNotificationsSettings['telegram']>
-  const discord = (parsed.data.discord ?? {}) as Partial<HooksNotificationsSettings['discord']>
-  const confirmo = (parsed.data.confirmo ?? {}) as Partial<HooksNotificationsSettings['confirmo']>
-  const commands = (parsed.data.commands ?? {}) as Partial<HooksNotificationsSettings['commands']>
-
-  const normalizedCommandEvents: HooksNotificationsSettings['commands']['events'] =
-    createDefaultCommandEvents()
-  const inputEvents = commands.events ?? {}
-  for (const name of HOOK_EVENT_NAMES) {
-    const item = inputEvents[name]
-    if (item && typeof item === 'object') {
-      normalizedCommandEvents[name] = {
-        enabled: Boolean((item as { enabled?: boolean }).enabled),
-        command:
-          typeof (item as { command?: string }).command === 'string'
-            ? (item as { command: string }).command
-            : ''
-      }
+  const rawHooks = parsed.data.hooks ?? []
+  const hooks = rawHooks.reduce<HookCommandItem[]>((items, item, index) => {
+    const parsedItem = HookCommandItemSchema.safeParse(item)
+    if (!parsedItem.success) {
+      log.warn(
+        `[HooksNotifications] Invalid hook at index ${index}, skipping: ${parsedItem.error?.message}`
+      )
+      return items
     }
-  }
 
-  const telegramEvents = sanitizeEvents(telegram.events)
-  const discordEvents = sanitizeEvents(discord.events)
-  const confirmoEvents = [...HOOK_EVENT_NAMES]
+    items.push(normalizeHookItem(parsedItem.data, items.length))
+    return items
+  }, [])
 
-  return {
-    telegram: {
-      ...defaults.telegram,
-      enabled: Boolean(telegram.enabled),
-      botToken: telegram.botToken ?? '',
-      chatId: telegram.chatId ?? '',
-      threadId: normalizeOptionalString(telegram.threadId),
-      events: telegramEvents.length ? telegramEvents : [...defaults.telegram.events]
-    },
-    discord: {
-      ...defaults.discord,
-      enabled: Boolean(discord.enabled),
-      webhookUrl: discord.webhookUrl ?? '',
-      events: discordEvents.length ? discordEvents : [...defaults.discord.events]
-    },
-    confirmo: {
-      ...defaults.confirmo,
-      enabled: Boolean(confirmo.enabled),
-      events: confirmoEvents
-    },
-    commands: {
-      enabled: Boolean(commands.enabled),
-      events: normalizedCommandEvents
-    }
-  }
+  return { hooks }
 }

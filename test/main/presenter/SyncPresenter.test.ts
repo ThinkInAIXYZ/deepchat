@@ -4,6 +4,233 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { zipSync } from 'fflate'
 import * as fsMock from 'fs'
 
+vi.mock('better-sqlite3-multiple-ciphers', async () => {
+  const fs = await vi.importActual<typeof import('fs')>('fs')
+  const path = await vi.importActual<typeof import('path')>('path')
+
+  type MockRow = Record<string, unknown>
+  type MockState = {
+    tables: Record<string, MockRow[]>
+  }
+
+  const readState = (dbPath: string): MockState => {
+    if (!fs.existsSync(dbPath)) {
+      return { tables: {} }
+    }
+
+    try {
+      const raw = fs.readFileSync(dbPath, 'utf-8')
+      const parsed = JSON.parse(raw) as Partial<MockState>
+      return {
+        tables: parsed.tables ?? {}
+      }
+    } catch {
+      return { tables: {} }
+    }
+  }
+
+  const writeState = (dbPath: string, state: MockState) => {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true })
+    fs.writeFileSync(dbPath, JSON.stringify(state, null, 2), 'utf-8')
+  }
+
+  class MockDatabase {
+    private state: MockState
+
+    constructor(
+      private readonly dbPath: string,
+      _options?: Record<string, unknown>
+    ) {
+      this.state = readState(dbPath)
+    }
+
+    exec(sql: string) {
+      for (const match of sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-zA-Z_][\w]*)/gi)) {
+        this.ensureTable(match[1])
+      }
+      this.flush()
+      return this
+    }
+
+    prepare(sql: string) {
+      const normalizedSql = sql.replace(/\s+/g, ' ').trim()
+
+      if (normalizedSql.startsWith('INSERT OR REPLACE INTO conversations')) {
+        return {
+          run: (...args: unknown[]) => {
+            if (normalizedSql.includes('conv_id')) {
+              this.upsertRow('conversations', {
+                conv_id: String(args[0] ?? ''),
+                title: String(args[1] ?? '')
+              })
+              return
+            }
+
+            this.upsertRow('conversations', {
+              id: String(args[0] ?? ''),
+              title: String(args[1] ?? '')
+            })
+          }
+        }
+      }
+
+      if (normalizedSql === 'SELECT id, title FROM conversations ORDER BY id') {
+        return {
+          all: () =>
+            this.getTable('conversations')
+              .map((row) => ({
+                id: String(row.id ?? row.conv_id ?? ''),
+                title: String(row.title ?? '')
+              }))
+              .sort((left, right) => left.id.localeCompare(right.id))
+        }
+      }
+
+      if (normalizedSql === "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?") {
+        return {
+          get: (tableName: string) => (this.state.tables[tableName] ? { exists: 1 } : undefined)
+        }
+      }
+
+      const countMatch = normalizedSql.match(/^SELECT COUNT\(\*\) as count FROM "?([\w]+)"?$/i)
+      if (countMatch) {
+        return {
+          get: () => ({
+            count: this.getTable(countMatch[1]).length
+          })
+        }
+      }
+
+      throw new Error(`Unsupported mock SQL: ${normalizedSql}`)
+    }
+
+    transaction<TArgs extends unknown[]>(fn: (...args: TArgs) => void) {
+      return (...args: TArgs) => {
+        fn(...args)
+        this.flush()
+      }
+    }
+
+    close() {
+      this.flush()
+    }
+
+    private ensureTable(tableName: string) {
+      if (!this.state.tables[tableName]) {
+        this.state.tables[tableName] = []
+      }
+    }
+
+    private getTable(tableName: string): MockRow[] {
+      this.ensureTable(tableName)
+      return this.state.tables[tableName]
+    }
+
+    private upsertRow(tableName: string, row: MockRow) {
+      const table = this.getTable(tableName)
+      const rowId = String(row.id ?? row.conv_id ?? '')
+      const existingIndex = table.findIndex(
+        (entry) => String(entry.id ?? entry.conv_id ?? '') === rowId
+      )
+      if (existingIndex >= 0) {
+        table[existingIndex] = row
+      } else {
+        table.push(row)
+      }
+      this.flush()
+    }
+
+    private flush() {
+      writeState(this.dbPath, this.state)
+    }
+  }
+
+  return {
+    default: MockDatabase,
+    Database: MockDatabase
+  }
+})
+
+vi.mock('../../../src/main/presenter/sqlitePresenter/importData', async () => {
+  const fs = await vi.importActual<typeof import('fs')>('fs')
+  const path = await vi.importActual<typeof import('path')>('path')
+
+  type MockRow = Record<string, unknown>
+  type MockState = {
+    tables: Record<string, MockRow[]>
+  }
+
+  const readState = (dbPath: string): MockState => {
+    if (!fs.existsSync(dbPath)) {
+      return { tables: {} }
+    }
+
+    try {
+      const raw = fs.readFileSync(dbPath, 'utf-8')
+      const parsed = JSON.parse(raw) as Partial<MockState>
+      return {
+        tables: parsed.tables ?? {}
+      }
+    } catch {
+      return { tables: {} }
+    }
+  }
+
+  const writeState = (dbPath: string, state: MockState) => {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true })
+    fs.writeFileSync(dbPath, JSON.stringify(state, null, 2), 'utf-8')
+  }
+
+  class MockDataImporter {
+    constructor(
+      private readonly sourcePath: string,
+      private readonly targetPath: string
+    ) {}
+
+    async importData() {
+      const sourceState = readState(this.sourcePath)
+      const targetState = readState(this.targetPath)
+
+      const sourceRows = sourceState.tables.new_sessions ?? sourceState.tables.conversations ?? []
+      const targetRows = targetState.tables.new_sessions ?? targetState.tables.conversations ?? []
+      const targetIds = new Set(targetRows.map((row) => String(row.id ?? row.conv_id ?? '')))
+
+      let added = 0
+      for (const row of sourceRows) {
+        const id = String(row.id ?? row.conv_id ?? '')
+        if (!id || targetIds.has(id)) {
+          continue
+        }
+
+        targetRows.push({
+          id,
+          title: String(row.title ?? '')
+        })
+        targetIds.add(id)
+        added += 1
+      }
+
+      targetState.tables.conversations = targetRows.map((row) => ({
+        id: String(row.id ?? row.conv_id ?? ''),
+        title: String(row.title ?? '')
+      }))
+      writeState(this.targetPath, targetState)
+
+      return {
+        tableCounts: {
+          conversations: added
+        }
+      }
+    }
+
+    close() {}
+  }
+
+  return {
+    DataImporter: MockDataImporter
+  }
+})
+
 const realFs = await vi.importActual<typeof import('fs')>('fs')
 Object.assign(fsMock, realFs)
 ;(fsMock as any).promises = realFs.promises
@@ -146,7 +373,13 @@ describe('SyncPresenter backup import', () => {
     const appSettings = JSON.parse(
       fs.readFileSync(path.join(userDataDir, 'app-settings.json'), 'utf-8')
     )
-    expect(appSettings).toEqual({ theme: 'dark', locale: 'zh' })
+    expect(appSettings).toEqual({
+      theme: 'dark',
+      locale: 'zh',
+      syncEnabled: true,
+      syncFolderPath: syncDir,
+      lastSyncTime: 0
+    })
 
     const customPrompts = JSON.parse(
       fs.readFileSync(path.join(userDataDir, 'custom_prompts.json'), 'utf-8')
@@ -254,7 +487,7 @@ describe('SyncPresenter backup import', () => {
     expect(mcpSettings.mcpServers).toEqual({
       imported: { command: 'bunx imported', type: 'stdio', enabled: true }
     })
-    expect(mcpSettings.defaultServers).toBeUndefined()
+    expect(mcpSettings.defaultServers).toEqual(['imported'])
   })
 
   it('imports backup from chat.db through legacy migration in increment mode', async () => {

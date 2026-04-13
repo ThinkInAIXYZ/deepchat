@@ -1,4 +1,3 @@
-import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it, vi } from 'vitest'
 
 function createDeferred<T>() {
@@ -29,6 +28,8 @@ const createPendingItem = (id: string, sessionId: string) => ({
 
 const setupStore = async () => {
   vi.resetModules()
+  vi.doUnmock('pinia')
+  const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')
   setActivePinia(createPinia())
 
   const agentSessionPresenter = {

@@ -119,11 +119,13 @@ export class Presenter implements IPresenter {
   ])
 
   static readonly REMOTE_CONTROL_METHODS = new Set<keyof IRemoteControlPresenter>([
+    'listRemoteChannels',
     'getChannelSettings',
     'saveChannelSettings',
     'getChannelStatus',
     'getChannelBindings',
     'removeChannelBinding',
+    'removeChannelPrincipal',
     'getChannelPairingSnapshot',
     'createChannelPairCode',
     'clearChannelPairCode',
@@ -137,7 +139,13 @@ export class Presenter implements IPresenter {
     'createTelegramPairCode',
     'clearTelegramPairCode',
     'clearTelegramBindings',
-    'testTelegramHookNotification'
+    'getWeixinIlinkSettings',
+    'saveWeixinIlinkSettings',
+    'getWeixinIlinkStatus',
+    'startWeixinIlinkLogin',
+    'waitForWeixinIlinkLogin',
+    'removeWeixinIlinkAccount',
+    'restartWeixinIlinkAccount'
   ])
 
   windowPresenter: IWindowPresenter
@@ -494,11 +502,7 @@ export class Presenter implements IPresenter {
       agentSessionPresenter: this.agentSessionPresenter,
       agentRuntimePresenter,
       windowPresenter: this.windowPresenter,
-      tabPresenter: this.tabPresenter,
-      getHooksNotificationsConfig: () => this.configPresenter.getHooksNotificationsConfig(),
-      setHooksNotificationsConfig: (config) =>
-        this.configPresenter.setHooksNotificationsConfig(config),
-      testTelegramHookNotification: () => this.configPresenter.testTelegramNotification()
+      tabPresenter: this.tabPresenter
     })
     this.#remoteControlBridge = this.#remoteControlPresenter
 

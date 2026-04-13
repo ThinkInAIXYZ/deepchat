@@ -1431,23 +1431,46 @@
   },
   "notificationsHooks": {
     "commands": {
-      "commandPlaceholder": "Kommandoen der skal udføres",
-      "description": "Udfør kommandoen for hver begivenhed.",
-      "hint": "Skriv payload som JSON til stdin.",
-      "title": "Hooks kommandoer"
+      "title": "Hook-kommandoer",
+      "description": "Kør brugerdefinerede kommandoer for de valgte livscyklusbegivenheder.",
+      "hint": "Hele payloaden skrives til stdin som JSON.",
+      "commandPlaceholder": "Kommando, der skal køres",
+      "commandLabel": "Kommando",
+      "name": "Navn",
+      "namePlaceholder": "Hook-navn",
+      "newHook": "Nyt hook",
+      "empty": "Der er endnu ingen hooks. Tilføj et for at komme i gang.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "Sådan bruges det",
+      "guideDescription": "Når en markeret begivenhed udløses, kører DeepChat kommandoen. Den aktuelle begivenhed kan læses via stdin-JSON, miljøvariabler og kommandolinje-pladsholdere.",
+      "deliveryTitle": "Sådan sendes data",
+      "deliveryStdin": "Hele payloaden skrives til stdin som JSON.",
+      "deliveryPlaceholder": "Du kan bruge kommandolinje-pladsholdere direkte i kommandoen.",
+      "deliveryEnv": "De samme grundlæggende metadata er også tilgængelige som miljøvariabler.",
+      "metadataOnly": "Kommandolinje-pladsholdere er bedst til små metadata. Læs prompt/tool-detaljer, permission, usage, stop og error fra stdin-JSON.",
+      "stdinPreviewLabel": "stdin-eksempel",
+      "placeholdersTitle": "Kommandolinje-pladsholdere",
+      "placeholdersDescription": "Pladsholdere udvides før kørsel og kan sendes som kommandoargumenter.",
+      "envTitle": "Miljøvariabler",
+      "examplesTitle": "Eksempler",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Navnet på den aktuelle begivenhed",
+        "time": "Begivenhedstid i ISO-8601-format",
+        "isTest": "Om kørslen kommer fra testknappen",
+        "conversationId": "ID for den aktuelle samtale / session",
+        "workdir": "Løst arbejdsmappe for sessionen",
+        "agentId": "Aktuelt Agent-ID, når det er tilgængeligt",
+        "providerId": "Aktuelt Provider-ID, når det er tilgængeligt",
+        "modelId": "Aktuelt Model-ID, når det er tilgængeligt",
+        "messageId": "Aktuelt brugerbesked-ID, når det er tilgængeligt",
+        "toolName": "Aktuelt værktøjsnavn, når det er tilgængeligt",
+        "toolCallId": "Aktuelt værktøjskald-ID, når det er tilgængeligt"
+      }
     },
-    "confirmo": {
-      "description": "Send notifikationer via Confirmo Hook (standard sender alle begivenheder).",
-      "title": "Confirmo",
-      "unavailable": "Confirmo Hook ikke fundet: {path}"
-    },
-    "description": "Konfigurer webhook-notifikationer og livscyklus-hooks.",
-    "discord": {
-      "description": "Send notifikationer via Discord webhook.",
-      "title": "Discord",
-      "webhookUrl": "Webhook-URL",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
+    "description": "Konfigurer hook-kommandoer til livscyklusbegivenheder.",
     "events": {
       "PermissionRequest": "Tilladelsesforespørgsel",
       "PostToolUse": "Efter værktøjskald",
@@ -1458,16 +1481,6 @@
       "Stop": "stop",
       "UserPromptSubmit": "Brugerindsendelse",
       "title": "begivenhed"
-    },
-    "telegram": {
-      "botToken": "Bot-token",
-      "botTokenPlaceholder": "Telegram Bot Token",
-      "chatId": "Chat-ID",
-      "chatIdPlaceholder": "For eksempel 123456789",
-      "description": "Send notifikationer via Telegram Bot.",
-      "threadId": "Trådid (valgfri)",
-      "threadIdPlaceholder": "Valgfri tråd-ID",
-      "title": "Telegram"
     },
     "test": {
       "button": "Test",
@@ -1529,12 +1542,50 @@
   },
   "remote": {
     "title": "Fjernstyring",
-    "description": "Konfigurer Telegram- og Feishu-fjernstyring ét sted.",
+    "description": "Konfigurer fjernstyring via Telegram, Feishu, QQBot, Discord og WeChat iLink ét sted.",
     "telegram": {
       "title": "Telegram",
-      "description": "Administrer én Telegram-bot til fjernstyring og hook-levering.",
+      "description": "Tilslut en Telegram-bot til fjernstyring via direkte beskeder, grupper og emnetråde.",
       "botToken": "Bot-token",
-      "botTokenPlaceholder": "Telegram bot-token"
+      "botTokenPlaceholder": "Telegram bot-token",
+      "botTokenDescription": "Indtast det Telegram-bot-token, der bruges til fjernstyring via Telegram."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Tilslut en Feishu-bot til direkte beskeder, gruppechats og emnetråde.",
+      "brand": "Mærke",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "App-id",
+      "appIdPlaceholder": "Feishu app-id",
+      "appSecret": "App-hemmelighed",
+      "appSecretPlaceholder": "Feishu app-hemmelighed",
+      "verificationToken": "Bekræftelsestoken",
+      "verificationTokenPlaceholder": "Feishu bekræftelsestoken",
+      "encryptKey": "Krypteringsnøgle (valgfri)",
+      "encryptKeyPlaceholder": "Lad feltet stå tomt, medmindre hændelseskryptering er slået til",
+      "botUser": "Bot-bruger: {name} ({openId})",
+      "bindings": "Bindinger: {count}, parrede brugere: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID'er for parrede brugere",
+      "pairedUserOpenIdsPlaceholder": "f.eks. ou_xxx, ou_yyy",
+      "accessRulesDescription": "Par først i en direkte besked. I grupper kan kun parrede brugere, der {'@'}-omtaler botten, styre en session.",
+      "accessRule1": "Par i en direkte besked med /pair [kode].",
+      "accessRule2": "I grupper og emner reagerer botten kun, når en parret bruger {'@'}-omtaler den."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Tilslut en Discord-bot til DM'er, kanalomtaler og fjernstyring via slash-kommandoer.",
+      "botToken": "Bot-token",
+      "botTokenPlaceholder": "Discord bot-token",
+      "remoteControlDescription": "Discord-fjernstyring bruger sit eget bot-token, gateway og REST-flow.",
+      "accessRule1": "Send /pair [kode] i en DM eller målkanal for at godkende det aktuelle Discord-endpoint.",
+      "accessRule2": "Kanalbeskeder går kun ind i sessionen, når botten omtales, så almindelig chat ikke opsuges."
+    },
+    "sections": {
+      "credentials": "Oplysninger",
+      "remoteControl": "Fjernstyring",
+      "notifications": "Notifikationer",
+      "accessRules": "Adgangsregler"
     },
     "remoteControl": {
       "title": "Fjernstyring",
@@ -1567,7 +1618,14 @@
       "clearBindings": "Ryd bindinger",
       "clearBindingsResult": "{count} binding(er) ryddet.",
       "pairDialogInstructionTelegram": "Send denne kommando til Telegram-botten:",
-      "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:"
+      "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:",
+      "pairDialogInstructionDiscord": "Send denne kommando til Discord-botten i en DM eller målkanal:",
+      "pairDialogInstructionQQBot": "Send denne kommando i QQ-botchatten eller den autoriserede QQ-gruppe:",
+      "authorizedPrincipalsTitle": "Autoriserede identiteter",
+      "authorizedPrincipalsDescription": "Disse {channel}-konti er autoriseret til at parre og styre sessioner.",
+      "authorizedPrincipalsEmpty": "Der er endnu ingen autoriserede identiteter.",
+      "sessionBindingsTitle": "Sessionsbindinger",
+      "sessionBindingsDescription": "Hvert fjernendepunkt nedenfor er i øjeblikket bundet til en DeepChat-session."
     },
     "hooks": {
       "title": "Telegram-hooks",
@@ -1588,43 +1646,62 @@
         "running": "Kører",
         "backoff": "Prøver igen efter fejl",
         "error": "Fejl"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Tilslut en Feishu-bot til direkte beskeder, gruppechats og emnetråde.",
-      "appId": "App-id",
-      "appIdPlaceholder": "Feishu app-id",
-      "appSecret": "App-hemmelighed",
-      "appSecretPlaceholder": "Feishu app-hemmelighed",
-      "verificationToken": "Bekræftelsestoken",
-      "verificationTokenPlaceholder": "Feishu bekræftelsestoken",
-      "encryptKey": "Krypteringsnøgle (valgfri)",
-      "encryptKeyPlaceholder": "Lad feltet stå tomt, medmindre hændelseskryptering er slået til",
-      "botUser": "Bot-bruger: {name} ({openId})",
-      "bindings": "Bindinger: {count}, parrede brugere: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID'er for parrede brugere",
-      "pairedUserOpenIdsPlaceholder": "f.eks. ou_xxx, ou_yyy",
-      "accessRulesDescription": "Par først i en direkte besked. I grupper kan kun parrede brugere, der {'@'}-omtaler botten, styre en session.",
-      "accessRule1": "Par i en direkte besked med /pair [kode].",
-      "accessRule2": "I grupper og emner reagerer botten kun, når en parret bruger {'@'}-omtaler den."
-    },
-    "sections": {
-      "credentials": "Oplysninger",
-      "remoteControl": "Fjernstyring",
-      "notifications": "Notifikationer",
-      "accessRules": "Adgangsregler"
+      },
+      "bindingOnly": "Bindinger: {count}, parrede identiteter: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere, hooks {hooks}",
+      "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "feishu": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "hooksOn": "til",
-      "hooksOff": "fra"
+      "hooksOff": "fra",
+      "qqbot": "{bindingCount} bindinger, {pairedCount} parrede brugere",
+      "discord": "{bindingCount} bindinger, {pairedCount} parrede kanaler",
+      "weixinIlink": "{bindingCount} bindinger, {accountCount} konti, {connectedCount} tilsluttet"
     },
     "bindingKinds": {
       "dm": "Direkte besked",
       "group": "Gruppe",
       "topic": "Emne"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Forbind en officiel QQ Bot til C2C-chats og nævnebaseret botstyring i autoriserede grupper.",
+      "appId": "App-id",
+      "appIdPlaceholder": "QQ Bot app-id",
+      "clientSecret": "Klienthemmelighed",
+      "clientSecretPlaceholder": "QQ Bot klienthemmelighed",
+      "remoteControlDescription": "QQs officielle openid-identifikatorer er forskellige mellem C2C og grupper, så direkte beskeder parrer brugere, mens grupper skal autoriseres separat med /pair.",
+      "pairedUserIds": "Parrede bruger-OpenID'er",
+      "pairedUserIdsPlaceholder": "f.eks. user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Tilslut en officiel WeChat iLink-bot via QR-login, og lad den indbyggede adapter håndtere fjernstyringssessioner.",
+      "loginDescription": "Klik på knappen nedenfor for at åbne det officielle WeChat-logindue. Fuldfør iLink Bot-godkendelsen dér, så bliver den tilsluttede konto automatisk føjet til listen nedenfor.",
+      "ownerOnlyNotice": "I første version kan kun ejeren, der logger ind via QR-koden, styre DeepChat.",
+      "connectButton": "Åbn loginvindue",
+      "refreshQrCode": "Genåbn loginvindue",
+      "loginDialogTitle": "Tilslut WeChat iLink",
+      "loginDialogDescription": "Den officielle WeChat-loginside åbnes i et separat vindue. Fuldfør QR-godkendelsen dér, og lad denne dialog være åben, indtil forbindelsen er færdig.",
+      "loginFailed": "WeChat iLink-login mislykkedes.",
+      "loginSuccessTitle": "WeChat iLink tilsluttet",
+      "loginSuccessDescription": "Kontoen {accountId} er klar.",
+      "accountsTitle": "Konti",
+      "accountsDescription": "Hver tilsluttet iLink-botkonto kører uafhængigt og bevarer sine egne bindinger og sin egen runtime-status.",
+      "noAccounts": "Der er endnu ikke tilsluttet nogen WeChat iLink-konti.",
+      "ownerUserId": "Ejerbruger-ID: {ownerUserId}",
+      "baseUrl": "Basis-URL: {baseUrl}",
+      "accountBindings": "Bindinger: {count}",
+      "remoteControlDescription": "Angiv den standardagent, som deles af WeChat iLink-konti, og administrer derefter bindingerne fra indgående sessioner.",
+      "removeAccount": "Fjern konto",
+      "restartAccount": "Genstart konto",
+      "statusSummary": "{accounts} konti, {connected} tilsluttet, {bindings} bindinger",
+      "qrcodeAlt": "WeChat iLink QR-kode",
+      "loginWindowOpened": "Det officielle WeChat-logindue er blevet åbnet. Fuldfør QR-godkendelsen dér.",
+      "loginSessionExpired": "Denne loginsession er udløbet. Genåbn loginvinduet, og prøv igen.",
+      "loginResponseIncomplete": "WeChat iLink-loginsvaret var ufuldstændigt. Prøv igen.",
+      "loginTimedOut": "Ventetiden på WeChat iLink-godkendelse udløb. Genåbn loginvinduet, og prøv igen.",
+      "loginConnected": "WeChat iLink-kontoen er forbundet."
     }
   },
   "deepchatAgents": {

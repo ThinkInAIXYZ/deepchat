@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "Configurer les notifications webhook et les hooks du cycle de vie.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "Événements",
       "SessionStart": "Début de session",
@@ -90,32 +90,45 @@
       "Stop": "Arrêt",
       "SessionEnd": "Fin de session"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "Envoyer des notifications via un bot Telegram.",
-      "botToken": "Jeton du bot",
-      "botTokenPlaceholder": "Jeton du bot Telegram",
-      "chatId": "ID du chat",
-      "chatIdPlaceholder": "ex. 123456789",
-      "threadId": "ID du fil (optionnel)",
-      "threadIdPlaceholder": "ID du fil optionnel"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "Envoyer des notifications via un webhook Discord.",
-      "webhookUrl": "URL du webhook",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "Envoyer des notifications via le hook Confirmo (tous les événements).",
-      "unavailable": "Hook Confirmo introuvable : {path}"
-    },
     "commands": {
-      "title": "Commandes de hooks",
-      "description": "Exécuter une commande pour chaque événement.",
-      "hint": "La charge utile est envoyée sur stdin au format JSON.",
-      "commandPlaceholder": "Commande à exécuter"
+      "title": "Commandes de hook",
+      "description": "Exécutez des commandes personnalisées pour les événements de cycle de vie sélectionnés.",
+      "hint": "Le payload complet est écrit dans stdin au format JSON.",
+      "commandPlaceholder": "Commande à exécuter",
+      "commandLabel": "Commande",
+      "name": "Nom",
+      "namePlaceholder": "Nom du hook",
+      "newHook": "Nouveau hook",
+      "empty": "Aucun hook pour le moment. Ajoutez-en un pour commencer.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "Mode d’emploi",
+      "guideDescription": "Quand un événement coché se déclenche, DeepChat exécute la commande. L’événement courant est accessible via le JSON sur stdin, les variables d’environnement et les placeholders de ligne de commande.",
+      "deliveryTitle": "Transmission des données",
+      "deliveryStdin": "Le payload complet est écrit dans stdin au format JSON.",
+      "deliveryPlaceholder": "Vous pouvez utiliser directement les placeholders de ligne de commande dans la commande.",
+      "deliveryEnv": "Les mêmes métadonnées de base sont aussi exposées via des variables d’environnement.",
+      "metadataOnly": "Les placeholders de ligne de commande conviennent surtout aux petites métadonnées. Lisez les détails du prompt/tool, permission, usage, stop et error depuis le JSON sur stdin.",
+      "stdinPreviewLabel": "Exemple stdin",
+      "placeholdersTitle": "Placeholders de ligne de commande",
+      "placeholdersDescription": "Les placeholders sont développés avant l’exécution et peuvent être passés comme arguments de commande.",
+      "envTitle": "Variables d’environnement",
+      "examplesTitle": "Exemples",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Nom de l’événement courant",
+        "time": "Heure de l’événement au format ISO-8601",
+        "isTest": "Indique si cette exécution vient du bouton de test",
+        "conversationId": "ID de la conversation / session courante",
+        "workdir": "Répertoire de travail résolu pour la session",
+        "agentId": "ID de l’agent courant si disponible",
+        "providerId": "ID du provider courant si disponible",
+        "modelId": "ID du modèle courant si disponible",
+        "messageId": "ID du message utilisateur courant si disponible",
+        "toolName": "Nom de l’outil courant si disponible",
+        "toolCallId": "ID de l’appel d’outil courant si disponible"
+      }
     },
     "test": {
       "button": "Tester",
@@ -1529,12 +1542,50 @@
   },
   "remote": {
     "title": "Accès distant",
-    "description": "Configurez la télécommande Telegram et Feishu au même endroit.",
+    "description": "Configurez au même endroit le contrôle à distance de Telegram, Feishu, QQBot et WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "Gérez un seul bot Telegram pour le contrôle à distance et l’envoi des hooks.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "Jeton du bot",
-      "botTokenPlaceholder": "Jeton du bot Telegram"
+      "botTokenPlaceholder": "Jeton du bot Telegram",
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Connectez un bot Feishu pour les messages privés, les discussions de groupe et les fils de sujet.",
+      "brand": "Marque",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "ID de l’application",
+      "appIdPlaceholder": "ID d’application Feishu",
+      "appSecret": "Secret de l’application",
+      "appSecretPlaceholder": "Secret d’application Feishu",
+      "verificationToken": "Jeton de vérification",
+      "verificationTokenPlaceholder": "Jeton de vérification Feishu",
+      "encryptKey": "Clé de chiffrement (optionnelle)",
+      "encryptKeyPlaceholder": "Laissez vide si le chiffrement des événements n’est pas activé",
+      "botUser": "Utilisateur du bot : {name} ({openId})",
+      "bindings": "Liaisons : {count}, utilisateurs associés : {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID des utilisateurs associés",
+      "pairedUserOpenIdsPlaceholder": "ex. ou_xxx, ou_yyy",
+      "accessRulesDescription": "Associez d’abord dans un message privé. Dans les groupes, seuls les utilisateurs associés qui mentionnent le bot avec {'@'} peuvent piloter une session.",
+      "accessRule1": "Associez dans un message privé avec /pair [code].",
+      "accessRule2": "Dans les groupes et les sujets, le bot ne réagit que lorsqu’un utilisateur associé le mentionne avec {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Connectez un bot Discord pour les messages privés, les mentions de salon et le contrôle à distance par slash commands.",
+      "botToken": "Jeton du bot",
+      "botTokenPlaceholder": "Jeton du bot Discord",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
+      "accessRule1": "Envoyez /pair [code] dans un message privé ou le salon cible pour autoriser l’endpoint Discord actuel.",
+      "accessRule2": "Les messages de salon n’entrent dans la session que lorsque le bot est mentionné, afin d’éviter d’absorber les conversations ordinaires."
+    },
+    "sections": {
+      "credentials": "Identifiants",
+      "remoteControl": "Contrôle à distance",
+      "notifications": "Notifications",
+      "accessRules": "Règles d’accès"
     },
     "remoteControl": {
       "title": "Contrôle à distance",
@@ -1567,7 +1618,14 @@
       "clearBindings": "Effacer les liaisons",
       "clearBindingsResult": "{count} liaison(s) effacée(s).",
       "pairDialogInstructionTelegram": "Envoyez cette commande au bot Telegram :",
-      "pairDialogInstructionFeishu": "Envoyez cette commande au bot Feishu dans un message privé :"
+      "pairDialogInstructionFeishu": "Envoyez cette commande au bot Feishu dans un message privé :",
+      "pairDialogInstructionDiscord": "Envoyez cette commande au bot Discord dans un message privé ou le salon cible :",
+      "pairDialogInstructionQQBot": "Envoyez cette commande dans la discussion QQ Bot ou le groupe QQ autorisé :",
+      "authorizedPrincipalsTitle": "Identités autorisées",
+      "authorizedPrincipalsDescription": "Ces comptes {channel} sont autorisés à s’associer et à piloter des sessions.",
+      "authorizedPrincipalsEmpty": "Aucune identité autorisée pour le moment.",
+      "sessionBindingsTitle": "Liaisons de session",
+      "sessionBindingsDescription": "Chaque point d’accès distant ci-dessous est actuellement lié à une session DeepChat."
     },
     "hooks": {
       "title": "Hooks Telegram",
@@ -1588,43 +1646,62 @@
         "running": "En cours",
         "backoff": "Nouvel essai après échec",
         "error": "Erreur"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Connectez un bot Feishu pour les messages privés, les discussions de groupe et les fils de sujet.",
-      "appId": "ID de l’application",
-      "appIdPlaceholder": "ID d’application Feishu",
-      "appSecret": "Secret de l’application",
-      "appSecretPlaceholder": "Secret d’application Feishu",
-      "verificationToken": "Jeton de vérification",
-      "verificationTokenPlaceholder": "Jeton de vérification Feishu",
-      "encryptKey": "Clé de chiffrement (optionnelle)",
-      "encryptKeyPlaceholder": "Laissez vide si le chiffrement des événements n’est pas activé",
-      "botUser": "Utilisateur du bot : {name} ({openId})",
-      "bindings": "Liaisons : {count}, utilisateurs associés : {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID des utilisateurs associés",
-      "pairedUserOpenIdsPlaceholder": "ex. ou_xxx, ou_yyy",
-      "accessRulesDescription": "Associez d’abord dans un message privé. Dans les groupes, seuls les utilisateurs associés qui mentionnent le bot avec {'@'} peuvent piloter une session.",
-      "accessRule1": "Associez dans un message privé avec /pair [code].",
-      "accessRule2": "Dans les groupes et les sujets, le bot ne réagit que lorsqu’un utilisateur associé le mentionne avec {'@'}."
-    },
-    "sections": {
-      "credentials": "Identifiants",
-      "remoteControl": "Contrôle à distance",
-      "notifications": "Notifications",
-      "accessRules": "Règles d’accès"
+      },
+      "bindingOnly": "Liaisons : {count}, principaux associés : {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} liaisons, {pairedCount} utilisateurs associés, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
       "hooksOn": "activés",
-      "hooksOff": "désactivés"
+      "hooksOff": "désactivés",
+      "qqbot": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
+      "discord": "{bindingCount} liaisons, {pairedCount} salons appairés",
+      "weixinIlink": "{bindingCount} liaisons, {accountCount} comptes, {connectedCount} connectés"
     },
     "bindingKinds": {
       "dm": "Message privé",
       "group": "Groupe",
       "topic": "Sujet"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Connectez un QQ Bot officiel pour les conversations C2C et le contrôle du bot par mention dans les groupes autorisés.",
+      "appId": "ID de l’application",
+      "appIdPlaceholder": "ID d’application du QQ Bot",
+      "clientSecret": "Secret client",
+      "clientSecretPlaceholder": "Secret client du QQ Bot",
+      "remoteControlDescription": "Les identifiants openid officiels de QQ sont différents entre les conversations C2C et les groupes. Les messages privés associent donc les utilisateurs, tandis que les groupes doivent être autorisés séparément avec /pair.",
+      "pairedUserIds": "OpenID des utilisateurs associés",
+      "pairedUserIdsPlaceholder": "ex. user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Connectez un bot WeChat iLink officiel par connexion QR, puis laissez l’adaptateur intégré gérer les sessions de contrôle à distance.",
+      "loginDescription": "Cliquez sur le bouton ci-dessous pour ouvrir la fenêtre de connexion officielle WeChat. Terminez-y l'autorisation iLink Bot et le compte connecté sera ajouté automatiquement à la liste ci-dessous.",
+      "ownerOnlyNotice": "Dans cette première version, seul le propriétaire connecté via QR peut contrôler DeepChat.",
+      "connectButton": "Ouvrir la fenêtre de connexion",
+      "refreshQrCode": "Rouvrir la fenêtre de connexion",
+      "loginDialogTitle": "Connecter WeChat iLink",
+      "loginDialogDescription": "La page de connexion officielle WeChat s'ouvre dans une fenêtre séparée. Terminez-y l'autorisation par QR code et laissez cette boîte de dialogue ouverte jusqu'à la fin de la connexion.",
+      "loginFailed": "La connexion WeChat iLink a échoué.",
+      "loginSuccessTitle": "WeChat iLink connecté",
+      "loginSuccessDescription": "Le compte {accountId} est prêt.",
+      "accountsTitle": "Comptes",
+      "accountsDescription": "Chaque compte bot iLink connecté s’exécute séparément et conserve ses propres liaisons et son propre état.",
+      "noAccounts": "Aucun compte WeChat iLink n’est encore connecté.",
+      "ownerUserId": "ID utilisateur propriétaire : {ownerUserId}",
+      "baseUrl": "URL de base : {baseUrl}",
+      "accountBindings": "Liaisons : {count}",
+      "remoteControlDescription": "Définissez l’agent par défaut partagé par les comptes WeChat iLink, puis gérez les liaisons créées par les sessions entrantes.",
+      "removeAccount": "Supprimer le compte",
+      "restartAccount": "Redémarrer le compte",
+      "statusSummary": "{accounts} comptes, {connected} connectés, {bindings} liaisons",
+      "qrcodeAlt": "QR code WeChat iLink",
+      "loginWindowOpened": "La fenêtre de connexion officielle WeChat a été ouverte. Terminez-y l'autorisation par QR code.",
+      "loginSessionExpired": "Cette session de connexion a expiré. Rouvrez la fenêtre de connexion puis réessayez.",
+      "loginResponseIncomplete": "La réponse de connexion WeChat iLink était incomplète. Veuillez réessayer.",
+      "loginTimedOut": "Le délai d'attente pour l'autorisation WeChat iLink est dépassé. Rouvrez la fenêtre de connexion puis réessayez.",
+      "loginConnected": "Le compte WeChat iLink est connecté."
     }
   },
   "deepchatAgents": {

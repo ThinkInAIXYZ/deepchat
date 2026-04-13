@@ -44,9 +44,13 @@ const setupStore = async () => {
     }
   }
 
-  vi.doMock('pinia', () => ({
-    defineStore: (_id: string, setup: () => unknown) => setup
-  }))
+  vi.doMock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+    return {
+      ...actual,
+      defineStore: (_id: string, setup: () => unknown) => setup
+    }
+  })
 
   vi.doMock('vue', async () => {
     const actual = await vi.importActual<typeof import('vue')>('vue')

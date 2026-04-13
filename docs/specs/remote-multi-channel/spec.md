@@ -1,52 +1,87 @@
-# Remote Multi-Channel
+# Remote Multi-Channel Foundation
 
 ## Summary
 
-Extend the existing Remote settings and runtime from Telegram-only to a fixed two-channel model: Telegram and Feishu. Telegram keeps hook notifications, while Feishu adds remote control only. Both channels continue to bind one remote endpoint to one DeepChat session and reuse the existing detached-session flow in Electron main.
+DeepChat remote control now has a built-in adapter framework and a registry-driven renderer contract. The shipped built-in channel surface now covers Telegram, Discord, Feishu/Lark, QQ Bot Open Platform, and WeChat iLink. This spec captures the shared multi-channel foundation plus the QQBot and WeChat iLink delivery, while the Discord-specific behavior is detailed separately in `remote-discord-lark`.
 
-This iteration also standardizes Telegram and Feishu on a compact remote delivery model: one temporary status message per assistant turn, one streamed answer track (one logical message sequence, delivered in one or more physical chunks as needed) that carries only user-visible answer content, and separate actionable prompts for pending interactions.
+The design basis for QQBot follows Tencent official documentation only:
+
+- access token and HTTP auth
+- WebSocket gateway and intents
+- official `C2C_MESSAGE_CREATE` and `GROUP_AT_MESSAGE_CREATE` events
+- official `/v2/users/{openid}/messages` and `/v2/groups/{group_openid}/messages` send APIs
+
+The WeChat iLink design basis follows Tencent official package behavior only:
+
+- fixed QR base URL and official QR login flow
+- `get_bot_qrcode` / `get_qrcode_status` polling with redirect-host handling
+- `getupdates` long polling
+- `sendmessage`, `getconfig`, and `sendtyping`
+- multi-account runtime separation from day one
 
 ## User Stories
 
-- As a desktop user, I can configure Telegram and Feishu remote control from one Remote page without mixing their credentials and rules together.
-- As a Telegram user, I can continue using the existing private-chat pairing flow and hook notifications.
-- As a Feishu user, I can pair in a bot DM, then continue the same DeepChat session from DM, group chat, or topic thread.
-- As an admin of the desktop app, I can see per-channel runtime health and binding counts from a shared overview area.
-- As a paired Feishu user, I can trigger a remote session in group/topic only when I explicitly `@bot`.
-- As a Telegram or Feishu user, I no longer need to read intermediate reasoning/tool/search transcript spam while the assistant is still running.
+- As a desktop user, I can configure Telegram, Discord, Feishu/Lark, QQBot, and WeChat iLink remote control from one Remote settings page.
+- As a maintainer, I can add future built-in channels by registering descriptors and adapters instead of hardcoding presenter branches.
+- As a maintainer, I can keep Telegram, Discord, and Feishu/Lark behavior aligned through the same adapter boundary while extending the channel set with QQBot and WeChat iLink.
+- As a WeChat iLink user, I can connect an official bot account by QR login and manage multiple connected accounts from the built-in settings page.
 
 ## Acceptance Criteria
 
-- The Remote page renders a shared overview plus separate Telegram and Feishu tabs.
-- Telegram settings continue to support bot token, remote pairing, allowlist, default agent, hook settings, and hook test actions.
-- Feishu settings support app credentials, pairing, paired user management, default agent selection, and binding management.
-- Feishu runtime runs in Electron main via WebSocket event subscription and does not require a renderer window.
-- Feishu endpoints are keyed by `chatId + optional threadId`, with topic/thread replies isolated from the group root conversation.
-- Feishu authorization requires DM pairing first; in groups/topics, only paired users who `@bot` may send commands or plain text to the bound session.
-- `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/status`, `/open`, and `/model` work for Feishu remote control.
-- Telegram `/model` continues to use inline keyboard menus; Feishu `/model` uses text commands only.
-- Telegram and Feishu remote conversations use one temporary status message plus one streamed answer track (one logical message sequence, delivered in one or more physical chunks as needed) for normal assistant turns.
-- When streamed answer text exceeds platform limits, earlier chunks within that answer track remain fixed and only the latest tail chunk stays editable.
-- Reasoning-only, tool-call-only, tool-result-only, search-only, and pending-action-only assistant states never emit standalone transcript messages for normal remote delivery.
-- Existing local desktop chat behavior remains unchanged.
+- `IRemoteControlPresenter` exposes `listRemoteChannels()` and generic per-channel settings / status methods that include `qqbot` and `weixin-ilink`.
+- `RemoteChannelId` includes:
+  - `telegram`
+  - `discord`
+  - `feishu`
+  - `qqbot`
+  - `weixin-ilink`
+- Renderer remote UI is registry-driven for:
+  - overview cards
+  - tab headers
+  - sidebar remote status aggregation
+- Existing Telegram and Feishu runtime behavior remains unchanged, and the same multi-channel adapter surface also supports the shipped Discord runtime described in `remote-discord-lark`.
+- A built-in `QQBotAdapter` exists and is registered through `ChannelManager`.
+- A built-in `WeixinIlinkAdapter` exists and is registered through `ChannelManager`.
+- QQBot uses official transport primitives only:
+  - `POST https://bots.qq.com/app/getAppAccessToken`
+  - `GET https://api.sgroup.qq.com/gateway`
+  - official WebSocket `identify` / `resume` / heartbeat flow
+  - official C2C and group message send endpoints
+- QQBot first-release scope is:
+  - C2C direct messages
+  - group `@bot` messages
+  - text-only passive replies
+- WeChat iLink first-release scope is:
+  - official QR login
+  - multi-account management in settings
+  - owner-account-only remote control
+  - text-only direct replies
+- `RemoteBindingStore`, `RemoteConversationRunner`, and `RemoteBlockRenderer` stay the source of truth for bindings, sessions, and rendered delivery text.
+- Remote settings persist QQBot data under `remoteControl.qqbot` without flattening everything into a generic `channels` map.
+- Remote settings persist WeChat iLink data under `remoteControl.weixinIlink`, including per-account runtime credentials and bindings.
 
-## Constraints
+## Official Constraints
 
-- Keep a fixed two-channel architecture. Do not introduce a generic plugin registry for remote channels.
-- Telegram hook notifications remain under the shared Remote page; Feishu hook notifications are out of scope.
-- Remote sessions continue to use the existing `RemoteConversationRunner` and detached session creation path.
-- Feishu v1 supports DM, group, and topic/thread input; media upload and user-OAuth automation remain out of scope.
-- Pending interaction cards/prompts remain separate from the compact status-message lifecycle and do not erase already-streamed answer text.
+- QQ official C2C `user_openid` and group `member_openid` are different identity spaces, so a direct-message-paired user cannot be inferred from a group event.
+- Because of that constraint, QQBot group authorization is handled separately from C2C user pairing.
+- This iteration stores:
+  - paired C2C user ids
+  - internally authorized group ids
+- Group control only reacts to `GROUP_AT_MESSAGE_CREATE` and only after explicit group authorization with `/pair`.
+- WeChat iLink login and runtime follow the official QR + long-poll flow only; no personal WeChat bridge or unofficial protocol is used.
+- This first WeChat iLink delivery authorizes only the owner account returned by QR login; it does not implement a secondary allowlist UI yet.
 
 ## Non-Goals
 
-- A general remote channel SDK or third-party channel plugin system.
-- Feishu user-OAuth flows, approval cards, or hook notifications.
-- Rich Feishu card-based model switching.
-- Telegram group chat support.
+- No OneBot, go-cqhttp, unofficial QQ bridges, or personal-WeChat bridges.
+- No Slack runtime in this iteration.
+- No secondary WeChat collaborator allowlist or shared-account UI in this iteration.
+- No third-party plugin execution or installation UI in this iteration.
 
 ## Compatibility
 
-- Existing `remoteControl.telegram` store data stays valid and is normalized into the new dual-channel config.
-- Existing Telegram hook settings remain valid and continue to be saved through the Remote page.
-- New Feishu-specific state is additive under `remoteControl.feishu`.
+- Existing Telegram and Feishu saved settings remain valid.
+- New WeChat iLink saved settings live beside existing remote settings without changing Telegram / Feishu / QQBot schema shapes.
+- Existing Telegram hook test API remains valid.
+- Existing renderer callers that use Telegram-only compatibility methods continue to work.
+- New generic remote presenter methods become the preferred path for renderer code.

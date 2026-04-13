@@ -30,7 +30,8 @@ export const SUPPORTED_PROVIDER_INSTALL_CUSTOM_TYPES = [
   'aws-bedrock',
   'jiekou',
   'zenmux',
-  'o3fan'
+  'o3fan',
+  'laoshi'
 ] as const
 
 const SUPPORTED_PROVIDER_INSTALL_CUSTOM_TYPE_SET = new Set<string>(

@@ -695,7 +695,7 @@ describe('RemoteConversationRunner', () => {
     })
   })
 
-  it('creates ACP sessions with provider, model, and channel default workdir', async () => {
+  it('creates ACP sessions with provider, model, and the global default workdir', async () => {
     const createDetachedSession = vi.fn().mockResolvedValue(
       createSession({
         agentId: 'acp-agent',
@@ -706,7 +706,9 @@ describe('RemoteConversationRunner', () => {
     )
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: createConfigPresenter() as any,
+        configPresenter: createConfigPresenter({
+          getDefaultProjectPath: vi.fn(() => '/workspaces/remote')
+        }) as any,
         agentSessionPresenter: {
           createDetachedSession
         } as any,
@@ -716,10 +718,8 @@ describe('RemoteConversationRunner', () => {
         resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
       },
       {
-        setBinding: vi.fn(),
-        getTelegramConfig: vi.fn().mockReturnValue({
-          defaultWorkdir: '/workspaces/remote'
-        })
+        getTelegramDefaultWorkdir: vi.fn().mockReturnValue('/workspaces/remote'),
+        setBinding: vi.fn()
       } as any
     )
 
@@ -747,16 +747,34 @@ describe('RemoteConversationRunner', () => {
         resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
       },
       {
-        getTelegramConfig: vi.fn().mockReturnValue({
-          defaultWorkdir: ''
-        })
+        getTelegramDefaultWorkdir: vi.fn().mockReturnValue('')
       } as any
     )
 
     await expect(runner.getDefaultWorkdir('telegram:100:0')).resolves.toBe('/workspaces/global')
   })
 
-  it('rejects ACP session creation when neither remote nor global workdir is configured', async () => {
+  it('prefers the discord channel default workdir for ACP sessions', async () => {
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter({
+          getDefaultProjectPath: vi.fn(() => '/workspaces/global')
+        }) as any,
+        agentSessionPresenter: {} as any,
+        agentRuntimePresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
+      },
+      {
+        getDiscordDefaultWorkdir: vi.fn().mockReturnValue('/workspaces/discord')
+      } as any
+    )
+
+    await expect(runner.getDefaultWorkdir('discord:dm:123')).resolves.toBe('/workspaces/discord')
+  })
+
+  it('rejects ACP session creation when no global workdir is configured', async () => {
     const runner = new RemoteConversationRunner(
       {
         configPresenter: createConfigPresenter() as any,
@@ -769,14 +787,12 @@ describe('RemoteConversationRunner', () => {
         resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
       },
       {
-        getTelegramConfig: vi.fn().mockReturnValue({
-          defaultWorkdir: ''
-        })
+        getTelegramDefaultWorkdir: vi.fn().mockReturnValue('')
       } as any
     )
 
     await expect(runner.createNewSession('telegram:100:0')).rejects.toThrow(
-      'ACP agent requires a workdir. Set a Remote default directory or global default directory first.'
+      'ACP agent requires a workdir. Set a global default directory first.'
     )
   })
 })

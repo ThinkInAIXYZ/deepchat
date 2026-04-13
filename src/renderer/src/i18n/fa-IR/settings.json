@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "هوک‌ها",
-    "description": "پیکربندی اعلان‌های وب‌هوک و هوک‌های چرخهٔ عمر.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "رویدادها",
       "SessionStart": "شروع نشست",
@@ -90,32 +90,45 @@
       "Stop": "توقف",
       "SessionEnd": "پایان نشست"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "ارسال اعلان‌ها از طریق ربات تلگرام.",
-      "botToken": "توکن ربات",
-      "botTokenPlaceholder": "توکن ربات تلگرام",
-      "chatId": "شناسهٔ گفتگو",
-      "chatIdPlaceholder": "مثلاً 123456789",
-      "threadId": "شناسهٔ رشته (اختیاری)",
-      "threadIdPlaceholder": "شناسهٔ رشتهٔ اختیاری"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "ارسال اعلان‌ها از طریق وب‌هوک دیسکورد.",
-      "webhookUrl": "نشانی وب‌هوک",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "ارسال اعلان‌ها از طریق هوک Confirmo (همهٔ رویدادها).",
-      "unavailable": "هوک Confirmo یافت نشد: {path}"
-    },
     "commands": {
-      "title": "فرمان‌های هوک",
-      "description": "برای هر رویداد یک فرمان اجرا شود.",
-      "hint": "محتوا به‌صورت JSON به stdin فرستاده می‌شود.",
-      "commandPlaceholder": "فرمان برای اجرا"
+      "title": "دستورهای Hook",
+      "description": "برای رویدادهای چرخهٔ حیات انتخاب‌شده، دستورهای سفارشی اجرا کنید.",
+      "hint": "کل payload به صورت JSON در stdin نوشته می‌شود.",
+      "commandPlaceholder": "دستوری که باید اجرا شود",
+      "commandLabel": "دستور",
+      "name": "نام",
+      "namePlaceholder": "نام Hook",
+      "newHook": "Hook جدید",
+      "empty": "هنوز Hookی وجود ندارد. برای شروع یکی اضافه کنید.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "راهنمای استفاده",
+      "guideDescription": "وقتی یکی از رویدادهای انتخاب‌شده رخ دهد، DeepChat این دستور را اجرا می‌کند. رویداد فعلی از طریق JSON در stdin، متغیرهای محیطی و جای‌نگهدارهای خط فرمان در دسترس است.",
+      "deliveryTitle": "نحوهٔ ارسال داده",
+      "deliveryStdin": "کل payload به صورت JSON در stdin نوشته می‌شود.",
+      "deliveryPlaceholder": "می‌توانید جای‌نگهدارهای خط فرمان را مستقیماً در خود دستور استفاده کنید.",
+      "deliveryEnv": "همان فراداده‌های اصلی در متغیرهای محیطی هم در دسترس هستند.",
+      "metadataOnly": "جای‌نگهدارهای خط فرمان برای فراداده‌های کوچک مناسب‌ترند. جزئیات prompt/tool، permission، usage، stop و error را از JSON در stdin بخوانید.",
+      "stdinPreviewLabel": "نمونهٔ stdin",
+      "placeholdersTitle": "جای‌نگهدارهای خط فرمان",
+      "placeholdersDescription": "جای‌نگهدارها پیش از اجرا گسترش می‌یابند و می‌توانند به‌صورت آرگومان دستور ارسال شوند.",
+      "envTitle": "متغیرهای محیطی",
+      "examplesTitle": "نمونه‌ها",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "نام رویداد فعلی",
+        "time": "زمان رویداد در قالب ISO-8601",
+        "isTest": "این‌که اجرا از دکمهٔ Test آمده است یا نه",
+        "conversationId": "شناسهٔ گفت‌وگو / نشست فعلی",
+        "workdir": "پوشهٔ کاری تشخیص‌داده‌شده برای نشست",
+        "agentId": "شناسهٔ Agent فعلی در صورت موجود بودن",
+        "providerId": "شناسهٔ Provider فعلی در صورت موجود بودن",
+        "modelId": "شناسهٔ Model فعلی در صورت موجود بودن",
+        "messageId": "شناسهٔ پیام فعلی کاربر در صورت موجود بودن",
+        "toolName": "نام ابزار فعلی در صورت موجود بودن",
+        "toolCallId": "شناسهٔ فراخوانی ابزار فعلی در صورت موجود بودن"
+      }
     },
     "test": {
       "button": "آزمون",
@@ -1529,12 +1542,50 @@
   },
   "remote": {
     "title": "کنترل از راه دور",
-    "description": "کنترل از راه دور Telegram و Feishu را در یک‌جا پیکربندی کنید.",
+    "description": "کنترل از راه دور Telegram، Feishu، QQBot و WeChat iLink را در یک‌جا پیکربندی کنید.",
     "telegram": {
       "title": "Telegram",
-      "description": "یک ربات تلگرام را برای کنترل از راه دور و ارسال هوک مدیریت کنید.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "توکن ربات",
-      "botTokenPlaceholder": "توکن ربات تلگرام"
+      "botTokenPlaceholder": "توکن ربات تلگرام",
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "یک ربات Feishu را برای پیام خصوصی، گفت‌وگوی گروهی و رشته‌های موضوعی متصل کنید.",
+      "brand": "برند",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "شناسه برنامه",
+      "appIdPlaceholder": "شناسه برنامه Feishu",
+      "appSecret": "رمز برنامه",
+      "appSecretPlaceholder": "رمز برنامه Feishu",
+      "verificationToken": "توکن تأیید",
+      "verificationTokenPlaceholder": "توکن تأیید Feishu",
+      "encryptKey": "کلید رمزنگاری (اختیاری)",
+      "encryptKeyPlaceholder": "اگر رمزنگاری رویداد فعال نیست، خالی بگذارید",
+      "botUser": "کاربر ربات: {name} ({openId})",
+      "bindings": "اتصال‌ها: {count}، کاربران جفت‌شده: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID کاربران جفت‌شده",
+      "pairedUserOpenIdsPlaceholder": "مثلاً ou_xxx، ou_yyy",
+      "accessRulesDescription": "ابتدا در پیام خصوصی جفت‌سازی کنید. در گروه‌ها فقط کاربرانی که جفت شده‌اند و ربات را با {'@'} صدا می‌زنند می‌توانند یک نشست را کنترل کنند.",
+      "accessRule1": "در پیام خصوصی با /pair [کد] جفت‌سازی کنید.",
+      "accessRule2": "در گروه‌ها و موضوع‌ها، ربات فقط وقتی واکنش نشان می‌دهد که یک کاربر جفت‌شده آن را با {'@'} خطاب کند."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "یک ربات Discord را برای پیام‌های مستقیم، منشن در کانال و کنترل از راه دور با اسلش‌کامند متصل کنید.",
+      "botToken": "توکن ربات",
+      "botTokenPlaceholder": "توکن ربات Discord",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
+      "accessRule1": "برای مجاز کردن نقطه‌پایانی فعلی Discord، /pair [code] را در پیام خصوصی یا کانال مقصد بفرستید.",
+      "accessRule2": "پیام‌های کانال فقط وقتی وارد نشست می‌شوند که ربات منشن شده باشد تا گفت‌وگوی عادی بی‌دلیل جذب نشود."
+    },
+    "sections": {
+      "credentials": "اعتبارنامه‌ها",
+      "remoteControl": "کنترل از راه دور",
+      "notifications": "اعلان‌ها",
+      "accessRules": "قوانین دسترسی"
     },
     "remoteControl": {
       "title": "کنترل از راه دور",
@@ -1567,7 +1618,14 @@
       "clearBindings": "پاک کردن اتصال‌ها",
       "clearBindingsResult": "{count} اتصال پاک شد.",
       "pairDialogInstructionTelegram": "این فرمان را برای ربات Telegram بفرستید:",
-      "pairDialogInstructionFeishu": "این فرمان را در پیام خصوصی برای ربات Feishu بفرستید:"
+      "pairDialogInstructionFeishu": "این فرمان را در پیام خصوصی برای ربات Feishu بفرستید:",
+      "pairDialogInstructionDiscord": "این فرمان را در پیام خصوصی یا کانال مقصد برای ربات Discord بفرستید:",
+      "pairDialogInstructionQQBot": "این دستور را در گفت‌وگوی QQ Bot یا گروه مجاز QQ بفرستید:",
+      "authorizedPrincipalsTitle": "شناسه‌های مجاز",
+      "authorizedPrincipalsDescription": "این حساب‌های {channel} مجاز هستند و می‌توانند جفت‌سازی و کنترل نشست‌ها را انجام دهند.",
+      "authorizedPrincipalsEmpty": "هنوز هیچ شناسهٔ مجاز ثبت نشده است.",
+      "sessionBindingsTitle": "پیوندهای نشست",
+      "sessionBindingsDescription": "هر نقطهٔ ورودی راه‌دورِ زیر در حال حاضر به یک نشست DeepChat متصل است."
     },
     "hooks": {
       "title": "هوک‌های تلگرام",
@@ -1588,43 +1646,62 @@
         "running": "در حال اجرا",
         "backoff": "در حال تلاش مجدد پس از خطا",
         "error": "خطا"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "یک ربات Feishu را برای پیام خصوصی، گفت‌وگوی گروهی و رشته‌های موضوعی متصل کنید.",
-      "appId": "شناسه برنامه",
-      "appIdPlaceholder": "شناسه برنامه Feishu",
-      "appSecret": "رمز برنامه",
-      "appSecretPlaceholder": "رمز برنامه Feishu",
-      "verificationToken": "توکن تأیید",
-      "verificationTokenPlaceholder": "توکن تأیید Feishu",
-      "encryptKey": "کلید رمزنگاری (اختیاری)",
-      "encryptKeyPlaceholder": "اگر رمزنگاری رویداد فعال نیست، خالی بگذارید",
-      "botUser": "کاربر ربات: {name} ({openId})",
-      "bindings": "اتصال‌ها: {count}، کاربران جفت‌شده: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID کاربران جفت‌شده",
-      "pairedUserOpenIdsPlaceholder": "مثلاً ou_xxx، ou_yyy",
-      "accessRulesDescription": "ابتدا در پیام خصوصی جفت‌سازی کنید. در گروه‌ها فقط کاربرانی که جفت شده‌اند و ربات را با {'@'} صدا می‌زنند می‌توانند یک نشست را کنترل کنند.",
-      "accessRule1": "در پیام خصوصی با /pair [کد] جفت‌سازی کنید.",
-      "accessRule2": "در گروه‌ها و موضوع‌ها، ربات فقط وقتی واکنش نشان می‌دهد که یک کاربر جفت‌شده آن را با {'@'} خطاب کند."
-    },
-    "sections": {
-      "credentials": "اعتبارنامه‌ها",
-      "remoteControl": "کنترل از راه دور",
-      "notifications": "اعلان‌ها",
-      "accessRules": "قوانین دسترسی"
+      },
+      "bindingOnly": "اتصال‌ها: {count}، شناسه‌های جفت‌شده: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده، hookها {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
       "hooksOn": "روشن",
-      "hooksOff": "خاموش"
+      "hooksOff": "خاموش",
+      "qqbot": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
+      "discord": "{bindingCount} اتصال، {pairedCount} کانال جفت‌شده",
+      "weixinIlink": "{bindingCount} اتصال، {accountCount} حساب، {connectedCount} متصل"
     },
     "bindingKinds": {
       "dm": "پیام خصوصی",
       "group": "گروه",
       "topic": "موضوع"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "یک QQ Bot رسمی را برای گفت‌وگوهای C2C و کنترل ربات بر پایهٔ منشن در گروه‌های مجاز متصل کنید.",
+      "appId": "شناسه برنامه",
+      "appIdPlaceholder": "شناسه برنامه QQ Bot",
+      "clientSecret": "کلید محرمانه کلاینت",
+      "clientSecretPlaceholder": "کلید محرمانه کلاینت QQ Bot",
+      "remoteControlDescription": "شناسه‌های رسمی openid در QQ بین C2C و گروه‌ها متفاوت‌اند؛ بنابراین در پیام خصوصی کاربر جفت می‌شود و گروه باید جداگانه با /pair مجاز شود.",
+      "pairedUserIds": "OpenID کاربران جفت‌شده",
+      "pairedUserIdsPlaceholder": "مثلاً user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "یک ربات رسمی WeChat iLink را با ورود QR متصل کنید تا آداپتور داخلی نشست‌های کنترل از راه دور را مدیریت کند.",
+      "loginDescription": "برای باز کردن پنجرهٔ رسمی ورود WeChat روی دکمهٔ زیر کلیک کنید. احراز هویت iLink Bot را در همان پنجره کامل کنید تا حساب متصل‌شده به‌صورت خودکار به فهرست زیر افزوده شود.",
+      "ownerOnlyNotice": "در نسخهٔ اول فقط حساب مالک که با QR وارد شده می‌تواند DeepChat را کنترل کند.",
+      "connectButton": "باز کردن پنجرهٔ ورود",
+      "refreshQrCode": "باز کردن دوبارهٔ پنجرهٔ ورود",
+      "loginDialogTitle": "اتصال WeChat iLink",
+      "loginDialogDescription": "صفحهٔ رسمی ورود WeChat در یک پنجرهٔ جداگانه باز می‌شود. احراز هویت QR را در همان پنجره کامل کنید و این پنجرهٔ گفتگو را تا پایان اتصال باز نگه دارید.",
+      "loginFailed": "ورود به WeChat iLink ناموفق بود.",
+      "loginSuccessTitle": "WeChat iLink متصل شد",
+      "loginSuccessDescription": "حساب {accountId} آماده است.",
+      "accountsTitle": "حساب‌ها",
+      "accountsDescription": "هر حساب متصل iLink Bot به‌صورت مستقل اجرا می‌شود و اتصال‌ها و وضعیت اجرای خودش را نگه می‌دارد.",
+      "noAccounts": "هنوز هیچ حساب WeChat iLink متصل نشده است.",
+      "ownerUserId": "شناسهٔ کاربر مالک: {ownerUserId}",
+      "baseUrl": "نشانی پایه: {baseUrl}",
+      "accountBindings": "اتصال‌ها: {count}",
+      "remoteControlDescription": "عامل پیش‌فرض مشترک بین حساب‌های WeChat iLink را تنظیم کنید و سپس اتصال‌های ساخته‌شده توسط نشست‌های ورودی را مدیریت کنید.",
+      "removeAccount": "حذف حساب",
+      "restartAccount": "راه‌اندازی دوباره حساب",
+      "statusSummary": "{accounts} حساب، {connected} متصل، {bindings} اتصال",
+      "qrcodeAlt": "کد QR WeChat iLink",
+      "loginWindowOpened": "پنجرهٔ رسمی ورود WeChat باز شد. احراز هویت QR را در همان پنجره کامل کنید.",
+      "loginSessionExpired": "این نشست ورود منقضی شده است. پنجرهٔ ورود را دوباره باز کنید و دوباره تلاش کنید.",
+      "loginResponseIncomplete": "پاسخ ورود WeChat iLink ناقص بود. لطفاً دوباره تلاش کنید.",
+      "loginTimedOut": "مهلت انتظار برای احراز هویت WeChat iLink به پایان رسید. پنجرهٔ ورود را دوباره باز کنید و دوباره تلاش کنید.",
+      "loginConnected": "حساب WeChat iLink متصل شد."
     }
   },
   "deepchatAgents": {
