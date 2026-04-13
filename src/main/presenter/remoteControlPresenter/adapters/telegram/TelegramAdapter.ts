@@ -121,10 +121,7 @@ export class TelegramAdapter extends ChannelAdapter {
   private handleStatusChange(snapshot: TelegramPollerStatusSnapshot): void {
     this.telegramStatus = { ...snapshot }
     this.setStatus({
-      connected:
-        snapshot.state === 'starting' ||
-        snapshot.state === 'running' ||
-        snapshot.state === 'backoff',
+      connected: snapshot.state === 'running',
       state: snapshot.state,
       lastError: snapshot.lastError,
       botUser: snapshot.botUser

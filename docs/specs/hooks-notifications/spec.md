@@ -104,10 +104,19 @@ interface HooksNotificationsSettings {
 - 使用 `child_process.spawn`
 - `shell: true`
 - `cwd` 优先取当前会话 `workdir`，否则回退到 `process.cwd()`
-- 写入环境变量：
+- 写入环境变量（当前实现与 `src/main/presenter/hooksNotifications/index.ts` 保持一致）：
   - `DEEPCHAT_HOOK_EVENT`
+  - `DEEPCHAT_HOOK_TIME`
+  - `DEEPCHAT_HOOK_IS_TEST`
   - `DEEPCHAT_CONVERSATION_ID`
   - `DEEPCHAT_WORKDIR`
+  - `DEEPCHAT_AGENT_ID`
+  - `DEEPCHAT_PROVIDER_ID`
+  - `DEEPCHAT_MODEL_ID`
+  - `DEEPCHAT_MESSAGE_ID`
+  - `DEEPCHAT_TOOL_NAME`
+  - `DEEPCHAT_TOOL_CALL_ID`
+  - 如未来实现调整注入变量，以 `src/main/presenter/hooksNotifications/index.ts` 为准
 - 固定超时 30 秒
 
 ### 输出

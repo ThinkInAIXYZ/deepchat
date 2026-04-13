@@ -71,6 +71,7 @@ export interface QQBotPairingSnapshot {
   pairCode: string | null
   pairCodeExpiresAt: number | null
   pairedUserIds: string[]
+  pairedGroupIds: string[]
 }
 
 export interface DiscordPairingSnapshot {
@@ -140,6 +141,14 @@ export type RemoteChannelSettings =
   | QQBotRemoteSettings
   | DiscordRemoteSettings
   | WeixinIlinkRemoteSettings
+
+export type ChannelSettingsMap = {
+  telegram: TelegramRemoteSettings
+  feishu: FeishuRemoteSettings
+  qqbot: QQBotRemoteSettings
+  discord: DiscordRemoteSettings
+  'weixin-ilink': WeixinIlinkRemoteSettings
+}
 
 export interface TelegramRemoteStatus {
   channel: 'telegram'
@@ -237,31 +246,12 @@ export interface WeixinIlinkLoginResult {
 export interface IRemoteControlPresenter {
   listRemoteChannels(): Promise<RemoteChannelDescriptor[]>
 
-  getChannelSettings(channel: 'telegram'): Promise<TelegramRemoteSettings>
-  getChannelSettings(channel: 'feishu'): Promise<FeishuRemoteSettings>
-  getChannelSettings(channel: 'qqbot'): Promise<QQBotRemoteSettings>
-  getChannelSettings(channel: 'discord'): Promise<DiscordRemoteSettings>
-  getChannelSettings(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteSettings>
-  getChannelSettings(channel: RemoteChannel): Promise<RemoteChannelSettings>
+  getChannelSettings<T extends RemoteChannel>(channel: T): Promise<ChannelSettingsMap[T]>
 
-  saveChannelSettings(
-    channel: 'telegram',
-    input: TelegramRemoteSettings
-  ): Promise<TelegramRemoteSettings>
-  saveChannelSettings(channel: 'feishu', input: FeishuRemoteSettings): Promise<FeishuRemoteSettings>
-  saveChannelSettings(channel: 'qqbot', input: QQBotRemoteSettings): Promise<QQBotRemoteSettings>
-  saveChannelSettings(
-    channel: 'weixin-ilink',
-    input: WeixinIlinkRemoteSettings
-  ): Promise<WeixinIlinkRemoteSettings>
-  saveChannelSettings(
-    channel: 'discord',
-    input: DiscordRemoteSettings
-  ): Promise<DiscordRemoteSettings>
-  saveChannelSettings(
-    channel: RemoteChannel,
-    input: RemoteChannelSettings
-  ): Promise<RemoteChannelSettings>
+  saveChannelSettings<T extends RemoteChannel>(
+    channel: T,
+    input: ChannelSettingsMap[T]
+  ): Promise<ChannelSettingsMap[T]>
 
   getChannelStatus(channel: 'telegram'): Promise<TelegramRemoteStatus>
   getChannelStatus(channel: 'feishu'): Promise<FeishuRemoteStatus>

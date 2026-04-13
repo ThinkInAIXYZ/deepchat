@@ -1470,7 +1470,7 @@
         "toolCallId": "Aktuelt værktøjskald-ID, når det er tilgængeligt"
       }
     },
-    "description": "Configure lifecycle hook commands.",
+    "description": "Konfigurer hook-kommandoer til livscyklusbegivenheder.",
     "events": {
       "PermissionRequest": "Tilladelsesforespørgsel",
       "PostToolUse": "Efter værktøjskald",
@@ -1542,13 +1542,13 @@
   },
   "remote": {
     "title": "Fjernstyring",
-    "description": "Konfigurer fjernstyring via Telegram, Feishu, QQBot og WeChat iLink ét sted.",
+    "description": "Konfigurer fjernstyring via Telegram, Feishu, QQBot, Discord og WeChat iLink ét sted.",
     "telegram": {
       "title": "Telegram",
-      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
+      "description": "Tilslut en Telegram-bot til fjernstyring via direkte beskeder, grupper og emnetråde.",
       "botToken": "Bot-token",
       "botTokenPlaceholder": "Telegram bot-token",
-      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
+      "botTokenDescription": "Indtast det Telegram-bot-token, der bruges til fjernstyring via Telegram."
     },
     "feishu": {
       "title": "Feishu / Lark",
@@ -1577,7 +1577,7 @@
       "description": "Tilslut en Discord-bot til DM'er, kanalomtaler og fjernstyring via slash-kommandoer.",
       "botToken": "Bot-token",
       "botTokenPlaceholder": "Discord bot-token",
-      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
+      "remoteControlDescription": "Discord-fjernstyring bruger sit eget bot-token, gateway og REST-flow.",
       "accessRule1": "Send /pair [kode] i en DM eller målkanal for at godkende det aktuelle Discord-endpoint.",
       "accessRule2": "Kanalbeskeder går kun ind i sessionen, når botten omtales, så almindelig chat ikke opsuges."
     },
@@ -1650,7 +1650,7 @@
       "bindingOnly": "Bindinger: {count}, parrede identiteter: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
+      "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "feishu": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "hooksOn": "til",
       "hooksOff": "fra",

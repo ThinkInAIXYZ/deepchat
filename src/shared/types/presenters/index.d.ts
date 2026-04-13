@@ -92,6 +92,7 @@ export type {
 } from './agent-session.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {
+  ChannelSettingsMap,
   DiscordPairingSnapshot,
   DiscordRemoteBindingSummary,
   DiscordRemoteSettings,

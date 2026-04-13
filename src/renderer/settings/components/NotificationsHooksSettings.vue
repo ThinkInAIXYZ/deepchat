@@ -532,7 +532,6 @@ const runHookTest = async (hookId: string) => {
     return
   }
 
-  await persistConfig()
   testing.value = {
     ...testing.value,
     [hookId]: true
@@ -543,6 +542,7 @@ const runHookTest = async (hookId: string) => {
   }
 
   try {
+    await persistConfig()
     const result = await configPresenter.testHookCommand(hookId)
     testResults.value = {
       ...testResults.value,

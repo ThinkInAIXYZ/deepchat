@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "Configure lifecycle hook commands.",
+    "description": "הגדר פקודות Hook עבור אירועי מחזור החיים.",
     "events": {
       "title": "אירועים",
       "SessionStart": "תחילת סשן",
@@ -1545,10 +1545,10 @@
     "description": "הגדר במקום אחד שליטה מרחוק דרך Telegram, Feishu, QQBot ו-WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
+      "description": "חברו בוט Telegram לשליטה מרחוק דרך הודעות פרטיות, קבוצות ושרשורי נושאים.",
       "botToken": "טוקן בוט",
       "botTokenPlaceholder": "טוקן בוט Telegram",
-      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
+      "botTokenDescription": "הזינו את טוקן הבוט של Telegram שישמש לשליטה מרחוק דרך Telegram."
     },
     "feishu": {
       "title": "Feishu / Lark",
@@ -1577,7 +1577,7 @@
       "description": "חברו בוט Discord להודעות פרטיות, אזכורים בערוצים ושליטה מרחוק באמצעות Slash Commands.",
       "botToken": "אסימון בוט",
       "botTokenPlaceholder": "אסימון בוט של Discord",
-      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
+      "remoteControlDescription": "השליטה מרחוק ב-Discord משתמשת בטוקן בוט, Gateway וזרימת REST משלה.",
       "accessRule1": "שלחו /pair [code] בהודעה פרטית או בערוץ היעד כדי לאשר את נקודת הקצה הנוכחית של Discord.",
       "accessRule2": "הודעות בערוץ נכנסות לשיחה רק כאשר מזכירים את הבוט, כדי לא לקלוט בטעות צ'אט רגיל."
     },
@@ -1650,7 +1650,7 @@
       "bindingOnly": "קישורים: {count}, ישויות מותאמות: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
+      "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "feishu": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "hooksOn": "מופעלים",
       "hooksOff": "כבויים",

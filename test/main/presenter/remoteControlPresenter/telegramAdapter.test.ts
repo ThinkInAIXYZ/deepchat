@@ -98,6 +98,70 @@ describe('TelegramAdapter', () => {
     )
   })
 
+  it('marks telegram as connected only when the poller is running', async () => {
+    const adapter = new TelegramAdapter(
+      {
+        channelId: 'default',
+        channelType: 'telegram',
+        agentId: 'deepchat',
+        channelConfig: {
+          botToken: 'test-bot-token'
+        },
+        configSignature: 'telegram:test'
+      },
+      {
+        bindingStore: {} as any,
+        createConversationRunner: () => ({}) as any,
+        registerTelegramCommands: async () => undefined
+      }
+    )
+
+    await adapter.connect()
+
+    pollerInstances[0].deps.onStatusChange?.({
+      state: 'starting',
+      lastError: null,
+      botUser: null
+    })
+
+    expect(adapter.getStatusSnapshot()).toEqual(
+      expect.objectContaining({
+        connected: false,
+        state: 'starting'
+      })
+    )
+
+    pollerInstances[0].deps.onStatusChange?.({
+      state: 'backoff',
+      lastError: 'retry later',
+      botUser: null
+    })
+
+    expect(adapter.getStatusSnapshot()).toEqual(
+      expect.objectContaining({
+        connected: false,
+        state: 'backoff',
+        lastError: 'retry later'
+      })
+    )
+
+    pollerInstances[0].deps.onStatusChange?.({
+      state: 'running',
+      lastError: null,
+      botUser: {
+        id: 1,
+        username: 'deepchat_bot'
+      }
+    })
+
+    expect(adapter.getStatusSnapshot()).toEqual(
+      expect.objectContaining({
+        connected: true,
+        state: 'running'
+      })
+    )
+  })
+
   it('forwards fatal errors from the wrapped poller', async () => {
     const onFatalError = vi.fn().mockResolvedValue(undefined)
     const adapter = new TelegramAdapter(

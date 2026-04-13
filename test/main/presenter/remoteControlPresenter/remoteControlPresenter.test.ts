@@ -343,7 +343,8 @@ describe('RemoteControlPresenter', () => {
     await expect(presenter.getChannelPairingSnapshot('qqbot')).resolves.toEqual({
       pairCode: null,
       pairCodeExpiresAt: null,
-      pairedUserIds: ['user_openid_1']
+      pairedUserIds: ['user_openid_1'],
+      pairedGroupIds: []
     })
   })
 

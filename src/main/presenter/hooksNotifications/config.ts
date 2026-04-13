@@ -21,7 +21,7 @@ const HookCommandItemSchema = z
 
 const HooksNotificationsSchema = z
   .object({
-    hooks: z.array(HookCommandItemSchema).optional()
+    hooks: z.array(z.unknown()).optional()
   })
   .strip()
 
@@ -62,7 +62,7 @@ const normalizeHookItem = (
   id: typeof input?.id === 'string' && input.id.trim() ? input.id.trim() : randomUUID(),
   name:
     typeof input?.name === 'string' && input.name.trim() ? input.name.trim() : `Hook ${index + 1}`,
-  enabled: Boolean(input?.enabled),
+  enabled: input?.enabled === true,
   command: typeof input?.command === 'string' ? input.command : '',
   events: sanitizeEvents(input?.events)
 })
@@ -101,7 +101,18 @@ export const normalizeHooksNotificationsConfig = (input: unknown): HooksNotifica
   }
 
   const rawHooks = parsed.data.hooks ?? []
-  const hooks = rawHooks.map((item, index) => normalizeHookItem(item, index))
+  const hooks = rawHooks.reduce<HookCommandItem[]>((items, item, index) => {
+    const parsedItem = HookCommandItemSchema.safeParse(item)
+    if (!parsedItem.success) {
+      log.warn(
+        `[HooksNotifications] Invalid hook at index ${index}, skipping: ${parsedItem.error?.message}`
+      )
+      return items
+    }
+
+    items.push(normalizeHookItem(parsedItem.data, items.length))
+    return items
+  }, [])
 
   return { hooks }
 }

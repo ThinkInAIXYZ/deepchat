@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import logger from '@shared/logger'
 import type {
+  ChannelSettingsMap,
   DiscordPairingSnapshot,
   DiscordRemoteSettings,
   DiscordRemoteStatus,
@@ -11,7 +12,6 @@ import type {
   RemoteBindingSummary,
   RemoteChannel,
   RemoteChannelDescriptor,
-  RemoteChannelSettings,
   RemoteChannelStatus,
   WeixinIlinkLoginResult,
   WeixinIlinkLoginSession,
@@ -238,77 +238,53 @@ export class RemoteControlPresenter {
     ]
   }
 
-  async getChannelSettings(channel: 'telegram'): Promise<TelegramRemoteSettings>
-  async getChannelSettings(channel: 'feishu'): Promise<FeishuRemoteSettings>
-  async getChannelSettings(channel: 'qqbot'): Promise<QQBotRemoteSettings>
-  async getChannelSettings(channel: 'discord'): Promise<DiscordRemoteSettings>
-  async getChannelSettings(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteSettings>
-  async getChannelSettings(channel: RemoteChannel): Promise<RemoteChannelSettings>
-  async getChannelSettings(channel: RemoteChannel): Promise<RemoteChannelSettings> {
+  async getChannelSettings<T extends RemoteChannel>(channel: T): Promise<ChannelSettingsMap[T]> {
     if (channel === 'telegram') {
-      return await this.getTelegramSettings()
+      return (await this.getTelegramSettings()) as ChannelSettingsMap[T]
     }
 
     if (channel === 'feishu') {
-      return await this.getFeishuSettings()
+      return (await this.getFeishuSettings()) as ChannelSettingsMap[T]
     }
 
     if (channel === 'qqbot') {
-      return await this.getQQBotSettings()
+      return (await this.getQQBotSettings()) as ChannelSettingsMap[T]
     }
 
     if (channel === 'discord') {
-      return await this.getDiscordSettings()
+      return (await this.getDiscordSettings()) as ChannelSettingsMap[T]
     }
 
-    return await this.getWeixinIlinkSettings()
+    return (await this.getWeixinIlinkSettings()) as ChannelSettingsMap[T]
   }
 
-  async saveChannelSettings(
-    channel: 'telegram',
-    input: TelegramRemoteSettings
-  ): Promise<TelegramRemoteSettings>
-  async saveChannelSettings(
-    channel: 'feishu',
-    input: FeishuRemoteSettings
-  ): Promise<FeishuRemoteSettings>
-  async saveChannelSettings(
-    channel: 'qqbot',
-    input: QQBotRemoteSettings
-  ): Promise<QQBotRemoteSettings>
-  async saveChannelSettings(
-    channel: 'discord',
-    input: DiscordRemoteSettings
-  ): Promise<DiscordRemoteSettings>
-  async saveChannelSettings(
-    channel: 'weixin-ilink',
-    input: WeixinIlinkRemoteSettings
-  ): Promise<WeixinIlinkRemoteSettings>
-  async saveChannelSettings(
-    channel: RemoteChannel,
-    input: RemoteChannelSettings
-  ): Promise<RemoteChannelSettings>
-  async saveChannelSettings(
-    channel: RemoteChannel,
-    input: RemoteChannelSettings
-  ): Promise<RemoteChannelSettings> {
+  async saveChannelSettings<T extends RemoteChannel>(
+    channel: T,
+    input: ChannelSettingsMap[T]
+  ): Promise<ChannelSettingsMap[T]> {
     if (channel === 'telegram') {
-      return await this.saveTelegramSettings(input as TelegramRemoteSettings)
+      return (await this.saveTelegramSettings(
+        input as TelegramRemoteSettings
+      )) as ChannelSettingsMap[T]
     }
 
     if (channel === 'feishu') {
-      return await this.saveFeishuSettings(input as FeishuRemoteSettings)
+      return (await this.saveFeishuSettings(input as FeishuRemoteSettings)) as ChannelSettingsMap[T]
     }
 
     if (channel === 'qqbot') {
-      return await this.saveQQBotSettings(input as QQBotRemoteSettings)
+      return (await this.saveQQBotSettings(input as QQBotRemoteSettings)) as ChannelSettingsMap[T]
     }
 
     if (channel === 'discord') {
-      return await this.saveDiscordSettings(input as DiscordRemoteSettings)
+      return (await this.saveDiscordSettings(
+        input as DiscordRemoteSettings
+      )) as ChannelSettingsMap[T]
     }
 
-    return await this.saveWeixinIlinkSettings(input as WeixinIlinkRemoteSettings)
+    return (await this.saveWeixinIlinkSettings(
+      input as WeixinIlinkRemoteSettings
+    )) as ChannelSettingsMap[T]
   }
 
   async getChannelStatus(channel: 'telegram'): Promise<TelegramRemoteStatus>

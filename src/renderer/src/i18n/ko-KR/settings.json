@@ -78,7 +78,7 @@
   },
   "notificationsHooks": {
     "title": "훅",
-    "description": "Configure lifecycle hook commands.",
+    "description": "라이프사이클 훅 명령을 설정합니다.",
     "events": {
       "title": "이벤트",
       "SessionStart": "세션 시작",
@@ -91,23 +91,23 @@
       "SessionEnd": "세션 종료"
     },
     "commands": {
-      "title": "Hook 명령",
+      "title": "훅 명령",
       "description": "선택한 라이프사이클 이벤트에 대해 사용자 지정 명령을 실행합니다.",
-      "hint": "전체 payload 는 JSON 형태로 stdin 에 기록됩니다.",
+      "hint": "전체 페이로드는 JSON 형식으로 stdin에 전달됩니다.",
       "commandPlaceholder": "실행할 명령",
       "commandLabel": "명령",
       "name": "이름",
-      "namePlaceholder": "Hook 이름",
-      "newHook": "Hook 추가",
-      "empty": "아직 Hook 이 없습니다. 하나 추가해 시작하세요.",
-      "defaultName": "Hook {index}",
+      "namePlaceholder": "훅 이름",
+      "newHook": "훅 추가",
+      "empty": "아직 훅이 없습니다. 하나 추가해 시작하세요.",
+      "defaultName": "훅 {index}",
       "guideTitle": "사용 방법",
-      "guideDescription": "체크된 이벤트가 발생하면 DeepChat 이 명령을 실행합니다. 현재 이벤트는 stdin JSON, 환경 변수, 명령줄 플레이스홀더를 통해 확인할 수 있습니다.",
+      "guideDescription": "선택한 이벤트가 발생하면 DeepChat이 명령을 실행합니다. 현재 이벤트 정보는 stdin JSON, 환경 변수, 명령줄 플레이스홀더를 통해 확인할 수 있습니다.",
       "deliveryTitle": "데이터 전달 방식",
-      "deliveryStdin": "전체 payload 는 JSON 형태로 stdin 에 기록됩니다.",
+      "deliveryStdin": "전체 페이로드는 JSON 형식으로 stdin에 기록됩니다.",
       "deliveryPlaceholder": "명령줄 플레이스홀더를 명령에 직접 넣을 수 있습니다.",
       "deliveryEnv": "같은 핵심 메타데이터도 환경 변수로 함께 전달됩니다.",
-      "metadataOnly": "명령줄 플레이스홀더는 작은 메타데이터에 적합합니다. prompt/tool 상세, permission, usage, stop, error 는 stdin JSON 에서 읽으세요.",
+      "metadataOnly": "명령줄 플레이스홀더는 작은 메타데이터에 적합합니다. prompt/tool 상세, permission, usage, stop, error 정보는 stdin JSON에서 읽어 주세요.",
       "stdinPreviewLabel": "stdin 예시",
       "placeholdersTitle": "명령줄 플레이스홀더",
       "placeholdersDescription": "플레이스홀더는 실행 전에 확장되므로 명령 인수로 바로 전달할 수 있습니다.",
@@ -122,9 +122,9 @@
         "isTest": "이 실행이 테스트 버튼에서 왔는지 여부",
         "conversationId": "현재 대화 / 세션 ID",
         "workdir": "세션에서 해석된 작업 디렉터리",
-        "agentId": "가능한 경우 현재 Agent ID",
-        "providerId": "가능한 경우 현재 Provider ID",
-        "modelId": "가능한 경우 현재 Model ID",
+        "agentId": "가능한 경우 현재 에이전트 ID",
+        "providerId": "가능한 경우 현재 프로바이더 ID",
+        "modelId": "가능한 경우 현재 모델 ID",
         "messageId": "가능한 경우 현재 사용자 메시지 ID",
         "toolName": "가능한 경우 현재 도구 이름",
         "toolCallId": "가능한 경우 현재 도구 호출 ID"
@@ -1542,13 +1542,13 @@
   },
   "remote": {
     "title": "원격 제어",
-    "description": "Telegram, Feishu, QQBot, WeChat iLink 원격 제어를 한곳에서 설정합니다.",
+    "description": "Telegram, Feishu / Lark, QQBot, Discord, WeChat iLink 원격 제어를 한곳에서 설정합니다.",
     "telegram": {
       "title": "Telegram",
-      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
+      "description": "Telegram 봇을 연결해 개인 메시지, 그룹, 토픽 스레드에서 원격 제어를 사용할 수 있습니다.",
       "botToken": "봇 토큰",
       "botTokenPlaceholder": "Telegram 봇 토큰",
-      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
+      "botTokenDescription": "Telegram 원격 제어에 사용할 Telegram 봇 토큰을 입력하세요."
     },
     "feishu": {
       "title": "Feishu / Lark",
@@ -1574,11 +1574,11 @@
     },
     "discord": {
       "title": "Discord",
-      "description": "Discord 봇을 연결해 DM, 채널 멘션, Slash Commands로 원격 제어할 수 있습니다.",
+      "description": "Discord 봇을 연결해 DM, 채널 멘션, 슬래시 명령으로 원격 제어할 수 있습니다.",
       "botToken": "봇 토큰",
       "botTokenPlaceholder": "Discord 봇 토큰",
-      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
-      "accessRule1": "현재 Discord 엔드포인트를 승인하려면 DM 또는 대상 채널에서 /pair [code]를 보내세요.",
+      "remoteControlDescription": "Discord 원격 제어는 전용 봇 토큰과 게이트웨이, REST 흐름을 사용합니다.",
+      "accessRule1": "현재 Discord 엔드포인트를 승인하려면 DM 또는 대상 채널에서 /pair [코드]를 보내세요.",
       "accessRule2": "채널 메시지는 봇이 멘션된 경우에만 세션으로 들어오므로 일반 대화를 잘못 흡수하지 않습니다."
     },
     "sections": {
@@ -1607,14 +1607,14 @@
       "generatePairCode": "생성",
       "clearPairCode": "지우기",
       "pairCodeExpiresAt": "{time}에 만료",
-      "pairDialogTitle": "Telegram 페어링",
-      "pairDialogDescription": "페어링 코드를 생성한 뒤 Telegram 봇 채팅에서 페어링을 완료하세요.",
+      "pairDialogTitle": "{channel} 페어링",
+      "pairDialogDescription": "페어링 코드를 생성한 뒤 {channel} 봇 채팅에서 페어링을 완료하세요.",
       "pairDialogInstruction": "해당 봇에 이 명령어를 보내세요:",
-      "bindingsDialogTitle": "연결된 세션",
-      "bindingsDialogDescription": "Telegram 세션 바인딩을 하나씩 제거합니다.",
-      "bindingsEmpty": "아직 Telegram 바인딩이 없습니다.",
+      "bindingsDialogTitle": "{channel} 바인딩",
+      "bindingsDialogDescription": "원격 엔드포인트 바인딩을 하나씩 제거합니다.",
+      "bindingsEmpty": "아직 바인딩이 없습니다.",
       "pairingSuccessTitle": "페어링 완료",
-      "pairingSuccessDescription": "허용된 사용자 ID 목록을 새로고침했습니다.",
+      "pairingSuccessDescription": "승인된 주체 목록을 새로고침했습니다.",
       "clearBindings": "바인딩 지우기",
       "clearBindingsResult": "{count}개의 바인딩을 지웠습니다.",
       "pairDialogInstructionTelegram": "이 명령을 Telegram 봇에게 보내세요:",
@@ -1628,10 +1628,10 @@
       "sessionBindingsDescription": "아래의 각 원격 엔드포인트는 현재 하나의 DeepChat 세션에 바인딩되어 있습니다."
     },
     "hooks": {
-      "title": "Telegram Hook 알림",
-      "description": "같은 Telegram 봇을 Hook 알림에도 재사용합니다.",
+      "title": "Telegram 훅 알림",
+      "description": "같은 Telegram 봇을 훅 알림에도 재사용합니다.",
       "chatId": "채팅 ID",
-      "chatIdPlaceholder": "e.g. 123456789",
+      "chatIdPlaceholder": "예: 123456789",
       "threadId": "스레드 ID(선택)",
       "threadIdPlaceholder": "선택 사항 스레드 ID"
     },
@@ -1650,7 +1650,7 @@
       "bindingOnly": "바인딩: {count}, 페어링된 주체: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
+      "telegram": "{bindingCount}개 바인딩, {pairedCount}명의 페어링된 사용자",
       "feishu": "{bindingCount}개 바인딩, {pairedCount}명 페어링됨",
       "hooksOn": "켜짐",
       "hooksOff": "꺼짐",

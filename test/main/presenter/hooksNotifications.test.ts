@@ -110,4 +110,63 @@ describe('hooksNotifications', () => {
   it('normalizeHooksNotificationsConfig falls back to defaults for invalid input', () => {
     expect(normalizeHooksNotificationsConfig(null)).toEqual(createDefaultHooksNotificationsConfig())
   })
+
+  it('normalizeHooksNotificationsConfig only enables hooks for boolean true', () => {
+    const normalized = normalizeHooksNotificationsConfig({
+      hooks: [
+        {
+          enabled: 'false'
+        },
+        {
+          enabled: 1
+        },
+        {
+          enabled: true
+        }
+      ]
+    })
+
+    expect(normalized.hooks.map((hook) => hook.enabled)).toEqual([false, false, true])
+  })
+
+  it('normalizeHooksNotificationsConfig keeps valid hooks when one item is malformed', () => {
+    const normalized = normalizeHooksNotificationsConfig({
+      hooks: [
+        {
+          id: 'hook-1',
+          name: 'First Hook',
+          enabled: true,
+          command: 'echo first',
+          events: ['SessionStart']
+        },
+        'not-an-object',
+        {
+          name: 'Broken Hook',
+          events: 'SessionStart'
+        },
+        {
+          enabled: false,
+          command: 'echo second'
+        }
+      ]
+    })
+
+    expect(normalized.hooks).toHaveLength(2)
+    expect(normalized.hooks[0]).toEqual({
+      id: 'hook-1',
+      name: 'First Hook',
+      enabled: true,
+      command: 'echo first',
+      events: ['SessionStart']
+    })
+    expect(normalized.hooks[1]).toEqual(
+      expect.objectContaining({
+        name: 'Hook 2',
+        enabled: false,
+        command: 'echo second',
+        events: []
+      })
+    )
+    expect(normalized.hooks[1].id).toBeTruthy()
+  })
 })

@@ -1658,7 +1658,8 @@ export const buildQQBotPairingSnapshot = (
 ): QQBotPairingSnapshot => ({
   pairCode: settings.pairing.code,
   pairCodeExpiresAt: settings.pairing.expiresAt,
-  pairedUserIds: [...settings.pairedUserIds]
+  pairedUserIds: [...settings.pairedUserIds],
+  pairedGroupIds: [...settings.pairedGroupIds]
 })
 
 export const buildDiscordPairingSnapshot = (

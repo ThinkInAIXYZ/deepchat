@@ -91,6 +91,70 @@ describe('DiscordAdapter', () => {
     )
   })
 
+  it('marks discord as connected only when the runtime is running', async () => {
+    const adapter = new DiscordAdapter(
+      {
+        channelId: 'default',
+        channelType: 'discord',
+        agentId: 'deepchat',
+        channelConfig: {
+          botToken: 'discord-bot-token'
+        },
+        configSignature: 'discord:test'
+      },
+      {
+        bindingStore: {} as any,
+        createConversationRunner: () => ({}) as any
+      }
+    )
+
+    await adapter.connect()
+
+    runtimeInstances[0].deps.onStatusChange?.({
+      state: 'starting',
+      lastError: null,
+      botUser: null
+    })
+
+    expect(adapter.getStatusSnapshot()).toEqual(
+      expect.objectContaining({
+        connected: false,
+        state: 'starting'
+      })
+    )
+
+    runtimeInstances[0].deps.onStatusChange?.({
+      state: 'backoff',
+      lastError: 'retry later',
+      botUser: null
+    })
+
+    expect(adapter.getStatusSnapshot()).toEqual(
+      expect.objectContaining({
+        connected: false,
+        state: 'backoff',
+        lastError: 'retry later'
+      })
+    )
+
+    runtimeInstances[0].deps.onStatusChange?.({
+      state: 'running',
+      lastError: null,
+      botUser: {
+        id: 'bot-1',
+        username: 'deepchat',
+        displayName: 'DeepChat'
+      }
+    })
+
+    expect(adapter.getStatusSnapshot()).toEqual(
+      expect.objectContaining({
+        connected: true,
+        state: 'running'
+      })
+    )
+  })
+
   it('sends messages and typing indicators to parsed discord transport targets', async () => {
     const adapter = new DiscordAdapter(
       {

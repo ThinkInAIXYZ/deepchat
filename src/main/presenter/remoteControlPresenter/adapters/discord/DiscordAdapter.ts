@@ -122,10 +122,7 @@ export class DiscordAdapter extends ChannelAdapter {
   private handleStatusChange(snapshot: DiscordRuntimeStatusSnapshot): void {
     this.discordStatus = { ...snapshot }
     this.setStatus({
-      connected:
-        snapshot.state === 'starting' ||
-        snapshot.state === 'running' ||
-        snapshot.state === 'backoff',
+      connected: snapshot.state === 'running',
       state: snapshot.state,
       lastError: snapshot.lastError,
       botUser: snapshot.botUser

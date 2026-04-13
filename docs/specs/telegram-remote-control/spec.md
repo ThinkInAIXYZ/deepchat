@@ -1,61 +1,173 @@
 # Telegram Remote Control
 
+Feature: `telegram-remote-control`
+Plan: [plan.md](./plan.md)
+Tasks: [tasks.md](./tasks.md)
+
 ## Summary
 
-Add Telegram private-chat remote control to the `dev` branch without changing DeepChat's main architecture. The bot runtime lives in Electron main, remote messages reuse the existing DeepChat session/message/stream pipeline, and the settings UI moves Telegram-related controls into a new `Remote` page.
+Telegram remote control is no longer a Telegram-only IPC contract. The shipped implementation
+uses a shared `remoteControlPresenter` surface that serves Telegram, Feishu/Lark, QQBot,
+Discord, and Weixin iLink from the same presenter and preload boundary.
 
-This increment simplifies the Remote settings UX, removes the user-facing stream mode switch, adds a selectable default DeepChat agent for new remote sessions, and keeps remote session/model control intentionally lightweight for v1.
+This spec keeps Telegram runtime behavior in scope, but the renderer and preload contract must
+be documented as a multi-channel API so follow-up work does not regress non-Telegram channels
+back to a Telegram-only shape.
 
 ## User Stories
 
-- As a DeepChat desktop user, I can pair my Telegram account and send a DM to my bot to continue a DeepChat conversation remotely.
-- As a paired user, my first Telegram DM can create a detached DeepChat session even when no chat window is focused.
-- As a paired user, I can stop an active generation with `/stop`, list recent sessions with `/sessions`, and rebind to one with `/use`.
-- As a user configuring integrations, I can manage Telegram remote control and Telegram hook notifications from a single `Remote` settings page.
-- As a user configuring Telegram pairing, I only see a simple “Pair” entry point in the first layer and complete the flow from a small modal.
-- As a user using multiple DeepChat agents, I can choose which enabled DeepChat agent new Telegram sessions should use by default.
-- As a paired user, I can change the current bound session's provider/model through a two-step Telegram inline keyboard opened from `/model`.
+- As a DeepChat desktop user, I can configure Telegram, QQBot, Discord, and Weixin iLink from
+  one Remote settings flow, while Feishu/Lark compatibility remains on the same presenter
+  surface.
+- As a renderer maintainer, I can call one typed presenter API for reading and saving
+  per-channel settings, status, bindings, pairing state, and login state.
+- As a Telegram user, I can pair numeric user ids and continue detached DeepChat sessions from
+  bot DMs.
+- As a QQBot user, I can keep C2C user pairing separate from authorized groups so group
+  control does not disappear from the presenter state.
+- As a Discord user, I can pair DMs or guild channels and inspect runtime state from the same
+  Remote settings surface.
+- As a Weixin iLink user, I can connect accounts through a login session instead of a pair
+  code and manage account-scoped runtimes.
+
+## Multi-Channel Presenter Surface
+
+The expected shared presenter contract mirrors `IRemoteControlPresenter`:
+
+```ts
+type RemoteChannel = 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink'
+type PairableRemoteChannel = 'telegram' | 'feishu' | 'qqbot' | 'discord'
+
+interface IRemoteControlPresenter {
+  listRemoteChannels(): Promise<RemoteChannelDescriptor[]>
+
+  getChannelSettings<T extends RemoteChannel>(channel: T): Promise<ChannelSettingsMap[T]>
+  saveChannelSettings<T extends RemoteChannel>(
+    channel: T,
+    input: ChannelSettingsMap[T]
+  ): Promise<ChannelSettingsMap[T]>
+
+  getChannelStatus(channel: RemoteChannel): Promise<RemoteChannelStatus>
+
+  getChannelBindings(channel: RemoteChannel): Promise<RemoteBindingSummary[]>
+  removeChannelBinding(channel: RemoteChannel, endpointKey: string): Promise<void>
+  clearChannelBindings(channel: RemoteChannel): Promise<number>
+
+  removeChannelPrincipal(channel: PairableRemoteChannel, principalId: string): Promise<void>
+  getChannelPairingSnapshot(channel: PairableRemoteChannel): Promise<RemotePairingSnapshot>
+  createChannelPairCode(
+    channel: PairableRemoteChannel
+  ): Promise<{ code: string; expiresAt: number }>
+  clearChannelPairCode(channel: PairableRemoteChannel): Promise<void>
+
+  startWeixinIlinkLogin(input?: { force?: boolean }): Promise<WeixinIlinkLoginSession>
+  waitForWeixinIlinkLogin(input: {
+    sessionKey: string
+    timeoutMs?: number
+  }): Promise<WeixinIlinkLoginResult>
+  removeWeixinIlinkAccount(accountId: string): Promise<void>
+  restartWeixinIlinkAccount(accountId: string): Promise<void>
+}
+```
+
+Notes:
+
+- Telegram compatibility helpers remain callable during migration, but new renderer work should
+  prefer the generic channel methods above.
+- Pair-code methods do not apply to Weixin iLink because that channel uses an account-login
+  flow instead of a pairing code.
+
+## Channel Variations
+
+- Telegram
+  - Settings: `botToken`, `remoteEnabled`, `defaultAgentId`
+  - Status: `pollOffset`, `bindingCount`, `allowedUserCount`, `lastError`, `botUser`
+  - Pairing snapshot: `allowedUserIds`
+- QQBot
+  - Settings: `appId`, `clientSecret`, `remoteEnabled`, `defaultAgentId`, `defaultWorkdir`,
+    `pairedUserIds`
+  - Status: `bindingCount`, `pairedUserCount`, `lastError`, `botUser`
+  - Pairing snapshot: `pairedUserIds` and `pairedGroupIds`
+- Discord
+  - Settings: `botToken`, `remoteEnabled`, `defaultAgentId`, `defaultWorkdir`,
+    `pairedChannelIds`
+  - Status: `bindingCount`, `pairedChannelCount`, `lastError`, `botUser`
+  - Pairing snapshot: `pairedChannelIds`
+- Weixin iLink
+  - Settings: `remoteEnabled`, `defaultAgentId`, `defaultWorkdir`, `accounts`
+  - Status: `accountCount`, `connectedAccountCount`, `accounts`, `bindingCount`, `lastError`
+  - Login flow: `startWeixinIlinkLogin`, `waitForWeixinIlinkLogin`,
+    `removeWeixinIlinkAccount`, `restartWeixinIlinkAccount`
+- Feishu/Lark compatibility
+  - Remains on the same presenter contract with pair codes and paired open ids, even though
+    this feature folder focuses on Telegram-originated Remote UX.
 
 ## Acceptance Criteria
 
-- An authorized Telegram private-chat user can DM the bot and receive a DeepChat assistant reply.
-- The first DM can create a detached DeepChat session without a focused window or existing `webContents` binding.
-- Subsequent DMs continue the currently bound DeepChat session for that Telegram endpoint.
-- `/stop` cancels the active generation for that remote endpoint through the existing stop path.
-- `/sessions` lists recent sessions for the currently bound session's agent; if no valid binding exists, it falls back to the configured default DeepChat agent.
-- `/use <index>` binds the endpoint to the corresponding session from the latest `/sessions` list.
-- `/model` opens a Telegram inline keyboard, first for enabled providers and then for enabled models, and only changes the current bound session.
-- Remote-triggered conversations do not bypass the existing permission flow for tools, files, or settings.
-- Telegram settings appear under a new `Remote` settings page, and the old Telegram section is removed from `Hooks`.
-- The Remote settings page hides the remote-control detail area when remote control is disabled, and hides the Telegram hook detail area when hooks are disabled.
-- The first-layer Telegram remote UI shows allowed user IDs, a default DeepChat agent selector, a pairing button, and a binding-management button; pair code display moves into a modal.
-- Telegram remote no longer exposes a stream mode selector, and `/status` no longer reports stream mode details.
-- Telegram remote conversation delivery uses one temporary status message plus one streamed answer message per assistant turn; the status message is deleted when the turn completes.
-- Telegram runtime registers its default command list when it starts.
-- Only plain-text conversation messages get a temporary bot reaction; slash commands and inline-button callbacks do not, and the reaction is cleared after the reply finishes or fails.
-- New Telegram sessions use the selected default DeepChat agent, inheriting that agent's default model/project/permission defaults; existing bound sessions remain bound even if the default agent later changes.
-- Existing local desktop chat behavior remains unchanged.
+- This feature folder documents the shipped multi-channel presenter contract instead of a
+  Telegram-only IPC subset.
+- The documented channel set includes `telegram`, `feishu`, `qqbot`, `discord`, and
+  `weixin-ilink`.
+- Renderer and preload callers use generic `getChannelSettings` and `saveChannelSettings`,
+  `getChannelStatus`, `getChannelBindings`, `removeChannelBinding`, and `clearChannelBindings`
+  for all shipped channels.
+- Pairable channels (`telegram`, `feishu`, `qqbot`, `discord`) use
+  `getChannelPairingSnapshot`, `createChannelPairCode`, `clearChannelPairCode`, and
+  `removeChannelPrincipal`.
+- Telegram pairing snapshots expose `allowedUserIds`.
+- QQBot pairing snapshots expose both `pairedUserIds` and `pairedGroupIds`.
+- Discord pairing snapshots expose `pairedChannelIds`.
+- Weixin iLink documents account-login and account-lifecycle methods instead of pair-code
+  methods.
+- Remote settings follow per-channel Telegram, QQBot, Discord, and Weixin iLink flows rather
+  than reusing Telegram-only assumptions.
+- Telegram runtime behavior from the original feature remains unchanged:
+  - detached-session creation from the remote flow
+  - `/stop`, `/sessions`, `/use`, and `/model`
+  - temporary status message handling
+  - plain-text-only remote delivery
 
 ## Constraints
 
-- Telegram only for v1.
-- No generic channel registry or plugin system.
-- Bot runtime lives in Electron main, not renderer or preload.
-- SQLite remains the source of truth for sessions and messages.
-- Config/state uses the existing Electron Store path; no new SQLite migration is introduced.
-- v1 is private-chat only. No group support, no media upload, no remote permission approvals.
+- The shared presenter lives in Electron main and crosses renderer through the existing
+  presenter IPC path.
+- Per-channel settings stay in their existing config roots:
+  - `remoteControl.telegram`
+  - `remoteControl.feishu`
+  - `remoteControl.qqbot`
+  - `remoteControl.discord`
+  - `remoteControl.weixinIlink`
+- `RemoteBindingStore`, `RemoteConversationRunner`, and `remoteBlockRenderer` remain the
+  source of truth for bindings, session orchestration, and rendered delivery text.
+- Pair-code APIs are limited to pairable channels; Weixin iLink uses login-session APIs.
+- Existing Telegram compatibility methods remain callable during migration, but new renderer
+  work should prefer generic channel methods.
 
 ## Non-Goals
 
-- Group chats, forum moderation, or multi-platform messaging channels.
-- Telegram media uploads, arbitrary bot button workflows outside `/model`, or Markdown/HTML rich formatting.
-- Remote approval of tool/file/settings permission requests.
-- A standalone helper daemon or public remote-control SDK.
+- Reverting to a Telegram-only presenter or reintroducing Telegram-specific IPC branches for
+  shared settings flows.
+- Collapsing Weixin iLink account management into the pair-code flow.
+- Removing Feishu/Lark compatibility from the shared presenter surface.
+- Changing Telegram runtime transport rules that are already implemented outside this
+  documentation fix.
 
 ## Compatibility
 
-- Existing Telegram hook settings remain valid and are reused by the new `Remote` page.
-- New remote-specific state lives under `remoteControl.telegram` in Electron Store.
-- `remoteControl.telegram.defaultAgentId` stores the default DeepChat agent for new Telegram sessions.
-- Legacy `remoteControl.telegram.streamMode` data may still exist for compatibility, but remote delivery no longer changes behavior based on it.
-- Disabling remote control or clearing the bot token cleanly stops polling without affecting local chats or persisted SQLite data.
+- Existing Telegram runtime behavior and saved settings remain valid.
+- Existing Feishu/Lark, QQBot, Discord, and Weixin iLink settings stay under their current
+  config shapes.
+- Existing Telegram compatibility methods continue to work while generic multi-channel methods
+  remain the preferred path.
+- Follow-up work may refine channel-specific UI, but it must not narrow the shared presenter
+  surface back to Telegram-only.
+
+## Resolved Clarifications
+
+- `PairableRemoteChannel` is `telegram | feishu | qqbot | discord`; Weixin iLink is excluded
+  because it uses login sessions, not pair codes.
+- `getChannelBindings`, `removeChannelBinding`, and `clearChannelBindings` apply to all
+  channels, including Weixin iLink account-scoped bindings.
+- Telegram compatibility methods are retained as migration shims, not as the preferred
+  long-term renderer contract.
+- No open `[NEEDS CLARIFICATION]` markers remain in this feature folder.
