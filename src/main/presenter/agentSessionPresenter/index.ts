@@ -1856,7 +1856,8 @@ export class AgentSessionPresenter {
     disabledAgentTools: string[]
     activeSkills: string[]
   }> {
-    const resolvedAgentId = resolveAcpAgentAlias(input.agentId)
+    const trimmedAgentId = input.agentId.trim()
+    const resolvedAgentId = resolveAcpAgentAlias(trimmedAgentId)
     const normalizedTargetAgentId = input.targetAgentId?.trim() ? resolvedAgentId : null
     const agentType = await this.getAgentType(resolvedAgentId)
     if (agentType !== 'deepchat' && agentType !== 'acp') {

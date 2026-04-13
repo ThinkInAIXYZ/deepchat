@@ -1027,7 +1027,7 @@ describe('AgentSessionPresenter', () => {
 
       const session = await presenter.createSubagentSession({
         parentSessionId: 'parent-1',
-        agentId: 'kimi-cli',
+        agentId: '  kimi-cli  ',
         slotId: 'reviewer',
         displayName: 'Reviewer',
         targetAgentId: 'kimi-cli',
