@@ -1146,6 +1146,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return undefined
   }
 
+  private isAcpBackedSubagentSession(sessionId: string, providerId?: string): boolean {
+    const sessionRow = this.sqlitePresenter.newSessionsTable?.get(sessionId)
+    if (!sessionRow || sessionRow.session_kind !== 'subagent') {
+      return false
+    }
+
+    const resolvedProviderId =
+      providerId?.trim() || this.runtimeState.get(sessionId)?.providerId?.trim() || ''
+    return resolvedProviderId === 'acp'
+  }
+
   private getAbortSignalForSession(sessionId: string): AbortSignal | undefined {
     return (
       this.activeGenerations.get(sessionId)?.abortController.signal ??
@@ -2095,6 +2106,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const state = this.runtimeState.get(sessionId)
     const providerId = state?.providerId?.trim() || 'unknown-provider'
     const modelId = state?.modelId?.trim() || 'unknown-model'
+    if (this.isAcpBackedSubagentSession(sessionId, providerId)) {
+      return normalizedBase
+    }
+
     const workdir = this.resolveProjectDir(sessionId)
     const now = new Date()
     const dayKey = this.buildLocalDayKey(now)
@@ -3558,6 +3573,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     projectDir: string | null
   ): Promise<MCPToolDefinition[]> {
     if (!this.toolPresenter) {
+      return []
+    }
+
+    const providerId = this.runtimeState.get(sessionId)?.providerId?.trim()
+    if (this.isAcpBackedSubagentSession(sessionId, providerId)) {
       return []
     }
 

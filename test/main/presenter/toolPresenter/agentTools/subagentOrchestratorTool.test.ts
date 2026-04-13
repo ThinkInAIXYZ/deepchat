@@ -132,6 +132,8 @@ describe('SubagentOrchestratorTool', () => {
     )
     expect(handoffMessage).toContain('Current Agent Working Directory:')
     expect(handoffMessage).toContain(resolvedWorkdir)
+    expect(handoffMessage).not.toContain('Slot Description:')
+    expect(handoffMessage).not.toContain('Review the delegated task.')
     expect(handoffMessage).not.toContain(parentSession.projectDir as string)
     expect(handoffMessage).not.toContain(childSession.projectDir as string)
     expect(result.content).toContain('Inspect auth flow')

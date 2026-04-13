@@ -80,6 +80,8 @@ type SearchableMessageRow = {
   updatedAt: number
 }
 
+const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
+
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
 const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
   yo_browser_cdp_send: 'cdp_send',
@@ -340,7 +342,7 @@ export class AgentSessionPresenter {
     try {
       await this.initializeSessionRuntime(agent, sessionId, initConfig)
     } catch (error) {
-      await this.cleanupFailedSessionInitialization(agent, sessionId)
+      await this.cleanupFailedSessionInitialization(agent, sessionId, providerId)
       throw error
     }
     console.log(`[AgentSessionPresenter] agent.initSession done`)
@@ -464,7 +466,7 @@ export class AgentSessionPresenter {
         generationSettings
       })
     } catch (error) {
-      await this.cleanupFailedSessionInitialization(agent, sessionId)
+      await this.cleanupFailedSessionInitialization(agent, sessionId, providerId)
       throw error
     }
 
@@ -524,52 +526,69 @@ export class AgentSessionPresenter {
       throw new Error('Subagent session requires an agentId.')
     }
 
+    const runtimeConfig = await this.resolveSubagentSessionRuntimeConfig(input)
     const projectDir = input.projectDir?.trim() || null
-    const disabledAgentTools = this.normalizeDisabledAgentTools(input.disabledAgentTools)
     const subagentMeta: DeepChatSubagentMeta = {
       slotId,
       displayName,
-      targetAgentId: input.targetAgentId?.trim() || null
+      targetAgentId: runtimeConfig.targetAgentId || null
     }
+    this.assertAcpSessionHasWorkdir(runtimeConfig.providerId, projectDir)
 
-    this.assertAcpSessionHasWorkdir(input.providerId, projectDir)
+    const agent = await this.resolveAgentImplementation(runtimeConfig.agentId)
+    let lastError: unknown = null
 
-    const agent = await this.resolveAgentImplementation(agentId)
-    const sessionId = this.sessionManager.create(agentId, displayName, projectDir, {
-      isDraft: false,
-      disabledAgentTools,
-      subagentEnabled: false,
-      sessionKind: 'subagent',
-      parentSessionId,
-      subagentMeta
-    })
-
-    try {
-      await this.initializeSessionRuntime(agent, sessionId, {
-        agentId,
-        providerId: input.providerId,
-        modelId: input.modelId,
-        projectDir,
-        permissionMode: input.permissionMode,
-        generationSettings: input.generationSettings
+    for (let attempt = 1; attempt <= SUBAGENT_SESSION_INIT_MAX_ATTEMPTS; attempt += 1) {
+      const sessionId = this.sessionManager.create(runtimeConfig.agentId, displayName, projectDir, {
+        isDraft: false,
+        disabledAgentTools: runtimeConfig.disabledAgentTools,
+        subagentEnabled: false,
+        sessionKind: 'subagent',
+        parentSessionId,
+        subagentMeta
       })
-    } catch (error) {
-      await this.cleanupFailedSessionInitialization(agent, sessionId)
-      throw error
+
+      try {
+        await this.initializeSessionRuntime(agent, sessionId, {
+          agentId: runtimeConfig.agentId,
+          providerId: runtimeConfig.providerId,
+          modelId: runtimeConfig.modelId,
+          projectDir,
+          permissionMode: input.permissionMode,
+          generationSettings: runtimeConfig.generationSettings
+        })
+
+        if (runtimeConfig.activeSkills.length > 0 && this.skillPresenter) {
+          await this.skillPresenter.setActiveSkills(sessionId, runtimeConfig.activeSkills)
+        }
+
+        const record = this.sessionManager.get(sessionId)
+        if (!record) {
+          throw new Error(`Subagent session not found after creation: ${sessionId}`)
+        }
+
+        const session = (await this.buildSessionWithState(record)) as SessionWithState
+        this.emitSessionListUpdated()
+        return session
+      } catch (error) {
+        lastError = error
+        await this.cleanupFailedSessionInitialization(agent, sessionId, runtimeConfig.providerId)
+        this.emitSessionListUpdated()
+
+        if (attempt >= SUBAGENT_SESSION_INIT_MAX_ATTEMPTS) {
+          throw error
+        }
+
+        console.warn(
+          `[AgentSessionPresenter] Retrying subagent session initialization (${attempt}/${SUBAGENT_SESSION_INIT_MAX_ATTEMPTS - 1} retry used) for agent=${runtimeConfig.agentId} slot=${slotId}:`,
+          error
+        )
+      }
     }
 
-    if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
-      await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
-    }
-
-    this.emitSessionListUpdated()
-
-    const record = this.sessionManager.get(sessionId)
-    if (!record) {
-      throw new Error(`Subagent session not found after creation: ${sessionId}`)
-    }
-
-    return (await this.buildSessionWithState(record)) as SessionWithState
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`Failed to create subagent session for slot ${slotId}.`)
   }
 
   async ensureAcpDraftSession(input: {
@@ -607,7 +626,7 @@ export class AgentSessionPresenter {
           permissionMode
         })
       } catch (error) {
-        await this.cleanupFailedSessionInitialization(agent, sessionId)
+        await this.cleanupFailedSessionInitialization(agent, sessionId, 'acp')
         throw error
       }
       record = this.sessionManager.get(sessionId)
@@ -1820,6 +1839,56 @@ export class AgentSessionPresenter {
     return configEnabled === true
   }
 
+  private async resolveSubagentSessionRuntimeConfig(input: {
+    agentId: string
+    targetAgentId?: string | null
+    providerId: string
+    modelId: string
+    generationSettings?: Partial<SessionGenerationSettings>
+    disabledAgentTools?: string[]
+    activeSkills?: string[]
+  }): Promise<{
+    agentId: string
+    targetAgentId: string | null
+    providerId: string
+    modelId: string
+    generationSettings?: Partial<SessionGenerationSettings>
+    disabledAgentTools: string[]
+    activeSkills: string[]
+  }> {
+    const trimmedAgentId = input.agentId.trim()
+    const resolvedAgentId = resolveAcpAgentAlias(trimmedAgentId)
+    const normalizedTargetAgentId = input.targetAgentId?.trim() ? resolvedAgentId : null
+    const agentType = await this.getAgentType(resolvedAgentId)
+    if (agentType !== 'deepchat' && agentType !== 'acp') {
+      throw new Error(`Agent ${input.agentId} is not a valid subagent target.`)
+    }
+
+    if (agentType === 'acp') {
+      return {
+        agentId: resolvedAgentId,
+        targetAgentId: normalizedTargetAgentId,
+        providerId: 'acp',
+        modelId: resolvedAgentId,
+        generationSettings: {
+          systemPrompt: ''
+        },
+        disabledAgentTools: [],
+        activeSkills: []
+      }
+    }
+
+    return {
+      agentId: resolvedAgentId,
+      targetAgentId: normalizedTargetAgentId,
+      providerId: input.providerId,
+      modelId: input.modelId,
+      generationSettings: input.generationSettings,
+      disabledAgentTools: this.normalizeDisabledAgentTools(input.disabledAgentTools),
+      activeSkills: this.normalizeActiveSkills(input.activeSkills)
+    }
+  }
+
   private async deleteSessionInternal(sessionId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) return
@@ -1982,8 +2051,20 @@ export class AgentSessionPresenter {
 
   private async cleanupFailedSessionInitialization(
     agent: IAgentImplementation,
-    sessionId: string
+    sessionId: string,
+    providerId?: string
   ): Promise<void> {
+    if (providerId === 'acp') {
+      try {
+        await this.llmProviderPresenter.clearAcpSession(sessionId)
+      } catch (error) {
+        console.warn(
+          `[AgentSessionPresenter] Failed to clear ACP session after initialization error ${sessionId}:`,
+          error
+        )
+      }
+    }
+
     try {
       await agent.destroySession(sessionId)
     } catch (cleanupError) {
@@ -2526,5 +2607,20 @@ export class AgentSessionPresenter {
           .filter((item) => Boolean(item) && !RETIRED_DEFAULT_AGENT_TOOLS.has(item))
       )
     ).sort((left, right) => left.localeCompare(right))
+  }
+
+  private normalizeActiveSkills(activeSkills?: string[]): string[] {
+    if (!Array.isArray(activeSkills)) {
+      return []
+    }
+
+    return Array.from(
+      new Set(
+        activeSkills
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    )
   }
 }
