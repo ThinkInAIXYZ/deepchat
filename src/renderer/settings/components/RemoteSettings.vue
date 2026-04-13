@@ -1445,7 +1445,8 @@ const defaultFeishuPairingSnapshot = (): FeishuPairingSnapshot => ({
 const defaultQQBotPairingSnapshot = (): QQBotPairingSnapshot => ({
   pairCode: null,
   pairCodeExpiresAt: null,
-  pairedUserIds: []
+  pairedUserIds: [],
+  pairedGroupIds: []
 })
 
 const defaultDiscordPairingSnapshot = (): DiscordPairingSnapshot => ({
@@ -1475,7 +1476,8 @@ const normalizeQQBotPairingSnapshot = (
 ): QQBotPairingSnapshot => ({
   pairCode: snapshot?.pairCode ?? null,
   pairCodeExpiresAt: snapshot?.pairCodeExpiresAt ?? null,
-  pairedUserIds: [...(snapshot?.pairedUserIds ?? [])]
+  pairedUserIds: [...(snapshot?.pairedUserIds ?? [])],
+  pairedGroupIds: [...(snapshot?.pairedGroupIds ?? [])]
 })
 
 const normalizeDiscordPairingSnapshot = (
