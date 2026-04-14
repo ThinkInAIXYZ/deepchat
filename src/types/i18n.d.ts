@@ -1246,7 +1246,6 @@ declare module 'vue-i18n' {
     parameterRequired: string
     chat: string
     welcome: string
-    playground: string
     settings: string
     'settings-common': string
     'settings-provider': string
