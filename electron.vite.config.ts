@@ -50,11 +50,6 @@ export default defineConfig({
     }
   },
   renderer: {
-    define: {
-      'import.meta.env.VITE_ENABLE_PLAYGROUND': JSON.stringify(
-        process.env.VITE_ENABLE_PLAYGROUND ?? 'false'
-      )
-    },
     optimizeDeps: {
       exclude: ['markstream-vue', 'stream-monaco'],
       include: [
