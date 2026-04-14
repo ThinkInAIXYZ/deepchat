@@ -30,6 +30,7 @@
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
+    "dev:trace": "cross-env DEEPCHAT_VUE_DEVTOOLS_OVERLAY=0 electron-vite dev --watch",
     "dev:inspect": "electron-vite dev --watch --inspect=9229",
     "dev:linux": "electron-vite dev --watch --noSandbox",
     "build": "pnpm run typecheck && electron-vite build",

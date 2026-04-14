@@ -9,6 +9,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 const isCustomElement = (tag: string) =>
   tag === 'voice-agent-widget' || tag.startsWith('ui-resource-renderer')
+const isVueDevToolsOverlayEnabled = process.env.DEEPCHAT_VUE_DEVTOOLS_OVERLAY !== '0'
 
 export default defineConfig({
   main: {
@@ -85,12 +86,14 @@ export default defineConfig({
         }
       }),
       svgLoader(),
-      vueDevTools(
-        {
-          appendTo:'src/renderer/src/main.ts'
-          // appendTo:'src/renderer/browser/main.ts'
-        }
-      )
+      ...(isVueDevToolsOverlayEnabled
+        ? [
+            vueDevTools({
+              appendTo: 'src/renderer/src/main.ts'
+              // appendTo:'src/renderer/browser/main.ts'
+            })
+          ]
+        : [])
     ],
     worker: {
       format: 'es'
