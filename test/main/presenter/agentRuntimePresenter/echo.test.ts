@@ -190,5 +190,7 @@ describe('echo', () => {
     expect(cloned).not.toBe(blocks)
     expect(cloned[0]).not.toBe(blocks[0])
     expect(cloned[0]?.extra).not.toBe(blocks[0]?.extra)
+    expect(cloned[0]?.extra?.nested).not.toBe(blocks[0]?.extra?.nested)
+    expect(cloned[0]?.extra?.nested[0]).not.toBe(blocks[0]?.extra?.nested[0])
   })
 })

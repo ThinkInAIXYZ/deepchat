@@ -447,8 +447,9 @@ describe('dispatch', () => {
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer).toHaveBeenCalledTimes(1)
+      expect(rendererFlushHandle.schedule).toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer.mock.invocationCallOrder[0]).toBeLessThan(
-        rendererFlushHandle.schedule.mock.invocationCallOrder.at(-1) ?? Number.POSITIVE_INFINITY
+        rendererFlushHandle.schedule.mock.invocationCallOrder.at(-1)!
       )
     })
 
@@ -505,8 +506,9 @@ describe('dispatch', () => {
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer).toHaveBeenCalledTimes(1)
+      expect(rendererFlushHandle.schedule).toHaveBeenCalled()
       expect(rendererFlushHandle.rescheduleRenderer.mock.invocationCallOrder[0]).toBeLessThan(
-        rendererFlushHandle.schedule.mock.invocationCallOrder.at(-1) ?? Number.POSITIVE_INFINITY
+        rendererFlushHandle.schedule.mock.invocationCallOrder.at(-1)!
       )
     })
 
