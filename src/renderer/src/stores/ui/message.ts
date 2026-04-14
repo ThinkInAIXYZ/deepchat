@@ -2,15 +2,29 @@ import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import type {
+  DisplayAssistantMessageBlock,
+  DisplayUserMessageContent
+} from '@/components/chat/messageListItems'
+import type {
   ChatMessageRecord,
   AssistantMessageBlock,
-  MessageFile
+  MessageFile,
+  MessageMetadata
 } from '@shared/types/agent-interface'
 import { useSessionStore } from './session'
 import { useStreamStateStore } from './stream'
 import { bindMessageStoreIpc } from './messageIpc'
 
 const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
+
+type ParsedMessageCacheEntry = {
+  updatedAt: number
+  content: string
+  metadata: string
+  assistantBlocks?: DisplayAssistantMessageBlock[]
+  userContent?: DisplayUserMessageContent
+  parsedMetadata?: MessageMetadata
+}
 
 // --- Store ---
 
@@ -21,6 +35,8 @@ export const useMessageStore = defineStore('message', () => {
   // --- State ---
   const messageIds = ref<string[]>([])
   const messageCache = ref<Map<string, ChatMessageRecord>>(new Map())
+  const lastPersistedRevision = ref(0)
+  const parsedMessageCache = new Map<string, ParsedMessageCacheEntry>()
   const hydratingStreamMessageIds = new Set<string>()
   let latestLoadRequestId = 0
 
@@ -45,6 +61,99 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
+  function getParsedEntry(record: ChatMessageRecord) {
+    const cached = parsedMessageCache.get(record.id)
+    if (cached) {
+      if (cached.content !== record.content) {
+        cached.content = record.content
+        delete cached.assistantBlocks
+        delete cached.userContent
+      }
+
+      if (cached.metadata !== record.metadata) {
+        cached.metadata = record.metadata
+        delete cached.parsedMetadata
+      }
+
+      cached.updatedAt = record.updatedAt
+      return cached
+    }
+
+    const nextEntry: ParsedMessageCacheEntry = {
+      updatedAt: record.updatedAt,
+      content: record.content,
+      metadata: record.metadata
+    }
+    parsedMessageCache.set(record.id, nextEntry)
+    return nextEntry
+  }
+
+  function getAssistantMessageBlocks(record: ChatMessageRecord): DisplayAssistantMessageBlock[] {
+    const entry = getParsedEntry(record)
+    if (entry.assistantBlocks) {
+      return entry.assistantBlocks
+    }
+
+    try {
+      const parsed = JSON.parse(record.content) as DisplayAssistantMessageBlock[]
+      entry.assistantBlocks = Array.isArray(parsed) ? parsed : []
+    } catch {
+      entry.assistantBlocks = []
+    }
+
+    return entry.assistantBlocks
+  }
+
+  function getUserMessageContent(record: ChatMessageRecord): DisplayUserMessageContent {
+    const entry = getParsedEntry(record)
+    if (entry.userContent) {
+      return entry.userContent
+    }
+
+    try {
+      const parsed = JSON.parse(record.content) as DisplayUserMessageContent
+      if (parsed && typeof parsed === 'object') {
+        entry.userContent = {
+          text: parsed.text ?? '',
+          files: parsed.files ?? [],
+          links: parsed.links ?? [],
+          search: parsed.search ?? false,
+          think: parsed.think ?? false,
+          continue: parsed.continue,
+          resources: parsed.resources,
+          prompts: parsed.prompts,
+          content: parsed.content
+        }
+        return entry.userContent
+      }
+    } catch {}
+
+    entry.userContent = {
+      text: '',
+      files: [],
+      links: [],
+      search: false,
+      think: false
+    }
+    return entry.userContent
+  }
+
+  function getMessageMetadata(record: ChatMessageRecord): MessageMetadata {
+    const entry = getParsedEntry(record)
+    if (entry.parsedMetadata) {
+      return entry.parsedMetadata
+    }
+
+    try {
+      const parsed = JSON.parse(record.metadata) as MessageMetadata
+      entry.parsedMetadata = parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      entry.parsedMetadata = {}
+    }
+
+    return entry.parsedMetadata
+  }
+
   async function loadMessages(sessionId: string): Promise<void> {
     const requestId = ++latestLoadRequestId
     try {
@@ -54,11 +163,13 @@ export const useMessageStore = defineStore('message', () => {
       }
 
       messageCache.value.clear()
+      parsedMessageCache.clear()
       messageIds.value = []
       for (const msg of result) {
         messageCache.value.set(msg.id, msg)
         messageIds.value.push(msg.id)
       }
+      lastPersistedRevision.value += 1
     } catch (e) {
       console.error('Failed to load messages:', e)
     }
@@ -113,6 +224,7 @@ export const useMessageStore = defineStore('message', () => {
     latestLoadRequestId += 1
     messageIds.value = []
     messageCache.value.clear()
+    parsedMessageCache.clear()
     clearStreamingState()
     hydratingStreamMessageIds.clear()
   }
@@ -134,6 +246,9 @@ export const useMessageStore = defineStore('message', () => {
     const existing = messageCache.value.get(messageId)
     if (existing) {
       if (existing.sessionId !== conversationId) return
+      if (existing.content === serializedBlocks && existing.status === 'pending') {
+        return
+      }
       upsertMessageRecord({
         ...existing,
         content: serializedBlocks,
@@ -183,7 +298,12 @@ export const useMessageStore = defineStore('message', () => {
     isStreaming: streamStateStore.isStreaming,
     streamingBlocks: streamStateStore.streamingBlocks,
     currentStreamMessageId: streamStateStore.currentStreamMessageId,
+    streamRevision: streamStateStore.streamRevision,
+    lastPersistedRevision,
     messages,
+    getAssistantMessageBlocks,
+    getUserMessageContent,
+    getMessageMetadata,
     loadMessages,
     getMessage,
     addOptimisticUserMessage,

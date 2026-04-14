@@ -4,23 +4,9 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
-const originalResizeObserver = globalThis.ResizeObserver
-let resizeObserverCallback: ResizeObserverCallback | null = null
 const { selectSessionMock } = vi.hoisted(() => ({
   selectSessionMock: vi.fn()
 }))
-
-class MockResizeObserver {
-  constructor(callback: ResizeObserverCallback) {
-    resizeObserverCallback = callback
-  }
-
-  observe() {}
-
-  unobserve() {}
-
-  disconnect() {}
-}
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -108,19 +94,11 @@ const createBlock = (
 })
 
 beforeEach(() => {
-  resizeObserverCallback = null
   selectSessionMock.mockReset()
-  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 })
 
 afterEach(() => {
-  if (originalResizeObserver) {
-    globalThis.ResizeObserver = originalResizeObserver
-    return
-  }
-
-  delete (globalThis as typeof globalThis & { ResizeObserver?: typeof ResizeObserver })
-    .ResizeObserver
+  selectSessionMock.mockReset()
 })
 
 describe('MessageBlockToolCall', () => {
@@ -234,7 +212,7 @@ describe('MessageBlockToolCall', () => {
     )
   })
 
-  it('only adds the summary fade when the text actually overflows', async () => {
+  it('always exposes the full summary in the title attribute', () => {
     const summaryValue = 'C:/workspace/' + 'nested/'.repeat(8) + 'MessageBlockToolCall.vue'
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -251,21 +229,6 @@ describe('MessageBlockToolCall', () => {
 
     const summary = wrapper.get('[data-testid="tool-call-summary"]')
 
-    expect(summary.classes()).not.toContain('tool-call-summary--overflowing')
-
-    Object.defineProperty(summary.element, 'clientWidth', {
-      configurable: true,
-      value: 80
-    })
-    Object.defineProperty(summary.element, 'scrollWidth', {
-      configurable: true,
-      value: 160
-    })
-
-    resizeObserverCallback?.([] as ResizeObserverEntry[], {} as ResizeObserver)
-    await nextTick()
-
-    expect(summary.classes()).toContain('tool-call-summary--overflowing')
     expect(summary.attributes('title')).toBe(summaryValue)
   })
 

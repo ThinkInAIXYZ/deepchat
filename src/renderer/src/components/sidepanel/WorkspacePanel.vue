@@ -135,8 +135,6 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useMessageStore } from '@/stores/ui/message'
 import { useSidepanelStore, type WorkspaceArtifactContext } from '@/stores/ui/sidepanel'
 import type { WorkspaceGitFileChange } from '@shared/presenter'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const props = defineProps<{
   sessionId: string
@@ -179,16 +177,6 @@ const {
   sidepanelStore
 })
 
-const parseAssistantBlocks = (record: ChatMessageRecord) => {
-  try {
-    return JSON.parse(record.content) as Array<
-      Pick<DisplayAssistantMessageBlock, 'content' | 'status'>
-    >
-  } catch {
-    return []
-  }
-}
-
 const artifactItems = computed<ArtifactItem[]>(() => {
   const items: ArtifactItem[] = []
 
@@ -197,7 +185,7 @@ const artifactItems = computed<ArtifactItem[]>(() => {
       continue
     }
 
-    for (const block of parseAssistantBlocks(message)) {
+    for (const block of messageStore.getAssistantMessageBlocks(message)) {
       for (const artifact of extractArtifactsFromContent(block.content ?? '', block.status)) {
         items.push({
           key: `${message.id}:${artifact.identifier}`,

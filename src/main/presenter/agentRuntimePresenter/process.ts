@@ -368,6 +368,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
 
         accumulate(state, event)
+        echo.schedule()
       }
 
       console.log(
@@ -411,6 +412,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         params.toolOutputGuard,
         modelConfig.contextLength > 0 ? modelConfig.contextLength : UNKNOWN_CONTEXT_LIMIT,
         maxTokens,
+        echo,
         hooks,
         providerId
       )

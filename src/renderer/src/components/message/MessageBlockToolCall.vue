@@ -19,12 +19,8 @@
         <span
           v-if="summaryText"
           data-testid="tool-call-summary"
-          ref="summaryElement"
-          :class="[
-            'tool-call-summary text-[11px]',
-            { 'tool-call-summary--overflowing': isSummaryOverflowing }
-          ]"
-          :title="isSummaryOverflowing ? summaryText : undefined"
+          class="tool-call-summary text-[11px]"
+          :title="summaryText"
         >
           {{ summaryText }}
         </span>
@@ -180,7 +176,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
@@ -218,9 +214,6 @@ const coerceNumericParam = (value: unknown): number | null => {
 const isExpanded = ref(false)
 const expansionSource = ref<ExpansionSource>(null)
 const autoExpandDismissed = ref(false)
-const summaryElement = ref<HTMLElement | null>(null)
-const isSummaryOverflowing = ref(false)
-let summaryResizeObserver: ResizeObserver | null = null
 
 const statusVariant = computed(() => {
   if (props.block.status === 'error') return 'error'
@@ -380,16 +373,6 @@ const subagentTasks = computed<SubagentProgressTask[]>(() => {
     }
   })
 })
-
-const updateSummaryOverflow = () => {
-  const element = summaryElement.value
-  if (!element || !summaryText.value) {
-    isSummaryOverflowing.value = false
-    return
-  }
-
-  isSummaryOverflowing.value = element.scrollWidth - element.clientWidth > 1
-}
 
 const isExecTool = computed(() => {
   const toolName = rawToolName.value
@@ -566,20 +549,6 @@ watch(toolCallIdentity, (nextIdentity, previousIdentity) => {
   }
 })
 
-watch(summaryElement, (nextElement, previousElement) => {
-  if (summaryResizeObserver && previousElement) {
-    summaryResizeObserver.unobserve(previousElement)
-  }
-  if (summaryResizeObserver && nextElement) {
-    summaryResizeObserver.observe(nextElement)
-  }
-  void nextTick(updateSummaryOverflow)
-})
-
-watch(summaryText, () => {
-  void nextTick(updateSummaryOverflow)
-})
-
 watch(
   [() => props.block.status, shouldAutoExpand],
   ([status, autoExpandable], previousValue) => {
@@ -587,25 +556,6 @@ watch(
   },
   { immediate: true }
 )
-
-onMounted(() => {
-  if (typeof ResizeObserver !== 'undefined') {
-    summaryResizeObserver = new ResizeObserver(() => {
-      updateSummaryOverflow()
-    })
-
-    if (summaryElement.value) {
-      summaryResizeObserver.observe(summaryElement.value)
-    }
-  }
-
-  void nextTick(updateSummaryOverflow)
-})
-
-onBeforeUnmount(() => {
-  summaryResizeObserver?.disconnect()
-  summaryResizeObserver = null
-})
 
 const paramsCopyText = ref(t('common.copy'))
 const responseCopyText = ref(t('common.copy'))
@@ -712,16 +662,12 @@ function getSubagentStatusLabel(status: string): string {
   min-width: 0;
   display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.2;
   padding-block: 1px;
   color: hsl(var(--muted-foreground) / 0.9);
   font-weight: 400;
-}
-
-.tool-call-summary--overflowing {
-  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
 }
 
 .tool-call-status-ring {

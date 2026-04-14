@@ -112,8 +112,7 @@ import MessageList from '@/components/chat/MessageList.vue'
 import type {
   DisplayAssistantMessageBlock,
   DisplayMessage,
-  DisplayMessageUsage,
-  DisplayUserMessageContent
+  DisplayMessageUsage
 } from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
@@ -177,6 +176,18 @@ const NEAR_BOTTOM_THRESHOLD = 80 // px
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
+const displayMessageCache = new Map<
+  string,
+  {
+    updatedAt: number
+    content: ChatMessageRecord['content']
+    metadata: ChatMessageRecord['metadata']
+    modelId: string
+    providerId: string
+    status: DisplayMessage['status']
+    message: DisplayMessage
+  }
+>()
 const traceMessageId = ref<string | null>(null)
 const isChatSearchOpen = ref(false)
 const chatSearchQuery = ref('')
@@ -187,18 +198,59 @@ const chatSearchBarRef = ref<{
   selectInput: () => void
 } | null>(null)
 let spotlightJumpTimer: number | null = null
+let scrollReadFrame: number | null = null
+let scrollWriteFrame: number | null = null
+let pendingForcedScroll = false
+let lastObservedScrollHeight = 0
 
-function scrollToBottom() {
+function syncScrollPosition() {
   const el = scrollContainer.value
   if (!el) return
-  el.scrollTop = el.scrollHeight
+  lastObservedScrollHeight = el.scrollHeight
+  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+  isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
+}
+
+function scheduleScrollMetricsRead() {
+  if (scrollReadFrame !== null) {
+    return
+  }
+
+  scrollReadFrame = window.requestAnimationFrame(() => {
+    scrollReadFrame = null
+    syncScrollPosition()
+  })
+}
+
+function scrollToBottom(force = false) {
+  pendingForcedScroll = pendingForcedScroll || force
+  if (scrollWriteFrame !== null) {
+    return
+  }
+
+  scrollWriteFrame = window.requestAnimationFrame(() => {
+    scrollWriteFrame = null
+
+    const el = scrollContainer.value
+    if (!el) {
+      pendingForcedScroll = false
+      return
+    }
+
+    const shouldForce = pendingForcedScroll
+    pendingForcedScroll = false
+    const nextScrollHeight = el.scrollHeight
+
+    if (shouldForce || nextScrollHeight > lastObservedScrollHeight) {
+      el.scrollTop = nextScrollHeight
+    }
+
+    syncScrollPosition()
+  })
 }
 
 function onScroll() {
-  const el = scrollContainer.value
-  if (!el) return
-  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-  isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
+  scheduleScrollMetricsRead()
 }
 
 async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
@@ -248,65 +300,22 @@ watch(
   () => props.sessionId,
   async (id) => {
     clearChatSearchState()
+    displayMessageCache.clear()
     if (id) {
       await Promise.all([messageStore.loadMessages(id), pendingInputStore.loadPendingInputs(id)])
       await nextTick()
+      syncScrollPosition()
       if (spotlightStore.pendingMessageJump?.sessionId === id) {
         void focusPendingSpotlightMessageJump()
         return
       }
-      scrollToBottom()
+      scrollToBottom(true)
       return
     }
     pendingInputStore.clear()
   },
   { immediate: true }
 )
-
-function parseUserMessageContent(record: ChatMessageRecord): DisplayUserMessageContent {
-  try {
-    const parsed = JSON.parse(record.content) as DisplayUserMessageContent
-    if (parsed && typeof parsed === 'object') {
-      return {
-        text: parsed.text ?? '',
-        files: parsed.files ?? [],
-        links: parsed.links ?? [],
-        search: parsed.search ?? false,
-        think: parsed.think ?? false,
-        continue: parsed.continue,
-        resources: parsed.resources,
-        prompts: parsed.prompts,
-        content: parsed.content
-      }
-    }
-  } catch {}
-
-  return {
-    text: '',
-    files: [],
-    links: [],
-    search: false,
-    think: false
-  }
-}
-
-function parseAssistantMessageContent(record: ChatMessageRecord): DisplayAssistantMessageBlock[] {
-  try {
-    const parsed = JSON.parse(record.content) as DisplayAssistantMessageBlock[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function parseMessageMetadata(record: ChatMessageRecord): MessageMetadata {
-  try {
-    const parsed = JSON.parse(record.metadata) as MessageMetadata
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
 
 function resolveAssistantModelName(modelId: string): string {
   if (!modelId) {
@@ -331,9 +340,22 @@ function buildUsage(metadata: MessageMetadata): DisplayMessageUsage {
 }
 
 function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
-  const metadata = parseMessageMetadata(record)
+  const metadata = messageStore.getMessageMetadata(record)
   const modelId = metadata.model || sessionStore.activeSession?.modelId || ''
   const providerId = metadata.provider || sessionStore.activeSession?.providerId || ''
+  const cached = displayMessageCache.get(record.id)
+  if (
+    cached &&
+    cached.updatedAt === record.updatedAt &&
+    cached.content === record.content &&
+    cached.metadata === record.metadata &&
+    cached.modelId === modelId &&
+    cached.providerId === providerId &&
+    cached.status === record.status
+  ) {
+    return cached.message
+  }
+
   const modelName = record.role === 'assistant' ? resolveAssistantModelName(modelId) : ''
   const baseMessage = {
     id: record.id,
@@ -354,19 +376,30 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
     summaryUpdatedAt: metadata.summaryUpdatedAt ?? null
   } as const
 
-  if (record.role === 'assistant') {
-    return {
-      ...baseMessage,
-      role: 'assistant',
-      content: parseAssistantMessageContent(record)
-    }
-  }
+  const nextMessage =
+    record.role === 'assistant'
+      ? ({
+          ...baseMessage,
+          role: 'assistant',
+          content: messageStore.getAssistantMessageBlocks(record)
+        } as DisplayMessage)
+      : ({
+          ...baseMessage,
+          role: 'user',
+          content: messageStore.getUserMessageContent(record)
+        } as DisplayMessage)
 
-  return {
-    ...baseMessage,
-    role: 'user',
-    content: parseUserMessageContent(record)
-  }
+  displayMessageCache.set(record.id, {
+    updatedAt: record.updatedAt,
+    content: record.content,
+    metadata: record.metadata,
+    modelId,
+    providerId,
+    status: record.status,
+    message: nextMessage
+  })
+
+  return nextMessage
 }
 
 // Build a streaming assistant message from live blocks
@@ -397,7 +430,7 @@ function toStreamingMessage(
 const hasInlineStreamingTarget = computed(() => {
   const messageId = messageStore.currentStreamMessageId
   if (!messageId) return false
-  return messageStore.messages.some((msg) => msg.id === messageId)
+  return messageStore.messageCache.has(messageId)
 })
 
 const ephemeralRateLimitMessageId = computed(() => {
@@ -431,7 +464,13 @@ const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(()
 })
 
 const displayMessages = computed(() => {
-  const msgs: DisplayMessage[] = messageStore.messages.map(toDisplayMessage)
+  const msgs = messageStore.messages.map(toDisplayMessage)
+  const activeMessageIds = new Set(messageStore.messages.map((message) => message.id))
+  for (const cachedId of displayMessageCache.keys()) {
+    if (!activeMessageIds.has(cachedId)) {
+      displayMessageCache.delete(cachedId)
+    }
+  }
 
   // Fallback to a virtual streaming message only when target assistant message
   // is not yet available in messageStore.
@@ -455,7 +494,13 @@ const traceMessageIds = computed(() =>
 
 // Auto-scroll when displayMessages changes (new message added, streaming updates)
 watch(
-  [displayMessages, ephemeralRateLimitBlock],
+  [
+    () => messageStore.messageIds.length,
+    () => messageStore.currentStreamMessageId,
+    () => messageStore.streamRevision,
+    () => messageStore.lastPersistedRevision,
+    () => ephemeralRateLimitMessageId.value
+  ],
   () => {
     if (spotlightStore.pendingMessageJump?.sessionId === props.sessionId) {
       void focusPendingSpotlightMessageJump()
@@ -463,10 +508,10 @@ watch(
     }
 
     if (isNearBottom.value) {
-      nextTick(scrollToBottom)
+      scrollToBottom()
     }
   },
-  { deep: true }
+  { flush: 'post' }
 )
 
 async function refreshChatSearchHighlights() {
@@ -586,7 +631,7 @@ watch(
 
     void refreshChatSearchHighlights()
   },
-  { deep: true }
+  { flush: 'post' }
 )
 
 const message = ref('')
@@ -629,15 +674,6 @@ type SubagentProgressPayload = {
   }>
 }
 
-function parseAssistantBlocks(content: string): AssistantMessageBlock[] {
-  try {
-    const parsed = JSON.parse(content) as AssistantMessageBlock[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
 function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
   if (typeof value !== 'string' || !value.trim()) {
     return null
@@ -656,7 +692,7 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 
   for (const message of messageStore.messages) {
     if (message.role !== 'assistant') continue
-    const blocks = parseAssistantBlocks(message.content)
+    const blocks = messageStore.getAssistantMessageBlocks(message)
 
     for (const block of blocks) {
       if (
@@ -732,15 +768,17 @@ const isAwaitingToolQuestionFollowUp = computed(() => {
       return false
     }
 
-    return parseAssistantBlocks(message.content).some(
-      (block) =>
-        block.type === 'action' &&
-        block.action_type === 'question_request' &&
-        block.status === 'success' &&
-        block.extra?.needsUserAction === false &&
-        block.extra?.questionResolution === 'replied' &&
-        typeof block.extra?.answerText !== 'string'
-    )
+    return messageStore
+      .getAssistantMessageBlocks(message)
+      .some(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'question_request' &&
+          block.status === 'success' &&
+          block.extra?.needsUserAction === false &&
+          block.extra?.questionResolution === 'replied' &&
+          typeof block.extra?.answerText !== 'string'
+      )
   })
 })
 const hasInputText = computed(() => Boolean(message.value.trim()))
@@ -941,6 +979,7 @@ async function onResumePendingQueue() {
 onMounted(() => {
   window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.addEventListener('keydown', handleWindowKeydown)
+  syncScrollPosition()
 })
 
 onUnmounted(() => {
@@ -950,6 +989,14 @@ onUnmounted(() => {
   if (spotlightJumpTimer) {
     window.clearTimeout(spotlightJumpTimer)
     spotlightJumpTimer = null
+  }
+  if (scrollReadFrame !== null) {
+    window.cancelAnimationFrame(scrollReadFrame)
+    scrollReadFrame = null
+  }
+  if (scrollWriteFrame !== null) {
+    window.cancelAnimationFrame(scrollWriteFrame)
+    scrollWriteFrame = null
   }
   pendingInputStore.clear()
 })

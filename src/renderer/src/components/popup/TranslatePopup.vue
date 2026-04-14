@@ -3,12 +3,14 @@
     <div
       v-if="isOpen"
       ref="popupRef"
-      class="fixed z-50 w-[500px] bg-background border rounded-lg shadow-lg"
-      :style="{ top: position.y + 'px', left: position.x + 'px' }"
+      class="translate-popup fixed left-0 top-0 z-50 w-[500px] rounded-lg border bg-background shadow-lg"
+      :style="popupStyle"
+      data-translate-popup="true"
     >
       <div
-        class="flex items-center justify-between p-4 border-b cursor-move"
-        @mousedown="startDrag"
+        class="translate-popup__header flex cursor-move items-center justify-between border-b p-4"
+        data-translate-popup-header="true"
+        @pointerdown="startDrag"
       >
         <h3 class="text-lg font-semibold">{{ t('contextMenu.translate.title') }}</h3>
         <Button variant="ghost" size="icon" @click="close">
@@ -36,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { useAgentStore } from '@/stores/ui/agent'
@@ -47,84 +49,172 @@ const { t, locale } = useI18n()
 const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const agentStore = useAgentStore()
 
-// 状态
 const isOpen = ref(false)
 const text = ref('')
 const translatedText = ref('')
 const isTranslating = ref(false)
 const popupRef = ref<HTMLElement | null>(null)
 
-// 窗口位置状态
 const position = ref({ x: 100, y: 100 })
 
-// 拖动相关状态
 const isDragging = ref(false)
 const dragStart = ref({ x: 0, y: 0 })
+const dragBounds = {
+  minX: 0,
+  maxX: 0,
+  minY: 0,
+  maxY: 0
+}
+let dragFrameId: number | null = null
+let pendingDragPosition: { x: number; y: number } | null = null
 
 const POPUP_WIDTH = 500
 const POPUP_HEIGHT = 220
-const VISIBLE_EDGE = 40 // 保证至少40px可见
+const VISIBLE_EDGE = 40
+const DRAG_EXCLUDED_SELECTOR = 'button, a, input, textarea, select, [role="button"]'
 
-// 开始拖动
-const startDrag = (event: MouseEvent) => {
+const popupStyle = computed(() => ({
+  transform: `translate3d(${position.value.x}px, ${position.value.y}px, 0)`
+}))
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+
+const getPopupRect = () => popupRef.value?.getBoundingClientRect()
+
+const getBounds = () => {
+  const rect = getPopupRect()
+  const width = rect?.width || POPUP_WIDTH
+  const height = rect?.height || POPUP_HEIGHT
+
+  return {
+    minX: -(width - VISIBLE_EDGE),
+    maxX: window.innerWidth - VISIBLE_EDGE,
+    minY: -(height - VISIBLE_EDGE),
+    maxY: window.innerHeight - VISIBLE_EDGE
+  }
+}
+
+const applyPosition = (x: number, y: number, bounds = getBounds()) => {
+  position.value = {
+    x: clamp(x, bounds.minX, bounds.maxX),
+    y: clamp(y, bounds.minY, bounds.maxY)
+  }
+}
+
+const flushPendingDragPosition = () => {
+  dragFrameId = null
+
+  if (!pendingDragPosition) {
+    return
+  }
+
+  const nextPosition = pendingDragPosition
+  pendingDragPosition = null
+  position.value = nextPosition
+}
+
+const scheduleDragPosition = (x: number, y: number) => {
+  pendingDragPosition = { x, y }
+
+  if (dragFrameId !== null) {
+    return
+  }
+
+  dragFrameId = window.requestAnimationFrame(flushPendingDragPosition)
+}
+
+const removeDragListeners = () => {
+  window.removeEventListener('pointermove', handleDrag)
+  window.removeEventListener('pointerup', stopDrag)
+  window.removeEventListener('pointercancel', stopDrag)
+}
+
+const addDragListeners = () => {
+  window.addEventListener('pointermove', handleDrag, { passive: true })
+  window.addEventListener('pointerup', stopDrag)
+  window.addEventListener('pointercancel', stopDrag)
+}
+
+const startDrag = (event: PointerEvent) => {
+  if (event.button !== 0) {
+    return
+  }
+
+  const target = event.target as HTMLElement | null
+  if (target?.closest(DRAG_EXCLUDED_SELECTOR)) {
+    return
+  }
+
+  event.preventDefault()
+  const bounds = getBounds()
+
+  dragBounds.minX = bounds.minX
+  dragBounds.maxX = bounds.maxX
+  dragBounds.minY = bounds.minY
+  dragBounds.maxY = bounds.maxY
+
   isDragging.value = true
   dragStart.value = {
     x: event.clientX - position.value.x,
     y: event.clientY - position.value.y
   }
+  addDragListeners()
 }
-
-// 处理拖动
-const getMaxX = () => window.innerWidth - VISIBLE_EDGE
-const getMinX = () => -(POPUP_WIDTH - VISIBLE_EDGE)
-const getMaxY = () => window.innerHeight - VISIBLE_EDGE
-const getMinY = (ref: HTMLElement | null) => -((ref?.offsetHeight || POPUP_HEIGHT) - VISIBLE_EDGE)
 
 const handleDrag = (event: MouseEvent) => {
   if (!isDragging.value) return
 
-  let newX = event.clientX - dragStart.value.x
-  let newY = event.clientY - dragStart.value.y
-
-  newX = Math.max(getMinX(), Math.min(newX, getMaxX()))
-  newY = Math.max(getMinY(popupRef.value), Math.min(newY, getMaxY()))
-  position.value = { x: newX, y: newY }
+  const newX = clamp(event.clientX - dragStart.value.x, dragBounds.minX, dragBounds.maxX)
+  const newY = clamp(event.clientY - dragStart.value.y, dragBounds.minY, dragBounds.maxY)
+  scheduleDragPosition(newX, newY)
 }
 
-// 结束拖动
 const stopDrag = () => {
+  if (!isDragging.value && dragFrameId === null && !pendingDragPosition) {
+    return
+  }
+
   isDragging.value = false
+  removeDragListeners()
+
+  if (dragFrameId !== null) {
+    window.cancelAnimationFrame(dragFrameId)
+    dragFrameId = null
+  }
+
+  if (pendingDragPosition) {
+    position.value = pendingDragPosition
+    pendingDragPosition = null
+  }
 }
 
-// 关闭弹窗
 const close = () => {
+  stopDrag()
   isOpen.value = false
   text.value = ''
   translatedText.value = ''
   isTranslating.value = false
 }
 
-// 处理翻译请求
+const clampPopupToViewport = async (nextX = position.value.x, nextY = position.value.y) => {
+  await nextTick()
+  applyPosition(nextX, nextY)
+}
+
 const handleTranslateRequest = async (event: Event) => {
   const customEvent = event as CustomEvent<{ text: string; x?: number; y?: number }>
   const { text: newText, x, y } = customEvent.detail
 
+  stopDrag()
   text.value = newText
-  if (typeof x === 'number' && typeof y === 'number') {
-    const posX = x
-    const posY = y
-    position.value = {
-      x: Math.max(0, posX),
-      y: Math.max(0, posY)
-    }
-    if (posX + POPUP_WIDTH > getMaxX()) {
-      position.value.x = getMaxX() - POPUP_WIDTH
-    }
-  }
-
   isOpen.value = true
   isTranslating.value = true
   translatedText.value = ''
+
+  await clampPopupToViewport(
+    typeof x === 'number' ? x : position.value.x,
+    typeof y === 'number' ? y : position.value.y
+  )
 
   try {
     const result = await agentSessionPresenter.translateText(
@@ -137,24 +227,32 @@ const handleTranslateRequest = async (event: Event) => {
     translatedText.value = t('contextMenu.translate.error')
   } finally {
     isTranslating.value = false
+    await clampPopupToViewport()
   }
 }
 
 onMounted(() => {
   window.addEventListener('context-menu-translate-text', handleTranslateRequest)
-  document.addEventListener('mousemove', handleDrag)
-  document.addEventListener('mouseup', stopDrag)
 })
 
 onUnmounted(() => {
+  stopDrag()
   window.removeEventListener('context-menu-translate-text', handleTranslateRequest)
-  document.removeEventListener('mousemove', handleDrag)
-  document.removeEventListener('mouseup', stopDrag)
 })
 </script>
 
 <style scoped>
-.cursor-move {
+.translate-popup {
+  contain: layout paint;
+  will-change: transform;
+}
+
+.translate-popup__header {
+  touch-action: none;
+}
+
+.cursor-move,
+.translate-popup__header {
   cursor: move;
 }
 </style>
