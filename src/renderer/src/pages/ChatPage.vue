@@ -180,6 +180,8 @@ const displayMessageCache = new Map<
   string,
   {
     updatedAt: number
+    content: ChatMessageRecord['content']
+    metadata: ChatMessageRecord['metadata']
     modelId: string
     providerId: string
     status: DisplayMessage['status']
@@ -345,6 +347,8 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
   if (
     cached &&
     cached.updatedAt === record.updatedAt &&
+    cached.content === record.content &&
+    cached.metadata === record.metadata &&
     cached.modelId === modelId &&
     cached.providerId === providerId &&
     cached.status === record.status
@@ -387,6 +391,8 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
 
   displayMessageCache.set(record.id, {
     updatedAt: record.updatedAt,
+    content: record.content,
+    metadata: record.metadata,
     modelId,
     providerId,
     status: record.status,
@@ -492,6 +498,7 @@ watch(
     () => messageStore.messageIds.length,
     () => messageStore.currentStreamMessageId,
     () => messageStore.streamRevision,
+    () => messageStore.lastPersistedRevision,
     () => ephemeralRateLimitMessageId.value
   ],
   () => {

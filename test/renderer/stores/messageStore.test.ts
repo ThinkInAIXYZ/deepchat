@@ -123,6 +123,45 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.id).toBe('m2')
   })
 
+  it('increments lastPersistedRevision for same-length persisted reloads', async () => {
+    const { store, agentSessionPresenter } = await setupStore()
+    const firstPayload = [
+      {
+        id: 'm1',
+        sessionId: 's1',
+        orderSeq: 1,
+        role: 'assistant',
+        content: '[{"type":"content","content":"first","status":"success","timestamp":1}]',
+        status: 'sent',
+        isContextEdge: 0,
+        metadata: '{"totalTokens":1}',
+        traceCount: 0,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ]
+    const secondPayload = [
+      {
+        ...firstPayload[0],
+        content: '[{"type":"content","content":"second","status":"success","timestamp":1}]',
+        metadata: '{"totalTokens":2}'
+      }
+    ]
+
+    agentSessionPresenter.getMessages
+      .mockResolvedValueOnce(firstPayload)
+      .mockResolvedValueOnce(secondPayload)
+
+    await store.loadMessages('s1')
+    const firstRevision = store.lastPersistedRevision.value
+
+    await store.loadMessages('s1')
+
+    expect(store.messages.value).toHaveLength(1)
+    expect(store.messages.value[0]?.content).toContain('second')
+    expect(store.lastPersistedRevision.value).toBe(firstRevision + 1)
+  })
+
   it('keeps rate-limit stream messages ephemeral and skips message hydration', async () => {
     const { store, agentSessionPresenter } = await setupStore()
     const responseHandler = (

@@ -149,6 +149,28 @@ describe('echo', () => {
     echo.stop()
   })
 
+  it('rescheduleRenderer() resets the renderer flush window from the latest interaction', () => {
+    const echo = startEcho(state, io)
+
+    state.dirty = true
+    state.blocks.push({ type: 'content', content: 'hi', status: 'pending', timestamp: Date.now() })
+
+    echo.schedule()
+    vi.advanceTimersByTime(130)
+    expect(eventBus.sendToRenderer).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(40)
+    echo.rescheduleRenderer()
+
+    vi.advanceTimersByTime(119)
+    expect(eventBus.sendToRenderer).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(1)
+    expect(eventBus.sendToRenderer).toHaveBeenCalledTimes(2)
+
+    echo.stop()
+  })
+
   it('clones renderer blocks with structuredClone semantics', () => {
     const blocks = [
       {

@@ -70,6 +70,7 @@ const setup = async (options: SetupOptions = {}) => {
     streamingBlocks: options.streamingBlocks ?? [],
     currentStreamMessageId: options.currentStreamMessageId ?? null,
     streamRevision: 0,
+    lastPersistedRevision: 0,
     messageIds: (
       options.messages ?? [
         buildAssistantMessage([
@@ -341,6 +342,57 @@ describe('ChatPage', () => {
     expect(messages).toHaveLength(1)
     expect(messages[0].usage.reasoning_start_time).toBe(1_200)
     expect(messages[0].usage.reasoning_end_time).toBe(4_500)
+  })
+
+  it('rebuilds cached display messages when raw content or metadata change without updatedAt changing', async () => {
+    const initialMessage = buildAssistantMessage([
+      {
+        type: 'content',
+        content: 'first',
+        status: 'success',
+        timestamp: 1
+      }
+    ])
+    const { wrapper, messageStore } = await setup({
+      messages: [initialMessage]
+    })
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const before = messageList.props('messages') as Array<{
+      content: Array<{ content?: string }>
+      usage: { total_tokens: number }
+    }>
+
+    expect(before[0].content[0]?.content).toBe('first')
+    expect(before[0].usage.total_tokens).toBe(0)
+
+    messageStore.messages[0] = {
+      ...messageStore.messages[0],
+      content: JSON.stringify([
+        {
+          type: 'content',
+          content: 'second',
+          status: 'success',
+          timestamp: 1
+        }
+      ]),
+      metadata: JSON.stringify({
+        model: 'dimcode-acp',
+        provider: 'acp',
+        totalTokens: 42
+      }),
+      updatedAt: initialMessage.updatedAt
+    }
+
+    await flushPromises()
+
+    const after = messageList.props('messages') as Array<{
+      content: Array<{ content?: string }>
+      usage: { total_tokens: number }
+    }>
+
+    expect(after[0].content[0]?.content).toBe('second')
+    expect(after[0].usage.total_tokens).toBe(42)
   })
 
   it('extracts ephemeral rate-limit streaming blocks instead of creating a virtual assistant message', async () => {

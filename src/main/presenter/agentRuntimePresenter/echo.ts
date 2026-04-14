@@ -9,6 +9,7 @@ const DB_FLUSH_INTERVAL = 600
 
 export interface EchoHandle {
   schedule(): void
+  rescheduleRenderer(): void
   flush(): void
   stop(): void
 }
@@ -64,6 +65,14 @@ export function startEcho(state: StreamState, io: IoParams): EchoHandle {
       }
 
       rendererThrottle()
+      dbThrottle()
+    },
+    rescheduleRenderer(): void {
+      if (!state.dirty) {
+        return
+      }
+
+      rendererThrottle.reschedule()
       dbThrottle()
     },
     flush(): void {

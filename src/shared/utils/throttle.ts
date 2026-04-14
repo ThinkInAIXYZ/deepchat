@@ -9,6 +9,7 @@ export interface ThrottleHandle {
   (): void
   flush(): void
   cancel(): void
+  reschedule(): void
 }
 
 export function createThrottle(fn: () => void, interval: number): ThrottleHandle {
@@ -40,6 +41,14 @@ export function createThrottle(fn: () => void, interval: number): ThrottleHandle
       clearTimeout(timer)
       timer = null
     }
+  }
+
+  invoke.reschedule = (): void => {
+    if (timer) {
+      clearTimeout(timer)
+    }
+
+    timer = setTimeout(run, interval)
   }
 
   return invoke

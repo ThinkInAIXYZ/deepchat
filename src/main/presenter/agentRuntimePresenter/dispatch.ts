@@ -71,7 +71,7 @@ type PermissionRequestLike = {
   paths?: string[]
 }
 
-type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule'>
+type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
@@ -346,6 +346,22 @@ function scheduleRendererFlush(
   rendererFlushHandle?: Pick<RendererFlushHandle, 'schedule'>
 ): void {
   if (!state.dirty) {
+    return
+  }
+
+  rendererFlushHandle?.schedule()
+}
+
+function rescheduleRendererFlush(
+  state: StreamState,
+  rendererFlushHandle?: Pick<RendererFlushHandle, 'schedule' | 'rescheduleRenderer'>
+): void {
+  if (!state.dirty) {
+    return
+  }
+
+  if (rendererFlushHandle?.rescheduleRenderer) {
+    rendererFlushHandle.rescheduleRenderer()
     return
   }
 
@@ -757,6 +773,7 @@ export async function executeTools(
         })
         pendingInteractions.push(interaction)
         updateToolCallBlock(state.blocks, tc.id, '', false)
+        rescheduleRendererFlush(state, rendererFlushHandle)
         continue
       }
 
@@ -789,6 +806,7 @@ export async function executeTools(
           )
           pendingInteractions.push(interaction)
           updateToolCallBlock(state.blocks, tc.id, '', false)
+          rescheduleRendererFlush(state, rendererFlushHandle)
           continue
         }
       }
@@ -852,6 +870,7 @@ export async function executeTools(
             )
             pendingInteractions.push(interaction)
             updateToolCallBlock(state.blocks, tc.id, '', false)
+            rescheduleRendererFlush(state, rendererFlushHandle)
             continue
           }
         }

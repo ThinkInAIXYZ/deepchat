@@ -35,6 +35,7 @@ export const useMessageStore = defineStore('message', () => {
   // --- State ---
   const messageIds = ref<string[]>([])
   const messageCache = ref<Map<string, ChatMessageRecord>>(new Map())
+  const lastPersistedRevision = ref(0)
   const parsedMessageCache = new Map<string, ParsedMessageCacheEntry>()
   const hydratingStreamMessageIds = new Set<string>()
   let latestLoadRequestId = 0
@@ -168,6 +169,7 @@ export const useMessageStore = defineStore('message', () => {
         messageCache.value.set(msg.id, msg)
         messageIds.value.push(msg.id)
       }
+      lastPersistedRevision.value += 1
     } catch (e) {
       console.error('Failed to load messages:', e)
     }
@@ -297,6 +299,7 @@ export const useMessageStore = defineStore('message', () => {
     streamingBlocks: streamStateStore.streamingBlocks,
     currentStreamMessageId: streamStateStore.currentStreamMessageId,
     streamRevision: streamStateStore.streamRevision,
+    lastPersistedRevision,
     messages,
     getAssistantMessageBlocks,
     getUserMessageContent,

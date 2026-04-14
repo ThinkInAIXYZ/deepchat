@@ -48,6 +48,7 @@ import {
   finalize,
   finalizeError
 } from '@/presenter/agentRuntimePresenter/dispatch'
+import type { EchoHandle } from '@/presenter/agentRuntimePresenter/echo'
 import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
 import { eventBus } from '@/eventbus'
 
@@ -117,10 +118,43 @@ async function executeTools(
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
   maxTokens: number,
-  hooks?: Parameters<typeof executeToolsInternal>[12],
+  hooks?: Parameters<typeof executeToolsInternal>[13],
   providerId?: string,
-  interleavedReasoning: InterleavedReasoningConfig = DEFAULT_INTERLEAVED_REASONING
+  interleavedReasoning: InterleavedReasoningConfig = DEFAULT_INTERLEAVED_REASONING,
+  rendererFlushHandle?: Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 ) {
+  const flushHandle =
+    rendererFlushHandle ??
+    ({
+      flush: vi.fn(() => {
+        eventBus.sendToRenderer('stream:response', 'all', {
+          conversationId: io.sessionId,
+          eventId: io.messageId,
+          messageId: io.messageId,
+          blocks: state.blocks
+        })
+        io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+      }),
+      schedule: vi.fn(() => {
+        eventBus.sendToRenderer('stream:response', 'all', {
+          conversationId: io.sessionId,
+          eventId: io.messageId,
+          messageId: io.messageId,
+          blocks: state.blocks
+        })
+        io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+      }),
+      rescheduleRenderer: vi.fn(() => {
+        eventBus.sendToRenderer('stream:response', 'all', {
+          conversationId: io.sessionId,
+          eventId: io.messageId,
+          messageId: io.messageId,
+          blocks: state.blocks
+        })
+        io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+      })
+    } satisfies Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>)
+
   return executeToolsInternal(
     state,
     conversation,
@@ -134,6 +168,7 @@ async function executeTools(
     toolOutputGuard,
     contextLength,
     maxTokens,
+    flushHandle,
     hooks,
     providerId
   )
@@ -366,6 +401,11 @@ describe('dispatch', () => {
         onPostToolUseFailure: vi.fn()
       }
       const toolPresenter = createMockToolPresenter()
+      const rendererFlushHandle = {
+        flush: vi.fn(),
+        schedule: vi.fn(),
+        rescheduleRenderer: vi.fn()
+      }
 
       state.blocks.push({
         type: 'tool_call',
@@ -397,12 +437,19 @@ describe('dispatch', () => {
         new ToolOutputGuard(),
         32000,
         1024,
-        hooks
+        hooks,
+        undefined,
+        DEFAULT_INTERLEAVED_REASONING,
+        rendererFlushHandle
       )
 
       expect(result.pendingInteractions).toHaveLength(1)
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(rendererFlushHandle.rescheduleRenderer).toHaveBeenCalledTimes(1)
+      expect(rendererFlushHandle.rescheduleRenderer.mock.invocationCallOrder[0]).toBeLessThan(
+        rendererFlushHandle.schedule.mock.invocationCallOrder.at(-1) ?? Number.POSITIVE_INFINITY
+      )
     })
 
     it('does not emit PreToolUse before a pre-checked permission pause', async () => {
@@ -414,6 +461,11 @@ describe('dispatch', () => {
       }
       const toolPresenter = createMockToolPresenter() as IToolPresenter & {
         preCheckToolPermission: ReturnType<typeof vi.fn>
+      }
+      const rendererFlushHandle = {
+        flush: vi.fn(),
+        schedule: vi.fn(),
+        rescheduleRenderer: vi.fn()
       }
       toolPresenter.preCheckToolPermission = vi.fn().mockResolvedValue({
         needsPermission: true,
@@ -442,13 +494,20 @@ describe('dispatch', () => {
         new ToolOutputGuard(),
         32000,
         1024,
-        hooks
+        hooks,
+        undefined,
+        DEFAULT_INTERLEAVED_REASONING,
+        rendererFlushHandle
       )
 
       expect(result.pendingInteractions).toHaveLength(1)
       expect(hooks.onPreToolUse).not.toHaveBeenCalled()
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
       expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(rendererFlushHandle.rescheduleRenderer).toHaveBeenCalledTimes(1)
+      expect(rendererFlushHandle.rescheduleRenderer.mock.invocationCallOrder[0]).toBeLessThan(
+        rendererFlushHandle.schedule.mock.invocationCallOrder.at(-1) ?? Number.POSITIVE_INFINITY
+      )
     })
 
     it('enriches tool_call blocks with server info', async () => {
