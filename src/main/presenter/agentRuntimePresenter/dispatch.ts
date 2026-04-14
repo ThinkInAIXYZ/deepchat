@@ -24,6 +24,8 @@ import { nanoid } from 'nanoid'
 import type { ToolBatchOutputFitItem, ToolOutputGuard } from './toolOutputGuard'
 import { buildTerminalErrorBlocks } from './messageStore'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
+import type { EchoHandle } from './echo'
+import { cloneBlocksForRenderer } from './echo'
 import {
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
@@ -68,6 +70,8 @@ type PermissionRequestLike = {
   rememberable?: boolean
   paths?: string[]
 }
+
+type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule'>
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
@@ -337,14 +341,27 @@ function shouldRefreshToolsAfterCall(toolName: string, rawData: MCPToolResponse)
   return toolResult?.activationApplied === true
 }
 
-function persistToolExecutionState(io: IoParams, state: StreamState): void {
+function scheduleRendererFlush(
+  state: StreamState,
+  rendererFlushHandle?: Pick<RendererFlushHandle, 'schedule'>
+): void {
   if (!state.dirty) {
     return
   }
 
-  flushBlocksToRenderer(io, state.blocks)
-  io.messageStore.updateAssistantContent(io.messageId, state.blocks)
-  state.dirty = false
+  rendererFlushHandle?.schedule()
+}
+
+function persistToolExecutionState(
+  _io: IoParams,
+  state: StreamState,
+  rendererFlushHandle?: Pick<RendererFlushHandle, 'schedule'>
+): void {
+  if (!state.dirty) {
+    return
+  }
+
+  scheduleRendererFlush(state, rendererFlushHandle)
 }
 
 function finalizePendingNarrativeBeforeToolExecution(state: StreamState): void {
@@ -596,7 +613,7 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
     conversationId: io.sessionId,
     eventId: io.messageId,
     messageId: io.messageId,
-    blocks: JSON.parse(JSON.stringify(blocks))
+    blocks: cloneBlocksForRenderer(blocks)
   })
 
   emitDeepChatInternalSessionUpdate({
@@ -623,6 +640,7 @@ export async function executeTools(
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
   maxTokens: number,
+  rendererFlushHandle: RendererFlushHandle,
   hooks?: ProcessHooks,
   providerId?: string
 ): Promise<{
@@ -632,7 +650,7 @@ export async function executeTools(
   terminalError?: string
 }> {
   finalizePendingNarrativeBeforeToolExecution(state)
-  persistToolExecutionState(io, state)
+  persistToolExecutionState(io, state, rendererFlushHandle)
 
   for (const tc of state.completedToolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)
@@ -726,7 +744,7 @@ export async function executeTools(
           updateToolCallBlock(state.blocks, tc.id, errorText, true)
           state.dirty = true
           executed += 1
-          persistToolExecutionState(io, state)
+          persistToolExecutionState(io, state, rendererFlushHandle)
           continue
         }
 
@@ -792,8 +810,8 @@ export async function executeTools(
           update.responseMarkdown,
           update.progressJson
         )
-        flushBlocksToRenderer(io, state.blocks)
-        io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+        state.dirty = true
+        scheduleRendererFlush(state, rendererFlushHandle)
       }
 
       const toolCallResult = await toolPresenter.callTool(toolCall, {
@@ -940,7 +958,7 @@ export async function executeTools(
       hooks,
       appendToConversation: fittedResults.kind === 'ok'
     })
-    persistToolExecutionState(io, state)
+    persistToolExecutionState(io, state, rendererFlushHandle)
 
     if (fittedResults.kind === 'terminal_error') {
       return {
@@ -952,7 +970,7 @@ export async function executeTools(
     }
   }
 
-  persistToolExecutionState(io, state)
+  persistToolExecutionState(io, state, rendererFlushHandle)
   return { executed, pendingInteractions, toolsChanged }
 }
 

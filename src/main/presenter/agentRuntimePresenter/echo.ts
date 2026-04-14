@@ -1,3 +1,4 @@
+import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { StreamState, IoParams } from './types'
 import { createThrottle } from '@shared/utils/throttle'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -7,8 +8,23 @@ const RENDERER_FLUSH_INTERVAL = 120
 const DB_FLUSH_INTERVAL = 600
 
 export interface EchoHandle {
+  schedule(): void
   flush(): void
   stop(): void
+}
+
+export function cloneBlocksForRenderer(blocks: AssistantMessageBlock[]): AssistantMessageBlock[] {
+  const clone = (
+    globalThis as typeof globalThis & {
+      structuredClone?: <T>(value: T) => T
+    }
+  ).structuredClone
+
+  if (typeof clone === 'function') {
+    return clone(blocks)
+  }
+
+  return JSON.parse(JSON.stringify(blocks)) as AssistantMessageBlock[]
 }
 
 export function startEcho(state: StreamState, io: IoParams): EchoHandle {
@@ -17,7 +33,7 @@ export function startEcho(state: StreamState, io: IoParams): EchoHandle {
       conversationId: io.sessionId,
       eventId: io.messageId,
       messageId: io.messageId,
-      blocks: JSON.parse(JSON.stringify(state.blocks))
+      blocks: cloneBlocksForRenderer(state.blocks)
     })
   }
 
@@ -41,18 +57,21 @@ export function startEcho(state: StreamState, io: IoParams): EchoHandle {
     }
   }, DB_FLUSH_INTERVAL)
 
-  const rendererTimer = setInterval(rendererThrottle, RENDERER_FLUSH_INTERVAL)
-  const dbTimer = setInterval(dbThrottle, DB_FLUSH_INTERVAL)
-
   return {
+    schedule(): void {
+      if (!state.dirty) {
+        return
+      }
+
+      rendererThrottle()
+      dbThrottle()
+    },
     flush(): void {
       flushToRenderer()
       flushToDb()
       state.dirty = false
     },
     stop(): void {
-      clearInterval(rendererTimer)
-      clearInterval(dbTimer)
       rendererThrottle.cancel()
       dbThrottle.cancel()
     }

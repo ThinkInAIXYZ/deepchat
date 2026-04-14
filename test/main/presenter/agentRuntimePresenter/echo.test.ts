@@ -15,7 +15,7 @@ vi.mock('@/events', () => ({
   }
 }))
 
-import { startEcho } from '@/presenter/agentRuntimePresenter/echo'
+import { cloneBlocksForRenderer, startEcho } from '@/presenter/agentRuntimePresenter/echo'
 import { eventBus } from '@/eventbus'
 
 function createIo(): IoParams {
@@ -35,6 +35,7 @@ describe('echo', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.setSystemTime(new Date(0))
     vi.clearAllMocks()
     state = createState()
     io = createIo()
@@ -44,12 +45,12 @@ describe('echo', () => {
     vi.useRealTimers()
   })
 
-  it('flushes to renderer on interval when dirty', () => {
+  it('flushes to renderer through schedule when dirty', () => {
     const echo = startEcho(state, io)
 
-    // Mark dirty
     state.dirty = true
     state.blocks.push({ type: 'content', content: 'hi', status: 'pending', timestamp: Date.now() })
+    echo.schedule()
 
     vi.advanceTimersByTime(130)
 
@@ -67,11 +68,12 @@ describe('echo', () => {
     echo.stop()
   })
 
-  it('flushes to DB on interval when dirty', () => {
+  it('flushes to DB through schedule when dirty', () => {
     const echo = startEcho(state, io)
 
     state.dirty = true
     state.blocks.push({ type: 'content', content: 'hi', status: 'pending', timestamp: Date.now() })
+    echo.schedule()
 
     vi.advanceTimersByTime(610)
 
@@ -83,6 +85,7 @@ describe('echo', () => {
   it('does not flush when not dirty', () => {
     const echo = startEcho(state, io)
 
+    echo.schedule()
     vi.advanceTimersByTime(1000)
 
     expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
@@ -115,18 +118,55 @@ describe('echo', () => {
     echo.stop()
   })
 
-  it('stop() clears intervals', () => {
+  it('stop() cancels pending throttled work', () => {
     const echo = startEcho(state, io)
-
-    echo.stop()
 
     state.dirty = true
     state.blocks.push({ type: 'content', content: 'hi', status: 'pending', timestamp: Date.now() })
+    echo.schedule()
+    echo.stop()
 
     vi.advanceTimersByTime(1000)
 
     // Nothing should have been flushed after stop
     expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
     expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
+  })
+
+  it('coalesces repeated schedule calls into one renderer flush per interval window', () => {
+    const echo = startEcho(state, io)
+
+    state.dirty = true
+    state.blocks.push({ type: 'content', content: 'hi', status: 'pending', timestamp: Date.now() })
+
+    echo.schedule()
+    echo.schedule()
+    echo.schedule()
+
+    vi.advanceTimersByTime(130)
+
+    expect(eventBus.sendToRenderer).toHaveBeenCalledTimes(1)
+    echo.stop()
+  })
+
+  it('clones renderer blocks with structuredClone semantics', () => {
+    const blocks = [
+      {
+        type: 'content' as const,
+        content: 'hi',
+        status: 'pending' as const,
+        timestamp: 1,
+        extra: {
+          nested: [{ value: 1 }]
+        }
+      }
+    ]
+
+    const cloned = cloneBlocksForRenderer(blocks)
+
+    expect(cloned).toEqual(blocks)
+    expect(cloned).not.toBe(blocks)
+    expect(cloned[0]).not.toBe(blocks[0])
+    expect(cloned[0]?.extra).not.toBe(blocks[0]?.extra)
   })
 })

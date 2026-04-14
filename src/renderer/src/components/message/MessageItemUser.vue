@@ -34,11 +34,7 @@
           <textarea
             ref="editTextarea"
             v-model="editedText"
-            class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full"
-            :style="{
-              width: originalContentWidth + 20 + 'px',
-              maxHeight: editMaxHeight ? editMaxHeight + 'px' : undefined
-            }"
+            class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full max-h-[60vh]"
             rows="1"
             @input="autoResize"
             @keydown.meta.enter.prevent="saveEdit"
@@ -46,20 +42,16 @@
             @keydown.esc="cancelEdit"
           ></textarea>
         </div>
-        <div v-else ref="originalContent" class="flex w-full min-w-0 flex-col items-end gap-1.5">
+        <div v-else class="flex w-full min-w-0 flex-col items-end gap-1.5">
           <div
-            ref="contentBody"
             data-user-message-content-body="true"
             :data-user-message-collapsible="String(isCollapsible)"
             :data-user-message-expanded="String(isExpanded)"
             class="relative w-full min-w-0"
-            :class="{ 'overflow-hidden': shouldClampContent }"
-            :style="contentBodyStyle"
           >
             <div
-              ref="contentMeasure"
-              data-user-message-content-measure="true"
               class="w-full min-w-0"
+              :class="{ 'user-message-content--clamped': shouldClampContent }"
             >
               <MessageContent
                 v-if="message.content.content && message.content.content.length > 0"
@@ -119,11 +111,10 @@ import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { computed, ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
 const COLLAPSE_EXPLICIT_LINE_THRESHOLD = 8
-const COLLAPSE_PREVIEW_LINE_COUNT = 12
 
 type DisplayUserMessageRichBlock =
   | DisplayUserMessageTextBlock
@@ -165,127 +156,20 @@ const props = defineProps<{
 
 const isEditMode = ref(false)
 const editedText = ref('')
-const originalContent = ref<HTMLDivElement | null>(null)
-const contentBody = ref<HTMLDivElement | null>(null)
-const contentMeasure = ref<HTMLDivElement | null>(null)
 const editTextarea = ref<HTMLTextAreaElement | null>(null)
-const editMaxHeight = ref(0)
-const originalContentWidth = ref(0)
-const isCollapsible = ref(false)
 const isExpanded = ref(true)
-const collapsedContentHeight = ref(0)
 const hasManualCollapsePreference = ref(false)
 const visibleMessageText = computed(() => getVisibleMessageText(props.message))
+const explicitLineCount = computed(() =>
+  visibleMessageText.value ? visibleMessageText.value.split(/\r\n|\r|\n/).length : 0
+)
+const isCollapsible = computed(
+  () =>
+    visibleMessageText.value.length >= COLLAPSE_CHAR_THRESHOLD ||
+    explicitLineCount.value >= COLLAPSE_EXPLICIT_LINE_THRESHOLD
+)
 const shouldClampContent = computed(() => isCollapsible.value && !isExpanded.value)
 const showFadeMask = computed(() => shouldClampContent.value)
-const contentBodyStyle = computed(() => {
-  if (!shouldClampContent.value || collapsedContentHeight.value <= 0) {
-    return undefined
-  }
-  return {
-    maxHeight: `${collapsedContentHeight.value}px`
-  }
-})
-
-let contentResizeObserver: ResizeObserver | null = null
-
-const getEffectiveLineHeight = (element: HTMLElement) => {
-  const styles = window.getComputedStyle(element)
-  const explicitLineHeight = Number.parseFloat(styles.lineHeight || '')
-  if (Number.isFinite(explicitLineHeight)) {
-    return explicitLineHeight
-  }
-
-  const fontSize = Number.parseFloat(styles.fontSize || '')
-  if (Number.isFinite(fontSize)) {
-    return fontSize * 1.5
-  }
-
-  return 24
-}
-
-const syncOriginalContentMetrics = () => {
-  const widthSource = contentBody.value ?? originalContent.value
-  if (!widthSource) return
-  originalContentWidth.value = widthSource.offsetWidth
-}
-
-const evaluateContentLayout = () => {
-  const measureTarget = contentMeasure.value
-  if (!measureTarget || isEditMode.value) {
-    return
-  }
-
-  const previewHeight = Math.ceil(
-    getEffectiveLineHeight(measureTarget) * COLLAPSE_PREVIEW_LINE_COUNT
-  )
-  const actualHeight = Math.max(measureTarget.scrollHeight, measureTarget.offsetHeight)
-  const explicitLineCount = visibleMessageText.value
-    ? visibleMessageText.value.split(/\r\n|\r|\n/).length
-    : 0
-  const exceedsTextThreshold =
-    visibleMessageText.value.length >= COLLAPSE_CHAR_THRESHOLD ||
-    explicitLineCount >= COLLAPSE_EXPLICIT_LINE_THRESHOLD
-  const shouldCollapse = exceedsTextThreshold && actualHeight > previewHeight + 1
-  const wasCollapsible = isCollapsible.value
-
-  collapsedContentHeight.value = previewHeight
-  isCollapsible.value = shouldCollapse
-
-  if (!shouldCollapse) {
-    isExpanded.value = true
-    hasManualCollapsePreference.value = false
-    return
-  }
-
-  if (!wasCollapsible || !hasManualCollapsePreference.value) {
-    isExpanded.value = false
-  }
-}
-
-const scheduleContentLayoutEvaluation = () => {
-  if (isEditMode.value) {
-    return
-  }
-
-  nextTick(() => {
-    syncOriginalContentMetrics()
-    evaluateContentLayout()
-  })
-}
-
-onMounted(() => {
-  syncOriginalContentMetrics()
-  scheduleContentLayoutEvaluation()
-
-  if (typeof ResizeObserver !== 'undefined') {
-    contentResizeObserver = new ResizeObserver(() => {
-      if (isEditMode.value) {
-        return
-      }
-      syncOriginalContentMetrics()
-      evaluateContentLayout()
-    })
-
-    if (originalContent.value) {
-      contentResizeObserver.observe(originalContent.value)
-    }
-    if (contentMeasure.value) {
-      contentResizeObserver.observe(contentMeasure.value)
-    }
-  }
-})
-
-watch(isEditMode, (newValue) => {
-  if (newValue) {
-    syncOriginalContentMetrics()
-    computeEditMaxHeight()
-    nextTick(() => autoResize())
-    return
-  }
-
-  scheduleContentLayoutEvaluation()
-})
 
 const emit = defineEmits<{
   fileClick: [fileName: string]
@@ -319,7 +203,6 @@ const startEdit = () => {
   } else {
     editedText.value = props.message.content.text || ''
   }
-  computeEditMaxHeight()
   nextTick(() => autoResize())
 }
 
@@ -389,10 +272,9 @@ const autoResize = () => {
   const el = editTextarea.value
   if (!el) return
   el.style.height = 'auto'
-  const computed = window.getComputedStyle(el)
-  const maxH = parseFloat(computed.maxHeight || '')
+  const maxH = Math.max(120, Math.floor(window.innerHeight * 0.6))
   const scrollH = el.scrollHeight
-  const target = Number.isFinite(maxH) && maxH > 0 ? Math.min(scrollH, maxH) : scrollH
+  const target = Math.min(scrollH, maxH)
   el.style.height = target + 'px'
   if (scrollH > target) {
     el.style.overflowY = 'auto'
@@ -406,56 +288,31 @@ watch(editedText, () => {
 })
 
 watch(
-  () => [props.message.id, visibleMessageText.value] as const,
-  () => {
-    scheduleContentLayoutEvaluation()
-  }
+  () => [props.message.id, visibleMessageText.value, isCollapsible.value] as const,
+  ([messageId, visibleText, collapsible], previousValue) => {
+    if (!collapsible) {
+      isExpanded.value = true
+      hasManualCollapsePreference.value = false
+      return
+    }
+
+    if (
+      previousValue?.[0] !== messageId ||
+      previousValue?.[1] !== visibleText ||
+      !hasManualCollapsePreference.value
+    ) {
+      isExpanded.value = false
+    }
+  },
+  { immediate: true }
 )
-
-watch(originalContent, (nextElement, previousElement) => {
-  if (!contentResizeObserver) {
-    return
-  }
-  if (previousElement) {
-    contentResizeObserver.unobserve(previousElement)
-  }
-  if (nextElement) {
-    contentResizeObserver.observe(nextElement)
-  }
-})
-
-watch(contentMeasure, (nextElement, previousElement) => {
-  if (!contentResizeObserver) {
-    return
-  }
-  if (previousElement) {
-    contentResizeObserver.unobserve(previousElement)
-  }
-  if (nextElement) {
-    contentResizeObserver.observe(nextElement)
-  }
-})
-
-const computeEditMaxHeight = () => {
-  const container = document.querySelector('.message-list-container') as HTMLElement | null
-  const base = container?.clientHeight || window.innerHeight
-  editMaxHeight.value = Math.max(120, Math.floor(base * 0.6))
-}
-
-const handleWindowResize = () => {
-  if (isEditMode.value) {
-    computeEditMaxHeight()
-    nextTick(() => autoResize())
-    return
-  }
-
-  scheduleContentLayoutEvaluation()
-}
-
-window.addEventListener('resize', handleWindowResize)
-onBeforeUnmount(() => {
-  contentResizeObserver?.disconnect()
-  contentResizeObserver = null
-  window.removeEventListener('resize', handleWindowResize)
-})
 </script>
+
+<style scoped>
+.user-message-content--clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 12;
+}
+</style>

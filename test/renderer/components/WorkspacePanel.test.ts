@@ -100,7 +100,8 @@ const messageStore = {
       createdAt: 10,
       updatedAt: 10
     }
-  ]
+  ],
+  getAssistantMessageBlocks: (message: { content: string }) => JSON.parse(message.content)
 }
 
 type IpcHandler = (_event: unknown, payload: unknown) => void

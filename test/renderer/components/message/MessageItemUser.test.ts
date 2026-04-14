@@ -8,21 +8,7 @@ import type {
 import type { MessageFile } from '@shared/types/agent-interface'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
 
-const originalResizeObserver = globalThis.ResizeObserver
 const originalApi = window.api
-let resizeObserverCallback: ResizeObserverCallback | null = null
-
-class MockResizeObserver {
-  constructor(callback: ResizeObserverCallback) {
-    resizeObserverCallback = callback
-  }
-
-  observe() {}
-
-  unobserve() {}
-
-  disconnect() {}
-}
 
 const getVisibleMentionLabel = (block: DisplayUserMessageMentionBlock) => {
   if (block.category === 'prompts') {
@@ -181,85 +167,14 @@ const globalMountOptions = {
   attachTo: document.body
 }
 
-const setContentMeasurement = async (
-  wrapper: ReturnType<typeof mount>,
-  options: {
-    scrollHeight: number
-    offsetWidth?: number
-    lineHeight?: string
-    fontSize?: string
-  }
-) => {
-  const contentBody = wrapper.get('[data-user-message-content-body="true"]').element as HTMLElement
-  const contentMeasure = wrapper.get('[data-user-message-content-measure="true"]')
-    .element as HTMLElement
-
-  contentMeasure.dataset.lineHeight = options.lineHeight ?? '20px'
-  contentMeasure.dataset.fontSize = options.fontSize ?? '14px'
-
-  Object.defineProperty(contentBody, 'offsetWidth', {
-    configurable: true,
-    value: options.offsetWidth ?? 320
-  })
-  Object.defineProperty(contentMeasure, 'scrollHeight', {
-    configurable: true,
-    value: options.scrollHeight
-  })
-  Object.defineProperty(contentMeasure, 'offsetHeight', {
-    configurable: true,
-    value: options.scrollHeight
-  })
-
-  resizeObserverCallback?.([] as ResizeObserverEntry[], {} as ResizeObserver)
-  await nextTick()
-}
-
 describe('MessageItemUser', () => {
-  let getComputedStyleSpy: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
-    resizeObserverCallback = null
-    globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
     window.api = {
       copyText: vi.fn()
     } as typeof window.api
-
-    getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
-      if (element instanceof HTMLElement && element.dataset.userMessageContentMeasure === 'true') {
-        return {
-          lineHeight: element.dataset.lineHeight ?? '20px',
-          fontSize: element.dataset.fontSize ?? '14px',
-          maxHeight: ''
-        } as CSSStyleDeclaration
-      }
-
-      if (element instanceof HTMLTextAreaElement) {
-        return {
-          lineHeight: '20px',
-          fontSize: '14px',
-          maxHeight: element.style.maxHeight || ''
-        } as CSSStyleDeclaration
-      }
-
-      return {
-        lineHeight: '20px',
-        fontSize: '14px',
-        maxHeight: ''
-      } as CSSStyleDeclaration
-    })
   })
 
   afterEach(() => {
-    getComputedStyleSpy.mockRestore()
-    resizeObserverCallback = null
-
-    if (originalResizeObserver) {
-      globalThis.ResizeObserver = originalResizeObserver
-    } else {
-      delete (globalThis as typeof globalThis & { ResizeObserver?: typeof ResizeObserver })
-        .ResizeObserver
-    }
-
     window.api = originalApi
     document.body.innerHTML = ''
   })
@@ -271,8 +186,6 @@ describe('MessageItemUser', () => {
       },
       ...globalMountOptions
     })
-
-    await setContentMeasurement(wrapper, { scrollHeight: 80 })
 
     const body = wrapper.get('[data-user-message-content-body="true"]')
     expect(body.attributes('data-user-message-collapsible')).toBe('false')
@@ -288,14 +201,12 @@ describe('MessageItemUser', () => {
       ...globalMountOptions
     })
 
-    await setContentMeasurement(wrapper, { scrollHeight: 320 })
-
     const body = wrapper.get('[data-user-message-content-body="true"]')
     const toggle = wrapper.get('[data-user-message-toggle="true"]')
 
     expect(body.attributes('data-user-message-collapsible')).toBe('true')
     expect(body.attributes('data-user-message-expanded')).toBe('false')
-    expect(body.attributes('style')).toContain('max-height: 240px;')
+    expect(wrapper.find('.user-message-content--clamped').exists()).toBe(true)
     expect(wrapper.find('[data-user-message-fade="true"]').exists()).toBe(true)
     expect(toggle.text()).toBe('展开')
 
@@ -340,8 +251,6 @@ describe('MessageItemUser', () => {
       ...globalMountOptions
     })
 
-    await setContentMeasurement(wrapper, { scrollHeight: 340 })
-
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('prompt-name')
     expect(wrapper.text()).toContain('const answer = 42;')
@@ -355,8 +264,6 @@ describe('MessageItemUser', () => {
       ...globalMountOptions
     })
 
-    await setContentMeasurement(wrapper, { scrollHeight: 320 })
-
     expect(wrapper.findAll('.attachment-stub')).toHaveLength(1)
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
   })
@@ -369,7 +276,6 @@ describe('MessageItemUser', () => {
       ...globalMountOptions
     })
 
-    await setContentMeasurement(wrapper, { scrollHeight: 320 })
     await wrapper.get('[data-action="edit"]').trigger('click')
     await nextTick()
 
@@ -378,7 +284,7 @@ describe('MessageItemUser', () => {
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('c'.repeat(700))
   })
 
-  it('re-evaluates collapse state when content height shrinks below the preview limit', async () => {
+  it('re-evaluates collapse state when content length drops below the collapse threshold', async () => {
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'd'.repeat(700) })
@@ -386,10 +292,12 @@ describe('MessageItemUser', () => {
       ...globalMountOptions
     })
 
-    await setContentMeasurement(wrapper, { scrollHeight: 320 })
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
 
-    await setContentMeasurement(wrapper, { scrollHeight: 180 })
+    await wrapper.setProps({
+      message: createMessage({}, { text: 'short again' })
+    })
+    await nextTick()
 
     const body = wrapper.get('[data-user-message-content-body="true"]')
     expect(body.attributes('data-user-message-collapsible')).toBe('false')

@@ -173,4 +173,57 @@ describe('messageStore', () => {
     expect(store.messages.value).toHaveLength(0)
     expect(agentSessionPresenter.getMessage).not.toHaveBeenCalled()
   })
+
+  it('reuses parsed assistant content and metadata until the record changes', async () => {
+    const { store, agentSessionPresenter } = await setupStore()
+    agentSessionPresenter.getMessages.mockResolvedValueOnce([
+      {
+        id: 'm1',
+        sessionId: 's1',
+        orderSeq: 1,
+        role: 'assistant',
+        content: '[{"type":"content","content":"hello","status":"success","timestamp":1}]',
+        status: 'sent',
+        isContextEdge: 0,
+        metadata: '{"totalTokens":42}',
+        traceCount: 0,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    await store.loadMessages('s1')
+
+    const firstRecord = store.messages.value[0]!
+    const firstBlocks = store.getAssistantMessageBlocks(firstRecord)
+    const firstMetadata = store.getMessageMetadata(firstRecord)
+
+    expect(store.getAssistantMessageBlocks(firstRecord)).toBe(firstBlocks)
+    expect(store.getMessageMetadata(firstRecord)).toBe(firstMetadata)
+
+    const responseHandler = (
+      (window as any).electron.ipcRenderer.on as ReturnType<typeof vi.fn>
+    ).mock.calls.find(([eventName]) => eventName === 'stream:response')?.[1]
+
+    responseHandler(
+      {},
+      {
+        conversationId: 's1',
+        messageId: 'm1',
+        blocks: [
+          {
+            type: 'content',
+            content: 'updated',
+            status: 'pending',
+            timestamp: 2
+          }
+        ]
+      }
+    )
+
+    const updatedRecord = store.messages.value[0]!
+    expect(store.streamRevision.value).toBeGreaterThan(0)
+    expect(store.getAssistantMessageBlocks(updatedRecord)).not.toBe(firstBlocks)
+    expect(store.getMessageMetadata(updatedRecord)).toBe(firstMetadata)
+  })
 })

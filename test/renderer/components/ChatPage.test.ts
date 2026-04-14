@@ -69,6 +69,36 @@ const setup = async (options: SetupOptions = {}) => {
     isStreaming: options.isStreaming ?? false,
     streamingBlocks: options.streamingBlocks ?? [],
     currentStreamMessageId: options.currentStreamMessageId ?? null,
+    streamRevision: 0,
+    messageIds: (
+      options.messages ?? [
+        buildAssistantMessage([
+          {
+            type: 'reasoning_content',
+            content: 'thinking',
+            status: 'success',
+            timestamp: 1
+          }
+        ])
+      ]
+    ).map((message) => String(message.id)),
+    messageCache: new Map(
+      (
+        options.messages ?? [
+          buildAssistantMessage([
+            {
+              type: 'reasoning_content',
+              content: 'thinking',
+              status: 'success',
+              timestamp: 1
+            }
+          ])
+        ]
+      ).map((message) => [String(message.id), message])
+    ),
+    getAssistantMessageBlocks: vi.fn((message: { content: string }) => JSON.parse(message.content)),
+    getUserMessageContent: vi.fn((message: { content: string }) => JSON.parse(message.content)),
+    getMessageMetadata: vi.fn((message: { metadata: string }) => JSON.parse(message.metadata)),
     loadMessages: vi.fn().mockResolvedValue(undefined),
     clearStreamingState: vi.fn(),
     addOptimisticUserMessage: vi.fn()
