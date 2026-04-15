@@ -166,6 +166,94 @@ describe('modelStore.refreshProviderModels', () => {
     ])
   })
 
+  it('keeps db-backed reasoning capability for standard models when stored config defaults it off', async () => {
+    const dbModel = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      providerId: 'openai',
+      reasoning: true,
+      functionCall: true,
+      vision: false,
+      contextLength: 400000,
+      maxTokens: 128000,
+      isCustom: false
+    }
+    const storedModel = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      providerId: 'openai',
+      reasoning: false,
+      functionCall: true,
+      vision: false,
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      configPresenter: {
+        getDbProviderModels: vi.fn(async () => [dbModel]),
+        getProviderModels: vi.fn(async () => [storedModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5.4': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-5.4',
+            reasoning: true
+          })
+        ]
+      }
+    ])
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-5.4',
+            reasoning: true
+          })
+        ]
+      }
+    ])
+  })
+
+  it('uses stored reasoning metadata when no db capability fallback exists', async () => {
+    const storedModel = {
+      id: 'custom-chat',
+      name: 'Custom Chat',
+      providerId: 'openai',
+      reasoning: true,
+      functionCall: false,
+      vision: false,
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      configPresenter: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [storedModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'custom-chat': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'custom-chat',
+            reasoning: true
+          })
+        ]
+      }
+    ])
+  })
+
   it('persists ollama model status changes through llm presenter', async () => {
     const { store, llmPresenter } = await setupStore({
       providerStore: {

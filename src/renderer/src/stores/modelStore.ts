@@ -328,7 +328,9 @@ export const useModelStore = defineStore('model', () => {
             maxTokens: resolveModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
             vision: resolveModelVision(model.vision ?? fallback?.vision),
             functionCall: resolveModelFunctionCall(model.functionCall ?? fallback?.functionCall),
-            reasoning: model.reasoning ?? fallback?.reasoning ?? false,
+            // Standard models should keep DB-backed reasoning capability metadata.
+            reasoning:
+              fallback !== undefined ? (fallback.reasoning ?? false) : (model.reasoning ?? false),
             enableSearch:
               (model as RENDERER_MODEL_META).enableSearch ??
               (fallback as RENDERER_MODEL_META | undefined)?.enableSearch ??

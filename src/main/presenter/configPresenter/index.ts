@@ -539,6 +539,30 @@ export class ConfigPresenter implements IConfigPresenter {
     return providerDbLoader.refreshIfNeeded(force)
   }
 
+  private resolveNewApiCapabilityEndpointTypeFromModel(
+    model: Pick<MODEL_META, 'endpointType' | 'supportedEndpointTypes' | 'type'>
+  ): NewApiEndpointType {
+    if (isNewApiEndpointType(model.endpointType)) {
+      return model.endpointType
+    }
+
+    const supportedEndpointTypes = model.supportedEndpointTypes?.filter(isNewApiEndpointType) ?? []
+    if (
+      model.type === ModelType.ImageGeneration &&
+      supportedEndpointTypes.includes('image-generation')
+    ) {
+      return 'image-generation'
+    }
+    if (supportedEndpointTypes.length > 0) {
+      return supportedEndpointTypes[0]
+    }
+    if (model.type === ModelType.ImageGeneration) {
+      return 'image-generation'
+    }
+
+    return 'openai'
+  }
+
   private resolveNewApiCapabilityEndpointType(modelId: string): NewApiEndpointType {
     const modelConfig = this.getModelConfig(modelId, 'new-api')
     if (isNewApiEndpointType(modelConfig.endpointType)) {
@@ -546,28 +570,11 @@ export class ConfigPresenter implements IConfigPresenter {
     }
 
     const storedModel =
-      this.getProviderModels('new-api').find((model) => model.id === modelId) ??
+      this.providerModelHelper.getProviderModels('new-api').find((model) => model.id === modelId) ??
       this.getCustomModels('new-api').find((model) => model.id === modelId)
 
     if (storedModel) {
-      if (isNewApiEndpointType(storedModel.endpointType)) {
-        return storedModel.endpointType
-      }
-
-      const supportedEndpointTypes =
-        storedModel.supportedEndpointTypes?.filter(isNewApiEndpointType) ?? []
-      if (
-        storedModel.type === ModelType.ImageGeneration &&
-        supportedEndpointTypes.includes('image-generation')
-      ) {
-        return 'image-generation'
-      }
-      if (supportedEndpointTypes.length > 0) {
-        return supportedEndpointTypes[0]
-      }
-      if (storedModel.type === ModelType.ImageGeneration) {
-        return 'image-generation'
-      }
+      return this.resolveNewApiCapabilityEndpointTypeFromModel(storedModel)
     }
 
     return 'openai'
@@ -1039,7 +1046,23 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   getProviderModels(providerId: string): MODEL_META[] {
-    return this.providerModelHelper.getProviderModels(providerId)
+    const models = this.providerModelHelper.getProviderModels(providerId)
+    if (providerId.trim().toLowerCase() !== 'new-api') {
+      return models
+    }
+
+    return models.map((model) => {
+      const capabilityProviderId = resolveNewApiCapabilityProviderId(
+        this.resolveNewApiCapabilityEndpointTypeFromModel(model)
+      )
+
+      return {
+        ...model,
+        reasoning:
+          model.reasoning === true ||
+          modelCapabilities.supportsReasoning(capabilityProviderId, model.id)
+      }
+    })
   }
 
   // 基于聚合 Provider DB 的标准模型（只读映射，不落库）
@@ -1063,7 +1086,7 @@ export class ConfigPresenter implements IConfigPresenter {
         Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : undefined
       ),
       functionCall: resolveModelFunctionCall(m.tool_call),
-      reasoning: modelCapabilities.supportsReasoning(providerId, m.id),
+      reasoning: this.supportsReasoningCapability(providerId, m.id),
       type:
         Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
           ? ModelType.ImageGeneration
