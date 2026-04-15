@@ -80,6 +80,16 @@ const normalizeVerbosityOptions = (options: Verbosity[] | undefined): Verbosity[
   return Array.from(new Set(options))
 }
 
+const usesExtendedEffortDefaultWithoutOptions = (
+  portrait: ReasoningPortrait | undefined
+): boolean => {
+  if (!portrait || portrait.effortOptions !== undefined || portrait.mode === 'budget') {
+    return false
+  }
+
+  return Boolean(portrait.effort && !DEFAULT_REASONING_EFFORT_OPTIONS.includes(portrait.effort))
+}
+
 const supportsEffortControls = (portrait: ReasoningPortrait | undefined | null): boolean => {
   if (!portrait || portrait.supported === false) {
     return false
@@ -441,15 +451,35 @@ export class ModelCapabilities {
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     const exactModel = this.getProviderMatch(providerId, modelId)
     const legacyModel = exactModel ?? this.getModel(providerId, modelId)
+    const legacyPortrait = portraitFromLegacyReasoning(legacyModel?.reasoning)
+    const registryPortrait = this.getRegistryPortrait(providerId, modelId)
+    const extraCapabilitiesPortrait = portraitFromExtraCapabilities(
+      exactModel?.extra_capabilities?.reasoning
+    )
 
     const portrait = mergeReasoningPortraits(
       this.getFallbackReasoningPortrait(providerId, modelId),
-      portraitFromLegacyReasoning(legacyModel?.reasoning),
-      this.getRegistryPortrait(providerId, modelId),
-      portraitFromExtraCapabilities(exactModel?.extra_capabilities?.reasoning)
+      legacyPortrait,
+      registryPortrait,
+      extraCapabilitiesPortrait
     )
 
-    return portrait ? clonePortrait(portrait) : null
+    if (!portrait) {
+      return null
+    }
+
+    const resolvedPortrait = clonePortrait(portrait)
+    const explicitPortrait = mergeReasoningPortraits(
+      legacyPortrait,
+      registryPortrait,
+      extraCapabilitiesPortrait
+    )
+
+    if (usesExtendedEffortDefaultWithoutOptions(explicitPortrait)) {
+      delete resolvedPortrait.effortOptions
+    }
+
+    return resolvedPortrait
   }
 
   supportsReasoning(providerId: string, modelId: string): boolean {

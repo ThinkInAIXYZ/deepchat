@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import type { ReasoningEffort, Verbosity } from '../../../src/shared/types/model-db'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -102,8 +103,8 @@ const setup = async (options?: {
     contextLength: undefined as number | undefined,
     maxTokens: undefined as number | undefined,
     thinkingBudget: undefined as number | undefined,
-    reasoningEffort: undefined as 'minimal' | 'low' | 'medium' | 'high' | undefined,
-    verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
+    reasoningEffort: undefined as ReasoningEffort | undefined,
+    verbosity: undefined as Verbosity | undefined,
     toGenerationSettings: vi.fn(() => undefined),
     resetGenerationSettings: vi.fn()
   })

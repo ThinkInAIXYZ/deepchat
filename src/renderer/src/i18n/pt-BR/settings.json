@@ -408,10 +408,12 @@
         "description": "Controla a profundidade do raciocínio do modelo; esforço mais alto produz resultados melhores, mas respostas mais lentas",
         "placeholder": "Selecionar esforço de raciocínio",
         "options": {
+          "none": "Nenhum - Sem raciocínio",
           "minimal": "Mínimo - Resposta mais rápida",
           "low": "Baixo - Baixo esforço",
           "medium": "Médio - Esforço moderado",
-          "high": "Alto - Alto esforço"
+          "high": "Alto - Alto esforço",
+          "xhigh": "Muito alto - Esforço máximo"
         }
       },
       "verbosity": {

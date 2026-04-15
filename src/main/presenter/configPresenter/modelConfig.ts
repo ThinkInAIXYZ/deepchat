@@ -12,6 +12,8 @@ import {
   isImageInputSupported,
   ProviderModel,
   ReasoningPortrait,
+  isReasoningEffort,
+  isVerbosity,
   type ReasoningEffort,
   type Verbosity
 } from '@shared/types/model-db'
@@ -21,12 +23,6 @@ import { modelCapabilities } from './modelCapabilities'
 const SPECIAL_CONCAT_CHAR = '-_-'
 
 const MODEL_CONFIG_META_KEY = '__meta__'
-
-const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is Verbosity =>
-  value === 'low' || value === 'medium' || value === 'high'
 
 const normalizeReasoningEffortValue = (
   portrait: ReasoningPortrait | null,

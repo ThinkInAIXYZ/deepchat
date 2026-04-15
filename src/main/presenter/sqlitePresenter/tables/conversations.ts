@@ -1,6 +1,7 @@
 import { BaseTable } from './baseTable'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/presenter'
+import { isReasoningEffort, isVerbosity } from '@shared/types/model-db'
 import { nanoid } from 'nanoid'
 
 type ConversationRow = {
@@ -280,10 +281,10 @@ export class ConversationsTable extends BaseTable {
       artifacts: result.artifacts as 0 | 1,
       enabledMcpTools: getJsonField(result.enabled_mcp_tools, undefined),
       thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined,
-      reasoningEffort: result.reasoning_effort
-        ? (result.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+      reasoningEffort: isReasoningEffort(result.reasoning_effort)
+        ? result.reasoning_effort
         : undefined,
-      verbosity: result.verbosity ? (result.verbosity as 'low' | 'medium' | 'high') : undefined,
+      verbosity: isVerbosity(result.verbosity) ? result.verbosity : undefined,
       enableSearch: result.enable_search !== null ? Boolean(result.enable_search) : undefined,
       forcedSearch: result.forced_search !== null ? Boolean(result.forced_search) : undefined,
       searchStrategy: result.search_strategy
@@ -512,10 +513,10 @@ export class ConversationsTable extends BaseTable {
           artifacts: row.artifacts as 0 | 1,
           enabledMcpTools: getJsonField(row.enabled_mcp_tools, undefined),
           thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined,
-          reasoningEffort: row.reasoning_effort
-            ? (row.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+          reasoningEffort: isReasoningEffort(row.reasoning_effort)
+            ? row.reasoning_effort
             : undefined,
-          verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined,
+          verbosity: isVerbosity(row.verbosity) ? row.verbosity : undefined,
           enableSearch: row.enable_search !== null ? Boolean(row.enable_search) : undefined,
           forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
           searchStrategy: row.search_strategy
@@ -595,10 +596,8 @@ export class ConversationsTable extends BaseTable {
         artifacts: row.artifacts as 0 | 1,
         enabledMcpTools: getJsonField(row.enabled_mcp_tools, undefined),
         thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined,
-        reasoningEffort: row.reasoning_effort
-          ? (row.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
-          : undefined,
-        verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined,
+        reasoningEffort: isReasoningEffort(row.reasoning_effort) ? row.reasoning_effort : undefined,
+        verbosity: isVerbosity(row.verbosity) ? row.verbosity : undefined,
         enableSearch: row.enable_search !== null ? Boolean(row.enable_search) : undefined,
         forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
         searchStrategy: row.search_strategy ? (row.search_strategy as 'turbo' | 'max') : undefined,
@@ -680,10 +679,8 @@ export class ConversationsTable extends BaseTable {
         artifacts: row.artifacts as 0 | 1,
         enabledMcpTools: getJsonField(row.enabled_mcp_tools, undefined),
         thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined,
-        reasoningEffort: row.reasoning_effort
-          ? (row.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
-          : undefined,
-        verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined,
+        reasoningEffort: isReasoningEffort(row.reasoning_effort) ? row.reasoning_effort : undefined,
+        verbosity: isVerbosity(row.verbosity) ? row.verbosity : undefined,
         enableSearch: row.enable_search !== null ? Boolean(row.enable_search) : undefined,
         forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
         searchStrategy: row.search_strategy ? (row.search_strategy as 'turbo' | 'max') : undefined,

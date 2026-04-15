@@ -27,6 +27,7 @@ import type {
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
+import { isReasoningEffort, isVerbosity } from '@shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
   parseFiniteNumericValue,
@@ -125,12 +126,6 @@ type ActiveGeneration = {
   messageId: string
   abortController: AbortController
 }
-
-const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
-  value === 'low' || value === 'medium' || value === 'high'
 
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 

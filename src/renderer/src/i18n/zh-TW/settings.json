@@ -408,10 +408,12 @@
         "description": "控制模型的推理深度，更高的努力程度會產生更好的結果但回應更慢",
         "placeholder": "選擇推理努力程度",
         "options": {
+          "none": "None - 不使用推理",
           "minimal": "Minimal - 最快回應",
           "low": "Low - 低努力",
           "medium": "Medium - 中等努力",
-          "high": "High - 高努力"
+          "high": "High - 高努力",
+          "xhigh": "XHigh - 最大努力程度"
         }
       },
       "verbosity": {

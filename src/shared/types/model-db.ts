@@ -3,8 +3,22 @@ import { z } from 'zod'
 // ---------- Zod Schemas ----------
 
 // Capability sub-schemas
-export const ReasoningEffortSchema = z.enum(['minimal', 'low', 'medium', 'high'])
+export const REASONING_EFFORT_VALUES = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh'
+] as const
+export const ReasoningEffortSchema = z.enum(REASONING_EFFORT_VALUES)
 export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
+export const DEFAULT_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = [
+  'minimal',
+  'low',
+  'medium',
+  'high'
+]
 
 export const VerbositySchema = z.enum(['low', 'medium', 'high'])
 export type Verbosity = z.infer<typeof VerbositySchema>
@@ -152,6 +166,12 @@ export type ReasoningPortrait = {
   notes?: string[]
 }
 
+export const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
+  ReasoningEffortSchema.safeParse(value).success
+
+export const isVerbosity = (value: unknown): value is Verbosity =>
+  VerbositySchema.safeParse(value).success
+
 // ---------- Helpers ----------
 
 export function isImageInputSupported(model: ProviderModel | undefined): boolean {
@@ -205,13 +225,11 @@ function getStringNumberRecord(obj: unknown): Record<string, string | number> | 
 type ModelTypeValue = 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
 
 function getEffortValue(v: unknown): ReasoningEffort | undefined {
-  const parsed = ReasoningEffortSchema.safeParse(v)
-  return parsed.success ? parsed.data : undefined
+  return isReasoningEffort(v) ? v : undefined
 }
 
 function getVerbosityValue(v: unknown): Verbosity | undefined {
-  const parsed = VerbositySchema.safeParse(v)
-  return parsed.success ? parsed.data : undefined
+  return isVerbosity(v) ? v : undefined
 }
 
 function getReasoningModeValue(v: unknown): ReasoningMode | undefined {

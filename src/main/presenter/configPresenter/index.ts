@@ -47,7 +47,12 @@ import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
 import { providerDbLoader } from './providerDbLoader'
-import { ProviderAggregate, ReasoningPortrait } from '@shared/types/model-db'
+import {
+  ProviderAggregate,
+  ReasoningPortrait,
+  type ReasoningEffort,
+  type Verbosity
+} from '@shared/types/model-db'
 import { modelCapabilities } from './modelCapabilities'
 import { ProviderHelper } from './providerHelper'
 import { ModelStatusHelper } from './modelStatusHelper'
@@ -618,10 +623,7 @@ export class ConfigPresenter implements IConfigPresenter {
     )
   }
 
-  getReasoningEffortDefault(
-    providerId: string,
-    modelId: string
-  ): 'minimal' | 'low' | 'medium' | 'high' | undefined {
+  getReasoningEffortDefault(providerId: string, modelId: string): ReasoningEffort | undefined {
     return modelCapabilities.getReasoningEffortDefault(
       this.resolveCapabilityProviderId(providerId, modelId),
       modelId
@@ -635,7 +637,7 @@ export class ConfigPresenter implements IConfigPresenter {
     )
   }
 
-  getVerbosityDefault(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined {
+  getVerbosityDefault(providerId: string, modelId: string): Verbosity | undefined {
     return modelCapabilities.getVerbosityDefault(
       this.resolveCapabilityProviderId(providerId, modelId),
       modelId

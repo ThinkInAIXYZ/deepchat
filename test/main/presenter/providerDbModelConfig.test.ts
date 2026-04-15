@@ -114,6 +114,24 @@ describe('Provider DB strict matching + user overrides', () => {
                   budget: { min: 0, max: 24576, default: -1, auto: -1, off: 0, unit: 'tokens' }
                 }
               }
+            },
+            {
+              id: 'gpt-5.2',
+              reasoning: {
+                supported: true,
+                default: true
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: false,
+                  mode: 'effort',
+                  effort: 'none',
+                  effort_options: ['none', 'low', 'medium', 'high', 'xhigh'],
+                  verbosity: 'medium',
+                  verbosity_options: ['low', 'medium', 'high']
+                }
+              }
             }
           ]
         }
@@ -226,6 +244,16 @@ describe('Provider DB strict matching + user overrides', () => {
 
     expect(cfg.reasoning).toBe(true)
     expect(cfg.thinkingBudget).toBe(-1)
+  })
+
+  it('keeps none as the provider default effort without enabling reasoning', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+
+    const cfg = helper.getModelConfig('gpt-5.2', 'test-provider')
+
+    expect(cfg.reasoning).toBe(false)
+    expect(cfg.reasoningEffort).toBe('none')
+    expect(cfg.verbosity).toBe('medium')
   })
 
   it('recomputes reasoning-related fields for provider cached configs', () => {

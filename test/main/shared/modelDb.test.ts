@@ -122,4 +122,44 @@ describe('sanitizeAggregate', () => {
       verbosity_options: ['low', 'medium', 'high']
     })
   })
+
+  it('preserves extended effort values from provider portraits', () => {
+    const aggregate = sanitizeAggregate({
+      providers: {
+        openai: {
+          id: 'openai',
+          models: [
+            {
+              id: 'gpt-5.2',
+              reasoning: {
+                supported: true,
+                effort: 'none'
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: false,
+                  mode: 'effort',
+                  effort: 'none',
+                  effort_options: ['none', 'low', 'medium', 'high', 'xhigh']
+                }
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(aggregate?.providers.openai.models[0].reasoning).toMatchObject({
+      supported: true,
+      effort: 'none'
+    })
+    expect(aggregate?.providers.openai.models[0].extra_capabilities?.reasoning).toMatchObject({
+      supported: true,
+      default_enabled: false,
+      mode: 'effort',
+      effort: 'none',
+      effort_options: ['none', 'low', 'medium', 'high', 'xhigh']
+    })
+  })
 })

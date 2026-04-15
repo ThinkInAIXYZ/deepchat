@@ -3,6 +3,7 @@ import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
+import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -135,8 +136,8 @@ function createMockSqlitePresenter() {
             contextLength?: number
             maxTokens?: number
             thinkingBudget?: number
-            reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-            verbosity?: 'low' | 'medium' | 'high'
+            reasoningEffort?: ReasoningEffort
+            verbosity?: Verbosity
           } = {}
         ) => {
           deepchatSessionsStore.set(id, {

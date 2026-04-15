@@ -408,10 +408,12 @@
         "description": "Contrôle la profondeur du raisonnement du modèle ; un effort plus élevé produit de meilleurs résultats mais des réponses plus lentes",
         "placeholder": "Sélectionner l'effort de raisonnement",
         "options": {
+          "none": "None - Sans raisonnement",
           "minimal": "Minimal - Réponse la plus rapide",
           "low": "Low - Faible effort",
           "medium": "Medium - Effort modéré",
-          "high": "High - Effort élevé"
+          "high": "High - Effort élevé",
+          "xhigh": "XHigh - Effort maximal"
         }
       },
       "verbosity": {

@@ -341,10 +341,12 @@
         "description": "Styrer hvor dybt modellen ræsonnerer; højere indsats giver bedre resultater men længere svartid",
         "placeholder": "Vælg niveau for ræsonnering",
         "options": {
+          "none": "Ingen - Ingen ræsonnering",
           "minimal": "Minimal - Hurtigste svar",
           "low": "Lav - Lav indsats",
           "medium": "Mellem - Moderat indsats",
-          "high": "Høj - Stor indsats"
+          "high": "Høj - Stor indsats",
+          "xhigh": "Ekstra høj - Maksimal indsats"
         }
       },
       "verbosity": {

@@ -216,6 +216,31 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.medium')
   })
 
+  it('keeps none as the portrait default and renders explicit extended effort options', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-5.2',
+      modelName: 'GPT-5.2',
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: undefined
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'none',
+        effortOptions: ['none', 'low', 'medium', 'high', 'xhigh'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    expect((wrapper.vm as any).config.reasoningEffort).toBe('none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.xhigh')
+  })
+
   it('hides effort and budget controls for level-based portraits', async () => {
     const { wrapper } = await setup({
       providerId: 'vertex',

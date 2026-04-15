@@ -416,7 +416,13 @@ import {
   type NewApiEndpointType
 } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
-import type { ReasoningPortrait } from '@shared/types/model-db'
+import {
+  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  isReasoningEffort,
+  isVerbosity,
+  type ReasoningEffort,
+  type ReasoningPortrait
+} from '@shared/types/model-db'
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_FUNCTION_CALL,
@@ -537,12 +543,6 @@ const createDefaultConfig = (): ModelConfig => ({
   verbosity: 'medium'
 })
 
-const DEFAULT_REASONING_EFFORT_OPTIONS: Array<'minimal' | 'low' | 'medium' | 'high'> = [
-  'minimal',
-  'low',
-  'medium',
-  'high'
-]
 const DEFAULT_VERBOSITY_OPTIONS: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high']
 
 // 配置数据
@@ -575,15 +575,9 @@ const mutualExclusiveAction = ref<{
 const errors = ref<Record<string, string>>({})
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
 
-const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
-  value === 'low' || value === 'medium' || value === 'high'
-
 const getReasoningEffortOptions = (
   portrait: ReasoningPortrait | null | undefined
-): Array<'minimal' | 'low' | 'medium' | 'high'> => {
+): ReasoningEffort[] => {
   if (
     !portrait ||
     portrait.mode === 'budget' ||
@@ -597,9 +591,13 @@ const getReasoningEffortOptions = (
   if (options && options.length > 0) {
     return options
   }
-  return portrait.mode !== 'mixed' && isReasoningEffort(portrait?.effort)
-    ? [...DEFAULT_REASONING_EFFORT_OPTIONS]
-    : []
+  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait?.effort)) {
+    return []
+  }
+
+  return FALLBACK_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
+    ? [...FALLBACK_REASONING_EFFORT_OPTIONS]
+    : [portrait.effort]
 }
 
 const getVerbosityOptions = (
@@ -635,7 +633,7 @@ const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined
 const normalizeReasoningEffortValue = (
   portrait: ReasoningPortrait | null | undefined,
   value: unknown
-): 'minimal' | 'low' | 'medium' | 'high' | undefined => {
+): ReasoningEffort | undefined => {
   if (!isReasoningEffort(value)) {
     return undefined
   }
@@ -716,7 +714,7 @@ const isThinkingBudgetSentinel = (
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
 const capabilitySupportsEffort = ref<boolean | null>(null)
-const capabilityEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
+const capabilityEffortDefault = ref<ReasoningEffort | undefined>(undefined)
 const capabilitySupportsVerbosity = ref<boolean | null>(null)
 const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 

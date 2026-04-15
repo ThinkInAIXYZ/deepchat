@@ -2,10 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
-import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
+import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 
-type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
 type TestGenerationSettings = {
   systemPrompt: string
   temperature: number
@@ -305,7 +304,7 @@ const setup = async (options: SetupOptions = {}) => {
     maxTokens: undefined as number | undefined,
     thinkingBudget: undefined as number | undefined,
     forceInterleavedThinkingCompat: undefined as boolean | undefined,
-    reasoningEffort: undefined as 'minimal' | 'low' | 'medium' | 'high' | undefined,
+    reasoningEffort: undefined as ReasoningEffort | undefined,
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
     subagentEnabled: options.draftSubagentEnabled === true,
     ...options.draftGenerationSettings,
@@ -874,6 +873,31 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.text()).not.toContain(
       'settings.model.modelConfig.reasoningEffort.options.medium'
     )
+  })
+
+  it('keeps none as the default effort and renders extended portrait options', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'openai', modelId: 'gpt-5.2' },
+      defaultModel: { providerId: 'openai', modelId: 'gpt-5.2' },
+      reasoningEffortDefault: 'none',
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'none',
+        effortOptions: ['none', 'low', 'medium', 'high', 'xhigh'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-5.2')
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.xhigh')
   })
 
   it('uses unified defaults for draft model settings', async () => {

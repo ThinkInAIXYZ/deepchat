@@ -162,6 +162,26 @@ describe('AI SDK provider options', () => {
     })
   })
 
+  it('passes through extended OpenAI reasoning effort values', () => {
+    const result = buildProviderOptions({
+      providerId: 'openai',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_responses',
+      modelId: 'gpt-5.2',
+      modelConfig: {
+        reasoningEffort: 'none' as const
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      openai: {
+        reasoningEffort: 'none'
+      }
+    })
+  })
+
   it('disables vertex function-call argument streaming when no tools are present', () => {
     const result = buildProviderOptions({
       providerId: 'vertex',
@@ -234,5 +254,25 @@ describe('AI SDK provider options', () => {
       }
     })
     expect(result.providerOptions?.azure).not.toHaveProperty('promptCacheKey')
+  })
+
+  it('passes through xhigh for azure responses models', () => {
+    const result = buildProviderOptions({
+      providerId: 'azure-openai',
+      providerOptionsKey: 'azure',
+      apiType: 'azure_responses',
+      modelId: 'my-gpt-5.4-pro-deployment',
+      modelConfig: {
+        reasoningEffort: 'xhigh' as const
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      azure: {
+        reasoningEffort: 'xhigh'
+      }
+    })
   })
 })

@@ -470,10 +470,12 @@
         "description": "Controls the depth of model reasoning; higher effort produces better results but slower responses",
         "placeholder": "Select reasoning effort",
         "options": {
+          "none": "None - No reasoning",
           "minimal": "Minimal - Fastest response",
           "low": "Low - Low effort",
           "medium": "Medium - Moderate effort",
-          "high": "High - High effort"
+          "high": "High - High effort",
+          "xhigh": "XHigh - Maximum effort"
         }
       },
       "verbosity": {

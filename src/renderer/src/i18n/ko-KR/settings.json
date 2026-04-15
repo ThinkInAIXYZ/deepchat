@@ -408,10 +408,12 @@
         "description": "모델 추론의 깊이를 제어합니다. 더 높은 노력도는 더 나은 결과를 생성하지만 응답이 느려집니다",
         "placeholder": "추론 노력도 선택",
         "options": {
+          "none": "None - 추론 없음",
           "minimal": "Minimal - 가장 빠른 응답",
           "low": "Low - 낮은 노력",
           "medium": "Medium - 중간 노력",
-          "high": "High - 높은 노력"
+          "high": "High - 높은 노력",
+          "xhigh": "XHigh - 최대 노력"
         }
       },
       "verbosity": {
