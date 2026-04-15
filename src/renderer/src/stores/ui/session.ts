@@ -39,6 +39,7 @@ export interface UISession {
 }
 
 export interface SessionGroup {
+  id: string
   label: string
   labelKey?: string
   sessions: UISession[]
@@ -132,19 +133,38 @@ function groupByTime(sessions: UISession[]): SessionGroup[] {
 
   return Object.entries(groups)
     .filter(([, sessions]) => sessions.length > 0)
-    .map(([labelKey, sessions]) => ({ label: labelKey, labelKey, sessions }))
+    .map(([labelKey, sessions]) => ({ id: labelKey, label: labelKey, labelKey, sessions }))
+}
+
+const NO_PROJECT_GROUP_ID = '__no_project__'
+
+function normalizeProjectGroupId(projectDir: string): string {
+  const normalizedDir = projectDir.trim().replace(/[\\/]+$/, '')
+  return normalizedDir || NO_PROJECT_GROUP_ID
+}
+
+function getProjectGroupLabel(projectGroupId: string): { label: string; labelKey?: string } {
+  if (projectGroupId === NO_PROJECT_GROUP_ID) {
+    return {
+      label: 'common.project.none',
+      labelKey: 'common.project.none'
+    }
+  }
+
+  const label = projectGroupId.split(/[\\/]/).pop() ?? projectGroupId
+  return { label }
 }
 
 function groupByProject(sessions: UISession[]): SessionGroup[] {
   const projectMap = new Map<string, UISession[]>()
   for (const session of sessions) {
-    const dir = session.projectDir.trim() || '__no_project__'
-    if (!projectMap.has(dir)) projectMap.set(dir, [])
-    projectMap.get(dir)!.push(session)
+    const projectGroupId = normalizeProjectGroupId(session.projectDir)
+    if (!projectMap.has(projectGroupId)) projectMap.set(projectGroupId, [])
+    projectMap.get(projectGroupId)!.push(session)
   }
-  return Array.from(projectMap.entries()).map(([dir, sessions]) => ({
-    label: dir === '__no_project__' ? 'common.project.none' : (dir.split(/[\\/]/).pop() ?? dir),
-    labelKey: dir === '__no_project__' ? 'common.project.none' : undefined,
+  return Array.from(projectMap.entries()).map(([projectGroupId, sessions]) => ({
+    id: projectGroupId,
+    ...getProjectGroupLabel(projectGroupId),
     sessions
   }))
 }
@@ -516,6 +536,7 @@ export const useSessionStore = defineStore('session', () => {
 
     return grouped
       .map((group) => ({
+        id: group.id,
         label: group.label,
         labelKey: group.labelKey,
         sessions: group.sessions.filter((s) => s.agentId === agentId)
