@@ -380,8 +380,12 @@
         "label": "최대 출력 길이"
       },
       "reasoning": {
-        "description": "모델이 추론 능력을 지원합니까?",
+        "description": "이 모델은 추론을 지원합니다",
         "label": "추론 능력"
+      },
+      "reasoningToggle": {
+        "description": "이 모델에서 추론을 기본으로 활성화할지 제어합니다",
+        "label": "추론 활성화"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",

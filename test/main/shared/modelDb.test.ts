@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { sanitizeAggregate } from '../../../src/shared/types/model-db'
+import {
+  getReasoningControlMode,
+  getReasoningEffectiveEnabled,
+  sanitizeAggregate,
+  type ReasoningPortrait
+} from '../../../src/shared/types/model-db'
 
 describe('sanitizeAggregate', () => {
   it('keeps extra_capabilities.reasoning portraits alongside legacy reasoning', () => {
@@ -161,5 +166,29 @@ describe('sanitizeAggregate', () => {
       effort: 'none',
       effort_options: ['none', 'low', 'medium', 'high', 'xhigh']
     })
+  })
+
+  it('treats supported reasoning separately from default-enabled effort portraits', () => {
+    const portrait: ReasoningPortrait = {
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'none',
+      effortOptions: ['none', 'low', 'medium', 'high', 'xhigh']
+    }
+
+    expect(getReasoningControlMode(portrait)).toBe('indicator')
+    expect(
+      getReasoningEffectiveEnabled(portrait, {
+        reasoning: false,
+        reasoningEffort: 'none'
+      })
+    ).toBe(false)
+    expect(
+      getReasoningEffectiveEnabled(portrait, {
+        reasoning: false,
+        reasoningEffort: 'xhigh'
+      })
+    ).toBe(true)
   })
 })

@@ -313,8 +313,12 @@
         "label": "Maksimal outputlængde"
       },
       "reasoning": {
-        "description": "Understøtter modellen ræsonnering?",
+        "description": "Denne model understøtter ræsonnering",
         "label": "Ræsonnering"
+      },
+      "reasoningToggle": {
+        "description": "Styrer om ræsonnering er aktiveret som standard for denne model",
+        "label": "Aktivér ræsonnering"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",

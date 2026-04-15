@@ -380,8 +380,12 @@
         "label": "Longueur de sortie maximale"
       },
       "reasoning": {
-        "description": "Le modèle prend-il en charge la capacité de raisonnement?",
+        "description": "Ce modèle prend en charge le raisonnement",
         "label": "Capacité de raisonnement"
+      },
+      "reasoningToggle": {
+        "description": "Contrôle si le raisonnement est activé par défaut pour ce modèle",
+        "label": "Activer le raisonnement"
       },
       "interleavedThinking": {
         "label": "Pensée entrelacée",

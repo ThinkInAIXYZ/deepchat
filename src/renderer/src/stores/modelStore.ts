@@ -201,7 +201,9 @@ export const useModelStore = defineStore('model', () => {
           maxTokens: resolvedMaxTokens,
           vision: resolveModelVision(config.vision ?? normalized.vision),
           functionCall: resolveModelFunctionCall(config.functionCall ?? normalized.functionCall),
-          reasoning: config.reasoning ?? normalized.reasoning ?? false,
+          reasoning: model.isCustom
+            ? (config.reasoning ?? normalized.reasoning ?? false)
+            : normalized.reasoning,
           type: config.type ?? normalized.type ?? ModelType.Chat,
           endpointType: config.endpointType ?? normalized.endpointType
         }

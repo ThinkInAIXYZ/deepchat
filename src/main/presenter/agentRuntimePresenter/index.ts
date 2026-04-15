@@ -27,7 +27,11 @@ import type {
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
-import { isReasoningEffort, isVerbosity } from '@shared/types/model-db'
+import {
+  getReasoningEffectiveEnabled,
+  isReasoningEffort,
+  isVerbosity
+} from '@shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
   parseFiniteNumericValue,
@@ -1479,6 +1483,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       providedInterleavedReasoning ??
       this.resolveInterleavedReasoningConfig(state.providerId, state.modelId, generationSettings)
     const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+    const reasoningPortrait = this.getReasoningPortrait(state.providerId, state.modelId)
     const modelConfig: ModelConfig = {
       ...baseModelConfig,
       temperature: generationSettings.temperature,
@@ -1487,6 +1492,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       thinkingBudget: generationSettings.thinkingBudget,
       reasoningEffort: generationSettings.reasoningEffort,
       verbosity: generationSettings.verbosity,
+      reasoning: getReasoningEffectiveEnabled(reasoningPortrait, {
+        reasoning: baseModelConfig.reasoning,
+        reasoningEffort: generationSettings.reasoningEffort ?? baseModelConfig.reasoningEffort
+      }),
       conversationId: sessionId
     }
 

@@ -380,8 +380,12 @@
         "label": "最大出力長"
       },
       "reasoning": {
-        "description": "モデルは推論能力をサポートしていますか？",
+        "description": "このモデルは推論に対応しています",
         "label": "推論能力"
+      },
+      "reasoningToggle": {
+        "description": "このモデルで推論をデフォルトで有効にするかを制御します",
+        "label": "推論を有効化"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",

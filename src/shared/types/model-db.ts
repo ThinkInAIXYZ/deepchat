@@ -166,11 +166,69 @@ export type ReasoningPortrait = {
   notes?: string[]
 }
 
+export type ReasoningControlMode = 'unsupported' | 'toggle' | 'indicator'
+
 export const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
   ReasoningEffortSchema.safeParse(value).success
 
 export const isVerbosity = (value: unknown): value is Verbosity =>
   VerbositySchema.safeParse(value).success
+
+export const supportsReasoningCapability = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean => portrait?.supported === true
+
+export const getReasoningControlMode = (
+  portrait: ReasoningPortrait | null | undefined
+): ReasoningControlMode => {
+  if (!supportsReasoningCapability(portrait)) {
+    return 'unsupported'
+  }
+
+  return portrait?.mode === undefined || portrait.mode === 'budget' ? 'toggle' : 'indicator'
+}
+
+export const hasIndependentReasoningToggle = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean => getReasoningControlMode(portrait) === 'toggle'
+
+export const getReasoningEffectiveEnabled = (
+  portrait: ReasoningPortrait | null | undefined,
+  state: {
+    reasoning?: boolean | null
+    reasoningEffort?: unknown
+  } = {}
+): boolean => {
+  if (!portrait) {
+    return state.reasoning === true
+  }
+
+  if (!supportsReasoningCapability(portrait)) {
+    return false
+  }
+
+  if (hasIndependentReasoningToggle(portrait)) {
+    return state.reasoning ?? portrait.defaultEnabled ?? true
+  }
+
+  if (portrait.mode === 'effort') {
+    const resolvedEffort = isReasoningEffort(state.reasoningEffort)
+      ? state.reasoningEffort
+      : isReasoningEffort(portrait.effort)
+        ? portrait.effort
+        : undefined
+
+    if (resolvedEffort === 'none') {
+      return false
+    }
+
+    if (resolvedEffort !== undefined) {
+      return true
+    }
+  }
+
+  return portrait.defaultEnabled ?? true
+}
 
 // ---------- Helpers ----------
 

@@ -451,7 +451,11 @@
       },
       "reasoning": {
         "label": "推理能力",
-        "description": "模型是否支持推理能力"
+        "description": "该模型支持推理能力"
+      },
+      "reasoningToggle": {
+        "label": "启用推理",
+        "description": "控制该模型默认是否启用推理"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",

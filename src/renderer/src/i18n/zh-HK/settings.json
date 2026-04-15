@@ -380,8 +380,12 @@
         "label": "最大輸出長度"
       },
       "reasoning": {
-        "description": "模型是否支持推理能力",
+        "description": "該模型支援推理能力",
         "label": "推理能力"
+      },
+      "reasoningToggle": {
+        "description": "控制該模型預設是否啟用推理",
+        "label": "啟用推理"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",

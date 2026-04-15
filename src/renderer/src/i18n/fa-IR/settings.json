@@ -380,8 +380,12 @@
         "label": "حداکثر طول خروجی"
       },
       "reasoning": {
-        "description": "آیا مدل از توانایی استدلال پشتیبانی می کند؟",
+        "description": "این مدل از استدلال پشتیبانی می‌کند",
         "label": "توانایی استدلال"
+      },
+      "reasoningToggle": {
+        "description": "کنترل می‌کند که استدلال به‌صورت پیش‌فرض برای این مدل فعال باشد یا نه",
+        "label": "فعال‌سازی استدلال"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",

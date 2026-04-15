@@ -1,8 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetThinkingBudgetRange, mockGetModel, mockSupportsReasoning } = vi.hoisted(() => ({
+const {
+  mockGetThinkingBudgetRange,
+  mockGetModel,
+  mockGetReasoningPortrait,
+  mockSupportsReasoning
+} = vi.hoisted(() => ({
   mockGetThinkingBudgetRange: vi.fn().mockReturnValue({}),
   mockGetModel: vi.fn().mockReturnValue(undefined),
+  mockGetReasoningPortrait: vi.fn().mockReturnValue(null),
   mockSupportsReasoning: vi.fn().mockReturnValue(false)
 }))
 
@@ -15,6 +21,7 @@ vi.mock('@/presenter/configPresenter/providerDbLoader', () => ({
 vi.mock('@/presenter/configPresenter/modelCapabilities', () => ({
   modelCapabilities: {
     getThinkingBudgetRange: mockGetThinkingBudgetRange,
+    getReasoningPortrait: mockGetReasoningPortrait,
     supportsReasoning: mockSupportsReasoning
   }
 }))
@@ -28,6 +35,13 @@ describe('AI SDK provider options', () => {
     thinkingBudget: 2048,
     conversationId: 'conv-1'
   }
+
+  beforeEach(() => {
+    mockGetThinkingBudgetRange.mockReturnValue({})
+    mockGetModel.mockReturnValue(undefined)
+    mockGetReasoningPortrait.mockReturnValue(null)
+    mockSupportsReasoning.mockReturnValue(false)
+  })
 
   it('keeps official anthropic beta features enabled', () => {
     const result = buildProviderOptions({
@@ -163,6 +177,14 @@ describe('AI SDK provider options', () => {
   })
 
   it('passes through extended OpenAI reasoning effort values', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'none',
+      effortOptions: ['none', 'low', 'medium', 'high', 'xhigh']
+    })
+
     const result = buildProviderOptions({
       providerId: 'openai',
       providerOptionsKey: 'openai',
@@ -178,6 +200,35 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions).toEqual({
       openai: {
         reasoningEffort: 'none'
+      }
+    })
+  })
+
+  it('treats effort as the source of truth when the legacy reasoning boolean is stale', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'none',
+      effortOptions: ['none', 'low', 'medium', 'high', 'xhigh']
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'openai',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_responses',
+      modelId: 'gpt-5.4',
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: 'xhigh'
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      openai: {
+        reasoningEffort: 'xhigh'
       }
     })
   })
@@ -274,5 +325,33 @@ describe('AI SDK provider options', () => {
         reasoningEffort: 'xhigh'
       }
     })
+  })
+
+  it('does not send anthropic reasoning flags when the toggle-backed default is disabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'budget',
+      budget: { min: 1024, default: 2048 }
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'anthropic',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'claude-4-sonnet',
+      modelConfig: {
+        reasoning: false,
+        thinkingBudget: 2048
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: true
+    })
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
   })
 })

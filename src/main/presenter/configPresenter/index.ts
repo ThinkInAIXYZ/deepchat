@@ -1063,7 +1063,7 @@ export class ConfigPresenter implements IConfigPresenter {
         Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : undefined
       ),
       functionCall: resolveModelFunctionCall(m.tool_call),
-      reasoning: Boolean(m.reasoning?.supported),
+      reasoning: modelCapabilities.supportsReasoning(providerId, m.id),
       type:
         Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
           ? ModelType.ImageGeneration

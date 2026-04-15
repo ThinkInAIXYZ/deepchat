@@ -380,8 +380,12 @@
         "label": "אורך פלט מקסימלי"
       },
       "reasoning": {
-        "description": "האם המודל תומך ביכולת חשיבה (Reasoning)?",
+        "description": "המודל הזה תומך בהנמקה",
         "label": "יכולת חשיבה"
+      },
+      "reasoningToggle": {
+        "description": "שולט אם ההנמקה מופעלת כברירת מחדל עבור המודל הזה",
+        "label": "הפעלת הנמקה"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",

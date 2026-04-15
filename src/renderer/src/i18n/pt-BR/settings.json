@@ -380,8 +380,12 @@
         "label": "Comprimento máximo de saída"
       },
       "reasoning": {
-        "description": "O modelo suporta capacidade de raciocínio?",
+        "description": "Este modelo oferece suporte a raciocínio",
         "label": "Capacidade de raciocínio"
+      },
+      "reasoningToggle": {
+        "description": "Controla se o raciocínio fica ativado por padrão para este modelo",
+        "label": "Ativar raciocínio"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
