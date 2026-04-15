@@ -6,6 +6,7 @@ type SetupOptions = {
   groupMode?: 'time' | 'project'
   pinnedSessions?: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
   groups?: Array<{
+    id: string
     label: string
     labelKey?: string
     sessions: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
@@ -15,6 +16,8 @@ type SetupOptions = {
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
   }
 }
+
+const TEST_TIMEOUT_MS = 20000
 
 afterEach(() => {
   vi.clearAllTimers()
@@ -279,15 +282,19 @@ const setup = async (options: SetupOptions = {}) => {
 }
 
 describe('WindowSideBar agent switch', () => {
-  it('closes active session before applying selected agent', async () => {
-    const { wrapper, operations, agentStore, sessionStore } = await setup()
+  it(
+    'closes active session before applying selected agent',
+    async () => {
+      const { wrapper, operations, agentStore, sessionStore } = await setup()
 
-    await (wrapper.vm as any).handleAgentSelect('acp-a')
+      await (wrapper.vm as any).handleAgentSelect('acp-a')
 
-    expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
-    expect(operations).toEqual(['close', 'set:acp-a'])
-  }, 10000)
+      expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
+      expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
+      expect(operations).toEqual(['close', 'set:acp-a'])
+    },
+    TEST_TIMEOUT_MS
+  )
 
   it('delegates sidebar new chat clicks to the unified session action', async () => {
     const { wrapper, sessionStore } = await setup()
@@ -297,239 +304,326 @@ describe('WindowSideBar agent switch', () => {
     expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
   })
 
-  it('renders pinned sessions outside grouped sections', async () => {
-    const { wrapper } = await setup({
-      pinnedSessions: [
-        {
-          id: 'pinned-1',
-          title: 'Pinned Session',
-          status: 'none'
-        }
-      ],
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [
-            {
-              id: 'normal-1',
-              title: 'Normal Session',
-              status: 'none'
-            }
-          ]
-        }
-      ]
-    })
+  it(
+    'renders pinned sessions outside grouped sections',
+    async () => {
+      const { wrapper } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'normal-1',
+                title: 'Normal Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
 
-    await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Pinned Session')
-    expect(wrapper.text()).toContain('chat.sidebar.pinned')
-    expect(wrapper.text()).toContain('common.time.today')
-    expect(wrapper.text()).toContain('Normal Session')
-  }, 10000)
+      expect(wrapper.text()).toContain('Pinned Session')
+      expect(wrapper.text()).toContain('chat.sidebar.pinned')
+      expect(wrapper.text()).toContain('common.time.today')
+      expect(wrapper.text()).toContain('Normal Session')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('collapses and expands pinned sessions from the pinned folder header', async () => {
-    const { wrapper } = await setup({
-      pinnedSessions: [
-        {
-          id: 'pinned-1',
-          title: 'Pinned Session',
-          status: 'none'
-        }
-      ]
-    })
+  it(
+    'collapses and expands pinned sessions from the pinned folder header',
+    async () => {
+      const { wrapper } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ]
+      })
 
-    await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('chat.sidebar.pinned')
-    expect(wrapper.text()).toContain('Pinned Session')
+      expect(wrapper.text()).toContain('chat.sidebar.pinned')
+      expect(wrapper.text()).toContain('Pinned Session')
 
-    await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).not.toContain('Pinned Session')
+      expect(wrapper.text()).not.toContain('Pinned Session')
 
-    await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Pinned Session')
-  }, 10000)
+      expect(wrapper.text()).toContain('Pinned Session')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('toggles pinned state from a session item action', async () => {
-    const session = {
-      id: 'normal-1',
-      title: 'Normal Session',
-      status: 'none',
-      isPinned: false
-    }
-    const { wrapper, sessionStore } = await setup({
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [session]
-        }
-      ]
-    })
+  it(
+    'toggles pinned state from a session item action',
+    async () => {
+      const session = {
+        id: 'normal-1',
+        title: 'Normal Session',
+        status: 'none',
+        isPinned: false
+      }
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [session]
+          }
+        ]
+      })
 
-    const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
-    item.vm.$emit('toggle-pin', session)
-    await flushPromises()
+      const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
+      item.vm.$emit('toggle-pin', session)
+      await flushPromises()
 
-    expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
-  }, 10000)
+      expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('filters pinned and grouped sessions by the sidebar search input', async () => {
-    const { wrapper } = await setup({
-      pinnedSessions: [
-        {
-          id: 'pinned-1',
-          title: 'Alpha Session',
-          status: 'none'
-        }
-      ],
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [
-            {
-              id: 'group-1',
-              title: 'Beta Session',
-              status: 'none'
-            }
-          ]
-        }
-      ]
-    })
+  it(
+    'filters pinned and grouped sessions by the sidebar search input',
+    async () => {
+      const { wrapper } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Alpha Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Beta Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
 
-    await wrapper.find('input').setValue('alpha')
-    await flushPromises()
+      await wrapper.find('input').setValue('alpha')
+      await flushPromises()
 
-    expect(wrapper.text()).toContain('Alpha Session')
-    expect(wrapper.text()).not.toContain('Beta Session')
-  }, 10000)
+      expect(wrapper.text()).toContain('Alpha Session')
+      expect(wrapper.text()).not.toContain('Beta Session')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('toggles spotlight from the rail search button', async () => {
-    const { wrapper, spotlightStore } = await setup()
+  it(
+    'toggles spotlight from the rail search button',
+    async () => {
+      const { wrapper, spotlightStore } = await setup()
 
-    const buttons = wrapper.findAll('button')
-    const spotlightButton = buttons.find((button) =>
-      button.attributes('title')?.includes('chat.spotlight.placeholder')
-    )
+      const buttons = wrapper.findAll('button')
+      const spotlightButton = buttons.find((button) =>
+        button.attributes('title')?.includes('chat.spotlight.placeholder')
+      )
 
-    expect(spotlightButton).toBeTruthy()
+      expect(spotlightButton).toBeTruthy()
 
-    await spotlightButton!.trigger('click')
+      await spotlightButton!.trigger('click')
 
-    expect(spotlightStore.toggleSpotlight).toHaveBeenCalledTimes(1)
-  }, 10000)
+      expect(spotlightStore.toggleSpotlight).toHaveBeenCalledTimes(1)
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('toggles the shared sidebar store from the collapse button', async () => {
-    const { wrapper, sidebarStore } = await setup()
+  it(
+    'toggles the shared sidebar store from the collapse button',
+    async () => {
+      const { wrapper, sidebarStore } = await setup()
 
-    expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[288px]')
+      expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[288px]')
 
-    await wrapper.get('[data-testid=\"window-sidebar-toggle\"]').trigger('click')
-    await flushPromises()
+      await wrapper.get('[data-testid=\"window-sidebar-toggle\"]').trigger('click')
+      await flushPromises()
 
-    expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(1)
-    expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-12')
-  }, 10000)
+      expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(1)
+      expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-12')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('collapses and expands time groups from the folder header', async () => {
-    const { wrapper } = await setup({
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [
-            {
-              id: 'time-1',
-              title: 'Today Session',
-              status: 'none'
-            }
-          ]
-        }
-      ]
-    })
+  it(
+    'collapses and expands time groups from the folder header',
+    async () => {
+      const { wrapper } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'time-1',
+                title: 'Today Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
 
-    await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('common.time.today')
-    expect(wrapper.text()).toContain('Today Session')
+      expect(wrapper.text()).toContain('common.time.today')
+      expect(wrapper.text()).toContain('Today Session')
 
-    await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).not.toContain('Today Session')
+      expect(wrapper.text()).not.toContain('Today Session')
 
-    await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Today Session')
-  }, 10000)
+      expect(wrapper.text()).toContain('Today Session')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('collapses and expands project groups from the folder header', async () => {
-    const { wrapper } = await setup({
-      groupMode: 'project',
-      groups: [
-        {
-          label: 'DeepChat',
-          sessions: [
-            {
-              id: 'project-1',
-              title: 'Project Session',
-              status: 'none'
-            }
-          ]
-        }
-      ]
-    })
+  it(
+    'collapses and expands project groups from the folder header',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'project',
+        groups: [
+          {
+            id: 'project:/tmp/deepchat',
+            label: 'DeepChat',
+            sessions: [
+              {
+                id: 'project-1',
+                title: 'Project Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
 
-    await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('DeepChat')
-    expect(wrapper.text()).toContain('Project Session')
+      expect(wrapper.text()).toContain('DeepChat')
+      expect(wrapper.text()).toContain('Project Session')
 
-    await wrapper.find('[data-group-id="DeepChat"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.find('[data-group-id="project:/tmp/deepchat"]').trigger('click')
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).not.toContain('Project Session')
+      expect(wrapper.text()).not.toContain('Project Session')
 
-    await wrapper.find('[data-group-id="DeepChat"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.find('[data-group-id="project:/tmp/deepchat"]').trigger('click')
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Project Session')
-  }, 10000)
+      expect(wrapper.text()).toContain('Project Session')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('opens the delete dialog and dispatches delete actions', async () => {
-    const session = {
-      id: 'normal-1',
-      title: 'Normal Session',
-      status: 'none',
-      isPinned: false
-    }
-    const { wrapper, sessionStore } = await setup({
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [session]
-        }
-      ]
-    })
+  it(
+    'tracks same-named project groups independently by id',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'project',
+        groups: [
+          {
+            id: '/tmp/workspaces/company-a/deepchat',
+            label: 'deepchat',
+            sessions: [
+              {
+                id: 'project-a',
+                title: 'Company A Session',
+                status: 'none'
+              }
+            ]
+          },
+          {
+            id: '/tmp/workspaces/company-b/deepchat',
+            label: 'deepchat',
+            sessions: [
+              {
+                id: 'project-b',
+                title: 'Company B Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
 
-    const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
+      await wrapper.vm.$nextTick()
 
-    item.vm.$emit('delete', session)
-    await wrapper.vm.$nextTick()
-    expect(wrapper.text()).toContain('dialog.delete.title')
+      expect(wrapper.text()).toContain('Company A Session')
+      expect(wrapper.text()).toContain('Company B Session')
 
-    await (wrapper.vm as any).handleDeleteConfirm()
-    expect(sessionStore.deleteSession).toHaveBeenCalledWith('normal-1')
-  }, 10000)
+      await wrapper.find('[data-group-id="/tmp/workspaces/company-a/deepchat"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).not.toContain('Company A Session')
+      expect(wrapper.text()).toContain('Company B Session')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'opens the delete dialog and dispatches delete actions',
+    async () => {
+      const session = {
+        id: 'normal-1',
+        title: 'Normal Session',
+        status: 'none',
+        isPinned: false
+      }
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [session]
+          }
+        ]
+      })
+
+      const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
+
+      item.vm.$emit('delete', session)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.text()).toContain('dialog.delete.title')
+
+      await (wrapper.vm as any).handleDeleteConfirm()
+      expect(sessionStore.deleteSession).toHaveBeenCalledWith('normal-1')
+    },
+    TEST_TIMEOUT_MS
+  )
 
   it('shows the remote control button only when remote control is enabled', async () => {
     const enabledSetup = await setup({

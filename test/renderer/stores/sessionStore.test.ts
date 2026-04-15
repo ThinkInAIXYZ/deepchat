@@ -260,7 +260,52 @@ describe('sessionStore.getFilteredGroups', () => {
     const groups = store.getFilteredGroups(null)
 
     expect(groups).toHaveLength(1)
+    expect(groups[0]?.id).toBe('C:\\Users\\DeepChat\\workspace')
     expect(groups[0]?.label).toBe('workspace')
+  })
+
+  it('keeps a stable unique id for project groups with the same folder name', async () => {
+    const { store } = await setupStore()
+    const now = Date.now()
+
+    await store.fetchSessions()
+    store.sessions.value = [
+      {
+        id: 'project-1',
+        title: 'Workspace A',
+        agentId: 'deepchat',
+        status: 'none',
+        projectDir: '/tmp/company-a/deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        isPinned: false,
+        isDraft: false,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: 'project-2',
+        title: 'Workspace B',
+        agentId: 'deepchat',
+        status: 'none',
+        projectDir: '/tmp/company-b/deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        isPinned: false,
+        isDraft: false,
+        createdAt: now - 1,
+        updatedAt: now - 1
+      }
+    ]
+
+    const groups = store.getFilteredGroups(null)
+
+    expect(groups).toHaveLength(2)
+    expect(groups.map((group) => group.id)).toEqual([
+      '/tmp/company-a/deepchat',
+      '/tmp/company-b/deepchat'
+    ])
+    expect(groups.map((group) => group.label)).toEqual(['deepchat', 'deepchat'])
   })
 })
 

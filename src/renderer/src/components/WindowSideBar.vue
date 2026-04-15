@@ -523,6 +523,7 @@ const filteredGroups = computed(() =>
   sessionStore
     .getFilteredGroups(agentStore.selectedAgentId)
     .map((group) => ({
+      id: group.id,
       label: group.label,
       labelKey: group.labelKey,
       sessions: group.sessions.filter(matchesSessionSearch)
@@ -545,7 +546,7 @@ const deleteDialogOpen = computed({
   }
 })
 
-const getGroupIdentifier = (group: SessionGroup) => group.labelKey ?? group.label
+const getGroupIdentifier = (group: SessionGroup) => group.id
 
 const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
 
