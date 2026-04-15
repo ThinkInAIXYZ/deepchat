@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.3-beta.2 (2026-04-15)
+- Expanded remote control into a unified multi-channel setup with Discord, QQ Bot, and WeChat iLink support
+- Added default collapsing for long user messages so dense chats stay readable while attachments remain fully visible
+- Polished the new conversation entry flow with a persistent collapsed-sidebar `+` action and a shorter default input box
+- Improved streaming responsiveness by reducing renderer reflow and translate popup overhead during live updates
+- Fixed ACP terminal permission approval bridging so streamed permission requests stay intact during execution
+- 远程控制升级为统一多渠道配置流程，新增 Discord、QQ Bot 与微信 iLink 支持
+- 为超长用户消息加入默认折叠，保留附件完整展示，提升长会话可读性
+- 打磨新建会话入口体验，在折叠侧栏下保留常驻 `+` 按钮，并缩短默认输入框高度
+- 降低流式更新期间的渲染回流与翻译弹窗开销，提升消息流动顺滑度
+- 修复 ACP 终端权限审批桥接流程，保证执行期间的流式权限请求信息完整传递
+
 ## v1.0.3-beta.1 (2026-04-11)
 - Migrated model requests to the AI SDK runtime, improving prompt cache behavior, provider consistency, and streaming stability
 - Added NewAPI provider support and refined compatible endpoint configuration
