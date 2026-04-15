@@ -220,10 +220,6 @@
               :aria-expanded="!isPinnedSectionCollapsed"
               @click="togglePinnedSection"
             >
-              <Icon
-                :icon="isPinnedSectionCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-down'"
-                class="h-3 w-3 shrink-0"
-              />
               <span class="shrink-0 size-6 flex items-center justify-center">
                 <Icon
                   :icon="isPinnedSectionCollapsed ? 'lucide:folder-closed' : 'lucide:folder-open'"
@@ -236,7 +232,7 @@
             </button>
 
             <Transition name="sidebar-group-collapse">
-              <div v-if="!isPinnedSectionCollapsed" class="space-y-0.5 pl-4">
+              <div v-if="!isPinnedSectionCollapsed" class="space-y-0.5">
                 <WindowSideBarSessionItem
                   v-for="session in pinnedSessions"
                   :key="`pinned-${session.id}`"
@@ -244,6 +240,7 @@
                   :active="sessionStore.activeSessionId === session.id"
                   region="pinned"
                   :hero-hidden="pinFlightSessionId === session.id"
+                  :force-pin-docked="pinDockedSessionId === session.id"
                   :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
                   :search-query="sessionSearchQuery"
                   @select="handleSessionClick"
@@ -262,13 +259,9 @@
               :aria-expanded="!isGroupCollapsed(group)"
               @click="toggleGroup(group)"
             >
-              <Icon
-                :icon="isGroupCollapsed(group) ? 'lucide:chevron-right' : 'lucide:chevron-down'"
-                class="h-3 w-3 shrink-0"
-              />
               <span class="shrink-0 size-6 flex items-center justify-center">
                 <Icon
-                  :icon="isPinnedSectionCollapsed ? 'lucide:folder-closed' : 'lucide:folder-open'"
+                  :icon="isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'"
                   class="size-4"
                 />
               </span>
@@ -277,7 +270,7 @@
               </span>
             </button>
             <Transition name="sidebar-group-collapse">
-              <div v-if="!isGroupCollapsed(group)" class="space-y-0.5 pl-4">
+              <div v-if="!isGroupCollapsed(group)" class="space-y-0.5">
                 <WindowSideBarSessionItem
                   v-for="session in group.sessions"
                   :key="session.id"
@@ -285,6 +278,7 @@
                   :active="sessionStore.activeSessionId === session.id"
                   region="grouped"
                   :hero-hidden="pinFlightSessionId === session.id"
+                  :force-pin-docked="pinDockedSessionId === session.id"
                   :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
                   :search-query="sessionSearchQuery"
                   @select="handleSessionClick"
@@ -354,8 +348,13 @@ import { useSidebarStore } from '@/stores/ui/sidebar'
 
 type PinFeedbackMode = 'pinning' | 'unpinning'
 
-const PIN_FEEDBACK_DURATION_MS = 560
+const PIN_FEEDBACK_DURATION_MS: Record<PinFeedbackMode, number> = {
+  pinning: 560,
+  unpinning: 460
+}
 const PIN_FLIGHT_DURATION_MS = 500
+const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
+  nextPinned ? 'pinning' : 'unpinning'
 
 const windowPresenter = usePresenter('windowPresenter')
 const remoteControlPresenter = useRemoteControlPresenter()
@@ -531,6 +530,7 @@ const filteredGroups = computed(() =>
     .filter((group) => group.sessions.length > 0)
 )
 const pinFlightSessionId = ref<string | null>(null)
+const pinDockedSessionId = ref<string | null>(null)
 const pinFeedbackSessionId = ref<string | null>(null)
 const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
 const sessionListRef = ref<HTMLElement | null>(null)
@@ -744,12 +744,13 @@ const applyPinFeedback = (sessionId: string, nextPinned: boolean) => {
   }
 
   pinFeedbackSessionId.value = sessionId
-  pinFeedbackMode.value = nextPinned ? 'pinning' : 'unpinning'
+  const mode = getPinFeedbackMode(nextPinned)
+  pinFeedbackMode.value = mode
   pinFeedbackTimer = window.setTimeout(() => {
     pinFeedbackSessionId.value = null
     pinFeedbackMode.value = null
     pinFeedbackTimer = null
-  }, PIN_FEEDBACK_DURATION_MS)
+  }, PIN_FEEDBACK_DURATION_MS[mode])
 }
 
 const commitPinToggle = async (session: UISession, nextPinned: boolean, withFeedback = true) => {
@@ -782,8 +783,9 @@ const createPinFlightClone = (sourceElement: HTMLElement, sourceRect: DOMRect) =
   const clone = sourceElement.cloneNode(true) as HTMLElement
 
   clone.removeAttribute('style')
+  clone.classList.remove('is-hero-hidden')
   delete clone.dataset.pinFx
-  clone.dataset.heroHidden = 'false'
+  delete clone.dataset.heroHidden
   clone.setAttribute('aria-hidden', 'true')
   clone.classList.add('sidebar-pin-flight')
   Object.assign(clone.style, {
@@ -818,9 +820,16 @@ const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
   const clone = createPinFlightClone(sourceElement, sourceRect)
   document.body.appendChild(clone)
   pinFlightSessionId.value = session.id
+  if (!nextPinned) {
+    pinDockedSessionId.value = session.id
+  }
   await nextTick()
 
   try {
+    await waitForAnimationFrame()
+    clone.dataset.pinState = 'docked'
+    await waitForAnimationFrame()
+
     await commitPinToggle(session, nextPinned, false)
     restoreSessionListScroll(preservedScrollTop)
     await waitForAnimationFrame()
@@ -831,8 +840,13 @@ const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
     const targetRect = targetElement?.getBoundingClientRect()
 
     if (!targetElement || !targetRect || targetRect.width === 0 || targetRect.height === 0) {
-      pinFlightSessionId.value = null
+      clone.remove()
+      if (pinDockedSessionId.value === session.id) {
+        pinDockedSessionId.value = null
+      }
       applyPinFeedback(session.id, nextPinned)
+      pinFlightSessionId.value = null
+      await nextTick()
       return
     }
 
@@ -867,10 +881,17 @@ const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
     )
 
     await animation.finished.catch(() => undefined)
+    clone.remove()
+    if (pinDockedSessionId.value === session.id) {
+      pinDockedSessionId.value = null
+    }
+    applyPinFeedback(session.id, nextPinned)
     pinFlightSessionId.value = null
     await nextTick()
-    applyPinFeedback(session.id, nextPinned)
   } finally {
+    if (pinDockedSessionId.value === session.id) {
+      pinDockedSessionId.value = null
+    }
     pinFlightSessionId.value = null
     clone.remove()
   }
@@ -920,6 +941,7 @@ onUnmounted(() => {
   }
 
   pinFlightSessionId.value = null
+  pinDockedSessionId.value = null
   clearPinFeedback()
 })
 </script>
@@ -940,6 +962,22 @@ button {
 :global(.sidebar-pin-flight) {
   transform: translateZ(0);
   backface-visibility: hidden;
+}
+
+:global(.sidebar-pin-flight .pin-button) {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: none;
+  border-color: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  transform: translate3d(0, -50%, 0) scale(1);
+  transition: none;
+}
+
+:global(.sidebar-pin-flight .session-content) {
+  margin-left: var(--pin-text-shift) !important;
 }
 
 .sidebar-group-collapse-enter-active,
