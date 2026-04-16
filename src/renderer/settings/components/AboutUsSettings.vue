@@ -249,9 +249,7 @@ const appVersion = ref('')
 const upgrade = useUpgradeStore()
 const updateChannel = ref('stable')
 const isDisclaimerOpen = ref(false)
-const showMockUpdateControls = computed(
-  () => import.meta.env.DEV
-)
+const showMockUpdateControls = computed(() => import.meta.env.DEV)
 
 const formattedUpdateVersion = computed(() => {
   const version = upgrade.updateInfo?.version ?? ''
