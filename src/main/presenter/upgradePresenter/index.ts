@@ -7,6 +7,7 @@ import {
 } from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { UPDATE_EVENTS, WINDOW_EVENTS } from '@/events'
+import { presenter } from '@/presenter'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
 import fs from 'fs'
@@ -415,6 +416,7 @@ export class UpgradePresenter implements IUpgradePresenter {
       // Set flags to prevent lifecycle and window management interference
       console.log('Update installation: setting application state for proper quit behavior')
       this.setUpdatingFlag(true)
+      this.prepareFloatingUiForUpdateInstall()
       eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: true })
 
       // Platform-specific quit and install behavior
@@ -448,6 +450,31 @@ export class UpgradePresenter implements IUpgradePresenter {
       eventBus.sendToRenderer(UPDATE_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
         error: e instanceof Error ? e.message : String(e)
       })
+    }
+  }
+
+  private prepareFloatingUiForUpdateInstall(): void {
+    if (!presenter) {
+      console.log('Update installation: presenter not ready, skipping floating UI cleanup')
+      return
+    }
+
+    try {
+      presenter.windowPresenter.setApplicationQuitting(true)
+    } catch (error) {
+      console.warn('Update installation: failed to set application quitting flag directly', error)
+    }
+
+    try {
+      presenter.windowPresenter.destroyFloatingChatWindow()
+    } catch (error) {
+      console.warn('Update installation: failed to destroy floating chat window', error)
+    }
+
+    try {
+      presenter.floatingButtonPresenter.destroy()
+    } catch (error) {
+      console.warn('Update installation: failed to destroy floating button window', error)
     }
   }
 
