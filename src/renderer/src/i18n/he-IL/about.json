@@ -11,8 +11,10 @@
     "osVersion": "גרסת מערכת"
   },
   "disclaimerButton": "כתב ויתור",
+  "clearMockUpdateButton": "נקה עדכון מדומה",
   "disclaimerTitle": "הצהרת תנאי שימוש",
   "checkUpdateButton": "בדוק עדכונים",
+  "mockUpdateButton": "צור עדכון מדומה שהורד",
   "updateChannel": "ערוץ עדכון",
   "stableChannel": "יציב (Stable)",
   "betaChannel": "Beta",

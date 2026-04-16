@@ -8,7 +8,9 @@ const {
   floatingButtonDestroyMock,
   destroyFloatingChatWindowMock,
   setApplicationQuittingMock,
-  appQuitMock
+  appQuitMock,
+  appRelaunchMock,
+  appExitMock
 } = vi.hoisted(() => {
   const autoUpdaterState = {
     listeners: new Map<string, (...args: unknown[]) => void>(),
@@ -24,14 +26,18 @@ const {
     floatingButtonDestroyMock: vi.fn(),
     destroyFloatingChatWindowMock: vi.fn(),
     setApplicationQuittingMock: vi.fn(),
-    appQuitMock: vi.fn()
+    appQuitMock: vi.fn(),
+    appRelaunchMock: vi.fn(),
+    appExitMock: vi.fn()
   }
 })
 
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => '/tmp/deepchat-test'),
-    quit: appQuitMock
+    quit: appQuitMock,
+    relaunch: appRelaunchMock,
+    exit: appExitMock
   },
   shell: {
     openExternal: vi.fn()
@@ -95,7 +101,7 @@ describe('UpgradePresenter', () => {
   })
 
   afterEach(async () => {
-    await vi.runOnlyPendingTimersAsync()
+    vi.clearAllTimers()
     vi.useRealTimers()
   })
 
@@ -120,5 +126,26 @@ describe('UpgradePresenter', () => {
 
     expect(electronUpdater.autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1)
     expect(appQuitMock).not.toHaveBeenCalled()
+  })
+
+  it('relaunches the app for mock downloaded updates without calling quitAndInstall', async () => {
+    const configPresenter = {
+      getUpdateChannel: vi.fn(() => 'stable')
+    } as any
+
+    const presenter = new UpgradePresenter(configPresenter)
+
+    expect(presenter.mockDownloadedUpdate()).toBe(true)
+    expect(presenter.restartToUpdate()).toBe(true)
+
+    expect(setApplicationQuittingMock).toHaveBeenCalledWith(true)
+    expect(destroyFloatingChatWindowMock).toHaveBeenCalledTimes(1)
+    expect(floatingButtonDestroyMock).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(appRelaunchMock).toHaveBeenCalledTimes(1)
+    expect(appExitMock).toHaveBeenCalledTimes(1)
+    expect(electronUpdater.autoUpdater.quitAndInstall).not.toHaveBeenCalled()
   })
 })

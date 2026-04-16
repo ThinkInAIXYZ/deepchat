@@ -7,6 +7,8 @@ const upgradePresenterMock = vi.hoisted(() => ({
   checkUpdate: vi.fn().mockResolvedValue(undefined),
   getUpdateStatus: vi.fn(),
   goDownloadUpgrade: vi.fn().mockResolvedValue(undefined),
+  mockDownloadedUpdate: vi.fn().mockResolvedValue(true),
+  clearMockUpdate: vi.fn().mockResolvedValue(true),
   startDownloadUpdate: vi.fn().mockResolvedValue(true),
   restartToUpdate: vi.fn().mockResolvedValue(true)
 }))
@@ -49,7 +51,8 @@ const createUpdateInfo = () => ({
   releaseDate: '2026-03-19',
   releaseNotes: '- Added floating window',
   githubUrl: 'https://github.com/example',
-  downloadUrl: 'https://download.example.com'
+  downloadUrl: 'https://download.example.com',
+  isMock: false
 })
 
 describe('useUpgradeStore', () => {
@@ -111,6 +114,44 @@ describe('useUpgradeStore', () => {
     expect(store.updateState).toBe('ready_to_install')
     expect(store.shouldShowTopbarInstallButton).toBe(true)
     expect(store.hasUpdate).toBe(true)
+  })
+
+  it('tracks mock downloaded updates and can clear them', async () => {
+    const store = useUpgradeStore()
+    const statusHandler = statusChangedHandlers.get('update:status-changed')
+
+    await store.mockDownloadedUpdate()
+
+    expect(upgradePresenterMock.mockDownloadedUpdate).toHaveBeenCalledTimes(1)
+
+    statusHandler?.(
+      {},
+      {
+        status: 'downloaded',
+        info: {
+          ...createUpdateInfo(),
+          version: '9.9.9-mock',
+          isMock: true
+        }
+      }
+    )
+
+    expect(store.isMockUpdate).toBe(true)
+    expect(store.isReadyToInstall).toBe(true)
+
+    upgradePresenterMock.getUpdateStatus.mockResolvedValue({
+      status: 'not-available',
+      progress: null,
+      error: null,
+      updateInfo: null
+    })
+
+    await store.clearMockUpdate()
+    statusHandler?.({}, { status: 'not-available' })
+
+    expect(store.isMockUpdate).toBe(false)
+    expect(store.hasUpdate).toBe(false)
+    expect(upgradePresenterMock.clearMockUpdate).toHaveBeenCalledTimes(1)
   })
 
   it('marks checking immediately and coalesces repeated manual checks before presenter reply', async () => {

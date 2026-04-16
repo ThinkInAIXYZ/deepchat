@@ -11,8 +11,10 @@
     "osVersion": "Versão do Sistema"
   },
   "disclaimerButton": "Aviso Legal",
+  "clearMockUpdateButton": "Limpar atualização simulada",
   "disclaimerTitle": "Declaração de Termos de Uso",
   "checkUpdateButton": "Verificar Atualizações",
+  "mockUpdateButton": "Simular atualização baixada",
   "updateChannel": "Canal de Atualização",
   "stableChannel": "Estável",
   "betaChannel": "Beta",

@@ -41,9 +41,12 @@ const upgradeStoreMock = {
   isRestarting: false,
   updateProgress: null,
   isReadyToInstall: false,
+  isMockUpdate: false,
   updateState: 'error',
   refreshStatus: vi.fn().mockResolvedValue('error'),
   checkUpdate: vi.fn().mockResolvedValue('error'),
+  mockDownloadedUpdate: vi.fn().mockResolvedValue('downloaded'),
+  clearMockUpdate: vi.fn().mockResolvedValue('not-available'),
   handleUpdate: vi.fn().mockResolvedValue(undefined)
 }
 
@@ -87,6 +90,8 @@ vi.mock('vue-i18n', () => ({
         'about.disclaimerButton': '免责声明',
         'about.checkUpdateButton': '检查更新',
         'about.disclaimerTitle': '免责声明',
+        'about.mockUpdateButton': '模拟已下载更新',
+        'about.clearMockUpdateButton': '清除模拟更新',
         'update.versionAvailable': `${params?.version ?? ''} 可用`,
         'update.autoUpdateFailed': '自动更新可能不稳定，请手动下载更新',
         'update.githubDownload': 'GitHub 下载',
@@ -124,6 +129,7 @@ describe('AboutUsSettings', () => {
       isRestarting: false,
       updateProgress: null,
       isReadyToInstall: false,
+      isMockUpdate: false,
       updateState: 'error'
     })
     Object.assign(window, {
@@ -167,7 +173,14 @@ describe('AboutUsSettings', () => {
     await flushPromises()
 
     const buttons = wrapper.findAll('button').map((button) => button.text())
-    expect(buttons).toEqual(['意见反馈', '免责声明', 'GitHub 下载', '官网下载', '关闭'])
+    expect(buttons).toEqual([
+      '意见反馈',
+      '免责声明',
+      '模拟已下载更新',
+      'GitHub 下载',
+      '官网下载',
+      '关闭'
+    ])
     expect(wrapper.text()).not.toContain('检查更新')
 
     const officialButton = wrapper.findAll('button').find((button) => button.text() === '官网下载')
@@ -271,5 +284,46 @@ describe('AboutUsSettings', () => {
     expect(upgradeStoreMock.checkUpdate).not.toHaveBeenCalled()
 
     wrapper.unmount()
+  })
+
+  it('renders the mock update button and injects the mock downloaded state', async () => {
+    upgradeStoreMock.showManualDownloadOptions = false
+    upgradeStoreMock.updateError = null
+    upgradeStoreMock.updateState = 'idle'
+
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          Button: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: passthroughStub('Select'),
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const mockButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === '模拟已下载更新')
+    expect(mockButton).toBeTruthy()
+
+    await mockButton!.trigger('click')
+
+    expect(upgradeStoreMock.mockDownloadedUpdate).toHaveBeenCalledTimes(1)
   })
 })

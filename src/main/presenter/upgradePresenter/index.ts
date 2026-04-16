@@ -33,6 +33,7 @@ interface VersionInfo {
   releaseNotes: string
   githubUrl: string
   downloadUrl: string
+  isMock?: boolean
 }
 
 const normalizeUpdateChannel = (channel?: string): 'stable' | 'beta' => {
@@ -89,6 +90,7 @@ export class UpgradePresenter implements IUpgradePresenter {
   private _previousUpdateFailed: boolean = false // 标记上次更新是否失败
   private _configPresenter: IConfigPresenter // 配置presenter
   private _isUpdating: boolean = false // Flag to track if update installation is in progress
+  private _isMockUpdate: boolean = false
 
   constructor(configPresenter: IConfigPresenter) {
     this._configPresenter = configPresenter
@@ -264,6 +266,7 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   private markUpdateDownloaded(info?: UpdateInfo): void {
+    this._isMockUpdate = false
     this._lock = false
     this._status = 'downloaded'
     this._error = null
@@ -409,41 +412,48 @@ export class UpgradePresenter implements IUpgradePresenter {
   // Execute quit and install update for all platforms
   private _doQuitAndInstall(): void {
     console.log('Preparing to quit and install update')
+    this.beginInstallFlow(() => {
+      if (process.platform === 'darwin') {
+        console.log('macOS update: calling quitAndInstall with forceRunAfter=true')
+        autoUpdater.quitAndInstall(false, true) // silent=false, forceRunAfter=true
+        return
+      }
+
+      console.log(`${process.platform} update: calling quitAndInstall`)
+      autoUpdater.quitAndInstall()
+    })
+  }
+
+  private _doMockQuitAndInstall(): void {
+    console.log('Preparing to run mock update restart flow')
+    this.beginInstallFlow(() => {
+      console.log('Mock update: relaunching app instead of invoking installer')
+      app.relaunch()
+      app.exit()
+    })
+  }
+
+  private beginInstallFlow(installAction: () => void): void {
     try {
-      // Send restart notification to all windows
       eventBus.sendToRenderer(UPDATE_EVENTS.WILL_RESTART, SendTarget.ALL_WINDOWS)
 
-      // Set flags to prevent lifecycle and window management interference
       console.log('Update installation: setting application state for proper quit behavior')
       this.setUpdatingFlag(true)
       this.prepareFloatingUiForUpdateInstall()
       eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: true })
 
-      // Platform-specific quit and install behavior
-      if (process.platform === 'darwin') {
-        console.log('macOS update: calling quitAndInstall with forceRunAfter=true')
-        // Delay to ensure message delivery completion
-        setTimeout(() => {
-          autoUpdater.quitAndInstall(false, true) // silent=false, forceRunAfter=true
-        }, 500)
-      } else {
-        console.log(`${process.platform} update: calling quitAndInstall`)
-        // For Windows/Linux, still use shorter delay but same approach
-        setTimeout(() => {
-          autoUpdater.quitAndInstall()
-        }, 500)
-      }
+      setTimeout(() => {
+        installAction()
+      }, 500)
 
-      // Force quit if installation doesn't complete within 30 seconds
       setTimeout(() => {
         console.log('Update installation timeout, force quit')
         app.quit() // Exit trigger: upgrade
       }, 30000)
     } catch (e) {
-      console.error('Failed to quit and install update', e)
+      console.error('Failed to start update installation flow', e)
       this.setUpdatingFlag(false)
 
-      // Reset application quitting state on error
       console.log('Resetting application quitting flag after update error')
       eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: false })
 
@@ -478,6 +488,47 @@ export class UpgradePresenter implements IUpgradePresenter {
     }
   }
 
+  mockDownloadedUpdate(): boolean {
+    this._isMockUpdate = true
+    this._lock = false
+    this._status = 'downloaded'
+    this._error = null
+    this._progress = null
+    this._versionInfo = {
+      version: '9.9.9-mock',
+      releaseDate: '2026-04-16',
+      releaseNotes:
+        '## Mock Update\n\n- Simulates a downloaded update.\n- Uses the real restart/install UI flow.\n- Intended for floating window shutdown verification.',
+      githubUrl: '',
+      downloadUrl: '',
+      isMock: true
+    }
+
+    eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+      status: this._status,
+      info: this._versionInfo
+    })
+    return true
+  }
+
+  clearMockUpdate(): boolean {
+    if (!this._isMockUpdate) {
+      return false
+    }
+
+    this._isMockUpdate = false
+    this._lock = false
+    this._status = 'not-available'
+    this._error = null
+    this._progress = null
+    this._versionInfo = null
+
+    eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+      status: this._status
+    })
+    return true
+  }
+
   // 重启并更新
   restartToUpdate(): boolean {
     console.log('重启并更新')
@@ -488,6 +539,11 @@ export class UpgradePresenter implements IUpgradePresenter {
       return false
     }
     try {
+      if (this._isMockUpdate) {
+        this._doMockQuitAndInstall()
+        return true
+      }
+
       this._doQuitAndInstall()
       return true
     } catch (e) {

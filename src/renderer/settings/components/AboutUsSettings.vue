@@ -111,6 +111,26 @@
           </Button>
 
           <Button
+            v-if="showMockUpdateControls && !upgrade.isMockUpdate"
+            variant="outline"
+            size="sm"
+            class="mb-2 text-xs"
+            @click="handleMockDownloadedUpdate"
+          >
+            {{ t('about.mockUpdateButton') }}
+          </Button>
+
+          <Button
+            v-if="showMockUpdateControls && upgrade.isMockUpdate"
+            variant="outline"
+            size="sm"
+            class="mb-2 text-xs"
+            @click="handleClearMockUpdate"
+          >
+            {{ t('about.clearMockUpdateButton') }}
+          </Button>
+
+          <Button
             v-if="upgrade.showManualDownloadOptions"
             variant="outline"
             size="sm"
@@ -229,6 +249,7 @@ const appVersion = ref('')
 const upgrade = useUpgradeStore()
 const updateChannel = ref('stable')
 const isDisclaimerOpen = ref(false)
+const showMockUpdateControls = computed(() => import.meta.env.DEV)
 
 const formattedUpdateVersion = computed(() => {
   const version = upgrade.updateInfo?.version ?? ''
@@ -283,6 +304,20 @@ const handlePrimaryAction = async () => {
 
 const handleManualDownload = async (type: 'github' | 'official') => {
   await upgrade.handleUpdate(type)
+}
+
+const handleMockDownloadedUpdate = async () => {
+  const status = await upgrade.mockDownloadedUpdate()
+  if (status === 'error' && upgrade.updateError) {
+    showUpdateErrorToast(upgrade.updateError)
+  }
+}
+
+const handleClearMockUpdate = async () => {
+  const status = await upgrade.clearMockUpdate()
+  if (status === 'error' && upgrade.updateError) {
+    showUpdateErrorToast(upgrade.updateError)
+  }
 }
 
 const handleExternalCheckUpdate = async () => {
