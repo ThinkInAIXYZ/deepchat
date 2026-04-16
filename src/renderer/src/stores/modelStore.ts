@@ -201,7 +201,9 @@ export const useModelStore = defineStore('model', () => {
           maxTokens: resolvedMaxTokens,
           vision: resolveModelVision(config.vision ?? normalized.vision),
           functionCall: resolveModelFunctionCall(config.functionCall ?? normalized.functionCall),
-          reasoning: config.reasoning ?? normalized.reasoning ?? false,
+          reasoning: model.isCustom
+            ? (config.reasoning ?? normalized.reasoning ?? false)
+            : normalized.reasoning,
           type: config.type ?? normalized.type ?? ModelType.Chat,
           endpointType: config.endpointType ?? normalized.endpointType
         }
@@ -326,7 +328,9 @@ export const useModelStore = defineStore('model', () => {
             maxTokens: resolveModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
             vision: resolveModelVision(model.vision ?? fallback?.vision),
             functionCall: resolveModelFunctionCall(model.functionCall ?? fallback?.functionCall),
-            reasoning: model.reasoning ?? fallback?.reasoning ?? false,
+            // Standard models should keep DB-backed reasoning capability metadata.
+            reasoning:
+              fallback !== undefined ? (fallback.reasoning ?? false) : (model.reasoning ?? false),
             enableSearch:
               (model as RENDERER_MODEL_META).enableSearch ??
               (fallback as RENDERER_MODEL_META | undefined)?.enableSearch ??

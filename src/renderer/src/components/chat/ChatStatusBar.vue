@@ -742,7 +742,12 @@ import type {
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { isChatSelectableModelType } from '@shared/model'
-import type { ReasoningPortrait } from '@shared/types/model-db'
+import {
+  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  isReasoningEffort,
+  isVerbosity,
+  type ReasoningPortrait
+} from '@shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
   parseFiniteNumericValue,
@@ -797,12 +802,6 @@ const CONTEXT_LENGTH_STEP = 1024
 const MAX_TOKENS_STEP = 128
 const THINKING_BUDGET_STEP = 128
 const ACP_INLINE_OPTION_LIMIT = 3
-const DEFAULT_REASONING_EFFORT_OPTIONS: SessionGenerationSettings['reasoningEffort'][] = [
-  'minimal',
-  'low',
-  'medium',
-  'high'
-]
 const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [
   'low',
   'medium',
@@ -1218,12 +1217,6 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
   return typeof candidate.providerId === 'string' && typeof candidate.modelId === 'string'
 }
 
-const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
-  value === 'low' || value === 'medium' || value === 'high'
-
 const getCommittedNumericInputValue = (field: GenerationNumericField): string => {
   if (!localSettings.value) {
     return ''
@@ -1417,9 +1410,13 @@ const getReasoningEffortOptions = (
   if (options && options.length > 0) {
     return options
   }
-  return portrait.mode !== 'mixed' && isReasoningEffort(portrait?.effort)
-    ? [...DEFAULT_REASONING_EFFORT_OPTIONS]
-    : []
+  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait?.effort)) {
+    return []
+  }
+
+  return FALLBACK_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
+    ? [...FALLBACK_REASONING_EFFORT_OPTIONS]
+    : [portrait.effort]
 }
 
 const getVerbosityOptions = (

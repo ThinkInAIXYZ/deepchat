@@ -380,8 +380,12 @@
         "label": "حداکثر طول خروجی"
       },
       "reasoning": {
-        "description": "آیا مدل از توانایی استدلال پشتیبانی می کند؟",
+        "description": "این مدل از استدلال پشتیبانی می‌کند",
         "label": "توانایی استدلال"
+      },
+      "reasoningToggle": {
+        "description": "کنترل می‌کند که استدلال به‌صورت پیش‌فرض برای این مدل فعال باشد یا نه",
+        "label": "فعال‌سازی استدلال"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -408,10 +412,12 @@
         "description": "عمق استدلال مدل را کنترل می‌کند؛ تلاش بیشتر نتایج بهتری تولید می‌کند اما پاسخ‌های کندتری دارد",
         "placeholder": "انتخاب تلاش استدلال",
         "options": {
+          "none": "None - بدون استدلال",
           "minimal": "Minimal - سریع‌ترین پاسخ",
           "low": "Low - تلاش کم",
           "medium": "Medium - تلاش متوسط",
-          "high": "High - تلاش زیاد"
+          "high": "High - تلاش زیاد",
+          "xhigh": "XHigh - حداکثر تلاش"
         }
       },
       "verbosity": {

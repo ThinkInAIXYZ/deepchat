@@ -105,12 +105,12 @@
     "chatModel": "默认对话模型",
     "assistantModel": "助手模型",
     "visionModel": "视觉模型",
-    "temperature": "Temperature",
-    "contextLength": "Context Length",
-    "maxTokens": "Max Tokens",
-    "thinkingBudget": "Thinking Budget",
-    "reasoningEffort": "Reasoning Effort",
-    "verbosity": "Verbosity",
+    "temperature": "温度",
+    "contextLength": "上下文长度",
+    "maxTokens": "最大 Token 数",
+    "thinkingBudget": "思考预算",
+    "reasoningEffort": "推理强度",
+    "verbosity": "详细程度",
     "interleaved": "强制兼容交错思考",
     "systemPrompt": "默认系统提示词",
     "systemPromptPlaceholder": "留空则使用空白系统提示词",
@@ -451,7 +451,11 @@
       },
       "reasoning": {
         "label": "推理能力",
-        "description": "模型是否支持推理能力"
+        "description": "该模型支持推理能力"
+      },
+      "reasoningToggle": {
+        "label": "启用推理",
+        "description": "控制该模型默认是否启用推理"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -501,10 +505,12 @@
         "description": "控制模型的推理深度，更高的努力程度会产生更好的结果但响应更慢",
         "placeholder": "选择推理努力程度",
         "options": {
+          "none": "None - 不使用推理",
           "minimal": "Minimal - 最快响应",
           "low": "Low - 低努力",
           "medium": "Medium - 中等努力",
-          "high": "High - 高努力"
+          "high": "High - 高努力",
+          "xhigh": "XHigh - 最大努力程度"
         }
       },
       "verbosity": {

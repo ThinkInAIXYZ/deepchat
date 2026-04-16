@@ -79,6 +79,29 @@ describe('ModelCapabilities reasoning portraits', () => {
                   effort_options: ['minimal', 'low', 'medium', 'high']
                 }
               }
+            },
+            {
+              id: 'openai/gpt-5.2',
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: false,
+                  mode: 'effort',
+                  effort: 'none',
+                  effort_options: ['none', 'low', 'medium', 'high', 'xhigh']
+                }
+              }
+            },
+            {
+              id: 'openai/gpt-5.4-pro',
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: true,
+                  mode: 'effort',
+                  effort: 'xhigh'
+                }
+              }
             }
           ]
         },
@@ -195,5 +218,25 @@ describe('ModelCapabilities reasoning portraits', () => {
     expect(capabilities.getReasoningEffortDefault('302ai', 'gpt-5-thinking')).toBeUndefined()
     expect(capabilities.supportsVerbosity('302ai', 'gpt-5-thinking')).toBe(false)
     expect(capabilities.getVerbosityDefault('302ai', 'gpt-5-thinking')).toBeUndefined()
+  })
+
+  it('keeps explicit none and xhigh effort portraits without synthesizing extra options', () => {
+    const capabilities = new ModelCapabilities()
+
+    expect(capabilities.getReasoningPortrait('openai', 'gpt-5.2')).toMatchObject({
+      supported: true,
+      defaultEnabled: false,
+      effort: 'none',
+      effortOptions: ['none', 'low', 'medium', 'high', 'xhigh']
+    })
+    expect(capabilities.getReasoningEffortDefault('openai', 'gpt-5.2')).toBe('none')
+
+    const xhighPortrait = capabilities.getReasoningPortrait('openai', 'gpt-5.4-pro')
+    expect(xhighPortrait).toMatchObject({
+      supported: true,
+      defaultEnabled: true,
+      effort: 'xhigh'
+    })
+    expect(xhighPortrait?.effortOptions).toBeUndefined()
   })
 })

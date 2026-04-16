@@ -216,6 +216,91 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.medium')
   })
 
+  it('keeps none as the portrait default and renders explicit extended effort options', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-5.2',
+      modelName: 'GPT-5.2',
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: undefined
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'none',
+        effortOptions: ['none', 'low', 'medium', 'high', 'xhigh'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    expect((wrapper.vm as any).config.reasoningEffort).toBe('none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.xhigh')
+  })
+
+  it('shows effort-based reasoning support as a disabled capability indicator', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-5.4',
+      modelName: 'GPT-5.4',
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: 'xhigh'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'none',
+        effortOptions: ['none', 'low', 'medium', 'high', 'xhigh']
+      }
+    })
+
+    expect((wrapper.vm as any).reasoningToggleMode).toBe('indicator')
+    expect((wrapper.vm as any).reasoningToggleDisabled).toBe(true)
+    expect((wrapper.vm as any).reasoningToggleValue).toBe(true)
+    expect((wrapper.vm as any).reasoningToggleLabelKey).toBe(
+      'settings.model.modelConfig.reasoning.label'
+    )
+    expect((wrapper.vm as any).reasoningToggleDescriptionKey).toBe(
+      'settings.model.modelConfig.reasoning.description'
+    )
+  })
+
+  it('keeps budget-backed reasoning as an explicit enable toggle', async () => {
+    const { wrapper } = await setup({
+      providerId: 'anthropic',
+      modelId: 'claude-4-sonnet',
+      modelName: 'Claude 4 Sonnet',
+      modelConfig: {
+        reasoning: false,
+        thinkingBudget: 2048
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'budget',
+        budget: {
+          min: 1024,
+          default: 2048
+        }
+      }
+    })
+
+    expect((wrapper.vm as any).reasoningToggleMode).toBe('toggle')
+    expect((wrapper.vm as any).reasoningToggleDisabled).toBe(false)
+    expect((wrapper.vm as any).reasoningToggleValue).toBe(false)
+    expect((wrapper.vm as any).reasoningToggleLabelKey).toBe(
+      'settings.model.modelConfig.reasoningToggle.label'
+    )
+    expect((wrapper.vm as any).reasoningToggleDescriptionKey).toBe(
+      'settings.model.modelConfig.reasoningToggle.description'
+    )
+  })
+
   it('hides effort and budget controls for level-based portraits', async () => {
     const { wrapper } = await setup({
       providerId: 'vertex',

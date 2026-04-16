@@ -23,6 +23,7 @@ import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { useThinkingBudget } from '@/composables/useThinkingBudget'
 import { useModelTypeDetection } from '@/composables/useModelTypeDetection'
 import { useChatConfigFields } from '@/composables/useChatConfigFields'
+import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 
 // === Stores ===
 import { useLanguageStore } from '@/stores/language'
@@ -38,8 +39,8 @@ const props = defineProps<{
   thinkingBudget?: number
   modelId?: string
   providerId?: string
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank'
 }>()
 
@@ -50,8 +51,8 @@ const emit = defineEmits<{
   'update:contextLength': [value: number]
   'update:maxTokens': [value: number]
   'update:thinkingBudget': [value: number | undefined]
-  'update:reasoningEffort': [value: 'minimal' | 'low' | 'medium' | 'high']
-  'update:verbosity': [value: 'low' | 'medium' | 'high']
+  'update:reasoningEffort': [value: ReasoningEffort]
+  'update:verbosity': [value: Verbosity]
 }>()
 
 // === Stores ===

@@ -1988,6 +1988,29 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('normalizes stale reasoning effort values to a fixed portrait default', async () => {
+      configPresenter.getReasoningPortrait.mockReturnValue({
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'xhigh'
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-5.4-pro' })
+
+      const updated = await agent.updateGenerationSettings('s1', {
+        reasoningEffort: 'low'
+      })
+
+      expect(updated.reasoningEffort).toBe('xhigh')
+      expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          reasoningEffort: 'xhigh'
+        })
+      )
+    })
+
     it('falls back from old DB rows with null generation fields', async () => {
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',

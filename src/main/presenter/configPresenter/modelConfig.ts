@@ -10,9 +10,10 @@ import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
 import {
   isImageInputSupported,
+  normalizeReasoningEffortValue,
   ProviderModel,
   ReasoningPortrait,
-  type ReasoningEffort,
+  isVerbosity,
   type Verbosity
 } from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
@@ -21,34 +22,6 @@ import { modelCapabilities } from './modelCapabilities'
 const SPECIAL_CONCAT_CHAR = '-_-'
 
 const MODEL_CONFIG_META_KEY = '__meta__'
-
-const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is Verbosity =>
-  value === 'low' || value === 'medium' || value === 'high'
-
-const normalizeReasoningEffortValue = (
-  portrait: ReasoningPortrait | null,
-  value: unknown
-): ReasoningEffort | undefined => {
-  if (!isReasoningEffort(value)) {
-    return undefined
-  }
-
-  const options = portrait?.effortOptions?.filter(isReasoningEffort)
-  if (!options || options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-    ? portrait.effort
-    : undefined
-}
 
 const normalizeVerbosityValue = (
   portrait: ReasoningPortrait | null,

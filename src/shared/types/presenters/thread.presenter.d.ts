@@ -1,4 +1,5 @@
 import { AssistantMessageBlock, Message } from '../../chat'
+import type { ReasoningEffort, Verbosity } from '../model-db'
 import type { SearchResult } from '../core/search'
 
 /**
@@ -19,8 +20,8 @@ export type CONVERSATION_SETTINGS = {
   enableSearch?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   acpWorkdirMap?: Record<string, string | null>
   chatMode?: 'agent' | 'acp agent'
   agentWorkspacePath?: string | null

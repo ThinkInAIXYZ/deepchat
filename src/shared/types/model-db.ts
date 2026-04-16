@@ -3,8 +3,22 @@ import { z } from 'zod'
 // ---------- Zod Schemas ----------
 
 // Capability sub-schemas
-export const ReasoningEffortSchema = z.enum(['minimal', 'low', 'medium', 'high'])
+export const REASONING_EFFORT_VALUES = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh'
+] as const
+export const ReasoningEffortSchema = z.enum(REASONING_EFFORT_VALUES)
 export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
+export const DEFAULT_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = [
+  'minimal',
+  'low',
+  'medium',
+  'high'
+]
 
 export const VerbositySchema = z.enum(['low', 'medium', 'high'])
 export type Verbosity = z.infer<typeof VerbositySchema>
@@ -152,6 +166,98 @@ export type ReasoningPortrait = {
   notes?: string[]
 }
 
+export type ReasoningControlMode = 'unsupported' | 'toggle' | 'indicator'
+
+export const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
+  ReasoningEffortSchema.safeParse(value).success
+
+export const isVerbosity = (value: unknown): value is Verbosity =>
+  VerbositySchema.safeParse(value).success
+
+const canResolveReasoningEffortFromPortrait = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean =>
+  portrait?.mode !== 'budget' && portrait?.mode !== 'level' && portrait?.mode !== 'mixed'
+
+export const normalizeReasoningEffortValue = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: unknown
+): ReasoningEffort | undefined => {
+  if (!isReasoningEffort(value)) {
+    return undefined
+  }
+
+  const options = portrait?.effortOptions?.filter(isReasoningEffort)
+  if (options && options.length > 0) {
+    if (options.includes(value)) {
+      return value
+    }
+
+    return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
+      ? portrait.effort
+      : undefined
+  }
+
+  if (canResolveReasoningEffortFromPortrait(portrait) && isReasoningEffort(portrait?.effort)) {
+    return value === portrait.effort ? value : portrait.effort
+  }
+
+  return value
+}
+
+export const supportsReasoningCapability = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean => portrait?.supported === true
+
+export const getReasoningControlMode = (
+  portrait: ReasoningPortrait | null | undefined
+): ReasoningControlMode => {
+  if (!supportsReasoningCapability(portrait)) {
+    return 'unsupported'
+  }
+
+  return portrait?.mode === undefined || portrait.mode === 'budget' ? 'toggle' : 'indicator'
+}
+
+export const hasIndependentReasoningToggle = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean => getReasoningControlMode(portrait) === 'toggle'
+
+export const getReasoningEffectiveEnabled = (
+  portrait: ReasoningPortrait | null | undefined,
+  state: {
+    reasoning?: boolean | null
+    reasoningEffort?: unknown
+  } = {}
+): boolean => {
+  if (!portrait) {
+    return state.reasoning === true
+  }
+
+  if (!supportsReasoningCapability(portrait)) {
+    return false
+  }
+
+  if (hasIndependentReasoningToggle(portrait)) {
+    return state.reasoning ?? portrait.defaultEnabled ?? true
+  }
+
+  if (canResolveReasoningEffortFromPortrait(portrait)) {
+    const resolvedEffort =
+      normalizeReasoningEffortValue(portrait, state.reasoningEffort) ??
+      normalizeReasoningEffortValue(portrait, portrait.effort)
+    if (resolvedEffort === 'none') {
+      return false
+    }
+
+    if (resolvedEffort !== undefined) {
+      return true
+    }
+  }
+
+  return portrait.defaultEnabled ?? true
+}
+
 // ---------- Helpers ----------
 
 export function isImageInputSupported(model: ProviderModel | undefined): boolean {
@@ -205,13 +311,11 @@ function getStringNumberRecord(obj: unknown): Record<string, string | number> | 
 type ModelTypeValue = 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
 
 function getEffortValue(v: unknown): ReasoningEffort | undefined {
-  const parsed = ReasoningEffortSchema.safeParse(v)
-  return parsed.success ? parsed.data : undefined
+  return isReasoningEffort(v) ? v : undefined
 }
 
 function getVerbosityValue(v: unknown): Verbosity | undefined {
-  const parsed = VerbositySchema.safeParse(v)
-  return parsed.success ? parsed.data : undefined
+  return isVerbosity(v) ? v : undefined
 }
 
 function getReasoningModeValue(v: unknown): ReasoningMode | undefined {

@@ -5,6 +5,7 @@ import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
 import { ApiEndpointType, ModelType } from '@shared/model'
+import type { ReasoningEffort, Verbosity } from '../model-db'
 import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import type { AcpConfigState } from './llmprovider.presenter'
@@ -163,8 +164,8 @@ export interface ModelConfig {
   thinkingBudget?: number
   forceInterleavedThinkingCompat?: boolean
   // New parameters for GPT-5 series
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
   conversationId?: string
   apiEndpoint?: ApiEndpointType
@@ -528,12 +529,9 @@ export interface IConfigPresenter {
     modelId: string
   ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' }
   supportsReasoningEffortCapability?(providerId: string, modelId: string): boolean
-  getReasoningEffortDefault?(
-    providerId: string,
-    modelId: string
-  ): 'minimal' | 'low' | 'medium' | 'high' | undefined
+  getReasoningEffortDefault?(providerId: string, modelId: string): ReasoningEffort | undefined
   supportsVerbosityCapability?(providerId: string, modelId: string): boolean
-  getVerbosityDefault?(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined
+  getVerbosityDefault?(providerId: string, modelId: string): Verbosity | undefined
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
@@ -1243,8 +1241,8 @@ export type CONVERSATION_SETTINGS = {
   artifacts: 0 | 1
   enabledMcpTools?: string[]
   thinkingBudget?: number
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   selectedVariantsMap?: Record<string, string>
   acpWorkdirMap?: Record<string, string | null>
   chatMode?: 'agent' | 'acp agent'
@@ -1932,8 +1930,8 @@ export interface DefaultModelSetting {
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
   // New parameters for GPT-5 series
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
 }
 

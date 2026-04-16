@@ -380,8 +380,12 @@
         "label": "Comprimento máximo de saída"
       },
       "reasoning": {
-        "description": "O modelo suporta capacidade de raciocínio?",
+        "description": "Este modelo oferece suporte a raciocínio",
         "label": "Capacidade de raciocínio"
+      },
+      "reasoningToggle": {
+        "description": "Controla se o raciocínio fica ativado por padrão para este modelo",
+        "label": "Ativar raciocínio"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -408,10 +412,12 @@
         "description": "Controla a profundidade do raciocínio do modelo; esforço mais alto produz resultados melhores, mas respostas mais lentas",
         "placeholder": "Selecionar esforço de raciocínio",
         "options": {
+          "none": "Nenhum - Sem raciocínio",
           "minimal": "Mínimo - Resposta mais rápida",
           "low": "Baixo - Baixo esforço",
           "medium": "Médio - Esforço moderado",
-          "high": "Alto - Alto esforço"
+          "high": "Alto - Alto esforço",
+          "xhigh": "Muito alto - Esforço máximo"
         }
       },
       "verbosity": {

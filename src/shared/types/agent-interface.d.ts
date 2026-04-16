@@ -1,3 +1,5 @@
+import type { ReasoningEffort, Verbosity } from './model-db'
+
 /**
  * Agent Interface Protocol
  *
@@ -21,8 +23,8 @@ export interface SessionGenerationSettings {
   contextLength: number
   maxTokens: number
   thinkingBudget?: number
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   forceInterleavedThinkingCompat?: boolean
 }
 

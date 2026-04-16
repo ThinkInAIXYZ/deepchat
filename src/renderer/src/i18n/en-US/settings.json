@@ -442,8 +442,12 @@
         "label": "Maximum output length"
       },
       "reasoning": {
-        "description": "Does the model support reasoning ability?",
+        "description": "This model supports reasoning",
         "label": "Reasoning ability"
+      },
+      "reasoningToggle": {
+        "description": "Controls whether reasoning is enabled by default for this model",
+        "label": "Enable reasoning"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -470,10 +474,12 @@
         "description": "Controls the depth of model reasoning; higher effort produces better results but slower responses",
         "placeholder": "Select reasoning effort",
         "options": {
+          "none": "None - No reasoning",
           "minimal": "Minimal - Fastest response",
           "low": "Low - Low effort",
           "medium": "Medium - Moderate effort",
-          "high": "High - High effort"
+          "high": "High - High effort",
+          "xhigh": "XHigh - Maximum effort"
         }
       },
       "verbosity": {

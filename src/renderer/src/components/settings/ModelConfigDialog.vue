@@ -230,16 +230,20 @@
           <!-- 推理能力 -->
           <div v-if="showReasoningToggle" class="flex items-center justify-between">
             <div class="space-y-0.5">
-              <Label>{{ t('settings.model.modelConfig.reasoning.label') }}</Label>
+              <Label>{{ t(reasoningToggleLabelKey) }}</Label>
               <p class="text-xs text-muted-foreground">
-                {{ t('settings.model.modelConfig.reasoning.description') }}
+                {{ t(reasoningToggleDescriptionKey) }}
               </p>
               <!-- DeepSeek-V3.1 互斥提示 -->
-              <p v-if="isDeepSeekV31Model" class="text-xs text-orange-600">
+              <p v-if="showReasoningMutualExclusiveWarning" class="text-xs text-orange-600">
                 {{ t('dialog.mutualExclusive.warningText.reasoning') }}
               </p>
             </div>
-            <Switch :model-value="config.reasoning" @update:model-value="handleReasoningToggle" />
+            <Switch
+              :model-value="reasoningToggleValue"
+              :disabled="reasoningToggleDisabled"
+              @update:model-value="handleReasoningToggle"
+            />
           </div>
 
           <div v-if="showInterleavedThinking" class="flex items-center justify-between gap-4">
@@ -416,7 +420,17 @@ import {
   type NewApiEndpointType
 } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
-import type { ReasoningPortrait } from '@shared/types/model-db'
+import {
+  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  getReasoningControlMode,
+  getReasoningEffectiveEnabled,
+  isReasoningEffort,
+  isVerbosity,
+  normalizeReasoningEffortValue,
+  supportsReasoningCapability,
+  type ReasoningEffort,
+  type ReasoningPortrait
+} from '@shared/types/model-db'
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_FUNCTION_CALL,
@@ -537,12 +551,6 @@ const createDefaultConfig = (): ModelConfig => ({
   verbosity: 'medium'
 })
 
-const DEFAULT_REASONING_EFFORT_OPTIONS: Array<'minimal' | 'low' | 'medium' | 'high'> = [
-  'minimal',
-  'low',
-  'medium',
-  'high'
-]
 const DEFAULT_VERBOSITY_OPTIONS: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high']
 
 // 配置数据
@@ -575,15 +583,9 @@ const mutualExclusiveAction = ref<{
 const errors = ref<Record<string, string>>({})
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
 
-const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
-  value === 'low' || value === 'medium' || value === 'high'
-
 const getReasoningEffortOptions = (
   portrait: ReasoningPortrait | null | undefined
-): Array<'minimal' | 'low' | 'medium' | 'high'> => {
+): ReasoningEffort[] => {
   if (
     !portrait ||
     portrait.mode === 'budget' ||
@@ -597,9 +599,13 @@ const getReasoningEffortOptions = (
   if (options && options.length > 0) {
     return options
   }
-  return portrait.mode !== 'mixed' && isReasoningEffort(portrait?.effort)
-    ? [...DEFAULT_REASONING_EFFORT_OPTIONS]
-    : []
+  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait?.effort)) {
+    return []
+  }
+
+  return FALLBACK_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
+    ? [...FALLBACK_REASONING_EFFORT_OPTIONS]
+    : [portrait.effort]
 }
 
 const getVerbosityOptions = (
@@ -613,10 +619,10 @@ const getVerbosityOptions = (
 }
 
 const hasReasoningEffortSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  portrait?.supported !== false && getReasoningEffortOptions(portrait).length > 0
+  supportsReasoningCapability(portrait) && getReasoningEffortOptions(portrait).length > 0
 
 const hasVerbositySupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  portrait?.supported !== false && getVerbosityOptions(portrait).length > 0
+  supportsReasoningCapability(portrait) && getVerbosityOptions(portrait).length > 0
 
 const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
   Boolean(
@@ -631,28 +637,6 @@ const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined
       portrait.budget.auto !== undefined ||
       portrait.budget.off !== undefined)
   )
-
-const normalizeReasoningEffortValue = (
-  portrait: ReasoningPortrait | null | undefined,
-  value: unknown
-): 'minimal' | 'low' | 'medium' | 'high' | undefined => {
-  if (!isReasoningEffort(value)) {
-    return undefined
-  }
-
-  const options = getReasoningEffortOptions(portrait)
-  if (options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-    ? portrait.effort
-    : undefined
-}
 
 const normalizeVerbosityValue = (
   portrait: ReasoningPortrait | null | undefined,
@@ -716,7 +700,7 @@ const isThinkingBudgetSentinel = (
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
 const capabilitySupportsEffort = ref<boolean | null>(null)
-const capabilityEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
+const capabilityEffortDefault = ref<ReasoningEffort | undefined>(undefined)
 const capabilitySupportsVerbosity = ref<boolean | null>(null)
 const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 
@@ -1125,6 +1109,38 @@ const isDeepSeekV31Model = computed(() => {
 const supportsReasoningEffort = computed(() =>
   hasReasoningEffortSupport(capabilityReasoningPortrait.value)
 )
+const reasoningToggleMode = computed(() => {
+  if (isCreateMode.value || props.isCustomModel) {
+    return 'toggle' as const
+  }
+
+  if (capabilityReasoningPortrait.value) {
+    return getReasoningControlMode(capabilityReasoningPortrait.value)
+  }
+
+  return capabilitySupportsReasoning.value === false
+    ? ('unsupported' as const)
+    : ('toggle' as const)
+})
+const reasoningToggleDisabled = computed(() => reasoningToggleMode.value === 'indicator')
+const reasoningToggleValue = computed(() =>
+  reasoningToggleDisabled.value
+    ? supportsReasoningCapability(capabilityReasoningPortrait.value)
+    : Boolean(config.value.reasoning)
+)
+const reasoningToggleLabelKey = computed(() =>
+  reasoningToggleDisabled.value
+    ? 'settings.model.modelConfig.reasoning.label'
+    : 'settings.model.modelConfig.reasoningToggle.label'
+)
+const reasoningToggleDescriptionKey = computed(() =>
+  reasoningToggleDisabled.value
+    ? 'settings.model.modelConfig.reasoning.description'
+    : 'settings.model.modelConfig.reasoningToggle.description'
+)
+const showReasoningMutualExclusiveWarning = computed(
+  () => isDeepSeekV31Model.value && reasoningToggleDisabled.value === false
+)
 const reasoningEffortOptions = computed(() =>
   getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
     value,
@@ -1139,8 +1155,11 @@ const verbosityOptions = computed(() =>
 )
 
 const showThinkingBudget = computed(() => {
-  const hasReasoning = config.value.reasoning
-  const supported = capabilitySupportsReasoning.value === true
+  const hasReasoning = getReasoningEffectiveEnabled(capabilityReasoningPortrait.value, {
+    reasoning: config.value.reasoning,
+    reasoningEffort: config.value.reasoningEffort
+  })
+  const supported = supportsReasoningCapability(capabilityReasoningPortrait.value)
   const hasRange = hasThinkingBudgetSupport(capabilityReasoningPortrait.value)
   return hasReasoning && supported && hasRange
 })
@@ -1205,6 +1224,9 @@ const handleMutualExclusiveToggle = (feature: 'reasoning' | 'functionCall', enab
 }
 
 const handleReasoningToggle = (enabled: boolean) => {
+  if (reasoningToggleDisabled.value) {
+    return
+  }
   handleMutualExclusiveToggle('reasoning', enabled)
 }
 
@@ -1247,6 +1269,6 @@ onMounted(() => {
 })
 
 const showReasoningToggle = computed(() => {
-  return capabilitySupportsReasoning.value !== false
+  return reasoningToggleMode.value !== 'unsupported'
 })
 </script>

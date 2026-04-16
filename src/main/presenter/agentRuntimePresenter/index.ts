@@ -28,6 +28,12 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
+  getReasoningEffectiveEnabled,
+  isReasoningEffort,
+  normalizeReasoningEffortValue,
+  isVerbosity
+} from '@shared/types/model-db'
+import {
   normalizeLegacyThinkingBudgetValue,
   parseFiniteNumericValue,
   toValidNonNegativeInteger,
@@ -125,12 +131,6 @@ type ActiveGeneration = {
   messageId: string
   abortController: AbortController
 }
-
-const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
-  value === 'low' || value === 'medium' || value === 'high'
 
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 
@@ -1484,6 +1484,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       providedInterleavedReasoning ??
       this.resolveInterleavedReasoningConfig(state.providerId, state.modelId, generationSettings)
     const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+    const reasoningPortrait = this.getReasoningPortrait(state.providerId, state.modelId)
     const modelConfig: ModelConfig = {
       ...baseModelConfig,
       temperature: generationSettings.temperature,
@@ -1492,6 +1493,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       thinkingBudget: generationSettings.thinkingBudget,
       reasoningEffort: generationSettings.reasoningEffort,
       verbosity: generationSettings.verbosity,
+      reasoning: getReasoningEffectiveEnabled(reasoningPortrait, {
+        reasoning: baseModelConfig.reasoning,
+        reasoningEffort: generationSettings.reasoningEffort ?? baseModelConfig.reasoningEffort
+      }),
       conversationId: sessionId
     }
 
@@ -2832,21 +2837,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const portrait = this.getReasoningPortrait(providerId, modelId)
-    const options = portrait?.effortOptions?.filter(isReasoningEffort)
-    if (!options || options.length === 0) {
-      return normalizedValue
-    }
-
-    if (options.includes(normalizedValue)) {
-      return normalizedValue
-    }
-
-    const defaultEffort = portrait?.effort
-    if (defaultEffort && isReasoningEffort(defaultEffort) && options.includes(defaultEffort)) {
-      return defaultEffort
-    }
-
-    return undefined
+    return normalizeReasoningEffortValue(portrait, normalizedValue)
   }
 
   private normalizeVerbosity(

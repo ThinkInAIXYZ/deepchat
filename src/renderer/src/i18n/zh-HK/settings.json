@@ -380,8 +380,12 @@
         "label": "最大輸出長度"
       },
       "reasoning": {
-        "description": "模型是否支持推理能力",
+        "description": "該模型支援推理能力",
         "label": "推理能力"
+      },
+      "reasoningToggle": {
+        "description": "控制該模型預設是否啟用推理",
+        "label": "啟用推理"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -408,10 +412,12 @@
         "description": "控制模型的推理深度，更高的努力程度會產生更好的結果但響應更慢",
         "placeholder": "選擇推理努力程度",
         "options": {
+          "none": "None - 不使用推理",
           "minimal": "Minimal - 最快響應",
           "low": "Low - 低努力",
           "medium": "Medium - 中等努力",
-          "high": "High - 高努力"
+          "high": "High - 高努力",
+          "xhigh": "XHigh - 最大努力程度"
         }
       },
       "verbosity": {

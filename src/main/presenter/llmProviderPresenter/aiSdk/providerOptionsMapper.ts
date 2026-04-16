@@ -1,5 +1,6 @@
 import type { MCPToolDefinition, ModelConfig } from '@shared/presenter'
 import type { ModelMessage } from 'ai'
+import { getReasoningEffectiveEnabled } from '@shared/types/model-db'
 import { resolvePromptCachePlan } from '../promptCacheStrategy'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
@@ -119,6 +120,18 @@ export function buildProviderOptions(
 ): ProviderOptionsMappingResult {
   const providerOptions: ProviderOptionsRecord = {}
   let messages = params.messages
+  const reasoningPortrait = modelCapabilities.getReasoningPortrait?.(
+    params.providerId,
+    params.modelId
+  )
+  const reasoningEnabled = getReasoningEffectiveEnabled(reasoningPortrait, {
+    reasoning: params.modelConfig.reasoning,
+    reasoningEffort: params.modelConfig.reasoningEffort
+  })
+  const hasThinkingConfig =
+    params.modelConfig.thinkingBudget !== undefined || Boolean(params.modelConfig.reasoningEffort)
+  const shouldSendThinkingConfig =
+    hasThinkingConfig && (reasoningPortrait ? reasoningEnabled : true)
 
   const promptCachePlan = resolvePromptCachePlan({
     providerId: params.providerId,
@@ -150,10 +163,7 @@ export function buildProviderOptions(
       if (promptCachePlan.cacheKey) {
         config.promptCacheKey = promptCachePlan.cacheKey
       }
-      if (
-        supportsDoubaoThinking(params.providerId, params.modelId) &&
-        params.modelConfig.reasoning
-      ) {
+      if (supportsDoubaoThinking(params.providerId, params.modelId) && reasoningEnabled) {
         config.thinking = {
           type: 'enabled'
         }
@@ -161,14 +171,14 @@ export function buildProviderOptions(
       if (
         params.providerId === 'siliconcloud' &&
         supportsSiliconcloudThinking(params.modelId) &&
-        params.modelConfig.reasoning
+        reasoningEnabled
       ) {
         config.enable_thinking = true
       }
       if (
         params.providerId === 'dashscope' &&
         modelCapabilities.supportsReasoning(params.providerId, params.modelId) &&
-        params.modelConfig.reasoning
+        reasoningEnabled
       ) {
         config.enable_thinking = true
         const dbBudget = modelCapabilities.getThinkingBudgetRange(
@@ -217,7 +227,7 @@ export function buildProviderOptions(
       const config: Record<string, unknown> = {
         toolStreaming: officialAnthropicProvider
       }
-      if (officialAnthropicProvider && params.modelConfig.reasoning) {
+      if (officialAnthropicProvider && reasoningEnabled) {
         config.sendReasoning = true
       }
       if (officialAnthropicProvider && params.modelConfig.reasoningEffort) {
@@ -228,7 +238,7 @@ export function buildProviderOptions(
               ? 'high'
               : 'medium'
       }
-      if (params.modelConfig.thinkingBudget !== undefined) {
+      if (reasoningEnabled && params.modelConfig.thinkingBudget !== undefined) {
         config.thinking = {
           type: 'enabled',
           budgetTokens: params.modelConfig.thinkingBudget
@@ -253,7 +263,7 @@ export function buildProviderOptions(
       if (params.tools.length > 0) {
         config.streamFunctionCallArguments = true
       }
-      if (params.modelConfig.thinkingBudget !== undefined || params.modelConfig.reasoningEffort) {
+      if (shouldSendThinkingConfig) {
         config.thinkingConfig = {
           ...(params.modelConfig.thinkingBudget !== undefined
             ? { thinkingBudget: params.modelConfig.thinkingBudget }
@@ -274,7 +284,7 @@ export function buildProviderOptions(
       const config: Record<string, unknown> = {
         streamFunctionCallArguments: params.tools.length > 0
       }
-      if (params.modelConfig.thinkingBudget !== undefined || params.modelConfig.reasoningEffort) {
+      if (shouldSendThinkingConfig) {
         config.thinkingConfig = {
           ...(params.modelConfig.thinkingBudget !== undefined
             ? { thinkingBudget: params.modelConfig.thinkingBudget }

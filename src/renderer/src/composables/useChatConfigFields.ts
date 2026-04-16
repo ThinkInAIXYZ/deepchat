@@ -10,6 +10,12 @@ import type {
   SelectOption,
   FieldConfig
 } from '@/components/ChatConfig/types'
+import {
+  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  isReasoningEffort,
+  type ReasoningEffort,
+  type Verbosity
+} from '@shared/types/model-db'
 
 // === Interfaces ===
 export interface UseChatConfigFieldsOptions {
@@ -20,8 +26,8 @@ export interface UseChatConfigFieldsOptions {
   contextLengthLimit: Ref<number | undefined>
   maxTokensLimit: Ref<number | undefined>
   thinkingBudget: Ref<number | undefined>
-  reasoningEffort: Ref<'minimal' | 'low' | 'medium' | 'high' | undefined>
-  verbosity: Ref<'low' | 'medium' | 'high' | undefined>
+  reasoningEffort: Ref<ReasoningEffort | undefined>
+  verbosity: Ref<Verbosity | undefined>
   providerId: Ref<string | undefined>
 
   // Composables
@@ -40,8 +46,8 @@ export interface UseChatConfigFieldsOptions {
     (e: 'update:contextLength', value: number): void
     (e: 'update:maxTokens', value: number): void
     (e: 'update:thinkingBudget', value: number | undefined): void
-    (e: 'update:reasoningEffort', value: 'minimal' | 'low' | 'medium' | 'high'): void
-    (e: 'update:verbosity', value: 'low' | 'medium' | 'high'): void
+    (e: 'update:reasoningEffort', value: ReasoningEffort): void
+    (e: 'update:verbosity', value: Verbosity): void
   }
 }
 
@@ -150,6 +156,20 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
     // Reasoning Effort
     if (options.reasoningEffort.value !== undefined) {
       const getReasoningEffortOptions = (): SelectOption[] => {
+        if (
+          isReasoningEffort(options.reasoningEffort.value) &&
+          !FALLBACK_REASONING_EFFORT_OPTIONS.includes(options.reasoningEffort.value)
+        ) {
+          return [
+            {
+              value: options.reasoningEffort.value,
+              label: t(
+                `settings.model.modelConfig.reasoningEffort.options.${options.reasoningEffort.value}`
+              )
+            }
+          ]
+        }
+
         // Grok only supports low and high
         if (options.providerId.value === 'grok') {
           return [
@@ -165,24 +185,10 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         }
 
         // Other models support all four
-        return [
-          {
-            value: 'minimal',
-            label: t('settings.model.modelConfig.reasoningEffort.options.minimal')
-          },
-          {
-            value: 'low',
-            label: t('settings.model.modelConfig.reasoningEffort.options.low')
-          },
-          {
-            value: 'medium',
-            label: t('settings.model.modelConfig.reasoningEffort.options.medium')
-          },
-          {
-            value: 'high',
-            label: t('settings.model.modelConfig.reasoningEffort.options.high')
-          }
-        ]
+        return FALLBACK_REASONING_EFFORT_OPTIONS.map((value) => ({
+          value,
+          label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
+        }))
       }
 
       fields.push({
@@ -194,8 +200,7 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         options: getReasoningEffortOptions,
         placeholder: t('settings.model.modelConfig.reasoningEffort.placeholder'),
         getValue: () => options.reasoningEffort.value,
-        setValue: (val) =>
-          options.emit('update:reasoningEffort', val as 'minimal' | 'low' | 'medium' | 'high')
+        setValue: (val) => options.emit('update:reasoningEffort', val as ReasoningEffort)
       })
     }
 

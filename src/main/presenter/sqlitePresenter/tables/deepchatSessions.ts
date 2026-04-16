@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import { isReasoningEffort, isVerbosity, type ReasoningEffort } from '@shared/types/model-db'
 
 type DeepChatSessionGenerationSettings = Pick<
   SessionGenerationSettings,
@@ -24,7 +25,7 @@ export interface DeepChatSessionRow {
   context_length: number | null
   max_tokens: number | null
   thinking_budget: number | null
-  reasoning_effort: 'minimal' | 'low' | 'medium' | 'high' | null
+  reasoning_effort: ReasoningEffort | null
   verbosity: 'low' | 'medium' | 'high' | null
   force_interleaved_thinking_compat: number | null
   summary_text: string | null
@@ -205,10 +206,10 @@ export class DeepChatSessionsTable extends BaseTable {
     if (row.thinking_budget !== null) {
       settings.thinkingBudget = row.thinking_budget
     }
-    if (row.reasoning_effort !== null) {
+    if (row.reasoning_effort !== null && isReasoningEffort(row.reasoning_effort)) {
       settings.reasoningEffort = row.reasoning_effort
     }
-    if (row.verbosity !== null) {
+    if (row.verbosity !== null && isVerbosity(row.verbosity)) {
       settings.verbosity = row.verbosity
     }
     if (typeof row.force_interleaved_thinking_compat === 'number') {

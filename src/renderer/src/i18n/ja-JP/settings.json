@@ -380,8 +380,12 @@
         "label": "最大出力長"
       },
       "reasoning": {
-        "description": "モデルは推論能力をサポートしていますか？",
+        "description": "このモデルは推論に対応しています",
         "label": "推論能力"
+      },
+      "reasoningToggle": {
+        "description": "このモデルで推論をデフォルトで有効にするかを制御します",
+        "label": "推論を有効化"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -408,10 +412,12 @@
         "description": "モデルの推論の深さを制御します。より高い努力度はより良い結果を生成しますが、応答が遅くなります",
         "placeholder": "推論努力度を選択",
         "options": {
+          "none": "None - 推論なし",
           "minimal": "Minimal - 最速応答",
           "low": "Low - 低努力",
           "medium": "Medium - 中程度の努力",
-          "high": "High - 高努力"
+          "high": "High - 高努力",
+          "xhigh": "XHigh - 最大努力"
         }
       },
       "verbosity": {
