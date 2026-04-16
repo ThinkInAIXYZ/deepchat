@@ -174,6 +174,37 @@ export const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
 export const isVerbosity = (value: unknown): value is Verbosity =>
   VerbositySchema.safeParse(value).success
 
+const canResolveReasoningEffortFromPortrait = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean =>
+  portrait?.mode !== 'budget' && portrait?.mode !== 'level' && portrait?.mode !== 'mixed'
+
+export const normalizeReasoningEffortValue = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: unknown
+): ReasoningEffort | undefined => {
+  if (!isReasoningEffort(value)) {
+    return undefined
+  }
+
+  const options = portrait?.effortOptions?.filter(isReasoningEffort)
+  if (options && options.length > 0) {
+    if (options.includes(value)) {
+      return value
+    }
+
+    return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
+      ? portrait.effort
+      : undefined
+  }
+
+  if (canResolveReasoningEffortFromPortrait(portrait) && isReasoningEffort(portrait?.effort)) {
+    return value === portrait.effort ? value : portrait.effort
+  }
+
+  return value
+}
+
 export const supportsReasoningCapability = (
   portrait: ReasoningPortrait | null | undefined
 ): boolean => portrait?.supported === true
@@ -211,13 +242,10 @@ export const getReasoningEffectiveEnabled = (
     return state.reasoning ?? portrait.defaultEnabled ?? true
   }
 
-  if (portrait.mode === 'effort') {
-    const resolvedEffort = isReasoningEffort(state.reasoningEffort)
-      ? state.reasoningEffort
-      : isReasoningEffort(portrait.effort)
-        ? portrait.effort
-        : undefined
-
+  if (canResolveReasoningEffortFromPortrait(portrait)) {
+    const resolvedEffort =
+      normalizeReasoningEffortValue(portrait, state.reasoningEffort) ??
+      normalizeReasoningEffortValue(portrait, portrait.effort)
     if (resolvedEffort === 'none') {
       return false
     }

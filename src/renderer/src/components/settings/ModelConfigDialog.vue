@@ -426,6 +426,7 @@ import {
   getReasoningEffectiveEnabled,
   isReasoningEffort,
   isVerbosity,
+  normalizeReasoningEffortValue,
   supportsReasoningCapability,
   type ReasoningEffort,
   type ReasoningPortrait
@@ -636,28 +637,6 @@ const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined
       portrait.budget.auto !== undefined ||
       portrait.budget.off !== undefined)
   )
-
-const normalizeReasoningEffortValue = (
-  portrait: ReasoningPortrait | null | undefined,
-  value: unknown
-): ReasoningEffort | undefined => {
-  if (!isReasoningEffort(value)) {
-    return undefined
-  }
-
-  const options = getReasoningEffortOptions(portrait)
-  if (options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-    ? portrait.effort
-    : undefined
-}
 
 const normalizeVerbosityValue = (
   portrait: ReasoningPortrait | null | undefined,

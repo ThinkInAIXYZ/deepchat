@@ -354,4 +354,44 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
     expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
   })
+
+  it('does not send google thinking config when a budget portrait defaults to disabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'budget',
+      budget: { min: 512, default: -1, max: 24576, auto: -1, off: 0, unit: 'tokens' }
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'google',
+      providerOptionsKey: 'google',
+      apiType: 'google',
+      modelId: 'gemini-2.5-flash-lite-preview-09-2025',
+      modelConfig: {
+        reasoning: false,
+        thinkingBudget: -1
+      },
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'search_web',
+            description: 'Search the web',
+            parameters: {
+              type: 'object',
+              properties: {}
+            }
+          }
+        }
+      ] as any,
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      google: {
+        streamFunctionCallArguments: true
+      }
+    })
+  })
 })

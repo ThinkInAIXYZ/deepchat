@@ -128,6 +128,10 @@ export function buildProviderOptions(
     reasoning: params.modelConfig.reasoning,
     reasoningEffort: params.modelConfig.reasoningEffort
   })
+  const hasThinkingConfig =
+    params.modelConfig.thinkingBudget !== undefined || Boolean(params.modelConfig.reasoningEffort)
+  const shouldSendThinkingConfig =
+    hasThinkingConfig && (reasoningPortrait ? reasoningEnabled : true)
 
   const promptCachePlan = resolvePromptCachePlan({
     providerId: params.providerId,
@@ -259,7 +263,7 @@ export function buildProviderOptions(
       if (params.tools.length > 0) {
         config.streamFunctionCallArguments = true
       }
-      if (params.modelConfig.thinkingBudget !== undefined || params.modelConfig.reasoningEffort) {
+      if (shouldSendThinkingConfig) {
         config.thinkingConfig = {
           ...(params.modelConfig.thinkingBudget !== undefined
             ? { thinkingBudget: params.modelConfig.thinkingBudget }
@@ -280,7 +284,7 @@ export function buildProviderOptions(
       const config: Record<string, unknown> = {
         streamFunctionCallArguments: params.tools.length > 0
       }
-      if (params.modelConfig.thinkingBudget !== undefined || params.modelConfig.reasoningEffort) {
+      if (shouldSendThinkingConfig) {
         config.thinkingConfig = {
           ...(params.modelConfig.thinkingBudget !== undefined
             ? { thinkingBudget: params.modelConfig.thinkingBudget }

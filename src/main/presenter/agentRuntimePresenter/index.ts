@@ -30,6 +30,7 @@ import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
   getReasoningEffectiveEnabled,
   isReasoningEffort,
+  normalizeReasoningEffortValue,
   isVerbosity
 } from '@shared/types/model-db'
 import {
@@ -2836,21 +2837,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const portrait = this.getReasoningPortrait(providerId, modelId)
-    const options = portrait?.effortOptions?.filter(isReasoningEffort)
-    if (!options || options.length === 0) {
-      return normalizedValue
-    }
-
-    if (options.includes(normalizedValue)) {
-      return normalizedValue
-    }
-
-    const defaultEffort = portrait?.effort
-    if (defaultEffort && isReasoningEffort(defaultEffort) && options.includes(defaultEffort)) {
-      return defaultEffort
-    }
-
-    return undefined
+    return normalizeReasoningEffortValue(portrait, normalizedValue)
   }
 
   private normalizeVerbosity(

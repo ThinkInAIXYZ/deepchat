@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getReasoningControlMode,
   getReasoningEffectiveEnabled,
+  normalizeReasoningEffortValue,
   sanitizeAggregate,
   type ReasoningPortrait
 } from '../../../src/shared/types/model-db'
@@ -188,6 +189,22 @@ describe('sanitizeAggregate', () => {
       getReasoningEffectiveEnabled(portrait, {
         reasoning: false,
         reasoningEffort: 'xhigh'
+      })
+    ).toBe(true)
+  })
+
+  it('normalizes stale effort values to the portrait default when options are omitted', () => {
+    const portrait: ReasoningPortrait = {
+      supported: true,
+      defaultEnabled: true,
+      mode: 'effort',
+      effort: 'xhigh'
+    }
+
+    expect(normalizeReasoningEffortValue(portrait, 'low')).toBe('xhigh')
+    expect(
+      getReasoningEffectiveEnabled(portrait, {
+        reasoningEffort: 'low'
       })
     ).toBe(true)
   })
