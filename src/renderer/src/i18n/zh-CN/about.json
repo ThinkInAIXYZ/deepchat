@@ -6,6 +6,8 @@
   "feedbackButton": "意见反馈",
   "disclaimerTitle": "使用条款声明",
   "checkUpdateButton": "检查更新",
+  "mockUpdateButton": "模拟已下载更新",
+  "clearMockUpdateButton": "清除模拟更新",
   "updateChannel": "更新渠道",
   "stableChannel": "正式版",
   "betaChannel": "内测版",

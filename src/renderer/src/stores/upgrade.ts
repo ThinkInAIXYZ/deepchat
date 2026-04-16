@@ -20,6 +20,7 @@ type UpdateInfo = {
   releaseNotes: string
   githubUrl?: string
   downloadUrl?: string
+  isMock?: boolean
 }
 
 type ProgressInfo = {
@@ -46,7 +47,8 @@ const toUpdateInfo = (info: UpdateInfo | null | undefined): UpdateInfo | null =>
     releaseDate: info.releaseDate,
     releaseNotes: info.releaseNotes,
     githubUrl: info.githubUrl,
-    downloadUrl: info.downloadUrl
+    downloadUrl: info.downloadUrl,
+    isMock: info.isMock
   }
 }
 
@@ -80,6 +82,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   const isWindows = computed(() => platform.value === 'win32')
 
   const hasUpdate = computed(() => Boolean(updateInfo.value))
+  const isMockUpdate = computed(() => Boolean(updateInfo.value?.isMock))
 
   const updateState = computed<UpdateState>(() => {
     switch (rawStatus.value) {
@@ -239,6 +242,36 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     }
   }
 
+  const mockDownloadedUpdate = async () => {
+    try {
+      const success = await upgradeP.mockDownloadedUpdate()
+      if (!success) {
+        return rawStatus.value
+      }
+
+      return await syncFromPresenterStatus()
+    } catch (error) {
+      console.error('Failed to mock downloaded update:', error)
+      applyStatus('error', updateInfo.value, error instanceof Error ? error.message : String(error))
+      return 'error'
+    }
+  }
+
+  const clearMockUpdate = async () => {
+    try {
+      const success = await upgradeP.clearMockUpdate()
+      if (!success) {
+        return rawStatus.value
+      }
+
+      return await syncFromPresenterStatus()
+    } catch (error) {
+      console.error('Failed to clear mock update:', error)
+      applyStatus('error', updateInfo.value, error instanceof Error ? error.message : String(error))
+      return 'error'
+    }
+  }
+
   const handleUpdate = async (type: 'github' | 'official' | 'auto') => {
     isUpdating.value = true
     try {
@@ -328,12 +361,15 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     isChecking,
     isDownloading,
     isReadyToInstall,
+    isMockUpdate,
     shouldShowUpdateNotes,
     shouldShowTopbarInstallButton,
     showManualDownloadOptions,
     refreshStatus: syncFromPresenterStatus,
     checkUpdate,
     startUpdate,
+    mockDownloadedUpdate,
+    clearMockUpdate,
     handleUpdate
   }
 })

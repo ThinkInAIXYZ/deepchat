@@ -11,8 +11,10 @@
     "osVersion": "نگارش سامانه عامل"
   },
   "disclaimerButton": "رد مسئولیت",
+  "clearMockUpdateButton": "پاک کردن به‌روزرسانی شبیه‌سازی‌شده",
   "disclaimerTitle": "بیانیه شرایط استفاده",
   "checkUpdateButton": "بررسی به‌روزرسانی",
+  "mockUpdateButton": "شبیه‌سازی به‌روزرسانی دانلودشده",
   "updateChannel": "کانال به‌روزرسانی",
   "stableChannel": "پایدار",
   "betaChannel": "Beta",

@@ -1514,10 +1514,13 @@ export interface IUpgradePresenter {
       releaseNotes: any
       githubUrl: string | undefined
       downloadUrl: string | undefined
+      isMock?: boolean
     } | null
   }
   goDownloadUpgrade(type: 'github' | 'official'): Promise<void>
   startDownloadUpdate(): boolean
+  mockDownloadedUpdate(): boolean
+  clearMockUpdate(): boolean
   restartToUpdate(): boolean
   restartApp(): void
   isUpdatingInProgress(): boolean

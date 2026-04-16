@@ -5,6 +5,8 @@
   "disclaimerButton": "免責聲明",
   "disclaimerTitle": "使用條款聲明",
   "checkUpdateButton": "檢查更新",
+  "mockUpdateButton": "模擬已下載更新",
+  "clearMockUpdateButton": "清除模擬更新",
   "updateChannel": "更新頻道",
   "stableChannel": "正式版",
   "betaChannel": "内测版",
