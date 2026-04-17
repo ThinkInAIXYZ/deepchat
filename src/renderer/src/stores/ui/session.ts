@@ -429,6 +429,20 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  async function setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
+    error.value = null
+    try {
+      const updated = await agentSessionPresenter.setSessionProjectDir(sessionId, projectDir)
+      const index = sessions.value.findIndex((item) => item.id === sessionId)
+      if (index >= 0) {
+        sessions.value[index] = mapToUISession(updated)
+      }
+    } catch (e) {
+      error.value = `Failed to set session project directory: ${e}`
+      throw e
+    }
+  }
+
   async function renameSession(sessionId: string, title: string): Promise<void> {
     error.value = null
     try {
@@ -593,6 +607,7 @@ export const useSessionStore = defineStore('session', () => {
     exportSession,
     deleteSession,
     setSessionSubagentEnabled,
+    setSessionProjectDir,
     toggleGroupMode,
     getPinnedSessions,
     getFilteredGroups

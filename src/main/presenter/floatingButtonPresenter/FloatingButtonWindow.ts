@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from 'electron'
 import path from 'path'
+import { is } from '@electron-toolkit/utils'
 import { FloatingButtonConfig, FloatingButtonState } from './types'
 import logger from '../../../shared/logger'
 import {
@@ -42,7 +43,7 @@ export class FloatingButtonWindow {
     }
 
     try {
-      const isDev = process.env.NODE_ENV === 'development'
+      const isDev = is.dev
       const initialBounds = this.resolveInitialBounds()
       this.dockSide = inferDockSide(
         initialBounds,
