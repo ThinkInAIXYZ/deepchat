@@ -809,6 +809,38 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'astraflow',
+    name: 'Astraflow (Global)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api-us-ca.umodelverse.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://astraflow.ucloud.cn/',
+      apiKey: 'https://astraflow.ucloud.cn/modelverse/api-keys',
+      docs: 'https://astraflow.ucloud.cn/docs',
+      models: 'https://astraflow.ucloud.cn/modelverse/playground',
+      defaultBaseUrl: 'https://api-us-ca.umodelverse.ai/v1'
+    }
+  },
+
+  {
+    id: 'astraflow-cn',
+    name: 'Astraflow CN',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.modelverse.cn/v1',
+    enable: false,
+    websites: {
+      official: 'https://astraflow.ucloud.cn/',
+      apiKey: 'https://astraflow.ucloud.cn/modelverse/api-keys',
+      docs: 'https://astraflow.ucloud.cn/docs',
+      models: 'https://astraflow.ucloud.cn/modelverse/playground',
+      defaultBaseUrl: 'https://api.modelverse.cn/v1'
+    }
+  },
+
+  {
     id: 'laoshi',
     name: '老师傅',
     apiType: 'openai-completions',

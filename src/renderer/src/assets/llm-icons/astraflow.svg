@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="1em" height="1em" style="flex:none;line-height:1">
+  <title>Astraflow</title>
+  <defs>
+    <!-- Purple-blue arm (most arms) -->
+    <linearGradient id="gPurple" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#8B7FE0"/>
+      <stop offset="100%" stop-color="#5A6EDD"/>
+    </linearGradient>
+    <!-- Silver-blue right arm -->
+    <linearGradient id="gSilver" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#8890D8"/>
+      <stop offset="100%" stop-color="#C8D4EE"/>
+    </linearGradient>
+    <!-- Diagonal arm top-left to bottom-right -->
+    <linearGradient id="gDiag1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9B8FE8"/>
+      <stop offset="100%" stop-color="#5B6EDD"/>
+    </linearGradient>
+    <!-- Diagonal arm top-right to bottom-left -->
+    <linearGradient id="gDiag2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8B80DC"/>
+      <stop offset="100%" stop-color="#6070D8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Vertical bar (top-bottom, purple-blue) -->
+  <rect x="84" y="15" width="32" height="170" rx="16" fill="url(#gPurple)"/>
+
+  <!-- Diagonal bar: top-left to bottom-right (60°) -->
+  <rect x="84" y="15" width="32" height="170" rx="16" fill="url(#gDiag1)" transform="rotate(60 100 100)"/>
+
+  <!-- Horizontal bar (left-right) — right side is silver -->
+  <rect x="15" y="84" width="170" height="32" rx="16" fill="url(#gSilver)"/>
+</svg>
