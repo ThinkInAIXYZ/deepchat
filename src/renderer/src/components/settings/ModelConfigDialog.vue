@@ -442,6 +442,7 @@ import {
   ModelType,
   NEW_API_ENDPOINT_TYPES,
   isNewApiEndpointType,
+  resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
@@ -525,6 +526,7 @@ const providerStore = useProviderStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
 const configPresenter = usePresenter('configPresenter')
 const providerIdLower = computed(() => props.providerId?.toLowerCase() || '')
+const capabilityProviderId = ref(props.providerId)
 const currentProvider = computed(() =>
   providerStore.providers.find((provider) => provider.id === props.providerId)
 )
@@ -747,6 +749,8 @@ const capabilityReasoningVisibilityDefault = ref<AnthropicReasoningVisibility | 
 )
 
 const fetchCapabilities = async () => {
+  syncCapabilityProviderId()
+
   if (!props.providerId || !props.modelId) {
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
@@ -829,6 +833,20 @@ const providerModelMeta = computed(() => {
     null
   )
 })
+
+const syncCapabilityProviderId = () => {
+  capabilityProviderId.value = resolveProviderCapabilityProviderId(
+    props.providerId,
+    {
+      endpointType: isNewApiEndpointType(config.value.endpointType)
+        ? config.value.endpointType
+        : providerModelMeta.value?.endpointType,
+      supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+      type: config.value.type ?? providerModelMeta.value?.type
+    },
+    currentModelLookupId.value
+  )
+}
 
 const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
   const supportedEndpointTypes = providerModelMeta.value?.supportedEndpointTypes
@@ -1169,13 +1187,15 @@ watch(
   () => [config.value.endpointType, config.value.type, showEndpointTypeSelector.value],
   () => {
     syncNewApiDerivedFields()
+    syncCapabilityProviderId()
   }
 )
 
 const supportsVerbosity = computed(() => capabilitySupportsVerbosity.value === true)
 const supportsReasoningVisibility = computed(
   () =>
-    getReasoningVisibilityOptions(props.providerId, capabilityReasoningPortrait.value).length > 0
+    getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value)
+      .length > 0
 )
 
 const isDeepSeekV31Model = computed(() => {
@@ -1189,7 +1209,7 @@ const supportsReasoningEffort = computed(() =>
 const showReasoningEffort = computed(
   () =>
     supportsReasoningEffort.value &&
-    (!hasAnthropicReasoningToggle(props.providerId, capabilityReasoningPortrait.value) ||
+    (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
       Boolean(config.value.reasoning))
 )
 const showReasoningVisibility = computed(
@@ -1205,7 +1225,10 @@ const reasoningToggleMode = computed(() => {
   }
 
   if (capabilityReasoningPortrait.value) {
-    return getReasoningControlModeForProvider(props.providerId, capabilityReasoningPortrait.value)
+    return getReasoningControlModeForProvider(
+      capabilityProviderId.value,
+      capabilityReasoningPortrait.value
+    )
   }
 
   return capabilitySupportsReasoning.value === false
@@ -1244,7 +1267,7 @@ const verbosityOptions = computed(() =>
   }))
 )
 const reasoningVisibilityOptions = computed(() =>
-  getReasoningVisibilityOptions(props.providerId, capabilityReasoningPortrait.value).map(
+  getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value).map(
     (value) => ({
       value,
       label: t(`settings.model.modelConfig.reasoningVisibility.options.${value}`)
@@ -1254,7 +1277,7 @@ const reasoningVisibilityOptions = computed(() =>
 
 const showThinkingBudget = computed(() => {
   const hasReasoning = getReasoningEffectiveEnabledForProvider(
-    props.providerId,
+    capabilityProviderId.value,
     capabilityReasoningPortrait.value,
     {
       reasoning: config.value.reasoning,
@@ -1287,7 +1310,15 @@ watch(
 )
 
 watch(
-  () => [props.providerId, capabilityReasoningPortrait.value, config.value.reasoning],
+  () => [props.providerId, currentModelLookupId.value, providerModelMeta.value?.id],
+  () => {
+    syncCapabilityProviderId()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [capabilityProviderId.value, capabilityReasoningPortrait.value, config.value.reasoning],
   () => {
     if (
       supportsReasoningVisibility.value &&

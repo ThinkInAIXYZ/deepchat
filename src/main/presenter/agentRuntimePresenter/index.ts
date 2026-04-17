@@ -1488,6 +1488,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       providedInterleavedReasoning ??
       this.resolveInterleavedReasoningConfig(state.providerId, state.modelId, generationSettings)
     const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+    const capabilityProviderId = this.resolveCapabilityProviderId(state.providerId, state.modelId)
     const reasoningPortrait = this.getReasoningPortrait(state.providerId, state.modelId)
     const modelConfig: ModelConfig = {
       ...baseModelConfig,
@@ -1498,7 +1499,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       reasoningEffort: generationSettings.reasoningEffort,
       reasoningVisibility: generationSettings.reasoningVisibility,
       verbosity: generationSettings.verbosity,
-      reasoning: getReasoningEffectiveEnabledForProvider(state.providerId, reasoningPortrait, {
+      reasoning: getReasoningEffectiveEnabledForProvider(capabilityProviderId, reasoningPortrait, {
         reasoning: baseModelConfig.reasoning,
         reasoningEffort: generationSettings.reasoningEffort ?? baseModelConfig.reasoningEffort
       }),
@@ -2628,9 +2629,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
     const portrait = this.getReasoningPortrait(providerId, modelId)
-    const anthropicReasoningToggle = hasAnthropicReasoningToggle(providerId, portrait)
+    const capabilityProviderId = this.resolveCapabilityProviderId(providerId, modelId)
+    const anthropicReasoningToggle = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
     const anthropicReasoningEnabled = anthropicReasoningToggle
-      ? getReasoningEffectiveEnabledForProvider(providerId, portrait, {
+      ? getReasoningEffectiveEnabledForProvider(capabilityProviderId, portrait, {
           reasoning: modelConfig.reasoning,
           reasoningEffort: modelConfig.reasoningEffort
         })
@@ -2718,9 +2720,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
     const portrait = this.getReasoningPortrait(providerId, modelId)
-    const anthropicReasoningToggle = hasAnthropicReasoningToggle(providerId, portrait)
+    const capabilityProviderId = this.resolveCapabilityProviderId(providerId, modelId)
+    const anthropicReasoningToggle = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
     const anthropicReasoningEnabled = anthropicReasoningToggle
-      ? getReasoningEffectiveEnabledForProvider(providerId, portrait, {
+      ? getReasoningEffectiveEnabledForProvider(capabilityProviderId, portrait, {
           reasoning: modelConfig.reasoning,
           reasoningEffort: modelConfig.reasoningEffort
         })
@@ -2920,7 +2923,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const portrait = this.getReasoningPortrait(providerId, modelId)
-    if (hasAnthropicReasoningToggle(providerId, portrait)) {
+    const capabilityProviderId = this.resolveCapabilityProviderId(providerId, modelId)
+    if (hasAnthropicReasoningToggle(capabilityProviderId, portrait)) {
       return normalizeAnthropicReasoningVisibilityValue(value) ?? 'omitted'
     }
 
@@ -2957,6 +2961,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     return this.configPresenter.getReasoningPortrait?.(providerId, modelId) ?? null
+  }
+
+  private resolveCapabilityProviderId(providerId: string, modelId: string | undefined): string {
+    if (!modelId) {
+      return providerId
+    }
+
+    return this.configPresenter.getCapabilityProviderId?.(providerId, modelId) ?? providerId
   }
 
   private async ensureSessionReadyForPendingInputMutation(sessionId: string): Promise<void> {

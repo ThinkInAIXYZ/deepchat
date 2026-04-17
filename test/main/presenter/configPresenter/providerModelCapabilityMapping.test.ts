@@ -87,4 +87,41 @@ describe('ConfigPresenter provider model capability mapping', () => {
       })
     ])
   })
+
+  it('maps routed reasoning capability for new-api-like fork providers from supported endpoints', async () => {
+    const { ConfigPresenter, modelCapabilities } = await loadConfigPresenter()
+    const supportsReasoning = vi
+      .spyOn(modelCapabilities, 'supportsReasoning')
+      .mockImplementation(
+        (providerId, modelId) => providerId === 'anthropic' && modelId === 'claude-opus-4-7'
+      )
+
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      providerModelHelper: {
+        getProviderModels: vi.fn().mockReturnValue([
+          {
+            id: 'claude-opus-4-7',
+            name: 'Claude Opus 4.7',
+            group: 'default',
+            providerId: 'fork-api',
+            isCustom: false,
+            supportedEndpointTypes: ['openai-response', 'anthropic'],
+            reasoning: false
+          }
+        ]),
+        getCustomModels: vi.fn().mockReturnValue([])
+      },
+      getModelConfig: vi.fn().mockReturnValue({ endpointType: undefined })
+    }) as InstanceType<typeof ConfigPresenter>
+
+    const models = presenter.getProviderModels('fork-api')
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'claude-opus-4-7',
+        reasoning: true
+      })
+    ])
+    expect(supportsReasoning).toHaveBeenCalledWith('anthropic', 'claude-opus-4-7')
+  })
 })

@@ -770,7 +770,11 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
-import { isChatSelectableModelType } from '@shared/model'
+import {
+  isChatSelectableModelType,
+  isNewApiEndpointType,
+  resolveProviderCapabilityProviderId
+} from '@shared/model'
 import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
@@ -888,6 +892,7 @@ const numericInputErrors = ref<
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
 const capabilitySupportsTemperature = ref<boolean | null>(null)
+const capabilityProviderId = ref('')
 
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
@@ -1428,6 +1433,23 @@ const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MOD
   )
 }
 
+const resolveCapabilityProviderIdForSelection = (
+  providerId: string,
+  modelId: string,
+  endpointType?: unknown
+): string => {
+  const modelMeta = findEnabledModelMeta(providerId, modelId)
+  return resolveProviderCapabilityProviderId(
+    providerId,
+    {
+      endpointType: isNewApiEndpointType(endpointType) ? endpointType : modelMeta?.endpointType,
+      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+      type: modelMeta?.type
+    },
+    modelId
+  )
+}
+
 const getReasoningEffortOptions = (
   portrait: ReasoningPortrait | null | undefined
 ): SessionGenerationSettings['reasoningEffort'][] => {
@@ -1648,20 +1670,14 @@ const showReasoningEffort = computed(
     !isAcpAgent.value &&
     supportsReasoningEffort(capabilityReasoningPortrait.value) &&
     Boolean(localSettings.value) &&
-    (!hasAnthropicReasoningToggle(
-      effectiveModelSelection.value?.providerId ?? '',
-      capabilityReasoningPortrait.value
-    ) ||
+    (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
       localSettings.value?.reasoningEffort !== undefined)
 )
 const showReasoningVisibility = computed(
   () =>
     !isAcpAgent.value &&
     Boolean(localSettings.value) &&
-    hasAnthropicReasoningToggle(
-      effectiveModelSelection.value?.providerId ?? '',
-      capabilityReasoningPortrait.value
-    ) &&
+    hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) &&
     localSettings.value?.reasoningVisibility !== undefined
 )
 
@@ -1679,13 +1695,12 @@ const verbosityOptions = computed(() => {
   }))
 })
 const reasoningVisibilityOptions = computed(() =>
-  getReasoningVisibilityOptions(
-    effectiveModelSelection.value?.providerId ?? '',
-    capabilityReasoningPortrait.value
-  ).map((value) => ({
-    value,
-    label: t(`settings.model.modelConfig.reasoningVisibility.options.${value}`)
-  }))
+  getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value).map(
+    (value) => ({
+      value,
+      label: t(`settings.model.modelConfig.reasoningVisibility.options.${value}`)
+    })
+  )
 )
 
 const systemPromptOptions = computed<SystemPromptOption[]>(() => {
@@ -1899,6 +1914,11 @@ const resolveDefaultGenerationSettings = async (
 ): Promise<SessionGenerationSettings> => {
   const agentConfig = await resolveDeepChatAgentConfig(agentId)
   const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
+  const resolvedCapabilityProviderId = resolveCapabilityProviderIdForSelection(
+    providerId,
+    modelId,
+    modelConfig.endpointType
+  )
   const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
@@ -1933,7 +1953,10 @@ const resolveDefaultGenerationSettings = async (
     }
   }
 
-  const anthropicReasoningToggle = hasAnthropicReasoningToggle(providerId, portrait)
+  const anthropicReasoningToggle = hasAnthropicReasoningToggle(
+    resolvedCapabilityProviderId,
+    portrait
+  )
   const canDefaultReasoningEffort = !anthropicReasoningToggle || modelConfig.reasoning === true
 
   if (supportsReasoningEffort(portrait) && canDefaultReasoningEffort) {
@@ -1947,7 +1970,7 @@ const resolveDefaultGenerationSettings = async (
   }
 
   const reasoningVisibility = normalizeReasoningVisibility(
-    providerId,
+    resolvedCapabilityProviderId,
     portrait,
     modelConfig.reasoningVisibility ?? portrait?.visibility
   )
@@ -1967,6 +1990,12 @@ const resolveDefaultGenerationSettings = async (
 
 const fetchCapabilities = async (providerId: string, modelId: string): Promise<void> => {
   try {
+    const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
+    capabilityProviderId.value = resolveCapabilityProviderIdForSelection(
+      providerId,
+      modelId,
+      modelConfig.endpointType
+    )
     const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
     const temperatureSupport = await configPresenter.supportsTemperatureControl?.(
       providerId,
@@ -1982,6 +2011,7 @@ const fetchCapabilities = async (providerId: string, modelId: string): Promise<v
         : ((await configPresenter.getTemperatureCapability?.(providerId, modelId)) ?? null)
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
+    capabilityProviderId.value = providerId
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
     capabilitySupportsTemperature.value = null
@@ -2092,6 +2122,7 @@ const syncGenerationSettings = async () => {
   if (isAcpAgent.value) {
     localSettings.value = null
     loadedSettingsSelection.value = null
+    capabilityProviderId.value = ''
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
     return
@@ -2101,6 +2132,7 @@ const syncGenerationSettings = async () => {
   if (!selection) {
     localSettings.value = null
     loadedSettingsSelection.value = null
+    capabilityProviderId.value = ''
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
     return
@@ -2785,7 +2817,7 @@ function onReasoningVisibilitySelect(value: string) {
     return
   }
   const normalized = normalizeReasoningVisibility(
-    effectiveModelSelection.value?.providerId ?? '',
+    capabilityProviderId.value,
     capabilityReasoningPortrait.value,
     value
   )

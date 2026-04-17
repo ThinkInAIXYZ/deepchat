@@ -45,6 +45,7 @@ type SetupOptions = {
   sessionSettings?: Partial<TestGenerationSettings> | null
   draftGenerationSettings?: Partial<TestGenerationSettings>
   reasoningPortrait?: ReasoningPortrait | null
+  capabilityProviderId?: string
   temperatureCapability?: boolean | undefined
   projectPath?: string | null
   acpDraftSessionId?: string | null
@@ -357,6 +358,9 @@ const setup = async (options: SetupOptions = {}) => {
       verbosity: 'medium',
       ...options.modelConfig
     }),
+    getCapabilityProviderId: vi
+      .fn()
+      .mockImplementation(async (providerId: string) => options.capabilityProviderId ?? providerId),
     getReasoningPortrait: vi.fn().mockResolvedValue(reasoningPortrait),
     getTemperatureCapability: vi.fn().mockResolvedValue(options.temperatureCapability),
     supportsTemperatureControl: vi.fn().mockResolvedValue(options.temperatureCapability ?? true),
@@ -829,6 +833,88 @@ describe('ChatStatusBar model and session panels', () => {
     })
 
     await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('max')
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('summarized')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
+    expect(wrapper.text()).toContain(
+      'settings.model.modelConfig.reasoningVisibility.options.summarized'
+    )
+  })
+
+  it('hides new-api anthropic adaptive reasoning controls when backend reasoning is disabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      capabilityProviderId: 'anthropic',
+      preferredModel: { providerId: 'new-api', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'new-api', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        endpointType: 'anthropic',
+        reasoning: false,
+        reasoningEffort: 'high',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(false)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBeUndefined()
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBeUndefined()
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
+  })
+
+  it('shows new-api anthropic adaptive reasoning controls when backend reasoning is enabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      capabilityProviderId: 'anthropic',
+      preferredModel: { providerId: 'new-api', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'new-api', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        endpointType: 'anthropic',
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-7')
     await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(true)

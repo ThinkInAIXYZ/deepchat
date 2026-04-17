@@ -15,6 +15,7 @@ type SetupOptions = {
   modelId: string
   modelName: string
   providerApiType?: string
+  capabilityProviderId?: string
   modelConfig?: Record<string, unknown>
   reasoningPortrait?: ReasoningPortrait | null
   temperatureCapability?: boolean | undefined
@@ -68,6 +69,9 @@ const setup = async (options: SetupOptions) => {
   })
 
   const configPresenter = {
+    getCapabilityProviderId: vi
+      .fn()
+      .mockImplementation(async (providerId: string) => options.capabilityProviderId ?? providerId),
     getReasoningPortrait: vi.fn().mockResolvedValue(options.reasoningPortrait ?? null),
     getTemperatureCapability: vi.fn().mockResolvedValue(options.temperatureCapability),
     supportsTemperatureControl: vi.fn().mockResolvedValue(options.temperatureCapability ?? true)
@@ -341,6 +345,55 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain(
       'settings.model.modelConfig.reasoningVisibility.options.omitted'
     )
+    expect(wrapper.text()).toContain(
+      'settings.model.modelConfig.reasoningVisibility.options.summarized'
+    )
+  })
+
+  it('treats new-api anthropic routes as editable anthropic toggles with conditional subsettings', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'claude-opus-4-7',
+      modelName: 'Claude Opus 4.7',
+      providerApiType: 'new-api',
+      capabilityProviderId: 'anthropic',
+      providerModels: [
+        {
+          id: 'claude-opus-4-7',
+          name: 'Claude Opus 4.7',
+          supportedEndpointTypes: ['anthropic'],
+          endpointType: 'anthropic'
+        }
+      ],
+      modelConfig: {
+        endpointType: 'anthropic',
+        reasoning: false,
+        reasoningEffort: 'high',
+        reasoningVisibility: undefined
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    expect((wrapper.vm as any).reasoningToggleMode).toBe('toggle')
+    expect((wrapper.vm as any).reasoningToggleDisabled).toBe(false)
+    expect((wrapper.vm as any).showReasoningEffort).toBe(false)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+
+    ;(wrapper.vm as any).config.reasoning = true
+    await nextTick()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).config.reasoningVisibility).toBe('omitted')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
     expect(wrapper.text()).toContain(
       'settings.model.modelConfig.reasoningVisibility.options.summarized'
     )

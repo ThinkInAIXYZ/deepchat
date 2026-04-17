@@ -518,6 +518,7 @@ export interface IConfigPresenter {
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
   getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
+  getCapabilityProviderId?(providerId: string, modelId: string): string
   supportsReasoningCapability?(providerId: string, modelId: string): boolean
   getReasoningPortrait?(providerId: string, modelId: string): ReasoningPortrait | null
   getThinkingBudgetRange?(

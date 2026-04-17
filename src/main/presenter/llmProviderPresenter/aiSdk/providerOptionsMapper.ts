@@ -64,6 +64,8 @@ function applyExplicitAnthropicCacheBreakpoint(messages: ModelMessage[]): ModelM
 
 export interface BuildProviderOptionsParams {
   providerId: string
+  capabilityProviderId: string
+  supportsOfficialAnthropicReasoning?: boolean
   providerOptionsKey: string
   apiType:
     | 'openai_chat'
@@ -83,10 +85,6 @@ export interface BuildProviderOptionsParams {
 export interface ProviderOptionsMappingResult {
   messages: ModelMessage[]
   providerOptions?: ProviderOptionsRecord
-}
-
-function isOfficialAnthropicProvider(providerId: string): boolean {
-  return providerId.trim().toLowerCase() === 'anthropic'
 }
 
 function supportsDoubaoThinking(providerId: string, modelId: string): boolean {
@@ -126,11 +124,11 @@ export function buildProviderOptions(
   const providerOptions: ProviderOptionsRecord = {}
   let messages = params.messages
   const reasoningPortrait = modelCapabilities.getReasoningPortrait?.(
-    params.providerId,
+    params.capabilityProviderId,
     params.modelId
   )
   const reasoningEnabled = getReasoningEffectiveEnabledForProvider(
-    params.providerId,
+    params.capabilityProviderId,
     reasoningPortrait,
     {
       reasoning: params.modelConfig.reasoning,
@@ -231,19 +229,19 @@ export function buildProviderOptions(
 
     case 'anthropic':
     case 'bedrock': {
-      const officialAnthropicProvider =
-        params.apiType === 'anthropic' && isOfficialAnthropicProvider(params.providerId)
+      const officialAnthropicReasoningProvider =
+        params.apiType === 'anthropic' && params.supportsOfficialAnthropicReasoning === true
       const anthropicReasoningToggle = hasAnthropicReasoningToggle(
-        params.providerId,
+        params.capabilityProviderId,
         reasoningPortrait
       )
       const config: Record<string, unknown> = {
-        toolStreaming: officialAnthropicProvider
+        toolStreaming: officialAnthropicReasoningProvider
       }
-      if (officialAnthropicProvider && reasoningEnabled) {
+      if (officialAnthropicReasoningProvider && reasoningEnabled) {
         config.sendReasoning = true
       }
-      if (officialAnthropicProvider && anthropicReasoningToggle && reasoningEnabled) {
+      if (officialAnthropicReasoningProvider && anthropicReasoningToggle && reasoningEnabled) {
         const resolvedEffort =
           normalizeReasoningEffortValue(reasoningPortrait, params.modelConfig.reasoningEffort) ??
           normalizeReasoningEffortValue(reasoningPortrait, reasoningPortrait?.effort)

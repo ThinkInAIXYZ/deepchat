@@ -24,7 +24,7 @@ import { SearchEngineTemplate } from '@shared/chat'
 import {
   ModelType,
   isNewApiEndpointType,
-  resolveNewApiCapabilityProviderId,
+  resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
 import {
@@ -656,65 +656,56 @@ export class ConfigPresenter implements IConfigPresenter {
     return providerDbLoader.refreshIfNeeded(force)
   }
 
-  private resolveNewApiCapabilityEndpointTypeFromModel(
-    model: Pick<MODEL_META, 'endpointType' | 'supportedEndpointTypes' | 'type'>
-  ): NewApiEndpointType {
-    if (isNewApiEndpointType(model.endpointType)) {
-      return model.endpointType
-    }
-
-    const supportedEndpointTypes = model.supportedEndpointTypes?.filter(isNewApiEndpointType) ?? []
-    if (
-      model.type === ModelType.ImageGeneration &&
-      supportedEndpointTypes.includes('image-generation')
-    ) {
-      return 'image-generation'
-    }
-    if (supportedEndpointTypes.length > 0) {
-      return supportedEndpointTypes[0]
-    }
-    if (model.type === ModelType.ImageGeneration) {
-      return 'image-generation'
-    }
-
-    return 'openai'
-  }
-
-  private resolveNewApiCapabilityEndpointType(modelId: string): NewApiEndpointType {
-    const modelConfig = this.getModelConfig(modelId, 'new-api')
+  private resolveCapabilityRoute(
+    providerId: string,
+    modelId: string
+  ): {
+    endpointType?: NewApiEndpointType
+    supportedEndpointTypes?: NewApiEndpointType[]
+    type?: ModelType
+  } | null {
+    const modelConfig = this.getModelConfig(modelId, providerId)
     if (isNewApiEndpointType(modelConfig.endpointType)) {
-      return modelConfig.endpointType
+      return {
+        endpointType: modelConfig.endpointType
+      }
     }
 
     const storedModel =
-      this.providerModelHelper.getProviderModels('new-api').find((model) => model.id === modelId) ??
-      this.getCustomModels('new-api').find((model) => model.id === modelId)
+      this.providerModelHelper
+        .getProviderModels(providerId)
+        .find((model) => model.id === modelId) ??
+      this.getCustomModels(providerId).find((model) => model.id === modelId)
 
     if (storedModel) {
-      return this.resolveNewApiCapabilityEndpointTypeFromModel(storedModel)
+      return {
+        endpointType: storedModel.endpointType,
+        supportedEndpointTypes: storedModel.supportedEndpointTypes,
+        type: storedModel.type
+      }
     }
 
-    return 'openai'
+    return null
   }
 
-  private resolveCapabilityProviderId(providerId: string, modelId: string): string {
-    if (providerId.trim().toLowerCase() !== 'new-api') {
-      return providerId
-    }
-
-    return resolveNewApiCapabilityProviderId(this.resolveNewApiCapabilityEndpointType(modelId))
+  getCapabilityProviderId(providerId: string, modelId: string): string {
+    return resolveProviderCapabilityProviderId(
+      providerId,
+      this.resolveCapabilityRoute(providerId, modelId),
+      modelId
+    )
   }
 
   supportsReasoningCapability(providerId: string, modelId: string): boolean {
     return modelCapabilities.supportsReasoning(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
 
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     return modelCapabilities.getReasoningPortrait(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
@@ -724,7 +715,7 @@ export class ConfigPresenter implements IConfigPresenter {
     modelId: string
   ): { min?: number; max?: number; default?: number } {
     return modelCapabilities.getThinkingBudgetRange(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
@@ -735,14 +726,14 @@ export class ConfigPresenter implements IConfigPresenter {
 
   getTemperatureCapability(providerId: string, modelId: string): boolean | undefined {
     return modelCapabilities.getTemperatureCapability(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
 
   supportsTemperatureControl(providerId: string, modelId: string): boolean {
     return modelCapabilities.supportsTemperatureControl(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
@@ -756,28 +747,28 @@ export class ConfigPresenter implements IConfigPresenter {
 
   supportsReasoningEffortCapability(providerId: string, modelId: string): boolean {
     return modelCapabilities.supportsReasoningEffort(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
 
   getReasoningEffortDefault(providerId: string, modelId: string): ReasoningEffort | undefined {
     return modelCapabilities.getReasoningEffortDefault(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
 
   supportsVerbosityCapability(providerId: string, modelId: string): boolean {
     return modelCapabilities.supportsVerbosity(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
 
   getVerbosityDefault(providerId: string, modelId: string): Verbosity | undefined {
     return modelCapabilities.getVerbosityDefault(
-      this.resolveCapabilityProviderId(providerId, modelId),
+      this.getCapabilityProviderId(providerId, modelId),
       modelId
     )
   }
@@ -1199,14 +1190,20 @@ export class ConfigPresenter implements IConfigPresenter {
 
   getProviderModels(providerId: string): MODEL_META[] {
     const models = this.providerModelHelper.getProviderModels(providerId)
-    if (providerId.trim().toLowerCase() !== 'new-api') {
-      return models
-    }
-
     return models.map((model) => {
-      const capabilityProviderId = resolveNewApiCapabilityProviderId(
-        this.resolveNewApiCapabilityEndpointTypeFromModel(model)
+      const capabilityProviderId = resolveProviderCapabilityProviderId(
+        providerId,
+        {
+          endpointType: model.endpointType,
+          supportedEndpointTypes: model.supportedEndpointTypes,
+          type: model.type
+        },
+        model.id
       )
+
+      if (capabilityProviderId === providerId) {
+        return model
+      }
 
       return {
         ...model,

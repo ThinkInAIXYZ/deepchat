@@ -21,6 +21,7 @@ import { adaptAiSdkStream } from './streamAdapter'
 export interface AiSdkRuntimeContext {
   providerKind: AiSdkProviderKind
   provider: LLM_PROVIDER
+  supportsOfficialAnthropicReasoning?: boolean
   configPresenter: IConfigPresenter
   defaultHeaders: Record<string, string>
   buildLegacyFunctionCallPrompt?: (tools: MCPToolDefinition[]) => string
@@ -167,6 +168,8 @@ async function buildPromptRuntime(
   const toolsMap = supportsNativeTools ? mcpToolsToAISDKTools(tools) : {}
   const providerOptionResult = buildProviderOptions({
     providerId: context.provider.id,
+    capabilityProviderId: context.provider.capabilityProviderId || context.provider.id,
+    supportsOfficialAnthropicReasoning: context.supportsOfficialAnthropicReasoning,
     providerOptionsKey: providerContext.providerOptionsKey,
     apiType: providerContext.apiType,
     modelId,

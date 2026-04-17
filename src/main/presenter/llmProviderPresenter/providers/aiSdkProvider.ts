@@ -2,8 +2,10 @@ import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import {
   ApiEndpointType,
   ModelType,
+  isClaudeFamilyModelId,
   isNewApiEndpointType,
-  resolveNewApiCapabilityProviderId,
+  resolveNewApiEndpointTypeFromRoute,
+  resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
 import {
@@ -64,6 +66,7 @@ type RouteDecision = {
   providerPatch?: Partial<LLM_PROVIDER>
   modelConfigPatch?: Partial<ModelConfig>
   endpointType?: NewApiEndpointType | 'grok-image'
+  supportsOfficialAnthropicReasoning?: boolean
 }
 
 const isOpenAIImageGenerationModel = (modelId: string): boolean =>
@@ -168,22 +171,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     return [...this.models, ...this.customModels].find((model) => model.id === modelId)
   }
 
-  private getDefaultNewApiEndpointType(model: Pick<MODEL_META, 'supportedEndpointTypes' | 'type'>) {
-    const supportedEndpointTypes = model.supportedEndpointTypes ?? []
-    if (supportedEndpointTypes.length === 0) {
-      return model.type === ModelType.ImageGeneration ? 'image-generation' : undefined
-    }
-
-    if (
-      model.type === ModelType.ImageGeneration &&
-      supportedEndpointTypes.includes('image-generation')
-    ) {
-      return 'image-generation'
-    }
-
-    return supportedEndpointTypes[0]
-  }
-
   private resolveNewApiEndpointType(modelId: string): NewApiEndpointType {
     const modelConfig = this.getProviderModelConfig(modelId)
     if (isNewApiEndpointType(modelConfig.endpointType)) {
@@ -195,10 +182,16 @@ export class AiSdkProvider extends BaseLLMProvider {
       return storedModel.endpointType
     }
 
-    const defaultEndpointType = storedModel
-      ? this.getDefaultNewApiEndpointType(storedModel)
-      : undefined
-    return defaultEndpointType ?? 'openai'
+    return resolveNewApiEndpointTypeFromRoute(
+      storedModel
+        ? {
+            endpointType: storedModel.endpointType,
+            supportedEndpointTypes: storedModel.supportedEndpointTypes,
+            type: storedModel.type
+          }
+        : null,
+      modelId
+    )
   }
 
   private resolveRouteDecision(modelId: string, _modelConfig?: ModelConfig): RouteDecision {
@@ -217,6 +210,7 @@ export class AiSdkProvider extends BaseLLMProvider {
     if (strategy === 'zenmux' && modelId.trim().toLowerCase().startsWith('anthropic/')) {
       return {
         providerKind: 'anthropic',
+        supportsOfficialAnthropicReasoning: true,
         providerPatch: {
           apiType: 'anthropic',
           baseUrl: ZENMUX_ANTHROPIC_BASE_URL
@@ -233,10 +227,17 @@ export class AiSdkProvider extends BaseLLMProvider {
           return {
             providerKind: 'anthropic',
             endpointType,
+            supportsOfficialAnthropicReasoning: isClaudeFamilyModelId(modelId),
             providerPatch: {
               apiType: 'anthropic',
               baseUrl: host,
-              capabilityProviderId: resolveNewApiCapabilityProviderId('anthropic')
+              capabilityProviderId: resolveProviderCapabilityProviderId(
+                this.provider.id,
+                {
+                  endpointType
+                },
+                modelId
+              )
             }
           }
         case 'gemini':
@@ -246,7 +247,13 @@ export class AiSdkProvider extends BaseLLMProvider {
             providerPatch: {
               apiType: 'gemini',
               baseUrl: host,
-              capabilityProviderId: resolveNewApiCapabilityProviderId('gemini')
+              capabilityProviderId: resolveProviderCapabilityProviderId(
+                this.provider.id,
+                {
+                  endpointType
+                },
+                modelId
+              )
             }
           }
         case 'openai-response':
@@ -256,7 +263,13 @@ export class AiSdkProvider extends BaseLLMProvider {
             providerPatch: {
               apiType: 'openai-responses',
               baseUrl: `${host}/v1`,
-              capabilityProviderId: resolveNewApiCapabilityProviderId('openai-response')
+              capabilityProviderId: resolveProviderCapabilityProviderId(
+                this.provider.id,
+                {
+                  endpointType
+                },
+                modelId
+              )
             }
           }
         case 'image-generation':
@@ -266,7 +279,13 @@ export class AiSdkProvider extends BaseLLMProvider {
             providerPatch: {
               apiType: 'openai-completions',
               baseUrl: `${host}/v1`,
-              capabilityProviderId: resolveNewApiCapabilityProviderId('image-generation')
+              capabilityProviderId: resolveProviderCapabilityProviderId(
+                this.provider.id,
+                {
+                  endpointType
+                },
+                modelId
+              )
             },
             modelConfigPatch: {
               apiEndpoint: ApiEndpointType.Image,
@@ -282,14 +301,22 @@ export class AiSdkProvider extends BaseLLMProvider {
             providerPatch: {
               apiType: 'openai-completions',
               baseUrl: `${host}/v1`,
-              capabilityProviderId: resolveNewApiCapabilityProviderId('openai')
+              capabilityProviderId: resolveProviderCapabilityProviderId(
+                this.provider.id,
+                {
+                  endpointType
+                },
+                modelId
+              )
             }
           }
       }
     }
 
     return {
-      providerKind: this.definition.runtimeKind
+      providerKind: this.definition.runtimeKind,
+      supportsOfficialAnthropicReasoning:
+        this.definition.runtimeKind === 'anthropic' && this.provider.id === 'anthropic'
     }
   }
 
@@ -485,6 +512,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       context: {
         providerKind: decision.providerKind,
         provider: runtimeProvider,
+        supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
         configPresenter: this.configPresenter,
         defaultHeaders,
         buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
@@ -707,6 +735,7 @@ export class AiSdkProvider extends BaseLLMProvider {
     const context: AiSdkRuntimeContext = {
       providerKind: decision.providerKind,
       provider: runtimeProvider,
+      supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
       configPresenter: this.configPresenter,
       defaultHeaders,
       buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
@@ -777,6 +806,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       const context: AiSdkRuntimeContext = {
         providerKind: decision.providerKind,
         provider: runtimeProvider,
+        supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
         configPresenter: this.configPresenter,
         defaultHeaders,
         buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
@@ -1285,10 +1315,13 @@ export class AiSdkProvider extends BaseLLMProvider {
             ? type === ModelType.ImageGeneration
               ? 'image-generation'
               : undefined
-            : type === ModelType.ImageGeneration &&
-                supportedEndpointTypes.includes('image-generation')
-              ? 'image-generation'
-              : supportedEndpointTypes[0]
+            : resolveNewApiEndpointTypeFromRoute(
+                {
+                  supportedEndpointTypes,
+                  type
+                },
+                rawModel.id
+              )
 
         return {
           id: rawModel.id,
@@ -1912,7 +1945,13 @@ export class AiSdkProvider extends BaseLLMProvider {
           providerPatch: {
             apiType: 'openai-completions',
             baseUrl: `${this.getNormalizedNewApiHost()}/v1`,
-            capabilityProviderId: resolveNewApiCapabilityProviderId('openai')
+            capabilityProviderId: resolveProviderCapabilityProviderId(
+              this.provider.id,
+              {
+                endpointType: 'openai'
+              },
+              modelId
+            )
           }
         })
       }
@@ -1938,7 +1977,13 @@ export class AiSdkProvider extends BaseLLMProvider {
           providerPatch: {
             apiType: 'openai-completions',
             baseUrl: `${this.getNormalizedNewApiHost()}/v1`,
-            capabilityProviderId: resolveNewApiCapabilityProviderId('openai')
+            capabilityProviderId: resolveProviderCapabilityProviderId(
+              this.provider.id,
+              {
+                endpointType: 'openai'
+              },
+              modelId
+            )
           }
         })
       }
