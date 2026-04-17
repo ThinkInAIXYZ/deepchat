@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.3-beta.3 (2026-04-17)
+- Added Anthropic temperature support in model capability controls
+- Added `none` and `xhigh` reasoning effort options for supported models
+- Improved sidebar session pin feedback and stabilized session group identity handling
+- Refined app update installation by cleaning up floating windows before relaunch
+- 为模型能力配置补充 Anthropic temperature 支持
+- 为受支持模型新增 `none` 与 `xhigh` reasoning effort 选项
+- 优化侧栏会话 pin 反馈，并稳定会话分组标识处理
+- 在应用更新安装前清理悬浮窗口，提升升级流程稳定性
+
 ## v1.0.3-beta.2 (2026-04-15)
 - Expanded remote control into a unified multi-channel setup with Discord, QQ Bot, and WeChat iLink support
 - Added default collapsing for long user messages so dense chats stay readable while attachments remain fully visible
