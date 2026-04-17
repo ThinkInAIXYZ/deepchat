@@ -183,6 +183,61 @@ const normalizeKnownProviderId = (providerId: string): string =>
   modelCapabilities.resolveProviderId(providerId.trim().toLowerCase()) ||
   providerId.trim().toLowerCase()
 
+const normalizeModelSelection = (value: unknown): ModelSelection | null => {
+  if (!isModelSelection(value)) {
+    return null
+  }
+
+  const providerId = normalizeKnownProviderId(value.providerId)
+  const modelId = value.modelId.trim()
+
+  if (!providerId || !modelId) {
+    return null
+  }
+
+  return {
+    providerId,
+    modelId
+  }
+}
+
+const isDeprecatedBuiltinProviderId = (
+  providerId: string,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): boolean => deprecatedProviderIds.includes(normalizeKnownProviderId(providerId))
+
+const isDeprecatedBuiltinModelSelection = (
+  selection: unknown,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): boolean => {
+  const normalizedSelection = normalizeModelSelection(selection)
+  return Boolean(
+    normalizedSelection &&
+    isDeprecatedBuiltinProviderId(normalizedSelection.providerId, deprecatedProviderIds)
+  )
+}
+
+const shouldReplaceBuiltinModelSelection = (
+  builtinSelection: unknown,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): boolean =>
+  normalizeModelSelection(builtinSelection) === null ||
+  isDeprecatedBuiltinModelSelection(builtinSelection, deprecatedProviderIds)
+
+const getLiveLegacyModelSelection = (
+  value: unknown,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): ModelSelection | null => {
+  const normalizedSelection = normalizeModelSelection(value)
+  if (!normalizedSelection) {
+    return null
+  }
+
+  return isDeprecatedBuiltinProviderId(normalizedSelection.providerId, deprecatedProviderIds)
+    ? null
+    : normalizedSelection
+}
+
 export const getAnthropicModelSelectionKeysToClear = (
   settings: Partial<
     Record<
@@ -418,7 +473,8 @@ export class ConfigPresenter implements IConfigPresenter {
   setAgentRepository(agentRepository: AgentRepository): void {
     this.agentRepository = agentRepository
     this.initializeUnifiedAgents()
-    this.migrateLegacyDefaultVisionModelToBuiltinAgent()
+    this.reconcileLegacyBuiltinAgentSelections()
+    this.cleanupDeprecatedBuiltinAgentSelections()
   }
 
   private getAgentRepositoryOrThrow(): AgentRepository {
@@ -453,33 +509,38 @@ export class ConfigPresenter implements IConfigPresenter {
     this.syncRegistryAgentsToRepository()
   }
 
-  private migrateLegacyDefaultVisionModelToBuiltinAgent(): void {
-    const legacySelection = this.store.get('defaultVisionModel') as unknown
-    if (legacySelection === undefined) {
-      return
+  private reconcileLegacyBuiltinAgentSelections(): void {
+    const config = this.getBuiltinDeepChatConfig()
+    const updates: Partial<DeepChatAgentConfig> = {}
+
+    const legacyDefaultModel = getLiveLegacyModelSelection(
+      this.store.get('defaultModel') as unknown
+    )
+    if (legacyDefaultModel && shouldReplaceBuiltinModelSelection(config.defaultModelPreset)) {
+      updates.defaultModelPreset = legacyDefaultModel
     }
 
-    const builtinVisionModel = this.getBuiltinDeepChatConfig().visionModel
-
-    if (
-      isModelSelection(legacySelection) &&
-      (!builtinVisionModel?.providerId || !builtinVisionModel?.modelId)
-    ) {
-      const providerId = legacySelection.providerId.trim()
-      const modelId = legacySelection.modelId.trim()
-
-      if (providerId && modelId) {
-        this.updateBuiltinDeepChatConfig({
-          visionModel: {
-            providerId,
-            modelId
-          }
-        })
-      }
+    const legacyAssistantModel = getLiveLegacyModelSelection(
+      this.store.get('assistantModel') as unknown
+    )
+    if (legacyAssistantModel && shouldReplaceBuiltinModelSelection(config.assistantModel)) {
+      updates.assistantModel = legacyAssistantModel
     }
 
-    this.store.delete('defaultVisionModel')
-    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultVisionModel', undefined)
+    const legacyVisionSelection = this.store.get('defaultVisionModel') as unknown
+    const legacyVisionModel = getLiveLegacyModelSelection(legacyVisionSelection)
+    if (legacyVisionModel && shouldReplaceBuiltinModelSelection(config.visionModel)) {
+      updates.visionModel = legacyVisionModel
+    }
+
+    if (Object.keys(updates).length > 0) {
+      this.updateBuiltinDeepChatConfig(updates)
+    }
+
+    if (legacyVisionSelection !== undefined) {
+      this.store.delete('defaultVisionModel')
+      eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultVisionModel', undefined)
+    }
   }
 
   private buildLegacyBuiltinDeepChatConfig(): DeepChatAgentConfig {
@@ -556,6 +617,27 @@ export class ConfigPresenter implements IConfigPresenter {
       config: updates
     })
     this.notifyAcpAgentsChanged()
+  }
+
+  private cleanupDeprecatedBuiltinAgentSelections(): void {
+    const config = this.getBuiltinDeepChatConfig()
+    const updates: Partial<DeepChatAgentConfig> = {}
+
+    if (isDeprecatedBuiltinModelSelection(config.defaultModelPreset)) {
+      updates.defaultModelPreset = null
+    }
+
+    if (isDeprecatedBuiltinModelSelection(config.assistantModel)) {
+      updates.assistantModel = null
+    }
+
+    if (isDeprecatedBuiltinModelSelection(config.visionModel)) {
+      updates.visionModel = null
+    }
+
+    if (Object.keys(updates).length > 0) {
+      this.updateBuiltinDeepChatConfig(updates)
+    }
   }
 
   private initProviderModelsDir(): void {
