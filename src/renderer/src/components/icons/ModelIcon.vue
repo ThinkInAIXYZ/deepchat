@@ -74,6 +74,7 @@ import xiaomiColorIcon from '@/assets/llm-icons/xiaomi.png?url'
 import o3fanColorIcon from '@/assets/llm-icons/o3-fan.png?url'
 import voiceAiColorIcon from '@/assets/llm-icons/voiceai.svg?url'
 import novitaAiIcon from '@/assets/llm-icons/novitaai.svg?url'
+import astraflowIcon from '@/assets/llm-icons/astraflow.png?url'
 
 // 导入所有图标
 const icons = {
@@ -163,6 +164,8 @@ const icons = {
   novita: novitaAiIcon,
   novitaai: novitaAiIcon,
   'novita.ai': novitaAiIcon,
+  astraflow: astraflowIcon,
+  'astraflow-cn': astraflowIcon,
   default: defaultIcon
 }
 
