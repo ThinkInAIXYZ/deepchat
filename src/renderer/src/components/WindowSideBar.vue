@@ -13,7 +13,7 @@
             <Button
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
-                agentStore.selectedAgentId === null
+                sidebarSelectedAgentId === null
                   ? 'bg-card/50 border-white/70 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
                   : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
@@ -34,7 +34,7 @@
               size="icon"
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
-                agentStore.selectedAgentId === agent.id
+                sidebarSelectedAgentId === agent.id
                   ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
                   : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
@@ -428,9 +428,31 @@ let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
 let pinFeedbackTimer: number | null = null
-const selectedAgentName = computed(
-  () => agentStore.selectedAgent?.name ?? t('chat.sidebar.allAgents')
-)
+const sidebarSelectedAgentId = computed(() => {
+  const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
+  if (sessionStore.hasActiveSession && activeSessionAgentId) {
+    return activeSessionAgentId
+  }
+
+  const selectedAgentId =
+    typeof agentStore.selectedAgentId === 'string' ? agentStore.selectedAgentId.trim() : ''
+  return selectedAgentId || null
+})
+
+const selectedAgentName = computed(() => {
+  if (sidebarSelectedAgentId.value === null) {
+    return t('chat.sidebar.allAgents')
+  }
+
+  if (agentStore.selectedAgent?.id === sidebarSelectedAgentId.value) {
+    return agentStore.selectedAgent.name
+  }
+
+  const matchedAgent = agentStore.enabledAgents.find(
+    (agent) => agent.id === sidebarSelectedAgentId.value
+  )
+  return matchedAgent?.name ?? t('chat.sidebar.allAgents')
+})
 
 const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
   listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
@@ -517,11 +539,11 @@ const matchesSessionSearch = (session: UISession) => {
   return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
 }
 const pinnedSessions = computed(() =>
-  sessionStore.getPinnedSessions(agentStore.selectedAgentId).filter(matchesSessionSearch)
+  sessionStore.getPinnedSessions(sidebarSelectedAgentId.value).filter(matchesSessionSearch)
 )
 const filteredGroups = computed(() =>
   sessionStore
-    .getFilteredGroups(agentStore.selectedAgentId)
+    .getFilteredGroups(sidebarSelectedAgentId.value)
     .map((group) => ({
       id: group.id,
       label: group.label,
@@ -682,7 +704,7 @@ const handleAgentSelect = async (id: string | null) => {
 
   agentSwitchQueue = agentSwitchQueue
     .then(async () => {
-      const currentAgentId = agentStore.selectedAgentId
+      const currentAgentId = sidebarSelectedAgentId.value
       const nextAgentId = currentAgentId === id ? null : id
       if (nextAgentId === currentAgentId) {
         return

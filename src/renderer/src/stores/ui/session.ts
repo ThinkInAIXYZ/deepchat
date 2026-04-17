@@ -278,6 +278,23 @@ export const useSessionStore = defineStore('session', () => {
 
   const sessionGroups: ComputedRef<SessionGroup[]> = computed(() => getFilteredGroups(null))
 
+  const syncSelectedAgentToSession = (
+    sessionId: string | null,
+    availableSessions: UISession[] = sessions.value
+  ): void => {
+    if (!sessionId) {
+      return
+    }
+
+    const targetSession = availableSessions.find((session) => session.id === sessionId)
+    const targetAgentId = targetSession?.agentId?.trim()
+    if (!targetAgentId || agentStore.selectedAgentId === targetAgentId) {
+      return
+    }
+
+    agentStore.setSelectedAgent(targetAgentId)
+  }
+
   // --- Actions ---
 
   async function fetchSessions(): Promise<void> {
@@ -300,6 +317,7 @@ export const useSessionStore = defineStore('session', () => {
         }
         activeSessionId.value = nextActiveSessionId
       }
+      syncSelectedAgentToSession(nextActiveSessionId, sessions.value)
       if (previousActiveSessionId && !nextActiveSessionId && pageRouter.currentRoute === 'chat') {
         pageRouter.goToNewThread()
       }
@@ -332,6 +350,7 @@ export const useSessionStore = defineStore('session', () => {
       }
       const webContentsId = getCurrentWebContentsId()
       await agentSessionPresenter.activateSession(webContentsId, sessionId)
+      syncSelectedAgentToSession(sessionId)
       activeSessionId.value = sessionId
       pageRouter.goToChat(sessionId)
     } catch (e) {
@@ -551,6 +570,7 @@ export const useSessionStore = defineStore('session', () => {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
       }
+      syncSelectedAgentToSession(sessionId)
       activeSessionId.value = sessionId
       pageRouter.goToChat(sessionId)
       void tabPresenter.onRendererTabActivated(sessionId)

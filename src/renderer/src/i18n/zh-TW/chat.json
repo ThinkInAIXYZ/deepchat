@@ -297,9 +297,9 @@
     "searchEmptyDescription": "試試其他標題關鍵字"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "任務總覽",
     "collapse": "收起懸浮會話列表",
-    "empty": "目前還沒有 DeepChat 會話",
+    "empty": "目前還沒有 Agent 會話",
     "executing": "進行中",
     "sessionCount": "{count} 個會話",
     "untitled": "新會話",

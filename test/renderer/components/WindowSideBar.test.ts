@@ -4,6 +4,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 type SetupOptions = {
   groupMode?: 'time' | 'project'
+  selectedAgentId?: string | null
+  enabledAgents?: Array<{ id: string; name: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
+  activeSession?: { id: string; agentId: string } | null
+  hasActiveSession?: boolean
   pinnedSessions?: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
   groups?: Array<{
     id: string
@@ -34,9 +38,11 @@ const setup = async (options: SetupOptions = {}) => {
     state: 'disabled' as const
   }
   const agentStore = reactive({
-    selectedAgentId: 'deepchat' as string | null,
+    selectedAgentId: (options.selectedAgentId ?? 'deepchat') as string | null,
     selectedAgentName: 'DeepChat',
-    enabledAgents: [{ id: 'acp-a', name: 'ACP A', type: 'acp' as const, enabled: true }],
+    enabledAgents: (options.enabledAgents ?? [
+      { id: 'acp-a', name: 'ACP A', type: 'acp' as const, enabled: true }
+    ]) as Array<{ id: string; name: string; type: 'deepchat' | 'acp'; enabled: boolean }>,
     setSelectedAgent: vi.fn((id: string | null) => {
       operations.push(`set:${id ?? 'all'}`)
       agentStore.selectedAgentId = id
@@ -45,8 +51,9 @@ const setup = async (options: SetupOptions = {}) => {
 
   const sessionStore = reactive({
     groupMode: (options.groupMode ?? 'time') as 'time' | 'project',
-    activeSessionId: 'session-1' as string | null,
-    hasActiveSession: true,
+    activeSessionId: (options.activeSession?.id ?? 'session-1') as string | null,
+    activeSession: options.activeSession ?? null,
+    hasActiveSession: options.hasActiveSession ?? true,
     startNewConversation: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn(async (id: string) => {
       operations.push(`select:${id}`)
@@ -303,6 +310,30 @@ describe('WindowSideBar agent switch', () => {
 
     expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
   })
+
+  it(
+    'prefers the active session agent for selection state and filtering',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        selectedAgentId: 'deepchat',
+        activeSession: {
+          id: 'session-acp',
+          agentId: 'acp-a'
+        },
+        enabledAgents: [
+          { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+          { id: 'acp-a', name: 'ACP A', type: 'acp', enabled: true }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('ACP A')
+      expect(sessionStore.getPinnedSessions).toHaveBeenCalledWith('acp-a')
+      expect(sessionStore.getFilteredGroups).toHaveBeenCalledWith('acp-a')
+    },
+    TEST_TIMEOUT_MS
+  )
 
   it(
     'renders pinned sessions outside grouped sections',

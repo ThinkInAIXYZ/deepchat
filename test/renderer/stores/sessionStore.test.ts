@@ -446,26 +446,32 @@ describe('sessionStore.startNewConversation', () => {
 
 describe('sessionStore streaming cleanup', () => {
   it('clears streaming state when switching active session', async () => {
-    const { store, clearStreamingState, agentSessionPresenter } = await setupStore()
+    const { store, clearStreamingState, agentSessionPresenter, agentStore } = await setupStore({
+      selectedAgentId: 'deepchat'
+    })
     store.activeSessionId.value = 'session-a'
+    store.sessions.value = [createSession({ id: 'session-b', agentId: 'acp-a' })]
 
     await store.selectSession('session-b')
 
     expect(agentSessionPresenter.activateSession).toHaveBeenCalledWith(1, 'session-b')
+    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
   })
 
-  it('syncs active session from presenter when fetching sessions', async () => {
-    const { store, agentSessionPresenter } = await setupStore()
+  it('syncs active session and selected agent from presenter when fetching sessions', async () => {
+    const { store, agentSessionPresenter, agentStore } = await setupStore({
+      selectedAgentId: 'deepchat'
+    })
     agentSessionPresenter.getSessionList.mockResolvedValueOnce([
       {
         id: 'session-sync-1',
         title: 'Session Sync',
-        agentId: 'deepchat',
+        agentId: 'acp-sync',
         status: 'idle',
         projectDir: null,
-        providerId: 'openai',
-        modelId: 'gpt-4o',
+        providerId: 'acp',
+        modelId: 'acp-sync',
         isPinned: false,
         isDraft: false,
         createdAt: 1,
@@ -480,6 +486,7 @@ describe('sessionStore streaming cleanup', () => {
 
     expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(1)
     expect(store.activeSessionId.value).toBe('session-sync-1')
+    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-sync')
   })
 
   it('clears streaming when fetch detects active session switch', async () => {
@@ -518,8 +525,11 @@ describe('sessionStore streaming cleanup', () => {
     expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledTimes(1)
   })
 
-  it('routes to chat when an external session activation targets this renderer', async () => {
-    const { store, pageRouter, emitIpc, SESSION_EVENTS } = await setupStore()
+  it('routes to chat and syncs the selected agent on external session activation', async () => {
+    const { store, pageRouter, emitIpc, SESSION_EVENTS, agentStore } = await setupStore({
+      selectedAgentId: 'deepchat'
+    })
+    store.sessions.value = [createSession({ id: 'session-external', agentId: 'agent-b' })]
 
     emitIpc(SESSION_EVENTS.ACTIVATED, {
       webContentsId: 1,
@@ -527,6 +537,7 @@ describe('sessionStore streaming cleanup', () => {
     })
 
     expect(store.activeSessionId.value).toBe('session-external')
+    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('agent-b')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
   })
 })

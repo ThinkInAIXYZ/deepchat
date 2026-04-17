@@ -297,9 +297,9 @@
     "searchEmptyDescription": "Prøv et andet nøgleord i titlen"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "Opgaveoversigt",
     "collapse": "Skjul flydende sessioner",
-    "empty": "Ingen DeepChat-sessioner endnu",
+    "empty": "Ingen agentsessioner endnu",
     "executing": "aktiv",
     "sessionCount": "{count} sessioner",
     "untitled": "Ny chat",

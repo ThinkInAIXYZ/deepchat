@@ -273,9 +273,9 @@
     "title": "构建与探索"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "任务总览",
     "collapse": "收起悬浮会话列表",
-    "empty": "当前还没有 DeepChat 会话",
+    "empty": "当前还没有 Agent 会话",
     "executing": "进行中",
     "sessionCount": "{count} 个会话",
     "untitled": "新会话",

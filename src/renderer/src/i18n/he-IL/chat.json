@@ -297,9 +297,9 @@
     "searchEmptyDescription": "נסו מילת מפתח אחרת בכותרת"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "סקירת משימות",
     "collapse": "כווץ את הסשנים הצפים",
-    "empty": "עדיין אין סשנים של DeepChat",
+    "empty": "עדיין אין סשנים של Agent",
     "executing": "פעיל",
     "sessionCount": "{count} סשנים",
     "untitled": "צ'אט חדש",

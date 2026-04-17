@@ -9,7 +9,7 @@ import {
 } from '@/presenter/floatingButtonPresenter/layout'
 
 describe('floating widget layout helpers', () => {
-  it('sorts deepchat sessions with in-progress sessions first', () => {
+  it('sorts all regular agent sessions with in-progress sessions first', () => {
     const snapshot = buildFloatingWidgetSnapshot(
       [
         {
@@ -41,7 +41,7 @@ describe('floating widget layout helpers', () => {
         {
           id: 'acp-1',
           agentId: 'acp-agent',
-          title: 'Ignore me',
+          title: 'ACP session',
           projectDir: null,
           isPinned: false,
           isDraft: false,
@@ -55,9 +55,13 @@ describe('floating widget layout helpers', () => {
       false
     )
 
-    expect(snapshot.activeCount).toBe(1)
-    expect(snapshot.sessions.map((session) => session.id)).toEqual(['running-1', 'done-1'])
-    expect(snapshot.sessions.map((session) => session.status)).toEqual(['in_progress', 'done'])
+    expect(snapshot.activeCount).toBe(2)
+    expect(snapshot.sessions.map((session) => session.id)).toEqual(['acp-1', 'running-1', 'done-1'])
+    expect(snapshot.sessions.map((session) => session.status)).toEqual([
+      'in_progress',
+      'in_progress',
+      'done'
+    ])
   })
 
   it('keeps the right edge fixed when resizing a right-docked widget', () => {

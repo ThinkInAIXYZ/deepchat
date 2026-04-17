@@ -154,7 +154,7 @@ export class FloatingButtonPresenter {
 
   public async refreshWidgetState(): Promise<void> {
     try {
-      const sessions = await this.loadDeepChatSessions()
+      const sessions = await this.loadSessions()
       this.snapshot = buildFloatingWidgetSnapshot(sessions, this.snapshot.expanded)
       this.applyWindowLayout()
       this.pushSnapshotToRenderer()
@@ -544,7 +544,7 @@ export class FloatingButtonPresenter {
     return isDark ? 'dark' : 'light'
   }
 
-  private async loadDeepChatSessions(): Promise<SessionWithState[]> {
+  private async loadSessions(): Promise<SessionWithState[]> {
     const agentSessionPresenter = presenter.agentSessionPresenter as
       | {
           getSessionList?: (filters?: { agentId?: string }) => Promise<SessionWithState[]>
@@ -555,7 +555,7 @@ export class FloatingButtonPresenter {
       return []
     }
 
-    return await agentSessionPresenter.getSessionList({ agentId: 'deepchat' })
+    return await agentSessionPresenter.getSessionList()
   }
 
   private async openSession(sessionId: string): Promise<void> {

@@ -297,9 +297,9 @@
     "searchEmptyDescription": "Попробуйте другое ключевое слово в названии"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "Обзор задач",
     "collapse": "Свернуть плавающие сессии",
-    "empty": "Пока нет сессий DeepChat",
+    "empty": "Пока нет сессий агентов",
     "executing": "активно",
     "sessionCount": "{count} сессий",
     "untitled": "Новый чат",

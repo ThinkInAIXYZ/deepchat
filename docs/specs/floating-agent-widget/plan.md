@@ -1,4 +1,4 @@
-# 悬浮 DeepChat Agent 小部件实施计划
+# 悬浮 Agent 任务总览小部件实施计划
 
 ## 设计决策
 
@@ -17,7 +17,7 @@
 
 状态来源：
 
-- 会话列表：`agentSessionPresenter.getSessionList({ agentId: 'deepchat' })`
+- 会话列表：`agentSessionPresenter.getSessionList()`
 - 会话状态：`SessionWithState.status`
 - 语言：`configPresenter.getLanguage()`
 
@@ -85,5 +85,7 @@
    - 缓解：在 floating entry 单独初始化 `vue-i18n`，语言由 preload 提供
 2. 风险：动态尺寸与持久化窗口状态冲突
    - 缓解：仅复用持久化位置，启动时始终使用折叠尺寸
-3. 风险：主进程激活会话后页面未切换到 chat
+3. 风险：不同 agent 的会话混在一起后，用户可能不易快速辨识
+   - 缓解：先保持统一排序和会话级状态，总览问题优先解决；必要时再补 agent 标识
+4. 风险：主进程激活会话后页面未切换到 chat
    - 缓解：补齐 `sessionStore` 对外部 `ACTIVATED` 事件的 route 同步

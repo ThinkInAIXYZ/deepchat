@@ -273,9 +273,9 @@
     "title": "Build and explore"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "Task Overview",
     "collapse": "Collapse floating sessions",
-    "empty": "No DeepChat sessions yet",
+    "empty": "No agent sessions yet",
     "executing": "active",
     "sessionCount": "{count} sessions",
     "untitled": "New Chat",

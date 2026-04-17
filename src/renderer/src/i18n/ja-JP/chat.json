@@ -297,9 +297,9 @@
     "searchEmptyDescription": "別のキーワードを試してください"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "タスク概要",
     "collapse": "フローティングセッションを折りたたむ",
-    "empty": "DeepChat セッションはまだありません",
+    "empty": "Agent セッションはまだありません",
     "executing": "アクティブ",
     "sessionCount": "{count}件のセッション",
     "untitled": "新しいチャット",
