@@ -38,6 +38,42 @@ export interface AiSdkRuntimeContext {
   shouldUseImageGeneration?: (modelId: string, modelConfig: ModelConfig) => boolean
 }
 
+const ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN = /^claude-opus-4-7(?:$|-think$)/
+
+function hasAnthropicTemperatureFallback(modelId: string): boolean {
+  const normalizedModelId = modelId.toLowerCase()
+  const unprefixedModelId = normalizedModelId.includes('/')
+    ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
+    : normalizedModelId
+
+  return ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN.test(unprefixedModelId)
+}
+
+function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId: string): boolean {
+  const capabilityProviderId = context.provider.capabilityProviderId || context.provider.id
+  const directSupport = context.configPresenter.supportsTemperatureControl?.(
+    capabilityProviderId,
+    modelId
+  )
+  if (typeof directSupport === 'boolean') {
+    return directSupport
+  }
+
+  const directCapability = context.configPresenter.getTemperatureCapability?.(
+    capabilityProviderId,
+    modelId
+  )
+  if (typeof directCapability === 'boolean') {
+    return directCapability
+  }
+
+  if (hasAnthropicTemperatureFallback(modelId)) {
+    return false
+  }
+
+  return true
+}
+
 function normalizePromptValue(value: unknown): string {
   if (typeof value === 'string') {
     return value
@@ -177,22 +213,24 @@ export async function runAiSdkGenerateText(
   maxTokens?: number
 ): Promise<LLMResponse> {
   const runtime = await buildPromptRuntime(context, messages, modelId, modelConfig, [])
+  const supportsTemperature = supportsTemperatureControlRuntime(context, modelId)
+  const requestBody = {
+    model: runtime.providerContext.resolvedModelId ?? modelId,
+    maxOutputTokens: maxTokens,
+    ...(supportsTemperature && temperature !== undefined ? { temperature } : {})
+  }
 
   await context.emitRequestTrace?.(modelConfig, {
     endpoint: runtime.providerContext.endpoint,
     headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
-    body: {
-      model: runtime.providerContext.resolvedModelId ?? modelId,
-      maxOutputTokens: maxTokens,
-      temperature
-    }
+    body: requestBody
   })
 
   const result = await generateText({
     model: runtime.providerContext.model,
     messages: runtime.messages,
     providerOptions: runtime.providerOptions as any,
-    temperature,
+    ...(supportsTemperature && temperature !== undefined ? { temperature } : {}),
     maxOutputTokens: maxTokens
   })
 
@@ -262,16 +300,18 @@ export async function* runAiSdkCoreStream(
   }
 
   const runtime = await buildPromptRuntime(context, messages, modelId, modelConfig, tools)
+  const supportsTemperature = supportsTemperatureControlRuntime(context, modelId)
+  const requestBody = {
+    model: runtime.providerContext.resolvedModelId ?? modelId,
+    maxOutputTokens: maxTokens,
+    ...(supportsTemperature ? { temperature } : {}),
+    tools: tools.map((tool) => tool.function.name)
+  }
 
   await context.emitRequestTrace?.(modelConfig, {
     endpoint: runtime.providerContext.endpoint,
     headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
-    body: {
-      model: runtime.providerContext.resolvedModelId ?? modelId,
-      maxOutputTokens: maxTokens,
-      temperature,
-      tools: tools.map((tool) => tool.function.name)
-    }
+    body: requestBody
   })
 
   const result = streamText({
@@ -279,7 +319,7 @@ export async function* runAiSdkCoreStream(
     messages: runtime.messages,
     tools: runtime.tools,
     providerOptions: runtime.providerOptions as any,
-    temperature,
+    ...(supportsTemperature ? { temperature } : {}),
     maxOutputTokens: maxTokens
   })
 

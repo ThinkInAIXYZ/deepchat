@@ -616,6 +616,20 @@ export class ConfigPresenter implements IConfigPresenter {
     return modelCapabilities.supportsSearch(providerId, modelId)
   }
 
+  getTemperatureCapability(providerId: string, modelId: string): boolean | undefined {
+    return modelCapabilities.getTemperatureCapability(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
+  }
+
+  supportsTemperatureControl(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsTemperatureControl(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
+  }
+
   getSearchDefaults(
     providerId: string,
     modelId: string

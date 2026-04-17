@@ -99,7 +99,7 @@
           </div>
 
           <!-- 温度 (支持推理努力程度的模型不显示) -->
-          <div v-if="!supportsReasoningEffort" class="space-y-2">
+          <div v-if="showTemperatureControl" class="space-y-2">
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
             <Input
               id="temperature"
@@ -582,6 +582,7 @@ const mutualExclusiveAction = ref<{
 // 错误信息
 const errors = ref<Record<string, string>>({})
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
+const capabilitySupportsTemperature = ref<boolean | null>(null)
 
 const getReasoningEffortOptions = (
   portrait: ReasoningPortrait | null | undefined
@@ -709,6 +710,7 @@ const fetchCapabilities = async () => {
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
+    capabilitySupportsTemperature.value = null
     capabilitySupportsEffort.value = null
     capabilityEffortDefault.value = undefined
     capabilitySupportsVerbosity.value = null
@@ -730,6 +732,15 @@ const fetchCapabilities = async () => {
             : {})
         }
       : null
+    const temperatureSupport = await configPresenter.supportsTemperatureControl?.(
+      props.providerId,
+      props.modelId
+    )
+    capabilitySupportsTemperature.value =
+      typeof temperatureSupport === 'boolean'
+        ? temperatureSupport
+        : ((await configPresenter.getTemperatureCapability?.(props.providerId, props.modelId)) ??
+          null)
     capabilitySupportsEffort.value = hasReasoningEffortSupport(portrait)
     capabilityEffortDefault.value = normalizeReasoningEffortValue(portrait, portrait?.effort)
     capabilitySupportsVerbosity.value = hasVerbositySupport(portrait)
@@ -738,6 +749,7 @@ const fetchCapabilities = async () => {
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
+    capabilitySupportsTemperature.value = null
     capabilitySupportsEffort.value = null
     capabilityEffortDefault.value = undefined
     capabilitySupportsVerbosity.value = null
@@ -975,8 +987,8 @@ const validateForm = () => {
     errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMax')
   }
 
-  // 验证温度 (仅对不支持推理努力程度的模型)
-  if (!supportsReasoningEffort.value && config.value.temperature !== undefined) {
+  // 验证温度 (仅对显示 temperature 控件的模型)
+  if (showTemperatureControl.value && config.value.temperature !== undefined) {
     if (config.value.temperature < 0) {
       errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMin')
     } else if (config.value.temperature > 2) {
@@ -1108,6 +1120,10 @@ const isDeepSeekV31Model = computed(() => {
 
 const supportsReasoningEffort = computed(() =>
   hasReasoningEffortSupport(capabilityReasoningPortrait.value)
+)
+const supportsTemperatureControl = computed(() => capabilitySupportsTemperature.value !== false)
+const showTemperatureControl = computed(
+  () => supportsTemperatureControl.value && !supportsReasoningEffort.value
 )
 const reasoningToggleMode = computed(() => {
   if (isCreateMode.value || props.isCustomModel) {

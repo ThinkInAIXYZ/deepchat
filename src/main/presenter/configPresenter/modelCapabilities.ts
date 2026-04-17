@@ -36,6 +36,7 @@ const GROK_REASONING_EFFORT_MODEL_FAMILIES = ['grok-3-mini']
 const DEFAULT_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['minimal', 'low', 'medium', 'high']
 const BINARY_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['low', 'high']
 const DEFAULT_VERBOSITY_OPTIONS: Verbosity[] = ['low', 'medium', 'high']
+const ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN = /^claude-opus-4-7(?:$|-think$)/
 
 const normalizeCapabilityModelId = (modelId: string): string => {
   const normalizedModelId = modelId.toLowerCase()
@@ -448,6 +449,10 @@ export class ModelCapabilities {
     return undefined
   }
 
+  private hasTemperatureFallback(modelId: string): boolean {
+    return ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN.test(normalizeCapabilityModelId(modelId))
+  }
+
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     const exactModel = this.getProviderMatch(providerId, modelId)
     const legacyModel = exactModel ?? this.getModel(providerId, modelId)
@@ -499,6 +504,20 @@ export class ModelCapabilities {
   supportsSearch(providerId: string, modelId: string): boolean {
     const model = this.getModel(providerId, modelId)
     return model?.search?.supported === true
+  }
+
+  getTemperatureCapability(providerId: string, modelId: string): boolean | undefined {
+    const model = this.getProviderMatch(providerId, modelId)
+    return typeof model?.temperature === 'boolean' ? model.temperature : undefined
+  }
+
+  supportsTemperatureControl(providerId: string, modelId: string): boolean {
+    const capability = this.getTemperatureCapability(providerId, modelId)
+    if (typeof capability === 'boolean') {
+      return capability
+    }
+
+    return !this.hasTemperatureFallback(modelId)
   }
 
   supportsReasoningEffort(providerId: string, modelId: string): boolean {

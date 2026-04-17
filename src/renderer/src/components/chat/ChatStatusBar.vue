@@ -220,7 +220,7 @@
                   </div>
 
                   <div v-else-if="localSettings" class="space-y-4">
-                    <div class="space-y-1.5">
+                    <div v-if="showTemperatureControl" class="space-y-1.5">
                       <label class="text-xs font-medium">{{
                         t('chat.advancedSettings.temperature')
                       }}</label>
@@ -854,6 +854,7 @@ const numericInputErrors = ref<
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
+const capabilitySupportsTemperature = ref<boolean | null>(null)
 
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
@@ -1578,6 +1579,10 @@ const showThinkingBudget = computed(() => {
   )
 })
 
+const showTemperatureControl = computed(
+  () => capabilitySupportsTemperature.value !== false && Boolean(localSettings.value)
+)
+
 const showVerbosity = computed(
   () =>
     !isAcpAgent.value &&
@@ -1874,14 +1879,23 @@ const resolveDefaultGenerationSettings = async (
 const fetchCapabilities = async (providerId: string, modelId: string): Promise<void> => {
   try {
     const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
+    const temperatureSupport = await configPresenter.supportsTemperatureControl?.(
+      providerId,
+      modelId
+    )
 
     capabilityReasoningPortrait.value = portrait
     capabilitySupportsReasoning.value =
       typeof portrait?.supported === 'boolean' ? portrait.supported : null
+    capabilitySupportsTemperature.value =
+      typeof temperatureSupport === 'boolean'
+        ? temperatureSupport
+        : ((await configPresenter.getTemperatureCapability?.(providerId, modelId)) ?? null)
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
+    capabilitySupportsTemperature.value = null
   }
 }
 
