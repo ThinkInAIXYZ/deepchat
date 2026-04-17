@@ -912,6 +912,20 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
   })
 
+  it('uses the derived default maxTokens value from model config', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelConfig: {
+        contextLength: 128000,
+        maxTokens: 32000
+      }
+    })
+
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(128000)
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(32000)
+  })
+
   it('awaits async model config values for draft model settings', async () => {
     const { wrapper } = await setup({
       agentId: 'deepchat',
@@ -931,6 +945,24 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.contextLength).toBe(8192)
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(2048)
     expect((wrapper.vm as any).localSettings.forceInterleavedThinkingCompat).toBe(true)
+  })
+
+  it('preserves user-entered maxTokens values above the default cap', async () => {
+    const { wrapper, draftStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelConfig: {
+        contextLength: 128000,
+        maxTokens: 32000
+      }
+    })
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    await commitNumericInput(wrapper, 'maxTokens', '64000')
+
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(64000)
+    expect(draftStore.maxTokens).toBe(64000)
   })
 
   it('hides temperature controls when the selected model disables temperature', async () => {

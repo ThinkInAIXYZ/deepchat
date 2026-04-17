@@ -1,5 +1,6 @@
 export const DEFAULT_MODEL_CONTEXT_LENGTH = 16000
 export const DEFAULT_MODEL_MAX_TOKENS = 4096
+export const DERIVED_MODEL_MAX_TOKENS_CAP = 32000
 export const DEFAULT_MODEL_VISION = false
 export const DEFAULT_MODEL_FUNCTION_CALL = true
 export const DEFAULT_MODEL_REASONING = false
@@ -17,6 +18,9 @@ export const resolveModelContextLength = (value: number | undefined | null): num
 
 export const resolveModelMaxTokens = (value: number | undefined | null): number =>
   value ?? DEFAULT_MODEL_MAX_TOKENS
+
+export const resolveDerivedModelMaxTokens = (value: number | undefined | null): number =>
+  Math.min(resolveModelMaxTokens(value), DERIVED_MODEL_MAX_TOKENS_CAP)
 
 export const resolveModelVision = (value: boolean | undefined | null): boolean =>
   value ?? DEFAULT_MODEL_VISION

@@ -9,9 +9,9 @@ import {
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_MAX_TOKENS,
+  resolveDerivedModelMaxTokens,
   resolveModelContextLength,
-  resolveModelFunctionCall,
-  resolveModelMaxTokens
+  resolveModelFunctionCall
 } from '@shared/modelConfigDefaults'
 import {
   AWS_BEDROCK_PROVIDER,
@@ -832,7 +832,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         providerId: this.provider.id,
         isCustom: false,
         contextLength: resolveModelContextLength(model.limit?.context),
-        maxTokens: resolveModelMaxTokens(model.limit?.output),
+        maxTokens: resolveDerivedModelMaxTokens(model.limit?.output),
         vision: hasImageInput,
         functionCall: resolveModelFunctionCall(model.tool_call),
         reasoning: Boolean(model.reasoning?.supported),
