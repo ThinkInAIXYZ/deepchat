@@ -807,7 +807,6 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'https://api.novita.ai/openai'
     }
   },
-
   {
     id: 'astraflow',
     name: 'Astraflow (Global)',
@@ -823,7 +822,6 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'https://api-us-ca.umodelverse.ai/v1'
     }
   },
-
   {
     id: 'astraflow-cn',
     name: 'Astraflow CN',
@@ -837,22 +835,6 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       docs: 'https://astraflow.ucloud.cn/docs',
       models: 'https://astraflow.ucloud.cn/modelverse/playground',
       defaultBaseUrl: 'https://api.modelverse.cn/v1'
-    }
-  },
-
-  {
-    id: 'laoshi',
-    name: '老师傅',
-    apiType: 'openai-completions',
-    apiKey: '',
-    baseUrl: '',
-    enable: false,
-    websites: {
-      official: '',
-      apiKey: '',
-      docs: '',
-      models: '',
-      defaultBaseUrl: ''
     }
   }
 ]
