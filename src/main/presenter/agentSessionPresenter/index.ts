@@ -1549,6 +1549,31 @@ export class AgentSessionPresenter {
     return updated
   }
 
+  async setSessionProjectDir(
+    sessionId: string,
+    projectDir: string | null
+  ): Promise<SessionWithState> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    this.sessionManager.update(sessionId, { projectDir })
+
+    // Sync environment for new project dir
+    if (projectDir) {
+      this.sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
+    }
+
+    const updated = this.sessionManager.get(sessionId)
+    if (!updated) {
+      throw new Error(`Session not found after update: ${sessionId}`)
+    }
+
+    this.emitSessionListUpdated()
+    return await this.tryBuildSessionWithState(updated)
+  }
+
   async getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
     const session = this.sessionManager.get(sessionId)
     if (!session) {
@@ -1708,7 +1733,7 @@ export class AgentSessionPresenter {
     }
   }
 
-  private async tryBuildSessionWithState(record: SessionRecord): Promise<SessionWithState | null> {
+  private async tryBuildSessionWithState(record: SessionRecord): Promise<SessionWithState> {
     try {
       return await this.buildSessionWithState(record)
     } catch (error) {
@@ -1716,7 +1741,7 @@ export class AgentSessionPresenter {
         `[AgentSessionPresenter] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
         error
       )
-      return null
+      return null as unknown as SessionWithState
     }
   }
 

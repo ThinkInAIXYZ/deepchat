@@ -182,7 +182,12 @@
       },
       "empty": "Ingen filer endnu",
       "loading": "Indlæser filer...",
-      "section": "dokument"
+      "section": "dokument",
+      "noWorkspace": {
+        "title": "Ingen arbejdsområde",
+        "description": "Vælg eller træk en mappe for at definere arbejdsområdet",
+        "button": "Vælg mappe"
+      }
     },
     "git": {
       "empty": "Ingen diff tilgængelig",

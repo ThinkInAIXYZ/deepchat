@@ -131,6 +131,7 @@ export interface IAgentSessionPresenter {
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
   setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<SessionWithState>
   setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<SessionWithState>
+  setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   getSessionDisabledAgentTools(sessionId: string): Promise<string[]>
   updateSessionDisabledAgentTools(
