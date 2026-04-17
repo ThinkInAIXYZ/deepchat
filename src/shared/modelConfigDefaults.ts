@@ -19,8 +19,12 @@ export const resolveModelContextLength = (value: number | undefined | null): num
 export const resolveModelMaxTokens = (value: number | undefined | null): number =>
   value ?? DEFAULT_MODEL_MAX_TOKENS
 
-export const resolveDerivedModelMaxTokens = (value: number | undefined | null): number =>
-  Math.min(resolveModelMaxTokens(value), DERIVED_MODEL_MAX_TOKENS_CAP)
+export const resolveDerivedModelMaxTokens = (value: number | undefined | null): number => {
+  const resolvedValue = resolveModelMaxTokens(value)
+  const sanePositiveValue = Number.isFinite(resolvedValue) && resolvedValue > 0 ? resolvedValue : 1
+
+  return Math.min(sanePositiveValue, DERIVED_MODEL_MAX_TOKENS_CAP)
+}
 
 export const resolveModelVision = (value: boolean | undefined | null): boolean =>
   value ?? DEFAULT_MODEL_VISION

@@ -22,6 +22,18 @@ describe('resolveDerivedModelMaxTokens', () => {
   it('falls back to the default when metadata is missing', () => {
     expect(resolveDerivedModelMaxTokens(undefined)).toBe(DEFAULT_MODEL_MAX_TOKENS)
   })
+
+  it('clamps zero to a sane positive minimum', () => {
+    expect(resolveDerivedModelMaxTokens(0)).toBe(1)
+  })
+
+  it('clamps negative values to a sane positive minimum', () => {
+    expect(resolveDerivedModelMaxTokens(-1024)).toBe(1)
+  })
+
+  it('clamps NaN to a sane positive minimum', () => {
+    expect(resolveDerivedModelMaxTokens(Number.NaN)).toBe(1)
+  })
 })
 
 describe('resolveModelMaxTokens', () => {

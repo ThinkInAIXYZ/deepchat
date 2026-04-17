@@ -221,6 +221,51 @@ describe('modelStore.refreshProviderModels', () => {
     ])
   })
 
+  it('caps derived maxTokens for merged standard models', async () => {
+    const dbModel = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      providerId: 'openai',
+      reasoning: true,
+      functionCall: true,
+      vision: false,
+      contextLength: 400000,
+      maxTokens: 128000,
+      isCustom: false
+    }
+    const storedModel = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      providerId: 'openai',
+      functionCall: true,
+      vision: false,
+      contextLength: 400000,
+      maxTokens: 64000,
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      configPresenter: {
+        getDbProviderModels: vi.fn(async () => [dbModel]),
+        getProviderModels: vi.fn(async () => [storedModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5.4': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-5.4',
+            maxTokens: 32000
+          })
+        ]
+      }
+    ])
+  })
+
   it('uses stored reasoning metadata when no db capability fallback exists', async () => {
     const storedModel = {
       id: 'custom-chat',
@@ -248,6 +293,41 @@ describe('modelStore.refreshProviderModels', () => {
           expect.objectContaining({
             id: 'custom-chat',
             reasoning: true
+          })
+        ]
+      }
+    ])
+  })
+
+  it('caps derived maxTokens for stored-only standard models', async () => {
+    const storedModel = {
+      id: 'custom-chat',
+      name: 'Custom Chat',
+      providerId: 'openai',
+      reasoning: true,
+      functionCall: false,
+      vision: false,
+      contextLength: 200000,
+      maxTokens: 128000,
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      configPresenter: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [storedModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'custom-chat': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'custom-chat',
+            maxTokens: 32000
           })
         ]
       }

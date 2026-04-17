@@ -5,6 +5,7 @@ import { useThrottleFn } from '@vueuse/core'
 import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import {
+  resolveDerivedModelMaxTokens,
   resolveModelContextLength,
   resolveModelFunctionCall,
   resolveModelMaxTokens,
@@ -95,6 +96,27 @@ export const useModelStore = defineStore('model', () => {
     name: model.name || model.id,
     contextLength: resolveModelContextLength(model.contextLength),
     maxTokens: resolveModelMaxTokens(model.maxTokens),
+    group: model.group || 'default',
+    providerId,
+    enabled: (model as RENDERER_MODEL_META).enabled ?? false,
+    isCustom: model.isCustom ?? false,
+    vision: resolveModelVision(model.vision),
+    functionCall: resolveModelFunctionCall(model.functionCall),
+    reasoning: model.reasoning ?? false,
+    enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
+    type: (model.type ?? ModelType.Chat) as ModelType,
+    supportedEndpointTypes: model.supportedEndpointTypes,
+    endpointType: model.endpointType
+  })
+
+  const normalizeDerivedRendererModel = (
+    model: MODEL_META,
+    providerId: string
+  ): RENDERER_MODEL_META => ({
+    id: model.id,
+    name: model.name || model.id,
+    contextLength: resolveModelContextLength(model.contextLength),
+    maxTokens: resolveDerivedModelMaxTokens(model.maxTokens),
     group: model.group || 'default',
     providerId,
     enabled: (model as RENDERER_MODEL_META).enabled ?? false,
@@ -325,7 +347,7 @@ export const useModelStore = defineStore('model', () => {
             contextLength: resolveModelContextLength(
               model.contextLength ?? fallback?.contextLength
             ),
-            maxTokens: resolveModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
+            maxTokens: resolveDerivedModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
             vision: resolveModelVision(model.vision ?? fallback?.vision),
             functionCall: resolveModelFunctionCall(model.functionCall ?? fallback?.functionCall),
             // Standard models should keep DB-backed reasoning capability metadata.
@@ -352,7 +374,7 @@ export const useModelStore = defineStore('model', () => {
         // If models array is empty, use storedModels directly
         if (models.length === 0) {
           for (const model of storedModelMap.values()) {
-            mergedModels.push(model)
+            mergedModels.push(normalizeDerivedRendererModel(model, providerId))
           }
         } else {
           // Otherwise, merge db models with stored models
@@ -360,15 +382,17 @@ export const useModelStore = defineStore('model', () => {
             const override = storedModelMap.get(model.id)
             if (override) {
               storedModelMap.delete(model.id)
-              mergedModels.push({ ...model, ...override, providerId })
+              mergedModels.push(
+                normalizeDerivedRendererModel({ ...model, ...override, providerId }, providerId)
+              )
             } else {
-              mergedModels.push({ ...model, providerId })
+              mergedModels.push(normalizeDerivedRendererModel({ ...model, providerId }, providerId))
             }
           }
 
           // Add remaining stored models that are not in db
           for (const model of storedModelMap.values()) {
-            mergedModels.push(model)
+            mergedModels.push(normalizeDerivedRendererModel(model, providerId))
           }
         }
 
@@ -410,7 +434,7 @@ export const useModelStore = defineStore('model', () => {
       const modelsWithStatus = await Promise.all(
         models.map(async (model) => {
           const base: RENDERER_MODEL_META = {
-            ...normalizeRendererModel(model, providerId),
+            ...normalizeDerivedRendererModel(model, providerId),
             enabled: modelStatusMap[model.id] ?? true,
             isCustom: model.isCustom || false
           }
