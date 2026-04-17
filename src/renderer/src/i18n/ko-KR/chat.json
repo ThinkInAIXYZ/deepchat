@@ -302,9 +302,9 @@
     "searchEmptyDescription": "다른 제목 키워드를 시도해 보세요"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "작업 개요",
     "collapse": "플로팅 세션 접기",
-    "empty": "아직 DeepChat 세션이 없습니다",
+    "empty": "아직 Agent 세션이 없습니다",
     "executing": "활성",
     "sessionCount": "{count}개 세션",
     "untitled": "새 채팅",

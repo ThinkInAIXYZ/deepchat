@@ -302,9 +302,9 @@
     "searchEmptyDescription": "Essayez un autre mot-clé de titre"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "Aperçu des tâches",
     "collapse": "Réduire les sessions flottantes",
-    "empty": "Aucune session DeepChat pour le moment",
+    "empty": "Aucune session d'agent pour le moment",
     "executing": "actif",
     "sessionCount": "{count} sessions",
     "untitled": "Nouvelle discussion",
