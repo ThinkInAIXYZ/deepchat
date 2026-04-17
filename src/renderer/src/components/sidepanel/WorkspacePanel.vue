@@ -386,7 +386,11 @@ function handleDragOver(event: DragEvent) {
 function handleDragLeave(event: DragEvent) {
   // Only reset dragging if we're leaving the drop zone entirely, not entering a child element
   const relatedTarget = event.relatedTarget as EventTarget | null
-  if (!relatedTarget || !(event.currentTarget instanceof Node) || !event.currentTarget.contains(relatedTarget as Node)) {
+  if (
+    !relatedTarget ||
+    !(event.currentTarget instanceof Node) ||
+    !event.currentTarget.contains(relatedTarget as Node)
+  ) {
     isDragging.value = false
   }
 }
