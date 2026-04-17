@@ -43,13 +43,27 @@ describe('AI SDK provider options', () => {
     mockSupportsReasoning.mockReturnValue(false)
   })
 
-  it('keeps official anthropic beta features enabled', () => {
+  it('maps official anthropic adaptive reasoning controls when enabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
     const result = buildProviderOptions({
       providerId: 'anthropic',
       providerOptionsKey: 'anthropic',
       apiType: 'anthropic',
-      modelId: 'claude-sonnet-4-5',
-      modelConfig: baseModelConfig,
+      modelId: 'claude-opus-4-7',
+      modelConfig: {
+        ...baseModelConfig,
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
       tools: [],
       messages: []
     })
@@ -57,10 +71,10 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).toMatchObject({
       toolStreaming: true,
       sendReasoning: true,
-      effort: 'high',
+      effort: 'max',
       thinking: {
-        type: 'enabled',
-        budgetTokens: 2048
+        type: 'adaptive',
+        display: 'summarized'
       }
     })
   })
@@ -352,6 +366,38 @@ describe('AI SDK provider options', () => {
       toolStreaming: true
     })
     expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
+  })
+
+  it('ignores stale anthropic adaptive reasoning overrides when model reasoning is disabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'anthropic',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'claude-opus-4-7',
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: true
+    })
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
     expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
   })
 

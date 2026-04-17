@@ -1,6 +1,6 @@
 import type { Message } from '../../chat'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
-import type { ReasoningEffort, Verbosity } from '../model-db'
+import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
 import type {
   IThreadPresenter,
   MESSAGE_STATUS,
@@ -31,6 +31,7 @@ export type SessionConfig = {
   supportsFunctionCall?: boolean
   thinkingBudget?: number
   reasoningEffort?: ReasoningEffort
+  reasoningVisibility?: ReasoningVisibility
   verbosity?: Verbosity
   enableSearch?: boolean
   forcedSearch?: boolean

@@ -13,6 +13,7 @@ type TestGenerationSettings = {
   thinkingBudget?: number
   forceInterleavedThinkingCompat?: boolean
   reasoningEffort?: ReasoningEffort
+  reasoningVisibility?: 'omitted' | 'summarized'
   verbosity?: 'low' | 'medium' | 'high'
 }
 
@@ -306,6 +307,7 @@ const setup = async (options: SetupOptions = {}) => {
     thinkingBudget: undefined as number | undefined,
     forceInterleavedThinkingCompat: undefined as boolean | undefined,
     reasoningEffort: undefined as ReasoningEffort | undefined,
+    reasoningVisibility: undefined as 'omitted' | 'summarized' | undefined,
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
     subagentEnabled: options.draftSubagentEnabled === true,
     ...options.draftGenerationSettings,
@@ -320,6 +322,7 @@ const setup = async (options: SetupOptions = {}) => {
       draftStore.thinkingBudget = undefined
       draftStore.forceInterleavedThinkingCompat = undefined
       draftStore.reasoningEffort = undefined
+      draftStore.reasoningVisibility = undefined
       draftStore.verbosity = undefined
     })
   })
@@ -350,6 +353,7 @@ const setup = async (options: SetupOptions = {}) => {
       thinkingBudget: 512,
       forceInterleavedThinkingCompat: undefined,
       reasoningEffort: reasoningEffortDefault,
+      reasoningVisibility: undefined,
       verbosity: 'medium',
       ...options.modelConfig
     }),
@@ -380,6 +384,7 @@ const setup = async (options: SetupOptions = {}) => {
     thinkingBudget: 512,
     forceInterleavedThinkingCompat: undefined,
     reasoningEffort: 'medium',
+    reasoningVisibility: undefined,
     verbosity: 'medium',
     ...options.sessionSettings
   }
@@ -760,6 +765,83 @@ describe('ChatStatusBar model and session panels', () => {
     )
   })
 
+  it('hides anthropic adaptive reasoning controls when backend reasoning is disabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: 'high',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max']
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(false)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBeUndefined()
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBeUndefined()
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
+  })
+
+  it('shows anthropic adaptive reasoning controls when backend reasoning is enabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('max')
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('summarized')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
+    expect(wrapper.text()).toContain(
+      'settings.model.modelConfig.reasoningVisibility.options.summarized'
+    )
+  })
+
   it('keeps showing loading until settings finish loading for the current model selection', async () => {
     const { wrapper, sessionStore, agentSessionPresenter } = await setup({
       hasActiveSession: true,
@@ -981,11 +1063,10 @@ describe('ChatStatusBar model and session panels', () => {
       reasoningPortrait: {
         supported: true,
         defaultEnabled: false,
-        mode: 'budget',
-        budget: {
-          min: 1024,
-          default: 2048
-        }
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
       }
     })
 

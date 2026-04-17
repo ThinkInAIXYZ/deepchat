@@ -348,7 +348,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.102.0",
+      "version": "0.103.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -357,7 +357,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "droid@0.102.0",
+          "package": "droid@0.103.0",
           "args": [
             "exec",
             "--output-format",
@@ -705,7 +705,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.0.97",
+      "version": "1.0.98",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -716,7 +716,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.0.97",
+          "package": "@compass-ai/nova@1.0.98",
           "args": [
             "acp"
           ]

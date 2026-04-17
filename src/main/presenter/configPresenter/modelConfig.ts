@@ -9,8 +9,11 @@ import {
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
 import {
+  hasAnthropicReasoningToggle,
   isImageInputSupported,
+  normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
+  normalizeReasoningVisibilityValue,
   ProviderModel,
   ReasoningPortrait,
   isVerbosity,
@@ -124,6 +127,10 @@ export class ModelConfigHelper {
       portrait,
       portrait?.effort ?? model.reasoning?.effort
     )
+    const reasoningVisibility = hasAnthropicReasoningToggle(providerId, portrait)
+      ? (normalizeAnthropicReasoningVisibilityValue(portrait?.visibility) ??
+        normalizeReasoningVisibilityValue(portrait?.visibility))
+      : normalizeReasoningVisibilityValue(portrait?.visibility)
     const verbosity = normalizeVerbosityValue(
       portrait,
       portrait?.verbosity ?? model.reasoning?.verbosity
@@ -140,6 +147,7 @@ export class ModelConfigHelper {
       thinkingBudget,
       forceInterleavedThinkingCompat,
       reasoningEffort,
+      reasoningVisibility,
       verbosity,
       enableSearch: Boolean(model.search?.supported ?? false),
       forcedSearch: Boolean(model.search?.forced_search ?? false),

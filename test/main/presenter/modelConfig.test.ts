@@ -507,5 +507,83 @@ describe('Model Configuration Tests', () => {
       expect(config.forceInterleavedThinkingCompat).toBe(false)
       expect(config.isUserDefined).toBe(true)
     })
+
+    it('derives anthropic reasoning visibility from provider portraits', () => {
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          anthropic: {
+            id: 'anthropic',
+            models: [{ id: 'claude-opus-4-7', tool_call: true, temperature: false }]
+          }
+        }
+      } as any)
+      const portraitSpy = vi.spyOn(modelCapabilities, 'getReasoningPortrait').mockReturnValue({
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      })
+
+      const config = modelConfigHelper.getModelConfig('claude-opus-4-7', 'anthropic')
+
+      expect(config.reasoning).toBe(false)
+      expect(config.reasoningVisibility).toBe('omitted')
+      expect(config.reasoningEffort).toBe('high')
+
+      portraitSpy.mockRestore()
+      getDbSpy.mockRestore()
+    })
+
+    it('preserves non-anthropic reasoning visibility values from provider portraits', () => {
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          openai: {
+            id: 'openai',
+            models: [
+              { id: 'gpt-5', tool_call: true, temperature: true },
+              { id: 'gpt-5-mini', tool_call: true, temperature: true }
+            ]
+          }
+        }
+      } as any)
+      const portraitSpy = vi
+        .spyOn(modelCapabilities, 'getReasoningPortrait')
+        .mockImplementation((providerId: string, modelId: string) => {
+          if (providerId === 'openai' && modelId === 'gpt-5') {
+            return {
+              supported: true,
+              defaultEnabled: true,
+              mode: 'effort',
+              effort: 'medium',
+              effortOptions: ['minimal', 'low', 'medium', 'high'],
+              visibility: 'hidden'
+            }
+          }
+
+          if (providerId === 'openai' && modelId === 'gpt-5-mini') {
+            return {
+              supported: true,
+              defaultEnabled: true,
+              mode: 'effort',
+              effort: 'medium',
+              effortOptions: ['minimal', 'low', 'medium', 'high'],
+              visibility: 'summary'
+            }
+          }
+
+          return null
+        })
+
+      const hiddenConfig = modelConfigHelper.getModelConfig('gpt-5', 'openai')
+      const summaryConfig = modelConfigHelper.getModelConfig('gpt-5-mini', 'openai')
+
+      expect(hiddenConfig.reasoningVisibility).toBe('hidden')
+      expect(summaryConfig.reasoningVisibility).toBe('summary')
+
+      portraitSpy.mockRestore()
+      getDbSpy.mockRestore()
+    })
   })
 })

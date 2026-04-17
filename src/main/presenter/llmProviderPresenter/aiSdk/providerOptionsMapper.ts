@@ -1,6 +1,11 @@
 import type { MCPToolDefinition, ModelConfig } from '@shared/presenter'
 import type { ModelMessage } from 'ai'
-import { getReasoningEffectiveEnabled } from '@shared/types/model-db'
+import {
+  getReasoningEffectiveEnabledForProvider,
+  hasAnthropicReasoningToggle,
+  normalizeAnthropicReasoningVisibilityValue,
+  normalizeReasoningEffortValue
+} from '@shared/types/model-db'
 import { resolvePromptCachePlan } from '../promptCacheStrategy'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
@@ -124,10 +129,14 @@ export function buildProviderOptions(
     params.providerId,
     params.modelId
   )
-  const reasoningEnabled = getReasoningEffectiveEnabled(reasoningPortrait, {
-    reasoning: params.modelConfig.reasoning,
-    reasoningEffort: params.modelConfig.reasoningEffort
-  })
+  const reasoningEnabled = getReasoningEffectiveEnabledForProvider(
+    params.providerId,
+    reasoningPortrait,
+    {
+      reasoning: params.modelConfig.reasoning,
+      reasoningEffort: params.modelConfig.reasoningEffort
+    }
+  )
   const hasThinkingConfig =
     params.modelConfig.thinkingBudget !== undefined || Boolean(params.modelConfig.reasoningEffort)
   const shouldSendThinkingConfig =
@@ -224,21 +233,32 @@ export function buildProviderOptions(
     case 'bedrock': {
       const officialAnthropicProvider =
         params.apiType === 'anthropic' && isOfficialAnthropicProvider(params.providerId)
+      const anthropicReasoningToggle = hasAnthropicReasoningToggle(
+        params.providerId,
+        reasoningPortrait
+      )
       const config: Record<string, unknown> = {
         toolStreaming: officialAnthropicProvider
       }
       if (officialAnthropicProvider && reasoningEnabled) {
         config.sendReasoning = true
       }
-      if (officialAnthropicProvider && params.modelConfig.reasoningEffort) {
-        config.effort =
-          params.modelConfig.reasoningEffort === 'low'
-            ? 'low'
-            : params.modelConfig.reasoningEffort === 'high'
-              ? 'high'
-              : 'medium'
-      }
-      if (reasoningEnabled && params.modelConfig.thinkingBudget !== undefined) {
+      if (officialAnthropicProvider && anthropicReasoningToggle && reasoningEnabled) {
+        const resolvedEffort =
+          normalizeReasoningEffortValue(reasoningPortrait, params.modelConfig.reasoningEffort) ??
+          normalizeReasoningEffortValue(reasoningPortrait, reasoningPortrait?.effort)
+        const resolvedVisibility =
+          normalizeAnthropicReasoningVisibilityValue(params.modelConfig.reasoningVisibility) ??
+          normalizeAnthropicReasoningVisibilityValue(reasoningPortrait?.visibility) ??
+          'omitted'
+        if (resolvedEffort) {
+          config.effort = resolvedEffort
+        }
+        config.thinking = {
+          type: 'adaptive',
+          display: resolvedVisibility
+        }
+      } else if (reasoningEnabled && params.modelConfig.thinkingBudget !== undefined) {
         config.thinking = {
           type: 'enabled',
           budgetTokens: params.modelConfig.thinkingBudget

@@ -304,6 +304,48 @@ describe('ModelConfigDialog reasoning portraits', () => {
     )
   })
 
+  it('treats official anthropic effort portraits as editable toggles with conditional subsettings', async () => {
+    const { wrapper } = await setup({
+      providerId: 'anthropic',
+      modelId: 'claude-opus-4-7',
+      modelName: 'Claude Opus 4.7',
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: 'high',
+        reasoningVisibility: undefined
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    expect((wrapper.vm as any).reasoningToggleMode).toBe('toggle')
+    expect((wrapper.vm as any).reasoningToggleDisabled).toBe(false)
+    expect((wrapper.vm as any).showReasoningEffort).toBe(false)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
+
+    ;(wrapper.vm as any).config.reasoning = true
+    await nextTick()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).config.reasoningVisibility).toBe('omitted')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
+    expect(wrapper.text()).toContain(
+      'settings.model.modelConfig.reasoningVisibility.options.omitted'
+    )
+    expect(wrapper.text()).toContain(
+      'settings.model.modelConfig.reasoningVisibility.options.summarized'
+    )
+  })
+
   it('hides effort and budget controls for level-based portraits', async () => {
     const { wrapper } = await setup({
       providerId: 'vertex',
@@ -336,11 +378,10 @@ describe('ModelConfigDialog reasoning portraits', () => {
       reasoningPortrait: {
         supported: true,
         defaultEnabled: false,
-        mode: 'budget',
-        budget: {
-          min: 1024,
-          default: 2048
-        }
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
       }
     })
 

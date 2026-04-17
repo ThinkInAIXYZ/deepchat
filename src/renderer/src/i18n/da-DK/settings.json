@@ -350,7 +350,8 @@
           "low": "Lav - Lav indsats",
           "medium": "Mellem - Moderat indsats",
           "high": "Høj - Stor indsats",
-          "xhigh": "Ekstra høj - Maksimal indsats"
+          "xhigh": "Ekstra høj - Maksimal indsats",
+          "max": "Max - Højeste indsats"
         }
       },
       "verbosity": {
@@ -416,6 +417,15 @@
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
           "image-generation": "Billedgenerering"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "Synlighed for ræsonnering",
+        "description": "Styrer om ræsonneringsindhold skjules eller vises som et kort resumé, når ræsonnering er aktiveret",
+        "placeholder": "Vælg synlighed for ræsonnering",
+        "options": {
+          "omitted": "Omitted - Skjul ræsonneringsindhold",
+          "summarized": "Summarized - Vis ræsonnering som resumé"
         }
       }
     }

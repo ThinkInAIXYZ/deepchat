@@ -29,6 +29,9 @@ export const useDraftStore = defineStore('draft', () => {
   const maxTokens = ref<number | undefined>(undefined)
   const thinkingBudget = ref<number | undefined>(undefined)
   const reasoningEffort = ref<SessionGenerationSettings['reasoningEffort'] | undefined>(undefined)
+  const reasoningVisibility = ref<SessionGenerationSettings['reasoningVisibility'] | undefined>(
+    undefined
+  )
   const verbosity = ref<SessionGenerationSettings['verbosity'] | undefined>(undefined)
   const forceInterleavedThinkingCompat = ref<boolean | undefined>(undefined)
   const permissionMode = ref<PermissionMode>('full_access')
@@ -48,6 +51,9 @@ export const useDraftStore = defineStore('draft', () => {
     if (maxTokens.value !== undefined) settings.maxTokens = maxTokens.value
     if (thinkingBudget.value !== undefined) settings.thinkingBudget = thinkingBudget.value
     if (reasoningEffort.value !== undefined) settings.reasoningEffort = reasoningEffort.value
+    if (reasoningVisibility.value !== undefined) {
+      settings.reasoningVisibility = reasoningVisibility.value
+    }
     if (verbosity.value !== undefined) settings.verbosity = verbosity.value
     if (forceInterleavedThinkingCompat.value !== undefined) {
       settings.forceInterleavedThinkingCompat = forceInterleavedThinkingCompat.value
@@ -89,6 +95,9 @@ export const useDraftStore = defineStore('draft', () => {
     if (Object.prototype.hasOwnProperty.call(settings, 'reasoningEffort')) {
       reasoningEffort.value = settings.reasoningEffort
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'reasoningVisibility')) {
+      reasoningVisibility.value = settings.reasoningVisibility
+    }
     if (Object.prototype.hasOwnProperty.call(settings, 'verbosity')) {
       verbosity.value = settings.verbosity
     }
@@ -104,6 +113,7 @@ export const useDraftStore = defineStore('draft', () => {
     maxTokens.value = undefined
     thinkingBudget.value = undefined
     reasoningEffort.value = undefined
+    reasoningVisibility.value = undefined
     verbosity.value = undefined
     forceInterleavedThinkingCompat.value = undefined
   }
@@ -145,6 +155,7 @@ export const useDraftStore = defineStore('draft', () => {
     maxTokens,
     thinkingBudget,
     reasoningEffort,
+    reasoningVisibility,
     verbosity,
     forceInterleavedThinkingCompat,
     permissionMode,

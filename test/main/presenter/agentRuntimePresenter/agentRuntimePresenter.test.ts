@@ -2011,6 +2011,75 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('drops anthropic adaptive reasoning overrides when backend reasoning is disabled', async () => {
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+        if (providerId === 'anthropic' && modelId === 'claude-opus-4-7') {
+          return {
+            temperature: 0.7,
+            maxTokens: 4096,
+            contextLength: 128000,
+            reasoning: false,
+            reasoningEffort: 'max',
+            reasoningVisibility: 'summarized',
+            verbosity: 'medium',
+            vision: false
+          }
+        }
+
+        return {
+          temperature: 0.7,
+          maxTokens: 4096,
+          contextLength: 128000,
+          thinkingBudget: 512,
+          reasoningEffort: 'medium',
+          verbosity: 'medium',
+          vision: false
+        }
+      })
+      configPresenter.getReasoningPortrait.mockImplementation(
+        (providerId: string, modelId: string) => {
+          if (providerId === 'anthropic' && modelId === 'claude-opus-4-7') {
+            return {
+              supported: true,
+              defaultEnabled: false,
+              mode: 'effort',
+              effort: 'high',
+              effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+              visibility: 'omitted'
+            }
+          }
+
+          return {
+            supported: true,
+            defaultEnabled: true,
+            mode: 'effort',
+            budget: { min: 0, max: 8192, default: 512 },
+            effort: 'medium',
+            effortOptions: ['minimal', 'low', 'medium', 'high'],
+            verbosity: 'medium',
+            verbosityOptions: ['low', 'medium', 'high']
+          }
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'anthropic', modelId: 'claude-opus-4-7' })
+
+      const updated = await agent.updateGenerationSettings('s1', {
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      })
+
+      expect(updated.reasoningEffort).toBeUndefined()
+      expect(updated.reasoningVisibility).toBeUndefined()
+      expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          reasoningEffort: undefined,
+          reasoningVisibility: undefined
+        })
+      )
+    })
+
     it('falls back from old DB rows with null generation fields', async () => {
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',
@@ -2112,6 +2181,7 @@ describe('AgentRuntimePresenter', () => {
         maxTokens: 2048,
         thinkingBudget: 256,
         reasoningEffort: 'low',
+        reasoningVisibility: 'omitted',
         verbosity: 'high'
       })
     })

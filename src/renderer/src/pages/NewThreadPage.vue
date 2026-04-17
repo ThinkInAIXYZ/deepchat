@@ -403,6 +403,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.maxTokens = undefined
   draftStore.thinkingBudget = undefined
   draftStore.reasoningEffort = undefined
+  draftStore.reasoningVisibility = undefined
   draftStore.verbosity = undefined
   draftStore.forceInterleavedThinkingCompat = undefined
 

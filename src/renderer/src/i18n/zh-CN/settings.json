@@ -510,7 +510,8 @@
           "low": "Low - 低努力",
           "medium": "Medium - 中等努力",
           "high": "High - 高努力",
-          "xhigh": "XHigh - 最大努力程度"
+          "xhigh": "XHigh - 最大努力程度",
+          "max": "Max - 极限努力程度"
         }
       },
       "verbosity": {
@@ -545,6 +546,15 @@
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
           "image-generation": "Image Generation"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "推理内容显示",
+        "description": "在开启推理时，控制推理内容是隐藏还是以摘要形式显示",
+        "placeholder": "选择推理内容显示方式",
+        "options": {
+          "omitted": "Omitted - 隐藏推理内容",
+          "summarized": "Summarized - 显示推理摘要"
         }
       }
     }

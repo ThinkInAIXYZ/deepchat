@@ -107,7 +107,23 @@ describe('ModelCapabilities reasoning portraits', () => {
         },
         anthropic: {
           id: 'anthropic',
-          models: [{ id: 'claude-4-sonnet', reasoning: { supported: true } }]
+          models: [
+            { id: 'claude-4-sonnet', reasoning: { supported: true } },
+            {
+              id: 'claude-opus-4-7',
+              reasoning: { supported: true, default: false },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: false,
+                  mode: 'effort',
+                  effort: 'high',
+                  effort_options: ['low', 'medium', 'high', 'xhigh', 'max'],
+                  visibility: 'omitted'
+                }
+              }
+            }
+          ]
         },
         xai: {
           id: 'xai',
@@ -218,6 +234,20 @@ describe('ModelCapabilities reasoning portraits', () => {
     expect(capabilities.getReasoningEffortDefault('302ai', 'gpt-5-thinking')).toBeUndefined()
     expect(capabilities.supportsVerbosity('302ai', 'gpt-5-thinking')).toBe(false)
     expect(capabilities.getVerbosityDefault('302ai', 'gpt-5-thinking')).toBeUndefined()
+  })
+
+  it('preserves official anthropic adaptive reasoning portraits', () => {
+    const capabilities = new ModelCapabilities()
+
+    expect(capabilities.getReasoningPortrait('anthropic', 'claude-opus-4-7')).toMatchObject({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+    expect(capabilities.supportsReasoningEffort('anthropic', 'claude-opus-4-7')).toBe(true)
   })
 
   it('keeps explicit none and xhigh effort portraits without synthesizing extra options', () => {

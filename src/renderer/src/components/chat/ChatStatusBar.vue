@@ -435,6 +435,35 @@
                       </Select>
                     </div>
 
+                    <div v-if="showReasoningVisibility" class="space-y-1.5">
+                      <label class="text-xs font-medium">{{
+                        t('settings.model.modelConfig.reasoningVisibility.label')
+                      }}</label>
+                      <Select
+                        :model-value="
+                          localSettings.reasoningVisibility ?? reasoningVisibilityOptions[0]?.value
+                        "
+                        @update:model-value="onReasoningVisibilitySelect($event as string)"
+                      >
+                        <SelectTrigger class="h-8 text-xs">
+                          <SelectValue
+                            :placeholder="
+                              t('settings.model.modelConfig.reasoningVisibility.placeholder')
+                            "
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="option in reasoningVisibilityOptions"
+                            :key="option.value"
+                            :value="option.value"
+                          >
+                            {{ option.label }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div v-if="showVerbosity" class="space-y-1.5">
                       <label class="text-xs font-medium">{{
                         t('settings.model.modelConfig.verbosity.label')
@@ -743,9 +772,13 @@ import type {
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { isChatSelectableModelType } from '@shared/model'
 import {
+  ANTHROPIC_REASONING_VISIBILITY_VALUES,
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  hasAnthropicReasoningToggle,
   isReasoningEffort,
+  normalizeAnthropicReasoningVisibilityValue,
   isVerbosity,
+  type AnthropicReasoningVisibility,
   type ReasoningPortrait
 } from '@shared/types/model-db'
 import {
@@ -1430,6 +1463,14 @@ const getVerbosityOptions = (
   return isVerbosity(portrait?.verbosity) ? [...DEFAULT_VERBOSITY_OPTIONS] : []
 }
 
+const getReasoningVisibilityOptions = (
+  providerId: string,
+  portrait: ReasoningPortrait | null | undefined
+): AnthropicReasoningVisibility[] =>
+  hasAnthropicReasoningToggle(providerId, portrait)
+    ? [...ANTHROPIC_REASONING_VISIBILITY_VALUES]
+    : []
+
 const supportsReasoningEffort = (portrait: ReasoningPortrait | null | undefined): boolean =>
   portrait?.supported !== false && getReasoningEffortOptions(portrait).length > 0
 
@@ -1492,6 +1533,18 @@ const normalizeVerbosity = (
   return isVerbosity(portrait?.verbosity) && options.includes(portrait.verbosity)
     ? portrait.verbosity
     : undefined
+}
+
+const normalizeReasoningVisibility = (
+  providerId: string,
+  portrait: ReasoningPortrait | null | undefined,
+  value: unknown
+): SessionGenerationSettings['reasoningVisibility'] | undefined => {
+  if (!hasAnthropicReasoningToggle(providerId, portrait)) {
+    return undefined
+  }
+
+  return normalizeAnthropicReasoningVisibilityValue(value) ?? 'omitted'
 }
 
 const findEnabledModel = (providerId: string, modelId: string): ModelSelection | null => {
@@ -1594,7 +1647,22 @@ const showReasoningEffort = computed(
   () =>
     !isAcpAgent.value &&
     supportsReasoningEffort(capabilityReasoningPortrait.value) &&
-    Boolean(localSettings.value)
+    Boolean(localSettings.value) &&
+    (!hasAnthropicReasoningToggle(
+      effectiveModelSelection.value?.providerId ?? '',
+      capabilityReasoningPortrait.value
+    ) ||
+      localSettings.value?.reasoningEffort !== undefined)
+)
+const showReasoningVisibility = computed(
+  () =>
+    !isAcpAgent.value &&
+    Boolean(localSettings.value) &&
+    hasAnthropicReasoningToggle(
+      effectiveModelSelection.value?.providerId ?? '',
+      capabilityReasoningPortrait.value
+    ) &&
+    localSettings.value?.reasoningVisibility !== undefined
 )
 
 const effortOptions = computed(() => {
@@ -1610,6 +1678,15 @@ const verbosityOptions = computed(() => {
     label: t(`settings.model.modelConfig.verbosity.options.${value}`)
   }))
 })
+const reasoningVisibilityOptions = computed(() =>
+  getReasoningVisibilityOptions(
+    effectiveModelSelection.value?.providerId ?? '',
+    capabilityReasoningPortrait.value
+  ).map((value) => ({
+    value,
+    label: t(`settings.model.modelConfig.reasoningVisibility.options.${value}`)
+  }))
+)
 
 const systemPromptOptions = computed<SystemPromptOption[]>(() => {
   const presetOptions: SystemPromptOption[] = [
@@ -1856,7 +1933,10 @@ const resolveDefaultGenerationSettings = async (
     }
   }
 
-  if (supportsReasoningEffort(portrait)) {
+  const anthropicReasoningToggle = hasAnthropicReasoningToggle(providerId, portrait)
+  const canDefaultReasoningEffort = !anthropicReasoningToggle || modelConfig.reasoning === true
+
+  if (supportsReasoningEffort(portrait) && canDefaultReasoningEffort) {
     const effort = normalizeReasoningEffort(
       portrait,
       modelConfig.reasoningEffort ?? portrait?.effort
@@ -1864,6 +1944,15 @@ const resolveDefaultGenerationSettings = async (
     if (effort) {
       defaults.reasoningEffort = effort
     }
+  }
+
+  const reasoningVisibility = normalizeReasoningVisibility(
+    providerId,
+    portrait,
+    modelConfig.reasoningVisibility ?? portrait?.visibility
+  )
+  if (modelConfig.reasoning === true && reasoningVisibility) {
+    defaults.reasoningVisibility = reasoningVisibility
   }
 
   if (supportsVerbosity(portrait)) {
@@ -1979,6 +2068,9 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'reasoningEffort')) {
     normalizedPatch.reasoningEffort = next.reasoningEffort
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'reasoningVisibility')) {
+    normalizedPatch.reasoningVisibility = next.reasoningVisibility
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'verbosity')) {
     normalizedPatch.verbosity = next.verbosity
@@ -2412,6 +2504,7 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     maxTokens: draftStore.maxTokens,
     thinkingBudget: draftStore.thinkingBudget,
     reasoningEffort: draftStore.reasoningEffort,
+    reasoningVisibility: draftStore.reasoningVisibility,
     verbosity: draftStore.verbosity,
     forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat
   } as Partial<SessionGenerationSettings>
@@ -2421,6 +2514,7 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     maxTokens: undefined,
     thinkingBudget: undefined,
     reasoningEffort: undefined,
+    reasoningVisibility: undefined,
     verbosity: undefined,
     forceInterleavedThinkingCompat: undefined
   } as Partial<SessionGenerationSettings>
@@ -2684,6 +2778,21 @@ function onVerbositySelect(value: string) {
     return
   }
   updateLocalGenerationSettings({ verbosity: normalized })
+}
+
+function onReasoningVisibilitySelect(value: string) {
+  if (!localSettings.value) {
+    return
+  }
+  const normalized = normalizeReasoningVisibility(
+    effectiveModelSelection.value?.providerId ?? '',
+    capabilityReasoningPortrait.value,
+    value
+  )
+  if (!normalized) {
+    return
+  }
+  updateLocalGenerationSettings({ reasoningVisibility: normalized })
 }
 
 function onInterleavedThinkingToggle(enabled: boolean) {
