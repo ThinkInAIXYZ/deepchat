@@ -29,9 +29,9 @@ import {
 } from '@shared/model'
 import {
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+  resolveDerivedModelMaxTokens,
   resolveModelContextLength,
   resolveModelFunctionCall,
-  resolveModelMaxTokens,
   resolveModelVision
 } from '@shared/modelConfigDefaults'
 import ElectronStore from 'electron-store'
@@ -1090,7 +1090,7 @@ export class ConfigPresenter implements IConfigPresenter {
       id: m.id,
       name: m.display_name || m.name || m.id,
       contextLength: resolveModelContextLength(m.limit?.context),
-      maxTokens: resolveModelMaxTokens(m.limit?.output),
+      maxTokens: resolveDerivedModelMaxTokens(m.limit?.output),
       provider: providerId,
       providerId,
       group: 'default',

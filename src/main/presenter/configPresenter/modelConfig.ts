@@ -2,9 +2,9 @@ import { ApiEndpointType, ModelType, isNewApiEndpointType } from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import {
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+  resolveDerivedModelMaxTokens,
   resolveModelContextLength,
-  resolveModelFunctionCall,
-  resolveModelMaxTokens
+  resolveModelFunctionCall
 } from '@shared/modelConfigDefaults'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
@@ -130,7 +130,7 @@ export class ModelConfigHelper {
     )
 
     return {
-      maxTokens: resolveModelMaxTokens(model.limit?.output),
+      maxTokens: resolveDerivedModelMaxTokens(model.limit?.output),
       contextLength: resolveModelContextLength(model.limit?.context),
       temperature: 0.6,
       vision: isImageInputSupported(model),
@@ -441,7 +441,10 @@ export class ModelConfigHelper {
     if (storedConfig && storedSource && storedSource !== 'user') {
       finalConfig = {
         ...finalConfig,
-        maxTokens: storedConfig.maxTokens ?? finalConfig.maxTokens,
+        maxTokens:
+          storedConfig.maxTokens !== undefined
+            ? resolveDerivedModelMaxTokens(storedConfig.maxTokens)
+            : finalConfig.maxTokens,
         contextLength: storedConfig.contextLength ?? finalConfig.contextLength,
         temperature: storedConfig.temperature ?? finalConfig.temperature,
         vision: storedConfig.vision ?? finalConfig.vision,
@@ -482,8 +485,13 @@ export class ModelConfigHelper {
   ): ModelConfig {
     const cacheKey = this.generateCacheKey(providerId, modelId)
     const source: ModelConfigSource = options?.source ?? 'user'
+    const normalizedMaxTokens =
+      source === 'provider'
+        ? resolveDerivedModelMaxTokens(config.maxTokens)
+        : (config.maxTokens ?? undefined)
     const storedConfig: ModelConfig = {
       ...config,
+      ...(normalizedMaxTokens !== undefined ? { maxTokens: normalizedMaxTokens } : {}),
       isUserDefined: source === 'user'
     }
     const configData: IModelConfig = {

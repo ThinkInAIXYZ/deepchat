@@ -83,6 +83,11 @@ describe('Provider DB strict matching + user overrides', () => {
               modalities: { input: ['text'] }
             },
             {
+              id: 'large-output',
+              limit: { context: 200000, output: 64000 },
+              modalities: { input: ['text'] }
+            },
+            {
               id: 'no-limit' // both missing -> fallback 16000/4096
             },
             {
@@ -176,6 +181,14 @@ describe('Provider DB strict matching + user overrides', () => {
     expect(cfg2.searchStrategy).toBe('turbo')
   })
 
+  it('caps provider-derived maxTokens defaults at 32000', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+    const cfg = helper.getModelConfig('large-output', 'test-provider')
+
+    expect(cfg.contextLength).toBe(200000)
+    expect(cfg.maxTokens).toBe(32000)
+  })
+
   it('preserves explicit tool_call=false from provider DB', () => {
     const helper = new ModelConfigHelper('1.0.0')
     const cfg = helper.getModelConfig('tool-call-disabled', 'test-provider')
@@ -196,8 +209,8 @@ describe('Provider DB strict matching + user overrides', () => {
   it('prefers user config over provider DB and persists across restart', () => {
     const helper1 = new ModelConfigHelper('1.0.0')
     const userCfg = {
-      maxTokens: 8888,
-      contextLength: 7777,
+      maxTokens: 64000,
+      contextLength: 128000,
       temperature: 0.5,
       vision: false,
       functionCall: false,
@@ -217,6 +230,55 @@ describe('Provider DB strict matching + user overrides', () => {
     const helper3 = new ModelConfigHelper('2.0.0')
     const read3 = helper3.getModelConfig('test-model', 'test-provider')
     expect(read3).toMatchObject({ ...userCfg, isUserDefined: true })
+  })
+
+  it('caps legacy provider-managed cache values on read while preserving user values', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+    const helperAny = helper as any
+    const providerCacheKey = helperAny.generateCacheKey('test-provider', 'large-output')
+
+    helper.importConfigs(
+      {
+        [providerCacheKey]: {
+          id: 'large-output',
+          providerId: 'test-provider',
+          source: 'provider',
+          config: {
+            maxTokens: 64000,
+            contextLength: 200000,
+            temperature: 0.4,
+            vision: false,
+            functionCall: true,
+            reasoning: false,
+            type: ModelType.Chat,
+            isUserDefined: false
+          }
+        }
+      },
+      false
+    )
+
+    const providerRead = helper.getModelConfig('large-output', 'test-provider')
+    expect(providerRead.maxTokens).toBe(32000)
+
+    helper.setModelConfig(
+      'large-output',
+      'test-provider',
+      {
+        maxTokens: 64000,
+        contextLength: 128000,
+        temperature: 0.6,
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        type: ModelType.Chat
+      },
+      { source: 'user' }
+    )
+
+    const userRead = helper.getModelConfig('large-output', 'test-provider')
+    expect(userRead.maxTokens).toBe(64000)
+    expect(userRead.isUserDefined).toBe(true)
   })
 
   it('matches DB with case-insensitive provider/model IDs for provider data (strictly lowercase in DB)', () => {

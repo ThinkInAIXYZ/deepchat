@@ -355,8 +355,8 @@ describe('Model Configuration Tests', () => {
 
     it('marks provider-managed configs as non-user entries', () => {
       const providerConfig: ModelConfig = {
-        maxTokens: 5555,
-        contextLength: 9999,
+        maxTokens: 64000,
+        contextLength: 128000,
         temperature: 0.4,
         vision: false,
         functionCall: true,
@@ -372,7 +372,7 @@ describe('Model Configuration Tests', () => {
 
       const storedConfig = modelConfigHelper.getModelConfig(providerManagedModelId, providerId)
       expect(storedConfig.isUserDefined).toBe(false)
-      expect(storedConfig.maxTokens).toBe(providerConfig.maxTokens)
+      expect(storedConfig.maxTokens).toBe(32000)
     })
 
     it('keeps user configs but drops provider configs when defaults change', () => {
