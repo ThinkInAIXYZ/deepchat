@@ -135,14 +135,26 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 
 const PROVIDERS_STORE_KEY = 'providers'
 const UNIFIED_AGENTS_MIGRATION_VERSION = 1
+const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 type AnthropicLegacyProvider = LLM_PROVIDER & { authMode?: 'apikey' | 'oauth' }
 type ModelSelection = { providerId: string; modelId: string }
+type ProviderModelSettingKey =
+  | 'defaultModel'
+  | 'assistantModel'
+  | 'defaultVisionModel'
+  | 'preferredModel'
 type AnthropicModelSettingKey = 'defaultModel' | 'assistantModel' | 'defaultVisionModel'
 
 const ANTHROPIC_MODEL_SETTING_KEYS: AnthropicModelSettingKey[] = [
   'defaultModel',
   'assistantModel',
   'defaultVisionModel'
+]
+const DEPRECATED_PROVIDER_MODEL_SETTING_KEYS: ProviderModelSettingKey[] = [
+  'defaultModel',
+  'assistantModel',
+  'defaultVisionModel',
+  'preferredModel'
 ]
 
 const hasLegacyAnthropicOAuthState = (provider: AnthropicLegacyProvider): boolean =>
@@ -183,6 +195,28 @@ export const getAnthropicModelSelectionKeysToClear = (
     const selection = settings[key]
     return isModelSelection(selection) && selection.providerId === 'anthropic'
   })
+
+export const removeDeprecatedBuiltinProviders = (
+  providers: LLM_PROVIDER[],
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): LLM_PROVIDER[] => {
+  const deprecatedProviderIdSet = new Set(deprecatedProviderIds)
+  return providers.filter((provider) => !deprecatedProviderIdSet.has(provider.id))
+}
+
+export const getDeprecatedProviderModelSelectionKeysToClear = (
+  settings: Partial<
+    Record<ProviderModelSettingKey, { providerId: string; modelId: string } | undefined>
+  >,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): ProviderModelSettingKey[] => {
+  const deprecatedProviderIdSet = new Set(deprecatedProviderIds)
+
+  return DEPRECATED_PROVIDER_MODEL_SETTING_KEYS.filter((key) => {
+    const selection = settings[key]
+    return isModelSelection(selection) && deprecatedProviderIdSet.has(selection.providerId)
+  })
+}
 
 export const normalizeAnthropicProviderForApiOnly = (
   provider: AnthropicLegacyProvider,
@@ -368,6 +402,7 @@ export class ConfigPresenter implements IConfigPresenter {
     // Migrate minimax provider from OpenAI format to Anthropic format
     this.migrateMinimaxProvider()
     this.migrateAnthropicProviderToApiOnly()
+    this.cleanupDeprecatedBuiltinProviders()
 
     const existingProviders = this.getSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY) || []
     const newProviders = defaultProviders.filter(
@@ -906,6 +941,27 @@ export class ConfigPresenter implements IConfigPresenter {
         this.store.delete(key)
         eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
       }
+    }
+  }
+
+  private cleanupDeprecatedBuiltinProviders(): void {
+    const providers = this.getProviders()
+    const filteredProviders = removeDeprecatedBuiltinProviders(providers)
+
+    if (filteredProviders.length !== providers.length) {
+      this.setProviders(filteredProviders)
+    }
+
+    const keysToClear = getDeprecatedProviderModelSelectionKeysToClear({
+      defaultModel: this.store.get('defaultModel') as ModelSelection | undefined,
+      assistantModel: this.store.get('assistantModel') as ModelSelection | undefined,
+      defaultVisionModel: this.store.get('defaultVisionModel') as ModelSelection | undefined,
+      preferredModel: this.store.get('preferredModel') as ModelSelection | undefined
+    })
+
+    for (const key of keysToClear) {
+      this.store.delete(key)
+      eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
     }
   }
 

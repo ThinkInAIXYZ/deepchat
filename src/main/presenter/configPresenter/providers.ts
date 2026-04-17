@@ -806,21 +806,5 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       models: 'https://novita.ai/models',
       defaultBaseUrl: 'https://api.novita.ai/openai'
     }
-  },
-
-  {
-    id: 'laoshi',
-    name: '老师傅',
-    apiType: 'openai-completions',
-    apiKey: '',
-    baseUrl: '',
-    enable: false,
-    websites: {
-      official: '',
-      apiKey: '',
-      docs: '',
-      models: '',
-      defaultBaseUrl: ''
-    }
   }
 ]
