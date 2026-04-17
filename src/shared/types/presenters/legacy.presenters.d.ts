@@ -523,6 +523,8 @@ export interface IConfigPresenter {
     providerId: string,
     modelId: string
   ): { min?: number; max?: number; default?: number }
+  getTemperatureCapability?(providerId: string, modelId: string): boolean | undefined
+  supportsTemperatureControl?(providerId: string, modelId: string): boolean
   supportsSearchCapability?(providerId: string, modelId: string): boolean
   getSearchDefaults?(
     providerId: string,

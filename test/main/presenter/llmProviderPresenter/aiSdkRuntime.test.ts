@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateImage, mockCreateAiSdkProviderContext, mockCacheImage } = vi.hoisted(() => ({
+const {
+  mockGenerateImage,
+  mockGenerateText,
+  mockStreamText,
+  mockCreateAiSdkProviderContext,
+  mockCacheImage
+} = vi.hoisted(() => ({
   mockGenerateImage: vi.fn(),
+  mockGenerateText: vi.fn(),
+  mockStreamText: vi.fn(),
   mockCreateAiSdkProviderContext: vi.fn(),
   mockCacheImage: vi.fn()
 }))
@@ -9,8 +17,8 @@ const { mockGenerateImage, mockCreateAiSdkProviderContext, mockCacheImage } = vi
 vi.mock('ai', () => ({
   generateId: vi.fn(() => 'generated-id'),
   generateImage: mockGenerateImage,
-  generateText: vi.fn(),
-  streamText: vi.fn(),
+  generateText: mockGenerateText,
+  streamText: mockStreamText,
   embedMany: vi.fn()
 }))
 
@@ -26,7 +34,10 @@ vi.mock('@/presenter/llmProviderPresenter/aiSdk/providerFactory', () => ({
   createAiSdkProviderContext: mockCreateAiSdkProviderContext
 }))
 
-import { runAiSdkCoreStream } from '@/presenter/llmProviderPresenter/aiSdk/runtime'
+import {
+  runAiSdkCoreStream,
+  runAiSdkGenerateText
+} from '@/presenter/llmProviderPresenter/aiSdk/runtime'
 
 describe('AI SDK runtime', () => {
   beforeEach(() => {
@@ -37,6 +48,18 @@ describe('AI SDK runtime', () => {
       model: {},
       imageModel: {},
       endpoint: 'https://image.example.com'
+    })
+    mockGenerateText.mockResolvedValue({
+      text: 'ok',
+      reasoningText: undefined,
+      totalUsage: {
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2
+      }
+    })
+    mockStreamText.mockReturnValue({
+      fullStream: (async function* () {})()
     })
     mockGenerateImage.mockResolvedValue({
       images: [
@@ -111,5 +134,111 @@ describe('AI SDK runtime', () => {
         stop_reason: 'complete'
       }
     ])
+  })
+
+  it('omits temperature for anthropic models that disable temperature control', async () => {
+    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+    const context = {
+      providerKind: 'anthropic',
+      provider: {
+        id: 'anthropic',
+        apiType: 'anthropic'
+      },
+      configPresenter: {
+        supportsTemperatureControl: vi.fn().mockReturnValue(false)
+      },
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+        tracePayloads.push(payload)
+      })
+    } as any
+
+    await runAiSdkGenerateText(
+      context,
+      [],
+      'claude-opus-4-7',
+      {
+        apiEndpoint: 'chat'
+      } as any,
+      0.3,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).not.toHaveProperty('temperature')
+    expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
+  })
+
+  it('omits temperature for claude-opus-4-7-think when capability data is missing', async () => {
+    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'aihubmix',
+        apiType: 'openai-compatible'
+      },
+      configPresenter: {
+        supportsTemperatureControl: vi.fn().mockReturnValue(undefined),
+        getTemperatureCapability: vi.fn().mockReturnValue(undefined)
+      },
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+        tracePayloads.push(payload)
+      })
+    } as any
+
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      context,
+      [],
+      'claude-opus-4-7-think',
+      {
+        apiEndpoint: 'chat',
+        functionCall: false
+      } as any,
+      0.5,
+      2048,
+      []
+    )) {
+      events.push(event)
+    }
+
+    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).not.toHaveProperty('temperature')
+    expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
+    expect(events).toEqual([])
+  })
+
+  it('keeps temperature for opus 4.6 models that still support it', async () => {
+    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+    const context = {
+      providerKind: 'anthropic',
+      provider: {
+        id: 'anthropic',
+        apiType: 'anthropic'
+      },
+      configPresenter: {
+        supportsTemperatureControl: vi.fn().mockReturnValue(true)
+      },
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+        tracePayloads.push(payload)
+      })
+    } as any
+
+    await runAiSdkGenerateText(
+      context,
+      [],
+      'claude-opus-4-6',
+      {
+        apiEndpoint: 'chat'
+      } as any,
+      0.6,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).toHaveProperty('temperature', 0.6)
+    expect(tracePayloads[0]?.body).toHaveProperty('temperature', 0.6)
   })
 })

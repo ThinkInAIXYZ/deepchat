@@ -17,6 +17,7 @@ type SetupOptions = {
   providerApiType?: string
   modelConfig?: Record<string, unknown>
   reasoningPortrait?: ReasoningPortrait | null
+  temperatureCapability?: boolean | undefined
   mode?: 'create' | 'edit'
   isCustomModel?: boolean
   providerModels?: Array<Record<string, unknown>>
@@ -67,7 +68,9 @@ const setup = async (options: SetupOptions) => {
   })
 
   const configPresenter = {
-    getReasoningPortrait: vi.fn().mockResolvedValue(options.reasoningPortrait ?? null)
+    getReasoningPortrait: vi.fn().mockResolvedValue(options.reasoningPortrait ?? null),
+    getTemperatureCapability: vi.fn().mockResolvedValue(options.temperatureCapability),
+    supportsTemperatureControl: vi.fn().mockResolvedValue(options.temperatureCapability ?? true)
   }
 
   vi.doMock('@/stores/modelConfigStore', () => ({
@@ -322,6 +325,26 @@ describe('ModelConfigDialog reasoning portraits', () => {
 
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningEffort.label')
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.thinkingBudget.label')
+  })
+
+  it('hides temperature controls when the model capability disables temperature', async () => {
+    const { wrapper } = await setup({
+      providerId: 'anthropic',
+      modelId: 'claude-opus-4-7',
+      modelName: 'Claude Opus 4.7',
+      temperatureCapability: false,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'budget',
+        budget: {
+          min: 1024,
+          default: 2048
+        }
+      }
+    })
+
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
   })
 })
 

@@ -44,6 +44,7 @@ type SetupOptions = {
   sessionSettings?: Partial<TestGenerationSettings> | null
   draftGenerationSettings?: Partial<TestGenerationSettings>
   reasoningPortrait?: ReasoningPortrait | null
+  temperatureCapability?: boolean | undefined
   projectPath?: string | null
   acpDraftSessionId?: string | null
   acpProcessConfig?: AcpConfigState | null
@@ -353,6 +354,8 @@ const setup = async (options: SetupOptions = {}) => {
       ...options.modelConfig
     }),
     getReasoningPortrait: vi.fn().mockResolvedValue(reasoningPortrait),
+    getTemperatureCapability: vi.fn().mockResolvedValue(options.temperatureCapability),
+    supportsTemperatureControl: vi.fn().mockResolvedValue(options.temperatureCapability ?? true),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('Default prompt'),
     supportsReasoningCapability: vi.fn().mockReturnValue(true),
     getThinkingBudgetRange: vi.fn().mockReturnValue({ min: 0, max: 8192, default: 512 }),
@@ -928,6 +931,37 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.contextLength).toBe(8192)
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(2048)
     expect((wrapper.vm as any).localSettings.forceInterleavedThinkingCompat).toBe(true)
+  })
+
+  it('hides temperature controls when the selected model disables temperature', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      temperatureCapability: false,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'budget',
+        budget: {
+          min: 1024,
+          default: 2048
+        }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+    expect((wrapper.vm as any).localSettings.temperature).toBe(0.7)
   })
 
   it('shows interleaved thinking as enabled when the provider portrait requires it', async () => {
