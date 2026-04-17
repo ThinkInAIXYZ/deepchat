@@ -899,6 +899,36 @@ export class AiSdkProvider extends BaseLLMProvider {
             maxTokens: DEFAULT_MODEL_MAX_TOKENS
           }))
       }
+      case 'astraflow': {
+        const response = await this.fetchOpenAIModelRecords({
+          timeout: this.getModelFetchTimeout()
+        })
+        const NON_CHAT_PATTERNS = [
+          'embedding',
+          'reranker',
+          'speech',
+          'suno-',
+          'whisper',
+          '-codex',
+          'tts-',
+          'uploads'
+        ]
+        return response
+          .filter((model) => {
+            if (typeof model.id !== 'string') return false
+            const lower = model.id.toLowerCase()
+            return !NON_CHAT_PATTERNS.some((p) => lower.includes(p))
+          })
+          .map((model) => ({
+            id: model.id as string,
+            name: model.id as string,
+            group: 'default',
+            providerId: this.provider.id,
+            isCustom: false,
+            contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+            maxTokens: DEFAULT_MODEL_MAX_TOKENS
+          }))
+      }
       case 'openrouter':
       case 'ppio':
       case 'groq':

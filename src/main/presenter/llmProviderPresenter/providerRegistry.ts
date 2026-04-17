@@ -22,6 +22,7 @@ export type AiSdkModelSourceStrategy =
   | 'groq'
   | 'tokenflux'
   | '302ai'
+  | 'astraflow'
 
 export type AiSdkKeyStatusStrategy =
   | 'none'
@@ -379,6 +380,20 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       ...TITLE_SUMMARY_OPENAI,
       modelSource: 'provider-db',
       providerDbGroup: 'zhipu'
+    })
+  ],
+  [
+    'astraflow',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'astraflow'
+    })
+  ],
+  [
+    'astraflow-cn',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'astraflow'
     })
   ]
 ])
