@@ -39,6 +39,13 @@ function normalizeModelId(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? ''
 }
 
+function normalizeUnprefixedModelId(value: string | undefined): string {
+  const normalizedModelId = normalizeModelId(value)
+  return normalizedModelId.includes('/')
+    ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
+    : normalizedModelId
+}
+
 function hasNewApiRouteHints(route: NewApiRouteMeta | null | undefined): boolean {
   return (
     Boolean(route?.endpointType && isNewApiEndpointType(route.endpointType)) ||
@@ -48,6 +55,11 @@ function hasNewApiRouteHints(route: NewApiRouteMeta | null | undefined): boolean
 
 export function isClaudeFamilyModelId(modelId: string | undefined): boolean {
   return normalizeModelId(modelId).includes('claude')
+}
+
+export function isClaudeOpus47FamilyModelId(modelId: string | undefined): boolean {
+  const normalizedModelId = normalizeUnprefixedModelId(modelId)
+  return normalizedModelId === 'claude-opus-4-7' || normalizedModelId === 'claude-opus-4-7-think'
 }
 
 export const resolveNewApiCapabilityProviderId = (

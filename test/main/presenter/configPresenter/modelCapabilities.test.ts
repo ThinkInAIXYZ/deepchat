@@ -109,6 +109,7 @@ describe('ModelCapabilities reasoning portraits', () => {
           id: 'anthropic',
           models: [
             { id: 'claude-4-sonnet', reasoning: { supported: true } },
+            { id: 'claude-sonnet-4-5', reasoning: { supported: true } },
             {
               id: 'claude-opus-4-7',
               reasoning: { supported: true, default: false },
@@ -268,5 +269,16 @@ describe('ModelCapabilities reasoning portraits', () => {
       effort: 'xhigh'
     })
     expect(xhighPortrait?.effortOptions).toBeUndefined()
+  })
+
+  it('disables temperature control for claude-opus-4-7 family fallback ids only', () => {
+    const capabilities = new ModelCapabilities()
+
+    expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-7')).toBe(false)
+    expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic/claude-opus-4-7')).toBe(
+      false
+    )
+    expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-6')).toBe(true)
+    expect(capabilities.supportsTemperatureControl('anthropic', 'claude-sonnet-4-5')).toBe(true)
   })
 })

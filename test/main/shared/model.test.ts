@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ModelType,
+  isClaudeOpus47FamilyModelId,
   resolveNewApiEndpointTypeFromRoute,
   resolveProviderCapabilityProviderId
 } from '@shared/model'
@@ -66,5 +67,12 @@ describe('new-api route helpers', () => {
         'claude-opus-4-7'
       )
     ).toBe('anthropic')
+  })
+
+  it('recognizes claude-opus-4-7 family after stripping provider prefixes', () => {
+    expect(isClaudeOpus47FamilyModelId('claude-opus-4-7')).toBe(true)
+    expect(isClaudeOpus47FamilyModelId('anthropic/claude-opus-4-7')).toBe(true)
+    expect(isClaudeOpus47FamilyModelId('claude-opus-4-7-think')).toBe(true)
+    expect(isClaudeOpus47FamilyModelId('claude-opus-4-6')).toBe(false)
   })
 })

@@ -1,5 +1,6 @@
 import { eventBus } from '@/eventbus'
 import { PROVIDER_DB_EVENTS } from '@/events'
+import { isClaudeOpus47FamilyModelId } from '@shared/model'
 import {
   ProviderAggregate,
   ProviderModel,
@@ -36,7 +37,6 @@ const GROK_REASONING_EFFORT_MODEL_FAMILIES = ['grok-3-mini']
 const DEFAULT_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['minimal', 'low', 'medium', 'high']
 const BINARY_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['low', 'high']
 const DEFAULT_VERBOSITY_OPTIONS: Verbosity[] = ['low', 'medium', 'high']
-const ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN = /^claude-opus-4-7(?:$|-think$)/
 
 const normalizeCapabilityModelId = (modelId: string): string => {
   const normalizedModelId = modelId.toLowerCase()
@@ -450,7 +450,7 @@ export class ModelCapabilities {
   }
 
   private hasTemperatureFallback(modelId: string): boolean {
-    return ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN.test(normalizeCapabilityModelId(modelId))
+    return isClaudeOpus47FamilyModelId(modelId)
   }
 
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {

@@ -169,45 +169,47 @@ describe('AI SDK runtime', () => {
     expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
   })
 
-  it('omits temperature for claude-opus-4-7-think when capability data is missing', async () => {
-    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
-    const context = {
-      providerKind: 'openai-compatible',
-      provider: {
-        id: 'aihubmix',
-        apiType: 'openai-compatible'
-      },
-      configPresenter: {
-        supportsTemperatureControl: vi.fn().mockReturnValue(undefined),
-        getTemperatureCapability: vi.fn().mockReturnValue(undefined)
-      },
-      defaultHeaders: {},
-      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
-        tracePayloads.push(payload)
-      })
-    } as any
+  it.each(['anthropic/claude-opus-4-7', 'claude-opus-4-7-think'])(
+    'omits temperature when configPresenter disables temperature control for %s',
+    async (modelId) => {
+      const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+      const context = {
+        providerKind: 'openai-compatible',
+        provider: {
+          id: 'aihubmix',
+          apiType: 'openai-compatible'
+        },
+        configPresenter: {
+          supportsTemperatureControl: vi.fn().mockReturnValue(false)
+        },
+        defaultHeaders: {},
+        emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+          tracePayloads.push(payload)
+        })
+      } as any
 
-    const events = []
-    for await (const event of runAiSdkCoreStream(
-      context,
-      [],
-      'claude-opus-4-7-think',
-      {
-        apiEndpoint: 'chat',
-        functionCall: false
-      } as any,
-      0.5,
-      2048,
-      []
-    )) {
-      events.push(event)
+      const events = []
+      for await (const event of runAiSdkCoreStream(
+        context,
+        [],
+        modelId,
+        {
+          apiEndpoint: 'chat',
+          functionCall: false
+        } as any,
+        0.5,
+        2048,
+        []
+      )) {
+        events.push(event)
+      }
+
+      const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
+      expect(request).not.toHaveProperty('temperature')
+      expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
+      expect(events).toEqual([])
     }
-
-    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(request).not.toHaveProperty('temperature')
-    expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
-    expect(events).toEqual([])
-  })
+  )
 
   it('keeps temperature for opus 4.6 models that still support it', async () => {
     const tracePayloads: Array<{ body?: Record<string, unknown> }> = []

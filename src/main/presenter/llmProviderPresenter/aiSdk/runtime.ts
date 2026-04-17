@@ -39,17 +39,6 @@ export interface AiSdkRuntimeContext {
   shouldUseImageGeneration?: (modelId: string, modelConfig: ModelConfig) => boolean
 }
 
-const ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN = /^claude-opus-4-7(?:$|-think$)/
-
-function hasAnthropicTemperatureFallback(modelId: string): boolean {
-  const normalizedModelId = modelId.toLowerCase()
-  const unprefixedModelId = normalizedModelId.includes('/')
-    ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
-    : normalizedModelId
-
-  return ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN.test(unprefixedModelId)
-}
-
 function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId: string): boolean {
   const capabilityProviderId = context.provider.capabilityProviderId || context.provider.id
   const directSupport = context.configPresenter.supportsTemperatureControl?.(
@@ -66,10 +55,6 @@ function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId
   )
   if (typeof directCapability === 'boolean') {
     return directCapability
-  }
-
-  if (hasAnthropicTemperatureFallback(modelId)) {
-    return false
   }
 
   return true
