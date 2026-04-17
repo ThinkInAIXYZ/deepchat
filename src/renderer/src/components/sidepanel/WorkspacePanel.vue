@@ -16,8 +16,26 @@
             />
           </button>
           <div v-if="sessionState.sections.files" class="pb-2">
-            <div v-if="!props.workspacePath" class="px-3 py-2 text-[11px] text-muted-foreground/70">
-              {{ t('chat.workspace.files.empty') }}
+            <div
+              v-if="!props.workspacePath"
+              class="mx-2 rounded-lg border border-dashed border-muted-foreground/30 px-3 py-4 text-center"
+              :class="{ 'border-primary bg-primary/5': isDragging }"
+              @dragenter.prevent="isDragging = true"
+              @dragover.prevent="handleDragOver"
+              @dragleave="handleDragLeave"
+              @drop.prevent="handleDrop"
+            >
+              <Icon icon="lucide:folder-plus" class="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+              <p class="mb-2 text-xs font-medium text-foreground">
+                {{ t('chat.workspace.files.noWorkspace.title') }}
+              </p>
+              <p class="mb-3 text-[11px] text-muted-foreground">
+                {{ t('chat.workspace.files.noWorkspace.description') }}
+              </p>
+              <Button variant="outline" size="sm" class="h-7 text-xs" @click="selectFolder">
+                <Icon icon="lucide:folder-open" class="mr-1.5 h-3.5 w-3.5" />
+                {{ t('chat.workspace.files.noWorkspace.button') }}
+              </Button>
             </div>
             <div v-else-if="loadingFiles" class="px-3 py-2 text-[11px] text-muted-foreground/70">
               {{ t('chat.workspace.files.loading') }}
@@ -123,8 +141,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, toRef, watch } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
+import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { extractArtifactsFromContent } from '@/composables/useArtifacts'
@@ -134,11 +153,16 @@ import { useWorkspaceSync } from './composables/useWorkspaceSync'
 import { useArtifactStore } from '@/stores/artifact'
 import { useMessageStore } from '@/stores/ui/message'
 import { useSidepanelStore, type WorkspaceArtifactContext } from '@/stores/ui/sidepanel'
+import { useSessionStore } from '@/stores/ui/session'
 import type { WorkspaceGitFileChange } from '@shared/presenter'
 
 const props = defineProps<{
   sessionId: string
   workspacePath: string | null
+}>()
+
+const emit = defineEmits<{
+  'update:workspacePath': [path: string | null]
 }>()
 
 type ArtifactItem = WorkspaceArtifactContext & {
@@ -156,7 +180,10 @@ const { t } = useI18n()
 const artifactStore = useArtifactStore()
 const messageStore = useMessageStore()
 const sidepanelStore = useSidepanelStore()
+const sessionStore = useSessionStore()
 const workspacePresenter = usePresenter('workspacePresenter')
+const projectPresenter = usePresenter('projectPresenter')
+const filePresenter = usePresenter('filePresenter')
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
 const {
@@ -330,5 +357,118 @@ const getArtifactIcon = (type: string) => {
     default:
       return 'lucide:file'
   }
+}
+
+const isDragging = ref(false)
+
+async function selectFolder() {
+  try {
+    const selectedPath = await projectPresenter.selectDirectory()
+    if (selectedPath) {
+      await sessionStore.setSessionProjectDir(props.sessionId, selectedPath)
+      emit('update:workspacePath', selectedPath)
+    }
+  } catch (e) {
+    console.error('Failed to select folder:', e)
+  }
+}
+
+function handleDragOver(event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy'
+  }
+  if (hasDroppedFiles(event)) {
+    isDragging.value = true
+  }
+}
+
+function handleDragLeave(event: DragEvent) {
+  // Only reset dragging if we're leaving the drop zone entirely, not entering a child element
+  const relatedTarget = event.relatedTarget as EventTarget | null
+  if (!relatedTarget || !(event.currentTarget instanceof Node) || !event.currentTarget.contains(relatedTarget as Node)) {
+    isDragging.value = false
+  }
+}
+
+async function handleDrop(event: DragEvent) {
+  event.preventDefault()
+  isDragging.value = false
+
+  const file = getDroppedFile(event)
+  if (!file) {
+    console.log('[WorkspacePanel] No files in drop event')
+    return
+  }
+
+  const filePath = getDroppedFilePath(file)
+
+  console.log('[WorkspacePanel] Dropped file:', filePath, file.name)
+
+  if (!filePath) {
+    console.log('[WorkspacePanel] No file path available - drag from browser')
+    return
+  }
+
+  try {
+    const isDirectory = await filePresenter.isDirectory(filePath)
+    if (!isDirectory) {
+      console.warn('[WorkspacePanel] Dropped path is not a directory:', filePath)
+      return
+    }
+
+    console.log('[WorkspacePanel] Setting project dir to:', filePath)
+    await sessionStore.setSessionProjectDir(props.sessionId, filePath)
+    emit('update:workspacePath', filePath)
+    console.log('[WorkspacePanel] Project dir set successfully')
+  } catch (e) {
+    console.error('[WorkspacePanel] Failed to set workspace from drop:', e)
+  }
+}
+
+function hasDroppedFiles(event: DragEvent): boolean {
+  if (event.dataTransfer?.types.includes('Files')) {
+    return true
+  }
+
+  return Boolean(
+    event.dataTransfer?.items &&
+    Array.from(event.dataTransfer.items).some((item) => item.kind === 'file')
+  )
+}
+
+function getDroppedFile(event: DragEvent): File | null {
+  const droppedFiles = event.dataTransfer?.files
+  if (droppedFiles && droppedFiles.length > 0) {
+    return droppedFiles[0] ?? null
+  }
+
+  const droppedItems = event.dataTransfer?.items
+  if (!droppedItems || droppedItems.length === 0) {
+    return null
+  }
+
+  for (const item of Array.from(droppedItems)) {
+    if (item.kind !== 'file') {
+      continue
+    }
+
+    const file = item.getAsFile()
+    if (file) {
+      return file
+    }
+  }
+
+  return null
+}
+
+function getDroppedFilePath(file: File): string | null {
+  const preloadPath = window.api?.getPathForFile?.(file)?.trim()
+  if (preloadPath) {
+    return preloadPath
+  }
+
+  const legacyPath = (file as File & { path?: string }).path?.trim()
+  return legacyPath || null
 }
 </script>

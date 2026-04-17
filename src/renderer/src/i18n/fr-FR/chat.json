@@ -182,7 +182,12 @@
       },
       "empty": "Aucun fichier pour l'instant",
       "loading": "Chargement des fichiers...",
-      "section": "document"
+      "section": "document",
+      "noWorkspace": {
+        "title": "Aucun espace de travail",
+        "description": "Sélectionnez ou faites glisser un dossier pour définir l'espace de travail",
+        "button": "Sélectionner un dossier"
+      }
     },
     "git": {
       "empty": "Aucun diff disponible",

@@ -182,7 +182,12 @@
       },
       "empty": "Nenhum arquivo ainda",
       "loading": "Carregando arquivos...",
-      "section": "documento"
+      "section": "documento",
+      "noWorkspace": {
+        "title": "Sem espaço de trabalho",
+        "description": "Selecione ou arraste uma pasta para definir o espaço de trabalho",
+        "button": "Selecionar pasta"
+      }
     },
     "git": {
       "empty": "Nenhum diff disponível",

@@ -182,7 +182,12 @@
       },
       "empty": "아직 파일이 없습니다",
       "loading": "파일 로드 중...",
-      "section": "문서"
+      "section": "문서",
+      "noWorkspace": {
+        "title": "워크스페이스 없음",
+        "description": "폴더를 선택하거나 드래그하여 워크스페이스 설정",
+        "button": "폴더 선택"
+      }
     },
     "git": {
       "empty": "표시할 diff가 없습니다",

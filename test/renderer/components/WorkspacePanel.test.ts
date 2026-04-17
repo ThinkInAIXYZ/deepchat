@@ -21,7 +21,10 @@ const {
   getGitDiffMock,
   expandDirectoryMock,
   openFileMock,
-  revealFileInFolderMock
+  revealFileInFolderMock,
+  selectDirectoryMock,
+  isDirectoryMock,
+  setSessionProjectDirMock
 } = vi.hoisted(() => ({
   showArtifactMock: vi.fn(),
   toggleSectionMock: vi.fn(),
@@ -45,7 +48,10 @@ const {
   getGitDiffMock: vi.fn().mockResolvedValue(null),
   expandDirectoryMock: vi.fn().mockResolvedValue([]),
   openFileMock: vi.fn().mockResolvedValue(undefined),
-  revealFileInFolderMock: vi.fn().mockResolvedValue(undefined)
+  revealFileInFolderMock: vi.fn().mockResolvedValue(undefined),
+  selectDirectoryMock: vi.fn().mockResolvedValue(null),
+  isDirectoryMock: vi.fn().mockResolvedValue(true),
+  setSessionProjectDirMock: vi.fn().mockResolvedValue(undefined)
 }))
 
 const sessionState = {
@@ -141,17 +147,41 @@ vi.mock('@/stores/ui/sidepanel', () => ({
 }))
 
 vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: () => ({
-    registerWorkspace: registerWorkspaceMock,
-    watchWorkspace: watchWorkspaceMock,
-    unwatchWorkspace: unwatchWorkspaceMock,
-    readDirectory: readDirectoryMock,
-    getGitStatus: getGitStatusMock,
-    readFilePreview: readFilePreviewMock,
-    getGitDiff: getGitDiffMock,
-    expandDirectory: expandDirectoryMock,
-    openFile: openFileMock,
-    revealFileInFolder: revealFileInFolderMock
+  usePresenter: (name: string) => {
+    if (name === 'workspacePresenter') {
+      return {
+        registerWorkspace: registerWorkspaceMock,
+        watchWorkspace: watchWorkspaceMock,
+        unwatchWorkspace: unwatchWorkspaceMock,
+        readDirectory: readDirectoryMock,
+        getGitStatus: getGitStatusMock,
+        readFilePreview: readFilePreviewMock,
+        getGitDiff: getGitDiffMock,
+        expandDirectory: expandDirectoryMock,
+        openFile: openFileMock,
+        revealFileInFolder: revealFileInFolderMock
+      }
+    }
+
+    if (name === 'projectPresenter') {
+      return {
+        selectDirectory: selectDirectoryMock
+      }
+    }
+
+    if (name === 'filePresenter') {
+      return {
+        isDirectory: isDirectoryMock
+      }
+    }
+
+    return {}
+  }
+}))
+
+vi.mock('@/stores/ui/session', () => ({
+  useSessionStore: () => ({
+    setSessionProjectDir: setSessionProjectDirMock
   })
 }))
 
@@ -240,6 +270,14 @@ describe('WorkspacePanel', () => {
     expandDirectoryMock.mockReset().mockResolvedValue([])
     openFileMock.mockReset().mockResolvedValue(undefined)
     revealFileInFolderMock.mockReset().mockResolvedValue(undefined)
+    selectDirectoryMock.mockReset().mockResolvedValue(null)
+    isDirectoryMock.mockReset().mockResolvedValue(true)
+    setSessionProjectDirMock.mockReset().mockResolvedValue(undefined)
+
+    window.api = {
+      ...window.api,
+      getPathForFile: vi.fn(() => '')
+    }
   })
 
   it('extracts artifact items from assistant blocks and opens preview context', async () => {
@@ -369,6 +407,72 @@ describe('WorkspacePanel', () => {
     expect(readDirectoryMock).toHaveBeenCalledTimes(2)
     expect(expandDirectoryMock).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('child.ts')
+
+    wrapper.unmount()
+  })
+
+  it('sets the workspace when a directory is dropped', async () => {
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: null
+      }
+    })
+
+    await flushPromises()
+
+    const file = new File([''], 'repo')
+    const getPathForFileMock = vi.fn(() => '/tmp/workspace')
+    window.api = {
+      ...window.api,
+      getPathForFile: getPathForFileMock
+    }
+
+    const dropZone = wrapper.find('[class*="border-dashed"]')
+    await dropZone.trigger('drop', {
+      dataTransfer: {
+        files: [file]
+      }
+    })
+    await flushPromises()
+
+    expect(getPathForFileMock).toHaveBeenCalledWith(file)
+    expect(isDirectoryMock).toHaveBeenCalledWith('/tmp/workspace')
+    expect(setSessionProjectDirMock).toHaveBeenCalledWith('s1', '/tmp/workspace')
+    expect(wrapper.emitted('update:workspacePath')).toEqual([['/tmp/workspace']])
+
+    wrapper.unmount()
+  })
+
+  it('ignores dropped files that are not directories', async () => {
+    isDirectoryMock.mockResolvedValue(false)
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: null
+      }
+    })
+
+    await flushPromises()
+
+    const file = new File(['hello'], 'README.md', { type: 'text/markdown' })
+    window.api = {
+      ...window.api,
+      getPathForFile: vi.fn(() => '/tmp/workspace/README.md')
+    }
+
+    const dropZone = wrapper.find('[class*="border-dashed"]')
+    await dropZone.trigger('drop', {
+      dataTransfer: {
+        files: [file]
+      }
+    })
+    await flushPromises()
+
+    expect(isDirectoryMock).toHaveBeenCalledWith('/tmp/workspace/README.md')
+    expect(setSessionProjectDirMock).not.toHaveBeenCalled()
+    expect(wrapper.emitted('update:workspacePath')).toBeUndefined()
 
     wrapper.unmount()
   })

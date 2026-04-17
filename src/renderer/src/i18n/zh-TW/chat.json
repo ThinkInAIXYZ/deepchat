@@ -186,6 +186,11 @@
       },
       "empty": "暫無文件",
       "loading": "加載文件中...",
+      "noWorkspace": {
+        "title": "暫無工作區",
+        "description": "選擇或拖拽資料夾來設定工作區",
+        "button": "選擇資料夾"
+      },
       "section": "文件"
     },
     "git": {
