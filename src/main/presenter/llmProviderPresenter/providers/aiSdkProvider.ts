@@ -2,7 +2,6 @@ import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import {
   ApiEndpointType,
   ModelType,
-  isClaudeFamilyModelId,
   isNewApiEndpointType,
   resolveNewApiEndpointTypeFromRoute,
   resolveProviderCapabilityProviderId,
@@ -59,7 +58,6 @@ import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
 const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
 const DEFAULT_NEW_API_BASE_URL = 'https://www.newapi.ai'
-const ZENMUX_ANTHROPIC_BASE_URL = 'https://zenmux.ai/api/anthropic'
 
 type RouteDecision = {
   providerKind: AiSdkProviderKind
@@ -171,6 +169,15 @@ export class AiSdkProvider extends BaseLLMProvider {
     return [...this.models, ...this.customModels].find((model) => model.id === modelId)
   }
 
+  private getConfiguredAnthropicBaseUrl(): string {
+    const baseUrl = this.definition.anthropicBaseUrl?.trim()
+    if (!baseUrl) {
+      throw new Error(`No Anthropic base URL configured for provider ${this.provider.id}`)
+    }
+
+    return baseUrl
+  }
+
   private resolveNewApiEndpointType(modelId: string): NewApiEndpointType {
     const modelConfig = this.getProviderModelConfig(modelId)
     if (isNewApiEndpointType(modelConfig.endpointType)) {
@@ -213,7 +220,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         supportsOfficialAnthropicReasoning: true,
         providerPatch: {
           apiType: 'anthropic',
-          baseUrl: ZENMUX_ANTHROPIC_BASE_URL
+          baseUrl: this.getConfiguredAnthropicBaseUrl()
         }
       }
     }
@@ -227,7 +234,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           return {
             providerKind: 'anthropic',
             endpointType,
-            supportsOfficialAnthropicReasoning: isClaudeFamilyModelId(modelId),
+            supportsOfficialAnthropicReasoning: true,
             providerPatch: {
               apiType: 'anthropic',
               baseUrl: host,
@@ -315,8 +322,7 @@ export class AiSdkProvider extends BaseLLMProvider {
 
     return {
       providerKind: this.definition.runtimeKind,
-      supportsOfficialAnthropicReasoning:
-        this.definition.runtimeKind === 'anthropic' && this.provider.id === 'anthropic'
+      supportsOfficialAnthropicReasoning: this.definition.runtimeKind === 'anthropic'
     }
   }
 

@@ -3,7 +3,8 @@ import {
   ModelType,
   isClaudeOpus47FamilyModelId,
   resolveNewApiEndpointTypeFromRoute,
-  resolveProviderCapabilityProviderId
+  resolveProviderCapabilityProviderId,
+  shouldUseAnthropicClaudeRouteFromSupportedEndpoints
 } from '@shared/model'
 
 describe('new-api route helpers', () => {
@@ -42,6 +43,38 @@ describe('new-api route helpers', () => {
         'claude-opus-4-7'
       )
     ).toBe('openai-response')
+  })
+
+  it('only enables the Claude anthropic default route when supported endpoints include anthropic and a chat fallback', () => {
+    expect(
+      shouldUseAnthropicClaudeRouteFromSupportedEndpoints(
+        {
+          supportedEndpointTypes: ['openai-response', 'anthropic'],
+          type: ModelType.Chat
+        },
+        'claude-opus-4-7'
+      )
+    ).toBe(true)
+
+    expect(
+      shouldUseAnthropicClaudeRouteFromSupportedEndpoints(
+        {
+          supportedEndpointTypes: ['openai-response', 'anthropic'],
+          type: ModelType.Chat
+        },
+        'gpt-5.4'
+      )
+    ).toBe(false)
+
+    expect(
+      shouldUseAnthropicClaudeRouteFromSupportedEndpoints(
+        {
+          supportedEndpointTypes: ['anthropic', 'image-generation'],
+          type: ModelType.ImageGeneration
+        },
+        'claude-image'
+      )
+    ).toBe(false)
   })
 
   it('keeps image generation routes on the image endpoint', () => {

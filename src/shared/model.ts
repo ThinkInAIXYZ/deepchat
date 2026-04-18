@@ -78,6 +78,28 @@ export const resolveNewApiCapabilityProviderId = (
   }
 }
 
+export const shouldUseAnthropicClaudeRouteFromSupportedEndpoints = (
+  route: NewApiRouteMeta | null | undefined,
+  modelId?: string
+): boolean => {
+  if (route?.endpointType && isNewApiEndpointType(route.endpointType)) {
+    return false
+  }
+
+  const supportedEndpointTypes = route?.supportedEndpointTypes?.filter(isNewApiEndpointType) ?? []
+  if (!supportedEndpointTypes.includes('anthropic')) {
+    return false
+  }
+
+  if (!isClaudeFamilyModelId(modelId)) {
+    return false
+  }
+
+  return supportedEndpointTypes.some(
+    (endpointType) => endpointType !== 'anthropic' && endpointType !== 'image-generation'
+  )
+}
+
 export const resolveNewApiEndpointTypeFromRoute = (
   route: NewApiRouteMeta | null | undefined,
   modelId?: string
@@ -94,13 +116,7 @@ export const resolveNewApiEndpointTypeFromRoute = (
     return 'image-generation'
   }
 
-  if (
-    isClaudeFamilyModelId(modelId) &&
-    supportedEndpointTypes.includes('anthropic') &&
-    supportedEndpointTypes.some(
-      (endpointType) => endpointType !== 'anthropic' && endpointType !== 'image-generation'
-    )
-  ) {
+  if (shouldUseAnthropicClaudeRouteFromSupportedEndpoints(route, modelId)) {
     return 'anthropic'
   }
 

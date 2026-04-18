@@ -191,24 +191,41 @@ describe('AI SDK provider options', () => {
     })
   })
 
-  it('disables anthropic beta-only options for custom anthropic providers', () => {
+  it('maps official anthropic adaptive reasoning controls for anthropic api relays', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
     const result = buildProviderOptions({
       providerId: 'my-anthropic-proxy',
       capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
       providerOptionsKey: 'anthropic',
       apiType: 'anthropic',
       modelId: 'claude-sonnet-4-5',
       modelConfig: {
-        reasoningEffort: 'medium' as const
+        reasoning: true,
+        reasoningEffort: 'xhigh' as const,
+        reasoningVisibility: 'summarized'
       },
       tools: [],
       messages: []
     })
 
     expect(result.providerOptions?.anthropic).toMatchObject({
-      toolStreaming: false
+      toolStreaming: true,
+      sendReasoning: true,
+      effort: 'xhigh',
+      thinking: {
+        type: 'adaptive',
+        display: 'summarized'
+      }
     })
-    expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
   })
 
   it('keeps aws bedrock anthropic routes on the compatible reasoning dialect', () => {
@@ -237,6 +254,24 @@ describe('AI SDK provider options', () => {
     })
     expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
     expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
+  })
+
+  it('does not emit anthropic official reasoning parameters for openrouter claude models', () => {
+    const result = buildProviderOptions({
+      providerId: 'openrouter',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'anthropic/claude-sonnet-4',
+      modelConfig: {
+        reasoning: true
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toBeUndefined()
   })
 
   it('adds doubao thinking options through providerOptions instead of monkey-patching the sdk client', () => {

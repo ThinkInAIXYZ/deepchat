@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
 import { ApiEndpointType, ModelType } from '../../../../src/shared/model'
 import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+import { resolveAiSdkProviderDefinition } from '../../../../src/main/presenter/llmProviderPresenter/providerRegistry'
 
 const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
   mockRunAiSdkCoreStream: vi.fn()
@@ -237,22 +238,40 @@ describe('NewApiProvider capability routing', () => {
   })
 
   it('maps zenmux anthropic routes to official anthropic reasoning semantics', () => {
-    const provider = new AiSdkProvider(
-      createProvider({
-        id: 'zenmux',
-        name: 'ZenMux',
-        apiType: 'openai',
-        baseUrl: 'https://zenmux.ai/api'
-      }),
-      createConfigPresenter()
-    )
+    const zenmuxProvider = createProvider({
+      id: 'zenmux',
+      name: 'ZenMux',
+      apiType: 'openai',
+      baseUrl: 'https://zenmux.ai/api'
+    })
+    const provider = new AiSdkProvider(zenmuxProvider, createConfigPresenter())
     const routeDecision = (provider as any).resolveRouteDecision('anthropic/claude-sonnet-4.5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
     const runtimeContext = (provider as any).buildRuntimeContext('anthropic/claude-sonnet-4.5')
+    const definition = resolveAiSdkProviderDefinition(zenmuxProvider)
 
     expect(routeDecision.providerKind).toBe('anthropic')
     expect(routeDecision.supportsOfficialAnthropicReasoning).toBe(true)
     expect(runtimeProvider.apiType).toBe('anthropic')
+    expect(runtimeProvider.baseUrl).toBe(definition?.anthropicBaseUrl)
+    expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBe(true)
+  })
+
+  it('treats anthropic api providers as official anthropic reasoning routes', () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'my-anthropic-proxy',
+        name: 'My Anthropic Proxy',
+        apiType: 'anthropic',
+        baseUrl: 'https://proxy.example.com/anthropic'
+      }),
+      createConfigPresenter()
+    )
+    const routeDecision = (provider as any).resolveRouteDecision('claude-opus-4-7')
+    const runtimeContext = (provider as any).buildRuntimeContext('claude-opus-4-7')
+
+    expect(routeDecision.providerKind).toBe('anthropic')
+    expect(routeDecision.supportsOfficialAnthropicReasoning).toBe(true)
     expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBe(true)
   })
 

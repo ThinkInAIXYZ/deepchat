@@ -59,6 +59,7 @@ export interface AiSdkProviderDefinition {
   checkTemperature?: number
   checkMaxTokens?: number
   defaultHeadersPatch?: Record<string, string>
+  anthropicBaseUrl?: string
 }
 
 const createDefinition = (definition: AiSdkProviderDefinition): AiSdkProviderDefinition =>
@@ -371,7 +372,8 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     createDefinition({
       ...OPENAI_BASE,
       routeStrategy: 'zenmux',
-      embeddingStrategy: 'zenmux'
+      embeddingStrategy: 'zenmux',
+      anthropicBaseUrl: 'https://zenmux.ai/api/anthropic'
     })
   ],
   [
