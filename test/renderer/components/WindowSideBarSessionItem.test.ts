@@ -103,7 +103,7 @@ describe('WindowSideBarSessionItem', () => {
     expect(wrapper.find('[aria-label="thread.actions.pin"]').exists()).toBe(true)
   }, 10000)
 
-  it('exposes hero transition and pin feedback state on the rendered item', async () => {
+  it('exposes hero transition class and pin feedback state on the rendered item', async () => {
     const wrapper = await mountComponent({
       isPinned: true,
       heroHidden: true,
@@ -114,9 +114,8 @@ describe('WindowSideBarSessionItem', () => {
 
     expect(item.attributes('data-pin-fx')).toBe('pinning')
     expect(item.attributes('data-session-id')).toBe('session-1')
-    expect(item.attributes('data-hero-hidden')).toBe('true')
+    expect(item.classes()).toContain('is-hero-hidden')
     expect(item.attributes('data-pin-state')).toBe('docked')
-    expect(item.attributes('data-pin-visual-state')).toBe('overlay')
   }, 10000)
 
   it('keeps the pin layout docked while unpinning feedback is active', async () => {
@@ -126,7 +125,6 @@ describe('WindowSideBarSessionItem', () => {
     })
 
     expect(wrapper.find('.session-item').attributes('data-pin-state')).toBe('docked')
-    expect(wrapper.find('.session-item').attributes('data-pin-visual-state')).toBe('docked')
   }, 10000)
 
   it('highlights matching title fragments when filtering the sidebar', async () => {

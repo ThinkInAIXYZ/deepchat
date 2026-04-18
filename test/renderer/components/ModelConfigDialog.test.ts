@@ -439,7 +439,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
   })
 
-  it('treats anthropic transport relays as editable anthropic toggles with conditional subsettings', async () => {
+  it('keeps anthropic transport relays on provider-local reasoning controls', async () => {
     const { wrapper } = await setup({
       providerId: 'my-anthropic-proxy',
       modelId: 'claude-opus-4-7',
@@ -466,17 +466,12 @@ describe('ModelConfigDialog reasoning portraits', () => {
       }
     })
 
-    expect((wrapper.vm as any).reasoningToggleMode).toBe('toggle')
-    expect((wrapper.vm as any).showReasoningEffort).toBe(false)
-    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
-
-    ;(wrapper.vm as any).config.reasoning = true
-    await nextTick()
-
+    expect((wrapper.vm as any).reasoningToggleMode).toBe('indicator')
+    expect((wrapper.vm as any).reasoningToggleDisabled).toBe(true)
+    expect((wrapper.vm as any).reasoningToggleValue).toBe(true)
     expect((wrapper.vm as any).showReasoningEffort).toBe(true)
-    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
-    expect((wrapper.vm as any).config.reasoningVisibility).toBe('omitted')
-    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
   })
 
   it('hides effort and budget controls for level-based portraits', async () => {

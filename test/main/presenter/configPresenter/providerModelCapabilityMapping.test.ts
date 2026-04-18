@@ -125,7 +125,7 @@ describe('ConfigPresenter provider model capability mapping', () => {
     expect(supportsReasoning).toHaveBeenCalledWith('anthropic', 'claude-opus-4-7')
   })
 
-  it('maps anthropic transport relays to anthropic capability semantics', async () => {
+  it('keeps anthropic transport relays on provider-local capability semantics', async () => {
     const { ConfigPresenter, modelCapabilities } = await loadConfigPresenter()
     const supportsReasoning = vi
       .spyOn(modelCapabilities, 'supportsReasoning')
@@ -161,10 +161,10 @@ describe('ConfigPresenter provider model capability mapping', () => {
     expect(models).toEqual([
       expect.objectContaining({
         id: 'claude-opus-4-7',
-        reasoning: true
+        reasoning: false
       })
     ])
-    expect(supportsReasoning).toHaveBeenCalledWith('anthropic', 'claude-opus-4-7')
+    expect(supportsReasoning).not.toHaveBeenCalled()
   })
 
   it('maps zenmux anthropic routes to anthropic capability semantics', async () => {

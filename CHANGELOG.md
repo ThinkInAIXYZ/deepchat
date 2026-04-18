@@ -1,14 +1,22 @@
 # Changelog
 
-## v1.0.3-beta.3 (2026-04-17)
+## v1.0.3-beta.3 (2026-04-18)
 - Added Anthropic temperature support in model capability controls
 - Added `none` and `xhigh` reasoning effort options for supported models
 - Improved sidebar session pin feedback and stabilized session group identity handling
 - Refined app update installation by cleaning up floating windows before relaunch
+- Added Astraflow (ModelVerse) provider support and removed the deprecated Laoshi provider
+- Added project-based workspace directories with drag-and-drop setup support
+- Enhanced the floating agent widget to support all agents with more stable session handling
+- Improved Anthropic reasoning routing and capped derived max token defaults for safer model setup
 - 为模型能力配置补充 Anthropic temperature 支持
 - 为受支持模型新增 `none` 与 `xhigh` reasoning effort 选项
 - 优化侧栏会话 pin 反馈，并稳定会话分组标识处理
 - 在应用更新安装前清理悬浮窗口，提升升级流程稳定性
+- 新增 Astraflow（ModelVerse）Provider 支持，并移除已废弃的 Laoshi Provider
+- 新增基于项目目录的工作区管理能力，并支持拖拽接入工作区
+- 增强悬浮 Agent 按钮，支持全部 Agent 并提升会话管理稳定性
+- 优化 Anthropic reasoning 路由，并限制推导出的默认 max tokens，降低模型配置风险
 
 ## v1.0.3-beta.2 (2026-04-15)
 - Expanded remote control into a unified multi-channel setup with Discord, QQ Bot, and WeChat iLink support
