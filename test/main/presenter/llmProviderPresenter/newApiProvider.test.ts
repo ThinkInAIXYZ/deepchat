@@ -254,6 +254,8 @@ describe('NewApiProvider capability routing', () => {
     expect(routeDecision.supportsOfficialAnthropicReasoning).toBe(true)
     expect(runtimeProvider.apiType).toBe('anthropic')
     expect(runtimeProvider.baseUrl).toBe(definition?.anthropicBaseUrl)
+    expect(runtimeProvider.capabilityProviderId).toBe('anthropic')
+    expect(runtimeContext.context.provider.capabilityProviderId).toBe('anthropic')
     expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBe(true)
   })
 
@@ -268,10 +270,13 @@ describe('NewApiProvider capability routing', () => {
       createConfigPresenter()
     )
     const routeDecision = (provider as any).resolveRouteDecision('claude-opus-4-7')
+    const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
     const runtimeContext = (provider as any).buildRuntimeContext('claude-opus-4-7')
 
     expect(routeDecision.providerKind).toBe('anthropic')
     expect(routeDecision.supportsOfficialAnthropicReasoning).toBe(true)
+    expect(runtimeProvider.capabilityProviderId).toBe('anthropic')
+    expect(runtimeContext.context.provider.capabilityProviderId).toBe('anthropic')
     expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBe(true)
   })
 

@@ -536,6 +536,42 @@ describe('Model Configuration Tests', () => {
       getDbSpy.mockRestore()
     })
 
+    it('derives anthropic reasoning visibility for zenmux anthropic routes', () => {
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          zenmux: {
+            id: 'zenmux',
+            models: [{ id: 'anthropic/claude-opus-4-7', tool_call: true, temperature: false }]
+          }
+        }
+      } as any)
+      const portraitSpy = vi
+        .spyOn(modelCapabilities, 'getReasoningPortrait')
+        .mockImplementation((providerId: string, modelId: string) => {
+          if (providerId === 'zenmux' && modelId === 'anthropic/claude-opus-4-7') {
+            return {
+              supported: true,
+              defaultEnabled: false,
+              mode: 'effort',
+              effort: 'high',
+              effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+              visibility: 'omitted'
+            }
+          }
+
+          return null
+        })
+
+      const config = modelConfigHelper.getModelConfig('anthropic/claude-opus-4-7', 'zenmux')
+
+      expect(config.reasoning).toBe(false)
+      expect(config.reasoningVisibility).toBe('omitted')
+      expect(config.reasoningEffort).toBe('high')
+
+      portraitSpy.mockRestore()
+      getDbSpy.mockRestore()
+    })
+
     it('preserves non-anthropic reasoning visibility values from provider portraits', () => {
       const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
         providers: {

@@ -220,7 +220,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         supportsOfficialAnthropicReasoning: true,
         providerPatch: {
           apiType: 'anthropic',
-          baseUrl: this.getConfiguredAnthropicBaseUrl()
+          baseUrl: this.getConfiguredAnthropicBaseUrl(),
+          capabilityProviderId: 'anthropic'
         }
       }
     }
@@ -320,9 +321,16 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
     }
 
+    const supportsOfficialAnthropicReasoning = this.definition.runtimeKind === 'anthropic'
+
     return {
       providerKind: this.definition.runtimeKind,
-      supportsOfficialAnthropicReasoning: this.definition.runtimeKind === 'anthropic'
+      supportsOfficialAnthropicReasoning,
+      providerPatch: supportsOfficialAnthropicReasoning
+        ? {
+            capabilityProviderId: 'anthropic'
+          }
+        : undefined
     }
   }
 

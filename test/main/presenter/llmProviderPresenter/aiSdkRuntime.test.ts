@@ -38,6 +38,7 @@ import {
   runAiSdkCoreStream,
   runAiSdkGenerateText
 } from '@/presenter/llmProviderPresenter/aiSdk/runtime'
+import { modelCapabilities } from '@/presenter/configPresenter/modelCapabilities'
 
 describe('AI SDK runtime', () => {
   beforeEach(() => {
@@ -242,5 +243,64 @@ describe('AI SDK runtime', () => {
     const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
     expect(request).toHaveProperty('temperature', 0.6)
     expect(tracePayloads[0]?.body).toHaveProperty('temperature', 0.6)
+  })
+
+  it('passes anthropic adaptive reasoning options through runtime context for zenmux routes', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValue({
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      model: {}
+    })
+    const portraitSpy = vi.spyOn(modelCapabilities, 'getReasoningPortrait').mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+    const context = {
+      providerKind: 'anthropic',
+      provider: {
+        id: 'zenmux',
+        apiType: 'anthropic',
+        capabilityProviderId: 'anthropic'
+      },
+      supportsOfficialAnthropicReasoning: true,
+      configPresenter: {
+        supportsTemperatureControl: vi.fn().mockReturnValue(true)
+      },
+      defaultHeaders: {}
+    } as any
+
+    await runAiSdkGenerateText(
+      context,
+      [],
+      'anthropic/claude-opus-4-7',
+      {
+        apiEndpoint: 'chat',
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      } as any,
+      0.6,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+
+    expect(request.providerOptions).toMatchObject({
+      anthropic: {
+        toolStreaming: true,
+        sendReasoning: true,
+        effort: 'max',
+        thinking: {
+          type: 'adaptive',
+          display: 'summarized'
+        }
+      }
+    })
+
+    portraitSpy.mockRestore()
   })
 })

@@ -1,4 +1,9 @@
-import { ApiEndpointType, ModelType, isNewApiEndpointType } from '@shared/model'
+import {
+  ApiEndpointType,
+  ModelType,
+  isNewApiEndpointType,
+  resolveProviderCapabilityProviderId
+} from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import {
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
@@ -118,6 +123,7 @@ export class ModelConfigHelper {
 
   private buildConfigFromProviderModel(model: ProviderModel, providerId: string): ModelConfig {
     const portrait = modelCapabilities.getReasoningPortrait(providerId, model.id)
+    const capabilityProviderId = resolveProviderCapabilityProviderId(providerId, null, model.id)
     const reasoningEnabled =
       portrait?.defaultEnabled ?? model.reasoning?.default ?? portrait?.supported ?? false
     const thinkingBudget =
@@ -127,7 +133,7 @@ export class ModelConfigHelper {
       portrait,
       portrait?.effort ?? model.reasoning?.effort
     )
-    const reasoningVisibility = hasAnthropicReasoningToggle(providerId, portrait)
+    const reasoningVisibility = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
       ? (normalizeAnthropicReasoningVisibilityValue(portrait?.visibility) ??
         normalizeReasoningVisibilityValue(portrait?.visibility))
       : normalizeReasoningVisibilityValue(portrait?.visibility)

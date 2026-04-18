@@ -663,11 +663,14 @@ export class ConfigPresenter implements IConfigPresenter {
     endpointType?: NewApiEndpointType
     supportedEndpointTypes?: NewApiEndpointType[]
     type?: ModelType
+    providerApiType?: string
   } | null {
+    const providerApiType = this.providerHelper?.getProviderById?.(providerId)?.apiType
     const modelConfig = this.getModelConfig(modelId, providerId)
     if (isNewApiEndpointType(modelConfig.endpointType)) {
       return {
-        endpointType: modelConfig.endpointType
+        endpointType: modelConfig.endpointType,
+        providerApiType
       }
     }
 
@@ -681,11 +684,16 @@ export class ConfigPresenter implements IConfigPresenter {
       return {
         endpointType: storedModel.endpointType,
         supportedEndpointTypes: storedModel.supportedEndpointTypes,
-        type: storedModel.type
+        type: storedModel.type,
+        providerApiType
       }
     }
 
-    return null
+    return providerApiType
+      ? {
+          providerApiType
+        }
+      : null
   }
 
   getCapabilityProviderId(providerId: string, modelId: string): string {
@@ -1196,7 +1204,8 @@ export class ConfigPresenter implements IConfigPresenter {
         {
           endpointType: model.endpointType,
           supportedEndpointTypes: model.supportedEndpointTypes,
-          type: model.type
+          type: model.type,
+          providerApiType: this.providerHelper?.getProviderById?.(providerId)?.apiType
         },
         model.id
       )

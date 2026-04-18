@@ -102,6 +102,30 @@ describe('new-api route helpers', () => {
     ).toBe('anthropic')
   })
 
+  it('maps zenmux anthropic-prefixed models to anthropic capability semantics', () => {
+    expect(resolveProviderCapabilityProviderId('zenmux', null, 'anthropic/claude-opus-4-7')).toBe(
+      'anthropic'
+    )
+  })
+
+  it('maps anthropic transport relays to anthropic capability semantics', () => {
+    expect(
+      resolveProviderCapabilityProviderId(
+        'my-anthropic-proxy',
+        {
+          providerApiType: 'anthropic'
+        },
+        'claude-opus-4-7'
+      )
+    ).toBe('anthropic')
+  })
+
+  it('keeps openai transport claude carriers on their original provider id', () => {
+    expect(
+      resolveProviderCapabilityProviderId('openrouter', null, 'anthropic/claude-opus-4-7')
+    ).toBe('openrouter')
+  })
+
   it('recognizes claude-opus-4-7 family after stripping provider prefixes', () => {
     expect(isClaudeOpus47FamilyModelId('claude-opus-4-7')).toBe(true)
     expect(isClaudeOpus47FamilyModelId('anthropic/claude-opus-4-7')).toBe(true)

@@ -1041,6 +1041,9 @@ const providerNameMap = computed(() => {
   return map
 })
 
+const resolveProviderApiType = (providerId: string): string | undefined =>
+  providerStore.sortedProviders.find((provider) => provider.id === providerId)?.apiType
+
 const getChatSelectableModels = (models: RENDERER_MODEL_META[]): RENDERER_MODEL_META[] =>
   models.filter((model) => isChatSelectableModelType(model.type))
 
@@ -1444,7 +1447,8 @@ const resolveCapabilityProviderIdForSelection = (
     {
       endpointType: isNewApiEndpointType(endpointType) ? endpointType : modelMeta?.endpointType,
       supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
-      type: modelMeta?.type
+      type: modelMeta?.type,
+      providerApiType: resolveProviderApiType(providerId)
     },
     modelId
   )

@@ -842,7 +842,8 @@ const syncCapabilityProviderId = () => {
         ? config.value.endpointType
         : providerModelMeta.value?.endpointType,
       supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
-      type: config.value.type ?? providerModelMeta.value?.type
+      type: config.value.type ?? providerModelMeta.value?.type,
+      providerApiType: currentProvider.value?.apiType
     },
     currentModelLookupId.value
   )

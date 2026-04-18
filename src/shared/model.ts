@@ -30,12 +30,17 @@ export type NewApiRouteMeta = {
   endpointType?: NewApiEndpointType
   supportedEndpointTypes?: NewApiEndpointType[]
   type?: ModelType
+  providerApiType?: string
 }
 
 export const isNewApiEndpointType = (value: unknown): value is NewApiEndpointType =>
   typeof value === 'string' && NEW_API_ENDPOINT_TYPES.includes(value as NewApiEndpointType)
 
 function normalizeModelId(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? ''
+}
+
+function normalizeProviderValue(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? ''
 }
 
@@ -50,6 +55,21 @@ function hasNewApiRouteHints(route: NewApiRouteMeta | null | undefined): boolean
   return (
     Boolean(route?.endpointType && isNewApiEndpointType(route.endpointType)) ||
     Boolean(route?.supportedEndpointTypes?.some(isNewApiEndpointType))
+  )
+}
+
+function hasOfficialAnthropicTransport(
+  providerId: string,
+  route: NewApiRouteMeta | null | undefined,
+  modelId?: string
+): boolean {
+  if (normalizeProviderValue(route?.providerApiType) === 'anthropic') {
+    return true
+  }
+
+  return (
+    normalizeProviderValue(providerId) === 'zenmux' &&
+    normalizeModelId(modelId).startsWith('anthropic/')
   )
 }
 
@@ -136,6 +156,10 @@ export const resolveProviderCapabilityProviderId = (
   route: NewApiRouteMeta | null | undefined,
   modelId?: string
 ): string => {
+  if (hasOfficialAnthropicTransport(providerId, route, modelId)) {
+    return 'anthropic'
+  }
+
   if (!hasNewApiRouteHints(route)) {
     return providerId
   }

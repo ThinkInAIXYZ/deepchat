@@ -20,6 +20,7 @@ type TestGenerationSettings = {
 type ExtraModelGroup = {
   providerId: string
   providerName: string
+  apiType?: string
   models: Array<{
     id: string
     name: string
@@ -243,13 +244,14 @@ const setup = async (options: SetupOptions = {}) => {
 
   const providerStore = reactive({
     sortedProviders: [
-      { id: 'openai', name: 'OpenAI', enable: true },
-      { id: 'anthropic', name: 'Anthropic', enable: true },
-      { id: 'acp', name: 'ACP', enable: true }
+      { id: 'openai', name: 'OpenAI', apiType: 'openai', enable: true },
+      { id: 'anthropic', name: 'Anthropic', apiType: 'anthropic', enable: true },
+      { id: 'acp', name: 'ACP', apiType: 'acp', enable: true }
     ].concat(
       extraModelGroups.map((group) => ({
         id: group.providerId,
         name: group.providerName,
+        apiType: group.apiType ?? 'openai-compatible',
         enable: true
       }))
     )
@@ -926,6 +928,45 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.text()).toContain(
       'settings.model.modelConfig.reasoningVisibility.options.summarized'
     )
+  })
+
+  it('shows zenmux anthropic adaptive reasoning controls when backend reasoning is enabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'zenmux', modelId: 'anthropic/claude-opus-4-7' },
+      defaultModel: { providerId: 'zenmux', modelId: 'anthropic/claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'zenmux',
+          providerName: 'ZenMux',
+          apiType: 'openai',
+          models: [{ id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('zenmux', 'anthropic/claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('max')
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('summarized')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
   })
 
   it('keeps showing loading until settings finish loading for the current model selection', async () => {
