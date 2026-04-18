@@ -801,10 +801,10 @@ describe('ChatStatusBar model and session panels', () => {
     await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(false)
-    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
     expect((wrapper.vm as any).localSettings.reasoningEffort).toBeUndefined()
     expect((wrapper.vm as any).localSettings.reasoningVisibility).toBeUndefined()
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
   })
 
   it('shows anthropic adaptive reasoning controls when backend reasoning is enabled', async () => {
@@ -848,6 +848,40 @@ describe('ChatStatusBar model and session panels', () => {
     )
   })
 
+  it('defaults anthropic adaptive reasoning controls from the effective reasoning state', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoningEffort: 'max'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('max')
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('omitted')
+  })
+
   it('hides new-api anthropic adaptive reasoning controls when backend reasoning is disabled', async () => {
     const { wrapper } = await setup({
       hasActiveSession: false,
@@ -881,10 +915,10 @@ describe('ChatStatusBar model and session panels', () => {
     await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(false)
-    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
     expect((wrapper.vm as any).localSettings.reasoningEffort).toBeUndefined()
     expect((wrapper.vm as any).localSettings.reasoningVisibility).toBeUndefined()
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
   })
 
   it('shows new-api anthropic adaptive reasoning controls when backend reasoning is enabled', async () => {
@@ -967,6 +1001,42 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('max')
     expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('summarized')
     expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
+  })
+
+  it('keeps reasoning visibility controls visible for legacy sessions without persisted visibility', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'max'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    ;(wrapper.vm as any).localSettings.reasoningVisibility = undefined
+    await (wrapper.vm as any).$nextTick()
+
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).reasoningVisibilityOptions[0]?.value).toBe('omitted')
   })
 
   it('keeps showing loading until settings finish loading for the current model selection', async () => {

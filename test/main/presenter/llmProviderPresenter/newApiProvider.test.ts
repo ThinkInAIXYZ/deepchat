@@ -250,6 +250,7 @@ describe('NewApiProvider capability routing', () => {
     const runtimeContext = (provider as any).buildRuntimeContext('anthropic/claude-sonnet-4.5')
     const definition = resolveAiSdkProviderDefinition(zenmuxProvider)
 
+    expect(definition?.anthropicBaseUrl).toBeTruthy()
     expect(routeDecision.providerKind).toBe('anthropic')
     expect(routeDecision.supportsOfficialAnthropicReasoning).toBe(true)
     expect(runtimeProvider.apiType).toBe('anthropic')
@@ -259,7 +260,7 @@ describe('NewApiProvider capability routing', () => {
     expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBe(true)
   })
 
-  it('treats anthropic api providers as official anthropic reasoning routes', () => {
+  it('keeps transport-compatible anthropic api providers off the official anthropic reasoning route', () => {
     const provider = new AiSdkProvider(
       createProvider({
         id: 'my-anthropic-proxy',
@@ -274,10 +275,31 @@ describe('NewApiProvider capability routing', () => {
     const runtimeContext = (provider as any).buildRuntimeContext('claude-opus-4-7')
 
     expect(routeDecision.providerKind).toBe('anthropic')
-    expect(routeDecision.supportsOfficialAnthropicReasoning).toBe(true)
-    expect(runtimeProvider.capabilityProviderId).toBe('anthropic')
-    expect(runtimeContext.context.provider.capabilityProviderId).toBe('anthropic')
-    expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBe(true)
+    expect(routeDecision.supportsOfficialAnthropicReasoning).toBeUndefined()
+    expect(runtimeProvider.capabilityProviderId).toBeUndefined()
+    expect(runtimeContext.context.provider.capabilityProviderId).toBeUndefined()
+    expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBeUndefined()
+  })
+
+  it('keeps minimax off the official anthropic reasoning route', () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'minimax',
+        name: 'MiniMax',
+        apiType: 'anthropic',
+        baseUrl: 'https://api.minimaxi.com/anthropic'
+      }),
+      createConfigPresenter()
+    )
+    const routeDecision = (provider as any).resolveRouteDecision('MiniMax-M2.5')
+    const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
+    const runtimeContext = (provider as any).buildRuntimeContext('MiniMax-M2.5')
+
+    expect(routeDecision.providerKind).toBe('anthropic')
+    expect(routeDecision.supportsOfficialAnthropicReasoning).toBeUndefined()
+    expect(runtimeProvider.capabilityProviderId).toBeUndefined()
+    expect(runtimeContext.context.provider.capabilityProviderId).toBeUndefined()
+    expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBeUndefined()
   })
 
   it('keeps image-generation on the image runtime route while using openai capabilities', async () => {

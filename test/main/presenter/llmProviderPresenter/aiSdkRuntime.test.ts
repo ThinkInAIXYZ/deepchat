@@ -171,7 +171,7 @@ describe('AI SDK runtime', () => {
   })
 
   it.each(['anthropic/claude-opus-4-7', 'claude-opus-4-7-think'])(
-    'omits temperature when configPresenter disables temperature control for %s',
+    'omits temperature when mapped capability routing disables temperature control for %s',
     async (modelId) => {
       const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
       const context = {
@@ -181,6 +181,7 @@ describe('AI SDK runtime', () => {
           apiType: 'openai-compatible'
         },
         configPresenter: {
+          getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
           supportsTemperatureControl: vi.fn().mockReturnValue(false)
         },
         defaultHeaders: {},
@@ -206,6 +207,14 @@ describe('AI SDK runtime', () => {
       }
 
       const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
+      expect(context.configPresenter.getCapabilityProviderId).toHaveBeenCalledWith(
+        'aihubmix',
+        modelId
+      )
+      expect(context.configPresenter.supportsTemperatureControl).toHaveBeenCalledWith(
+        'anthropic',
+        modelId
+      )
       expect(request).not.toHaveProperty('temperature')
       expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
       expect(events).toEqual([])
@@ -289,6 +298,7 @@ describe('AI SDK runtime', () => {
 
     const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
 
+    expect(portraitSpy).toHaveBeenCalledWith('anthropic', 'anthropic/claude-opus-4-7')
     expect(request.providerOptions).toMatchObject({
       anthropic: {
         toolStreaming: true,

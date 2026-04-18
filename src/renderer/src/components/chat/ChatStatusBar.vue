@@ -778,10 +778,11 @@ import {
 import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
   isReasoningEffort,
-  normalizeAnthropicReasoningVisibilityValue,
   isVerbosity,
+  normalizeAnthropicReasoningVisibilityValue,
   type AnthropicReasoningVisibility,
   type ReasoningPortrait
 } from '@shared/types/model-db'
@@ -1681,8 +1682,8 @@ const showReasoningVisibility = computed(
   () =>
     !isAcpAgent.value &&
     Boolean(localSettings.value) &&
-    hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) &&
-    localSettings.value?.reasoningVisibility !== undefined
+    getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value)
+      .length > 0
 )
 
 const effortOptions = computed(() => {
@@ -1961,9 +1962,14 @@ const resolveDefaultGenerationSettings = async (
     resolvedCapabilityProviderId,
     portrait
   )
-  const canDefaultReasoningEffort = !anthropicReasoningToggle || modelConfig.reasoning === true
+  const anthropicReasoningEnabled = anthropicReasoningToggle
+    ? getReasoningEffectiveEnabledForProvider(resolvedCapabilityProviderId, portrait, {
+        reasoning: modelConfig.reasoning,
+        reasoningEffort: modelConfig.reasoningEffort
+      })
+    : true
 
-  if (supportsReasoningEffort(portrait) && canDefaultReasoningEffort) {
+  if (supportsReasoningEffort(portrait) && anthropicReasoningEnabled) {
     const effort = normalizeReasoningEffort(
       portrait,
       modelConfig.reasoningEffort ?? portrait?.effort
@@ -1978,7 +1984,7 @@ const resolveDefaultGenerationSettings = async (
     portrait,
     modelConfig.reasoningVisibility ?? portrait?.visibility
   )
-  if (modelConfig.reasoning === true && reasoningVisibility) {
+  if (anthropicReasoningEnabled && reasoningVisibility) {
     defaults.reasoningVisibility = reasoningVisibility
   }
 

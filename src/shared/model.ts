@@ -58,15 +58,7 @@ function hasNewApiRouteHints(route: NewApiRouteMeta | null | undefined): boolean
   )
 }
 
-function hasOfficialAnthropicTransport(
-  providerId: string,
-  route: NewApiRouteMeta | null | undefined,
-  modelId?: string
-): boolean {
-  if (normalizeProviderValue(route?.providerApiType) === 'anthropic') {
-    return true
-  }
-
+function hasZenmuxAnthropicRoute(providerId: string, modelId?: string): boolean {
   return (
     normalizeProviderValue(providerId) === 'zenmux' &&
     normalizeModelId(modelId).startsWith('anthropic/')
@@ -156,7 +148,7 @@ export const resolveProviderCapabilityProviderId = (
   route: NewApiRouteMeta | null | undefined,
   modelId?: string
 ): string => {
-  if (hasOfficialAnthropicTransport(providerId, route, modelId)) {
+  if (hasZenmuxAnthropicRoute(providerId, modelId)) {
     return 'anthropic'
   }
 

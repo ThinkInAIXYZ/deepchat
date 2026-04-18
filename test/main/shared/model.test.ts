@@ -108,7 +108,7 @@ describe('new-api route helpers', () => {
     )
   })
 
-  it('maps anthropic transport relays to anthropic capability semantics', () => {
+  it('keeps transport-compatible anthropic relays on provider-local capability semantics', () => {
     expect(
       resolveProviderCapabilityProviderId(
         'my-anthropic-proxy',
@@ -117,7 +117,19 @@ describe('new-api route helpers', () => {
         },
         'claude-opus-4-7'
       )
-    ).toBe('anthropic')
+    ).toBe('my-anthropic-proxy')
+  })
+
+  it('keeps minimax on provider-local capability semantics without explicit anthropic routing', () => {
+    expect(
+      resolveProviderCapabilityProviderId(
+        'minimax',
+        {
+          providerApiType: 'anthropic'
+        },
+        'MiniMax-M2.5'
+      )
+    ).toBe('minimax')
   })
 
   it('keeps openai transport claude carriers on their original provider id', () => {

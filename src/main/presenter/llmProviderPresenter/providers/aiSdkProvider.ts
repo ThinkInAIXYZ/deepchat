@@ -178,6 +178,10 @@ export class AiSdkProvider extends BaseLLMProvider {
     return baseUrl
   }
 
+  private usesOfficialAnthropicReasoning(): boolean {
+    return this.provider.id.trim().toLowerCase() === 'anthropic'
+  }
+
   private resolveNewApiEndpointType(modelId: string): NewApiEndpointType {
     const modelConfig = this.getProviderModelConfig(modelId)
     if (isNewApiEndpointType(modelConfig.endpointType)) {
@@ -321,16 +325,11 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
     }
 
-    const supportsOfficialAnthropicReasoning = this.definition.runtimeKind === 'anthropic'
+    const supportsOfficialAnthropicReasoning = this.usesOfficialAnthropicReasoning()
 
     return {
       providerKind: this.definition.runtimeKind,
-      supportsOfficialAnthropicReasoning,
-      providerPatch: supportsOfficialAnthropicReasoning
-        ? {
-            capabilityProviderId: 'anthropic'
-          }
-        : undefined
+      ...(supportsOfficialAnthropicReasoning ? { supportsOfficialAnthropicReasoning } : {})
     }
   }
 

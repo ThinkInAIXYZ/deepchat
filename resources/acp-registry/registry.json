@@ -82,7 +82,7 @@
     {
       "id": "claude-acp",
       "name": "Claude Agent",
-      "version": "0.29.1",
+      "version": "0.29.2",
       "description": "ACP wrapper for Anthropic's Claude",
       "repository": "https://github.com/agentclientprotocol/claude-agent-acp",
       "authors": [
@@ -93,7 +93,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/claude-agent-acp@0.29.1"
+          "package": "@agentclientprotocol/claude-agent-acp@0.29.2"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/claude-acp.svg"
@@ -348,7 +348,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.103.0",
+      "version": "0.104.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -357,7 +357,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "droid@0.103.0",
+          "package": "droid@0.104.0",
           "args": [
             "exec",
             "--output-format",
@@ -374,7 +374,7 @@
     {
       "id": "fast-agent",
       "name": "fast-agent",
-      "version": "0.6.17",
+      "version": "0.6.18",
       "description": "Code and build agents with comprehensive multi-provider support",
       "repository": "https://github.com/evalstate/fast-agent",
       "website": "https://fast-agent.ai",
@@ -384,7 +384,7 @@
       "license": "Apache 2.0",
       "distribution": {
         "uvx": {
-          "package": "fast-agent-acp==0.6.17",
+          "package": "fast-agent-acp==0.6.18",
           "args": [
             "-x"
           ]
@@ -395,7 +395,7 @@
     {
       "id": "gemini",
       "name": "Gemini CLI",
-      "version": "0.38.1",
+      "version": "0.38.2",
       "description": "Google's official CLI for Gemini",
       "repository": "https://github.com/google-gemini/gemini-cli",
       "website": "https://geminicli.com",
@@ -405,7 +405,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@google/gemini-cli@0.38.1",
+          "package": "@google/gemini-cli@0.38.2",
           "args": [
             "--acp"
           ]
@@ -416,7 +416,7 @@
     {
       "id": "github-copilot-cli",
       "name": "GitHub Copilot",
-      "version": "1.0.31",
+      "version": "1.0.32",
       "description": "GitHub's AI pair programmer",
       "repository": "https://github.com/github/copilot-cli",
       "website": "https://github.com/features/copilot/cli/",
@@ -426,7 +426,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@github/copilot@1.0.31",
+          "package": "@github/copilot@1.0.32",
           "args": [
             "--acp"
           ]
@@ -541,7 +541,7 @@
     {
       "id": "kilo",
       "name": "Kilo",
-      "version": "7.2.10",
+      "version": "7.2.14",
       "description": "The open source coding agent",
       "repository": "https://github.com/Kilo-Org/kilocode",
       "website": "https://kilo.ai/",
@@ -553,35 +553,35 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.10/kilo-darwin-arm64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.14/kilo-darwin-arm64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.10/kilo-darwin-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.14/kilo-darwin-x64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.10/kilo-linux-arm64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.14/kilo-linux-arm64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.10/kilo-linux-x64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.14/kilo-linux-x64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.10/kilo-windows-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.2.14/kilo-windows-x64.zip",
             "cmd": "./kilo.exe",
             "args": [
               "acp"
@@ -589,7 +589,7 @@
           }
         },
         "npx": {
-          "package": "@kilocode/cli@7.2.10",
+          "package": "@kilocode/cli@7.2.14",
           "args": [
             "acp"
           ]
@@ -705,7 +705,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.0.98",
+      "version": "1.0.99",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -716,7 +716,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.0.98",
+          "package": "@compass-ai/nova@1.0.99",
           "args": [
             "acp"
           ]
@@ -726,7 +726,7 @@
     {
       "id": "opencode",
       "name": "OpenCode",
-      "version": "1.4.8",
+      "version": "1.4.11",
       "description": "The open source coding agent",
       "repository": "https://github.com/anomalyco/opencode",
       "website": "https://opencode.ai",
@@ -738,35 +738,35 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.8/opencode-darwin-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.11/opencode-darwin-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.8/opencode-darwin-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.11/opencode-darwin-x64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.8/opencode-linux-arm64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.11/opencode-linux-arm64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.8/opencode-linux-x64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.11/opencode-linux-x64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.8/opencode-windows-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.4.11/opencode-windows-x64.zip",
             "cmd": "./opencode.exe",
             "args": [
               "acp"
@@ -778,7 +778,7 @@
     {
       "id": "pi-acp",
       "name": "pi ACP",
-      "version": "0.0.25",
+      "version": "0.0.26",
       "description": "ACP adapter for pi coding agent",
       "repository": "https://github.com/svkozak/pi-acp",
       "authors": [
@@ -787,7 +787,7 @@
       "license": "MIT",
       "distribution": {
         "npx": {
-          "package": "pi-acp@0.0.25"
+          "package": "pi-acp@0.0.26"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/pi-acp.svg"

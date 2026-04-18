@@ -191,7 +191,7 @@ describe('AI SDK provider options', () => {
     })
   })
 
-  it('maps official anthropic adaptive reasoning controls for anthropic api relays', () => {
+  it('keeps transport-compatible anthropic providers off official anthropic adaptive reasoning controls', () => {
     mockGetReasoningPortrait.mockReturnValue({
       supported: true,
       defaultEnabled: false,
@@ -203,29 +203,30 @@ describe('AI SDK provider options', () => {
 
     const result = buildProviderOptions({
       providerId: 'my-anthropic-proxy',
-      capabilityProviderId: 'anthropic',
-      supportsOfficialAnthropicReasoning: true,
+      capabilityProviderId: 'my-anthropic-proxy',
+      supportsOfficialAnthropicReasoning: false,
       providerOptionsKey: 'anthropic',
       apiType: 'anthropic',
       modelId: 'claude-sonnet-4-5',
       modelConfig: {
         reasoning: true,
         reasoningEffort: 'xhigh' as const,
-        reasoningVisibility: 'summarized'
+        reasoningVisibility: 'summarized',
+        thinkingBudget: 4096
       },
       tools: [],
       messages: []
     })
 
     expect(result.providerOptions?.anthropic).toMatchObject({
-      toolStreaming: true,
-      sendReasoning: true,
-      effort: 'xhigh',
+      toolStreaming: false,
       thinking: {
-        type: 'adaptive',
-        display: 'summarized'
+        type: 'enabled',
+        budgetTokens: 4096
       }
     })
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
   })
 
   it('keeps aws bedrock anthropic routes on the compatible reasoning dialect', () => {
