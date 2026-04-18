@@ -43,13 +43,29 @@ describe('AI SDK provider options', () => {
     mockSupportsReasoning.mockReturnValue(false)
   })
 
-  it('keeps official anthropic beta features enabled', () => {
+  it('maps official anthropic adaptive reasoning controls when enabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
     const result = buildProviderOptions({
       providerId: 'anthropic',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
       providerOptionsKey: 'anthropic',
       apiType: 'anthropic',
-      modelId: 'claude-sonnet-4-5',
-      modelConfig: baseModelConfig,
+      modelId: 'claude-opus-4-7',
+      modelConfig: {
+        ...baseModelConfig,
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
       tools: [],
       messages: []
     })
@@ -57,21 +73,147 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).toMatchObject({
       toolStreaming: true,
       sendReasoning: true,
-      effort: 'high',
+      effort: 'max',
       thinking: {
-        type: 'enabled',
-        budgetTokens: 2048
+        type: 'adaptive',
+        display: 'summarized'
       }
     })
   })
 
-  it('disables anthropic beta-only options for compatible providers', () => {
+  it('maps new-api anthropic routes to official anthropic adaptive reasoning controls', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'new-api',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'claude-opus-4-7',
+      modelConfig: {
+        ...baseModelConfig,
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: true,
+      sendReasoning: true,
+      effort: 'max',
+      thinking: {
+        type: 'adaptive',
+        display: 'summarized'
+      }
+    })
+  })
+
+  it('omits adaptive anthropic controls for new-api anthropic routes when reasoning is disabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'new-api',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'claude-opus-4-7',
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: true
+    })
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
+  })
+
+  it('maps zenmux anthropic routes to official anthropic adaptive reasoning controls', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
     const result = buildProviderOptions({
       providerId: 'zenmux',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
       providerOptionsKey: 'anthropic',
       apiType: 'anthropic',
       modelId: 'anthropic/claude-sonnet-4.5',
-      modelConfig: baseModelConfig,
+      modelConfig: {
+        ...baseModelConfig,
+        reasoning: true,
+        reasoningEffort: 'xhigh',
+        reasoningVisibility: 'summarized'
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: true,
+      sendReasoning: true,
+      effort: 'xhigh',
+      thinking: {
+        type: 'adaptive',
+        display: 'summarized'
+      }
+    })
+  })
+
+  it('keeps transport-compatible anthropic providers off official anthropic adaptive reasoning controls', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'my-anthropic-proxy',
+      capabilityProviderId: 'my-anthropic-proxy',
+      supportsOfficialAnthropicReasoning: false,
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'xhigh' as const,
+        reasoningVisibility: 'summarized',
+        thinkingBudget: 4096
+      },
       tools: [],
       messages: []
     })
@@ -80,30 +222,57 @@ describe('AI SDK provider options', () => {
       toolStreaming: false,
       thinking: {
         type: 'enabled',
-        budgetTokens: 2048
+        budgetTokens: 4096
       }
     })
     expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
     expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
   })
 
-  it('disables anthropic beta-only options for custom anthropic providers', () => {
+  it('keeps aws bedrock anthropic routes on the compatible reasoning dialect', () => {
     const result = buildProviderOptions({
-      providerId: 'my-anthropic-proxy',
+      providerId: 'aws-bedrock',
+      capabilityProviderId: 'anthropic',
       providerOptionsKey: 'anthropic',
-      apiType: 'anthropic',
-      modelId: 'claude-sonnet-4-5',
+      apiType: 'bedrock',
+      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
       modelConfig: {
-        reasoningEffort: 'medium' as const
+        reasoning: true,
+        reasoningEffort: 'xhigh',
+        reasoningVisibility: 'summarized',
+        thinkingBudget: 4096
       },
       tools: [],
       messages: []
     })
 
     expect(result.providerOptions?.anthropic).toMatchObject({
-      toolStreaming: false
+      toolStreaming: false,
+      thinking: {
+        type: 'enabled',
+        budgetTokens: 4096
+      }
     })
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
     expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
+  })
+
+  it('does not emit anthropic official reasoning parameters for openrouter claude models', () => {
+    const result = buildProviderOptions({
+      providerId: 'openrouter',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'anthropic/claude-sonnet-4',
+      modelConfig: {
+        reasoning: true
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toBeUndefined()
   })
 
   it('adds doubao thinking options through providerOptions instead of monkey-patching the sdk client', () => {
@@ -117,6 +286,7 @@ describe('AI SDK provider options', () => {
 
     const result = buildProviderOptions({
       providerId: 'doubao',
+      capabilityProviderId: 'doubao',
       providerOptionsKey: 'openai',
       apiType: 'openai_chat',
       modelId: 'doubao-seed-2.0-pro',
@@ -139,6 +309,7 @@ describe('AI SDK provider options', () => {
   it('adds siliconcloud thinking flags through providerOptions for supported models', () => {
     const result = buildProviderOptions({
       providerId: 'siliconcloud',
+      capabilityProviderId: 'siliconcloud',
       providerOptionsKey: 'openai',
       apiType: 'openai_chat',
       modelId: 'Qwen/Qwen3-32B',
@@ -159,6 +330,7 @@ describe('AI SDK provider options', () => {
   it('maps grok reasoning effort to the vendor-specific body field', () => {
     const result = buildProviderOptions({
       providerId: 'grok',
+      capabilityProviderId: 'grok',
       providerOptionsKey: 'openai',
       apiType: 'openai_chat',
       modelId: 'grok-3-mini',
@@ -187,6 +359,7 @@ describe('AI SDK provider options', () => {
 
     const result = buildProviderOptions({
       providerId: 'openai',
+      capabilityProviderId: 'openai',
       providerOptionsKey: 'openai',
       apiType: 'openai_responses',
       modelId: 'gpt-5.2',
@@ -215,6 +388,7 @@ describe('AI SDK provider options', () => {
 
     const result = buildProviderOptions({
       providerId: 'openai',
+      capabilityProviderId: 'openai',
       providerOptionsKey: 'openai',
       apiType: 'openai_responses',
       modelId: 'gpt-5.4',
@@ -236,6 +410,7 @@ describe('AI SDK provider options', () => {
   it('disables vertex function-call argument streaming when no tools are present', () => {
     const result = buildProviderOptions({
       providerId: 'vertex',
+      capabilityProviderId: 'vertex',
       providerOptionsKey: 'vertex',
       apiType: 'vertex',
       modelId: 'gemini-2.5-flash',
@@ -252,6 +427,7 @@ describe('AI SDK provider options', () => {
   it('enables vertex function-call argument streaming when tools are present', () => {
     const result = buildProviderOptions({
       providerId: 'vertex',
+      capabilityProviderId: 'vertex',
       providerOptionsKey: 'vertex',
       apiType: 'vertex',
       modelId: 'gemini-2.5-flash',
@@ -284,6 +460,7 @@ describe('AI SDK provider options', () => {
   it('keeps azure responses options under the azure namespace without prompt cache keys', () => {
     const result = buildProviderOptions({
       providerId: 'azure-openai',
+      capabilityProviderId: 'azure-openai',
       providerOptionsKey: 'azure',
       apiType: 'azure_responses',
       modelId: 'my-gpt-4.1-deployment',
@@ -310,6 +487,7 @@ describe('AI SDK provider options', () => {
   it('passes through xhigh for azure responses models', () => {
     const result = buildProviderOptions({
       providerId: 'azure-openai',
+      capabilityProviderId: 'azure-openai',
       providerOptionsKey: 'azure',
       apiType: 'azure_responses',
       modelId: 'my-gpt-5.4-pro-deployment',
@@ -337,6 +515,8 @@ describe('AI SDK provider options', () => {
 
     const result = buildProviderOptions({
       providerId: 'anthropic',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
       providerOptionsKey: 'anthropic',
       apiType: 'anthropic',
       modelId: 'claude-4-sonnet',
@@ -355,6 +535,40 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
   })
 
+  it('ignores stale anthropic adaptive reasoning overrides when model reasoning is disabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'anthropic',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'claude-opus-4-7',
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: true
+    })
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
+  })
+
   it('does not send google thinking config when a budget portrait defaults to disabled', () => {
     mockGetReasoningPortrait.mockReturnValue({
       supported: true,
@@ -365,6 +579,7 @@ describe('AI SDK provider options', () => {
 
     const result = buildProviderOptions({
       providerId: 'google',
+      capabilityProviderId: 'google',
       providerOptionsKey: 'google',
       apiType: 'google',
       modelId: 'gemini-2.5-flash-lite-preview-09-2025',

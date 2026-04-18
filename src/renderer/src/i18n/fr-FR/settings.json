@@ -417,7 +417,8 @@
           "low": "Low - Faible effort",
           "medium": "Medium - Effort modéré",
           "high": "High - Effort élevé",
-          "xhigh": "XHigh - Effort maximal"
+          "xhigh": "XHigh - Effort maximal",
+          "max": "Max - Effort le plus élevé"
         }
       },
       "verbosity": {
@@ -483,6 +484,15 @@
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
           "image-generation": "Génération d'images"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "Visibilité du raisonnement",
+        "description": "Détermine si le contenu du raisonnement est masqué ou affiché sous forme de résumé lorsque le raisonnement est activé",
+        "placeholder": "Sélectionner la visibilité du raisonnement",
+        "options": {
+          "omitted": "Omitted - Cacher le contenu du raisonnement",
+          "summarized": "Summarized - Afficher un résumé du raisonnement"
         }
       }
     }

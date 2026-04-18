@@ -1,7 +1,13 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
-import { isReasoningEffort, isVerbosity, type ReasoningEffort } from '@shared/types/model-db'
+import {
+  isReasoningEffort,
+  isReasoningVisibility,
+  isVerbosity,
+  type ReasoningEffort,
+  type ReasoningVisibility
+} from '@shared/types/model-db'
 
 type DeepChatSessionGenerationSettings = Pick<
   SessionGenerationSettings,
@@ -11,6 +17,7 @@ type DeepChatSessionGenerationSettings = Pick<
   | 'maxTokens'
   | 'thinkingBudget'
   | 'reasoningEffort'
+  | 'reasoningVisibility'
   | 'verbosity'
   | 'forceInterleavedThinkingCompat'
 >
@@ -26,6 +33,7 @@ export interface DeepChatSessionRow {
   max_tokens: number | null
   thinking_budget: number | null
   reasoning_effort: ReasoningEffort | null
+  reasoning_visibility: ReasoningVisibility | null
   verbosity: 'low' | 'medium' | 'high' | null
   force_interleaved_thinking_compat: number | null
   summary_text: string | null
@@ -88,6 +96,10 @@ export class DeepChatSessionsTable extends BaseTable {
       columns.push('force_interleaved_thinking_compat INTEGER')
     }
 
+    if (version >= 20) {
+      columns.push('reasoning_visibility TEXT')
+    }
+
     return `
       CREATE TABLE IF NOT EXISTS deepchat_sessions (
         ${columns.join(',\n        ')}
@@ -119,11 +131,16 @@ export class DeepChatSessionsTable extends BaseTable {
         ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;
       `
     }
+    if (version === 20) {
+      return `
+        ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 19
+    return 20
   }
 
   create(
@@ -146,13 +163,14 @@ export class DeepChatSessionsTable extends BaseTable {
            max_tokens,
            thinking_budget,
            reasoning_effort,
+           reasoning_visibility,
            verbosity,
            force_interleaved_thinking_compat,
            summary_text,
            summary_cursor_order_seq,
            summary_updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -165,6 +183,7 @@ export class DeepChatSessionsTable extends BaseTable {
         generationSettings?.maxTokens ?? null,
         generationSettings?.thinkingBudget ?? null,
         generationSettings?.reasoningEffort ?? null,
+        generationSettings?.reasoningVisibility ?? null,
         generationSettings?.verbosity ?? null,
         generationSettings?.forceInterleavedThinkingCompat === undefined
           ? null
@@ -208,6 +227,9 @@ export class DeepChatSessionsTable extends BaseTable {
     }
     if (row.reasoning_effort !== null && isReasoningEffort(row.reasoning_effort)) {
       settings.reasoningEffort = row.reasoning_effort
+    }
+    if (row.reasoning_visibility !== null && isReasoningVisibility(row.reasoning_visibility)) {
+      settings.reasoningVisibility = row.reasoning_visibility
     }
     if (row.verbosity !== null && isVerbosity(row.verbosity)) {
       settings.verbosity = row.verbosity
@@ -256,6 +278,10 @@ export class DeepChatSessionsTable extends BaseTable {
     if (Object.prototype.hasOwnProperty.call(settings, 'reasoningEffort')) {
       updates.push('reasoning_effort = ?')
       params.push(settings.reasoningEffort ?? null)
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'reasoningVisibility')) {
+      updates.push('reasoning_visibility = ?')
+      params.push(settings.reasoningVisibility ?? null)
     }
     if (Object.prototype.hasOwnProperty.call(settings, 'verbosity')) {
       updates.push('verbosity = ?')

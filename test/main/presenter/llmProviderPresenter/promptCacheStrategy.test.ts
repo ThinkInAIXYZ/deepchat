@@ -58,6 +58,20 @@ describe('promptCacheStrategy', () => {
     })
   })
 
+  it('keeps new-api anthropic routes out of automatic anthropic cache mode', () => {
+    const plan = resolvePromptCachePlan({
+      providerId: 'new-api',
+      apiType: 'anthropic',
+      modelId: 'claude-opus-4-7',
+      messages: []
+    })
+
+    expect(plan).toEqual({
+      mode: 'disabled',
+      ttl: null
+    })
+  })
+
   it('creates a single explicit breakpoint plan for Bedrock Claude', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'aws-bedrock',

@@ -502,10 +502,11 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('summary_text')).toBe(true)
     expect(columnNames.has('summary_cursor_order_seq')).toBe(true)
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
+    expect(columnNames.has('reasoning_visibility')).toBe(true)
 
     const row = checkDb
       .prepare(
-        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat FROM deepchat_sessions WHERE id = ?'
+        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat, reasoning_visibility FROM deepchat_sessions WHERE id = ?'
       )
       .get('session-1') as
       | {
@@ -513,6 +514,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
           summary_text: string | null
           summary_cursor_order_seq: number
           force_interleaved_thinking_compat: number | null
+          reasoning_visibility: string | null
         }
       | undefined
 
@@ -520,7 +522,8 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
       system_prompt: null,
       summary_text: null,
       summary_cursor_order_seq: 1,
-      force_interleaved_thinking_compat: null
+      force_interleaved_thinking_compat: null,
+      reasoning_visibility: null
     })
     checkDb.close()
   })
@@ -602,7 +605,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     const versions = checkDb
       .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
       .all() as Array<{ version: number }>
-    expect(versions.map((entry) => entry.version)).toContain(19)
+    expect(versions.map((entry) => entry.version)).toContain(20)
     checkDb.close()
   })
 

@@ -1,4 +1,4 @@
-import type { ReasoningEffort, Verbosity } from './model-db'
+import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
 
 /**
  * Agent Interface Protocol
@@ -24,6 +24,7 @@ export interface SessionGenerationSettings {
   maxTokens: number
   thinkingBudget?: number
   reasoningEffort?: ReasoningEffort
+  reasoningVisibility?: ReasoningVisibility
   verbosity?: Verbosity
   forceInterleavedThinkingCompat?: boolean
 }

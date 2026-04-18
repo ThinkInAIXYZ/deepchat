@@ -38,6 +38,7 @@ import {
   runAiSdkCoreStream,
   runAiSdkGenerateText
 } from '@/presenter/llmProviderPresenter/aiSdk/runtime'
+import { modelCapabilities } from '@/presenter/configPresenter/modelCapabilities'
 
 describe('AI SDK runtime', () => {
   beforeEach(() => {
@@ -169,45 +170,56 @@ describe('AI SDK runtime', () => {
     expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
   })
 
-  it('omits temperature for claude-opus-4-7-think when capability data is missing', async () => {
-    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
-    const context = {
-      providerKind: 'openai-compatible',
-      provider: {
-        id: 'aihubmix',
-        apiType: 'openai-compatible'
-      },
-      configPresenter: {
-        supportsTemperatureControl: vi.fn().mockReturnValue(undefined),
-        getTemperatureCapability: vi.fn().mockReturnValue(undefined)
-      },
-      defaultHeaders: {},
-      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
-        tracePayloads.push(payload)
-      })
-    } as any
+  it.each(['anthropic/claude-opus-4-7', 'claude-opus-4-7-think'])(
+    'omits temperature when mapped capability routing disables temperature control for %s',
+    async (modelId) => {
+      const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+      const context = {
+        providerKind: 'openai-compatible',
+        provider: {
+          id: 'aihubmix',
+          apiType: 'openai-compatible'
+        },
+        configPresenter: {
+          getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
+          supportsTemperatureControl: vi.fn().mockReturnValue(false)
+        },
+        defaultHeaders: {},
+        emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+          tracePayloads.push(payload)
+        })
+      } as any
 
-    const events = []
-    for await (const event of runAiSdkCoreStream(
-      context,
-      [],
-      'claude-opus-4-7-think',
-      {
-        apiEndpoint: 'chat',
-        functionCall: false
-      } as any,
-      0.5,
-      2048,
-      []
-    )) {
-      events.push(event)
+      const events = []
+      for await (const event of runAiSdkCoreStream(
+        context,
+        [],
+        modelId,
+        {
+          apiEndpoint: 'chat',
+          functionCall: false
+        } as any,
+        0.5,
+        2048,
+        []
+      )) {
+        events.push(event)
+      }
+
+      const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
+      expect(context.configPresenter.getCapabilityProviderId).toHaveBeenCalledWith(
+        'aihubmix',
+        modelId
+      )
+      expect(context.configPresenter.supportsTemperatureControl).toHaveBeenCalledWith(
+        'anthropic',
+        modelId
+      )
+      expect(request).not.toHaveProperty('temperature')
+      expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
+      expect(events).toEqual([])
     }
-
-    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(request).not.toHaveProperty('temperature')
-    expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
-    expect(events).toEqual([])
-  })
+  )
 
   it('keeps temperature for opus 4.6 models that still support it', async () => {
     const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
@@ -240,5 +252,65 @@ describe('AI SDK runtime', () => {
     const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
     expect(request).toHaveProperty('temperature', 0.6)
     expect(tracePayloads[0]?.body).toHaveProperty('temperature', 0.6)
+  })
+
+  it('passes anthropic adaptive reasoning options through runtime context for zenmux routes', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValue({
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      model: {}
+    })
+    const portraitSpy = vi.spyOn(modelCapabilities, 'getReasoningPortrait').mockReturnValue({
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+    const context = {
+      providerKind: 'anthropic',
+      provider: {
+        id: 'zenmux',
+        apiType: 'anthropic',
+        capabilityProviderId: 'anthropic'
+      },
+      supportsOfficialAnthropicReasoning: true,
+      configPresenter: {
+        supportsTemperatureControl: vi.fn().mockReturnValue(true)
+      },
+      defaultHeaders: {}
+    } as any
+
+    await runAiSdkGenerateText(
+      context,
+      [],
+      'anthropic/claude-opus-4-7',
+      {
+        apiEndpoint: 'chat',
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      } as any,
+      0.6,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+
+    expect(portraitSpy).toHaveBeenCalledWith('anthropic', 'anthropic/claude-opus-4-7')
+    expect(request.providerOptions).toMatchObject({
+      anthropic: {
+        toolStreaming: true,
+        sendReasoning: true,
+        effort: 'max',
+        thinking: {
+          type: 'adaptive',
+          display: 'summarized'
+        }
+      }
+    })
+
+    portraitSpy.mockRestore()
   })
 })

@@ -1,4 +1,9 @@
-import { ApiEndpointType, ModelType, isNewApiEndpointType } from '@shared/model'
+import {
+  ApiEndpointType,
+  ModelType,
+  isNewApiEndpointType,
+  resolveProviderCapabilityProviderId
+} from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import {
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
@@ -9,8 +14,11 @@ import {
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
 import {
+  hasAnthropicReasoningToggle,
   isImageInputSupported,
+  normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
+  normalizeReasoningVisibilityValue,
   ProviderModel,
   ReasoningPortrait,
   isVerbosity,
@@ -115,6 +123,7 @@ export class ModelConfigHelper {
 
   private buildConfigFromProviderModel(model: ProviderModel, providerId: string): ModelConfig {
     const portrait = modelCapabilities.getReasoningPortrait(providerId, model.id)
+    const capabilityProviderId = resolveProviderCapabilityProviderId(providerId, null, model.id)
     const reasoningEnabled =
       portrait?.defaultEnabled ?? model.reasoning?.default ?? portrait?.supported ?? false
     const thinkingBudget =
@@ -124,6 +133,10 @@ export class ModelConfigHelper {
       portrait,
       portrait?.effort ?? model.reasoning?.effort
     )
+    const reasoningVisibility = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
+      ? (normalizeAnthropicReasoningVisibilityValue(portrait?.visibility) ??
+        normalizeReasoningVisibilityValue(portrait?.visibility))
+      : normalizeReasoningVisibilityValue(portrait?.visibility)
     const verbosity = normalizeVerbosityValue(
       portrait,
       portrait?.verbosity ?? model.reasoning?.verbosity
@@ -140,6 +153,7 @@ export class ModelConfigHelper {
       thinkingBudget,
       forceInterleavedThinkingCompat,
       reasoningEffort,
+      reasoningVisibility,
       verbosity,
       enableSearch: Boolean(model.search?.supported ?? false),
       forcedSearch: Boolean(model.search?.forced_search ?? false),

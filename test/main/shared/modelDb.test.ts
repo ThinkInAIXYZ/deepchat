@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   getReasoningControlMode,
+  getReasoningControlModeForProvider,
   getReasoningEffectiveEnabled,
+  getReasoningEffectiveEnabledForProvider,
+  normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
   sanitizeAggregate,
   type ReasoningPortrait
@@ -169,6 +172,40 @@ describe('sanitizeAggregate', () => {
     })
   })
 
+  it('preserves anthropic adaptive visibility defaults and max effort options', () => {
+    const aggregate = sanitizeAggregate({
+      providers: {
+        anthropic: {
+          id: 'anthropic',
+          models: [
+            {
+              id: 'claude-opus-4-7',
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: false,
+                  mode: 'effort',
+                  effort: 'high',
+                  effort_options: ['low', 'medium', 'high', 'xhigh', 'max'],
+                  visibility: 'omitted'
+                }
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(aggregate?.providers.anthropic.models[0].extra_capabilities?.reasoning).toMatchObject({
+      supported: true,
+      default_enabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effort_options: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    })
+  })
+
   it('treats supported reasoning separately from default-enabled effort portraits', () => {
     const portrait: ReasoningPortrait = {
       supported: true,
@@ -207,5 +244,32 @@ describe('sanitizeAggregate', () => {
         reasoningEffort: 'low'
       })
     ).toBe(true)
+  })
+
+  it('treats official anthropic effort portraits as toggle-backed reasoning controls', () => {
+    const portrait: ReasoningPortrait = {
+      supported: true,
+      defaultEnabled: false,
+      mode: 'effort',
+      effort: 'high',
+      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+      visibility: 'omitted'
+    }
+
+    expect(getReasoningControlModeForProvider('anthropic', portrait)).toBe('toggle')
+    expect(
+      getReasoningEffectiveEnabledForProvider('anthropic', portrait, {
+        reasoning: false,
+        reasoningEffort: 'max'
+      })
+    ).toBe(false)
+    expect(
+      getReasoningEffectiveEnabledForProvider('anthropic', portrait, {
+        reasoning: true,
+        reasoningEffort: 'max'
+      })
+    ).toBe(true)
+    expect(normalizeAnthropicReasoningVisibilityValue('hidden')).toBe('omitted')
+    expect(normalizeAnthropicReasoningVisibilityValue('summary')).toBe('summarized')
   })
 })

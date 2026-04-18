@@ -9,7 +9,8 @@ export const REASONING_EFFORT_VALUES = [
   'low',
   'medium',
   'high',
-  'xhigh'
+  'xhigh',
+  'max'
 ] as const
 export const ReasoningEffortSchema = z.enum(REASONING_EFFORT_VALUES)
 export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
@@ -26,8 +27,18 @@ export type Verbosity = z.infer<typeof VerbositySchema>
 export const ReasoningModeSchema = z.enum(['budget', 'effort', 'level', 'fixed', 'mixed'])
 export type ReasoningMode = z.infer<typeof ReasoningModeSchema>
 
-export const ReasoningVisibilitySchema = z.enum(['hidden', 'summary', 'full', 'mixed'])
+export const REASONING_VISIBILITY_VALUES = [
+  'hidden',
+  'summary',
+  'full',
+  'mixed',
+  'omitted',
+  'summarized'
+] as const
+export const ANTHROPIC_REASONING_VISIBILITY_VALUES = ['omitted', 'summarized'] as const
+export const ReasoningVisibilitySchema = z.enum(REASONING_VISIBILITY_VALUES)
 export type ReasoningVisibility = z.infer<typeof ReasoningVisibilitySchema>
+export type AnthropicReasoningVisibility = (typeof ANTHROPIC_REASONING_VISIBILITY_VALUES)[number]
 
 export const ReasoningSchema = z
   .object({
@@ -174,6 +185,30 @@ export const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
 export const isVerbosity = (value: unknown): value is Verbosity =>
   VerbositySchema.safeParse(value).success
 
+export const isReasoningVisibility = (value: unknown): value is ReasoningVisibility =>
+  ReasoningVisibilitySchema.safeParse(value).success
+
+export const normalizeReasoningVisibilityValue = (
+  value: unknown
+): ReasoningVisibility | undefined => {
+  return isReasoningVisibility(value) ? value : undefined
+}
+
+export const normalizeAnthropicReasoningVisibilityValue = (
+  value: unknown
+): AnthropicReasoningVisibility | undefined => {
+  switch (value) {
+    case 'hidden':
+    case 'omitted':
+      return 'omitted'
+    case 'summary':
+    case 'summarized':
+      return 'summarized'
+    default:
+      return undefined
+  }
+}
+
 const canResolveReasoningEffortFromPortrait = (
   portrait: ReasoningPortrait | null | undefined
 ): boolean =>
@@ -219,9 +254,33 @@ export const getReasoningControlMode = (
   return portrait?.mode === undefined || portrait.mode === 'budget' ? 'toggle' : 'indicator'
 }
 
+export const hasAnthropicReasoningToggle = (
+  providerId: string | null | undefined,
+  portrait: ReasoningPortrait | null | undefined
+): boolean =>
+  providerId?.trim().toLowerCase() === 'anthropic' &&
+  supportsReasoningCapability(portrait) &&
+  portrait?.mode === 'effort'
+
+export const getReasoningControlModeForProvider = (
+  providerId: string | null | undefined,
+  portrait: ReasoningPortrait | null | undefined
+): ReasoningControlMode => {
+  if (hasAnthropicReasoningToggle(providerId, portrait)) {
+    return 'toggle'
+  }
+
+  return getReasoningControlMode(portrait)
+}
+
 export const hasIndependentReasoningToggle = (
   portrait: ReasoningPortrait | null | undefined
 ): boolean => getReasoningControlMode(portrait) === 'toggle'
+
+export const hasIndependentReasoningToggleForProvider = (
+  providerId: string | null | undefined,
+  portrait: ReasoningPortrait | null | undefined
+): boolean => getReasoningControlModeForProvider(providerId, portrait) === 'toggle'
 
 export const getReasoningEffectiveEnabled = (
   portrait: ReasoningPortrait | null | undefined,
@@ -256,6 +315,21 @@ export const getReasoningEffectiveEnabled = (
   }
 
   return portrait.defaultEnabled ?? true
+}
+
+export const getReasoningEffectiveEnabledForProvider = (
+  providerId: string | null | undefined,
+  portrait: ReasoningPortrait | null | undefined,
+  state: {
+    reasoning?: boolean | null
+    reasoningEffort?: unknown
+  } = {}
+): boolean => {
+  if (hasAnthropicReasoningToggle(providerId, portrait)) {
+    return state.reasoning ?? portrait?.defaultEnabled ?? true
+  }
+
+  return getReasoningEffectiveEnabled(portrait, state)
 }
 
 // ---------- Helpers ----------

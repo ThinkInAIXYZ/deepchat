@@ -263,7 +263,7 @@
           </div>
 
           <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
-          <div v-if="supportsReasoningEffort" class="space-y-2">
+          <div v-if="showReasoningEffort" class="space-y-2">
             <Label for="reasoningEffort">{{
               t('settings.model.modelConfig.reasoningEffort.label')
             }}</Label>
@@ -285,6 +285,31 @@
             </Select>
             <p class="text-xs text-muted-foreground">
               {{ t('settings.model.modelConfig.reasoningEffort.description') }}
+            </p>
+          </div>
+
+          <div v-if="showReasoningVisibility" class="space-y-2">
+            <Label for="reasoningVisibility">{{
+              t('settings.model.modelConfig.reasoningVisibility.label')
+            }}</Label>
+            <Select v-model="config.reasoningVisibility">
+              <SelectTrigger>
+                <SelectValue
+                  :placeholder="t('settings.model.modelConfig.reasoningVisibility.placeholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in reasoningVisibilityOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.reasoningVisibility.description') }}
             </p>
           </div>
 
@@ -417,16 +442,21 @@ import {
   ModelType,
   NEW_API_ENDPOINT_TYPES,
   isNewApiEndpointType,
+  resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
 import {
+  ANTHROPIC_REASONING_VISIBILITY_VALUES,
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
-  getReasoningControlMode,
-  getReasoningEffectiveEnabled,
+  getReasoningControlModeForProvider,
+  getReasoningEffectiveEnabledForProvider,
+  hasAnthropicReasoningToggle,
   isReasoningEffort,
+  normalizeAnthropicReasoningVisibilityValue,
   isVerbosity,
   normalizeReasoningEffortValue,
+  type AnthropicReasoningVisibility,
   supportsReasoningCapability,
   type ReasoningEffort,
   type ReasoningPortrait
@@ -496,6 +526,7 @@ const providerStore = useProviderStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
 const configPresenter = usePresenter('configPresenter')
 const providerIdLower = computed(() => props.providerId?.toLowerCase() || '')
+const capabilityProviderId = ref(props.providerId)
 const currentProvider = computed(() =>
   providerStore.providers.find((provider) => provider.id === props.providerId)
 )
@@ -548,6 +579,7 @@ const createDefaultConfig = (): ModelConfig => ({
   apiEndpoint: ApiEndpointType.Chat,
   endpointType: undefined,
   reasoningEffort: 'medium',
+  reasoningVisibility: undefined,
   verbosity: 'medium'
 })
 
@@ -618,6 +650,14 @@ const getVerbosityOptions = (
   }
   return isVerbosity(portrait?.verbosity) ? [...DEFAULT_VERBOSITY_OPTIONS] : []
 }
+
+const getReasoningVisibilityOptions = (
+  providerId: string,
+  portrait: ReasoningPortrait | null | undefined
+): AnthropicReasoningVisibility[] =>
+  hasAnthropicReasoningToggle(providerId, portrait)
+    ? [...ANTHROPIC_REASONING_VISIBILITY_VALUES]
+    : []
 
 const hasReasoningEffortSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
   supportsReasoningCapability(portrait) && getReasoningEffortOptions(portrait).length > 0
@@ -704,8 +744,13 @@ const capabilitySupportsEffort = ref<boolean | null>(null)
 const capabilityEffortDefault = ref<ReasoningEffort | undefined>(undefined)
 const capabilitySupportsVerbosity = ref<boolean | null>(null)
 const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
+const capabilityReasoningVisibilityDefault = ref<AnthropicReasoningVisibility | undefined>(
+  undefined
+)
 
 const fetchCapabilities = async () => {
+  syncCapabilityProviderId()
+
   if (!props.providerId || !props.modelId) {
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
@@ -715,6 +760,7 @@ const fetchCapabilities = async () => {
     capabilityEffortDefault.value = undefined
     capabilitySupportsVerbosity.value = null
     capabilityVerbosityDefault.value = undefined
+    capabilityReasoningVisibilityDefault.value = undefined
     return
   }
   try {
@@ -745,6 +791,9 @@ const fetchCapabilities = async () => {
     capabilityEffortDefault.value = normalizeReasoningEffortValue(portrait, portrait?.effort)
     capabilitySupportsVerbosity.value = hasVerbositySupport(portrait)
     capabilityVerbosityDefault.value = normalizeVerbosityValue(portrait, portrait?.verbosity)
+    capabilityReasoningVisibilityDefault.value = normalizeAnthropicReasoningVisibilityValue(
+      portrait?.visibility
+    )
   } catch {
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
@@ -754,6 +803,7 @@ const fetchCapabilities = async () => {
     capabilityEffortDefault.value = undefined
     capabilitySupportsVerbosity.value = null
     capabilityVerbosityDefault.value = undefined
+    capabilityReasoningVisibilityDefault.value = undefined
   }
 }
 
@@ -783,6 +833,21 @@ const providerModelMeta = computed(() => {
     null
   )
 })
+
+const syncCapabilityProviderId = () => {
+  capabilityProviderId.value = resolveProviderCapabilityProviderId(
+    props.providerId,
+    {
+      endpointType: isNewApiEndpointType(config.value.endpointType)
+        ? config.value.endpointType
+        : providerModelMeta.value?.endpointType,
+      supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+      type: config.value.type ?? providerModelMeta.value?.type,
+      providerApiType: currentProvider.value?.apiType
+    },
+    currentModelLookupId.value
+  )
+}
 
 const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
   const supportedEndpointTypes = providerModelMeta.value?.supportedEndpointTypes
@@ -928,6 +993,21 @@ const loadConfig = async () => {
     )
     if (supportsVerbosity.value) {
       config.value.verbosity = normalizedVerbosity
+    }
+
+    if (supportsReasoningVisibility.value) {
+      config.value.reasoningVisibility =
+        normalizeAnthropicReasoningVisibilityValue(config.value.reasoningVisibility) ??
+        capabilityReasoningVisibilityDefault.value
+    }
+  }
+
+  if (supportsReasoningVisibility.value) {
+    const normalizedVisibility = normalizeAnthropicReasoningVisibilityValue(
+      config.value.reasoningVisibility
+    )
+    if (normalizedVisibility) {
+      config.value.reasoningVisibility = normalizedVisibility
     }
   }
 
@@ -1108,10 +1188,16 @@ watch(
   () => [config.value.endpointType, config.value.type, showEndpointTypeSelector.value],
   () => {
     syncNewApiDerivedFields()
+    syncCapabilityProviderId()
   }
 )
 
 const supportsVerbosity = computed(() => capabilitySupportsVerbosity.value === true)
+const supportsReasoningVisibility = computed(
+  () =>
+    getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value)
+      .length > 0
+)
 
 const isDeepSeekV31Model = computed(() => {
   const modelId = props.modelId.toLowerCase()
@@ -1120,6 +1206,15 @@ const isDeepSeekV31Model = computed(() => {
 
 const supportsReasoningEffort = computed(() =>
   hasReasoningEffortSupport(capabilityReasoningPortrait.value)
+)
+const showReasoningEffort = computed(
+  () =>
+    supportsReasoningEffort.value &&
+    (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
+      Boolean(config.value.reasoning))
+)
+const showReasoningVisibility = computed(
+  () => supportsReasoningVisibility.value && Boolean(config.value.reasoning)
 )
 const supportsTemperatureControl = computed(() => capabilitySupportsTemperature.value !== false)
 const showTemperatureControl = computed(
@@ -1131,7 +1226,10 @@ const reasoningToggleMode = computed(() => {
   }
 
   if (capabilityReasoningPortrait.value) {
-    return getReasoningControlMode(capabilityReasoningPortrait.value)
+    return getReasoningControlModeForProvider(
+      capabilityProviderId.value,
+      capabilityReasoningPortrait.value
+    )
   }
 
   return capabilitySupportsReasoning.value === false
@@ -1169,12 +1267,24 @@ const verbosityOptions = computed(() =>
     label: t(`settings.model.modelConfig.verbosity.options.${value}`)
   }))
 )
+const reasoningVisibilityOptions = computed(() =>
+  getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value).map(
+    (value) => ({
+      value,
+      label: t(`settings.model.modelConfig.reasoningVisibility.options.${value}`)
+    })
+  )
+)
 
 const showThinkingBudget = computed(() => {
-  const hasReasoning = getReasoningEffectiveEnabled(capabilityReasoningPortrait.value, {
-    reasoning: config.value.reasoning,
-    reasoningEffort: config.value.reasoningEffort
-  })
+  const hasReasoning = getReasoningEffectiveEnabledForProvider(
+    capabilityProviderId.value,
+    capabilityReasoningPortrait.value,
+    {
+      reasoning: config.value.reasoning,
+      reasoningEffort: config.value.reasoningEffort
+    }
+  )
   const supported = supportsReasoningCapability(capabilityReasoningPortrait.value)
   const hasRange = hasThinkingBudgetSupport(capabilityReasoningPortrait.value)
   return hasReasoning && supported && hasRange
@@ -1196,6 +1306,28 @@ watch(
   () => [props.providerId, props.modelId, props.open],
   async () => {
     if (props.open) await fetchCapabilities()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [props.providerId, currentModelLookupId.value, providerModelMeta.value?.id],
+  () => {
+    syncCapabilityProviderId()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [capabilityProviderId.value, capabilityReasoningPortrait.value, config.value.reasoning],
+  () => {
+    if (
+      supportsReasoningVisibility.value &&
+      !config.value.reasoningVisibility &&
+      Boolean(config.value.reasoning)
+    ) {
+      config.value.reasoningVisibility = capabilityReasoningVisibilityDefault.value ?? 'omitted'
+    }
   },
   { immediate: true }
 )

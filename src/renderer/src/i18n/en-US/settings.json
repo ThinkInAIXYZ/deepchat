@@ -479,7 +479,8 @@
           "low": "Low - Low effort",
           "medium": "Medium - Moderate effort",
           "high": "High - High effort",
-          "xhigh": "XHigh - Maximum effort"
+          "xhigh": "XHigh - Maximum effort",
+          "max": "Max - Maximum effort"
         }
       },
       "verbosity": {
@@ -545,6 +546,15 @@
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
           "image-generation": "Image Generation"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "Reasoning Visibility",
+        "description": "Controls whether reasoning content is omitted or shown as summarized notes when reasoning is enabled",
+        "placeholder": "Select reasoning visibility",
+        "options": {
+          "omitted": "Omitted - Hide reasoning content",
+          "summarized": "Summarized - Show summarized reasoning"
         }
       }
     }

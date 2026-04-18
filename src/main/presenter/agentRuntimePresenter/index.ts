@@ -28,9 +28,12 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
-  getReasoningEffectiveEnabled,
+  getReasoningEffectiveEnabledForProvider,
+  hasAnthropicReasoningToggle,
   isReasoningEffort,
+  normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
+  normalizeReasoningVisibilityValue,
   isVerbosity
 } from '@shared/types/model-db'
 import {
@@ -116,6 +119,7 @@ type PersistedSessionGenerationRow = {
   max_tokens: number | null
   thinking_budget: number | null
   reasoning_effort: SessionGenerationSettings['reasoningEffort'] | null
+  reasoning_visibility: SessionGenerationSettings['reasoningVisibility'] | null
   verbosity: SessionGenerationSettings['verbosity'] | null
   force_interleaved_thinking_compat: number | null
 }
@@ -1484,6 +1488,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       providedInterleavedReasoning ??
       this.resolveInterleavedReasoningConfig(state.providerId, state.modelId, generationSettings)
     const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+    const capabilityProviderId = this.resolveCapabilityProviderId(state.providerId, state.modelId)
     const reasoningPortrait = this.getReasoningPortrait(state.providerId, state.modelId)
     const modelConfig: ModelConfig = {
       ...baseModelConfig,
@@ -1492,8 +1497,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       maxTokens: generationSettings.maxTokens,
       thinkingBudget: generationSettings.thinkingBudget,
       reasoningEffort: generationSettings.reasoningEffort,
+      reasoningVisibility: generationSettings.reasoningVisibility,
       verbosity: generationSettings.verbosity,
-      reasoning: getReasoningEffectiveEnabled(reasoningPortrait, {
+      reasoning: getReasoningEffectiveEnabledForProvider(capabilityProviderId, reasoningPortrait, {
         reasoning: baseModelConfig.reasoning,
         reasoningEffort: generationSettings.reasoningEffort ?? baseModelConfig.reasoningEffort
       }),
@@ -2544,6 +2550,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (sessionRow.reasoning_effort !== null) {
       patch.reasoningEffort = sessionRow.reasoning_effort
     }
+    if (sessionRow.reasoning_visibility !== null) {
+      const reasoningVisibility = this.normalizeReasoningVisibility(
+        sessionRow.provider_id,
+        sessionRow.model_id,
+        sessionRow.reasoning_visibility
+      )
+      if (reasoningVisibility) {
+        patch.reasoningVisibility = reasoningVisibility
+      }
+    }
     if (sessionRow.verbosity !== null) {
       patch.verbosity = sessionRow.verbosity
     }
@@ -2578,6 +2594,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (Object.prototype.hasOwnProperty.call(requestedPatch, 'reasoningEffort')) {
       patch.reasoningEffort = sanitized.reasoningEffort
     }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'reasoningVisibility')) {
+      patch.reasoningVisibility = sanitized.reasoningVisibility
+    }
     if (Object.prototype.hasOwnProperty.call(requestedPatch, 'verbosity')) {
       patch.verbosity = sanitized.verbosity
     }
@@ -2598,6 +2617,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       maxTokens: settings.maxTokens,
       thinkingBudget: settings.thinkingBudget,
       reasoningEffort: settings.reasoningEffort,
+      reasoningVisibility: settings.reasoningVisibility,
       verbosity: settings.verbosity,
       forceInterleavedThinkingCompat: settings.forceInterleavedThinkingCompat
     }
@@ -2609,6 +2629,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
     const portrait = this.getReasoningPortrait(providerId, modelId)
+    const capabilityProviderId = this.resolveCapabilityProviderId(providerId, modelId)
+    const anthropicReasoningToggle = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
+    const anthropicReasoningEnabled = anthropicReasoningToggle
+      ? getReasoningEffectiveEnabledForProvider(capabilityProviderId, portrait, {
+          reasoning: modelConfig.reasoning,
+          reasoningEffort: modelConfig.reasoningEffort
+        })
+      : true
     const defaultSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
     const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
     const maxTokensDefault =
@@ -2648,13 +2676,25 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const supportsEffort =
       this.configPresenter.supportsReasoningEffortCapability?.(providerId, modelId) === true
-    if (supportsEffort) {
+    if (supportsEffort && (!anthropicReasoningToggle || anthropicReasoningEnabled)) {
       const rawEffort =
         modelConfig.reasoningEffort ??
         this.configPresenter.getReasoningEffortDefault?.(providerId, modelId)
       const normalizedEffort = this.normalizeReasoningEffort(providerId, modelId, rawEffort)
       if (normalizedEffort) {
         defaults.reasoningEffort = normalizedEffort
+      }
+    }
+
+    if (anthropicReasoningToggle && anthropicReasoningEnabled) {
+      const rawVisibility = modelConfig.reasoningVisibility ?? portrait?.visibility
+      const normalizedVisibility = this.normalizeReasoningVisibility(
+        providerId,
+        modelId,
+        rawVisibility
+      )
+      if (normalizedVisibility) {
+        defaults.reasoningVisibility = normalizedVisibility
       }
     }
 
@@ -2678,6 +2718,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     patch: Partial<SessionGenerationSettings>,
     baseSettings?: SessionGenerationSettings
   ): Promise<SessionGenerationSettings> {
+    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const portrait = this.getReasoningPortrait(providerId, modelId)
+    const capabilityProviderId = this.resolveCapabilityProviderId(providerId, modelId)
+    const anthropicReasoningToggle = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
+    const anthropicReasoningEnabled = anthropicReasoningToggle
+      ? getReasoningEffectiveEnabledForProvider(capabilityProviderId, portrait, {
+          reasoning: modelConfig.reasoning,
+          reasoningEffort: modelConfig.reasoningEffort
+        })
+      : true
     const base = baseSettings
       ? { ...baseSettings }
       : await this.buildDefaultGenerationSettings(providerId, modelId)
@@ -2748,7 +2798,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const supportsEffort =
       this.configPresenter.supportsReasoningEffortCapability?.(providerId, modelId) === true
-    if (supportsEffort) {
+    if (supportsEffort && (!anthropicReasoningToggle || anthropicReasoningEnabled)) {
       const fromPatch = Object.prototype.hasOwnProperty.call(patch, 'reasoningEffort')
         ? patch.reasoningEffort
         : next.reasoningEffort
@@ -2763,6 +2813,26 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     } else {
       delete next.reasoningEffort
+    }
+
+    if (anthropicReasoningToggle && anthropicReasoningEnabled) {
+      const fromPatch = Object.prototype.hasOwnProperty.call(patch, 'reasoningVisibility')
+        ? patch.reasoningVisibility
+        : next.reasoningVisibility
+      const defaultVisibility = this.normalizeReasoningVisibility(
+        providerId,
+        modelId,
+        modelConfig.reasoningVisibility ?? portrait?.visibility
+      )
+      const normalizedVisibility =
+        this.normalizeReasoningVisibility(providerId, modelId, fromPatch) ?? defaultVisibility
+      if (normalizedVisibility) {
+        next.reasoningVisibility = normalizedVisibility
+      } else {
+        delete next.reasoningVisibility
+      }
+    } else {
+      delete next.reasoningVisibility
     }
 
     const supportsVerbosity =
@@ -2840,6 +2910,27 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return normalizeReasoningEffortValue(portrait, normalizedValue)
   }
 
+  private normalizeReasoningVisibility(
+    providerId: string,
+    modelId: string | undefined,
+    value: unknown
+  ): SessionGenerationSettings['reasoningVisibility'] | undefined {
+    if (!modelId) {
+      return (
+        normalizeAnthropicReasoningVisibilityValue(value) ??
+        normalizeReasoningVisibilityValue(value)
+      )
+    }
+
+    const portrait = this.getReasoningPortrait(providerId, modelId)
+    const capabilityProviderId = this.resolveCapabilityProviderId(providerId, modelId)
+    if (hasAnthropicReasoningToggle(capabilityProviderId, portrait)) {
+      return normalizeAnthropicReasoningVisibilityValue(value) ?? 'omitted'
+    }
+
+    return normalizeReasoningVisibilityValue(value)
+  }
+
   private normalizeVerbosity(
     providerId: string,
     modelId: string,
@@ -2870,6 +2961,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     return this.configPresenter.getReasoningPortrait?.(providerId, modelId) ?? null
+  }
+
+  private resolveCapabilityProviderId(providerId: string, modelId: string | undefined): string {
+    if (!modelId) {
+      return providerId
+    }
+
+    return this.configPresenter.getCapabilityProviderId?.(providerId, modelId) ?? providerId
   }
 
   private async ensureSessionReadyForPendingInputMutation(sessionId: string): Promise<void> {

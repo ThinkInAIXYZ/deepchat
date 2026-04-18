@@ -417,7 +417,8 @@
           "low": "Low - 낮은 노력",
           "medium": "Medium - 중간 노력",
           "high": "High - 높은 노력",
-          "xhigh": "XHigh - 최대 노력"
+          "xhigh": "XHigh - 최대 노력",
+          "max": "Max - 가장 높은 노력 수준"
         }
       },
       "verbosity": {
@@ -483,6 +484,15 @@
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
           "image-generation": "이미지 생성"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "추론 내용 표시",
+        "description": "추론을 활성화했을 때 추론 내용을 숨길지, 요약 형태로 표시할지 제어합니다",
+        "placeholder": "추론 내용 표시 방식을 선택하세요",
+        "options": {
+          "omitted": "Omitted - 추론 내용을 표시하지 않음",
+          "summarized": "Summarized - 추론 요약을 표시함"
         }
       }
     }

@@ -5,7 +5,7 @@ import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
 import { ApiEndpointType, ModelType } from '@shared/model'
-import type { ReasoningEffort, Verbosity } from '../model-db'
+import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
 import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import type { AcpConfigState } from './llmprovider.presenter'
@@ -165,6 +165,7 @@ export interface ModelConfig {
   forceInterleavedThinkingCompat?: boolean
   // New parameters for GPT-5 series
   reasoningEffort?: ReasoningEffort
+  reasoningVisibility?: ReasoningVisibility
   verbosity?: Verbosity
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
   conversationId?: string
@@ -517,6 +518,7 @@ export interface IConfigPresenter {
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
   getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
+  getCapabilityProviderId?(providerId: string, modelId: string): string
   supportsReasoningCapability?(providerId: string, modelId: string): boolean
   getReasoningPortrait?(providerId: string, modelId: string): ReasoningPortrait | null
   getThinkingBudgetRange?(

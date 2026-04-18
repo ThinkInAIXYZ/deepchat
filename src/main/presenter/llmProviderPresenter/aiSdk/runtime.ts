@@ -21,6 +21,7 @@ import { adaptAiSdkStream } from './streamAdapter'
 export interface AiSdkRuntimeContext {
   providerKind: AiSdkProviderKind
   provider: LLM_PROVIDER
+  supportsOfficialAnthropicReasoning?: boolean
   configPresenter: IConfigPresenter
   defaultHeaders: Record<string, string>
   buildLegacyFunctionCallPrompt?: (tools: MCPToolDefinition[]) => string
@@ -38,19 +39,21 @@ export interface AiSdkRuntimeContext {
   shouldUseImageGeneration?: (modelId: string, modelConfig: ModelConfig) => boolean
 }
 
-const ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN = /^claude-opus-4-7(?:$|-think$)/
+function resolveCapabilityProviderId(context: AiSdkRuntimeContext, modelId: string): string {
+  const resolvedProviderId = context.configPresenter.getCapabilityProviderId?.(
+    context.provider.id,
+    modelId
+  )
 
-function hasAnthropicTemperatureFallback(modelId: string): boolean {
-  const normalizedModelId = modelId.toLowerCase()
-  const unprefixedModelId = normalizedModelId.includes('/')
-    ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
-    : normalizedModelId
+  if (typeof resolvedProviderId === 'string' && resolvedProviderId.trim().length > 0) {
+    return resolvedProviderId
+  }
 
-  return ANTHROPIC_TEMPERATURE_UNSUPPORTED_MODEL_PATTERN.test(unprefixedModelId)
+  return context.provider.capabilityProviderId || context.provider.id
 }
 
 function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId: string): boolean {
-  const capabilityProviderId = context.provider.capabilityProviderId || context.provider.id
+  const capabilityProviderId = resolveCapabilityProviderId(context, modelId)
   const directSupport = context.configPresenter.supportsTemperatureControl?.(
     capabilityProviderId,
     modelId
@@ -65,10 +68,6 @@ function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId
   )
   if (typeof directCapability === 'boolean') {
     return directCapability
-  }
-
-  if (hasAnthropicTemperatureFallback(modelId)) {
-    return false
   }
 
   return true
@@ -151,6 +150,7 @@ async function buildPromptRuntime(
   tools: MCPToolDefinition[]
 ) {
   const supportsNativeTools = resolveSupportsNativeTools(context, modelId, modelConfig)
+  const capabilityProviderId = resolveCapabilityProviderId(context, modelId)
   const providerContext = createAiSdkProviderContext({
     providerKind: context.providerKind,
     provider: context.provider,
@@ -167,6 +167,8 @@ async function buildPromptRuntime(
   const toolsMap = supportsNativeTools ? mcpToolsToAISDKTools(tools) : {}
   const providerOptionResult = buildProviderOptions({
     providerId: context.provider.id,
+    capabilityProviderId,
+    supportsOfficialAnthropicReasoning: context.supportsOfficialAnthropicReasoning,
     providerOptionsKey: providerContext.providerOptionsKey,
     apiType: providerContext.apiType,
     modelId,
