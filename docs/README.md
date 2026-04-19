@@ -50,20 +50,23 @@ Renderer
 
 ## 下一阶段主内核重构规划
 
-以下文档描述的是下一阶段目标架构，不代表当前代码已经完成迁移：
+以下文档描述的是收敛后的下一阶段方案。
+
+重点不再是一次性交付完整 `Clean Main Kernel`，而是优先解决 renderer-main 边界、hot path
+减耦、lifecycle owner 和可测试性问题。它们描述的是目标迁移方向，不代表当前代码已经完成切换：
 
 | 位置 | 内容 |
 | --- | --- |
-| [docs/specs/main-kernel-refactor/spec.md](./specs/main-kernel-refactor/spec.md) | `Clean Main Kernel + Typed Bridge` 的目标、范围、约束 |
-| [docs/specs/main-kernel-refactor/plan.md](./specs/main-kernel-refactor/plan.md) | 分阶段执行顺序、slice 切换策略与风险控制 |
+| [docs/specs/main-kernel-refactor/spec.md](./specs/main-kernel-refactor/spec.md) | 收敛后方案的目标、范围、非目标与成功标准 |
+| [docs/specs/main-kernel-refactor/plan.md](./specs/main-kernel-refactor/plan.md) | 以边界稳定和热路径减耦为主的阶段计划 |
 | [docs/specs/main-kernel-refactor/tasks.md](./specs/main-kernel-refactor/tasks.md) | 项目级任务清单与阶段状态 |
-| [docs/specs/main-kernel-refactor/acceptance.md](./specs/main-kernel-refactor/acceptance.md) | 阶段验收口径与最终收口标准 |
-| [docs/specs/main-kernel-refactor/test-plan.md](./specs/main-kernel-refactor/test-plan.md) | 分层测试方案与 smoke matrix |
-| [docs/specs/main-kernel-refactor/migration-governance.md](./specs/main-kernel-refactor/migration-governance.md) | 避免半新半旧长期共存的实施纪律、bridge 规则与 scoreboard |
-| [docs/specs/main-kernel-refactor/build-vs-buy.md](./specs/main-kernel-refactor/build-vs-buy.md) | 哪些能力引库、哪些能力自写，以及第三方依赖的边界 |
-| [docs/specs/main-kernel-refactor/ports-and-scheduler.md](./specs/main-kernel-refactor/ports-and-scheduler.md) | `port` 的职责边界、legacy -> port 映射，以及 `Scheduler` 的定位 |
-| [docs/specs/main-kernel-refactor/route-schema-catalog.md](./specs/main-kernel-refactor/route-schema-catalog.md) | route registry、common schema、typed event 与首批能力目录 |
-| [docs/specs/main-kernel-refactor/eventbus-migration.md](./specs/main-kernel-refactor/eventbus-migration.md) | EventBus 新旧位置、事件分类与迁移映射 |
+| [docs/specs/main-kernel-refactor/acceptance.md](./specs/main-kernel-refactor/acceptance.md) | 阶段验收口径与本轮最终收口标准 |
+| [docs/specs/main-kernel-refactor/test-plan.md](./specs/main-kernel-refactor/test-plan.md) | 围绕 migrated path 的测试分层与 smoke matrix |
+| [docs/specs/main-kernel-refactor/migration-governance.md](./specs/main-kernel-refactor/migration-governance.md) | 防止双轨失控的实施纪律、bridge 规则与 scoreboard |
+| [docs/specs/main-kernel-refactor/build-vs-buy.md](./specs/main-kernel-refactor/build-vs-buy.md) | 本轮哪些能力引库、哪些能力保持本地实现 |
+| [docs/specs/main-kernel-refactor/ports-and-scheduler.md](./specs/main-kernel-refactor/ports-and-scheduler.md) | 最小必要 port 集合与 `Scheduler` 的定位 |
+| [docs/specs/main-kernel-refactor/route-schema-catalog.md](./specs/main-kernel-refactor/route-schema-catalog.md) | migrated path 的 route registry、schema 和 typed event 目录 |
+| [docs/specs/main-kernel-refactor/eventbus-migration.md](./specs/main-kernel-refactor/eventbus-migration.md) | 本轮对 typed UI event 和 legacy EventBus 的收敛策略 |
 
 ## 活跃架构地图
 

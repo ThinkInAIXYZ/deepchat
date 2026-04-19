@@ -2,212 +2,85 @@
 
 ## Planning Goal
 
-本计划定义从当前 `presenter` 主导结构，迁移到 `Clean Main Kernel + Typed Bridge`
-的执行顺序。核心原则不是一次写完，而是按 vertical slice 做“先立新边界，再切主链路，最后删旧层”。
+本计划将原来的“大而全内核重建”收敛为一条更实际的执行路线：
+
+- 先稳住 renderer-main 边界
+- 再切一个低风险 pilot slice
+- 再拆 chat/session/provider 热路径 owner
+- 最后清理迁移过程中产生的桥接和回流
+
+核心原则不是“目录先重排”，而是“每一步都减少真实耦合”。
 
 ## Planning Assumptions
 
-- 当前运行时代码在计划阶段仍然是唯一生产实现。
-- 每个阶段都必须先建立 guardrail，再做切换，再删旧路径。
-- 不把“后续会删”当作放宽标准的理由。
-- 允许临时 bridge，但 bridge 必须有删除时点，且不能承载新增业务逻辑。
-- preload 暴露层应尽量稳定，新增跨进程能力主要通过补 route registry 和 handler 完成。
+- 当前运行时代码仍然是唯一生产实现。
+- 现有 `LifecycleManager` 保留，不单独开一个“重写生命周期系统”的 phase。
+- 第一轮默认不用 DI container；优先用显式 factory、setup function 和窄 port。
+- 只有当 session / window cleanup 真的需要时，才引入最小生命周期 helper。
+- 每个 phase 必须伴随真实 slice 切换，避免连续 foundation-only PR。
 
 ## Current Hotspots
 
-需要优先治理的现状热点：
+当前优先级最高的热点：
 
-- `src/main/presenter/index.ts` 仍承担过重的 composition root 职责。
-- `src/renderer/src/composables/usePresenter.ts` 让 renderer 继续深度依赖 presenter naming 和调用协议。
-- `src/preload/index.ts` 同时承担多种桥接职责，且 renderer 侧还存在 `window.api` 与 `window.electron` 双入口。
-- `src/main/eventbus.ts`、`src/main/events.ts` 与各 renderer store/component 之间存在大量隐式事件链。
-- timeout 与 listener cleanup 分散在 main / preload / renderer 多处路径。
+- `src/renderer/src/composables/usePresenter.ts` 使 renderer 直接感知 presenter 名称与反射调用协议
+- `src/preload/index.ts` 同时承载多入口桥接和旧兼容 API
+- `src/main/presenter/index.ts` 同时承担 composition root、service locator、IPC dispatcher
+- `SessionPresenter` 仍直接回拿全局 `presenter`
+- `AgentSessionPresenter`、`AgentRuntimePresenter`、`LLMProviderPresenter` 之间仍存在主路径直连
+- `eventBus.ts` 同时承担 main 内部通知和 main -> renderer 广播
 
-## Target Architecture
+## Target State For This Program
 
-```text
-src/
-  shared/
-    contracts/
-      routes.ts
-    events/
-    errors/
-  main/
-    bootstrap/
-      createAppKernel.ts
-      registerLifecycle.ts
-      createMainWindow.ts
-    di/
-      serviceIds.ts
-      Scope.ts
-    ipc/
-      IpcRouter.ts
-      routes/
-    app/
-    domain/
-    ports/
-    infra/
-    platform/electron/
-  preload/
-    createBridge.ts
-    index.ts
-  renderer/
-    api/
-```
-
-固定依赖方向：
-
-```text
-renderer -> preload -> shared/contracts -> main/ipc -> main/app
-         -> main/domain + main/ports -> main/infra/platform
-```
-
-## Bridge Model
-
-本轮采用以下边界模型：
+本轮结束时，目标不是完整 clean architecture，而是让主链路至少具备以下形态：
 
 ```text
 renderer component / store
   -> renderer/api/*Client
   -> window.deepchat
-  -> shared/contracts/routes.ts
-  -> main/ipc/registerRoutes
-  -> main/app/*Service
-  -> main/ports
-  -> main/infra / platform/electron
+  -> shared/contracts/routes + events
+  -> main handlers / orchestrators for migrated slices
+  -> narrow ports / adapters around provider, session, permission, scheduler
 ```
 
-关键约束：
+允许保留：
 
-- `window.deepchat` 是稳定 capability facade，不是 presenter 替身
-- capability facade 从 shared route registry 生成，不靠 preload 手写散落 wrapper
-- renderer 业务代码优先依赖 `renderer/api` client，而不是直接触碰 bridge 细节
-- main 内部 service/repository 名称不进入 bridge API 名称
-- 后续若引入插件扩展，也应优先走 contribution registry，而不是继续扩张 bridge surface
+- `src/main/presenter/` 目录
+- 现有 `LifecycleManager`
+- 非 migrated path 的 legacy presenter
 
-## Migration Governance
+但不允许：
 
-实施过程必须遵守 [migration-governance.md](./migration-governance.md)。
-
-这里直接强调四条执行纪律：
-
-1. 同一条用户路径只能存在一个 active owner
-2. bridge 只能单向 `old -> new`
-3. bridge 默认最多存活 1 个 phase
-4. phase 完成必须看到 legacy 指标净下降
-
-## Build vs Buy Policy
-
-实施过程同时遵守 [build-vs-buy.md](./build-vs-buy.md)。
-
-当前默认策略：
-
-- shared route registry、`createBridge`、`IpcRouter`、`Scope`、`EventBus`、`renderer/api/*Client` 自写
-- `zod` 继续沿用
-- `dependency-cruiser` 用于架构依赖检查
-- `p-retry` 承接 `Scheduler.retry`
-- `p-queue` 只在 provider/tool/MCP 并发治理确实出现时再评估
+- 在 migrated path 上继续新增 `usePresenter()` / raw renderer IPC
+- 在新 hot path 上继续通过 presenter 互相找彼此
+- 继续把 cleanup / cancel / timeout 塞进匿名回调和散落 timer
 
 ## Migration Rules
 
 ### Allowed
 
-- 先引入新 contract / client / service，再将旧入口导向新实现
-- 先切单个 slice，再扩展到相邻 slice
-- 用 fake port / in-memory adapter 为测试先行铺路
-- 用同一份 route registry 同时驱动 preload bridge 与 main route registration
+- 先定义 contract / client / typed event，再迁一条真实调用链
+- 保留旧 owner 作为过渡入口，但只允许单向转发到新实现
+- 为测试目的先引入 fake scheduler、fake provider adapter、fake route registry
+- 用现有 presenter 包住旧依赖，只要新逻辑不反向依赖它
 
 ### Forbidden
 
-- 在旧 presenter 上继续长新分支
-- 在 renderer 新增任何 `usePresenter()` 调用点
-- 在 renderer 新增 `window.electron.ipcRenderer.*` 监听
-- 在组件或 store 中直接拼裸 channel 字符串
-- 在 `window.deepchat` 中暴露 repository、presenter、sqlite 这类内部对象名
-- 在业务层新增裸 timer
-- 为了“先过”而保留长期双栈逻辑
-
-## Phase 5-6 Dependency Untangling
-
-这两阶段的核心不是新增目录，而是把 `agentRuntimePresenter`、`AgentSessionPresenter`、
-`SessionPresenter`、`LLMProviderPresenter` 之间的循环协作拆成三类明确边界。
-
-### Boundary Rule 1: IPC Only For Renderer-Main Calls
-
-只有 renderer 发起、需要跨进程的能力才走 route registry：
-
-- `chat.sendMessage`
-- `chat.startStream`
-- `chat.stopStream`
-- `sessions.create`
-- `sessions.list`
-- `sessions.restore`
-- `sessions.activate`
-- renderer 发起的 provider 查询/验证
-- renderer 发起的工具交互与权限响应
-
-这里的落点固定为：
-
-```text
-renderer/api -> window.deepchat -> shared/contracts/routes.ts -> main/ipc -> main/app
-```
-
-### Boundary Rule 2: Intra-Main Calls Become Service-Port Interactions
-
-以下能力不经过 IPC，而是改为 `service -> port -> adapter`：
-
-- session / message repository 读写
-- provider text generation / model listing / rate limit
-- ACP session、workdir、mode、config option 管理
-- tool execution、permission、scheduler、timeout、retry
-- Electron window / dialog / clipboard / permission 之类 platform 能力
-
-### Boundary Rule 3: Presenter References Must Collapse
-
-Phase 5-6 直接围绕以下三组当前耦合做切割：
-
-| Current coupling | Observed today | Phase target | Interaction after cutover |
-| --- | --- | --- | --- |
-| `AgentSessionPresenter -> AgentRuntimePresenter` | 会话创建后注册 agent、排队 pending input、驱动消息执行 | `SessionService` 管会话，`ChatService` 管消息执行 | `service -> service` |
-| `AgentSessionPresenter -> LLMProviderPresenter` | `summaryTitles`、`generateCompletion`、ACP session/config/workdir | `SessionService` + provider ports | `service -> port` |
-| `SessionPresenter -> LLMProviderPresenter` | 标题生成、ACP workdir/process mode/warmup | `SessionService` + provider/session ports | `service -> port` |
-| `AgentRuntimePresenter -> LLMProviderPresenter` | `executeWithRateLimit`、`generateCompletionStandalone`、权限决议 | `ChatService` / `ProviderService` + provider ports | `service -> port` |
-| `ConfigQueryPort` / `SessionRuntimePort` | 以回调形式回补 provider/query/ui state | `ProviderCatalogPort`、typed event、`SessionPermissionPort` | `service -> port` / event |
-
-### Port Split To Lock In
-
-Phase 5-6 文档设计上提前锁定这些方向，防止实现时重新缠回一个大 presenter：
-
-- `SessionRepository` / `MessageRepository`
-- `SessionEventStore`
-- `ProviderExecutionPort`
-- `ProviderCatalogPort`
-- `ProviderSessionPort`
-- `TitleGenerationPort`
-- `ToolExecutionPort`
-- `SessionPermissionPort`
-- `Scheduler`
-- `WindowEventPort` 或 typed event publisher
-
-### Anti-Backflow Rule
-
-在 Phase 5-6 实施期间，任何新增代码都必须能回答下面三个问题：
-
-1. 这是 renderer-main 调用吗？如果是，必须进 route registry。
-2. 这是 main 内部协作吗？如果是，必须落到 service/port，不得再走 presenter 互调。
-3. 旧 presenter 还存在吗？如果存在，只允许 `old -> new` 单向转发，不允许 `new -> old`。
+- 为了“未来可能会用”而提前大搬目录
+- 引入完整 DI container 再慢慢找 slice 迁移
+- 用新的 IPC 包装 main 内部互调
+- 在 hot path 上继续新增 presenter-to-presenter 直接依赖
+- 同一条用户路径长期保留新旧双 owner
 
 ## Phase Map
 
 ```text
 P0 Guardrails & Baseline
-  -> P1 Typed Contracts & Preload Bridge
-  -> P2 Main Kernel & Scoped DI
-  -> P3 Settings Pilot Slice
-  -> P4 Sessions & Event Store
-  -> P5 Chat Runtime Cutover
-  -> P6 Providers & Tools Boundary
-  -> P7 Legacy Removal & Final Cleanup
+  -> P1 Typed Boundary Foundation
+  -> P2 Settings Pilot Slice
+  -> P3 Chat & Session Hot Path
+  -> P4 Provider / Tool Boundary
+  -> P5 Consolidation & Re-evaluation
 ```
 
 ## Phase Details
@@ -216,237 +89,147 @@ P0 Guardrails & Baseline
 
 目标：
 
-- 冻结错误方向，避免项目在重构期间继续加重旧依赖
-- 形成可重复更新的客观基线
+- 冻结错误方向
+- 让后续阶段能证明“legacy 指标净下降”
 
 交付物：
 
-- 扩展 `scripts/architecture-guard.mjs`
-- 扩展 `scripts/generate-architecture-baseline.mjs`
-- 引入 `dependency-cruiser`
-- 新增本次重构的文档集
-- 重跑 `docs/architecture/baselines/*` 并锁定最新数字
-- 补充针对 renderer/preload/main 边界的检查项
-- 明确 `window.deepchat` 命名和粒度约束
+- 扩展 `architecture-guard`
+- 扩展 baseline 脚本
+- 追踪 `usePresenter`、`window.electron`、`window.api`、hot path direct dependency、raw timer、raw channel
+- 定义 bridge register 和轻量 scoreboard
 
 退出条件：
 
-- 能稳定检测新增 `usePresenter`、新增 direct IPC、新增裸 timer、新增 renderer -> electron 依赖
-- 能稳定检测新增裸 channel 字符串和 bridge 内部实现名泄漏
-- 当前基线报告可重跑，可用于后续阶段比对
+- 能阻止新增 `usePresenter()`、新增 raw renderer IPC、新增 migrated path raw channel
+- 能重复生成基线
+- 能看出 hot path direct dependency 是否下降
 
-本阶段不做：
-
-- 不做业务切换
-- 不引入大规模目录搬迁
-
-### Phase 1: Typed Contracts & Preload Bridge
+### Phase 1: Typed Boundary Foundation
 
 目标：
 
-- 让 renderer 只依赖 typed bridge，而不是直接知道 presenter 名称或 `ipcRenderer`
-- 让跨进程 API 由 route registry 统一驱动，而不是到处手写 wrapper
+- 让 renderer 调用 main 的方式先稳定下来
 
 交付物：
 
-- `src/shared/contracts/routes.ts`
-- route registry 与 schema
-- route schema catalog 文档先冻结命名、schema 粒度与 typed event 设计
-- `src/preload/createBridge.ts`
-- `src/preload/index.ts` 的 generated typed facade
-- `src/renderer/api/*Client`
-- 首批 route group：`chat`、`session`、`settings`、`window/system`
+- `shared/contracts/routes`
+- `shared/contracts/events`
+- preload bridge builder 或统一 bridge registration 机制
+- `renderer/api/*Client`
+- 第一批 typed route：settings、sessions/chat 必需入口、系统窗口入口
 
 退出条件：
 
 - 新增功能不再通过 `usePresenter()` 接入
-- renderer 有明确的 client 使用入口
-- route registry 成为跨进程 API 的唯一事实源
-- 旧 bridge 只作为迁移对象，不再扩张
+- migrated path 的 renderer 调用能从 route registry 追踪
+- typed event 能承接 settings / sessions / chat 的首批 UI 通知
 
-本阶段不做：
-
-- 不直接迁移复杂业务逻辑
-- 不删除 presenter 运行时
-
-### Phase 2: Main Kernel & Scoped DI
+### Phase 2: Settings Pilot Slice
 
 目标：
 
-- 建立唯一 composition root 与显式生命周期
-- 以最小自写 `Scope` 落地 DI，而不是先引重型容器
+- 选择低风险、行为可观察的 slice 验证新边界是否真的好用
 
 交付物：
 
-- `createAppKernel.ts`
-- `SERVICE_IDS`
-- `Scope` / child scope / dispose 机制
-- port catalog 与 `Scheduler` 设计先冻结
-- EventBus migration 文档先冻结旧新映射
-- `app` / `window` / `session` 的 scope 约定
-- main bootstrap 与 BrowserWindow 创建解耦
+- `SettingsClient`
+- settings contract / handler / adapter
+- settings store 调整为 client-first
+- typed `settings.changed` event
 
 退出条件：
 
-- 新服务可通过 scope 获取依赖，不再依赖全局 presenter locator
-- window/session 生命周期的 owner 清晰
+- settings 主读写链路不再依赖 `usePresenter()` 或 raw IPC
+- 设置持久化和变更通知具备独立测试
+- 对应 bridge 无超期残留
 
-本阶段不做：
-
-- 不在此阶段一口气迁移全部业务 slice
-- 不引入 `Awilix` / `tsyringe` 这类容器框架作为第一批基础设施
-
-### Phase 3: Settings Pilot Slice
+### Phase 3: Chat & Session Hot Path
 
 目标：
 
-- 选择风险最低、行为最可观察的 slice 验证新架构链路
+- 拆掉最关键的 owner 混杂点
+- 让发送消息、停止流、恢复会话的执行链更可解释
 
 交付物：
 
-- `SettingsService`
-- `SettingsRepository` port
-- 对应 contract、IPC route、renderer client 调用
-- 与 renderer store 的最小替换闭环
+- `ChatService` / orchestrator
+- `SessionService` 或等价 session orchestration 层
+- 最小必要 port：`SessionRepository`、`MessageRepository`、`ProviderExecutionPort`、
+  `ProviderCatalogPort`、`SessionPermissionPort`、`WindowEventPort`、`Scheduler`
+- typed chat/session events
+- cancel / timeout / retry 通过 `Scheduler` 管理
 
 退出条件：
 
-- settings 相关 renderer 调用不再依赖旧 presenter
-- 设置读写、事件通知、持久化路径在新链路下可验证
+- 发送消息、停止流、恢复会话的 migrated path owner 明确
+- `AgentSessionPresenter -> AgentRuntimePresenter` 不再是 migrated path 的主 owner 链
+- migrated path 的 cleanup / cancel 行为可测试
 
-本阶段不做：
-
-- 不把 settings 扩张成通用“先全量重写其他模块”的借口
-
-### Phase 4: Sessions & Event Store
+### Phase 4: Provider / Tool Boundary
 
 目标：
 
-- 重建会话生命周期，给恢复、调试、审计提供稳定状态面
+- 把 provider/tool 相关主协作从 presenter 互调中抽出来
 
 交付物：
 
-- `SessionService`
-- `CreateSessionUseCase`
-- `RestoreSessionUseCase`
-- `SessionEventStore`
-- session 路由与 `SessionClient`
+- `ProviderExecutionPort`
+- `ProviderCatalogPort`
+- `ProviderSessionPort` 或仅限 ACP/会话配置所需的 provider session adapter
+- `SessionPermissionPort`
+- tool / permission 的明确响应 contract
 
 退出条件：
 
-- 新 session 创建、恢复、切换具备新 service 路径
-- 关键 session state 变化可追踪、可回放、可测试
+- migrated path 上 `SessionPresenter` / `AgentSessionPresenter` / `AgentRuntimePresenter`
+  不再直接把 provider 当作全局协作者乱用
+- provider query / execution / permission 边界可单测
+- 相关 renderer 交互走 typed route / typed event
 
-本阶段不做：
-
-- 不在 event store 还未稳定前删掉必要的兼容读路径
-
-### Phase 5: Chat Runtime Cutover
+### Phase 5: Consolidation & Re-evaluation
 
 目标：
 
-- 用 `ChatService` / `UseCase` 替换核心消息发送与流式运行时
-- 先切断 `AgentSessionPresenter -> AgentRuntimePresenter` 这条直接 owner 链
+- 清理本轮新增 bridge
+- 更新基线和文档
+- 判断是否还需要下一轮更彻底的 kernel 重构
 
 交付物：
 
-- `ChatService`
-- `SendMessageUseCase`
-- `StreamAssistantReplyUseCase`
-- stream cancellation / timeout / retry 的 `Scheduler` 接口化
-- `Scheduler.retry` 内部接入 `p-retry`
-- typed stream event contract
-- chat/session 边界映射表，明确 renderer route 与 main 内部 port 划分
+- 删除 migrated path 临时桥接
+- 收敛 docs、baseline、scoreboard、smoke 记录
+- 形成“是否继续做全量 kernel 重构”的结论
 
 退出条件：
 
-- 发送消息、流式回复、中断流、工具回调主链路走新架构
-- 对应 presenter runtime 不再是主执行入口
-- `AgentSessionPresenter` 不再直接持有 `AgentRuntimePresenter` 作为主运行时依赖
-- chat 相关 renderer 调用全部能在 route registry 中追踪到
-
-本阶段不做：
-
-- 不在 chat 切换未稳定前同时引入新的外部扩展机制
-
-### Phase 6: Providers & Tools Boundary
-
-目标：
-
-- 把 provider/tool/MCP 边界从 presenter 体系中剥离，为内部职责清晰和测试隔离铺路
-
-交付物：
-
-- `ProviderService` / `ProviderRegistry`
-- `ToolService` / `ToolExecutor`
-- provider/tool port 定义
-- rate limit、permission、tool execution 的边界整理
-- 如并发/背压需求明确，评估 `p-queue`
-- provider/session/title generation 责任拆分表，明确原 `LLMProviderPresenter` 被拆向哪些 port
-
-退出条件：
-
-- provider 切换、工具执行、MCP 相关主路径可以通过 service + port 推理
-- presenter 不再是 provider/tool 的唯一协调者
-- `SessionPresenter` / `AgentSessionPresenter` / `AgentRuntimePresenter` 对
-  `LLMProviderPresenter` 的主路径直接依赖已移除
-- `ConfigQueryPort` / `SessionRuntimePort` 的临时职责已经落回明确 port 或 typed event
-
-本阶段不做：
-
-- 不在边界未清晰前扩展新的外部扩展机制
-
-### Phase 7: Legacy Removal & Final Cleanup
-
-目标：
-
-- 删除旧层，结束双轨状态
-
-交付物：
-
-- 删除活跃 `src/main/presenter` 运行时依赖
-- 删除 `usePresenter()` 主链路依赖
-- 删除 `window.electron` / `window.api` 旧入口
-- 删除散落字符串 IPC constants
-- 更新架构文档为新主链路
-
-退出条件：
-
-- 新架构是唯一活跃路径
-- 旧 presenter 不再参与运行时
-- baseline 指标达到最终目标
-
-本阶段不做：
-
-- 不保留“以后可能还会用”的 dormant legacy source
+- 本轮涉及 slice 的 bridge register 归零
+- migrated path 的 legacy 指标较起点净下降
+- 本轮目标路径具备稳定测试和 smoke 证据
 
 ## Cross-Cutting Streams
 
-所有阶段都要同步处理以下横切事项：
+所有阶段都同步处理：
 
-- 文档：更新 spec / tasks / baselines / active architecture docs
-- 测试：为新引入的 service、route、bridge、scope 提供对应测试
-- 安全：renderer 不直接拿 Electron 原语
-- 可观测性：关键事件、超时、取消、错误要能定位
-- 清理：每完成一个 slice，立即删除该 slice 上不再需要的桥接逻辑
-- API 设计：bridge 按 capability 分组，组件通过 client 层调用，不暴露内部实现名
-- 治理：更新 bridge register、scoreboard 和阶段退出状态
-- 引库纪律：第三方库只解决通用基础设施问题，不定义产品边界
+- guardrail 更新
+- baseline 更新
+- 文档同步
+- bridge register / scoreboard 维护
+- 针对 migrated path 的测试补齐
+- 对旧 owner 的冻结和清理
 
 ## Recommended PR Sequence
 
-1. `chore(architecture): extend guardrails for main kernel refactor`
-2. `refactor(ipc): add typed contracts and renderer client foundation`
-3. `refactor(main): introduce app kernel and scoped dependency container`
-4. `refactor(settings): migrate settings to service and typed bridge`
-5. `refactor(sessions): migrate session lifecycle and event store`
-6. `refactor(chat): cut over chat runtime to services`
-7. `refactor(providers): isolate provider and tool boundaries`
-8. `refactor(main): remove legacy presenter runtime`
+1. `chore(architecture): tighten guards and baselines for boundary stabilization`
+2. `refactor(ipc): add typed route registry and renderer clients`
+3. `refactor(settings): migrate settings to typed boundary`
+4. `refactor(chat): introduce chat/session orchestration and scheduler`
+5. `refactor(providers): narrow provider and permission boundaries`
+6. `refactor(architecture): remove temporary bridges and refresh docs`
 
 ## Risk Notes
 
-- 最大风险不是“技术写不出来”，而是阶段边界失控导致半新半旧结构长期共存。
-- chat/runtime/provider/tool 四块耦合最深，必须在 settings/session 验证完基础链路后再切。
-- 如果后续要做插件化，也必须建立在 provider/tool 边界已经收口的前提上，但这不属于本轮交付。
-- 如果某阶段需要引入临时 adapter，必须在 `tasks.md` 中写出删除任务，不能口头记忆。
+- 最大风险仍然是“多搭一层新框架，但旧 owner 一点没退”。
+- 另一类风险是把 phase 2 之前的基础工作拖太久，导致迟迟不切真实 slice。
+- `Chat / Session / Provider` 三块最耦合，不应并行乱切；建议按 owner 顺序推进。
+- 如果某个阶段不得不引入桥接，必须在下一阶段优先删除，而不是留到“最后统一收尾”。

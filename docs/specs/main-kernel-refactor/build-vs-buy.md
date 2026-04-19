@@ -2,180 +2,135 @@
 
 ## Purpose
 
-本文件定义本轮 main kernel 重构中“哪些自己实现，哪些引第三方库”的默认决策。
+本文件定义本轮“边界稳定化”工作的引库策略。
 
-目标不是尽量少写代码，也不是尽量少引依赖，而是：
+本轮原则不是尽量多造轮子，也不是尽量多引框架，而是：
 
-- 把通用基础设施交给成熟库
-- 把 Electron 安全边界、产品能力边界和运行时语义留在仓库内部掌控
+- 用成熟库解决通用问题
+- 把 DeepChat 的边界、生命周期语义和 Electron 安全面留在仓库内掌控
 
 ## Decision Rule
 
 采用以下判断标准：
 
-- 如果问题是通用基础设施问题，并且已有成熟稳定方案，优先考虑引库
-- 如果问题直接定义 `window.deepchat`、IPC contract、service 编排、scope 生命周期、事件语义，则优先自写
-- 引入的第三方库必须被本地接口或 facade 包裹，不能直接侵入业务层心智模型
-
-一句话原则：
-
-- 买通用问题
-- 自己定义边界
+- 如果问题是通用基础设施问题，并且能明显减少重复劳动，优先考虑引库
+- 如果问题直接定义 renderer-main 能力边界、owner 关系或生命周期语义，优先自写
+- 新引入的第三方库必须能被本地接口或 facade 包裹，不能直接成为业务层心智模型
 
 ## Decisions
 
 | Area | Decision | Why |
 | --- | --- | --- |
-| contract/schema | 继续使用 `zod` | 仓库已经广泛使用，统一性最好 |
-| preload bridge 生成 | 自写 | 这是 Electron 安全边界和产品 API 形状，不适合外包 |
-| IPC router | 自写 | 与 shared route registry 强绑定，代码量不大，收益高 |
-| 架构依赖检查 | 引 `dependency-cruiser` | 标准通用问题，不值得长期手搓 |
-| retry/backoff | 引 `p-retry` | 通用能力成熟，适合承接 `Scheduler.retry` |
-| queue/backpressure | 按需引 `p-queue` | provider/tool/MCP 若出现并发与超时治理需求，收益明显 |
-| DI container | 先小自写 | `app/window/session` scope 与 dispose 语义很具体，不先引大魔法 |
-| 事件总线 | 先自写模型 | 需要 `publishAndWait`、事件分类、event store，不只是 emitter |
-| 事件总线风格 | 借鉴 `Emittery` | 未来可参考其 async emitter 风格，但本轮不作为运行时依赖 |
-| 错误模型 | `neverthrow` 暂缓 | 有价值，但会显著改变编码风格，不放第一批 |
+| schema/contracts | 继续使用 `zod` | 已有基础最好，统一性高 |
+| preload bridge / route registry | 自写 | 属于产品能力边界和 Electron 安全边界 |
+| renderer client | 自写 | 需要贴合现有 store / composable 用法 |
+| 架构 guard/baseline | 先用现有脚本，必要时再引 `dependency-cruiser` | 当前已有脚本，先控制复杂度 |
+| retry/backoff | `p-retry` 可批准 | 适合放在 `Scheduler.retry` 内部 |
+| queue/backpressure | `p-queue` 仅在明确证据下评估 | 不是第一批刚需 |
+| DI container | 本轮不引入 | 本轮重点是热路径 owner，而不是容器框架 |
+| lifecycle helper / scope helper | 按需小自写 | 如果 cleanup 语义需要，再补最小 helper |
+| EventBus 全量重写 | 本轮不作为前置要求 | 先解决 migrated path 的 typed event 与 owner |
 
 ## Approved Third-Party Libraries
 
-以下库属于本轮允许引入范围：
+默认可批准：
 
-- `dependency-cruiser`
+- `zod`
 - `p-retry`
 
-以下库属于“条件成立时允许评估”：
+条件成立时再评估：
 
+- `dependency-cruiser`
 - `p-queue`
 
-以下库当前不作为第一批运行时依赖：
+当前不作为第一批依赖：
 
 - `Awilix`
 - `tsyringe`
+- `Inversify`
 - `Emittery`
 - `neverthrow`
-
-这不代表它们不好，只代表当前阶段不适合作为默认解。
 
 ## Self-Owned Components
 
 以下组件明确由仓库内自写并长期掌控：
 
-- `shared/contracts/routes.ts`
-- `src/preload/createBridge.ts`
-- `src/preload/index.ts`
-- `src/main/ipc/IpcRouter.ts`
-- `src/main/di/Scope.ts`
-- `src/main/di/serviceIds.ts`
-- `src/main/EventBus` 抽象与语义
+- shared route registry
+- typed event catalog
+- preload bridge builder
 - `renderer/api/*Client`
+- `Scheduler` interface
+- provider / session / permission 的窄 port
 
-这些组件不只是技术实现，更是：
+这些组件直接定义：
 
-- Electron 安全边界
-- 产品能力边界
-- main/renderer 心智模型
-- 测试和迁移治理边界
+- renderer-main 边界
+- 迁移期 owner 关系
+- 测试替身注入方式
 
-## DI Container Policy
+## DI and Composition Policy
 
-本轮 `DI Scope` 明确自写。
+本轮不单独引入 DI container。
 
-原因：
+默认做法：
 
-- 需要的能力其实很收敛：`registerValue`、`registerSingleton`、`get`、`createChild`、`dispose`
-- `app/window/session` scope 语义是 DeepChat 特有，不是通用 web request scope
-- 现在最重要的是“可见、可测、可控”，不是“更强大的容器魔法”
+- 用显式 factory / setup function 装配依赖
+- 用局部 interface 或 port 缩窄依赖面
+- 只有当 session / window cleanup 真的需要一致 dispose 语义时，再补最小 helper
 
-实施要求：
+一句话：
 
-- 不引入 `Awilix`、`tsyringe`、`Inversify` 之类重型容器作为第一批基础设施
-- 先完成最小 Scope 实现
-- 只有当自写 Scope 明显成为维护负担时，再重新评估 `Awilix`
+- 先把 owner 讲清楚
+- 再决定是否真的需要 container
 
-## Event Bus Policy
+## Event Policy
 
-本轮 `EventBus` 明确自写语义模型。
+本轮先做两件事：
 
-原因：
+- 冻结 legacy `eventBus` 的错误扩张
+- 为 migrated path 建立 typed UI event
 
-- 需要的不只是 `emit/on`
-- 还包括 `publishAndWait`
-- 还包括 domain/integration/ui 事件分类
-- 还包括 event store、correlation、关键流确认
+本轮不要求：
 
-实施要求：
+- 先把整个 EventBus 系统重写
+- 先把全部字符串事件搬迁完
 
-- 不把业务事件模型直接绑定到第三方 emitter API
-- 如需参考成熟风格，可以借鉴 `Emittery` 的 async emitter 思路
-- 若未来要在底层实现上借用 emitter 库，也必须包在本地 `EventBus` 接口后面
+如果未来确实需要 internal typed bus，再在下一轮评估。
 
 ## Scheduler Policy
 
-本轮 `Scheduler` 抽象自写，但内部实现允许借成熟库：
+`Scheduler` 仍建议作为本地接口存在，原因是：
 
-- `sleep`：本地封装
-- `timeout`：本地封装
-- `retry`：优先用 `p-retry`
+- 业务层要表达 timeout / retry / sleep 的语义
+- 测试需要 fake scheduler
+- cancel 行为需要统一 owner
 
-要求：
+实施要求：
 
-- 业务层永远依赖 `Scheduler` 接口
-- 不允许业务层直接依赖 `p-retry`
-- 第三方库只出现在 scheduler adapter 内部
-
-## Queue Policy
-
-`p-queue` 不是第一批必引依赖。
-
-只有出现以下明确需求时才评估：
-
-- provider 并发上限
-- tool 执行队列
-- MCP 请求背压
-- per-task timeout / cancellation / pending visibility
-
-在没有这些信号之前，不主动引入。
+- 业务层依赖 `Scheduler`，而不是直接依赖 `setTimeout` 或 `p-retry`
+- `p-retry` 只允许出现在 scheduler adapter 内部
 
 ## Error Model Policy
 
-`neverthrow` 暂不进入第一批。
+`neverthrow` 暂不进入本轮。
 
 原因：
 
-- 会改变 service/use case 的错误处理风格
-- 在 presenter 退场、typed bridge、scope、scheduler 同时变化时，变量太多
+- 本轮已经同时在切边界、owner 和测试结构
+- 现在再切错误模型，变量太多
 
 建议：
 
-- 先用现有异常模型完成主架构切换
-- 等 `settings` 或 `sessions` slice 稳定后，再决定是否试点
+- 先把 migrated path 稳住
+- 等 hot path 稳定后，再评估是否值得试点
 
 ## Adoption Rules
 
 新增第三方库前必须回答：
 
-1. 这是通用基础设施问题，还是产品边界问题？
-2. 这个库是否会改变 `window.deepchat`、IPC contract、service 边界的形状？
-3. 这个库能否被本地接口包住？
-4. 它能否减少维护成本，而不是引入新的框架心智负担？
+1. 它解决的是通用基础设施问题，还是 DeepChat 特有边界问题？
+2. 它是否会改变 renderer-main 或 hot path owner 的心智模型？
+3. 它能否被本地接口包住？
+4. 它是否直接减少当前迁移成本？
 
-只有当答案对本轮目标明确有利时，才允许引入。
-
-## Current Default Stack
-
-本轮默认采用：
-
-- `zod` for schema/contracts
-- `dependency-cruiser` for dependency rules
-- `p-retry` behind `Scheduler.retry`
-- local `Scope`
-- local `EventBus`
-- local `createBridge`
-- local `IpcRouter`
-
-这套组合的目标是：
-
-- 边界留在仓库内
-- 通用重复劳动交给成熟库
-- 迁移复杂度可控
+如果以上答案不够明确，本轮默认不引。

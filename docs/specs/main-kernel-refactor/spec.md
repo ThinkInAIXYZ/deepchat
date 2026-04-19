@@ -2,46 +2,61 @@
 
 ## Summary
 
-本规格定义 DeepChat 下一阶段的主架构重构目标：把当前以 `src/main/presenter/` 为中心的 main
-process 运行时，重构为一个 `Clean Main Kernel + Typed Bridge` 的可组合、可测试、可维护应用内核。
+本轮重构在原计划基础上收敛为一套“稳定性优先”的方案。
 
-这次工作不是“一步大爆炸重写”，而是一项按阶段推进的结构治理工程。每个阶段都必须满足三个条件：
+目标不是一次性把 `src/main` 改造成完整的 `main/app + domain + infra` 新世界，也不是在本轮强行把
+`src/main/presenter/` 清零；目标是先解决当前最影响稳定性、可维护性和可测试性的几类问题：
 
-- 可单独验收
-- 可单独检测
-- 完成后项目更接近最终目标，而不是积累新的历史债务
+- renderer 通过 `usePresenter()`、`window.electron`、`window.api` 直接知道 main 内部实现
+- main hot path 通过 presenter-to-presenter 直接协作，owner 不清楚
+- session / window 生命周期和 stream / timer cleanup 缺少明确 owner
+- 新代码继续回流到旧边界，导致耦合只增不减
 
-本规格只定义目标、边界、阶段原则与最终验收口径；不在本轮直接改动运行时代码。
+这是一轮“边界稳定化 + 热路径减耦”工程，而不是全量目录重建工程。
+
+## Program Reset
+
+原方案中保留的高收益部分：
+
+- typed renderer-main boundary
+- hot path presenter coupling 拆解
+- lifecycle owner 明确化
+- scheduler / cancel / timeout / retry 收口
+- 分阶段迁移与净减 legacy 指标
+
+本轮主动砍掉的目标：
+
+- 不要求一次性交付完整 clean architecture 目录骨架
+- 不要求本轮删除整个 `src/main/presenter/`
+- 不要求先引入完整 DI container 或自写大 Scope 系统
+- 不要求先重写整个 EventBus 体系
+- 不把“内存下降”作为主成功指标
 
 ## Baseline
 
-以下基线来自 `2026-04-19` 的最新扫描，用于确定优先级。它们是文本命中/目录规模信号，不是正式审计报告，但足够说明问题集中区域。
+以下基线来自 `2026-04-19` 的最新扫描，用于说明问题集中区域：
 
-| Signal | Baseline | Notes |
+| Signal | Baseline | Why it matters |
 | --- | --- | --- |
-| `src/main/presenter/index.ts` 行数 | 769 | 组合根过重 |
-| `src/main/presenter/` 子目录数 | 31 | main 领域职责分散 |
-| renderer `usePresenter(` 命中 | 90 | renderer 仍深度依赖 presenter |
-| renderer `window.electron*` 命中 | 111 | 存在直接 IPC / Electron 暴露 |
-| renderer `window.api` 命中 | 33 | 预加载桥接仍是多入口 |
-| `ipcMain` / `ipcRenderer` 相关命中 | 205 | 跨进程入口仍较分散 |
-| `setTimeout` / `setInterval` 命中 | 123 | 时序与可测性风险明显 |
-| main dependency baseline | 346 files / 867 edges / 30 cycles | 见 `docs/architecture/baselines/dependency-report.md` |
-| renderer dependency baseline | 222 files / 475 edges / 4 cycles | 见 `docs/architecture/baselines/dependency-report.md` |
+| `src/main/presenter/index.ts` 行数 | 769 | 组合根过重，依赖装配和运行时 owner 混在一起 |
+| main dependency cycles | 30 | presenter 互相引用和全局入口回流仍明显 |
+| renderer `usePresenter(` 命中 | 90 | renderer 仍依赖 presenter naming |
+| renderer `window.electron*` 命中 | 111 | renderer 仍深度感知 Electron / IPC 实现 |
+| renderer `window.api` 命中 | 33 | preload 仍是多入口兼容面 |
+| `setTimeout` / `setInterval` 命中 | 123 | cleanup、超时和轮询语义散落 |
 
-当前已存在的治理基础：
+这些数字说明，真正的问题是：
 
-- `scripts/architecture-guard.mjs`
-- `scripts/generate-architecture-baseline.mjs`
-- `docs/specs/architecture-simplification/*`
-- `docs/specs/legacy-agentpresenter-retirement/*`
-- `docs/specs/legacy-llm-provider-runtime-retirement/*`
+- 边界不稳定
+- owner 不清楚
+- 热路径依赖过粗
+- 可测性差
 
-本次重构将建立在这些成果之上，而不是忽略它们重新发明一套流程。
+而不是“目录名字不够先进”。
 
 ## Detailed Design Docs
 
-除 `spec/plan/tasks/acceptance/test-plan` 外，本轮还预先锁定三份实施设计文档：
+本轮仍保留以下设计文档，但都按“最小必要抽象”执行：
 
 - [ports-and-scheduler.md](./ports-and-scheduler.md)
 - [route-schema-catalog.md](./route-schema-catalog.md)
@@ -49,349 +64,152 @@ process 运行时，重构为一个 `Clean Main Kernel + Typed Bridge` 的可组
 
 ## Goals
 
-- 将 main process 重构为单一 composition root 驱动的应用内核。
-- 将业务逻辑从 presenter singleton 迁移到 `app services + domain + ports + infra adapters`。
-- 将 renderer 与 main 的边界收敛到 `shared contracts + generated preload typed API`。
-- 清理字符串 IPC、隐式事件、散落 timeout、renderer 直连 main 的路径。
-- 引入明确的 lifecycle scope：`app`、`window`、`session`。
-- 先把 provider、tool、settings、command 的内部边界理清，不把插件化作为本轮单独目标。
-- 将 `window.deepchat` 收敛为稳定能力门面，而不是业务方法垃圾桶。
-- 让 renderer 主要依赖 `renderer/api` client，而不是直接拼 IPC 或直接依赖 preload 细节。
-- 保持用户可见能力不下降；如必须重构内部实现，外部行为必须保持等价或更稳定。
-- 最终删除旧 presenter singleton 架构，而不是长期双栈共存。
+- 让 renderer-main 主边界收敛到 typed route registry、typed event 和 `renderer/api` client。
+- 阻止新增 `usePresenter()`、新增 raw renderer IPC、新增旧桥接依赖。
+- 拆掉 chat / session / provider hot path 上最深的 presenter-to-presenter 直接耦合。
+- 让 session / window / stream cleanup 的 owner 明确且可测试。
+- 让关键流程可以通过 fake port、stub provider、fake scheduler 做稳定测试。
+- 每个阶段结束时，legacy 指标净下降，而不是只新增第二套实现。
+
+## Non-Goals
+
+- 不交付完整 clean architecture 目录重排。
+- 不替换现有 `LifecycleManager`。
+- 不要求删除所有 presenter 或所有 singleton。
+- 不要求一次性清理所有历史事件常量和所有旧桥接。
+- 不把内存或启动速度优化作为本轮核心目标。
 
 ## User Stories
 
-- 作为维护者，我可以从一个清晰的 composition root 看见 main process 的依赖装配关系。
-- 作为功能开发者，我可以新增一个业务能力，而不需要穿透全局 presenter、隐式事件和散落 IPC。
-- 作为测试编写者，我可以对 service、port、IPC contract 做独立单测和集成测试。
-- 作为 QA，我可以在每个阶段结束时使用固定的 smoke matrix 验证行为没有回退。
-- 作为最终用户，我不会因为内部重构失去会话、发消息、恢复历史、切换 provider 或运行工具能力。
+- 作为维护者，我可以看清 renderer 究竟通过哪些能力边界调用 main，而不是继续猜测 presenter 方法名。
+- 作为功能开发者，我可以在 hot path 上新增逻辑，而不用沿着全局 `Presenter` 和隐式事件链继续扩散耦合。
+- 作为测试编写者，我可以对发送消息、停止流、provider 查询、设置读写分别做独立测试。
+- 作为 QA，我可以验证迁移后的主路径行为没有回退，而不是只验证“代码还能跑”。
 
 ## In Scope
 
-- `src/main/` 的结构重组与职责重划
-- `src/preload/` 的单一 typed bridge 设计
-- `src/shared/` 的 contract registry、event、error、DTO 设计
-- renderer 与 main 的通信边界清理
-- `renderer/api` client 层与能力分组约定
-- EventBus、Scheduler、SessionEventStore 等基础设施设计
-- main kernel 的分阶段迁移路线、验收标准与测试方案
-- 迁移执行纪律、bridge 生命周期与阶段治理规则
-- build-vs-buy 决策与第三方依赖引入边界
-- 与架构重构直接相关的 guardrail、baseline 与文档更新
+- `renderer/api` client、typed route registry、typed preload bridge
+- `settings` 作为第一个 pilot slice
+- `chat/session/provider` 热路径 owner 收口
+- `Scheduler` 接口与 cancel / timeout / retry 语义统一
+- session / window 相关 lifecycle cleanup 明确化
+- 迁移治理、guardrail、baseline、smoke 和测试方案
 
 ## Out of Scope
 
-- 新增面向最终用户的产品功能
-- 全量 UI 视觉改版
-- 一次性替换全部数据库表结构
-- 新增独立 plugin host、plugin runtime、第三方插件接入能力
-- 为旧 presenter 再加一层长期兜底封装
-- 在没有阶段验收的情况下做大爆炸式代码迁移
+- 全量 presenter 退役
+- 全量 EventBus 重写
+- 全量 repository / domain model 重命名或搬目录
+- 新增插件系统
+- 以性能优化名义大规模重写运行时
 
 ## Constraints
 
-- 行为兼容优先，特别是聊天、会话恢复、provider 切换、工具执行和设置读写。
-- 允许存在临时兼容边界，但兼容边界必须写明 owner、存活阶段和删除节点。
-- 不新增旧架构上的新业务逻辑；如果需要桥接，只允许“过桥”，不允许“续命”。
-- 每个阶段结束时必须能运行既定验证项，并产出明确的通过/未通过结论。
-- 所有用户可见文案、权限边界、安全边界必须继续遵守 Electron 最小暴露原则。
+- 现有用户可见行为优先保持兼容，尤其是会话创建、恢复、发送消息、流式回复、停止流、provider 切换和权限交互。
+- 新抽象必须替代真实耦合点，不能只增加一层新名字。
+- renderer-main 边界和 main 内部协作边界必须分开设计，不能混为一谈。
+- 每个阶段都必须切一个真实路径，不接受连续多轮纯基础设施 PR。
 
 ## Architectural Principles
 
-### 1. Single Active Direction
+### 1. Boundary First
 
-同一条业务链路在任一时刻只能有一个主实现。迁移期间允许短暂 bridge，但不能长期双写、双执行、双监听。
+先稳住 renderer-main 边界，再谈内部结构继续细化。
 
-### 2. Contract-First Boundary
+如果 renderer 仍直接依赖 presenter 名称，main 内部怎么拆都很难真正稳定。
 
-跨进程能力先定义 contract，再定义 preload API、IPC route、controller、service。禁止先散落写 channel 再回头补类型。
+### 2. Hot Path First
 
-### 3. Stable Capability Facade
+优先处理最深的主链路耦合：
 
-`window.deepchat` 只暴露 renderer 需要请求 main process 的受保护能力、跨进程状态和系统能力。
-它按产品能力分组，不按内部类名、repository 名或 presenter 名分组。
+- `usePresenter()` / raw IPC
+- `AgentSessionPresenter -> AgentRuntimePresenter`
+- `SessionPresenter` / `AgentSessionPresenter` / `AgentRuntimePresenter` 对 provider 运行时的直接索取
 
-允许的例子：
+不先从低频边角模块开始。
 
-- `window.deepchat.chat.sendMessage()`
-- `window.deepchat.sessions.restore()`
-- `window.deepchat.settings.watch()`
-- `window.deepchat.providers.testConnection()`
+### 3. Explicit Owner
 
-禁止的例子：
+每条主路径都必须能回答：
 
-- `window.deepchat.providerPresenter.getInstance()`
-- `window.deepchat.sessionRepository.insert()`
-- `window.deepchat.sqlite.execute()`
-- `window.deepchat.messageHandler.retryMessage()`
+- 谁创建资源
+- 谁发起执行
+- 谁负责取消
+- 谁负责 cleanup
 
-### 4. Contract Registry Is The Source Of Truth
+如果回答仍然是“某个 presenter 顺手处理一下”，说明边界还不够清楚。
 
-跨进程 API 的唯一事实源是共享 route registry。
+### 4. Minimal New Infrastructure
 
-同一份 registry 负责：
+不为“看起来更像架构”而先造完整 container、完整 event framework、完整 domain taxonomy。
 
-- route 命名
-- input/output schema
-- preload bridge 类型生成
-- main route 注册校验
-- renderer client 的稳定调用基础
+只有当抽象能直接替换一个现有 hard dependency，或者显著提升测试稳定性时，才进入本轮。
 
-### 5. Services Own Business Logic
+### 5. Keep Working Code, Freeze Bad Growth
 
-`ipc controller` 只做参数校验、上下文装配与错误映射；业务逻辑进入 `app/*Service` 与 `app/*UseCase`。
+现有生命周期、presenter 和兼容层允许继续存在，但迁移覆盖到的 slice 上：
 
-### 6. Ports Own Dependencies
+- 旧 owner 冻结
+- 只允许 `old -> new` 单向转发
+- 不允许继续长新逻辑
 
-业务层只依赖 port 和 domain model，不直接 import infra 细节。
+## Target Snapshot
 
-### 7. Contracts Stop At The Process Boundary
-
-`src/shared/contracts/` 只负责 renderer 与 main 之间的稳定跨进程契约。
-
-它解决的是：
-
-- route 名称
-- input/output schema
-- stream / event envelope
-- preload bridge 与 renderer client 的类型一致性
-
-它不解决的是 main 内部循环依赖。main 内部循环依赖必须通过 `app/service` 拆分、port
-抽象和 adapter 下沉来打散，不能再让 presenter 彼此直接引用。
-
-### 8. Renderer Client Absorbs Bridge Details
-
-组件、页面和 store 应优先依赖 `renderer/api` 下的 `ChatClient`、`SessionClient`、`SettingsClient`
-这类前端友好 client。只有 client 层可以直接长期了解 `window.deepchat` 的具体分组。
-
-### 9. No New Legacy Fallback
-
-除阶段迁移中明确列出的临时桥接外，不再给旧 presenter、旧 IPC、旧事件、旧 timeout 机制增加新兜底逻辑。
-
-### 10. Phase Exit Before Expansion
-
-上一阶段未达成 exit criteria，不进入下一阶段的核心切换工作。
-
-## Cycle Breaking Strategy
-
-Phase 5-6 的关键不是“把旧 presenter 包一层新名字”，而是明确哪些调用属于跨进程边界，
-哪些只是 main 内部协作，并用不同手段拆开。
-
-### A. Calls That Must Go Through IPC Contracts
-
-只有 renderer 或 preload 发起、必须跨 renderer-main 边界的能力进入
-`src/shared/contracts/routes.ts`：
-
-- `chat.sendMessage` / `chat.startStream` / `chat.stopStream`
-- `sessions.create` / `sessions.list` / `sessions.restore` / `sessions.activate`
-- renderer 发起的 provider 相关查询或验证能力
-- renderer 发起的工具交互、权限响应、流事件订阅
-
-这些能力由 shared contracts 定义，再映射到 `renderer/api` client 和 main `ipc` handler。
-
-### B. Calls That Must Become Service-Port Interactions
-
-以下调用不应通过 IPC，也不应继续 presenter 互调，而应收敛为 main 内部的
-`service -> port -> adapter`：
-
-- session/message 持久化与恢复
-- provider 文本生成、模型目录、rate limit、ACP session/workdir 管理
-- tool execution、permission adjudication、scheduler/retry/timeout
-- Electron 窗口、文件、权限等 platform 能力
-
-### C. Presenter Dependency Untangling
-
-当前高风险依赖需要按下面方式打散：
-
-| Current dependency | Current responsibility | Future home | Future interaction |
-| --- | --- | --- | --- |
-| `AgentSessionPresenter -> AgentRuntimePresenter` | 会话创建后驱动消息运行时、排队与激活 | `ChatService` + `SessionService` | `service -> service`，不保留 runtime presenter 引用 |
-| `AgentSessionPresenter -> LLMProviderPresenter` | 标题生成、翻译、ACP session/config/workdir | `SessionService` + provider-related ports | `service -> port` |
-| `SessionPresenter -> LLMProviderPresenter` | 标题生成、ACP workdir/process mode | `SessionService` + `ProviderSessionPort` / `TitleGenerationPort` | `service -> port` |
-| `AgentRuntimePresenter -> LLMProviderPresenter` | 模型执行、限流、权限决议 | `ChatService` / `ProviderService` + provider ports | `service -> port` |
-| `ConfigQueryPort` 临时回调 | provider model/custom model 查询 | `ProviderCatalogPort` / `SettingsQueryPort` | `service -> port` |
-| `SessionRuntimePort` 临时回调 | UI 刷新、权限清理、权限批准 | typed event + `SessionPermissionPort` | event / `service -> port` |
-
-锁定原则：
-
-- shared contracts 只覆盖 renderer-main 边界，不承接 main 内部 presenter 互调
-- main 内部新代码禁止出现 `new service -> old presenter` 回流
-- Phase 5 先切 chat/session orchestration，Phase 6 再切 provider/tool runtime ports
-- 旧 presenter 在对应 slice 切换后只允许单向转发到新 service，且必须写明删除阶段
-
-## Migration Governance
-
-本轮实施必须遵守 [migration-governance.md](./migration-governance.md) 中定义的执行纪律。
-
-其中最重要的约束是：
-
-- 同一条用户路径只能有一个 active owner
-- 临时 bridge 只能单向 `old -> new`
-- 临时 bridge 默认最多存活 1 个 phase
-- phase 完成标准看 legacy 指标是否净下降，而不是只看新代码是否存在
-- 旧实现一旦进入迁移阶段即冻结，不再继续长新业务
-
-## Build vs Buy
-
-本轮实施必须同时遵守 [build-vs-buy.md](./build-vs-buy.md) 中的引库策略。
-
-当前明确决策：
-
-- `zod` 继续作为 contract/schema 标准
-- `dependency-cruiser` 和 `p-retry` 属于批准引入范围
-- `p-queue` 只在并发/背压需求明确时评估
-- `DI Scope` 明确自写，不引入重型容器作为第一批基础设施
-- `EventBus` 明确自写语义模型，只借鉴 `Emittery` 风格，不作为第一批运行时依赖
-
-## Capability Boundary Rules
-
-使用以下规则判断能力应该落在哪一层：
-
-| 需求类型 | 主要落点 | 是否进入 `window.deepchat` |
-| --- | --- | --- |
-| 纯 UI 展示、筛选、折叠、拖拽、局部状态 | `renderer/components` / `renderer/stores` | 否 |
-| renderer 请求数据库或持久化数据 | `shared/contracts` + `main/app` + `preload` | 是 |
-| renderer 请求系统能力，如文件、剪贴板、窗口、通知 | `main/platform/electron` + `preload` | 是 |
-| main 内部 provider 调整 | `main/app/providers` / `main/infra` | 否 |
-| 新设置字段的内部存取 | `main/app/settings` + registry/schema | 通常否 |
-| 新的跨进程 domain capability | `shared/contracts/routes.ts` | 是 |
-
-一句话约束：
-
-- 进入 `window.deepchat` 的是能力边界
-- 进入 `main/app` 的是业务用例
-- 进入 `renderer/api` 的是前端友好 client
-- 留在 renderer 的是界面状态
-
-## Temporary Compatibility Policy
-
-允许的临时兼容方式：
-
-- 用 adapter 把旧调用临时转发到新 service，但适用范围必须限定在单一 slice。
-- 在会话恢复阶段，临时保留对 legacy 数据面的只读访问，直到新 event store 验收通过。
-- 在 IPC cutover 阶段，短时间保留旧 route 到新 handler 的过渡映射，但需要在同阶段或下一阶段删除。
-
-禁止的临时兼容方式：
-
-- 给 `presenter/index.ts` 继续叠加新业务流程
-- 给 renderer 新增 `window.electron`、`window.api`、`usePresenter` 依赖
-- 给新功能新增裸字符串 channel
-- 给业务时序继续新增裸 `setTimeout` / `setInterval`
-- 让旧实现和新实现长期共同维护同一个用户路径
-
-## Target Architecture Snapshot
+本轮目标不是完整新目录，而是把活跃热路径调整成以下形态：
 
 ```text
 renderer
   -> renderer/api/*Client
-  -> preload/index.ts
-  -> shared/contracts/routes.ts
-  -> main/ipc/routes
-  -> main/app
-  -> main/domain + main/ports
-  -> main/infra + main/platform/electron
+  -> window.deepchat
+  -> shared/contracts/routes + shared/contracts/events
+  -> migrated main handlers / services / adapters
+  -> existing presenters or managers only behind explicit ports on non-migrated paths
 ```
 
-目标目录骨架：
+main 侧允许在过渡期保持混合结构，但必须满足：
 
-```text
-src/
-  shared/
-    contracts/
-    events/
-    errors/
-  main/
-    bootstrap/
-    ipc/
-    app/
-    domain/
-    ports/
-    infra/
-    platform/electron/
-    di/
-  preload/
-    createBridge.ts
-    index.ts
-  renderer/
-    api/
-```
+- migrated path 不再由 renderer 直呼 presenter 名称
+- migrated path 不再依赖 presenter-to-presenter 直接 owner 链
+- lifecycle cleanup 和 scheduler 语义可单独测试
 
-## Bridge Shape
+## Success Metrics
 
-`window.deepchat` 必须满足以下形态约束：
+本轮重点看以下指标是否下降：
 
-- 按能力域分组，如 `chat`、`sessions`、`settings`、`providers`、`tools`、`files`、`events`
-- API 名称表达用户意图或应用能力，而不是内部实现细节
-- 保持粗粒度，renderer 调用用例，不暴露 main 内部编排细节
-- 通过 shared route registry 生成 typed bridge，避免 preload 手写重复 wrapper
-- 如果未来恢复插件化规划，插件增长默认走 contribution registry，而不是持续扩张 preload API surface
+- `renderer.usePresenter.count`
+- `renderer.windowElectron.count`
+- `renderer.windowApi.count`
+- hot path 上的 presenter direct dependency 数量
+- migrated path 的 raw channel / raw timer 数量
+- 为 migrated path 建立的 contract / unit / integration 测试数量
 
-推荐形态：
+## Memory Position
 
-```ts
-window.deepchat = {
-  chat: {
-    sendMessage,
-    startStream,
-    stopStream
-  },
-  sessions: {
-    create,
-    list,
-    get,
-    archive,
-    restore
-  },
-  settings: {
-    get,
-    set,
-    watch
-  }
-}
-```
+内存不是本轮主成功指标。
 
-不推荐形态：
+这轮工作只有在以下情况才可能带来可观的内存收益：
 
-```ts
-window.deepchat.sessionRepository.insert()
-window.deepchat.providerPresenter.getInstance()
-window.deepchat.sqlite.execute()
-window.deepchat.messages.insertAssistantMessage()
-```
+- session / stream / permission 状态在结束时能被更可靠地释放
+- window / webContents listener 能按 owner 清理
+- 不再长期保留无主的 abort controller、timer、subscription
 
-## Final Success Metrics
+如果只是把 presenter 换成 service 或 kernel 命名，而对象生命周期并未变化，则不应期待明显内存下降。
 
-- `src/main/presenter/` 退出活跃运行时
-- `ServiceLocator` / presenter singleton 使用为 `0`
-- renderer 对 `main` 的直接 import 为 `0`
-- renderer 对 `electron` / `window.electron` 的直接依赖为 `0`
-- renderer 对旧 `window.api` 多入口桥接的直接依赖为 `0`
-- `window.deepchat` 由 shared contract registry 生成，而不是手写散落 wrapper
-- 业务层裸 `setTimeout` / `setInterval` 为 `0`
-- 所有 IPC route 在共享 contract 注册表中可追踪
-- 组件和 store 对 bridge 的直接耦合收敛到 `renderer/api` client 层
-- main 新架构核心模块具备可替换 port 和独立测试能力
+## Acceptance Direction
 
-## Acceptance Criteria
+最终验收以以下三类结果为核心：
 
-- 存在一套经批准的分阶段计划，覆盖 spec、plan、tasks、acceptance、test plan。
-- 存在一套经批准的 port catalog 与 legacy runtime -> port 映射。
-- 存在一套经批准的 route schema catalog 与 typed event catalog 设计。
-- 存在一套经批准的 EventBus 迁移设计，明确旧位置、新位置、迁移阶段与映射关系。
-- 存在一套经批准的迁移治理规则，覆盖 bridge 寿命、阶段硬门槛、PR 审查与 scoreboard。
-- 存在一套经批准的 build-vs-buy 决策，明确哪些能力引库、哪些能力自写。
-- 每个阶段都定义清晰的目标、交付物、退出条件、验证方式和不允许扩张的边界。
-- 最终目标架构明确为 `main/app + main/domain + main/ports + main/infra + main/platform/electron + shared contract registry + generated preload bridge + renderer/api clients`。
-- 旧 presenter singleton 不被视为长期保留对象，只允许作为受控迁移边界存在。
-- 最终验收以结构清理和行为等价双重标准判断，而不是只看“代码跑起来”。
+- renderer 边界更稳定
+- hot path 更容易解释和测试
+- cleanup / cancel / timeout 行为更可靠
+
+不以“新目录是否看起来更纯粹”作为主要标准。
 
 ## Open Questions
 
-本规格当前没有阻塞实现启动的 `[NEEDS CLARIFICATION]` 项。以下决策在本轮直接锁定：
+本轮不阻塞实施的决策如下：
 
-- plugin 相关架构不作为本轮单独 phase；这一轮只要求内部边界清晰，不要求交付新的扩展机制。
-- guardrail 先扩展现有 `architecture-guard` 与 baseline 脚本；只有当规则复杂度超出脚本维护能力时，再引入更重的依赖图工具。
-- `window.deepchat` 将作为最终单一 renderer bridge 名称；现有 `window.api` / `window.electron` 只作为迁移对象，不作为目标长期形态。
-- `window.deepchat` 只暴露稳定能力门面，不能随着内部 service 增长而无限膨胀。
+- 现有 `LifecycleManager` 保留，除非后续 hot path 证明它成为阻塞点。
+- `Presenter` 可作为过渡期 composition shell 保留，但不再继续吞新主链路。
+- `EventBus` 先冻结新增错误用法，优先给 migrated path 建 typed UI event；是否全量重写，等本轮收敛后再评估。
+- 本轮结束后再决定是否还有必要推进更彻底的 `main kernel` 目录重构。

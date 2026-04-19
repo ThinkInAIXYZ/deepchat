@@ -2,188 +2,140 @@
 
 ## Acceptance Model
 
-本项目采用“双层验收”：
+本项目采用双层验收：
 
-- 阶段验收：每个 phase 都必须单独通过
-- 最终验收：所有阶段通过后，再检查最终结构和行为指标
+- 阶段验收：每个 phase 都必须独立通过
+- 最终验收：所有阶段完成后，再检查本轮“边界稳定化”目标是否达成
 
-若阶段验收未通过，则该阶段不能宣告完成，即使代码已经合入。
+本轮验收重点不是“新目录是否漂亮”，而是：
+
+- migrated path 是否更稳定
+- owner 是否更清楚
+- 测试是否更容易写
 
 ## Phase Gate Rules
 
 每个阶段都必须同时满足以下条件：
 
-1. 该阶段定义的主路径切换已经完成
-2. 该阶段新增 bridge / adapter 已列入 bridge register，并写明 `deleteByPhase`
-3. 该阶段要求的自动化验证已经通过
-4. 该阶段要求的 smoke 验证已经通过
-5. 文档、任务状态和基线报告已经同步更新
-6. 该阶段对应 slice 只存在一个 active owner
-7. 该阶段没有超期 bridge
+1. 该阶段定义的真实 slice 或主路径切换已经完成
+2. 该阶段引入的 bridge 已登记 `deleteByPhase`
+3. 该阶段要求的自动化验证已通过
+4. 该阶段要求的 smoke 验证已通过
+5. legacy 指标相对上一阶段净下降，或至少没有反弹
 
-## Migration Governance Requirements
+## Governance Hard Requirements
 
-以下规则来自 [migration-governance.md](./migration-governance.md)，属于验收硬门槛：
+以下要求来自 [migration-governance.md](./migration-governance.md)，属于硬门槛：
 
 - 同一条用户路径只能有一个 active owner
 - bridge 只能单向 `old -> new`
-- bridge 默认最多存活 1 个 phase
+- foundation 工作不能连续多轮脱离真实 slice
 - 旧实现一旦进入迁移阶段即冻结
-- phase 完成必须看到 legacy 指标净下降
-
-## Build vs Buy Requirements
-
-以下规则来自 [build-vs-buy.md](./build-vs-buy.md)，属于实施边界：
-
-- `dependency-cruiser` 可用于架构依赖治理
-- `p-retry` 可用于 `Scheduler.retry`
-- `p-queue` 仅在并发/背压需求明确时引入
-- `Scope` 必须保持仓库内自写实现
-- `EventBus` 必须保持仓库内自写语义模型
-- `Emittery` 只允许作为风格借鉴对象，不作为第一批运行时依赖
-- `neverthrow` 不属于第一批基础设施
+- migrated path 完成后必须看到可证明的耦合净下降
 
 ## Phase Acceptance Criteria
 
 ### Phase 0: Guardrails & Baseline
 
-- 能自动阻止新增 `usePresenter()`、新增 direct renderer IPC、新增 renderer -> `electron` import
-- 能自动阻止新增裸 channel 字符串和 bridge 内部实现名泄漏
-- 能自动报告 presenter / IPC / timer / direct bridge 的趋势基线
-- 文档集合完整可导航
+- 能阻止新增 `usePresenter()`、新增 raw renderer IPC、新增 migrated path raw channel
+- 能输出 renderer / preload / hot path 相关趋势基线
+- bridge register 和 scoreboard 模板可用
 
-### Phase 1: Typed Contracts & Preload Bridge
+### Phase 1: Typed Boundary Foundation
 
 - 存在统一的 shared route registry
-- 首批主路径存在 schema 化 input/output
-- preload bridge 由 shared route registry 生成
-- renderer 可以通过 `renderer/api` client 调用主链路能力
+- 存在 typed event catalog，至少覆盖 settings / sessions / chat 首批事件
+- preload bridge 和 `renderer/api` client 已能驱动首批主路径
 - 新增功能不再依赖 `usePresenter()` 接入
 
-### Phase 2: Main Kernel & Scoped DI
+### Phase 2: Settings Pilot Slice
 
-- 存在唯一 `createAppKernel` 风格的 composition root
-- service 依赖可以通过 scope 注入，而不是 presenter singleton 查找
-- `app/window/session` 生命周期语义明确且可测试
-
-### Phase 3: Settings Pilot Slice
-
-- settings 主读写链路走新 contract + route + service
+- settings 主读写链路走新 contract + client + handler
 - settings 相关 renderer/store 不再依赖旧 presenter 作为主入口
-- 旧 settings 桥接已删除或明确进入下一阶段删除计划
+- settings 变更通知通过 typed event 可追踪
 
-### Phase 4: Sessions & Event Store
+### Phase 3: Chat & Session Hot Path
 
-- session 创建、恢复、切换链路走新 service
-- 关键会话状态变更可在 `SessionEventStore` 中观测
-- 恢复行为有自动化测试和手工 smoke 证明
+- session create / restore / activate 中至少主路径 owner 已明确
+- 发送消息、停止流主链路走显式 orchestration，而不是继续靠 presenter 互调
+- timeout / retry / cancel 通过 `Scheduler` 管理
+- migrated path 上的 cleanup 行为可测
 
-### Phase 5: Chat Runtime Cutover
+### Phase 4: Provider / Tool Boundary
 
-- 发送消息、流式回复、停止流主链路走新 service
-- timeout/retry/cancel 通过 `Scheduler` 管理
-- 原 chat runtime presenter 不再拥有主执行 owner 身份
-- `AgentSessionPresenter -> AgentRuntimePresenter` 主路径直接依赖已移除
-- chat 相关 renderer 能力全部通过 shared route registry 可追踪
+- provider query / execution / session 配置边界具备明确 port 或 adapter
+- permission / tool response 通过明确 contract 或 typed event 处理
+- migrated path 上 presenter 对 provider 的直接依赖已降到可解释范围
 
-### Phase 6: Providers & Tools Boundary
+### Phase 5: Consolidation & Re-evaluation
 
-- provider/tool 的主协调关系能通过 service + port 描述
-- provider 切换与工具执行不再依赖 presenter 全局隐式协作
-- MCP/tool/provider 核心链路具备测试覆盖
-- `SessionPresenter` / `AgentSessionPresenter` / `AgentRuntimePresenter` 对
-  `LLMProviderPresenter` 的主路径直接依赖已移除
-- `ConfigQueryPort` / `SessionRuntimePort` 的职责已回收到明确 port 或 typed event
-
-### Phase 7: Legacy Removal & Final Cleanup
-
-- 旧 presenter 运行时不再参与主链路
-- renderer 不再依赖 `usePresenter()`、`window.electron`、`window.api`
-- 散落字符串 IPC 和裸 timer 已清理到目标范围
-- active docs 已切换到新架构叙述
+- 本轮新增 bridge 已删除
+- 文档、baseline、scoreboard、smoke 记录已同步
+- 已形成“是否继续做下一轮更彻底 kernel 重构”的结论
 
 ## Final Acceptance Checklist
 
-### Architecture
+### Boundary
 
-- [ ] `src/main/presenter` 不再是活跃运行时
-- [ ] `main/bootstrap` 是唯一 composition root
-- [ ] `main/app` 负责业务逻辑
-- [ ] `main/domain` 保持无 infra 反向依赖
-- [ ] `main/ports` 是业务层依赖边界
-- [ ] `main/infra` / `main/platform/electron` 只实现 adapter 责任
-- [ ] `Scope` 为仓库内自写实现，而不是重型外部 DI 容器
-- [ ] `EventBus` 为仓库内自写语义模型
-- [ ] port catalog 与 legacy -> port 映射在实施中保持一致
-- [ ] EventBus 迁移符合 `eventbus-migration.md` 约定的位置和分层
+- [ ] migrated path 的 renderer 调用统一走 `renderer/api` + `window.deepchat`
+- [ ] migrated path 不再新增 `usePresenter()`、`window.electron`、`window.api` 依赖
+- [ ] migrated path 的 route 和 typed event 都能在共享 registry / catalog 中追踪
+- [ ] 组件和 store 不直接拼新的 raw channel 字符串
 
-### Renderer Boundary
+### Runtime Ownership
 
-- [ ] renderer 只通过 `renderer/api` + `window.deepchat` 调用 main 能力
-- [ ] 组件和 store 不直接拼裸 channel 字符串
-- [ ] `window.deepchat` 只暴露 capability facade，不泄漏 presenter/repository/sqlite 等内部实现名
-- [ ] renderer 对 `electron` 的直接 import 为 `0`
-- [ ] renderer 对 `window.electron` 的依赖为 `0`
-- [ ] renderer 对旧 `window.api` 多入口桥接的依赖为 `0`
-- [ ] renderer 对 `usePresenter()` 的活跃依赖为 `0`
+- [ ] settings、chat、session、provider 这些 migrated path 都有明确 owner
+- [ ] `AgentSessionPresenter -> AgentRuntimePresenter` 不再是 migrated chat path 的主 owner 链
+- [ ] provider query / execution / permission 边界可解释，不依赖全局隐式协作
+- [ ] session / stream / permission cleanup 有明确 owner
 
-### IPC
+### Lifecycle and Scheduling
 
-- [ ] 所有主链路 route 都在共享 route registry 中定义
-- [ ] 所有 input/output 都有 schema
-- [ ] route 命名、common schema 和 typed event 设计符合 `route-schema-catalog.md`
-- [ ] `ipcMain` handler 通过统一 router/controller 收口
-- [ ] preload bridge 从同一份 registry 生成
-- [ ] 不再新增匿名字符串 channel
-- [ ] 只有 renderer-main 调用进入 route registry，main 内部协作不伪装成 IPC
-
-### Runtime
-
-- [ ] 业务层裸 `setTimeout` / `setInterval` 为 `0`
-- [ ] 关键时序通过 `Scheduler` 管理
-- [ ] 关键状态变化可通过 typed event 或 event store 追踪
-- [ ] stream lifecycle 具备 cancel、timeout、error 三类可观测信号
-- [ ] provider/session/tool 协作通过 `service -> port` 可解释，不依赖 presenter 回调链
+- [ ] cancel、timeout、retry 在 migrated chat path 上走 `Scheduler`
+- [ ] window/session 相关 listener、subscription、abort controller 的清理可验证
+- [ ] 现有 `LifecycleManager` 或等价 setup 模块中，migrated path 的装配关系是可读的
 
 ### Cleanup
 
-- [ ] `ServiceLocator` / presenter singleton 使用为 `0`
-- [ ] presenter direct import 为 `0`
-- [ ] `AgentSessionPresenter -> AgentRuntimePresenter` 主路径直接依赖为 `0`
-- [ ] `SessionPresenter -> LLMProviderPresenter` 主路径直接依赖为 `0`
-- [ ] `AgentSessionPresenter -> LLMProviderPresenter` 主路径直接依赖为 `0`
-- [ ] `AgentRuntimePresenter -> LLMProviderPresenter` 主路径直接依赖为 `0`
-- [ ] 散落 legacy event name 不再承载新主链路
-- [ ] 临时 adapter 和兼容桥接已按计划删除
-- [ ] bridge register 为 `0`
-- [ ] `bridge.expired.count` 为 `0`
+- [ ] 本轮涉及的临时 bridge 已按计划删除
+- [ ] 对应 slice 的旧 owner 已冻结，不再继续长新逻辑
+- [ ] hot path 直连依赖相较基线净下降
+- [ ] 本轮不要求 `src/main/presenter` 目录归零，但 migrated path 不再依赖它的旧协作方式
 
 ### Quality
 
-- [ ] 无新增循环依赖
-- [ ] 新架构关键模块具备对应测试
-- [ ] 文档、基线、任务状态同步
+- [ ] route / client / service / scheduler / provider boundary 具备对应测试
 - [ ] `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 通过
-- [ ] 第三方库引入符合 build-vs-buy 决策，没有越界替代产品边界
+- [ ] baseline、tasks、test-plan、README 已同步更新
 
 ### User-Visible Behavior
 
+- [ ] 修改设置正常
 - [ ] 创建会话正常
 - [ ] 恢复会话正常
 - [ ] 发送消息正常
 - [ ] 流式回复正常
 - [ ] 停止流正常
-- [ ] 切换 provider 正常
-- [ ] 工具 / MCP 调用正常
-- [ ] 重启应用后核心状态可恢复
+- [ ] provider 相关关键交互正常
+- [ ] 权限交互正常
+
+## What Is Not Required For Sign-Off
+
+以下内容不属于本轮最终签收硬门槛：
+
+- `src/main/presenter` 整体删除
+- `ServiceLocator` / singleton 在全仓归零
+- 完整 clean architecture 目录搬迁
+- EventBus 全量重写
+- 明显内存下降
 
 ## Evidence Required Before Final Sign-Off
 
 - 最新基线报告
-- route registry 与 bridge 分组摘要
-- 最新 bridge register
-- 最新 migration scoreboard
-- 对应阶段与最终 smoke 记录
+- route registry 与 typed event catalog 摘要
+- bridge register
+- migration scoreboard
 - 自动化测试结果摘要
+- smoke 记录
 - 文档更新记录
-- 待删除临时 bridge 清单为 `0`
+- 对“是否继续做更彻底 kernel 重构”的结论说明
