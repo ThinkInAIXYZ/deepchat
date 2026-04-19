@@ -48,6 +48,19 @@ Renderer
 | [docs/specs/architecture-simplification/tasks.md](./specs/architecture-simplification/tasks.md) | 首期实施清单 |
 | [docs/specs/agent-cleanup/spec.md](./specs/agent-cleanup/spec.md) | cleanup 主规格，已更新到 retirement 完成态 |
 
+## 下一阶段主内核重构规划
+
+以下文档描述的是下一阶段目标架构，不代表当前代码已经完成迁移：
+
+| 位置 | 内容 |
+| --- | --- |
+| [docs/specs/main-kernel-refactor/spec.md](./specs/main-kernel-refactor/spec.md) | `Clean Main Kernel + Typed Bridge` 的目标、范围、约束 |
+| [docs/specs/main-kernel-refactor/plan.md](./specs/main-kernel-refactor/plan.md) | 分阶段执行顺序、slice 切换策略与风险控制 |
+| [docs/specs/main-kernel-refactor/tasks.md](./specs/main-kernel-refactor/tasks.md) | 项目级任务清单与阶段状态 |
+| [docs/specs/main-kernel-refactor/acceptance.md](./specs/main-kernel-refactor/acceptance.md) | 阶段验收口径与最终收口标准 |
+| [docs/specs/main-kernel-refactor/test-plan.md](./specs/main-kernel-refactor/test-plan.md) | 分层测试方案与 smoke matrix |
+| [docs/specs/main-kernel-refactor/migration-governance.md](./specs/main-kernel-refactor/migration-governance.md) | 避免半新半旧长期共存的实施纪律、bridge 规则与 scoreboard |
+
 ## 活跃架构地图
 
 ```text
@@ -70,6 +83,7 @@ docs/
 │   ├── agent-cleanup/
 │   ├── architecture-simplification/
 │   ├── ai-sdk-runtime/
+│   ├── main-kernel-refactor/
 │   ├── provider-layer-simplification/
 │   ├── legacy-llm-provider-runtime-retirement/
 │   └── legacy-agentpresenter-retirement/
