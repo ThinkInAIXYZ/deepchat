@@ -127,6 +127,76 @@ renderer component / store
 - 在业务层新增裸 timer
 - 为了“先过”而保留长期双栈逻辑
 
+## Phase 5-6 Dependency Untangling
+
+这两阶段的核心不是新增目录，而是把 `agentRuntimePresenter`、`AgentSessionPresenter`、
+`SessionPresenter`、`LLMProviderPresenter` 之间的循环协作拆成三类明确边界。
+
+### Boundary Rule 1: IPC Only For Renderer-Main Calls
+
+只有 renderer 发起、需要跨进程的能力才走 route registry：
+
+- `chat.sendMessage`
+- `chat.startStream`
+- `chat.stopStream`
+- `sessions.create`
+- `sessions.list`
+- `sessions.restore`
+- `sessions.activate`
+- renderer 发起的 provider 查询/验证
+- renderer 发起的工具交互与权限响应
+
+这里的落点固定为：
+
+```text
+renderer/api -> window.deepchat -> shared/contracts/routes.ts -> main/ipc -> main/app
+```
+
+### Boundary Rule 2: Intra-Main Calls Become Service-Port Interactions
+
+以下能力不经过 IPC，而是改为 `service -> port -> adapter`：
+
+- session / message repository 读写
+- provider text generation / model listing / rate limit
+- ACP session、workdir、mode、config option 管理
+- tool execution、permission、scheduler、timeout、retry
+- Electron window / dialog / clipboard / permission 之类 platform 能力
+
+### Boundary Rule 3: Presenter References Must Collapse
+
+Phase 5-6 直接围绕以下三组当前耦合做切割：
+
+| Current coupling | Observed today | Phase target | Interaction after cutover |
+| --- | --- | --- | --- |
+| `AgentSessionPresenter -> AgentRuntimePresenter` | 会话创建后注册 agent、排队 pending input、驱动消息执行 | `SessionService` 管会话，`ChatService` 管消息执行 | `service -> service` |
+| `AgentSessionPresenter -> LLMProviderPresenter` | `summaryTitles`、`generateCompletion`、ACP session/config/workdir | `SessionService` + provider ports | `service -> port` |
+| `SessionPresenter -> LLMProviderPresenter` | 标题生成、ACP workdir/process mode/warmup | `SessionService` + provider/session ports | `service -> port` |
+| `AgentRuntimePresenter -> LLMProviderPresenter` | `executeWithRateLimit`、`generateCompletionStandalone`、权限决议 | `ChatService` / `ProviderService` + provider ports | `service -> port` |
+| `ConfigQueryPort` / `SessionRuntimePort` | 以回调形式回补 provider/query/ui state | `ProviderCatalogPort`、typed event、`SessionPermissionPort` | `service -> port` / event |
+
+### Port Split To Lock In
+
+Phase 5-6 文档设计上提前锁定这些方向，防止实现时重新缠回一个大 presenter：
+
+- `SessionRepository` / `MessageRepository`
+- `SessionEventStore`
+- `ProviderExecutionPort`
+- `ProviderCatalogPort`
+- `ProviderSessionPort`
+- `TitleGenerationPort`
+- `ToolExecutionPort`
+- `SessionPermissionPort`
+- `Scheduler`
+- `WindowEventPort` 或 typed event publisher
+
+### Anti-Backflow Rule
+
+在 Phase 5-6 实施期间，任何新增代码都必须能回答下面三个问题：
+
+1. 这是 renderer-main 调用吗？如果是，必须进 route registry。
+2. 这是 main 内部协作吗？如果是，必须落到 service/port，不得再走 presenter 互调。
+3. 旧 presenter 还存在吗？如果存在，只允许 `old -> new` 单向转发，不允许 `new -> old`。
+
 ## Phase Map
 
 ```text
@@ -272,6 +342,7 @@ P0 Guardrails & Baseline
 目标：
 
 - 用 `ChatService` / `UseCase` 替换核心消息发送与流式运行时
+- 先切断 `AgentSessionPresenter -> AgentRuntimePresenter` 这条直接 owner 链
 
 交付物：
 
@@ -281,11 +352,14 @@ P0 Guardrails & Baseline
 - stream cancellation / timeout / retry 的 `Scheduler` 接口化
 - `Scheduler.retry` 内部接入 `p-retry`
 - typed stream event contract
+- chat/session 边界映射表，明确 renderer route 与 main 内部 port 划分
 
 退出条件：
 
 - 发送消息、流式回复、中断流、工具回调主链路走新架构
 - 对应 presenter runtime 不再是主执行入口
+- `AgentSessionPresenter` 不再直接持有 `AgentRuntimePresenter` 作为主运行时依赖
+- chat 相关 renderer 调用全部能在 route registry 中追踪到
 
 本阶段不做：
 
@@ -304,11 +378,15 @@ P0 Guardrails & Baseline
 - provider/tool port 定义
 - rate limit、permission、tool execution 的边界整理
 - 如并发/背压需求明确，评估 `p-queue`
+- provider/session/title generation 责任拆分表，明确原 `LLMProviderPresenter` 被拆向哪些 port
 
 退出条件：
 
 - provider 切换、工具执行、MCP 相关主路径可以通过 service + port 推理
 - presenter 不再是 provider/tool 的唯一协调者
+- `SessionPresenter` / `AgentSessionPresenter` / `AgentRuntimePresenter` 对
+  `LLMProviderPresenter` 的主路径直接依赖已移除
+- `ConfigQueryPort` / `SessionRuntimePort` 的临时职责已经落回明确 port 或 typed event
 
 本阶段不做：
 

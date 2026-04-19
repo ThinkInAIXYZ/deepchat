@@ -23,6 +23,8 @@
 - `architecture-guard`
 - baseline 生成脚本
 - grep 型 guard：`usePresenter`、`window.electron`、`window.api`、裸 timer、散落 IPC、裸 channel 字符串、bridge 内部实现名泄漏
+- presenter-to-presenter 直接依赖趋势：尤其是 `AgentSessionPresenter -> AgentRuntimePresenter`
+  与各 presenter -> `LLMProviderPresenter`
 - bridge register / scoreboard 一致性检查
 
 ### 2. Unit Tests
@@ -59,6 +61,7 @@
 作用：
 
 - 验证 `ipc route -> service -> port/adapter` 这一整段主链路
+- 验证 main 内部不再通过 presenter 互调完成 chat/session/provider 主路径
 
 建议对象：
 
@@ -121,8 +124,8 @@
 | P2 | scope lifecycle tests、kernel bootstrap tests | 启动应用、创建窗口、关闭窗口 |
 | P3 | settings unit/integration tests | 修改设置、重启后确认持久化 |
 | P4 | session service tests、restore tests、event store tests | 创建/切换/恢复会话 |
-| P5 | chat send/stream/cancel tests、scheduler tests | 发消息、停止流、异常回传 |
-| P6 | provider/tool/MCP integration tests | 切换 provider、执行工具 |
+| P5 | chat send/stream/cancel tests、scheduler tests、chat-session orchestration tests | 发消息、停止流、异常回传 |
+| P6 | provider/tool/MCP integration tests、provider port contract tests | 切换 provider、执行工具 |
 | P7 | full regression pack | 全量主路径 smoke，一轮冷启动与重启恢复 |
 
 ## Standard Verification Commands
@@ -163,12 +166,15 @@
 - 验证 stream cancel / timeout / retry
 - 验证 tool callback 或中间事件不会丢失
 - 验证消息发送与停止流通过 `ChatClient` 调用
+- 验证 chat 主链路不再需要 `AgentSessionPresenter -> AgentRuntimePresenter` 直接互调
 
 ### Provider / Tool Slice
 
 - 验证 provider registry 查询与切换
 - 验证 tool availability、permission、execution result
 - 验证 MCP 相关事件在新边界下仍能驱动 UI
+- 验证 `summaryTitles`、文本生成、ACP session/workdir/mode 不再通过 presenter 直接互调
+- 验证 `ConfigQueryPort` / `SessionRuntimePort` 替代物具备明确 contract
 
 ## Manual Smoke Matrix
 

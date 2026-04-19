@@ -137,18 +137,79 @@ process 运行时，重构为一个 `Clean Main Kernel + Typed Bridge` 的可组
 
 业务层只依赖 port 和 domain model，不直接 import infra 细节。
 
-### 7. Renderer Client Absorbs Bridge Details
+### 7. Contracts Stop At The Process Boundary
+
+`src/shared/contracts/` 只负责 renderer 与 main 之间的稳定跨进程契约。
+
+它解决的是：
+
+- route 名称
+- input/output schema
+- stream / event envelope
+- preload bridge 与 renderer client 的类型一致性
+
+它不解决的是 main 内部循环依赖。main 内部循环依赖必须通过 `app/service` 拆分、port
+抽象和 adapter 下沉来打散，不能再让 presenter 彼此直接引用。
+
+### 8. Renderer Client Absorbs Bridge Details
 
 组件、页面和 store 应优先依赖 `renderer/api` 下的 `ChatClient`、`SessionClient`、`SettingsClient`
 这类前端友好 client。只有 client 层可以直接长期了解 `window.deepchat` 的具体分组。
 
-### 8. No New Legacy Fallback
+### 9. No New Legacy Fallback
 
 除阶段迁移中明确列出的临时桥接外，不再给旧 presenter、旧 IPC、旧事件、旧 timeout 机制增加新兜底逻辑。
 
-### 9. Phase Exit Before Expansion
+### 10. Phase Exit Before Expansion
 
 上一阶段未达成 exit criteria，不进入下一阶段的核心切换工作。
+
+## Cycle Breaking Strategy
+
+Phase 5-6 的关键不是“把旧 presenter 包一层新名字”，而是明确哪些调用属于跨进程边界，
+哪些只是 main 内部协作，并用不同手段拆开。
+
+### A. Calls That Must Go Through IPC Contracts
+
+只有 renderer 或 preload 发起、必须跨 renderer-main 边界的能力进入
+`src/shared/contracts/routes.ts`：
+
+- `chat.sendMessage` / `chat.startStream` / `chat.stopStream`
+- `sessions.create` / `sessions.list` / `sessions.restore` / `sessions.activate`
+- renderer 发起的 provider 相关查询或验证能力
+- renderer 发起的工具交互、权限响应、流事件订阅
+
+这些能力由 shared contracts 定义，再映射到 `renderer/api` client 和 main `ipc` handler。
+
+### B. Calls That Must Become Service-Port Interactions
+
+以下调用不应通过 IPC，也不应继续 presenter 互调，而应收敛为 main 内部的
+`service -> port -> adapter`：
+
+- session/message 持久化与恢复
+- provider 文本生成、模型目录、rate limit、ACP session/workdir 管理
+- tool execution、permission adjudication、scheduler/retry/timeout
+- Electron 窗口、文件、权限等 platform 能力
+
+### C. Presenter Dependency Untangling
+
+当前高风险依赖需要按下面方式打散：
+
+| Current dependency | Current responsibility | Future home | Future interaction |
+| --- | --- | --- | --- |
+| `AgentSessionPresenter -> AgentRuntimePresenter` | 会话创建后驱动消息运行时、排队与激活 | `ChatService` + `SessionService` | `service -> service`，不保留 runtime presenter 引用 |
+| `AgentSessionPresenter -> LLMProviderPresenter` | 标题生成、翻译、ACP session/config/workdir | `SessionService` + provider-related ports | `service -> port` |
+| `SessionPresenter -> LLMProviderPresenter` | 标题生成、ACP workdir/process mode | `SessionService` + `ProviderSessionPort` / `TitleGenerationPort` | `service -> port` |
+| `AgentRuntimePresenter -> LLMProviderPresenter` | 模型执行、限流、权限决议 | `ChatService` / `ProviderService` + provider ports | `service -> port` |
+| `ConfigQueryPort` 临时回调 | provider model/custom model 查询 | `ProviderCatalogPort` / `SettingsQueryPort` | `service -> port` |
+| `SessionRuntimePort` 临时回调 | UI 刷新、权限清理、权限批准 | typed event + `SessionPermissionPort` | event / `service -> port` |
+
+锁定原则：
+
+- shared contracts 只覆盖 renderer-main 边界，不承接 main 内部 presenter 互调
+- main 内部新代码禁止出现 `new service -> old presenter` 回流
+- Phase 5 先切 chat/session orchestration，Phase 6 再切 provider/tool runtime ports
+- 旧 presenter 在对应 slice 切换后只允许单向转发到新 service，且必须写明删除阶段
 
 ## Migration Governance
 

@@ -91,6 +91,7 @@
 - [ ] 设计 `CreateSessionUseCase`
 - [ ] 设计 `RestoreSessionUseCase`
 - [ ] 设计 `SessionEventStore` 事件模型
+- [ ] 盘点当前 session 相关 renderer-main 调用，锁定哪些进入 route registry
 - [ ] 实现 session list/create/restore 的 contract 与 route
 - [ ] 迁移 renderer 会话页面与 store 到 `SessionClient`
 - [ ] 为 session restore、resume、archive 补测试
@@ -102,6 +103,9 @@
 - [ ] 设计 `ChatService`
 - [ ] 设计 `SendMessageUseCase`
 - [ ] 设计 `StreamAssistantReplyUseCase`
+- [ ] 盘点 chat 主路径中哪些调用属于 renderer-main 能力，纳入 route registry
+- [ ] 明确 `AgentSessionPresenter -> AgentRuntimePresenter` 当前主路径调用清单
+- [ ] 将消息发送、流启动、流停止、工具交互的编排下沉到 `ChatService`
 - [ ] 引入 `Scheduler` port，承接 timeout/retry/sleep
 - [ ] 在 `Scheduler.retry` 内部接入 `p-retry`
 - [ ] 为 stream chunk、stream done、stream cancel 定义 typed contract
@@ -109,12 +113,18 @@
 - [ ] 迁移停止流、重试、异常回传主链路到新 service
 - [ ] 补齐 chat runtime 单测与集成测试
 - [ ] 删除 `agentRuntimePresenter` 在主执行链路上的 owner 角色
+- [ ] 确认新 chat service 不反向依赖任何 legacy presenter
 
 ## Phase 6: Providers & Tools Boundary
 
 - [ ] 设计 `ProviderService` / `ProviderRegistry`
 - [ ] 设计 `ToolService` / `ToolExecutor`
 - [ ] 提取 provider/tool 相关 ports
+- [ ] 明确 `LLMProviderPresenter` 当前职责切分：model catalog / generation / ACP session / title generation / permission
+- [ ] 将 `SessionPresenter -> LLMProviderPresenter` 直接调用改造为 `SessionService -> ProviderSessionPort` / `TitleGenerationPort`
+- [ ] 将 `AgentSessionPresenter -> LLMProviderPresenter` 直接调用改造为 `SessionService` / `ProviderService` 对应 port
+- [ ] 将 `AgentRuntimePresenter -> LLMProviderPresenter` 直接调用改造为 `ChatService` / `ProviderService` 对应 port
+- [ ] 将 `ConfigQueryPort` / `SessionRuntimePort` 临时回调替换为明确 port 或 typed event
 - [ ] 收口 provider 配置与运行时查询边界
 - [ ] 收口 tool execution、permission、rate limit 边界
 - [ ] 若出现明确并发/背压需求，评估 `p-queue`
@@ -144,3 +154,4 @@
 - [ ] 每个阶段完成时确认 `window.deepchat` 没有泄漏新的内部实现名
 - [ ] 每个阶段完成时确认对应 slice 只剩一个 active owner
 - [ ] 每个阶段完成时确认没有超期 bridge
+- [ ] Phase 5-6 每个阶段完成时确认 presenter-to-presenter 直接依赖数量净下降

@@ -83,12 +83,17 @@
 - 发送消息、流式回复、停止流主链路走新 service
 - timeout/retry/cancel 通过 `Scheduler` 管理
 - 原 chat runtime presenter 不再拥有主执行 owner 身份
+- `AgentSessionPresenter -> AgentRuntimePresenter` 主路径直接依赖已移除
+- chat 相关 renderer 能力全部通过 shared route registry 可追踪
 
 ### Phase 6: Providers & Tools Boundary
 
 - provider/tool 的主协调关系能通过 service + port 描述
 - provider 切换与工具执行不再依赖 presenter 全局隐式协作
 - MCP/tool/provider 核心链路具备测试覆盖
+- `SessionPresenter` / `AgentSessionPresenter` / `AgentRuntimePresenter` 对
+  `LLMProviderPresenter` 的主路径直接依赖已移除
+- `ConfigQueryPort` / `SessionRuntimePort` 的职责已回收到明确 port 或 typed event
 
 ### Phase 7: Legacy Removal & Final Cleanup
 
@@ -127,6 +132,7 @@
 - [ ] `ipcMain` handler 通过统一 router/controller 收口
 - [ ] preload bridge 从同一份 registry 生成
 - [ ] 不再新增匿名字符串 channel
+- [ ] 只有 renderer-main 调用进入 route registry，main 内部协作不伪装成 IPC
 
 ### Runtime
 
@@ -134,11 +140,16 @@
 - [ ] 关键时序通过 `Scheduler` 管理
 - [ ] 关键状态变化可通过 typed event 或 event store 追踪
 - [ ] stream lifecycle 具备 cancel、timeout、error 三类可观测信号
+- [ ] provider/session/tool 协作通过 `service -> port` 可解释，不依赖 presenter 回调链
 
 ### Cleanup
 
 - [ ] `ServiceLocator` / presenter singleton 使用为 `0`
 - [ ] presenter direct import 为 `0`
+- [ ] `AgentSessionPresenter -> AgentRuntimePresenter` 主路径直接依赖为 `0`
+- [ ] `SessionPresenter -> LLMProviderPresenter` 主路径直接依赖为 `0`
+- [ ] `AgentSessionPresenter -> LLMProviderPresenter` 主路径直接依赖为 `0`
+- [ ] `AgentRuntimePresenter -> LLMProviderPresenter` 主路径直接依赖为 `0`
 - [ ] 散落 legacy event name 不再承载新主链路
 - [ ] 临时 adapter 和兼容桥接已按计划删除
 - [ ] bridge register 为 `0`

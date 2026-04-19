@@ -51,6 +51,18 @@ renderer client -> legacy direct IPC
 
 也就是说，新架构不能反向依赖旧架构。
 
+### 2.5. Process Boundary Only Once
+
+`shared/contracts` 只负责 renderer-main 边界，不能被拿来包装 main 内部 presenter 互调。
+
+换句话说：
+
+- renderer 发起的能力：走 route registry + IPC
+- main 内部协作：走 `service -> port -> adapter`
+- 旧 presenter 过渡：只允许 `old -> new` 转发
+
+禁止把 main 内部循环依赖伪装成“再加一个 IPC”或“再补一个 runtime callback”。
+
 ### 3. One Phase, One Real Slice
 
 每个 phase 必须包含一个真实用户路径的切换，而不仅仅是基础设施搭建。
@@ -189,7 +201,9 @@ renderer client -> legacy direct IPC
 4. 这次有没有减少 legacy 指标？
 5. renderer 是否新增了直接 bridge 细节耦合？
 6. `window.deepchat` 是否泄漏了内部实现名？
-7. 该 slice 的 smoke 和自动化测试是否覆盖了切换点？
+7. 这次切掉了哪条 presenter-to-presenter 直接依赖？
+8. 哪些调用走 IPC，哪些走 service/port，是否写清楚了？
+9. 该 slice 的 smoke 和自动化测试是否覆盖了切换点？
 
 ## Migration Scoreboard
 
