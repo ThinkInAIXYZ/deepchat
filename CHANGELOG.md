@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.3-beta.4 (2026-04-19)
+- Recovered missing SQLite `deepchat_sessions` columns on upgraded installs to restore stable session persistence
+- 修复升级安装后 SQLite `deepchat_sessions` 缺失列的问题，恢复会话持久化稳定性
+
 ## v1.0.3-beta.3 (2026-04-18)
 - Added Anthropic temperature support in model capability controls
 - Added `none` and `xhigh` reasoning effort options for supported models
