@@ -68,6 +68,7 @@ process 运行时，重构为一个 `Clean Main Kernel + Typed Bridge` 的可组
 - EventBus、Scheduler、SessionEventStore 等基础设施设计
 - main kernel 的分阶段迁移路线、验收标准与测试方案
 - 迁移执行纪律、bridge 生命周期与阶段治理规则
+- build-vs-buy 决策与第三方依赖引入边界
 - 与架构重构直接相关的 guardrail、baseline 与文档更新
 
 ## Out of Scope
@@ -160,6 +161,18 @@ process 运行时，重构为一个 `Clean Main Kernel + Typed Bridge` 的可组
 - 临时 bridge 默认最多存活 1 个 phase
 - phase 完成标准看 legacy 指标是否净下降，而不是只看新代码是否存在
 - 旧实现一旦进入迁移阶段即冻结，不再继续长新业务
+
+## Build vs Buy
+
+本轮实施必须同时遵守 [build-vs-buy.md](./build-vs-buy.md) 中的引库策略。
+
+当前明确决策：
+
+- `zod` 继续作为 contract/schema 标准
+- `dependency-cruiser` 和 `p-retry` 属于批准引入范围
+- `p-queue` 只在并发/背压需求明确时评估
+- `DI Scope` 明确自写，不引入重型容器作为第一批基础设施
+- `EventBus` 明确自写语义模型，只借鉴 `Emittery` 风格，不作为第一批运行时依赖
 
 ## Capability Boundary Rules
 
@@ -294,6 +307,7 @@ window.deepchat.messages.insertAssistantMessage()
 
 - 存在一套经批准的分阶段计划，覆盖 spec、plan、tasks、acceptance、test plan。
 - 存在一套经批准的迁移治理规则，覆盖 bridge 寿命、阶段硬门槛、PR 审查与 scoreboard。
+- 存在一套经批准的 build-vs-buy 决策，明确哪些能力引库、哪些能力自写。
 - 每个阶段都定义清晰的目标、交付物、退出条件、验证方式和不允许扩张的边界。
 - 最终目标架构明确为 `main/app + main/domain + main/ports + main/infra + main/platform/electron + shared contract registry + generated preload bridge + renderer/api clients`。
 - 旧 presenter singleton 不被视为长期保留对象，只允许作为受控迁移边界存在。

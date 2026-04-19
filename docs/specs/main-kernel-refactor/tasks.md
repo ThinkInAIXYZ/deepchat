@@ -20,6 +20,17 @@
 - [ ] 将 review checklist 纳入实施标准
 - [ ] 将“最多 1 个 phase 寿命”的 bridge 规则作为默认纪律
 
+## Build vs Buy
+
+- [x] 明确 build-vs-buy 默认策略
+- [ ] 引入 `dependency-cruiser` 并接入架构检查
+- [ ] 保持 `Scope` 为仓库内自写实现，不引入重型 DI 容器
+- [ ] 保持 `EventBus` 为仓库内自写语义模型
+- [ ] 为 `EventBus` 记录可借鉴 `Emittery` 的风格边界，但不作为第一批运行时依赖
+- [ ] 在 `Scheduler.retry` 接口化落地时接入 `p-retry`
+- [ ] 只在 provider/tool/MCP 并发治理需求明确时评估 `p-queue`
+- [ ] 将 `neverthrow` 标记为后续可选项，而不是第一批基础设施
+
 ## Phase 0: Guardrails & Baseline
 
 - [ ] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `usePresenter()` 调用点
@@ -33,6 +44,7 @@
 - [ ] 扩展 baseline 脚本，增加 bridge 分组与 route 数量趋势指标
 - [ ] 在 `docs/architecture/baselines/` 落一次本项目初始重构基线
 - [ ] 确认每条基线都能重复生成，并写明执行命令
+- [ ] 将 `dependency-cruiser` 规则纳入 `Phase 0` 的基础 guardrail
 
 ## Phase 1: Typed Contracts & Preload Bridge
 
@@ -60,6 +72,7 @@
 - [ ] 设计 session scope 的 owner、销毁时机与 cancellation 语义
 - [ ] 为 scope dispose 顺序补测试
 - [ ] 让新 service 获取依赖不再经过全局 presenter locator
+- [ ] 明确本阶段不引入 `Awilix` / `tsyringe`
 
 ## Phase 3: Settings Pilot Slice
 
@@ -90,6 +103,7 @@
 - [ ] 设计 `SendMessageUseCase`
 - [ ] 设计 `StreamAssistantReplyUseCase`
 - [ ] 引入 `Scheduler` port，承接 timeout/retry/sleep
+- [ ] 在 `Scheduler.retry` 内部接入 `p-retry`
 - [ ] 为 stream chunk、stream done、stream cancel 定义 typed contract
 - [ ] 迁移发送消息主链路到 `ChatClient` + 新 service
 - [ ] 迁移停止流、重试、异常回传主链路到新 service
@@ -103,6 +117,7 @@
 - [ ] 提取 provider/tool 相关 ports
 - [ ] 收口 provider 配置与运行时查询边界
 - [ ] 收口 tool execution、permission、rate limit 边界
+- [ ] 若出现明确并发/背压需求，评估 `p-queue`
 - [ ] 为 MCP/tool/provider 关键路径补测试
 - [ ] 迁移对应 renderer/store 调用到 typed bridge
 - [ ] 删除该 slice 上不再需要的 presenter 协调逻辑

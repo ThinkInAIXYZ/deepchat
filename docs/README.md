@@ -60,6 +60,7 @@ Renderer
 | [docs/specs/main-kernel-refactor/acceptance.md](./specs/main-kernel-refactor/acceptance.md) | 阶段验收口径与最终收口标准 |
 | [docs/specs/main-kernel-refactor/test-plan.md](./specs/main-kernel-refactor/test-plan.md) | 分层测试方案与 smoke matrix |
 | [docs/specs/main-kernel-refactor/migration-governance.md](./specs/main-kernel-refactor/migration-governance.md) | 避免半新半旧长期共存的实施纪律、bridge 规则与 scoreboard |
+| [docs/specs/main-kernel-refactor/build-vs-buy.md](./specs/main-kernel-refactor/build-vs-buy.md) | 哪些能力引库、哪些能力自写，以及第三方依赖的边界 |
 
 ## 活跃架构地图
 

@@ -96,6 +96,18 @@ renderer component / store
 3. bridge 默认最多存活 1 个 phase
 4. phase 完成必须看到 legacy 指标净下降
 
+## Build vs Buy Policy
+
+实施过程同时遵守 [build-vs-buy.md](./build-vs-buy.md)。
+
+当前默认策略：
+
+- shared route registry、`createBridge`、`IpcRouter`、`Scope`、`EventBus`、`renderer/api/*Client` 自写
+- `zod` 继续沿用
+- `dependency-cruiser` 用于架构依赖检查
+- `p-retry` 承接 `Scheduler.retry`
+- `p-queue` 只在 provider/tool/MCP 并发治理确实出现时再评估
+
 ## Migration Rules
 
 ### Allowed
@@ -141,6 +153,7 @@ P0 Guardrails & Baseline
 
 - 扩展 `scripts/architecture-guard.mjs`
 - 扩展 `scripts/generate-architecture-baseline.mjs`
+- 引入 `dependency-cruiser`
 - 新增本次重构的文档集
 - 补充针对 renderer/preload/main 边界的检查项
 - 明确 `window.deepchat` 命名和粒度约束
@@ -189,6 +202,7 @@ P0 Guardrails & Baseline
 目标：
 
 - 建立唯一 composition root 与显式生命周期
+- 以最小自写 `Scope` 落地 DI，而不是先引重型容器
 
 交付物：
 
@@ -206,6 +220,7 @@ P0 Guardrails & Baseline
 本阶段不做：
 
 - 不在此阶段一口气迁移全部业务 slice
+- 不引入 `Awilix` / `tsyringe` 这类容器框架作为第一批基础设施
 
 ### Phase 3: Settings Pilot Slice
 
@@ -264,6 +279,7 @@ P0 Guardrails & Baseline
 - `SendMessageUseCase`
 - `StreamAssistantReplyUseCase`
 - stream cancellation / timeout / retry 的 `Scheduler` 接口化
+- `Scheduler.retry` 内部接入 `p-retry`
 - typed stream event contract
 
 退出条件：
@@ -287,6 +303,7 @@ P0 Guardrails & Baseline
 - `ToolService` / `ToolExecutor`
 - provider/tool port 定义
 - rate limit、permission、tool execution 的边界整理
+- 如并发/背压需求明确，评估 `p-queue`
 
 退出条件：
 
@@ -332,6 +349,7 @@ P0 Guardrails & Baseline
 - 清理：每完成一个 slice，立即删除该 slice 上不再需要的桥接逻辑
 - API 设计：bridge 按 capability 分组，组件通过 client 层调用，不暴露内部实现名
 - 治理：更新 bridge register、scoreboard 和阶段退出状态
+- 引库纪律：第三方库只解决通用基础设施问题，不定义产品边界
 
 ## Recommended PR Sequence
 

@@ -31,6 +31,18 @@
 - 旧实现一旦进入迁移阶段即冻结
 - phase 完成必须看到 legacy 指标净下降
 
+## Build vs Buy Requirements
+
+以下规则来自 [build-vs-buy.md](./build-vs-buy.md)，属于实施边界：
+
+- `dependency-cruiser` 可用于架构依赖治理
+- `p-retry` 可用于 `Scheduler.retry`
+- `p-queue` 仅在并发/背压需求明确时引入
+- `Scope` 必须保持仓库内自写实现
+- `EventBus` 必须保持仓库内自写语义模型
+- `Emittery` 只允许作为风格借鉴对象，不作为第一批运行时依赖
+- `neverthrow` 不属于第一批基础设施
+
 ## Phase Acceptance Criteria
 
 ### Phase 0: Guardrails & Baseline
@@ -95,6 +107,8 @@
 - [ ] `main/domain` 保持无 infra 反向依赖
 - [ ] `main/ports` 是业务层依赖边界
 - [ ] `main/infra` / `main/platform/electron` 只实现 adapter 责任
+- [ ] `Scope` 为仓库内自写实现，而不是重型外部 DI 容器
+- [ ] `EventBus` 为仓库内自写语义模型
 
 ### Renderer Boundary
 
@@ -136,6 +150,7 @@
 - [ ] 新架构关键模块具备对应测试
 - [ ] 文档、基线、任务状态同步
 - [ ] `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 通过
+- [ ] 第三方库引入符合 build-vs-buy 决策，没有越界替代产品边界
 
 ### User-Visible Behavior
 
