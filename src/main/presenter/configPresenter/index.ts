@@ -66,6 +66,7 @@ import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from './acpRegistryConstants'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   Agent,
@@ -1096,6 +1097,13 @@ export class ConfigPresenter implements IConfigPresenter {
       // Special handling: font size settings need to notify all tabs
       if (key === 'fontSizeLevel') {
         eventBus.sendToRenderer(CONFIG_EVENTS.FONT_SIZE_CHANGED, SendTarget.ALL_WINDOWS, value)
+        publishDeepchatEvent('settings.changed', {
+          changedKeys: ['fontSizeLevel'],
+          version: Date.now(),
+          values: {
+            fontSizeLevel: typeof value === 'number' ? value : 1
+          }
+        })
       }
     } catch (error) {
       console.error(`[Config] Failed to set setting ${key}:`, error)
@@ -1626,6 +1634,13 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setLoggingEnabled(enabled: boolean): void {
     this.setSetting('loggingEnabled', enabled)
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['loggingEnabled'],
+      version: Date.now(),
+      values: {
+        loggingEnabled: Boolean(enabled)
+      }
+    })
     setTimeout(() => {
       presenter.devicePresenter.restartApp()
     }, 1000)

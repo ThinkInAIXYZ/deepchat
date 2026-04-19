@@ -43,6 +43,7 @@ import { NewMessageManager } from './messageManager'
 import { LegacyChatImportService } from './legacyImportService'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildConversationExportContent,
   generateExportFilename,
@@ -353,6 +354,12 @@ export class AgentSessionPresenter {
       webContentsId,
       sessionId
     })
+    publishDeepchatEvent('sessions.updated', {
+      sessionIds: [sessionId],
+      reason: 'created',
+      activeSessionId: sessionId,
+      webContentsId
+    })
     this.emitSessionListUpdated()
 
     if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
@@ -475,6 +482,10 @@ export class AgentSessionPresenter {
     }
 
     this.emitSessionListUpdated()
+    publishDeepchatEvent('sessions.updated', {
+      sessionIds: [sessionId],
+      reason: 'created'
+    })
 
     const state = await agent.getSessionState(sessionId)
     return {
@@ -1287,11 +1298,23 @@ export class AgentSessionPresenter {
       webContentsId,
       sessionId
     })
+    publishDeepchatEvent('sessions.updated', {
+      sessionIds: [sessionId],
+      reason: 'activated',
+      activeSessionId: sessionId,
+      webContentsId
+    })
   }
 
   async deactivateSession(webContentsId: number): Promise<void> {
     this.sessionManager.unbindWindow(webContentsId)
     eventBus.sendToRenderer(SESSION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
+      webContentsId
+    })
+    publishDeepchatEvent('sessions.updated', {
+      sessionIds: [],
+      reason: 'deactivated',
+      activeSessionId: null,
       webContentsId
     })
   }
@@ -1697,6 +1720,10 @@ export class AgentSessionPresenter {
 
   private emitSessionListUpdated(): void {
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    publishDeepchatEvent('sessions.updated', {
+      sessionIds: [],
+      reason: 'list-refreshed'
+    })
     this.sessionRuntimePort?.refreshSessionUi()
   }
 

@@ -1,0 +1,76 @@
+import type { DeepchatBridge } from '@shared/contracts/bridge'
+import { ChatClient } from '../../../src/renderer/api/ChatClient'
+import { SessionClient } from '../../../src/renderer/api/SessionClient'
+import { SettingsClient } from '../../../src/renderer/api/SettingsClient'
+
+describe('renderer api clients', () => {
+  function createBridge(): DeepchatBridge {
+    return {
+      invoke: vi.fn().mockResolvedValue({}),
+      on: vi.fn(() => vi.fn())
+    }
+  }
+
+  it('routes settings calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const client = new SettingsClient(bridge)
+
+    await client.getSnapshot(['fontSizeLevel'])
+    await client.update([{ key: 'fontSizeLevel', value: 3 }])
+    await client.openSettings({ routeName: 'settings-display', section: 'fonts' })
+    client.onChanged(vi.fn())
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'settings.getSnapshot', {
+      keys: ['fontSizeLevel']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'settings.update', {
+      changes: [{ key: 'fontSizeLevel', value: 3 }]
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'system.openSettings', {
+      routeName: 'settings-display',
+      section: 'fonts'
+    })
+    expect(bridge.on).toHaveBeenCalledWith('settings.changed', expect.any(Function))
+  })
+
+  it('routes session and chat calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const sessionClient = new SessionClient(bridge)
+    const chatClient = new ChatClient(bridge)
+
+    await sessionClient.create({
+      agentId: 'deepchat',
+      message: 'hello'
+    })
+    await sessionClient.restore('session-1')
+    await sessionClient.list({ includeSubagents: true })
+    sessionClient.onUpdated(vi.fn())
+    await chatClient.sendMessage('session-1', 'follow up')
+    await chatClient.stopStream({ requestId: 'message-1' })
+    chatClient.onStreamUpdated(vi.fn())
+    chatClient.onStreamCompleted(vi.fn())
+    chatClient.onStreamFailed(vi.fn())
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.create', {
+      agentId: 'deepchat',
+      message: 'hello'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.restore', {
+      sessionId: 'session-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'sessions.list', {
+      includeSubagents: true
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'chat.sendMessage', {
+      sessionId: 'session-1',
+      content: 'follow up'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'chat.stopStream', {
+      requestId: 'message-1'
+    })
+    expect(bridge.on).toHaveBeenNthCalledWith(1, 'sessions.updated', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(2, 'chat.stream.updated', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(3, 'chat.stream.completed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(4, 'chat.stream.failed', expect.any(Function))
+  })
+})

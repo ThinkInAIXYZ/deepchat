@@ -131,6 +131,13 @@
 - Phase 0 artifacts are `docs/architecture/baselines/main-kernel-boundary-baseline.md`
 - Phase 0 artifacts are `docs/architecture/baselines/main-kernel-bridge-register.md`
 - Phase 0 artifacts are `docs/architecture/baselines/main-kernel-migration-scoreboard.md`
+- Phase 1 completed on `2026-04-19`
+- Automated verification for Phase 1 uses `pnpm exec vitest --config vitest.config.ts test/main/routes/contracts.test.ts test/main/routes/dispatcher.test.ts`
+- Automated verification for Phase 1 uses `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/api/createBridge.test.ts test/renderer/api/clients.test.ts`
+- Automated verification for Phase 1 uses `pnpm run typecheck`
+- Automated verification for Phase 1 uses `pnpm run format`, `pnpm run i18n`, `pnpm run lint`
+- Repro smoke for Phase 1 is invoking `window.deepchat` routes through the new bridge and confirming typed event subscriptions receive `settings.changed`, `sessions.updated`, and `chat.stream.*`
+- Phase 1 artifacts are `src/shared/contracts/`, `src/preload/createBridge.ts`, `src/main/routes/`, and `src/renderer/api/`
 
 ## Standard Verification Commands
 

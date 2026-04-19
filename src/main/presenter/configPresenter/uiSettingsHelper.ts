@@ -1,5 +1,7 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import fontList from 'font-list'
 
 const AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT = 80
@@ -35,6 +37,16 @@ interface UiSettingsHelperOptions {
   setSetting: SetSetting
 }
 
+const emitSettingsChanged = (changedKey: SettingsKey, value: string | number | boolean) => {
+  publishDeepchatEvent('settings.changed', {
+    changedKeys: [changedKey],
+    version: Date.now(),
+    values: {
+      [changedKey]: value
+    } as Partial<SettingsSnapshotValues>
+  })
+}
+
 export class UiSettingsHelper {
   private readonly getSetting: GetSetting
   private readonly setSetting: SetSetting
@@ -66,6 +78,7 @@ export class UiSettingsHelper {
     const boolValue = Boolean(enabled)
     this.setSetting('autoScrollEnabled', boolValue)
     eventBus.send(CONFIG_EVENTS.AUTO_SCROLL_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
+    emitSettingsChanged('autoScrollEnabled', boolValue)
   }
 
   getAutoCompactionEnabled(): boolean {
@@ -75,7 +88,9 @@ export class UiSettingsHelper {
   }
 
   setAutoCompactionEnabled(enabled: boolean): void {
-    this.setSetting('autoCompactionEnabled', Boolean(enabled))
+    const boolValue = Boolean(enabled)
+    this.setSetting('autoCompactionEnabled', boolValue)
+    emitSettingsChanged('autoCompactionEnabled', boolValue)
   }
 
   getAutoCompactionTriggerThreshold(): number {
@@ -85,10 +100,9 @@ export class UiSettingsHelper {
   }
 
   setAutoCompactionTriggerThreshold(threshold: number): void {
-    this.setSetting(
-      'autoCompactionTriggerThreshold',
-      this.normalizeAutoCompactionTriggerThreshold(threshold)
-    )
+    const normalized = this.normalizeAutoCompactionTriggerThreshold(threshold)
+    this.setSetting('autoCompactionTriggerThreshold', normalized)
+    emitSettingsChanged('autoCompactionTriggerThreshold', normalized)
   }
 
   getAutoCompactionRetainRecentPairs(): number {
@@ -98,10 +112,9 @@ export class UiSettingsHelper {
   }
 
   setAutoCompactionRetainRecentPairs(count: number): void {
-    this.setSetting(
-      'autoCompactionRetainRecentPairs',
-      this.normalizeAutoCompactionRetainRecentPairs(count)
-    )
+    const normalized = this.normalizeAutoCompactionRetainRecentPairs(count)
+    this.setSetting('autoCompactionRetainRecentPairs', normalized)
+    emitSettingsChanged('autoCompactionRetainRecentPairs', normalized)
   }
 
   getContentProtectionEnabled(): boolean {
@@ -112,6 +125,7 @@ export class UiSettingsHelper {
   setContentProtectionEnabled(enabled: boolean): void {
     this.setSetting('contentProtectionEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    emitSettingsChanged('contentProtectionEnabled', enabled)
   }
 
   getCopyWithCotEnabled(): boolean {
@@ -122,11 +136,13 @@ export class UiSettingsHelper {
   setCopyWithCotEnabled(enabled: boolean): void {
     this.setSetting('copyWithCotEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    emitSettingsChanged('copyWithCotEnabled', enabled)
   }
 
   setTraceDebugEnabled(enabled: boolean): void {
     this.setSetting('traceDebugEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.TRACE_DEBUG_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    emitSettingsChanged('traceDebugEnabled', enabled)
   }
 
   getNotificationsEnabled(): boolean {
@@ -138,8 +154,10 @@ export class UiSettingsHelper {
   }
 
   setNotificationsEnabled(enabled: boolean): void {
-    this.setSetting('notificationsEnabled', enabled)
-    eventBus.send(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, SendTarget.ALL_WINDOWS, Boolean(enabled))
+    const boolValue = Boolean(enabled)
+    this.setSetting('notificationsEnabled', boolValue)
+    eventBus.send(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
+    emitSettingsChanged('notificationsEnabled', boolValue)
   }
 
   getFontFamily(): string {
@@ -150,6 +168,7 @@ export class UiSettingsHelper {
     const normalized = this.normalizeStoredFont(fontFamily)
     this.setSetting('fontFamily', normalized)
     eventBus.send(CONFIG_EVENTS.FONT_FAMILY_CHANGED, SendTarget.ALL_WINDOWS, normalized)
+    emitSettingsChanged('fontFamily', normalized)
   }
 
   getCodeFontFamily(): string {
@@ -160,6 +179,7 @@ export class UiSettingsHelper {
     const normalized = this.normalizeStoredFont(fontFamily)
     this.setSetting('codeFontFamily', normalized)
     eventBus.send(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED, SendTarget.ALL_WINDOWS, normalized)
+    emitSettingsChanged('codeFontFamily', normalized)
   }
 
   resetFontSettings(): void {

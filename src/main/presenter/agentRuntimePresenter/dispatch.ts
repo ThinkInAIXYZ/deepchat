@@ -32,6 +32,7 @@ import {
   emitDeepChatInternalSessionUpdate,
   extractWaitingInteraction
 } from './internalSessionEvents'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -625,11 +626,20 @@ function appendQuestionActionBlock(
 }
 
 function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): void {
+  const renderedBlocks = cloneBlocksForRenderer(blocks)
   eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
     conversationId: io.sessionId,
     eventId: io.messageId,
     messageId: io.messageId,
-    blocks: cloneBlocksForRenderer(blocks)
+    blocks: renderedBlocks
+  })
+  publishDeepchatEvent('chat.stream.updated', {
+    kind: 'snapshot',
+    requestId: io.messageId,
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    updatedAt: Date.now(),
+    blocks: renderedBlocks
   })
 
   emitDeepChatInternalSessionUpdate({
@@ -1043,6 +1053,12 @@ export function finalize(state: StreamState, io: IoParams): void {
     eventId: io.messageId,
     messageId: io.messageId
   })
+  publishDeepchatEvent('chat.stream.completed', {
+    requestId: io.messageId,
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    completedAt: Date.now()
+  })
 }
 
 export function finalizeError(state: StreamState, io: IoParams, error: unknown): void {
@@ -1066,6 +1082,13 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
     conversationId: io.sessionId,
     eventId: io.messageId,
     messageId: io.messageId,
+    error: errorMessage
+  })
+  publishDeepchatEvent('chat.stream.failed', {
+    requestId: io.messageId,
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    failedAt: Date.now(),
     error: errorMessage
   })
 }

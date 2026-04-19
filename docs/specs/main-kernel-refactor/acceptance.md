@@ -81,6 +81,13 @@
 - Phase 0 artifacts are `docs/architecture/baselines/main-kernel-bridge-register.md`
 - Phase 0 artifacts are `docs/architecture/baselines/main-kernel-migration-scoreboard.md`
 - Phase 0 establishes the baseline checkpoint, so later phases compare against this snapshot instead of a prior phase delta
+- [x] Phase 1 completed on `2026-04-19`
+- Phase 1 evidence lives in `src/shared/contracts/`, `src/preload/createBridge.ts`, `src/main/routes/`, and `src/renderer/api/`
+- Phase 1 automated verification covers `test/main/routes/contracts.test.ts`
+- Phase 1 automated verification covers `test/main/routes/dispatcher.test.ts`
+- Phase 1 automated verification covers `test/renderer/api/createBridge.test.ts`
+- Phase 1 automated verification covers `test/renderer/api/clients.test.ts`
+- Phase 1 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P1`
 
 ## Final Acceptance Checklist
 

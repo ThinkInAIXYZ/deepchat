@@ -1,7 +1,7 @@
 # Main Kernel Boundary Baseline
 
 Generated on 2026-04-19.
-Current phase: P0.
+Current phase: P1.
 
 ## Metric Snapshot
 

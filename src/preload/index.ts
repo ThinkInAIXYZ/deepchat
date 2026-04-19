@@ -9,6 +9,7 @@ import {
   shell
 } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
+import { createBridge } from './createBridge'
 
 const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:', 'deepchat:']
 const isDevHiddenApiEnabled =
@@ -130,6 +131,7 @@ const deepchatDevApi = isDevHiddenApiEnabled
       }
     }
   : undefined
+const deepchatBridge = createBridge(ipcRenderer)
 
 exposeElectronAPI()
 
@@ -139,6 +141,7 @@ exposeElectronAPI()
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('deepchat', deepchatBridge)
     if (deepchatDevApi) {
       contextBridge.exposeInMainWorld('__deepchatDev', deepchatDevApi)
     }
@@ -148,6 +151,8 @@ if (process.contextIsolated) {
 } else {
   // @ts-ignore (define in dts)
   window.api = api
+  // @ts-ignore (define in dts)
+  window.deepchat = deepchatBridge
   if (deepchatDevApi) {
     // @ts-ignore (define in dts)
     window.__deepchatDev = deepchatDevApi

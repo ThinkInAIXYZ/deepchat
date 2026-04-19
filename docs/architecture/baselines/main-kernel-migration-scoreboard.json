@@ -1,7 +1,7 @@
 {
   "program": "main-kernel-refactor",
   "generatedOn": "2026-04-19",
-  "currentPhase": "P0",
+  "currentPhase": "P1",
   "metrics": {
     "renderer.usePresenter.count": 90,
     "renderer.windowElectron.count": 111,

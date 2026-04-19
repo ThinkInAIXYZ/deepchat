@@ -4,22 +4,22 @@ Generated on 2026-04-19.
 
 ## main
 
-- Total files: 346
-- Internal dependency edges: 867
+- Total files: 348
+- Internal dependency edges: 874
 - Cycles detected: 30
 
 ### Top outgoing dependencies
 
-- `presenter\index.ts`: 40
-- `presenter\configPresenter\index.ts`: 22
+- `presenter\index.ts`: 41
+- `presenter\configPresenter\index.ts`: 23
 - `presenter\agentRuntimePresenter\index.ts`: 20
 - `presenter\lifecyclePresenter\hooks\index.ts`: 17
 - `presenter\sqlitePresenter\index.ts`: 17
 - `presenter\sqlitePresenter\schemaCatalog.ts`: 17
+- `presenter\agentSessionPresenter\index.ts`: 14
 - `presenter\llmProviderPresenter\index.ts`: 14
 - `presenter\remoteControlPresenter\index.ts`: 14
 - `presenter\toolPresenter\agentTools\agentToolManager.ts`: 14
-- `presenter\agentSessionPresenter\index.ts`: 13
 - `presenter\llmProviderPresenter\acp\index.ts`: 12
 - `presenter\filePresenter\mime.ts`: 11
 - `presenter\llmProviderPresenter\managers\providerInstanceManager.ts`: 11
@@ -28,8 +28,8 @@ Generated on 2026-04-19.
 
 ### Top incoming dependencies
 
+- `eventbus.ts`: 55
 - `events.ts`: 55
-- `eventbus.ts`: 54
 - `presenter\index.ts`: 44
 - `presenter\remoteControlPresenter\types.ts`: 37
 - `presenter\remoteControlPresenter\services\remoteBindingStore.ts`: 22

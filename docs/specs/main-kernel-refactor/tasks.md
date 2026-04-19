@@ -28,14 +28,14 @@
 
 ## Phase 1: Typed Boundary Foundation
 
-- [ ] 新建或收敛 `src/shared/contracts/` 目录
-- [ ] 定义 route registry，覆盖 settings 与 chat/session 首批入口
-- [ ] 定义 typed event catalog，覆盖 `settings.changed`、`sessions.updated`、`chat.stream.*`
-- [ ] 新建 `src/preload/createBridge.ts` 或统一 bridge builder
-- [ ] 新建 `src/renderer/api/SettingsClient.ts`
-- [ ] 新建 `src/renderer/api/SessionClient.ts`
-- [ ] 新建 `src/renderer/api/ChatClient.ts`
-- [ ] 约束后续新增 renderer-main 能力必须先落 route registry
+- [x] 新建或收敛 `src/shared/contracts/` 目录
+- [x] 定义 route registry，覆盖 settings 与 chat/session 首批入口
+- [x] 定义 typed event catalog，覆盖 `settings.changed`、`sessions.updated`、`chat.stream.*`
+- [x] 新建 `src/preload/createBridge.ts` 或统一 bridge builder
+- [x] 新建 `src/renderer/api/SettingsClient.ts`
+- [x] 新建 `src/renderer/api/SessionClient.ts`
+- [x] 新建 `src/renderer/api/ChatClient.ts`
+- [x] 约束后续新增 renderer-main 能力必须先落 route registry
 
 ## Phase 2: Settings Pilot Slice
 

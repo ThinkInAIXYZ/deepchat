@@ -75,6 +75,7 @@ import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
 import type { ConfigQueryPort, SessionRuntimePort } from './runtimePorts'
 import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
+import { registerMainKernelRoutes } from '@/routes'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -725,6 +726,16 @@ export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
   if (presenter == null) presenter = Presenter.getInstance(lifecycleManager)
   return presenter
 }
+
+registerMainKernelRoutes(ipcMain, () =>
+  presenter
+    ? {
+        configPresenter: presenter.configPresenter,
+        agentSessionPresenter: presenter.agentSessionPresenter,
+        windowPresenter: presenter.windowPresenter
+      }
+    : undefined
+)
 
 // 检查对象属性是否为函数 (用于动态调用)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
