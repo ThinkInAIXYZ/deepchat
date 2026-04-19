@@ -100,6 +100,33 @@ function splitSqlStatements(sql: string): string[] {
     const char = sql[index]
     const next = sql[index + 1]
 
+    if (!inSingleQuote && !inDoubleQuote) {
+      if (char === '-' && next === '-') {
+        while (index + 1 < sql.length && sql[index + 1] !== '\n' && sql[index + 1] !== '\r') {
+          index += 1
+        }
+        continue
+      }
+
+      if (char === '/' && next === '*') {
+        if (current.length > 0 && !/\s$/.test(current)) {
+          current += ' '
+        }
+
+        index += 2
+        while (index < sql.length && !(sql[index] === '*' && sql[index + 1] === '/')) {
+          index += 1
+        }
+
+        if (index >= sql.length) {
+          break
+        }
+
+        index += 1
+        continue
+      }
+    }
+
     if (char === "'" && !inDoubleQuote) {
       current += char
       if (inSingleQuote && next === "'") {
@@ -190,6 +217,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
+  private destructiveInitializationRetryCount = 0
 
   constructor(dbPath: string, password?: string) {
     this.dbPath = dbPath
@@ -229,10 +257,21 @@ export class SQLitePresenter implements ISQLitePresenter {
     console.error('Database initialization failed:', error)
 
     if (isDestructiveDatabaseError(error)) {
+      if (this.destructiveInitializationRetryCount > 0) {
+        console.error('Destructive database recovery was already attempted once; aborting retry.')
+        this.closeDatabaseSilently()
+        throw error
+      }
+
+      this.destructiveInitializationRetryCount += 1
       this.backupDatabase()
       this.closeDatabaseSilently()
       this.cleanupDatabaseFiles()
-      this.initializeDatabase()
+      try {
+        this.initializeDatabase()
+      } catch (retryError) {
+        this.handleInitializationError(retryError)
+      }
       return
     }
 

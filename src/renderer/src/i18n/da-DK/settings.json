@@ -117,13 +117,13 @@
       "backupSuccessTitle": "Backup lykkedes",
       "backupSuccessMessage": "Data blev sikkerhedskopieret"
     },
-    "syncSectionTitle": "Backup & Sync",
-    "operationsSectionTitle": "Data Operations",
-    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
+    "syncSectionTitle": "Sikkerhedskopiering og synkronisering",
+    "operationsSectionTitle": "Datahandlinger",
+    "resetDataDescription": "Nulstil chat, vidensbase, konfiguration eller alle data efter type.",
     "modelConfigUpdate": {
       "title": "Opdater modelkonfiguration",
-      "descriptionPrefix": "Sync model data from ",
-      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionPrefix": "Synkroniser modeldata fra ",
+      "linkLabel": "repoet ThinkInAIXYZ/PublicProviderConf",
       "descriptionSuffix": ".",
       "button": "Opdater nu",
       "updating": "Opdaterer...",
@@ -149,7 +149,7 @@
     },
     "databaseRepair": {
       "title": "Databasereparation",
-      "description": "Detect and automatically repair the database",
+      "description": "Find og reparer databasen automatisk",
       "button": "Kontrollér og reparer databasen",
       "running": "Kontrollerer og reparerer...",
       "lastResultLabel": "Seneste resultat: {result}",

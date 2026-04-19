@@ -184,12 +184,12 @@
       "backupSuccessTitle": "백업 성공",
       "backupSuccessMessage": "데이터가 성공적으로 백업되었습니다."
     },
-    "syncSectionTitle": "Backup & Sync",
-    "operationsSectionTitle": "Data Operations",
-    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
+    "syncSectionTitle": "백업 및 동기화",
+    "operationsSectionTitle": "데이터 작업",
+    "resetDataDescription": "채팅, 지식 베이스, 설정 또는 전체 데이터를 유형별로 초기화합니다.",
     "modelConfigUpdate": {
       "title": "모델 설정 업데이트",
-      "descriptionPrefix": "Sync model data from ",
+      "descriptionPrefix": "다음 저장소에서 모델 데이터를 동기화합니다: ",
       "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
       "descriptionSuffix": ".",
       "button": "지금 업데이트",
@@ -216,7 +216,7 @@
     },
     "databaseRepair": {
       "title": "데이터베이스 복구",
-      "description": "Detect and automatically repair the database",
+      "description": "데이터베이스 문제를 감지하고 자동으로 복구합니다.",
       "button": "데이터베이스 점검 및 복구",
       "running": "점검 및 복구 중...",
       "lastResultLabel": "최근 결과: {result}",

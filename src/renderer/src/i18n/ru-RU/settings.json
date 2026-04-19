@@ -184,12 +184,12 @@
       "backupSuccessTitle": "Резервное копирование выполнено успешно",
       "backupSuccessMessage": "Резервное копирование данных успешно выполнено"
     },
-    "syncSectionTitle": "Backup & Sync",
-    "operationsSectionTitle": "Data Operations",
-    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
+    "syncSectionTitle": "Резервное копирование и синхронизация",
+    "operationsSectionTitle": "Операции с данными",
+    "resetDataDescription": "Сбросить чат, базу знаний, конфигурацию или все данные по типу.",
     "modelConfigUpdate": {
       "title": "Обновить конфигурацию моделей",
-      "descriptionPrefix": "Sync model data from ",
+      "descriptionPrefix": "Синхронизировать данные моделей из ",
       "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
       "descriptionSuffix": ".",
       "button": "Обновить сейчас",
