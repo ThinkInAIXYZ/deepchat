@@ -184,9 +184,14 @@
       "backupSuccessTitle": "پشتیبان گیری با موفقیت انجام شد",
       "backupSuccessMessage": "داده ها با موفقیت پشتیبان گیری شدند"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "به‌روزرسانی پیکربندی مدل",
-      "description": "برای به‌روزرسانی قابلیت‌های مدل و تنظیمات پیش‌فرض، فایل provider.json را از مبدأ به‌صورت اجباری تازه‌سازی می‌کند.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "اکنون به‌روزرسانی کن",
       "updating": "در حال به‌روزرسانی...",
       "updatedTitle": "پیکربندی مدل به‌روز شد",
@@ -211,11 +216,10 @@
     },
     "databaseRepair": {
       "title": "ترمیم پایگاه داده",
-      "description": "جدول‌ها، ستون‌ها و ایندکس‌های مفقود را شناسایی و ترمیم می‌کند. عدم تطابق نوع فقط برای رسیدگی دستی گزارش می‌شود.",
+      "description": "Detect and automatically repair the database",
       "button": "بررسی و ترمیم پایگاه داده",
       "running": "در حال بررسی و ترمیم...",
       "lastResultLabel": "آخرین نتیجه: {result}",
-      "notCheckedYet": "هنوز بررسی نشده",
       "summaryHealthy": "سالم",
       "summaryRepaired": "{count} مورد برطرف شد",
       "summaryRepairedWithManual": "{repaired} مورد برطرف شد، {manual} مورد نیاز به رسیدگی دستی دارد",

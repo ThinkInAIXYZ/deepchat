@@ -8,7 +8,18 @@ interface PresenterCallErrorContext {
   methodName: string
 }
 
-const runtimeSchemaRepairSuggestionKeys = new Set<string>()
+const runtimeSchemaRepairSuggestionKeysByWebContents = new Map<number, Set<string>>()
+
+const getRuntimeSchemaRepairSuggestionKeys = (webContentsId: number): Set<string> => {
+  const existingKeys = runtimeSchemaRepairSuggestionKeysByWebContents.get(webContentsId)
+  if (existingKeys) {
+    return existingKeys
+  }
+
+  const createdKeys = new Set<string>()
+  runtimeSchemaRepairSuggestionKeysByWebContents.set(webContentsId, createdKeys)
+  return createdKeys
+}
 
 const isPromiseLike = <T>(value: unknown): value is Promise<T> =>
   typeof value === 'object' &&
@@ -33,12 +44,14 @@ const reportPresenterCallError = (
   { webContentsId, presenterName, methodName }: PresenterCallErrorContext
 ): { error: string } => {
   const repairSuggestion = buildDatabaseRepairSuggestedPayload(error)
-  const suggestionKey = repairSuggestion ? `${webContentsId}:${repairSuggestion.dedupeKey}` : null
+  const suggestionKeys = repairSuggestion
+    ? getRuntimeSchemaRepairSuggestionKeys(webContentsId)
+    : null
 
   console.error(`[IPC Error] WebContents:${webContentsId} ${presenterName}.${methodName}:`, error)
 
-  if (repairSuggestion && suggestionKey && !runtimeSchemaRepairSuggestionKeys.has(suggestionKey)) {
-    runtimeSchemaRepairSuggestionKeys.add(suggestionKey)
+  if (repairSuggestion && suggestionKeys && !suggestionKeys.has(repairSuggestion.dedupeKey)) {
+    suggestionKeys.add(repairSuggestion.dedupeKey)
     eventBus.sendToWebContents(
       webContentsId,
       NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED,
@@ -53,6 +66,10 @@ export const handlePresenterCallError = (
   error: unknown,
   context: PresenterCallErrorContext
 ): { error: string } => reportPresenterCallError(error, context)
+
+export const releasePresenterCallErrorStateForWebContents = (webContentsId: number): void => {
+  runtimeSchemaRepairSuggestionKeysByWebContents.delete(webContentsId)
+}
 
 export const handlePresenterCallResult = <T>(
   result: T | Promise<T>,
@@ -69,5 +86,5 @@ export const handlePresenterCallResult = <T>(
 }
 
 export const resetPresenterCallErrorStateForTests = (): void => {
-  runtimeSchemaRepairSuggestionKeys.clear()
+  runtimeSchemaRepairSuggestionKeysByWebContents.clear()
 }

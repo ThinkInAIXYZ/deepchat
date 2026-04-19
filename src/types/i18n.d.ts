@@ -1517,13 +1517,15 @@ declare module 'vue-i18n' {
         backupSuccessTitle: string
         backupSuccessMessage: string
       }
+      syncSectionTitle: string
+      operationsSectionTitle: string
+      resetDataDescription: string
       databaseRepair: {
         title: string
         description: string
         button: string
         running: string
         lastResultLabel: string
-        notCheckedYet: string
         summaryHealthy: string
         summaryRepaired: string
         summaryRepairedWithManual: string
@@ -1548,7 +1550,9 @@ declare module 'vue-i18n' {
       }
       modelConfigUpdate: {
         title: string
-        description: string
+        descriptionPrefix: string
+        linkLabel: string
+        descriptionSuffix: string
         button: string
         updating: string
         updatedTitle: string

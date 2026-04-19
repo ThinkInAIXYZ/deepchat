@@ -184,9 +184,14 @@
       "backupSuccessTitle": "גיבוי הושלם בהצלחה",
       "backupSuccessMessage": "הנתונים גובו בהצלחה"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "עדכון הגדרות המודלים",
-      "description": "מרענן בכפייה את provider.json מהמקור כדי לעדכן יכולות מודל והגדרות ברירת מחדל.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "עדכן עכשיו",
       "updating": "מעדכן...",
       "updatedTitle": "הגדרות המודלים עודכנו",
@@ -211,11 +216,10 @@
     },
     "databaseRepair": {
       "title": "תיקון מסד הנתונים",
-      "description": "מזהה ומתקן טבלאות, עמודות ואינדקסים חסרים. אי-התאמות סוג רק מדווחות לטיפול ידני.",
+      "description": "Detect and automatically repair the database",
       "button": "בדוק ותקן את מסד הנתונים",
       "running": "בודק ומתקן...",
       "lastResultLabel": "תוצאה אחרונה: {result}",
-      "notCheckedYet": "עדיין לא נבדק",
       "summaryHealthy": "תקין",
       "summaryRepaired": "{count} בעיות תוקנו",
       "summaryRepairedWithManual": "{repaired} בעיות תוקנו, {manual} דורשות טיפול ידני",

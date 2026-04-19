@@ -1,324 +1,448 @@
 <template>
   <ScrollArea class="w-full h-full">
-    <div class="w-full h-full flex flex-col gap-1.5 p-4">
-      <!-- 同步功能开关 -->
-      <div class="flex flex-row items-center gap-2 h-10">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
-          <Icon icon="lucide:refresh-cw" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.data.syncEnable') }}</span>
-        </span>
-        <div class="shrink-0">
-          <Switch :model-value="syncEnabled" @update:model-value="handleSyncEnabledChange" />
+    <div class="flex h-full w-full flex-col gap-4 p-4">
+      <div class="rounded-xl border border-border bg-card/30 p-4">
+        <div class="mb-4 flex items-center gap-2" :dir="languageStore.dir">
+          <Icon icon="lucide:refresh-cw" class="h-4 w-4 text-muted-foreground" />
+          <h2 class="text-sm font-semibold">{{ t('settings.data.syncSectionTitle') }}</h2>
         </div>
-      </div>
 
-      <!-- 同步文件夹设置 -->
-      <div class="flex flex-row items-center gap-2 h-10">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
-          <Icon icon="lucide:folder" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.data.syncFolder') }}</span>
-        </span>
-        <div class="shrink-0 w-96 flex gap-2">
-          <Input
-            v-model="syncFolderPath"
-            :disabled="!syncStore.syncEnabled"
-            class="cursor-pointer h-8!"
-            @click="syncStore.selectSyncFolder"
-          />
-          <Button
-            size="icon-sm"
-            variant="outline"
-            :disabled="!syncStore.syncEnabled"
-            title="打开同步文件夹"
-            @click="syncStore.openSyncFolder"
-          >
-            <Icon icon="lucide:external-link" class="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      <!-- 上次同步时间 -->
-      <div class="flex flex-row items-center gap-2 h-10" :dir="languageStore.dir">
-        <Icon icon="lucide:clock" class="w-4 h-4 text-muted-foreground" />
-        <span class="text-sm font-medium">{{ t('settings.data.lastSyncTime') }}:</span>
-        <span class="text-sm text-muted-foreground">
-          {{
-            !syncStore.lastSyncTime
-              ? t('settings.data.never')
-              : new Date(syncStore.lastSyncTime).toLocaleString()
-          }}
-        </span>
-      </div>
-
-      <div class="flex flex-row gap-2">
-        <Button
-          variant="outline"
-          @click="handleBackup"
-          :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
-          :dir="languageStore.dir"
-        >
-          <Icon
-            :icon="syncStore.isBackingUp ? 'lucide:loader-2' : 'lucide:save'"
-            class="w-4 h-4 text-muted-foreground"
-            :class="syncStore.isBackingUp ? 'animate-spin' : ''"
-          />
-          <span class="text-sm font-medium">
-            {{
-              syncStore.isBackingUp ? t('settings.data.backingUp') : t('settings.data.startBackup')
-            }}
-          </span>
-        </Button>
-
-        <!-- 导入数据 -->
-        <Dialog v-model:open="isImportDialogOpen">
-          <DialogTrigger as-child>
-            <Button variant="outline" :disabled="!syncStore.syncEnabled" :dir="languageStore.dir">
-              <Icon icon="lucide:download" class="w-4 h-4 text-muted-foreground" />
-              <span class="text-sm font-medium">{{ t('settings.data.importData') }}</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{{ t('settings.data.importConfirmTitle') }}</DialogTitle>
-              <DialogDescription>
-                {{ t('settings.data.importConfirmDescription') }}
-              </DialogDescription>
-            </DialogHeader>
-            <div class="px-4 pb-4 flex flex-col gap-4">
-              <div class="flex flex-col gap-2">
-                <Label class="text-sm font-medium" :dir="languageStore.dir">
-                  {{ t('settings.data.backupSelectLabel') }}
-                </Label>
-                <Select v-model="selectedBackup" :disabled="!availableBackups.length">
-                  <SelectTrigger class="h-8!" :dir="languageStore.dir">
-                    <SelectValue :placeholder="t('settings.data.selectBackupPlaceholder')" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="backup in availableBackups"
-                      :key="backup.fileName"
-                      :value="backup.fileName"
-                      :dir="languageStore.dir"
-                    >
-                      {{ formatBackupLabel(backup.fileName, backup.createdAt, backup.size) }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p class="text-xs text-muted-foreground" :dir="languageStore.dir">
-                  {{
-                    availableBackups.length
-                      ? t('settings.data.backupSelectDescription')
-                      : t('settings.data.noBackupsAvailable')
-                  }}
-                </p>
-              </div>
-
-              <RadioGroup v-model="importMode" class="flex flex-col gap-2">
-                <div class="flex items-center space-x-2">
-                  <RadioGroupItem value="increment" />
-                  <Label>{{ t('settings.data.incrementImport') }}</Label>
-                </div>
-                <div class="flex items-center space-x-2">
-                  <RadioGroupItem value="overwrite" />
-                  <Label>{{ t('settings.data.overwriteImport') }}</Label>
-                </div>
-              </RadioGroup>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" @click="closeImportDialog">
-                {{ t('dialog.cancel') }}
-              </Button>
-              <Button
-                variant="default"
-                :disabled="syncStore.isImporting || !selectedBackup"
-                @click="handleImport"
-              >
-                {{
-                  syncStore.isImporting
-                    ? t('settings.data.importing')
-                    : t('settings.data.confirmImport')
-                }}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <!-- 分割线 -->
-      <Separator class="my-4" />
-
-      <div class="flex flex-col gap-3 p-4 border border-border rounded-lg bg-card/30">
-        <div class="flex flex-row gap-3 items-start" :dir="languageStore.dir">
-          <Icon icon="lucide:database" class="w-4 h-4 text-muted-foreground mt-1" />
-          <div class="flex flex-col gap-1">
-            <div class="text-sm font-medium">{{ t('settings.data.databaseRepair.title') }}</div>
-            <p class="text-xs text-muted-foreground">
-              {{ t('settings.data.databaseRepair.description') }}
-            </p>
-            <p class="text-xs text-muted-foreground">
-              {{
-                t('settings.data.databaseRepair.lastResultLabel', {
-                  result: repairSummaryText
-                })
-              }}
-            </p>
-            <p v-if="repairManualHintText" class="text-xs text-amber-600 dark:text-amber-400">
-              {{ repairManualHintText }}
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          class="w-56"
-          :disabled="isRepairing"
-          :dir="languageStore.dir"
-          @click="runSchemaRepair()"
-        >
-          <Icon
-            :icon="isRepairing ? 'lucide:loader-2' : 'lucide:wrench'"
-            class="w-4 h-4 text-muted-foreground"
-            :class="isRepairing ? 'animate-spin' : ''"
-          />
-          <span class="text-sm font-medium">
-            {{
-              isRepairing
-                ? t('settings.data.databaseRepair.running')
-                : t('settings.data.databaseRepair.button')
-            }}
-          </span>
-        </Button>
-      </div>
-
-      <Separator class="my-4" />
-
-      <div class="flex flex-col gap-3 p-4 border border-border rounded-lg bg-card/30">
-        <div class="flex flex-row gap-3 items-start" :dir="languageStore.dir">
-          <Icon icon="lucide:refresh-cw" class="w-4 h-4 text-muted-foreground mt-1" />
-          <div class="flex flex-col gap-1">
-            <div class="text-sm font-medium">{{ t('settings.data.modelConfigUpdate.title') }}</div>
-            <p class="text-xs text-muted-foreground">
-              {{ t('settings.data.modelConfigUpdate.description') }}
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          class="w-40"
-          :disabled="isUpdatingModelConfig"
-          :dir="languageStore.dir"
-          @click="handleRefreshProviderDb"
-        >
-          <Icon
-            :icon="isUpdatingModelConfig ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-            class="w-4 h-4 text-muted-foreground"
-            :class="isUpdatingModelConfig ? 'animate-spin' : ''"
-          />
-          <span class="text-sm font-medium">
-            {{
-              isUpdatingModelConfig
-                ? t('settings.data.modelConfigUpdate.updating')
-                : t('settings.data.modelConfigUpdate.button')
-            }}
-          </span>
-        </Button>
-      </div>
-
-      <Separator class="my-4" />
-
-      <!-- 数据重置选项 -->
-      <AlertDialog v-model:open="isResetDialogOpen">
-        <AlertDialogTrigger as-child>
-          <Button
-            variant="destructive"
-            class="w-48"
-            :disabled="isResetting"
+        <div class="flex flex-col gap-4">
+          <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             :dir="languageStore.dir"
           >
-            <Icon icon="lucide:rotate-ccw" class="w-4 h-4" />
-            <span class="text-sm font-medium">{{ t('settings.data.resetData') }}</span>
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{{ t('settings.data.resetConfirmTitle') }}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {{ t('settings.data.resetConfirmDescription') }}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div class="p-4">
-            <RadioGroup v-model="resetType" class="flex flex-col gap-3">
-              <div
-                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
-                @click="resetType = 'chat'"
-              >
-                <RadioGroupItem value="chat" id="reset-chat" class="mt-1" />
-                <div class="flex flex-col">
-                  <Label for="reset-chat" class="font-medium cursor-pointer">{{
-                    t('settings.data.resetChatData')
-                  }}</Label>
-                  <p class="text-xs text-muted-foreground">
-                    {{ t('settings.data.resetChatDataDesc') }}
-                  </p>
-                </div>
-              </div>
-              <div
-                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
-                @click="resetType = 'knowledge'"
-              >
-                <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
-                <div class="flex flex-col">
-                  <Label for="reset-knowledge" class="font-medium cursor-pointer">{{
-                    t('settings.data.resetKnowledgeData')
-                  }}</Label>
-                  <p class="text-xs text-muted-foreground">
-                    {{ t('settings.data.resetKnowledgeDataDesc') }}
-                  </p>
-                </div>
-              </div>
-              <div
-                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
-                @click="resetType = 'config'"
-              >
-                <RadioGroupItem value="config" id="reset-config" class="mt-1" />
-                <div class="flex flex-col">
-                  <Label for="reset-config" class="font-medium cursor-pointer">{{
-                    t('settings.data.resetConfig')
-                  }}</Label>
-                  <p class="text-xs text-muted-foreground">
-                    {{ t('settings.data.resetConfigDesc') }}
-                  </p>
-                </div>
-              </div>
-              <div
-                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
-                @click="resetType = 'all'"
-              >
-                <RadioGroupItem value="all" id="reset-all" class="mt-1" />
-                <div class="flex flex-col">
-                  <Label for="reset-all" class="font-medium cursor-pointer">{{
-                    t('settings.data.resetAll')
-                  }}</Label>
-                  <p class="text-xs text-muted-foreground">{{ t('settings.data.resetAllDesc') }}</p>
-                </div>
-              </div>
-            </RadioGroup>
+            <span class="flex flex-row items-center gap-2">
+              <Icon icon="lucide:refresh-cw" class="h-4 w-4 text-muted-foreground" />
+              <span class="text-sm font-medium">{{ t('settings.data.syncEnable') }}</span>
+            </span>
+            <div class="shrink-0">
+              <Switch :model-value="syncEnabled" @update:model-value="handleSyncEnabledChange" />
+            </div>
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel @click="closeResetDialog">
-              {{ t('dialog.cancel') }}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              :class="
-                cn('bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90')
-              "
-              :disabled="isResetting"
-              @click="handleReset"
+
+          <div
+            class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+            :dir="languageStore.dir"
+          >
+            <span class="flex flex-row items-center gap-2">
+              <Icon icon="lucide:folder" class="h-4 w-4 text-muted-foreground" />
+              <span class="text-sm font-medium">{{ t('settings.data.syncFolder') }}</span>
+            </span>
+            <div class="flex w-full gap-2 lg:w-96">
+              <Input
+                v-model="syncFolderPath"
+                :disabled="!syncStore.syncEnabled"
+                class="h-8! cursor-pointer"
+                @click="syncStore.selectSyncFolder"
+              />
+              <Button
+                size="icon-sm"
+                variant="outline"
+                :disabled="!syncStore.syncEnabled"
+                :title="t('settings.data.openSyncFolder')"
+                @click="syncStore.openSyncFolder"
+              >
+                <Icon icon="lucide:external-link" class="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div
+            class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+            :dir="languageStore.dir"
+          >
+            <span class="flex flex-row items-center gap-2">
+              <Icon icon="lucide:clock" class="h-4 w-4 text-muted-foreground" />
+              <span class="text-sm font-medium">{{ t('settings.data.lastSyncTime') }}</span>
+            </span>
+            <span class="text-sm text-muted-foreground">
+              {{
+                !syncStore.lastSyncTime
+                  ? t('settings.data.never')
+                  : new Date(syncStore.lastSyncTime).toLocaleString()
+              }}
+            </span>
+          </div>
+
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              class="w-full sm:w-auto"
+              :dir="languageStore.dir"
+              :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
+              @click="handleBackup"
             >
-              {{ isResetting ? t('settings.data.resetting') : t('settings.data.confirmReset') }}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <Icon
+                :icon="syncStore.isBackingUp ? 'lucide:loader-2' : 'lucide:save'"
+                class="h-4 w-4 text-muted-foreground"
+                :class="syncStore.isBackingUp ? 'animate-spin' : ''"
+              />
+              <span class="text-sm font-medium">
+                {{
+                  syncStore.isBackingUp
+                    ? t('settings.data.backingUp')
+                    : t('settings.data.startBackup')
+                }}
+              </span>
+            </Button>
+
+            <Dialog v-model:open="isImportDialogOpen">
+              <DialogTrigger as-child>
+                <Button
+                  variant="outline"
+                  class="w-full sm:w-auto"
+                  :disabled="!syncStore.syncEnabled"
+                  :dir="languageStore.dir"
+                >
+                  <Icon icon="lucide:download" class="h-4 w-4 text-muted-foreground" />
+                  <span class="text-sm font-medium">{{ t('settings.data.importData') }}</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{{ t('settings.data.importConfirmTitle') }}</DialogTitle>
+                  <DialogDescription>
+                    {{ t('settings.data.importConfirmDescription') }}
+                  </DialogDescription>
+                </DialogHeader>
+                <div class="flex flex-col gap-4 px-4 pb-4">
+                  <div class="flex flex-col gap-2">
+                    <Label class="text-sm font-medium" :dir="languageStore.dir">
+                      {{ t('settings.data.backupSelectLabel') }}
+                    </Label>
+                    <Select v-model="selectedBackup" :disabled="!availableBackups.length">
+                      <SelectTrigger class="h-8!" :dir="languageStore.dir">
+                        <SelectValue :placeholder="t('settings.data.selectBackupPlaceholder')" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          v-for="backup in availableBackups"
+                          :key="backup.fileName"
+                          :value="backup.fileName"
+                          :dir="languageStore.dir"
+                        >
+                          {{ formatBackupLabel(backup.fileName, backup.createdAt, backup.size) }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p class="text-xs text-muted-foreground" :dir="languageStore.dir">
+                      {{
+                        availableBackups.length
+                          ? t('settings.data.backupSelectDescription')
+                          : t('settings.data.noBackupsAvailable')
+                      }}
+                    </p>
+                  </div>
+
+                  <RadioGroup v-model="importMode" class="flex flex-col gap-2">
+                    <div class="flex items-center space-x-2">
+                      <RadioGroupItem value="increment" />
+                      <Label>{{ t('settings.data.incrementImport') }}</Label>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <RadioGroupItem value="overwrite" />
+                      <Label>{{ t('settings.data.overwriteImport') }}</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" @click="closeImportDialog">
+                    {{ t('dialog.cancel') }}
+                  </Button>
+                  <Button
+                    variant="default"
+                    :disabled="syncStore.isImporting || !selectedBackup"
+                    @click="handleImport"
+                  >
+                    {{
+                      syncStore.isImporting
+                        ? t('settings.data.importing')
+                        : t('settings.data.confirmImport')
+                    }}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-border bg-card/30 p-4">
+        <div class="mb-4 flex items-center gap-2" :dir="languageStore.dir">
+          <Icon icon="lucide:wrench" class="h-4 w-4 text-muted-foreground" />
+          <h2 class="text-sm font-semibold">{{ t('settings.data.operationsSectionTitle') }}</h2>
+        </div>
+
+        <div class="flex flex-col divide-y divide-border">
+          <div
+            class="flex flex-col gap-3 py-4 first:pt-0 lg:flex-row lg:items-center lg:justify-between"
+            :dir="languageStore.dir"
+          >
+            <div class="flex gap-3">
+              <Icon icon="lucide:database" class="mt-1 h-4 w-4 text-muted-foreground" />
+              <div class="flex flex-col gap-1">
+                <div class="text-sm font-medium">{{ t('settings.data.databaseRepair.title') }}</div>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.data.databaseRepair.description') }}
+                </p>
+                <p v-if="repairSummaryText" class="text-xs text-muted-foreground">
+                  {{
+                    t('settings.data.databaseRepair.lastResultLabel', {
+                      result: repairSummaryText
+                    })
+                  }}
+                </p>
+                <p v-if="repairManualHintText" class="text-xs text-amber-600 dark:text-amber-400">
+                  {{ repairManualHintText }}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              class="w-full shrink-0 lg:w-56"
+              :disabled="isRepairActionDisabled"
+              :dir="languageStore.dir"
+              @click="runSchemaRepair()"
+            >
+              <Icon
+                :icon="isRepairing ? 'lucide:loader-2' : 'lucide:wrench'"
+                class="h-4 w-4 text-muted-foreground"
+                :class="isRepairing ? 'animate-spin' : ''"
+              />
+              <span class="text-sm font-medium">
+                {{
+                  isRepairing
+                    ? t('settings.data.databaseRepair.running')
+                    : t('settings.data.databaseRepair.button')
+                }}
+              </span>
+            </Button>
+          </div>
+
+          <div
+            class="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between"
+            :dir="languageStore.dir"
+          >
+            <div class="flex gap-3">
+              <Icon icon="lucide:refresh-cw" class="mt-1 h-4 w-4 text-muted-foreground" />
+              <div class="flex flex-col gap-1">
+                <div class="text-sm font-medium">
+                  {{ t('settings.data.modelConfigUpdate.title') }}
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.data.modelConfigUpdate.descriptionPrefix') }}
+                  <a
+                    class="inline-flex items-center gap-1 hover:text-primary"
+                    :href="PUBLIC_PROVIDER_CONF_URL"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    @click.prevent="openExternalLink(PUBLIC_PROVIDER_CONF_URL)"
+                  >
+                    <span>{{ t('settings.data.modelConfigUpdate.linkLabel') }}</span>
+                    <Icon icon="lucide:external-link" class="h-3.5 w-3.5" />
+                  </a>
+                  {{ t('settings.data.modelConfigUpdate.descriptionSuffix') }}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              class="w-full shrink-0 lg:w-40"
+              :disabled="isUpdatingModelConfig"
+              :dir="languageStore.dir"
+              @click="handleRefreshProviderDb"
+            >
+              <Icon
+                :icon="isUpdatingModelConfig ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+                class="h-4 w-4 text-muted-foreground"
+                :class="isUpdatingModelConfig ? 'animate-spin' : ''"
+              />
+              <span class="text-sm font-medium">
+                {{
+                  isUpdatingModelConfig
+                    ? t('settings.data.modelConfigUpdate.updating')
+                    : t('settings.data.modelConfigUpdate.button')
+                }}
+              </span>
+            </Button>
+          </div>
+
+          <div
+            class="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between"
+            :dir="languageStore.dir"
+          >
+            <div class="flex gap-3">
+              <Icon icon="lucide:rotate-ccw" class="mt-1 h-4 w-4 text-muted-foreground" />
+              <div class="flex flex-col gap-1">
+                <div class="text-sm font-medium">{{ t('settings.data.resetData') }}</div>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.data.resetDataDescription') }}
+                </p>
+              </div>
+            </div>
+            <AlertDialog v-model:open="isResetDialogOpen">
+              <AlertDialogTrigger as-child>
+                <Button
+                  variant="destructive"
+                  class="w-full shrink-0 lg:w-48"
+                  :disabled="isResetActionDisabled"
+                  :dir="languageStore.dir"
+                >
+                  <Icon icon="lucide:rotate-ccw" class="h-4 w-4" />
+                  <span class="text-sm font-medium">{{ t('settings.data.resetData') }}</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{{ t('settings.data.resetConfirmTitle') }}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {{ t('settings.data.resetConfirmDescription') }}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div class="p-4">
+                  <RadioGroup v-model="resetType" class="flex flex-col gap-3">
+                    <div
+                      class="flex cursor-pointer items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      @click="resetType = 'chat'"
+                    >
+                      <RadioGroupItem value="chat" id="reset-chat" class="mt-1" />
+                      <div class="flex flex-col">
+                        <Label for="reset-chat" class="cursor-pointer font-medium">{{
+                          t('settings.data.resetChatData')
+                        }}</Label>
+                        <p class="text-xs text-muted-foreground">
+                          {{ t('settings.data.resetChatDataDesc') }}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      class="flex cursor-pointer items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      @click="resetType = 'knowledge'"
+                    >
+                      <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
+                      <div class="flex flex-col">
+                        <Label for="reset-knowledge" class="cursor-pointer font-medium">{{
+                          t('settings.data.resetKnowledgeData')
+                        }}</Label>
+                        <p class="text-xs text-muted-foreground">
+                          {{ t('settings.data.resetKnowledgeDataDesc') }}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      class="flex cursor-pointer items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      @click="resetType = 'config'"
+                    >
+                      <RadioGroupItem value="config" id="reset-config" class="mt-1" />
+                      <div class="flex flex-col">
+                        <Label for="reset-config" class="cursor-pointer font-medium">{{
+                          t('settings.data.resetConfig')
+                        }}</Label>
+                        <p class="text-xs text-muted-foreground">
+                          {{ t('settings.data.resetConfigDesc') }}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      class="flex cursor-pointer items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      @click="resetType = 'all'"
+                    >
+                      <RadioGroupItem value="all" id="reset-all" class="mt-1" />
+                      <div class="flex flex-col">
+                        <Label for="reset-all" class="cursor-pointer font-medium">{{
+                          t('settings.data.resetAll')
+                        }}</Label>
+                        <p class="text-xs text-muted-foreground">
+                          {{ t('settings.data.resetAllDesc') }}
+                        </p>
+                      </div>
+                    </div>
+                  </RadioGroup>
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel @click="closeResetDialog">
+                    {{ t('dialog.cancel') }}
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    :class="
+                      cn(
+                        'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90'
+                      )
+                    "
+                    :disabled="isResetActionDisabled"
+                    @click="handleReset"
+                  >
+                    {{
+                      isResetting ? t('settings.data.resetting') : t('settings.data.confirmReset')
+                    }}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+
+          <div
+            class="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between"
+            :dir="languageStore.dir"
+          >
+            <div class="flex gap-3">
+              <Icon icon="lucide:shield" class="mt-1 h-4 w-4 text-muted-foreground" />
+              <div class="flex flex-col gap-1">
+                <div class="text-sm font-medium">{{ t('settings.data.yoBrowser.title') }}</div>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.data.yoBrowser.description') }}
+                </p>
+              </div>
+            </div>
+            <AlertDialog v-model:open="isClearSandboxDialogOpen">
+              <AlertDialogTrigger as-child>
+                <Button
+                  variant="outline"
+                  class="w-full shrink-0 lg:w-56"
+                  :disabled="isClearingSandbox"
+                  :dir="languageStore.dir"
+                >
+                  <Icon
+                    :icon="isClearingSandbox ? 'lucide:loader-2' : 'lucide:trash-2'"
+                    class="h-4 w-4 text-muted-foreground"
+                    :class="isClearingSandbox ? 'animate-spin' : ''"
+                  />
+                  <span class="text-sm font-medium">
+                    {{
+                      isClearingSandbox
+                        ? t('settings.data.yoBrowser.clearing')
+                        : t('settings.data.yoBrowser.clearButton')
+                    }}
+                  </span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{{
+                    t('settings.data.yoBrowser.confirmTitle')
+                  }}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {{ t('settings.data.yoBrowser.confirmDescription') }}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel @click="isClearSandboxDialogOpen = false">
+                    {{ t('dialog.cancel') }}
+                  </AlertDialogCancel>
+                  <AlertDialogAction :disabled="isClearingSandbox" @click="handleClearSandboxData">
+                    {{
+                      isClearingSandbox
+                        ? t('settings.data.yoBrowser.clearing')
+                        : t('settings.data.yoBrowser.confirmAction')
+                    }}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      </div>
 
       <AlertDialog :open="!!syncStore.importResult && !syncStore.importResult?.success">
         <AlertDialogContent>
@@ -339,63 +463,6 @@
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Separator class="my-4" />
-
-      <div class="flex flex-col gap-3 p-4 border border-border rounded-lg bg-card/30">
-        <div class="flex flex-row gap-3 items-start">
-          <Icon icon="lucide:shield" class="w-4 h-4 text-muted-foreground mt-1" />
-          <div class="flex flex-col gap-1">
-            <div class="text-sm font-medium">{{ t('settings.data.yoBrowser.title') }}</div>
-            <p class="text-xs text-muted-foreground">
-              {{ t('settings.data.yoBrowser.description') }}
-            </p>
-          </div>
-        </div>
-        <AlertDialog v-model:open="isClearSandboxDialogOpen">
-          <AlertDialogTrigger as-child>
-            <Button
-              variant="outline"
-              class="w-56"
-              :disabled="isClearingSandbox"
-              :dir="languageStore.dir"
-            >
-              <Icon
-                :icon="isClearingSandbox ? 'lucide:loader-2' : 'lucide:trash-2'"
-                class="w-4 h-4 text-muted-foreground"
-                :class="isClearingSandbox ? 'animate-spin' : ''"
-              />
-              <span class="text-sm font-medium">
-                {{
-                  isClearingSandbox
-                    ? t('settings.data.yoBrowser.clearing')
-                    : t('settings.data.yoBrowser.clearButton')
-                }}
-              </span>
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{{ t('settings.data.yoBrowser.confirmTitle') }}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {{ t('settings.data.yoBrowser.confirmDescription') }}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel @click="isClearSandboxDialogOpen = false">
-                {{ t('dialog.cancel') }}
-              </AlertDialogCancel>
-              <AlertDialogAction :disabled="isClearingSandbox" @click="handleClearSandboxData">
-                {{
-                  isClearingSandbox
-                    ? t('settings.data.yoBrowser.clearing')
-                    : t('settings.data.yoBrowser.confirmAction')
-                }}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
     </div>
   </ScrollArea>
 </template>
@@ -432,7 +499,6 @@ import { Input } from '@shadcn/components/ui/input'
 import { Switch } from '@shadcn/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import { Label } from '@shadcn/components/ui/label'
-import { Separator } from '@shadcn/components/ui/separator'
 import {
   Select,
   SelectContent,
@@ -448,6 +514,7 @@ import { useToast } from '@/components/use-toast'
 
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
+const PUBLIC_PROVIDER_CONF_URL = 'https://github.com/ThinkInAIXYZ/PublicProviderConf'
 
 type SettingsWindowState = Window & {
   __deepchatSettingsPendingSection?: string | null
@@ -468,7 +535,11 @@ const devicePresenter = usePresenter('devicePresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const configPresenter = usePresenter('configPresenter')
 const sqlitePresenter = usePresenter('sqlitePresenter')
-const { backups: backupsRef } = storeToRefs(syncStore)
+const {
+  backups: backupsRef,
+  isBackingUp: isBackingUpRef,
+  isImporting: isImportingRef
+} = storeToRefs(syncStore)
 const { toast } = useToast()
 
 const isImportDialogOpen = ref(false)
@@ -483,6 +554,14 @@ const isClearingSandbox = ref(false)
 const isClearSandboxDialogOpen = ref(false)
 const isRepairing = ref(false)
 const lastRepairReport = ref<DatabaseRepairReport | null>(null)
+const isBackupActive = computed(() => isBackingUpRef.value)
+const isImporting = computed(() => isImportingRef.value)
+const isRepairActionDisabled = computed(() => {
+  return isRepairing.value || isBackupActive.value || isImporting.value
+})
+const isResetActionDisabled = computed(() => {
+  return isResetting.value || isBackupActive.value || isImporting.value
+})
 
 // 使用计算属性处理双向绑定
 const syncEnabled = computed({
@@ -502,7 +581,7 @@ const handleSyncEnabledChange = (value: boolean) => {
 const repairSummaryText = computed(() => {
   const report = lastRepairReport.value
   if (!report) {
-    return t('settings.data.databaseRepair.notCheckedYet')
+    return ''
   }
 
   if (report.status === 'healthy') {
@@ -568,8 +647,17 @@ const buildRepairToastDescription = (report: DatabaseRepairReport) => {
   })
 }
 
+const openExternalLink = (url: string) => {
+  if (window.api?.openExternal) {
+    window.api.openExternal(url)
+    return
+  }
+
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 const runSchemaRepair = async () => {
-  if (isRepairing.value) {
+  if (isRepairActionDisabled.value) {
     return
   }
 
@@ -610,10 +698,12 @@ const runSchemaRepair = async () => {
 
 const handleSettingsSectionNavigation = (event: Event) => {
   const detail = (event as CustomEvent<{ section?: string }>).detail
-  if (detail?.section === DATABASE_REPAIR_SECTION) {
-    ;(window as SettingsWindowState).__deepchatSettingsPendingSection = null
-    void runSchemaRepair()
+  if (detail?.section !== DATABASE_REPAIR_SECTION || isRepairActionDisabled.value) {
+    return
   }
+
+  ;(window as SettingsWindowState).__deepchatSettingsPendingSection = null
+  void runSchemaRepair()
 }
 
 // 初始化
@@ -621,7 +711,7 @@ onMounted(async () => {
   await syncStore.initialize()
   window.addEventListener(SETTINGS_SECTION_EVENT, handleSettingsSectionNavigation as EventListener)
 
-  if (consumePendingRepairSection()) {
+  if (!isRepairActionDisabled.value && consumePendingRepairSection()) {
     void runSchemaRepair()
   }
 })
@@ -773,7 +863,7 @@ const closeResetDialog = () => {
 }
 
 const handleReset = async () => {
-  if (isResetting.value) return
+  if (isResetActionDisabled.value) return
 
   isResetting.value = true
   try {

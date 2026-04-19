@@ -68,6 +68,32 @@ describe('presenterCallErrorHandler', () => {
     expect(mocks.sendToWebContents).toHaveBeenCalledTimes(1)
   })
 
+  it('allows suggestions to be re-sent after releasing a webContents state bucket', async () => {
+    const { handlePresenterCallResult, releasePresenterCallErrorStateForWebContents } =
+      await loadModule()
+    const errorMessage = 'SqliteError: table deepchat_sessions has no column named reasoning_effort'
+
+    await expect(
+      handlePresenterCallResult(Promise.reject(new Error(errorMessage)), {
+        webContentsId: 11,
+        presenterName: 'agentSessionPresenter',
+        methodName: 'createSession'
+      })
+    ).rejects.toThrow(errorMessage)
+
+    releasePresenterCallErrorStateForWebContents(11)
+
+    await expect(
+      handlePresenterCallResult(Promise.reject(new Error(errorMessage)), {
+        webContentsId: 11,
+        presenterName: 'agentRuntimePresenter',
+        methodName: 'initSession'
+      })
+    ).rejects.toThrow(errorMessage)
+
+    expect(mocks.sendToWebContents).toHaveBeenCalledTimes(2)
+  })
+
   it('does not send repair suggestions for non-schema async errors', async () => {
     const { handlePresenterCallResult } = await loadModule()
 

@@ -184,9 +184,14 @@
       "backupSuccessTitle": "バックアップ成功",
       "backupSuccessMessage": "データは正常にバックアップされました"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "モデル設定を更新",
-      "description": "上流の provider.json を強制的に更新し、モデル機能と既定設定を最新の状態にします。",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "今すぐ更新",
       "updating": "更新中...",
       "updatedTitle": "モデル設定を更新しました",
@@ -211,11 +216,10 @@
     },
     "databaseRepair": {
       "title": "データベース修復",
-      "description": "不足しているテーブル、カラム、インデックスを検出して修復します。型の不一致は手動対応用に通知のみ行います。",
+      "description": "Detect and automatically repair the database",
       "button": "データベースを確認して修復",
       "running": "確認して修復中...",
       "lastResultLabel": "前回の結果: {result}",
-      "notCheckedYet": "未確認",
       "summaryHealthy": "正常",
       "summaryRepaired": "{count} 件を修復",
       "summaryRepairedWithManual": "{repaired} 件を修復、{manual} 件は手動対応が必要",

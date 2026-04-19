@@ -246,13 +246,15 @@
       "backupSuccessTitle": "备份成功",
       "backupSuccessMessage": "成功备份了数据"
     },
+    "syncSectionTitle": "数据备份与同步",
+    "operationsSectionTitle": "数据操作",
+    "resetDataDescription": "按类型重置聊天、知识库、配置或全部数据。",
     "databaseRepair": {
       "title": "数据库修复",
-      "description": "检测并修复缺失的表、列和索引。列类型不匹配只会提示，需要手动处理。",
+      "description": "检测并自动修复数据库",
       "button": "检查并修复数据库",
       "running": "检查并修复中...",
       "lastResultLabel": "最近结果：{result}",
-      "notCheckedYet": "尚未检查",
       "summaryHealthy": "结构正常",
       "summaryRepaired": "已修复 {count} 个问题",
       "summaryRepairedWithManual": "已修复 {repaired} 个问题，仍有 {manual} 个需手动处理",
@@ -277,7 +279,9 @@
     },
     "modelConfigUpdate": {
       "title": "更新模型配置",
-      "description": "从上游强制刷新 provider.json，用最新的服务商元数据更新模型能力与默认配置。",
+      "descriptionPrefix": "从 ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": " 项目同步模型数据",
       "button": "立即更新",
       "updating": "更新中...",
       "updatedTitle": "模型配置已更新",

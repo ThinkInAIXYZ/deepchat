@@ -184,9 +184,14 @@
       "backupSuccessTitle": "백업 성공",
       "backupSuccessMessage": "데이터가 성공적으로 백업되었습니다."
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "모델 설정 업데이트",
-      "description": "업스트림 provider.json을 강제로 새로고침해 모델 기능과 기본 설정을 최신 상태로 맞춥니다.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "지금 업데이트",
       "updating": "업데이트 중...",
       "updatedTitle": "모델 설정을 업데이트했습니다",
@@ -211,11 +216,10 @@
     },
     "databaseRepair": {
       "title": "데이터베이스 복구",
-      "description": "누락된 테이블, 컬럼, 인덱스를 감지하고 복구합니다. 타입 불일치는 수동 처리를 위해서만 알려 줍니다.",
+      "description": "Detect and automatically repair the database",
       "button": "데이터베이스 점검 및 복구",
       "running": "점검 및 복구 중...",
       "lastResultLabel": "최근 결과: {result}",
-      "notCheckedYet": "아직 점검하지 않음",
       "summaryHealthy": "정상",
       "summaryRepaired": "{count}개 문제 복구됨",
       "summaryRepairedWithManual": "{repaired}개 문제를 복구했고, {manual}개는 수동 처리가 필요함",

@@ -22,6 +22,10 @@ function createIssue(issue: DatabaseSchemaIssue): DatabaseSchemaIssue {
   return issue
 }
 
+function quotePragmaTableName(db: Database.Database, tableName: string): string {
+  return db.prepare('SELECT quote(?)').pluck().get(tableName) as string
+}
+
 function readSchemaSnapshot(db: Database.Database): Map<string, SchemaSnapshotTable> {
   const tableRows = db
     .prepare(
@@ -35,7 +39,8 @@ function readSchemaSnapshot(db: Database.Database): Map<string, SchemaSnapshotTa
   const snapshot = new Map<string, SchemaSnapshotTable>()
 
   for (const { name } of tableRows) {
-    const columns = db.prepare(`PRAGMA table_info(${name})`).all() as Array<{
+    const quotedTableName = quotePragmaTableName(db, name)
+    const columns = db.prepare(`PRAGMA table_info(${quotedTableName})`).all() as Array<{
       name: string
       type: string
     }>
@@ -108,8 +113,7 @@ export class SchemaInspector {
         if (
           column.checkType &&
           column.declaredType &&
-          actualType &&
-          actualType !== column.declaredType
+          (actualType === null || actualType !== column.declaredType)
         ) {
           issues.push(
             createIssue({

@@ -61,7 +61,16 @@ export class DeepChatSessionsTable extends BaseTable {
       return
     }
 
-    this.db.exec(this.getCreateTableSQLForVersion(this.getRecordedSchemaVersion()))
+    const recordedVersion = this.getRecordedSchemaVersion()
+    const latestVersion = this.getLatestVersion()
+
+    if (recordedVersion > latestVersion) {
+      const message = `Recorded deepchat_sessions schema version ${recordedVersion} exceeds supported version ${latestVersion}. Refusing to create table from a downgraded schema.`
+      console.error(message)
+      throw new Error(message)
+    }
+
+    this.db.exec(this.getCreateTableSQLForVersion(recordedVersion))
   }
 
   private getCreateTableSQLForVersion(version: number): string {
@@ -107,6 +116,57 @@ export class DeepChatSessionsTable extends BaseTable {
     `
   }
 
+  private getRecoveryMigrationStatements(): string[] {
+    if (!this.tableExists()) {
+      return []
+    }
+
+    const statements: string[] = []
+
+    if (!this.hasColumn('system_prompt')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN system_prompt TEXT;')
+    }
+    if (!this.hasColumn('temperature')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN temperature REAL;')
+    }
+    if (!this.hasColumn('context_length')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN context_length INTEGER;')
+    }
+    if (!this.hasColumn('max_tokens')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN max_tokens INTEGER;')
+    }
+    if (!this.hasColumn('thinking_budget')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN thinking_budget INTEGER;')
+    }
+    if (!this.hasColumn('reasoning_effort')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN reasoning_effort TEXT;')
+    }
+    if (!this.hasColumn('verbosity')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN verbosity TEXT;')
+    }
+    if (!this.hasColumn('summary_text')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN summary_text TEXT;')
+    }
+    if (!this.hasColumn('summary_cursor_order_seq')) {
+      statements.push(
+        'ALTER TABLE deepchat_sessions ADD COLUMN summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1;'
+      )
+    }
+    if (!this.hasColumn('summary_updated_at')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN summary_updated_at INTEGER;')
+    }
+    if (!this.hasColumn('force_interleaved_thinking_compat')) {
+      statements.push(
+        'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;'
+      )
+    }
+    if (!this.hasColumn('reasoning_visibility')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;')
+    }
+
+    return statements
+  }
+
   getMigrationSQL(version: number): string | null {
     if (version === 12) {
       return `
@@ -136,11 +196,15 @@ export class DeepChatSessionsTable extends BaseTable {
         ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;
       `
     }
+    if (version === 23) {
+      const statements = this.getRecoveryMigrationStatements()
+      return statements.length > 0 ? statements.join('\n') : null
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 20
+    return 23
   }
 
   create(

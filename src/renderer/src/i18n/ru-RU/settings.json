@@ -184,9 +184,14 @@
       "backupSuccessTitle": "Резервное копирование выполнено успешно",
       "backupSuccessMessage": "Резервное копирование данных успешно выполнено"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "Обновить конфигурацию моделей",
-      "description": "Принудительно обновляет provider.json из источника, чтобы подтянуть актуальные возможности моделей и настройки по умолчанию.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "Обновить сейчас",
       "updating": "Обновление...",
       "updatedTitle": "Конфигурация моделей обновлена",
@@ -211,11 +216,10 @@
     },
     "databaseRepair": {
       "title": "Восстановление базы данных",
-      "description": "Обнаруживает и восстанавливает отсутствующие таблицы, столбцы и индексы. Несовпадения типов только сообщаются для ручной обработки.",
+      "description": "Detect and automatically repair the database",
       "button": "Проверить и восстановить базу данных",
       "running": "Проверка и восстановление...",
       "lastResultLabel": "Последний результат: {result}",
-      "notCheckedYet": "Ещё не проверено",
       "summaryHealthy": "Исправна",
       "summaryRepaired": "Исправлено {count} проблем",
       "summaryRepairedWithManual": "Исправлено {repaired} проблем, {manual} требуют ручной обработки",

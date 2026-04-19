@@ -32,9 +32,7 @@ const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
   /file is not a database/i,
   /SQLITE_CORRUPT/i,
-  /SQLITE_NOTADB/i,
-  /SQLITE_CANTOPEN/i,
-  /unable to open database file/i
+  /SQLITE_NOTADB/i
 ]
 
 function getErrorMessage(error: unknown): string {
@@ -62,12 +60,13 @@ function ensureDatabaseDirectory(dbPath: string): void {
 }
 
 function configureDatabaseConnection(db: Database.Database, password?: string): void {
-  db.pragma('journal_mode = WAL')
-
   if (password) {
     db.pragma(`cipher='sqlcipher'`)
-    db.pragma(`key='${password}'`)
+    const hexPassword = Buffer.from(password, 'utf8').toString('hex')
+    db.pragma(`key = "x'${hexPassword}'"`)
   }
+
+  db.pragma('journal_mode = WAL')
 }
 
 export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
@@ -198,16 +197,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     try {
       this.initializeDatabase()
     } catch (error) {
-      console.error('Database initialization failed:', error)
-      this.closeDatabaseSilently()
-
-      if (!isDestructiveDatabaseError(error)) {
-        throw error
-      }
-
-      this.backupDatabase()
-      this.cleanupDatabaseFiles()
-      this.initializeDatabase()
+      this.handleInitializationError(error)
     }
   }
 
@@ -233,6 +223,21 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.initTables()
     this.initVersionTable()
     this.migrate()
+  }
+
+  private handleInitializationError(error: unknown): void {
+    console.error('Database initialization failed:', error)
+
+    if (isDestructiveDatabaseError(error)) {
+      this.backupDatabase()
+      this.closeDatabaseSilently()
+      this.cleanupDatabaseFiles()
+      this.initializeDatabase()
+      return
+    }
+
+    this.closeDatabaseSilently()
+    throw error
   }
 
   private closeDatabaseSilently(): void {

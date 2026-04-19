@@ -246,13 +246,15 @@
       "backupSuccessTitle": "Backup successful",
       "backupSuccessMessage": "Data backed up successfully"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "databaseRepair": {
       "title": "Database Repair",
-      "description": "Detect and repair missing tables, columns, and indexes. Type mismatches are reported for manual handling.",
+      "description": "Detect and automatically repair the database",
       "button": "Check & Repair Database",
       "running": "Checking & repairing...",
       "lastResultLabel": "Last result: {result}",
-      "notCheckedYet": "Not checked yet",
       "summaryHealthy": "Healthy",
       "summaryRepaired": "Repaired {count} issue(s)",
       "summaryRepairedWithManual": "Repaired {repaired} issue(s), {manual} manual issue(s)",
@@ -277,7 +279,9 @@
     },
     "modelConfigUpdate": {
       "title": "Update Model Config",
-      "description": "Force refresh provider.json from upstream to update model capabilities and default model settings.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "Update Now",
       "updating": "Updating...",
       "updatedTitle": "Model config updated",

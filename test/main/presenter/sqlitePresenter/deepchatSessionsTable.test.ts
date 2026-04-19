@@ -68,4 +68,102 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     expect(applied).toBe(false)
     expect(run).toHaveBeenCalledOnce()
   })
+
+  it('restores the v23 recovery migration for missing forward columns', () => {
+    const get = vi.fn((param?: string) => {
+      if (param === 'deepchat_sessions') {
+        return { name: 'deepchat_sessions' }
+      }
+
+      return undefined
+    })
+    const all = vi.fn(() => [
+      { name: 'id' },
+      { name: 'provider_id' },
+      { name: 'model_id' },
+      { name: 'permission_mode' },
+      { name: 'system_prompt' },
+      { name: 'temperature' },
+      { name: 'context_length' },
+      { name: 'max_tokens' },
+      { name: 'thinking_budget' },
+      { name: 'reasoning_effort' },
+      { name: 'verbosity' },
+      { name: 'summary_text' },
+      { name: 'summary_cursor_order_seq' },
+      { name: 'summary_updated_at' }
+    ])
+
+    prepare.mockImplementation((sql: string) => {
+      if (sql === "SELECT name FROM sqlite_master WHERE type='table' AND name=?") {
+        return { get }
+      }
+
+      if (sql === 'PRAGMA table_info(deepchat_sessions)') {
+        return { all }
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`)
+    })
+
+    expect(table.getLatestVersion()).toBe(23)
+
+    expect(table.getMigrationSQL(23)).toBe(
+      [
+        'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
+        'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;'
+      ].join('\n')
+    )
+  })
+
+  it('aborts table creation when the recorded schema version is newer than supported', () => {
+    const exec = vi.fn()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const guardedDb = {
+      prepare: vi.fn((sql: string) => {
+        if (sql === "SELECT name FROM sqlite_master WHERE type='table' AND name=?") {
+          return {
+            get: (param?: string) => {
+              if (param === 'deepchat_sessions') {
+                return undefined
+              }
+
+              if (param === 'schema_versions') {
+                return { name: 'schema_versions' }
+              }
+
+              return undefined
+            }
+          }
+        }
+
+        if (
+          sql === "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_versions'"
+        ) {
+          return {
+            get: () => ({ name: 'schema_versions' })
+          }
+        }
+
+        if (sql === 'SELECT MAX(version) as version FROM schema_versions') {
+          return {
+            get: () => ({ version: 24 })
+          }
+        }
+
+        throw new Error(`Unexpected SQL: ${sql}`)
+      }),
+      exec
+    } as any
+
+    const guardedTable = new DeepChatSessionsTable(guardedDb)
+
+    expect(() => guardedTable.createTable()).toThrow(
+      'Recorded deepchat_sessions schema version 24 exceeds supported version 23.'
+    )
+    expect(exec).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Recorded deepchat_sessions schema version 24 exceeds supported version 23. Refusing to create table from a downgraded schema.'
+    )
+  })
 })

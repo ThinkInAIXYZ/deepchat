@@ -117,9 +117,14 @@
       "backupSuccessTitle": "Backup lykkedes",
       "backupSuccessMessage": "Data blev sikkerhedskopieret"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "Opdater modelkonfiguration",
-      "description": "Tving en opdatering af provider.json fra upstream for at hente de nyeste modelkapaciteter og standardindstillinger.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "Opdater nu",
       "updating": "Opdaterer...",
       "updatedTitle": "Modelkonfiguration opdateret",
@@ -144,11 +149,10 @@
     },
     "databaseRepair": {
       "title": "Databasereparation",
-      "description": "Registrer og reparer manglende tabeller, kolonner og indekser. Typemismatch rapporteres kun til manuel håndtering.",
+      "description": "Detect and automatically repair the database",
       "button": "Kontrollér og reparer databasen",
       "running": "Kontrollerer og reparerer...",
       "lastResultLabel": "Seneste resultat: {result}",
-      "notCheckedYet": "Ikke kontrolleret endnu",
       "summaryHealthy": "Intakt",
       "summaryRepaired": "Reparerede {count} problem(er)",
       "summaryRepairedWithManual": "Reparerede {repaired} problem(er), {manual} kræver manuel håndtering",

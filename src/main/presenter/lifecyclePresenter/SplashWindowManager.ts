@@ -17,6 +17,7 @@ import {
   HookFailedEventData,
   ProgressUpdatedEventData
 } from './types'
+import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
 
 type SplashActivityStatus = 'running' | 'completed' | 'failed'
 
@@ -140,10 +141,15 @@ export class SplashWindowManager implements ISplashWindowManager {
           devTools: is.dev
         }
       })
+      const splashWebContentsId = this.splashWindow.webContents.id
 
       this.splashWindow.on('ready-to-show', () => {
         this.splashReadyToShow = true
         this.maybeShowSplash()
+      })
+
+      this.splashWindow.webContents.on('destroyed', () => {
+        releasePresenterCallErrorStateForWebContents(splashWebContentsId)
       })
 
       this.splashWindow.webContents.on('did-finish-load', () => {

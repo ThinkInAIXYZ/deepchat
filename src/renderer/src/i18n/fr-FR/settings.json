@@ -184,9 +184,14 @@
       "backupSuccessTitle": "Sauvegarde réussie",
       "backupSuccessMessage": "Données sauvegardées avec succès"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "Mettre à jour la config des modèles",
-      "description": "Force la mise à jour de provider.json depuis la source afin d’actualiser les capacités des modèles et les réglages par défaut.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "Mettre à jour",
       "updating": "Mise à jour...",
       "updatedTitle": "Configuration des modèles mise à jour",
@@ -211,11 +216,10 @@
     },
     "databaseRepair": {
       "title": "Réparation de la base de données",
-      "description": "Détecte et répare les tables, colonnes et index manquants. Les incompatibilités de type sont seulement signalées pour traitement manuel.",
+      "description": "Detect and automatically repair the database",
       "button": "Vérifier et réparer la base",
       "running": "Vérification et réparation...",
       "lastResultLabel": "Dernier résultat : {result}",
-      "notCheckedYet": "Pas encore vérifiée",
       "summaryHealthy": "Saine",
       "summaryRepaired": "{count} problème(s) réparé(s)",
       "summaryRepairedWithManual": "{repaired} problème(s) réparé(s), {manual} à traiter manuellement",

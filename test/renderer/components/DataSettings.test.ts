@@ -24,6 +24,7 @@ const setup = async () => {
   vi.resetModules()
 
   const toast = vi.fn()
+  const openExternal = vi.fn()
   const syncStore = reactive({
     syncEnabled: true,
     syncFolderPath: '/tmp/deepchat-sync',
@@ -99,16 +100,26 @@ const setup = async () => {
       toast
     })
   }))
+  ;(window as typeof window & { api: { openExternal: typeof openExternal } }).api = {
+    openExternal
+  }
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string) =>
+        (
+          ({
+            'settings.data.modelConfigUpdate.linkLabel': 'ThinkInAIXYZ/PublicProviderConf'
+          }) as Record<string, string>
+        )[key] ?? key
     })
   }))
   vi.doMock('pinia', async () => {
     const vue = await vi.importActual<typeof import('vue')>('vue')
     return {
       storeToRefs: () => ({
-        backups: vue.toRef(syncStore, 'backups')
+        backups: vue.toRef(syncStore, 'backups'),
+        isBackingUp: vue.toRef(syncStore, 'isBackingUp'),
+        isImporting: vue.toRef(syncStore, 'isImporting')
       })
     }
   })
@@ -129,8 +140,8 @@ const setup = async () => {
         DialogTitle: passthroughStub('DialogTitle'),
         DialogTrigger: passthroughStub('DialogTrigger'),
         AlertDialog: passthroughStub('AlertDialog'),
-        AlertDialogAction: passthroughStub('AlertDialogAction'),
-        AlertDialogCancel: passthroughStub('AlertDialogCancel'),
+        AlertDialogAction: buttonStub,
+        AlertDialogCancel: buttonStub,
         AlertDialogContent: passthroughStub('AlertDialogContent'),
         AlertDialogDescription: passthroughStub('AlertDialogDescription'),
         AlertDialogFooter: passthroughStub('AlertDialogFooter'),
@@ -156,6 +167,7 @@ const setup = async () => {
   await flushPromises()
 
   return {
+    openExternal,
     wrapper,
     toast,
     syncStore,
@@ -163,45 +175,53 @@ const setup = async () => {
   }
 }
 
-const findRefreshButton = (wrapper: ReturnType<typeof mount>) => {
-  const button = wrapper
-    .findAll('button')
-    .find((item) => item.text().includes('settings.data.modelConfigUpdate'))
+const findButtonByText = (wrapper: ReturnType<typeof mount>, text: string, label: string) => {
+  const button = wrapper.findAllComponents(buttonStub).find((item) => item.text().includes(text))
 
   if (!button) {
-    throw new Error('Refresh provider DB button not found')
+    throw new Error(`${label} button not found`)
   }
 
   return button
 }
 
-const findRepairButton = (wrapper: ReturnType<typeof mount>) => {
-  const button = wrapper
-    .findAll('button')
-    .find((item) => item.text().includes('settings.data.databaseRepair'))
+const findRefreshButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.modelConfigUpdate', 'Refresh provider DB')
 
-  if (!button) {
-    throw new Error('Repair database button not found')
-  }
+const findRepairButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.databaseRepair', 'Repair database')
 
-  return button
-}
+const findResetButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.resetData', 'Reset data')
 
-const findResetButton = (wrapper: ReturnType<typeof mount>) => {
-  const button = wrapper
-    .findAll('button')
-    .find((item) => item.text().includes('settings.data.resetData'))
-
-  if (!button) {
-    throw new Error('Reset data button not found')
-  }
-
-  return button
-}
+const findResetConfirmButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.confirmReset', 'Reset confirm')
 
 describe('DataSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('renders the consolidated sync and operations sections', async () => {
+    const { wrapper } = await setup()
+
+    const headings = wrapper.findAll('h2').map((item) => item.text())
+
+    expect(headings).toEqual([
+      'settings.data.syncSectionTitle',
+      'settings.data.operationsSectionTitle'
+    ])
+    expect(wrapper.text()).toContain('settings.data.databaseRepair.title')
+    expect(wrapper.text()).toContain('settings.data.modelConfigUpdate.title')
+    expect(wrapper.text()).toContain('settings.data.resetData')
+    expect(wrapper.text()).toContain('settings.data.yoBrowser.title')
+  })
+
+  it('does not render a repair result summary before any repair run', async () => {
+    const { wrapper } = await setup()
+
+    expect(wrapper.text()).not.toContain('settings.data.databaseRepair.lastResultLabel')
+    expect(wrapper.text()).not.toContain('settings.data.databaseRepair.notCheckedYet')
   })
 
   it('calls refreshProviderDb, shows loading state, then shows an updated toast', async () => {
@@ -292,6 +312,89 @@ describe('DataSettings', () => {
     })
   })
 
+  it('disables schema repair during backup and blocks both click and auto-run paths', async () => {
+    const { wrapper, syncStore, presenterMocks } = await setup()
+
+    syncStore.isBackingUp = true
+    await nextTick()
+
+    expect(findRepairButton(wrapper).attributes('disabled')).toBeDefined()
+
+    findRepairButton(wrapper).vm.$emit('click')
+    window.dispatchEvent(
+      new CustomEvent('deepchat:settings-section', {
+        detail: { section: 'database-repair' }
+      })
+    )
+    await flushPromises()
+
+    expect(presenterMocks.sqlitePresenter.repairSchema).not.toHaveBeenCalled()
+  })
+
+  it('renders repair summary and manual hint after a repair run with remaining issues', async () => {
+    const { wrapper, presenterMocks } = await setup()
+
+    presenterMocks.sqlitePresenter.repairSchema.mockResolvedValueOnce({
+      startedAt: Date.now(),
+      finishedAt: Date.now(),
+      status: 'repaired',
+      backupPath: null,
+      diagnosisBeforeRepair: {
+        checkedAt: Date.now(),
+        isHealthy: false,
+        issues: [],
+        repairableIssues: [],
+        manualIssues: []
+      },
+      diagnosisAfterRepair: {
+        checkedAt: Date.now(),
+        isHealthy: false,
+        issues: [],
+        repairableIssues: [],
+        manualIssues: []
+      },
+      repairedIssues: [
+        {
+          kind: 'missing_column',
+          table: 'deepchat_sessions',
+          name: 'reasoning_effort',
+          repairable: true,
+          message: 'Missing column reasoning_effort'
+        }
+      ],
+      remainingIssues: [
+        {
+          kind: 'column_type_mismatch',
+          table: 'messages',
+          name: 'metadata',
+          repairable: false,
+          message: 'Column metadata type mismatch',
+          expectedType: 'TEXT',
+          actualType: 'BLOB'
+        }
+      ]
+    })
+
+    await findRepairButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('settings.data.databaseRepair.lastResultLabel')
+    expect(wrapper.text()).toContain('settings.data.databaseRepair.manualHint')
+  })
+
+  it('renders the PublicProviderConf link and opens it externally when clicked', async () => {
+    const { wrapper, openExternal } = await setup()
+
+    const projectLink = wrapper.find('a[href="https://github.com/ThinkInAIXYZ/PublicProviderConf"]')
+
+    expect(projectLink.exists()).toBe(true)
+    expect(projectLink.text()).toContain('ThinkInAIXYZ/PublicProviderConf')
+
+    await projectLink.trigger('click')
+
+    expect(openExternal).toHaveBeenCalledWith('https://github.com/ThinkInAIXYZ/PublicProviderConf')
+  })
+
   it('keeps reset data enabled when sync is disabled', async () => {
     const { wrapper, syncStore } = await setup()
 
@@ -299,5 +402,20 @@ describe('DataSettings', () => {
     await nextTick()
 
     expect(findResetButton(wrapper).attributes('disabled')).toBeUndefined()
+  })
+
+  it('disables reset actions during import and blocks the reset handler', async () => {
+    const { wrapper, syncStore, presenterMocks } = await setup()
+
+    syncStore.isImporting = true
+    await nextTick()
+
+    expect(findResetButton(wrapper).attributes('disabled')).toBeDefined()
+    expect(findResetConfirmButton(wrapper).attributes('disabled')).toBeDefined()
+
+    findResetConfirmButton(wrapper).vm.$emit('click')
+    await flushPromises()
+
+    expect(presenterMocks.devicePresenter.resetDataByType).not.toHaveBeenCalled()
   })
 })
