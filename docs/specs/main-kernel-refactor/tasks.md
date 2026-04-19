@@ -18,7 +18,7 @@
 
 ## Phase 0: Guardrails & Baseline
 
-- [ ] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `usePresenter()` 调用点
+- [x] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `usePresenter()` 调用点
 - [ ] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `window.electron.ipcRenderer.*` 监听
 - [ ] 扩展 `scripts/architecture-guard.mjs`，阻止在 migrated path 中新增 raw channel 字符串
 - [ ] 为 hot path direct dependency 增加趋势检查
