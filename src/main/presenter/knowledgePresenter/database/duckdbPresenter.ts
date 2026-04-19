@@ -651,16 +651,14 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
 
   // ==================== 初始化相关 ====================
 
-  private async create() {
+  private async create(): Promise<void> {
     this.dbInstance = await DuckDBInstance.create(this.dbPath)
     this.connection = await this.dbInstance.connect()
     console.log(`[DuckDB] Connected to DuckDB at ${this.dbPath}`)
   }
 
-  private async connect() {
-    this.dbInstance = await DuckDBInstance.create(this.dbPath)
-    this.connection = await this.dbInstance.connect()
-    console.log(`[DuckDB] Connected to DuckDB at ${this.dbPath}`)
+  private async connect(): Promise<void> {
+    await this.create()
   }
 
   /**
@@ -711,7 +709,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
       await this.safeRun(`INSTALL ${name};`)
       await this.safeRun(`LOAD ${name};`)
     }
-    if (afterRun instanceof Function) await afterRun()
+    if (typeof afterRun === 'function') await afterRun()
   }
 
   /** 创建文件元数据表 */

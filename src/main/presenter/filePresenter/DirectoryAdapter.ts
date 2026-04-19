@@ -25,23 +25,21 @@ export class DirectoryAdapter {
   }
 
   public async processDirectory(): Promise<DirectoryMetaData | null> {
-    if (!this.dirMetaData) {
-      try {
-        const { dirCreated, dirModified } = await this.extractDirectoryInfo()
-        this.dirMetaData = {
-          dirName: path.basename(this.dirPath),
-          dirPath: this.dirPath,
-          dirCreated,
-          dirModified
-        }
-      } catch (error) {
-        console.error('Error processing directory:', error)
-        return null
+    if (this.dirMetaData) {
+      return this.dirMetaData
+    }
+    try {
+      const { dirCreated, dirModified } = await this.extractDirectoryInfo()
+      this.dirMetaData = {
+        dirName: path.basename(this.dirPath),
+        dirPath: this.dirPath,
+        dirCreated,
+        dirModified
       }
+    } catch (error) {
+      console.error('Error processing directory:', error)
+      return null
     }
     return this.dirMetaData
-  }
-  async getThumbnail(): Promise<string | undefined> {
-    return ''
   }
 }

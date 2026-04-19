@@ -42,26 +42,30 @@ export abstract class BaseFileAdapter {
 
   public async processFile(): Promise<FileMetaData | null> {
     if (!this.mimeType) {
-      await this.preprocessFile()
-    }
-
-    if (!this.fileMetaData) {
       try {
-        // const fileBuffer = await this.readFile()
-        // const fileHash = await this.calculateFileHash(fileBuffer)
-        const { fileSize, fileCreated, fileModified } = await this.extractBasicInfo()
-        this.fileMetaData = {
-          fileName: path.basename(this.filePath),
-          fileSize,
-          // fileHash,
-          fileDescription: this.getFileDescription(),
-          fileCreated,
-          fileModified
-        }
+        await this.preprocessFile()
       } catch (error) {
-        console.error('Error processing file:', error)
+        console.error('Error detecting MIME type:', error)
         return null
       }
+    }
+
+    if (this.fileMetaData) {
+      return this.fileMetaData
+    }
+
+    try {
+      const { fileSize, fileCreated, fileModified } = await this.extractBasicInfo()
+      this.fileMetaData = {
+        fileName: path.basename(this.filePath),
+        fileSize,
+        fileDescription: this.getFileDescription(),
+        fileCreated,
+        fileModified
+      }
+    } catch (error) {
+      console.error('Error processing file:', error)
+      return null
     }
 
     return this.fileMetaData
