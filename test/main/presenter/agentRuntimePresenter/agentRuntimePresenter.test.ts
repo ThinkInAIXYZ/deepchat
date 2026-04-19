@@ -15,6 +15,10 @@ vi.mock('@/eventbus', () => ({
   SendTarget: { ALL_WINDOWS: 'all' }
 }))
 
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
+}))
+
 vi.mock('@/events', () => ({
   SESSION_EVENTS: {
     LIST_UPDATED: 'session:list-updated',
@@ -70,6 +74,7 @@ vi.mock('@/presenter/agentRuntimePresenter/process', () => ({
 import { eventBus } from '@/eventbus'
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { presenter } from '@/presenter'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
@@ -974,6 +979,22 @@ describe('AgentRuntimePresenter', () => {
           Array.isArray(payload.blocks) &&
           payload.blocks.length === 0
       )
+      const typedStreamUpdates = (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([eventName]) => eventName === 'chat.stream.updated')
+        .map(([, payload]) => payload)
+        .filter((payload) => typeof payload?.messageId === 'string')
+      const typedRateLimitShow = typedStreamUpdates.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 1
+      )
+      const typedRateLimitClear = typedStreamUpdates.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 0
+      )
 
       expect(rateLimitShow).toMatchObject({
         conversationId: 's1',
@@ -992,6 +1013,20 @@ describe('AgentRuntimePresenter', () => {
       })
       expect(rateLimitClear).toMatchObject({
         conversationId: 's1',
+        blocks: []
+      })
+      expect(typedRateLimitShow).toMatchObject({
+        sessionId: 's1',
+        blocks: [
+          expect.objectContaining({
+            type: 'action',
+            action_type: 'rate_limit',
+            status: 'pending'
+          })
+        ]
+      })
+      expect(typedRateLimitClear).toMatchObject({
+        sessionId: 's1',
         blocks: []
       })
     })
@@ -3732,6 +3767,79 @@ describe('AgentRuntimePresenter', () => {
           responseText: "Tool 'exec' is disabled for the current session."
         })
       )
+    })
+
+    it('publishes typed stream failure when deferred tool execution returns a terminal error', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = {
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 1,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'run_shell', params: '{"command":"dir"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'run_shell', params: '{"command":"dir"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'Need permission',
+                toolName: 'run_shell',
+                command: 'dir'
+              })
+            }
+          }
+        ]),
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: Date.now(),
+        updated_at: Date.now()
+      }
+      sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+        id === row.id ? row : undefined
+      )
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
+
+      const executeDeferredToolCallSpy = vi
+        .spyOn(agent as any, 'executeDeferredToolCall')
+        .mockResolvedValue({
+          responseText: 'terminal failure',
+          isError: true,
+          terminalError: 'terminal failure'
+        })
+
+      try {
+        const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+
+        expect(result).toEqual({ resumed: false })
+        expect(publishDeepchatEvent).toHaveBeenCalledWith(
+          'chat.stream.failed',
+          expect.objectContaining({
+            requestId: 'm1',
+            sessionId: 's1',
+            messageId: 'm1',
+            error: 'terminal failure'
+          })
+        )
+      } finally {
+        executeDeferredToolCallSpy.mockRestore()
+      }
     })
 
     it('passes providerId when executing a deferred MCP tool call', async () => {

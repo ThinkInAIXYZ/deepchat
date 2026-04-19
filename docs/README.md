@@ -1,19 +1,22 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-04-11` 完成 legacy `AgentPresenter` retirement 与 legacy provider runtime retirement 之后的代码结构。
+本文档反映 `2026-04-19` 完成 main kernel refactor phase3 之后的代码结构。
 
-当前聊天主链路已经收敛为：
+当前聊天热路径已经收敛为：
 
 ```text
 Renderer
-  -> preload IPC
-  -> agentSessionPresenter
+  -> renderer/api (SettingsClient / SessionClient / ChatClient)
+  -> window.deepchat
+  -> shared/contracts/routes + shared/contracts/events
+  -> main route services (SessionService / ChatService)
+  -> presenter-backed hot path ports
   -> agentRuntimePresenter
   -> llmProviderPresenter / toolPresenter / mcpPresenter
   -> sqlitePresenter
 ```
 
-`SessionPresenter` 和旧 `conversations/messages` 数据域仍然保留，但只承担兼容、导出和历史数据访问职责，不再是活跃聊天 runtime 入口。
+`SessionPresenter` 和旧 `conversations/messages` 数据域仍然保留，但只承担兼容、导出和历史数据访问职责，不再是 migrated chat/session hot path 的主入口。
 
 ## 当前必读
 

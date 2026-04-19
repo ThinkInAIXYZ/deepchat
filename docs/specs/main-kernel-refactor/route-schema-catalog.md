@@ -131,7 +131,10 @@ export const AppErrorSchema = z.object({
 | `sessions.create` | title / provider / model / agent / projectDir | session summary | 会话创建主入口 |
 | `sessions.restore` | `{ sessionId }` | session snapshot | 恢复主入口 |
 | `sessions.list` | optional filter | session summaries | 列表主入口 |
-| `chat.sendMessage` | `sessionId`, content, attachments | request / message ids | 聊天发送主入口 |
+| `sessions.activate` | `{ sessionId }` | `{ activated: true }` | 当前窗口激活会话 |
+| `sessions.deactivate` | none | `{ deactivated: true }` | 当前窗口关闭活跃会话 |
+| `sessions.getActive` | none | `{ session }` | 当前窗口读取活跃会话 |
+| `chat.sendMessage` | `sessionId`, content, attachments | `{ accepted, requestId, messageId }` | 聊天发送主入口 |
 | `chat.stopStream` | `sessionId` or `requestId` | `{ stopped: boolean }` | 停止流语义固定 |
 
 ### Phase 4

@@ -70,6 +70,7 @@ import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBrid
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
 import type { ConfigQueryPort, SessionRuntimePort } from '../runtimePorts'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
@@ -778,6 +779,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               conversationId: sessionId,
               eventId: messageId,
               messageId,
+              error: execution.terminalError
+            })
+            publishDeepchatEvent('chat.stream.failed', {
+              requestId: messageId,
+              sessionId,
+              messageId,
+              failedAt: Date.now(),
               error: execution.terminalError
             })
             this.dispatchHook('Stop', {
@@ -1914,6 +1922,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       messageId,
       blocks: [block]
     })
+    publishDeepchatEvent('chat.stream.updated', {
+      kind: 'snapshot',
+      requestId: messageId,
+      sessionId,
+      messageId,
+      updatedAt: Date.now(),
+      blocks: [block]
+    })
   }
 
   private clearRateLimitWaitingMessage(sessionId: string, messageId: string): void {
@@ -1921,6 +1937,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       conversationId: sessionId,
       eventId: messageId,
       messageId,
+      blocks: []
+    })
+    publishDeepchatEvent('chat.stream.updated', {
+      kind: 'snapshot',
+      requestId: messageId,
+      sessionId,
+      messageId,
+      updatedAt: Date.now(),
       blocks: []
     })
   }
@@ -2053,6 +2077,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             conversationId: sessionId,
             eventId: messageId,
             messageId,
+            error: resumeBudget.message
+          })
+          publishDeepchatEvent('chat.stream.failed', {
+            requestId: messageId,
+            sessionId,
+            messageId,
+            failedAt: Date.now(),
             error: resumeBudget.message
           })
           this.setSessionStatus(sessionId, 'error')
@@ -4123,6 +4154,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     eventBus.sendToRenderer(SESSION_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
       sessionId,
       status
+    })
+    publishDeepchatEvent('sessions.updated', {
+      sessionIds: [sessionId],
+      reason: 'updated'
     })
     emitDeepChatInternalSessionUpdate({
       sessionId,

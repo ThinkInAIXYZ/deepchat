@@ -146,6 +146,17 @@
 - Automated verification for Phase 2 uses `pnpm run architecture:baseline`
 - Repro smoke for Phase 2 is modifying font size, notifications, and font family through the settings UI, then restarting the app to confirm persistence and cross-window refresh
 - Phase 2 artifacts are `src/main/routes/settings/`, `src/main/routes/index.ts`, `src/renderer/api/SettingsClient.ts`, and `src/renderer/src/stores/uiSettingsStore.ts`
+- Phase 3 implementation and automated verification completed on `2026-04-19`
+- Automated verification for Phase 3 uses `pnpm exec vitest --config vitest.config.ts test/main/routes/contracts.test.ts test/main/routes/dispatcher.test.ts test/main/routes/sessionService.test.ts test/main/routes/chatService.test.ts test/main/routes/scheduler.test.ts`
+- Automated verification for Phase 3 uses `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/api/clients.test.ts test/renderer/stores/pageRouter.test.ts test/renderer/stores/messageStore.test.ts test/renderer/stores/sessionStore.test.ts`
+- Automated verification for Phase 3 follow-up uses `pnpm exec vitest --config vitest.config.ts test/main/presenter/agentRuntimePresenter/echo.test.ts`
+- Automated verification for Phase 3 follow-up uses `pnpm exec vitest --config vitest.config.ts test/main/presenter/agentRuntimePresenter/agentRuntimePresenter.test.ts`
+- Automated verification for Phase 3 follow-up uses `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/components/ChatPage.test.ts test/renderer/stores/messageStore.test.ts test/renderer/stores/sessionStore.test.ts`
+- Automated verification for Phase 3 uses `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`
+- Automated verification for Phase 3 uses `node scripts/architecture-guard.mjs`
+- Automated verification for Phase 3 uses `pnpm run architecture:baseline`
+- Repro smoke for Phase 3 is: cold start the app, create a regular session, send one message, confirm incremental stream updates arrive before completion, send a second message and confirm user/assistant ordering stays correct, stop the stream before completion, reopen the session, and confirm the active session is restored after switching away and back
+- Phase 3 artifacts are `src/main/routes/chat/`, `src/main/routes/sessions/`, `src/main/routes/hotPathPorts.ts`, `src/main/routes/scheduler.ts`, `src/renderer/api/ChatClient.ts`, `src/renderer/api/SessionClient.ts`, `src/renderer/src/stores/ui/session.ts`, `src/renderer/src/stores/ui/message.ts`, and `src/renderer/src/stores/ui/pageRouter.ts`
 
 ## Standard Verification Commands
 

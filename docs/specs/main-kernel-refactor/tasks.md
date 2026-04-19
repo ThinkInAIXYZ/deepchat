@@ -47,14 +47,14 @@
 
 ## Phase 3: Chat & Session Hot Path
 
-- [ ] 设计 `ChatService` 或等价 orchestration 层
-- [ ] 设计 `SessionService` 或等价 session orchestration 层
-- [ ] 抽出最小必要 port：`SessionRepository`、`MessageRepository`、`ProviderExecutionPort`
-- [ ] 抽出最小必要 port：`ProviderCatalogPort`、`SessionPermissionPort`、`WindowEventPort`
-- [ ] 引入 `Scheduler` 接口并承接 cancel / timeout / retry
-- [ ] 迁移发送消息、停止流、恢复会话主链路
-- [ ] 清理 `AgentSessionPresenter -> AgentRuntimePresenter` 在 migrated path 上的主 owner 角色
-- [ ] 补齐 chat/session 主路径测试
+- [x] 设计 `ChatService` 或等价 orchestration 层
+- [x] 设计 `SessionService` 或等价 session orchestration 层
+- [x] 抽出最小必要 port：`SessionRepository`、`MessageRepository`、`ProviderExecutionPort`
+- [x] 抽出最小必要 port：`ProviderCatalogPort`、`SessionPermissionPort`、`WindowEventPort`
+- [x] 引入 `Scheduler` 接口并承接 cancel / timeout / retry
+- [x] 迁移发送消息、停止流、恢复会话主链路
+- [x] 清理 `AgentSessionPresenter -> AgentRuntimePresenter` 在 migrated path 上的主 owner 角色
+- [x] 补齐 chat/session 主路径测试
 
 ## Phase 4: Provider / Tool Boundary
 
@@ -75,9 +75,9 @@
 
 ## Phase Exit Discipline
 
-- [ ] 每个阶段完成时更新本文件状态
-- [ ] 每个阶段完成时更新 `acceptance.md`
-- [ ] 每个阶段完成时更新 `test-plan.md`
-- [ ] 每个阶段完成时更新 `docs/architecture/baselines/*`
-- [ ] 每个阶段完成时更新 bridge register 与 scoreboard
-- [ ] 每个阶段完成时确认 legacy 指标净下降
+- [x] 每个阶段完成时更新本文件状态
+- [x] 每个阶段完成时更新 `acceptance.md`
+- [x] 每个阶段完成时更新 `test-plan.md`
+- [x] 每个阶段完成时更新 `docs/architecture/baselines/*`
+- [x] 每个阶段完成时更新 bridge register 与 scoreboard
+- [x] 每个阶段完成时确认 legacy 指标净下降

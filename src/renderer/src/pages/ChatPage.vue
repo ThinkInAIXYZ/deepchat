@@ -120,6 +120,7 @@ import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
+import { ChatClient } from '../../api/ChatClient'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
@@ -149,6 +150,7 @@ const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
 const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
+const chatClient = new ChatClient()
 const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const { t } = useI18n()
 
@@ -870,7 +872,7 @@ async function onStop() {
   if (isReadOnlySession.value) return
   if (!isGenerating.value) return
   try {
-    await agentSessionPresenter.cancelGeneration(props.sessionId)
+    await chatClient.stopStream({ sessionId: props.sessionId })
   } catch (error) {
     console.error('[ChatPage] cancel generation failed:', error)
   }

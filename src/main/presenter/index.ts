@@ -75,7 +75,7 @@ import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
 import type { ConfigQueryPort, SessionRuntimePort } from './runtimePorts'
 import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
-import { registerMainKernelRoutes } from '@/routes'
+import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -719,6 +719,7 @@ export class Presenter implements IPresenter {
 
 // Export presenter instance - will be initialized with database during lifecycle
 export let presenter: Presenter
+let cachedMainKernelRouteRuntime: ReturnType<typeof createMainKernelRouteRuntime> | undefined
 
 // Initialize presenter with database instance and optional lifecycle manager
 export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
@@ -729,11 +730,11 @@ export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
 
 registerMainKernelRoutes(ipcMain, () =>
   presenter
-    ? {
+    ? (cachedMainKernelRouteRuntime ??= createMainKernelRouteRuntime({
         configPresenter: presenter.configPresenter,
         agentSessionPresenter: presenter.agentSessionPresenter,
         windowPresenter: presenter.windowPresenter
-      }
+      }))
     : undefined
 )
 

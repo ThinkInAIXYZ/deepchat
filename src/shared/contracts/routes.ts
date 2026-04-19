@@ -7,7 +7,10 @@ import {
   settingsUpdateRoute
 } from './routes/settings.routes'
 import {
+  sessionsActivateRoute,
   sessionsCreateRoute,
+  sessionsDeactivateRoute,
+  sessionsGetActiveRoute,
   sessionsListRoute,
   sessionsRestoreRoute
 } from './routes/sessions.routes'
@@ -25,6 +28,9 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [sessionsCreateRoute.name]: sessionsCreateRoute,
   [sessionsRestoreRoute.name]: sessionsRestoreRoute,
   [sessionsListRoute.name]: sessionsListRoute,
+  [sessionsActivateRoute.name]: sessionsActivateRoute,
+  [sessionsDeactivateRoute.name]: sessionsDeactivateRoute,
+  [sessionsGetActiveRoute.name]: sessionsGetActiveRoute,
   [chatSendMessageRoute.name]: chatSendMessageRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute

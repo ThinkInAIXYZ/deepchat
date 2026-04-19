@@ -46,6 +46,9 @@ describe('renderer api clients', () => {
     })
     await sessionClient.restore('session-1')
     await sessionClient.list({ includeSubagents: true })
+    await sessionClient.activate('session-1')
+    await sessionClient.deactivate()
+    await sessionClient.getActive()
     sessionClient.onUpdated(vi.fn())
     await chatClient.sendMessage('session-1', 'follow up')
     await chatClient.stopStream({ requestId: 'message-1' })
@@ -63,11 +66,16 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'sessions.list', {
       includeSubagents: true
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'chat.sendMessage', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'sessions.activate', {
+      sessionId: 'session-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'sessions.deactivate', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'sessions.getActive', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'chat.sendMessage', {
       sessionId: 'session-1',
       content: 'follow up'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'chat.stopStream', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'chat.stopStream', {
       requestId: 'message-1'
     })
     expect(bridge.on).toHaveBeenNthCalledWith(1, 'sessions.updated', expect.any(Function))

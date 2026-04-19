@@ -36,7 +36,6 @@ import type {
   CONVERSATION
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
-import type { AgentRuntimePresenter } from '../agentRuntimePresenter'
 import { AgentRegistry } from './agentRegistry'
 import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
@@ -228,7 +227,7 @@ export class AgentSessionPresenter {
   private usageStatsBackfillPromise: Promise<void> | null = null
 
   constructor(
-    agentRuntimePresenter: AgentRuntimePresenter,
+    agentRuntimeAgent: IAgentImplementation,
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
@@ -248,7 +247,7 @@ export class AgentSessionPresenter {
     // Register the built-in deepchat agent
     this.agentRegistry.register(
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
-      agentRuntimePresenter
+      agentRuntimeAgent
     )
   }
 

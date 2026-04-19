@@ -8,7 +8,9 @@ export const chatSendMessageRoute = defineRouteContract({
     content: z.union([z.string(), SendMessageInputSchema])
   }),
   output: z.object({
-    accepted: z.boolean()
+    accepted: z.boolean(),
+    requestId: EntityIdSchema.nullable(),
+    messageId: EntityIdSchema.nullable()
   })
 })
 

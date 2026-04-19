@@ -97,6 +97,24 @@
 - Phase 2 automated verification covers `test/renderer/stores/uiSettingsStore.test.ts`
 - Phase 2 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P2`
 - Phase 2 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
+- [x] Phase 3 completed on `2026-04-19`
+- Phase 3 evidence lives in `src/main/routes/chat/`, `src/main/routes/sessions/`, `src/main/routes/hotPathPorts.ts`, `src/main/routes/scheduler.ts`, and the migrated renderer hot path under `src/renderer/src/stores/ui/` plus `src/renderer/src/pages/ChatPage.vue`
+- Phase 3 migrated renderer boundary now uses `SessionClient` / `ChatClient` for `sessions.restore`, `sessions.activate`, `sessions.deactivate`, `sessions.getActive`, `chat.sendMessage`, and `chat.stopStream`
+- Phase 3 automated verification covers `test/main/routes/contracts.test.ts`
+- Phase 3 automated verification covers `test/main/routes/dispatcher.test.ts`
+- Phase 3 automated verification covers `test/main/routes/sessionService.test.ts`
+- Phase 3 automated verification covers `test/main/routes/chatService.test.ts`
+- Phase 3 automated verification covers `test/main/routes/scheduler.test.ts`
+- Phase 3 automated verification covers `test/renderer/api/clients.test.ts`
+- Phase 3 automated verification covers `test/renderer/stores/pageRouter.test.ts`
+- Phase 3 automated verification covers `test/renderer/stores/messageStore.test.ts`
+- Phase 3 automated verification covers `test/renderer/stores/sessionStore.test.ts`
+- Phase 3 follow-up verification on `2026-04-19` restored typed incremental stream delivery in `src/main/presenter/agentRuntimePresenter/echo.ts`, aligned rate-limit and deferred terminal-error branches with typed `chat.stream.*` events in `src/main/presenter/agentRuntimePresenter/index.ts`, and reintroduced renderer-side persisted refresh fallback in `src/renderer/src/stores/ui/messageIpc.ts`
+- Phase 3 follow-up verification covers `test/main/presenter/agentRuntimePresenter/echo.test.ts`
+- Phase 3 follow-up verification covers `test/renderer/components/ChatPage.test.ts`
+- Phase 3 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P3`
+- Phase 3 legacy metrics confirm net reduction versus the Phase 0 checkpoint: `renderer.usePresenter.count` `89 -> 87`, `renderer.windowApi.count` `34 -> 33`, `hotpath.presenterEdge.count` `11 -> 10`, and `bridge.active.count` remains `0`
+- Phase 3 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
 
 ## Final Acceptance Checklist
 

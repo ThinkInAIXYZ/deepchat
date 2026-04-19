@@ -4,7 +4,10 @@ import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import {
   chatSendMessageRoute,
   chatStopStreamRoute,
+  sessionsActivateRoute,
   sessionsCreateRoute,
+  sessionsDeactivateRoute,
+  sessionsGetActiveRoute,
   sessionsListRoute,
   sessionsRestoreRoute,
   hasDeepchatRouteContract,
@@ -13,13 +16,45 @@ import {
   settingsUpdateRoute,
   systemOpenSettingsRoute
 } from '@shared/contracts/routes'
+import { ChatService } from './chat/chatService'
+import { createPresenterHotPathPorts } from './hotPathPorts'
+import { createNodeScheduler } from './scheduler'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
+import { SessionService } from './sessions/sessionService'
 
 export type MainKernelRouteRuntime = {
+  settingsHandler: ReturnType<typeof createSettingsRouteHandler>
+  sessionService: SessionService
+  chatService: ChatService
+  windowPresenter: IWindowPresenter
+}
+
+export function createMainKernelRouteRuntime(deps: {
   configPresenter: IConfigPresenter
   agentSessionPresenter: IAgentSessionPresenter
   windowPresenter: IWindowPresenter
+}): MainKernelRouteRuntime {
+  const scheduler = createNodeScheduler()
+  const hotPathPorts = createPresenterHotPathPorts(deps.agentSessionPresenter)
+
+  return {
+    settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
+    sessionService: new SessionService({
+      sessionRepository: hotPathPorts.sessionRepository,
+      messageRepository: hotPathPorts.messageRepository,
+      scheduler
+    }),
+    chatService: new ChatService({
+      sessionRepository: hotPathPorts.sessionRepository,
+      messageRepository: hotPathPorts.messageRepository,
+      providerExecutionPort: hotPathPorts.providerExecutionPort,
+      providerCatalogPort: hotPathPorts.providerCatalogPort,
+      sessionPermissionPort: hotPathPorts.sessionPermissionPort,
+      scheduler
+    }),
+    windowPresenter: deps.windowPresenter
+  }
 }
 
 type RouteContext = {
@@ -37,68 +72,65 @@ export async function dispatchDeepchatRoute(
     throw new Error(`Unknown deepchat route: ${routeName}`)
   }
 
-  const settingsHandler = createSettingsRouteHandler(
-    createSettingsRouteAdapter(runtime.configPresenter)
-  )
-
   switch (routeName) {
     case settingsGetSnapshotRoute.name: {
-      return settingsHandler.getSnapshot(rawInput)
+      return runtime.settingsHandler.getSnapshot(rawInput)
     }
 
     case settingsListSystemFontsRoute.name: {
-      return await settingsHandler.listSystemFonts(rawInput)
+      return await runtime.settingsHandler.listSystemFonts(rawInput)
     }
 
     case settingsUpdateRoute.name: {
-      return settingsHandler.update(rawInput)
+      return runtime.settingsHandler.update(rawInput)
     }
 
     case sessionsCreateRoute.name: {
       const input = sessionsCreateRoute.input.parse(rawInput)
-      const session = await runtime.agentSessionPresenter.createSession(
-        input,
-        context.webContentsId
-      )
+      const session = await runtime.sessionService.createSession(input, context)
       return sessionsCreateRoute.output.parse({ session })
     }
 
     case sessionsRestoreRoute.name: {
       const input = sessionsRestoreRoute.input.parse(rawInput)
-      const session = await runtime.agentSessionPresenter.getSession(input.sessionId)
-      const messages = session
-        ? await runtime.agentSessionPresenter.getMessages(input.sessionId)
-        : []
+      const { session, messages } = await runtime.sessionService.restoreSession(input.sessionId)
       return sessionsRestoreRoute.output.parse({ session, messages })
     }
 
     case sessionsListRoute.name: {
       const input = sessionsListRoute.input.parse(rawInput)
-      const sessions = await runtime.agentSessionPresenter.getSessionList(input)
+      const sessions = await runtime.sessionService.listSessions(input)
       return sessionsListRoute.output.parse({ sessions })
+    }
+
+    case sessionsActivateRoute.name: {
+      const input = sessionsActivateRoute.input.parse(rawInput)
+      await runtime.sessionService.activateSession(context, input.sessionId)
+      return sessionsActivateRoute.output.parse({ activated: true })
+    }
+
+    case sessionsDeactivateRoute.name: {
+      sessionsDeactivateRoute.input.parse(rawInput)
+      await runtime.sessionService.deactivateSession(context)
+      return sessionsDeactivateRoute.output.parse({ deactivated: true })
+    }
+
+    case sessionsGetActiveRoute.name: {
+      sessionsGetActiveRoute.input.parse(rawInput)
+      const session = await runtime.sessionService.getActiveSession(context)
+      return sessionsGetActiveRoute.output.parse({ session })
     }
 
     case chatSendMessageRoute.name: {
       const input = chatSendMessageRoute.input.parse(rawInput)
-      await runtime.agentSessionPresenter.sendMessage(input.sessionId, input.content)
-      return chatSendMessageRoute.output.parse({ accepted: true })
+      return chatSendMessageRoute.output.parse(
+        await runtime.chatService.sendMessage(input.sessionId, input.content)
+      )
     }
 
     case chatStopStreamRoute.name: {
       const input = chatStopStreamRoute.input.parse(rawInput)
-      let targetSessionId = input.sessionId ?? null
-
-      if (!targetSessionId && input.requestId) {
-        const message = await runtime.agentSessionPresenter.getMessage(input.requestId)
-        targetSessionId = message?.sessionId ?? null
-      }
-
-      if (!targetSessionId) {
-        return chatStopStreamRoute.output.parse({ stopped: false })
-      }
-
-      await runtime.agentSessionPresenter.cancelGeneration(targetSessionId)
-      return chatStopStreamRoute.output.parse({ stopped: true })
+      return chatStopStreamRoute.output.parse(await runtime.chatService.stopStream(input))
     }
 
     case systemOpenSettingsRoute.name: {

@@ -7,6 +7,10 @@ vi.mock('@/eventbus', () => ({
   SendTarget: { ALL_WINDOWS: 'all' }
 }))
 
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
+}))
+
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',
@@ -17,6 +21,7 @@ vi.mock('@/events', () => ({
 
 import { cloneBlocksForRenderer, startEcho } from '@/presenter/agentRuntimePresenter/echo'
 import { eventBus } from '@/eventbus'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 function createIo(): IoParams {
   return {
@@ -61,6 +66,16 @@ describe('echo', () => {
         conversationId: 's1',
         messageId: 'm1',
         eventId: 'm1',
+        blocks: expect.any(Array)
+      })
+    )
+    expect(publishDeepchatEvent).toHaveBeenCalledWith(
+      'chat.stream.updated',
+      expect.objectContaining({
+        kind: 'snapshot',
+        requestId: 'm1',
+        sessionId: 's1',
+        messageId: 'm1',
         blocks: expect.any(Array)
       })
     )
@@ -109,6 +124,16 @@ describe('echo', () => {
         conversationId: 's1',
         messageId: 'm1',
         eventId: 'm1',
+        blocks: expect.any(Array)
+      })
+    )
+    expect(publishDeepchatEvent).toHaveBeenCalledWith(
+      'chat.stream.updated',
+      expect.objectContaining({
+        kind: 'snapshot',
+        requestId: 'm1',
+        sessionId: 's1',
+        messageId: 'm1',
         blocks: expect.any(Array)
       })
     )

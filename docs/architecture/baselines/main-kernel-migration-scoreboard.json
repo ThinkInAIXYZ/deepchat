@@ -1,12 +1,12 @@
 {
   "program": "main-kernel-refactor",
   "generatedOn": "2026-04-19",
-  "currentPhase": "P2",
+  "currentPhase": "P3",
   "metrics": {
-    "renderer.usePresenter.count": 89,
+    "renderer.usePresenter.count": 87,
     "renderer.windowElectron.count": 95,
-    "renderer.windowApi.count": 34,
-    "hotpath.presenterEdge.count": 11,
+    "renderer.windowApi.count": 33,
+    "hotpath.presenterEdge.count": 10,
     "runtime.rawTimer.count": 123,
     "migrated.rawChannel.count": 5,
     "bridge.active.count": 0,
@@ -15,7 +15,6 @@
   "hotPathEdges": [
     "src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts",
     "src/main/presenter/agentSessionPresenter/index.ts -> src/main/eventbus.ts",
-    "src/main/presenter/agentSessionPresenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts",
     "src/main/presenter/index.ts -> src/main/eventbus.ts",
     "src/main/presenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts",
     "src/main/presenter/index.ts -> src/main/presenter/agentSessionPresenter/index.ts",

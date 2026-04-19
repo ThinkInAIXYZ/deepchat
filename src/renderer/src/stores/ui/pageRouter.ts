@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { SessionClient } from '../../../api/SessionClient'
 
 export type PageRoute = { name: 'newThread' } | { name: 'chat'; sessionId: string }
 type GoToNewThreadOptions = {
@@ -8,7 +8,7 @@ type GoToNewThreadOptions = {
 }
 
 export const usePageRouterStore = defineStore('pageRouter', () => {
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
+  const sessionClient = new SessionClient()
 
   // --- State ---
   const route = ref<PageRoute>({ name: 'newThread' })
@@ -19,9 +19,8 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
 
   async function initialize(): Promise<void> {
     try {
-      // 1. Check for the active agent session on this webContents first
-      const webContentsId = window.api.getWebContentsId()
-      const activeAgentSession = await agentSessionPresenter.getActiveSession(webContentsId)
+      // 1. Check for the active agent session bound to this renderer first.
+      const { session: activeAgentSession } = await sessionClient.getActive()
       if (activeAgentSession) {
         route.value = { name: 'chat', sessionId: activeAgentSession.id }
         return

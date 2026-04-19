@@ -1,16 +1,16 @@
 # Main Kernel Boundary Baseline
 
 Generated on 2026-04-19.
-Current phase: P2.
+Current phase: P3.
 
 ## Metric Snapshot
 
 | Metric | Value |
 | --- | --- |
-| `renderer.usePresenter.count` | 89 |
+| `renderer.usePresenter.count` | 87 |
 | `renderer.windowElectron.count` | 95 |
-| `renderer.windowApi.count` | 34 |
-| `hotpath.presenterEdge.count` | 11 |
+| `renderer.windowApi.count` | 33 |
+| `hotpath.presenterEdge.count` | 10 |
 | `runtime.rawTimer.count` | 123 |
 | `migrated.rawChannel.count` | 5 |
 | `bridge.active.count` | 0 |
@@ -18,11 +18,10 @@ Current phase: P2.
 
 ## Hot Path Direct Dependencies
 
-- Direct edge count: 11
+- Direct edge count: 10
 
 - `src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts`
 - `src/main/presenter/agentSessionPresenter/index.ts -> src/main/eventbus.ts`
-- `src/main/presenter/agentSessionPresenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts`
 - `src/main/presenter/index.ts -> src/main/eventbus.ts`
 - `src/main/presenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts`
 - `src/main/presenter/index.ts -> src/main/presenter/agentSessionPresenter/index.ts`
@@ -34,7 +33,7 @@ Current phase: P2.
 
 ## Renderer usePresenter
 
-- Total count: 89
+- Total count: 87
 
 - `src/renderer/src/components/chat-input/McpIndicator.vue`: 3
 - `src/renderer/src/components/chat/ChatStatusBar.vue`: 3
@@ -68,7 +67,7 @@ Current phase: P2.
 
 ## Renderer window.api
 
-- Total count: 34
+- Total count: 33
 
 - `src/renderer/src/lib/windowContext.ts`: 5
 - `src/renderer/src/components/message/MessageBlockToolCall.vue`: 4

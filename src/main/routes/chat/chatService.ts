@@ -1,0 +1,131 @@
+import type { SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  MessageRepository,
+  ProviderCatalogPort,
+  ProviderExecutionPort,
+  SessionPermissionPort,
+  SessionRepository
+} from '../hotPathPorts'
+import type { Scheduler } from '../scheduler'
+
+const CHAT_LOOKUP_TIMEOUT_MS = 5_000
+const CHAT_SEND_TIMEOUT_MS = 30 * 60 * 1_000
+const CHAT_STOP_TIMEOUT_MS = 5_000
+
+export class ChatService {
+  private readonly activeControllers = new Map<string, AbortController>()
+
+  constructor(
+    private readonly deps: {
+      sessionRepository: SessionRepository
+      messageRepository: MessageRepository
+      providerExecutionPort: ProviderExecutionPort
+      providerCatalogPort: ProviderCatalogPort
+      sessionPermissionPort: SessionPermissionPort
+      scheduler: Scheduler
+    }
+  ) {}
+
+  async sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<{
+    accepted: true
+    requestId: string | null
+    messageId: string | null
+  }> {
+    const session = await this.deps.scheduler.timeout({
+      task: this.deps.sessionRepository.get(sessionId),
+      ms: CHAT_LOOKUP_TIMEOUT_MS,
+      reason: `chat.sendMessage:${sessionId}:session`
+    })
+
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agentType = await this.deps.scheduler.timeout({
+      task: this.deps.providerCatalogPort.getAgentType(session.agentId),
+      ms: CHAT_LOOKUP_TIMEOUT_MS,
+      reason: `chat.sendMessage:${sessionId}:agentType`
+    })
+
+    if (!agentType) {
+      throw new Error(`Agent type not found: ${session.agentId}`)
+    }
+
+    const controller = new AbortController()
+    this.activeControllers.set(sessionId, controller)
+
+    try {
+      await this.deps.scheduler.timeout({
+        task: this.deps.providerExecutionPort.sendMessage(sessionId, content),
+        ms: CHAT_SEND_TIMEOUT_MS,
+        reason: `chat.sendMessage:${sessionId}`,
+        signal: controller.signal
+      })
+
+      const messages = await this.deps.scheduler.timeout({
+        task: this.deps.messageRepository.listBySession(sessionId),
+        ms: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.sendMessage:${sessionId}:messages`
+      })
+      const latestAssistantMessage =
+        [...messages]
+          .filter((message) => message.role === 'assistant')
+          .sort((left, right) => right.orderSeq - left.orderSeq)[0] ?? null
+
+      return {
+        accepted: true,
+        requestId: latestAssistantMessage?.id ?? null,
+        messageId: latestAssistantMessage?.id ?? null
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        await Promise.resolve(this.deps.sessionPermissionPort.clearSessionPermissions(sessionId))
+        await this.deps.providerExecutionPort.cancelGeneration(sessionId).catch(() => undefined)
+      }
+      throw error
+    } finally {
+      if (this.activeControllers.get(sessionId) === controller) {
+        this.activeControllers.delete(sessionId)
+      }
+    }
+  }
+
+  async stopStream(input: {
+    sessionId?: string
+    requestId?: string
+  }): Promise<{ stopped: boolean }> {
+    let targetSessionId = input.sessionId ?? null
+
+    if (!targetSessionId && input.requestId) {
+      const message = await this.deps.scheduler.timeout({
+        task: this.deps.messageRepository.get(input.requestId),
+        ms: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.stopStream:${input.requestId}:message`
+      })
+      targetSessionId = message?.sessionId ?? null
+    }
+
+    if (!targetSessionId) {
+      return { stopped: false }
+    }
+
+    const controller = this.activeControllers.get(targetSessionId)
+    if (controller) {
+      controller.abort()
+      this.activeControllers.delete(targetSessionId)
+    }
+
+    await this.deps.scheduler.timeout({
+      task: Promise.resolve(
+        this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
+      ).then(async () => await this.deps.providerExecutionPort.cancelGeneration(targetSessionId)),
+      ms: CHAT_STOP_TIMEOUT_MS,
+      reason: `chat.stopStream:${targetSessionId}`
+    })
+
+    return { stopped: true }
+  }
+}

@@ -1,5 +1,6 @@
-import { STREAM_EVENTS } from '@/events'
+import { ChatClient } from '../../../api/ChatClient'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import { STREAM_EVENTS } from '@/events'
 import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 
 interface BindMessageStoreIpcOptions {
@@ -20,65 +21,66 @@ interface BindMessageStoreIpcOptions {
 }
 
 export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => void {
+  const chatClient = new ChatClient()
   const scope = createIpcSubscriptionScope()
-
-  scope.on(
-    STREAM_EVENTS.RESPONSE,
-    (
-      _event,
-      payload: {
-        conversationId: string
-        blocks: AssistantMessageBlock[]
-        messageId?: string
-        eventId?: string
-      }
-    ) => {
-      if (payload?.conversationId !== options.getActiveSessionId()) {
+  const reloadPersistedMessages = (sessionId: string) => {
+    options.clearStreamingState()
+    void options.loadMessages(sessionId)
+  }
+  const cleanups = [
+    chatClient.onStreamUpdated((payload) => {
+      if (payload.sessionId !== options.getActiveSessionId()) {
         return
       }
 
-      const streamMessageId = payload.messageId ?? payload.eventId
+      const streamMessageId = payload.messageId ?? payload.requestId
+      const blocks = payload.blocks as AssistantMessageBlock[]
       options.setStreamingState({
-        sessionId: payload.conversationId,
+        sessionId: payload.sessionId,
         messageId: streamMessageId,
-        blocks: payload.blocks
+        blocks
       })
 
       if (streamMessageId && !options.isEphemeralStreamMessageId(streamMessageId)) {
-        options.applyStreamingBlocksToMessage(
-          streamMessageId,
-          payload.conversationId,
-          payload.blocks
-        )
+        options.applyStreamingBlocksToMessage(streamMessageId, payload.sessionId, blocks)
       }
-    }
-  )
+    }),
+    chatClient.onStreamCompleted((payload) => {
+      if (payload.sessionId !== options.getActiveSessionId()) {
+        return
+      }
 
-  const clearAndReload = (payload: { conversationId: string }) => {
-    if (payload?.conversationId !== options.getActiveSessionId()) {
+      reloadPersistedMessages(payload.sessionId)
+    }),
+    chatClient.onStreamFailed((payload) => {
+      if (payload.sessionId !== options.getActiveSessionId()) {
+        return
+      }
+
+      reloadPersistedMessages(payload.sessionId)
+    })
+  ]
+
+  scope.on(STREAM_EVENTS.END, (_event, payload: { conversationId?: string | null }) => {
+    if (!payload?.conversationId || payload.conversationId !== options.getActiveSessionId()) {
       return
     }
 
-    options.clearStreamingState()
-    void options.loadMessages(payload.conversationId)
+    reloadPersistedMessages(payload.conversationId)
+  })
+
+  scope.on(STREAM_EVENTS.ERROR, (_event, payload: { conversationId?: string | null }) => {
+    if (!payload?.conversationId || payload.conversationId !== options.getActiveSessionId()) {
+      return
+    }
+
+    reloadPersistedMessages(payload.conversationId)
+  })
+
+  return () => {
+    for (const cleanup of cleanups) {
+      cleanup()
+    }
+    scope.cleanup()
   }
-
-  scope.on(
-    STREAM_EVENTS.END,
-    (_event, payload: { conversationId: string; messageId?: string; eventId?: string }) => {
-      clearAndReload(payload)
-    }
-  )
-
-  scope.on(
-    STREAM_EVENTS.ERROR,
-    (
-      _event,
-      payload: { conversationId: string; error: string; messageId?: string; eventId?: string }
-    ) => {
-      clearAndReload(payload)
-    }
-  )
-
-  return scope.cleanup
 }

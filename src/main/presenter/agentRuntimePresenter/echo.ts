@@ -3,6 +3,7 @@ import type { StreamState, IoParams } from './types'
 import { createThrottle } from '@shared/utils/throttle'
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const RENDERER_FLUSH_INTERVAL = 120
 const DB_FLUSH_INTERVAL = 600
@@ -30,11 +31,20 @@ export function cloneBlocksForRenderer(blocks: AssistantMessageBlock[]): Assista
 
 export function startEcho(state: StreamState, io: IoParams): EchoHandle {
   function flushToRenderer(): void {
+    const renderedBlocks = cloneBlocksForRenderer(state.blocks)
     eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
       conversationId: io.sessionId,
       eventId: io.messageId,
       messageId: io.messageId,
-      blocks: cloneBlocksForRenderer(state.blocks)
+      blocks: renderedBlocks
+    })
+    publishDeepchatEvent('chat.stream.updated', {
+      kind: 'snapshot',
+      requestId: io.messageId,
+      sessionId: io.sessionId,
+      messageId: io.messageId,
+      updatedAt: Date.now(),
+      blocks: renderedBlocks
     })
   }
 

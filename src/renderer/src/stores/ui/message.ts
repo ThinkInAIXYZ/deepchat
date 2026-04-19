@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { SessionClient } from '../../../api/SessionClient'
 import type {
   DisplayAssistantMessageBlock,
   DisplayUserMessageContent
@@ -11,7 +11,6 @@ import type {
   MessageFile,
   MessageMetadata
 } from '@shared/types/agent-interface'
-import { useSessionStore } from './session'
 import { useStreamStateStore } from './stream'
 import { bindMessageStoreIpc } from './messageIpc'
 
@@ -29,13 +28,14 @@ type ParsedMessageCacheEntry = {
 // --- Store ---
 
 export const useMessageStore = defineStore('message', () => {
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
+  const sessionClient = new SessionClient()
   const streamStateStore = useStreamStateStore()
 
   // --- State ---
   const messageIds = ref<string[]>([])
   const messageCache = ref<Map<string, ChatMessageRecord>>(new Map())
   const lastPersistedRevision = ref(0)
+  const currentSessionId = ref<string | null>(null)
   const parsedMessageCache = new Map<string, ParsedMessageCacheEntry>()
   const hydratingStreamMessageIds = new Set<string>()
   let latestLoadRequestId = 0
@@ -156,8 +156,10 @@ export const useMessageStore = defineStore('message', () => {
 
   async function loadMessages(sessionId: string): Promise<void> {
     const requestId = ++latestLoadRequestId
+    currentSessionId.value = sessionId
     try {
-      const result = await agentSessionPresenter.getMessages(sessionId)
+      const restored = await sessionClient.restore(sessionId)
+      const result = restored.messages
       if (requestId !== latestLoadRequestId) {
         return
       }
@@ -179,16 +181,7 @@ export const useMessageStore = defineStore('message', () => {
     const cached = messageCache.value.get(id)
     if (cached) return cached
 
-    try {
-      const msg = await agentSessionPresenter.getMessage(id)
-      if (msg) {
-        messageCache.value.set(msg.id, msg)
-      }
-      return msg
-    } catch (e) {
-      console.error('Failed to get message:', e)
-      return null
-    }
+    return null
   }
 
   /**
@@ -222,6 +215,7 @@ export const useMessageStore = defineStore('message', () => {
 
   function clear(): void {
     latestLoadRequestId += 1
+    currentSessionId.value = null
     messageIds.value = []
     messageCache.value.clear()
     parsedMessageCache.clear()
@@ -260,28 +254,24 @@ export const useMessageStore = defineStore('message', () => {
 
     if (hydratingStreamMessageIds.has(messageId)) return
     hydratingStreamMessageIds.add(messageId)
-
-    void agentSessionPresenter
-      .getMessage(messageId)
-      .then((fetched) => {
-        if (!fetched || fetched.sessionId !== conversationId) return
-        upsertMessageRecord({
-          ...fetched,
-          content: serializedBlocks,
-          status: 'pending',
-          updatedAt: Date.now()
-        })
-      })
-      .catch((error) => {
-        console.error('Failed to hydrate streaming assistant message:', error)
-      })
-      .finally(() => {
-        hydratingStreamMessageIds.delete(messageId)
-      })
+    upsertMessageRecord({
+      id: messageId,
+      sessionId: conversationId,
+      orderSeq: messageIds.value.length + 1,
+      role: 'assistant',
+      content: serializedBlocks,
+      status: 'pending',
+      isContextEdge: 0,
+      metadata: '{}',
+      traceCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+    hydratingStreamMessageIds.delete(messageId)
   }
 
   const cleanupIpcBindings = bindMessageStoreIpc({
-    getActiveSessionId: () => useSessionStore().activeSessionId,
+    getActiveSessionId: () => currentSessionId.value,
     setStreamingState: ({ sessionId, messageId, blocks }) => {
       streamStateStore.setStream(sessionId, blocks, messageId)
     },

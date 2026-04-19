@@ -1,5 +1,5 @@
 import type { IAgentSessionPresenter, IConfigPresenter, IWindowPresenter } from '@shared/presenter'
-import { dispatchDeepchatRoute, type MainKernelRouteRuntime } from '@/routes'
+import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
 
 function createRuntime() {
   const settings = {
@@ -119,12 +119,24 @@ function createRuntime() {
       }
     ]),
     getSessionList: vi.fn().mockResolvedValue([]),
+    getActiveSession: vi.fn().mockResolvedValue(null),
+    activateSession: vi.fn().mockResolvedValue(undefined),
+    deactivateSession: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     getMessage: vi.fn().mockResolvedValue({
       id: 'message-1',
       sessionId: 'session-1'
-    })
+    }),
+    getAgents: vi.fn().mockResolvedValue([
+      {
+        id: 'deepchat',
+        type: 'deepchat',
+        agentType: 'deepchat',
+        enabled: true,
+        name: 'DeepChat'
+      }
+    ])
   } as unknown as IAgentSessionPresenter
 
   const windowPresenter = {
@@ -133,11 +145,11 @@ function createRuntime() {
 
   return {
     settings,
-    runtime: {
+    runtime: createMainKernelRouteRuntime({
       configPresenter,
       agentSessionPresenter,
       windowPresenter
-    } satisfies MainKernelRouteRuntime,
+    }),
     configPresenter,
     agentSessionPresenter,
     windowPresenter
@@ -263,6 +275,70 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
+  })
+
+  it('activates, deactivates, and reads the active session through typed routes', async () => {
+    const { runtime, agentSessionPresenter } = createRuntime()
+    ;(agentSessionPresenter.getActiveSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 'session-1',
+      agentId: 'deepchat',
+      title: 'Restored',
+      projectDir: '/workspace',
+      isPinned: false,
+      isDraft: false,
+      sessionKind: 'regular',
+      parentSessionId: null,
+      subagentEnabled: false,
+      subagentMeta: null,
+      createdAt: 1,
+      updatedAt: 2,
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'gpt-5.4'
+    })
+
+    const activateResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.activate',
+      {
+        sessionId: 'session-1'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const deactivateResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.deactivate',
+      {},
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const activeResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getActive',
+      {},
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    expect(agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
+    expect(agentSessionPresenter.deactivateSession).toHaveBeenCalledWith(88)
+    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(88)
+    expect(activateResult).toEqual({ activated: true })
+    expect(deactivateResult).toEqual({ deactivated: true })
+    expect(activeResult).toEqual({
+      session: expect.objectContaining({
+        id: 'session-1'
+      })
+    })
   })
 
   it('resolves stopStream by requestId when sessionId is omitted', async () => {

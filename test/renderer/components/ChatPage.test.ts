@@ -138,6 +138,9 @@ const setup = async (options: SetupOptions = {}) => {
     editUserMessage: vi.fn().mockResolvedValue(undefined),
     forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
   }
+  const chatClient = {
+    stopStream: vi.fn().mockResolvedValue({ stopped: true })
+  }
 
   const spotlightStore = reactive({
     pendingMessageJump: options.spotlightPendingJump ?? null,
@@ -160,6 +163,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => agentSessionPresenter
+  }))
+  vi.doMock('../../../src/renderer/api/ChatClient', () => ({
+    ChatClient: vi.fn(() => chatClient)
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore

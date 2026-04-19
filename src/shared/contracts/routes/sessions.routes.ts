@@ -58,3 +58,29 @@ export const sessionsListRoute = defineRouteContract({
     sessions: z.array(SessionWithStateSchema)
   })
 })
+
+export const sessionsActivateRoute = defineRouteContract({
+  name: 'sessions.activate',
+  input: z.object({
+    sessionId: EntityIdSchema
+  }),
+  output: z.object({
+    activated: z.literal(true)
+  })
+})
+
+export const sessionsDeactivateRoute = defineRouteContract({
+  name: 'sessions.deactivate',
+  input: z.object({}),
+  output: z.object({
+    deactivated: z.literal(true)
+  })
+})
+
+export const sessionsGetActiveRoute = defineRouteContract({
+  name: 'sessions.getActive',
+  input: z.object({}),
+  output: z.object({
+    session: SessionWithStateSchema.nullable()
+  })
+})

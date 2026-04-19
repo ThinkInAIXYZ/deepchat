@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
+import { ChatClient } from '../../../api/ChatClient'
+import { SessionClient } from '../../../api/SessionClient'
 import type { ComputedRef } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import type {
@@ -187,6 +189,8 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
 // --- Store ---
 
 export const useSessionStore = defineStore('session', () => {
+  const sessionClient = new SessionClient()
+  const chatClient = new ChatClient()
   const agentSessionPresenter = usePresenter('agentSessionPresenter')
   const tabPresenter = usePresenter('tabPresenter')
   const configPresenter = usePresenter('configPresenter', { safeCall: false })
@@ -302,15 +306,14 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       await ensureGroupModeLoaded()
-      const webContentsId = getCurrentWebContentsId()
       const previousActiveSessionId = activeSessionId.value
       const [result, activeSession] = await Promise.all([
-        agentSessionPresenter.getSessionList({ includeSubagents: true }),
-        agentSessionPresenter.getActiveSession(webContentsId)
+        sessionClient.list({ includeSubagents: true }),
+        sessionClient.getActive()
       ])
-      sessions.value = result.map(mapToUISession)
+      sessions.value = result.sessions.map(mapToUISession)
 
-      const nextActiveSessionId = activeSession?.id ?? null
+      const nextActiveSessionId = activeSession.session?.id ?? null
       if (previousActiveSessionId !== nextActiveSessionId) {
         if (previousActiveSessionId && previousActiveSessionId !== nextActiveSessionId) {
           messageStore.clearStreamingState()
@@ -331,8 +334,8 @@ export const useSessionStore = defineStore('session', () => {
   async function createSession(input: CreateSessionInput): Promise<void> {
     error.value = null
     try {
-      const webContentsId = getCurrentWebContentsId()
-      const session = await agentSessionPresenter.createSession(input, webContentsId)
+      const result = await sessionClient.create(input)
+      const session = result.session
       activeSessionId.value = session.id
 
       await fetchSessions()
@@ -348,8 +351,7 @@ export const useSessionStore = defineStore('session', () => {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
       }
-      const webContentsId = getCurrentWebContentsId()
-      await agentSessionPresenter.activateSession(webContentsId, sessionId)
+      await sessionClient.activate(sessionId)
       syncSelectedAgentToSession(sessionId)
       activeSessionId.value = sessionId
       pageRouter.goToChat(sessionId)
@@ -362,8 +364,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       messageStore.clearStreamingState()
-      const webContentsId = getCurrentWebContentsId()
-      await agentSessionPresenter.deactivateSession(webContentsId)
+      await sessionClient.deactivate()
       activeSessionId.value = null
       pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
     } catch (e) {
@@ -394,7 +395,7 @@ export const useSessionStore = defineStore('session', () => {
   async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
     error.value = null
     try {
-      await agentSessionPresenter.sendMessage(sessionId, content)
+      await chatClient.sendMessage(sessionId, content)
     } catch (e) {
       error.value = `Failed to send message: ${e}`
     }
@@ -593,12 +594,6 @@ export const useSessionStore = defineStore('session', () => {
       messageStore.clearStreamingState()
       activeSessionId.value = null
       pageRouter.goToNewThread()
-    },
-    onStatusChanged: (payload) => {
-      const session = sessions.value.find((item) => item.id === payload.sessionId)
-      if (session) {
-        session.status = mapSessionStatus(payload.status)
-      }
     }
   })
   registerStoreCleanup(cleanupIpcBindings)
