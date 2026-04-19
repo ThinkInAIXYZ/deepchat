@@ -27,6 +27,9 @@ Renderer
 | [guides/code-navigation.md](./guides/code-navigation.md) | 当前代码导航入口 |
 | [guides/getting-started.md](./guides/getting-started.md) | 新开发者快速上手 |
 | [architecture/baselines/dependency-report.md](./architecture/baselines/dependency-report.md) | 当前依赖与耦合基线 |
+| [architecture/baselines/main-kernel-boundary-baseline.md](./architecture/baselines/main-kernel-boundary-baseline.md) | main kernel refactor Phase 0 的边界指标与 hot path 基线 |
+| [architecture/baselines/main-kernel-bridge-register.md](./architecture/baselines/main-kernel-bridge-register.md) | main kernel refactor 的临时 bridge 登记表 |
+| [architecture/baselines/main-kernel-migration-scoreboard.md](./architecture/baselines/main-kernel-migration-scoreboard.md) | main kernel refactor 的轻量 migration scoreboard |
 | [architecture/baselines/test-failure-groups.md](./architecture/baselines/test-failure-groups.md) | 当前测试失败分组基线 |
 
 ## 本次清理落库

@@ -1,0 +1,32 @@
+{
+  "program": "main-kernel-refactor",
+  "generatedOn": "2026-04-19",
+  "currentPhase": "P0",
+  "metrics": {
+    "renderer.usePresenter.count": 90,
+    "renderer.windowElectron.count": 111,
+    "renderer.windowApi.count": 34,
+    "hotpath.presenterEdge.count": 11,
+    "runtime.rawTimer.count": 123,
+    "migrated.rawChannel.count": 5,
+    "bridge.active.count": 0,
+    "bridge.expired.count": 0
+  },
+  "hotPathEdges": [
+    "src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/agentSessionPresenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/agentSessionPresenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts",
+    "src/main/presenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts",
+    "src/main/presenter/index.ts -> src/main/presenter/agentSessionPresenter/index.ts",
+    "src/main/presenter/index.ts -> src/main/presenter/llmProviderPresenter/index.ts",
+    "src/main/presenter/index.ts -> src/main/presenter/sessionPresenter/index.ts",
+    "src/main/presenter/llmProviderPresenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/sessionPresenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/sessionPresenter/index.ts -> src/main/presenter/index.ts"
+  ],
+  "migratedRawChannels": {
+    "src/main/presenter/windowPresenter/index.ts": 4,
+    "src/renderer/src/App.vue": 1
+  }
+}

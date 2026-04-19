@@ -6,6 +6,14 @@ const ROOT = process.cwd()
 const REPORT_DIR = path.join(ROOT, 'docs/architecture/baselines')
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.d.ts'])
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build'])
+const PHASE_ORDER = new Map([
+  ['P0', 0],
+  ['P1', 1],
+  ['P2', 2],
+  ['P3', 3],
+  ['P4', 4],
+  ['P5', 5]
+])
 
 const ANALYSIS_TARGETS = [
   {
@@ -18,8 +26,70 @@ const ANALYSIS_TARGETS = [
   }
 ]
 
+const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
+const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
+const BRIDGE_REGISTER_PATH = path.join(
+  ROOT,
+  'docs/architecture/baselines/main-kernel-bridge-register.json'
+)
+
+const HOT_PATH_FILES = [
+  path.join(ROOT, 'src/main/presenter/index.ts'),
+  path.join(ROOT, 'src/main/eventbus.ts'),
+  path.join(ROOT, 'src/main/presenter/agentSessionPresenter/index.ts'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
+  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts'),
+  path.join(ROOT, 'src/main/presenter/sessionPresenter/index.ts')
+]
+
+const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
+  path.join(ROOT, 'src/renderer/src/App.vue'),
+  path.join(ROOT, 'src/renderer/src/stores/uiSettingsStore.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/session.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/message.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/agent.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/pendingInput.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/pageRouter.ts'),
+  path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
+  path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
+  path.join(ROOT, 'src/main/presenter/windowPresenter'),
+  path.join(ROOT, 'src/main/presenter/configPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
+  path.join(ROOT, 'src/main/presenter/sessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
+  path.join(ROOT, 'src/shared/contracts'),
+  path.join(ROOT, 'src/renderer/api'),
+  path.join(ROOT, 'src/preload/createBridge.ts'),
+  path.join(ROOT, 'src/preload/bridges'),
+  path.join(ROOT, 'src/main/ipc'),
+  path.join(ROOT, 'src/main/routes')
+]
+
+const USE_PRESENTER_CALL_PATTERN = /\busePresenter\s*\(/g
+const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
+const WINDOW_API_PATTERN = /window\.api\b/g
+const RAW_TIMER_PATTERN = /\b(?:setTimeout|setInterval)\s*\(/g
+const INLINE_IPC_CHANNEL_PATTERN =
+  /(?:window\.electron(?:\?\.|\.)ipcRenderer|ipcRenderer|ipcMain)(?:\?\.|\.)(?:invoke|send|on|once|handle|handleOnce|removeListener|removeAllListeners|addListener)\s*\(\s*['"`][^'"`]+['"`]/g
+const INLINE_EVENTBUS_CHANNEL_PATTERN =
+  /(?:sendToRenderer|publish|publishToWindow|publishToWebContents)\s*\(\s*['"`][^'"`]+['"`]/g
+
 function toPosix(value) {
   return value.split(path.sep).join('/')
+}
+
+function relativePath(filePath) {
+  return toPosix(path.relative(ROOT, filePath))
+}
+
+function isUnder(targetPath, parentPath) {
+  const normalizedTarget = path.resolve(targetPath)
+  const normalizedParent = path.resolve(parentPath)
+  return (
+    normalizedTarget === normalizedParent ||
+    normalizedTarget.startsWith(`${normalizedParent}${path.sep}`)
+  )
 }
 
 async function ensureDir(dirPath) {
@@ -27,7 +97,29 @@ async function ensureDir(dirPath) {
 }
 
 async function walk(dirPath, output = []) {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true })
+  let stats = null
+
+  try {
+    stats = await fs.stat(dirPath)
+  } catch {
+    return output
+  }
+
+  if (stats.isFile()) {
+    if (SOURCE_EXTENSIONS.has(path.extname(dirPath))) {
+      output.push(dirPath)
+    }
+
+    return output
+  }
+
+  let entries = []
+
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true })
+  } catch {
+    return output
+  }
 
   for (const entry of entries) {
     if (EXCLUDED_DIRS.has(entry.name)) {
@@ -48,12 +140,25 @@ async function walk(dirPath, output = []) {
   return output
 }
 
+function countMatches(source, pattern) {
+  let count = 0
+  pattern.lastIndex = 0
+
+  while (pattern.exec(source) !== null) {
+    count += 1
+  }
+
+  pattern.lastIndex = 0
+  return count
+}
+
 function extractSpecifiers(source) {
   const specifiers = new Set()
   const patterns = [
     /\bimport\s+(?:type\s+)?[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g,
     /\bexport\s+[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /\bimport\s*['"]([^'"]+)['"]/g
   ]
 
   for (const pattern of patterns) {
@@ -235,6 +340,166 @@ async function collectArchiveReferences() {
   )
 }
 
+async function collectFilesFromTargets(targets) {
+  const files = []
+
+  for (const target of targets) {
+    const targetFiles = await walk(target)
+    for (const file of targetFiles) {
+      files.push(file)
+    }
+  }
+
+  return [...new Set(files)].sort()
+}
+
+async function collectPatternCounts(files, pattern) {
+  const counts = new Map()
+
+  for (const file of files) {
+    const source = await fs.readFile(file, 'utf8')
+    const count = countMatches(source, pattern)
+    if (count > 0) {
+      counts.set(relativePath(file), count)
+    }
+  }
+
+  return counts
+}
+
+async function collectMigratedRawChannelCounts() {
+  const files = await collectFilesFromTargets(MIGRATED_RAW_CHANNEL_GUARD_PATHS)
+  const counts = new Map()
+
+  for (const file of files) {
+    const source = await fs.readFile(file, 'utf8')
+    const count =
+      countMatches(source, INLINE_IPC_CHANNEL_PATTERN) +
+      countMatches(source, INLINE_EVENTBUS_CHANNEL_PATTERN)
+
+    if (count > 0) {
+      counts.set(relativePath(file), count)
+    }
+  }
+
+  return counts
+}
+
+async function collectHotPathDirectEdges() {
+  const hotPathFileSet = new Set(HOT_PATH_FILES)
+  const edges = []
+
+  for (const file of HOT_PATH_FILES) {
+    const source = await fs.readFile(file, 'utf8')
+    for (const specifier of extractSpecifiers(source)) {
+      const resolved = await resolveImport(specifier, file, MAIN_SOURCE_ROOT)
+      if (!resolved || !hotPathFileSet.has(resolved)) {
+        continue
+      }
+
+      edges.push({
+        source: relativePath(file),
+        target: relativePath(resolved)
+      })
+    }
+  }
+
+  return edges.sort((left, right) =>
+    `${left.source}->${left.target}`.localeCompare(`${right.source}->${right.target}`)
+  )
+}
+
+async function loadBridgeRegister() {
+  const raw = await fs.readFile(BRIDGE_REGISTER_PATH, 'utf8')
+  const parsed = JSON.parse(raw)
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('bridge register must be a JSON object')
+  }
+
+  if (!PHASE_ORDER.has(parsed.currentPhase)) {
+    throw new Error(`unsupported currentPhase: ${String(parsed.currentPhase)}`)
+  }
+
+  if (!Array.isArray(parsed.bridges)) {
+    throw new Error('bridge register must include a bridges array')
+  }
+
+  const seenIds = new Set()
+  for (const bridge of parsed.bridges) {
+    if (!bridge || typeof bridge !== 'object') {
+      throw new Error('bridge entries must be JSON objects')
+    }
+
+    const requiredFields = [
+      'id',
+      'owner',
+      'legacyEntry',
+      'newTarget',
+      'introducedIn',
+      'deleteByPhase',
+      'status',
+      'notes'
+    ]
+
+    for (const field of requiredFields) {
+      if (typeof bridge[field] !== 'string' || bridge[field].trim().length === 0) {
+        throw new Error(`bridge entry field ${field} must be a non-empty string`)
+      }
+    }
+
+    if (!PHASE_ORDER.has(bridge.deleteByPhase)) {
+      throw new Error(`bridge ${bridge.id} has unsupported deleteByPhase ${bridge.deleteByPhase}`)
+    }
+
+    if (bridge.status !== 'active' && bridge.status !== 'removed') {
+      throw new Error(`bridge ${bridge.id} has unsupported status ${bridge.status}`)
+    }
+
+    if (seenIds.has(bridge.id)) {
+      throw new Error(`duplicate bridge id ${bridge.id}`)
+    }
+
+    seenIds.add(bridge.id)
+  }
+
+  return parsed
+}
+
+function summarizeCounts(counts) {
+  const items = [...counts.entries()].sort((left, right) => {
+    if (right[1] !== left[1]) {
+      return right[1] - left[1]
+    }
+
+    return left[0].localeCompare(right[0])
+  })
+
+  return {
+    total: items.reduce((sum, [, count]) => sum + count, 0),
+    top: items.slice(0, 12)
+  }
+}
+
+function summarizeBridges(register) {
+  const currentPhaseOrder = PHASE_ORDER.get(register.currentPhase)
+  let activeCount = 0
+  let expiredCount = 0
+
+  for (const bridge of register.bridges) {
+    if (bridge.status !== 'active') {
+      continue
+    }
+
+    activeCount += 1
+    if (PHASE_ORDER.get(bridge.deleteByPhase) < currentPhaseOrder) {
+      expiredCount += 1
+    }
+  }
+
+  return { activeCount, expiredCount }
+}
+
 function renderDependencyReport(scopes) {
   const lines = [
     '# Dependency Baseline',
@@ -324,6 +589,134 @@ function renderArchiveReferenceReport(references) {
   return lines.join('\n')
 }
 
+function renderTopCountSection(lines, title, summary) {
+  lines.push(`## ${title}`)
+  lines.push('')
+  lines.push(`- Total count: ${summary.total}`)
+  lines.push('')
+
+  if (summary.top.length === 0) {
+    lines.push('- None')
+  } else {
+    for (const [file, count] of summary.top) {
+      lines.push(`- \`${file}\`: ${count}`)
+    }
+  }
+
+  lines.push('')
+}
+
+function renderBoundaryBaselineReport({
+  currentPhase,
+  metrics,
+  usePresenterSummary,
+  windowElectronSummary,
+  windowApiSummary,
+  rawTimerSummary,
+  migratedRawChannelSummary,
+  hotPathEdges
+}) {
+  const lines = [
+    '# Main Kernel Boundary Baseline',
+    '',
+    `Generated on ${new Date().toISOString().slice(0, 10)}.`,
+    `Current phase: ${currentPhase}.`,
+    '',
+    '## Metric Snapshot',
+    '',
+    '| Metric | Value |',
+    '| --- | --- |',
+    `| \`renderer.usePresenter.count\` | ${metrics['renderer.usePresenter.count']} |`,
+    `| \`renderer.windowElectron.count\` | ${metrics['renderer.windowElectron.count']} |`,
+    `| \`renderer.windowApi.count\` | ${metrics['renderer.windowApi.count']} |`,
+    `| \`hotpath.presenterEdge.count\` | ${metrics['hotpath.presenterEdge.count']} |`,
+    `| \`runtime.rawTimer.count\` | ${metrics['runtime.rawTimer.count']} |`,
+    `| \`migrated.rawChannel.count\` | ${metrics['migrated.rawChannel.count']} |`,
+    `| \`bridge.active.count\` | ${metrics['bridge.active.count']} |`,
+    `| \`bridge.expired.count\` | ${metrics['bridge.expired.count']} |`,
+    ''
+  ]
+
+  lines.push('## Hot Path Direct Dependencies')
+  lines.push('')
+  lines.push(`- Direct edge count: ${hotPathEdges.length}`)
+  lines.push('')
+
+  if (hotPathEdges.length === 0) {
+    lines.push('- None')
+  } else {
+    for (const edge of hotPathEdges) {
+      lines.push(`- \`${edge.source} -> ${edge.target}\``)
+    }
+  }
+
+  lines.push('')
+
+  renderTopCountSection(lines, 'Renderer usePresenter', usePresenterSummary)
+  renderTopCountSection(lines, 'Renderer window.electron', windowElectronSummary)
+  renderTopCountSection(lines, 'Renderer window.api', windowApiSummary)
+  renderTopCountSection(lines, 'Raw Timers', rawTimerSummary)
+  renderTopCountSection(lines, 'Migrated Path Raw Channel Literals', migratedRawChannelSummary)
+
+  return lines.join('\n')
+}
+
+function renderMigrationScoreboardReport({ currentPhase, metrics }) {
+  const lines = [
+    '# Main Kernel Migration Scoreboard',
+    '',
+    `Generated on ${new Date().toISOString().slice(0, 10)}.`,
+    `Current phase: ${currentPhase}.`,
+    '',
+    'Phase 0 establishes the comparison baseline. Later phases should update this report and compare against this checkpoint.',
+    '',
+    '| Metric | Value | Status |',
+    '| --- | --- | --- |'
+  ]
+
+  for (const [metric, value] of Object.entries(metrics)) {
+    lines.push(`| \`${metric}\` | ${value} | baseline |`)
+  }
+
+  lines.push('')
+  return lines.join('\n')
+}
+
+function renderBridgeRegisterReport(register, bridgeSummary) {
+  const lines = [
+    '# Main Kernel Bridge Register',
+    '',
+    `Updated on ${register.updatedOn}.`,
+    `Current phase: ${register.currentPhase}.`,
+    '',
+    `- Active bridges: ${bridgeSummary.activeCount}`,
+    `- Expired bridges: ${bridgeSummary.expiredCount}`,
+    ''
+  ]
+
+  if (register.bridges.length === 0) {
+    lines.push('## Entries')
+    lines.push('')
+    lines.push('- None')
+    lines.push('')
+    return lines.join('\n')
+  }
+
+  lines.push('## Entries')
+  lines.push('')
+  lines.push('| id | owner | legacyEntry | newTarget | introducedIn | deleteByPhase | status | notes |')
+  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |')
+
+  for (const bridge of register.bridges) {
+    lines.push(
+      `| ${bridge.id} | ${bridge.owner} | ${bridge.legacyEntry} | ${bridge.newTarget} | ${bridge.introducedIn} | ${bridge.deleteByPhase} | ${bridge.status} | ${bridge.notes} |`
+    )
+  }
+
+  lines.push('')
+  return lines.join('\n')
+}
+
 async function main() {
   await ensureDir(REPORT_DIR)
   const scopes = []
@@ -333,6 +726,42 @@ async function main() {
   }
 
   const archiveReferences = await collectArchiveReferences()
+  const rendererFiles = await walk(RENDERER_SOURCE_ROOT)
+  const mainAndRendererFiles = await collectFilesFromTargets([MAIN_SOURCE_ROOT, RENDERER_SOURCE_ROOT])
+  const usePresenterCounts = await collectPatternCounts(rendererFiles, USE_PRESENTER_CALL_PATTERN)
+  const windowElectronCounts = await collectPatternCounts(rendererFiles, WINDOW_ELECTRON_PATTERN)
+  const windowApiCounts = await collectPatternCounts(rendererFiles, WINDOW_API_PATTERN)
+  const rawTimerCounts = await collectPatternCounts(mainAndRendererFiles, RAW_TIMER_PATTERN)
+  const migratedRawChannelCounts = await collectMigratedRawChannelCounts()
+  const hotPathEdges = await collectHotPathDirectEdges()
+  const bridgeRegister = await loadBridgeRegister()
+  const bridgeSummary = summarizeBridges(bridgeRegister)
+
+  const metrics = {
+    'renderer.usePresenter.count': summarizeCounts(usePresenterCounts).total,
+    'renderer.windowElectron.count': summarizeCounts(windowElectronCounts).total,
+    'renderer.windowApi.count': summarizeCounts(windowApiCounts).total,
+    'hotpath.presenterEdge.count': hotPathEdges.length,
+    'runtime.rawTimer.count': summarizeCounts(rawTimerCounts).total,
+    'migrated.rawChannel.count': summarizeCounts(migratedRawChannelCounts).total,
+    'bridge.active.count': bridgeSummary.activeCount,
+    'bridge.expired.count': bridgeSummary.expiredCount
+  }
+
+  const usePresenterSummary = summarizeCounts(usePresenterCounts)
+  const windowElectronSummary = summarizeCounts(windowElectronCounts)
+  const windowApiSummary = summarizeCounts(windowApiCounts)
+  const rawTimerSummary = summarizeCounts(rawTimerCounts)
+  const migratedRawChannelSummary = summarizeCounts(migratedRawChannelCounts)
+
+  const scoreboardPayload = {
+    program: 'main-kernel-refactor',
+    generatedOn: new Date().toISOString().slice(0, 10),
+    currentPhase: bridgeRegister.currentPhase,
+    metrics,
+    hotPathEdges: hotPathEdges.map((edge) => `${edge.source} -> ${edge.target}`),
+    migratedRawChannels: Object.fromEntries(migratedRawChannelCounts)
+  }
 
   await Promise.all([
     fs.writeFile(
@@ -346,6 +775,34 @@ async function main() {
     fs.writeFile(
       path.join(REPORT_DIR, 'archive-reference-report.md'),
       `${renderArchiveReferenceReport(archiveReferences)}\n`
+    ),
+    fs.writeFile(
+      path.join(REPORT_DIR, 'main-kernel-boundary-baseline.md'),
+      `${renderBoundaryBaselineReport({
+        currentPhase: bridgeRegister.currentPhase,
+        metrics,
+        usePresenterSummary,
+        windowElectronSummary,
+        windowApiSummary,
+        rawTimerSummary,
+        migratedRawChannelSummary,
+        hotPathEdges
+      })}\n`
+    ),
+    fs.writeFile(
+      path.join(REPORT_DIR, 'main-kernel-migration-scoreboard.md'),
+      `${renderMigrationScoreboardReport({
+        currentPhase: bridgeRegister.currentPhase,
+        metrics
+      })}\n`
+    ),
+    fs.writeFile(
+      path.join(REPORT_DIR, 'main-kernel-migration-scoreboard.json'),
+      `${JSON.stringify(scoreboardPayload, null, 2)}\n`
+    ),
+    fs.writeFile(
+      path.join(REPORT_DIR, 'main-kernel-bridge-register.md'),
+      `${renderBridgeRegisterReport(bridgeRegister, bridgeSummary)}\n`
     )
   ])
 

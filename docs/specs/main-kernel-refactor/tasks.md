@@ -19,12 +19,12 @@
 ## Phase 0: Guardrails & Baseline
 
 - [x] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `usePresenter()` 调用点
-- [ ] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `window.electron.ipcRenderer.*` 监听
-- [ ] 扩展 `scripts/architecture-guard.mjs`，阻止在 migrated path 中新增 raw channel 字符串
-- [ ] 为 hot path direct dependency 增加趋势检查
-- [ ] 扩展 baseline 脚本，输出 `usePresenter` / `window.electron` / `window.api` / raw timer / bridge 数量
-- [ ] 建立 bridge register
-- [ ] 建立轻量 migration scoreboard
+- [x] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `window.electron.ipcRenderer.*` 监听
+- [x] 扩展 `scripts/architecture-guard.mjs`，阻止在 migrated path 中新增 raw channel 字符串
+- [x] 为 hot path direct dependency 增加趋势检查
+- [x] 扩展 baseline 脚本，输出 `usePresenter` / `window.electron` / `window.api` / raw timer / bridge 数量
+- [x] 建立 bridge register
+- [x] 建立轻量 migration scoreboard
 
 ## Phase 1: Typed Boundary Foundation
 

@@ -121,6 +121,17 @@
 | P4 | provider/permission/tool boundary tests | 完成 provider 相关交互与权限响应 |
 | P5 | full regression pack for migrated paths | 冷启动、重启恢复、一轮完整主路径 smoke |
 
+## Current Phase Evidence
+
+- Phase 0 completed on `2026-04-19`
+- Automated verification for Phase 0 uses `node scripts/architecture-guard.mjs`
+- Automated verification for Phase 0 uses `pnpm run architecture:baseline`
+- Automated verification for Phase 0 uses `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`
+- Repro smoke for Phase 0 is rerunning guard and baseline scripts and confirming committed reports regenerate without drift
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-boundary-baseline.md`
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-bridge-register.md`
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-migration-scoreboard.md`
+
 ## Standard Verification Commands
 
 每个阶段结束至少执行：

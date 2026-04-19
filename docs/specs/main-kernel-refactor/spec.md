@@ -42,7 +42,7 @@
 | main dependency cycles | 30 | presenter 互相引用和全局入口回流仍明显 |
 | renderer `usePresenter(` 命中 | 90 | renderer 仍依赖 presenter naming |
 | renderer `window.electron*` 命中 | 111 | renderer 仍深度感知 Electron / IPC 实现 |
-| renderer `window.api` 命中 | 33 | preload 仍是多入口兼容面 |
+| renderer `window.api` 命中 | 34 | preload 仍是多入口兼容面 |
 | `setTimeout` / `setInterval` 命中 | 123 | cleanup、超时和轮询语义散落 |
 
 这些数字说明，真正的问题是：

@@ -73,6 +73,15 @@
 - 文档、baseline、scoreboard、smoke 记录已同步
 - 已形成“是否继续做下一轮更彻底 kernel 重构”的结论
 
+## Phase Status
+
+- [x] Phase 0 completed on `2026-04-19`
+- Phase 0 evidence lives in `scripts/architecture-guard.mjs` and `scripts/generate-architecture-baseline.mjs`
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-boundary-baseline.md`
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-bridge-register.md`
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-migration-scoreboard.md`
+- Phase 0 establishes the baseline checkpoint, so later phases compare against this snapshot instead of a prior phase delta
+
 ## Final Acceptance Checklist
 
 ### Boundary
