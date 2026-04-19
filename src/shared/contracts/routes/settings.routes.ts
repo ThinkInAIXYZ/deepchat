@@ -103,6 +103,14 @@ export const settingsGetSnapshotRoute = defineRouteContract({
   })
 })
 
+export const settingsListSystemFontsRoute = defineRouteContract({
+  name: 'settings.listSystemFonts',
+  input: z.object({}).default({}),
+  output: z.object({
+    fonts: z.array(z.string())
+  })
+})
+
 export const settingsUpdateRoute = defineRouteContract({
   name: 'settings.update',
   input: z.object({

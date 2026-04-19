@@ -39,11 +39,11 @@
 
 ## Phase 2: Settings Pilot Slice
 
-- [ ] 设计 settings contract / handler / adapter
-- [ ] 将 settings renderer/store 迁移到 `SettingsClient`
-- [ ] 清理 settings 主路径上的 `usePresenter()` / raw IPC 依赖
-- [ ] 补齐 settings 单测、集成测试和 smoke
-- [ ] 删除 settings 迁移过程中的临时桥接
+- [x] 设计 settings contract / handler / adapter
+- [x] 将 settings renderer/store 迁移到 `SettingsClient`
+- [x] 清理 settings 主路径上的 `usePresenter()` / raw IPC 依赖
+- [x] 补齐 settings 单测、集成测试和 smoke
+- [x] 删除 settings 迁移过程中的临时桥接
 
 ## Phase 3: Chat & Session Hot Path
 

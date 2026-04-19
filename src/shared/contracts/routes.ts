@@ -1,7 +1,11 @@
 import type { z } from 'zod'
 import type { RouteContract } from './common'
 import { chatSendMessageRoute, chatStopStreamRoute } from './routes/chat.routes'
-import { settingsGetSnapshotRoute, settingsUpdateRoute } from './routes/settings.routes'
+import {
+  settingsGetSnapshotRoute,
+  settingsListSystemFontsRoute,
+  settingsUpdateRoute
+} from './routes/settings.routes'
 import {
   sessionsCreateRoute,
   sessionsListRoute,
@@ -16,6 +20,7 @@ export * from './routes/system.routes'
 
 export const DEEPCHAT_ROUTE_CATALOG = {
   [settingsGetSnapshotRoute.name]: settingsGetSnapshotRoute,
+  [settingsListSystemFontsRoute.name]: settingsListSystemFontsRoute,
   [settingsUpdateRoute.name]: settingsUpdateRoute,
   [sessionsCreateRoute.name]: sessionsCreateRoute,
   [sessionsRestoreRoute.name]: sessionsRestoreRoute,

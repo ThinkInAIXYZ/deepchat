@@ -16,6 +16,7 @@ describe('renderer api clients', () => {
     const client = new SettingsClient(bridge)
 
     await client.getSnapshot(['fontSizeLevel'])
+    await client.getSystemFonts()
     await client.update([{ key: 'fontSizeLevel', value: 3 }])
     await client.openSettings({ routeName: 'settings-display', section: 'fonts' })
     client.onChanged(vi.fn())
@@ -23,10 +24,11 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'settings.getSnapshot', {
       keys: ['fontSizeLevel']
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'settings.update', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'settings.listSystemFonts', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'settings.update', {
       changes: [{ key: 'fontSizeLevel', value: 3 }]
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'system.openSettings', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'system.openSettings', {
       routeName: 'settings-display',
       section: 'fonts'
     })

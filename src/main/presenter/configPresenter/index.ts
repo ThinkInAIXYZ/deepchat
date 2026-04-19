@@ -66,6 +66,7 @@ import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from './acpRegistryConstants'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
@@ -237,6 +238,26 @@ const getLiveLegacyModelSelection = (
   return isDeprecatedBuiltinProviderId(normalizedSelection.providerId, deprecatedProviderIds)
     ? null
     : normalizedSelection
+}
+
+const toTrackedSettingsChangePayload = (
+  key: string,
+  value: unknown
+): { changedKey: SettingsKey; value: SettingsSnapshotValues[SettingsKey] } | null => {
+  switch (key) {
+    case 'fontSizeLevel':
+      return {
+        changedKey: 'fontSizeLevel',
+        value: typeof value === 'number' ? value : 1
+      }
+    case 'artifactsEffectEnabled':
+      return {
+        changedKey: 'artifactsEffectEnabled',
+        value: Boolean(value)
+      }
+    default:
+      return null
+  }
 }
 
 export const getAnthropicModelSelectionKeysToClear = (
@@ -1097,12 +1118,16 @@ export class ConfigPresenter implements IConfigPresenter {
       // Special handling: font size settings need to notify all tabs
       if (key === 'fontSizeLevel') {
         eventBus.sendToRenderer(CONFIG_EVENTS.FONT_SIZE_CHANGED, SendTarget.ALL_WINDOWS, value)
+      }
+
+      const trackedChange = toTrackedSettingsChangePayload(key, value)
+      if (trackedChange) {
         publishDeepchatEvent('settings.changed', {
-          changedKeys: ['fontSizeLevel'],
+          changedKeys: [trackedChange.changedKey],
           version: Date.now(),
           values: {
-            fontSizeLevel: typeof value === 'number' ? value : 1
-          }
+            [trackedChange.changedKey]: trackedChange.value
+          } as Partial<SettingsSnapshotValues>
         })
       }
     } catch (error) {
@@ -1589,8 +1614,16 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   setAutoCompactionEnabled(enabled: boolean): void {
+    const nextValue = Boolean(enabled)
     this.updateBuiltinDeepChatConfig({
-      autoCompactionEnabled: Boolean(enabled)
+      autoCompactionEnabled: nextValue
+    })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionEnabled'],
+      version: Date.now(),
+      values: {
+        autoCompactionEnabled: nextValue
+      }
     })
   }
 
@@ -1605,6 +1638,13 @@ export class ConfigPresenter implements IConfigPresenter {
     this.updateBuiltinDeepChatConfig({
       autoCompactionTriggerThreshold: threshold
     })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionTriggerThreshold'],
+      version: Date.now(),
+      values: {
+        autoCompactionTriggerThreshold: this.getAutoCompactionTriggerThreshold()
+      }
+    })
   }
 
   getAutoCompactionRetainRecentPairs(): number {
@@ -1617,6 +1657,13 @@ export class ConfigPresenter implements IConfigPresenter {
   setAutoCompactionRetainRecentPairs(count: number): void {
     this.updateBuiltinDeepChatConfig({
       autoCompactionRetainRecentPairs: count
+    })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionRetainRecentPairs'],
+      version: Date.now(),
+      values: {
+        autoCompactionRetainRecentPairs: this.getAutoCompactionRetainRecentPairs()
+      }
     })
   }
 

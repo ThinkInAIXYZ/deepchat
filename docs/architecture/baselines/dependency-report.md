@@ -4,8 +4,8 @@ Generated on 2026-04-19.
 
 ## main
 
-- Total files: 348
-- Internal dependency edges: 874
+- Total files: 350
+- Internal dependency edges: 876
 - Cycles detected: 30
 
 ### Top outgoing dependencies
@@ -70,7 +70,7 @@ Generated on 2026-04-19.
 ## renderer
 
 - Total files: 222
-- Internal dependency edges: 475
+- Internal dependency edges: 473
 - Cycles detected: 4
 
 ### Top outgoing dependencies
@@ -93,8 +93,8 @@ Generated on 2026-04-19.
 
 ### Top incoming dependencies
 
-- `composables\usePresenter.ts`: 65
-- `events.ts`: 32
+- `composables\usePresenter.ts`: 64
+- `events.ts`: 31
 - `stores\ui\session.ts`: 17
 - `components\chat\messageListItems.ts`: 16
 - `stores\artifact.ts`: 13

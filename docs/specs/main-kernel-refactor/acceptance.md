@@ -88,6 +88,15 @@
 - Phase 1 automated verification covers `test/renderer/api/createBridge.test.ts`
 - Phase 1 automated verification covers `test/renderer/api/clients.test.ts`
 - Phase 1 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P1`
+- Phase 2 implementation and automated verification completed on `2026-04-19`
+- Phase 2 evidence lives in `src/main/routes/settings/`, `src/main/routes/index.ts`, `src/renderer/api/SettingsClient.ts`, and `src/renderer/src/stores/uiSettingsStore.ts`
+- Phase 2 automated verification covers `test/main/routes/contracts.test.ts`
+- Phase 2 automated verification covers `test/main/routes/dispatcher.test.ts`
+- Phase 2 automated verification covers `test/main/routes/settingsHandler.test.ts`
+- Phase 2 automated verification covers `test/renderer/api/clients.test.ts`
+- Phase 2 automated verification covers `test/renderer/stores/uiSettingsStore.test.ts`
+- Phase 2 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P2`
+- Phase 2 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
 
 ## Final Acceptance Checklist
 

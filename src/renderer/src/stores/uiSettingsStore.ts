@@ -1,8 +1,8 @@
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { usePresenter } from '@/composables/usePresenter'
-import { CONFIG_EVENTS } from '@/events'
+import type { SettingsChange, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { buildFontStack, DEFAULT_CODE_FONT_STACK, DEFAULT_TEXT_FONT_STACK } from '@/lib/fontStack'
+import { SettingsClient } from '../../api/SettingsClient'
 
 const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
 const DEFAULT_FONT_SIZE_LEVEL = 1
@@ -14,8 +14,11 @@ export const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN = 1
 export const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
 export const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT = 2
 
+const clampFontSizeLevel = (level: number) =>
+  Math.max(0, Math.min(level, FONT_SIZE_CLASSES.length - 1))
+
 export const useUiSettingsStore = defineStore('uiSettings', () => {
-  const configP = usePresenter('configPresenter')
+  const settingsClient = new SettingsClient()
 
   const fontSizeLevel = ref(DEFAULT_FONT_SIZE_LEVEL)
   const fontFamily = ref('')
@@ -32,6 +35,8 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const traceDebugEnabled = ref(false)
   const notificationsEnabled = ref(true)
   const loggingEnabled = ref(false)
+  let unsubscribeFromSettings: (() => void) | null = null
+  let settingsLoadPromise: Promise<void> | null = null
 
   const fontSizeClass = computed(
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
@@ -44,59 +49,144 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     buildFontStack(codeFontFamily.value, DEFAULT_CODE_FONT_STACK)
   )
 
-  const loadSettings = async () => {
-    fontSizeLevel.value =
-      (await configP.getSetting<number>('fontSizeLevel')) ?? DEFAULT_FONT_SIZE_LEVEL
-    if (fontSizeLevel.value < 0 || fontSizeLevel.value >= FONT_SIZE_CLASSES.length) {
-      fontSizeLevel.value = DEFAULT_FONT_SIZE_LEVEL
+  const applySettingsValues = (values: Partial<SettingsSnapshotValues>) => {
+    if (typeof values.fontSizeLevel === 'number') {
+      fontSizeLevel.value = clampFontSizeLevel(values.fontSizeLevel)
     }
-    fontFamily.value = (await configP.getFontFamily()) ?? ''
-    codeFontFamily.value = (await configP.getCodeFontFamily()) ?? ''
-    artifactsEffectEnabled.value =
-      (await configP.getSetting<boolean>('artifactsEffectEnabled')) ?? false
-    autoScrollEnabled.value = (await configP.getAutoScrollEnabled()) ?? true
-    autoCompactionEnabled.value = (await configP.getAutoCompactionEnabled()) ?? true
-    autoCompactionTriggerThreshold.value =
-      (await configP.getAutoCompactionTriggerThreshold()) ??
-      AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT
-    autoCompactionRetainRecentPairs.value =
-      (await configP.getAutoCompactionRetainRecentPairs()) ??
-      AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT
-    contentProtectionEnabled.value = await configP.getContentProtectionEnabled()
-    notificationsEnabled.value = (await configP.getSetting<boolean>('notificationsEnabled')) ?? true
-    traceDebugEnabled.value = (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
-    copyWithCotEnabled.value = await configP.getCopyWithCotEnabled()
-    loggingEnabled.value = await configP.getLoggingEnabled()
+
+    if (typeof values.fontFamily === 'string') {
+      fontFamily.value = values.fontFamily
+    }
+
+    if (typeof values.codeFontFamily === 'string') {
+      codeFontFamily.value = values.codeFontFamily
+    }
+
+    if (typeof values.artifactsEffectEnabled === 'boolean') {
+      artifactsEffectEnabled.value = values.artifactsEffectEnabled
+    }
+
+    if (typeof values.autoScrollEnabled === 'boolean') {
+      autoScrollEnabled.value = values.autoScrollEnabled
+    }
+
+    if (typeof values.autoCompactionEnabled === 'boolean') {
+      autoCompactionEnabled.value = values.autoCompactionEnabled
+    }
+
+    if (typeof values.autoCompactionTriggerThreshold === 'number') {
+      autoCompactionTriggerThreshold.value = values.autoCompactionTriggerThreshold
+    }
+
+    if (typeof values.autoCompactionRetainRecentPairs === 'number') {
+      autoCompactionRetainRecentPairs.value = values.autoCompactionRetainRecentPairs
+    }
+
+    if (typeof values.contentProtectionEnabled === 'boolean') {
+      contentProtectionEnabled.value = values.contentProtectionEnabled
+    }
+
+    if (typeof values.notificationsEnabled === 'boolean') {
+      notificationsEnabled.value = values.notificationsEnabled
+    }
+
+    if (typeof values.traceDebugEnabled === 'boolean') {
+      traceDebugEnabled.value = values.traceDebugEnabled
+    }
+
+    if (typeof values.copyWithCotEnabled === 'boolean') {
+      copyWithCotEnabled.value = values.copyWithCotEnabled
+    }
+
+    if (typeof values.loggingEnabled === 'boolean') {
+      loggingEnabled.value = values.loggingEnabled
+    }
+  }
+
+  const updateSettings = async (changes: SettingsChange[]) => {
+    const result = await settingsClient.update(changes)
+    applySettingsValues(result.values)
+  }
+
+  const loadSettings = async () => {
+    if (settingsLoadPromise) {
+      await settingsLoadPromise
+      return
+    }
+
+    const nextLoadPromise = (async () => {
+      const snapshot = await settingsClient.getSnapshot()
+      applySettingsValues(snapshot)
+    })()
+
+    settingsLoadPromise = nextLoadPromise
+
+    try {
+      await nextLoadPromise
+    } finally {
+      if (settingsLoadPromise === nextLoadPromise) {
+        settingsLoadPromise = null
+      }
+    }
   }
 
   const updateFontSizeLevel = async (level: number) => {
-    const validLevel = Math.max(0, Math.min(level, FONT_SIZE_CLASSES.length - 1))
-    fontSizeLevel.value = validLevel
-    await configP.setSetting('fontSizeLevel', validLevel)
+    const nextValue = clampFontSizeLevel(level)
+    fontSizeLevel.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'fontSizeLevel',
+        value: nextValue
+      }
+    ])
   }
 
   const setFontFamily = async (value: string) => {
-    fontFamily.value = (value || '').trim()
-    await configP.setFontFamily(fontFamily.value)
+    const nextValue = (value || '').trim()
+    fontFamily.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'fontFamily',
+        value: nextValue
+      }
+    ])
   }
 
   const setCodeFontFamily = async (value: string) => {
-    codeFontFamily.value = (value || '').trim()
-    await configP.setCodeFontFamily(codeFontFamily.value)
+    const nextValue = (value || '').trim()
+    codeFontFamily.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'codeFontFamily',
+        value: nextValue
+      }
+    ])
   }
 
   const resetFontSettings = async () => {
     fontFamily.value = ''
     codeFontFamily.value = ''
-    await configP.resetFontSettings()
+
+    await updateSettings([
+      {
+        key: 'fontFamily',
+        value: ''
+      },
+      {
+        key: 'codeFontFamily',
+        value: ''
+      }
+    ])
   }
 
   const fetchSystemFonts = async () => {
     if (isLoadingFonts.value || systemFonts.value.length > 0) return
     isLoadingFonts.value = true
     try {
-      const fonts = await configP.getSystemFonts()
-      systemFonts.value = fonts || []
+      systemFonts.value = (await settingsClient.getSystemFonts()) || []
     } catch (error) {
       console.warn('Failed to fetch system fonts', error)
     } finally {
@@ -105,13 +195,27 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   }
 
   const setAutoScrollEnabled = async (enabled: boolean) => {
-    autoScrollEnabled.value = enabled
-    await configP.setAutoScrollEnabled(enabled)
+    const nextValue = Boolean(enabled)
+    autoScrollEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'autoScrollEnabled',
+        value: nextValue
+      }
+    ])
   }
 
   const setAutoCompactionEnabled = async (enabled: boolean) => {
-    autoCompactionEnabled.value = Boolean(enabled)
-    await configP.setAutoCompactionEnabled(autoCompactionEnabled.value)
+    const nextValue = Boolean(enabled)
+    autoCompactionEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'autoCompactionEnabled',
+        value: nextValue
+      }
+    ])
   }
 
   const setAutoCompactionTriggerThreshold = async (threshold: number) => {
@@ -123,7 +227,13 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
       Math.max(AUTO_COMPACTION_TRIGGER_THRESHOLD_MIN, rounded)
     )
     autoCompactionTriggerThreshold.value = nextValue
-    await configP.setAutoCompactionTriggerThreshold(nextValue)
+
+    await updateSettings([
+      {
+        key: 'autoCompactionTriggerThreshold',
+        value: nextValue
+      }
+    ])
   }
 
   const setAutoCompactionRetainRecentPairs = async (count: number) => {
@@ -132,82 +242,105 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
       Math.max(AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN, Math.round(count))
     )
     autoCompactionRetainRecentPairs.value = nextValue
-    await configP.setAutoCompactionRetainRecentPairs(nextValue)
+
+    await updateSettings([
+      {
+        key: 'autoCompactionRetainRecentPairs',
+        value: nextValue
+      }
+    ])
   }
 
   const setArtifactsEffectEnabled = async (enabled: boolean) => {
-    artifactsEffectEnabled.value = enabled
-    await configP.setSetting('artifactsEffectEnabled', enabled)
+    const nextValue = Boolean(enabled)
+    artifactsEffectEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'artifactsEffectEnabled',
+        value: nextValue
+      }
+    ])
   }
 
   const setContentProtectionEnabled = async (enabled: boolean) => {
-    contentProtectionEnabled.value = enabled
-    await configP.setContentProtectionEnabled(enabled)
+    const nextValue = Boolean(enabled)
+    contentProtectionEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'contentProtectionEnabled',
+        value: nextValue
+      }
+    ])
   }
 
   const setCopyWithCotEnabled = async (enabled: boolean) => {
-    copyWithCotEnabled.value = enabled
-    await configP.setCopyWithCotEnabled(enabled)
+    const nextValue = Boolean(enabled)
+    copyWithCotEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'copyWithCotEnabled',
+        value: nextValue
+      }
+    ])
   }
 
   const setTraceDebugEnabled = async (enabled: boolean) => {
-    traceDebugEnabled.value = enabled
-    await configP.setTraceDebugEnabled(enabled)
+    const nextValue = Boolean(enabled)
+    traceDebugEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'traceDebugEnabled',
+        value: nextValue
+      }
+    ])
   }
 
   const setNotificationsEnabled = async (enabled: boolean) => {
-    notificationsEnabled.value = enabled
-    await configP.setNotificationsEnabled(enabled)
+    const nextValue = Boolean(enabled)
+    notificationsEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'notificationsEnabled',
+        value: nextValue
+      }
+    ])
   }
 
   const setLoggingEnabled = async (enabled: boolean) => {
-    loggingEnabled.value = Boolean(enabled)
-    await configP.setLoggingEnabled(enabled)
+    const nextValue = Boolean(enabled)
+    loggingEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'loggingEnabled',
+        value: nextValue
+      }
+    ])
   }
 
   const setupListeners = () => {
-    if (!window?.electron?.ipcRenderer) return
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.FONT_SIZE_CHANGED, (_event, value) => {
-      fontSizeLevel.value = value
-    })
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.AUTO_SCROLL_CHANGED, (_event, value) => {
-      autoScrollEnabled.value = value
-    })
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, (_event, value) => {
-      contentProtectionEnabled.value = value
-    })
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, (_event, value) => {
-      copyWithCotEnabled.value = value
-    })
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.TRACE_DEBUG_CHANGED, (_event, value) => {
-      traceDebugEnabled.value = value
-    })
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, (_event, value) => {
-      notificationsEnabled.value = value
-    })
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.FONT_FAMILY_CHANGED, (_event, value) => {
-      fontFamily.value = value ?? ''
-    })
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED, (_event, value) => {
-      codeFontFamily.value = value ?? ''
+    if (unsubscribeFromSettings) {
+      return
+    }
+
+    unsubscribeFromSettings = settingsClient.onChanged((payload) => {
+      applySettingsValues(payload.values)
     })
   }
 
   onMounted(() => {
-    loadSettings()
+    void loadSettings()
     setupListeners()
   })
 
   onBeforeUnmount(() => {
-    if (!window?.electron?.ipcRenderer) return
-    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.FONT_SIZE_CHANGED)
-    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.AUTO_SCROLL_CHANGED)
-    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED)
-    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.COPY_WITH_COT_CHANGED)
-    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.TRACE_DEBUG_CHANGED)
-    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.NOTIFICATIONS_CHANGED)
-    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.FONT_FAMILY_CHANGED)
-    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED)
+    unsubscribeFromSettings?.()
+    unsubscribeFromSettings = null
   })
 
   return {

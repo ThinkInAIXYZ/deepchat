@@ -2,21 +2,19 @@ import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import type { IAgentSessionPresenter, IConfigPresenter, IWindowPresenter } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import {
-  SETTINGS_KEYS,
   chatSendMessageRoute,
   chatStopStreamRoute,
   sessionsCreateRoute,
   sessionsListRoute,
   sessionsRestoreRoute,
-  type SettingsChange,
-  type SettingsKey,
-  type SettingsSnapshotValues,
   hasDeepchatRouteContract,
   settingsGetSnapshotRoute,
+  settingsListSystemFontsRoute,
   settingsUpdateRoute,
   systemOpenSettingsRoute
 } from '@shared/contracts/routes'
-import { publishDeepchatEvent } from './publishDeepchatEvent'
+import { createSettingsRouteAdapter } from './settings/settingsAdapter'
+import { createSettingsRouteHandler } from './settings/settingsHandler'
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -29,83 +27,6 @@ type RouteContext = {
   windowId: number | null
 }
 
-const ALL_SETTINGS_KEYS: readonly SettingsKey[] = SETTINGS_KEYS
-
-const readSettingsSnapshot = (configPresenter: IConfigPresenter): SettingsSnapshotValues => ({
-  fontSizeLevel: configPresenter.getSetting<number>('fontSizeLevel') ?? 1,
-  fontFamily: configPresenter.getFontFamily() ?? '',
-  codeFontFamily: configPresenter.getCodeFontFamily() ?? '',
-  artifactsEffectEnabled: configPresenter.getSetting<boolean>('artifactsEffectEnabled') ?? false,
-  autoScrollEnabled: configPresenter.getAutoScrollEnabled(),
-  autoCompactionEnabled: configPresenter.getAutoCompactionEnabled(),
-  autoCompactionTriggerThreshold: configPresenter.getAutoCompactionTriggerThreshold(),
-  autoCompactionRetainRecentPairs: configPresenter.getAutoCompactionRetainRecentPairs(),
-  contentProtectionEnabled: configPresenter.getContentProtectionEnabled(),
-  notificationsEnabled: configPresenter.getNotificationsEnabled(),
-  traceDebugEnabled: configPresenter.getSetting<boolean>('traceDebugEnabled') ?? false,
-  copyWithCotEnabled: configPresenter.getCopyWithCotEnabled(),
-  loggingEnabled: configPresenter.getLoggingEnabled()
-})
-
-const pickSettingsSnapshot = (
-  snapshot: SettingsSnapshotValues,
-  keys?: SettingsKey[]
-): Partial<SettingsSnapshotValues> => {
-  const selectedKeys = keys && keys.length > 0 ? keys : ALL_SETTINGS_KEYS
-  const result: Partial<SettingsSnapshotValues> = {}
-
-  for (const key of selectedKeys) {
-    ;(result as Record<SettingsKey, SettingsSnapshotValues[SettingsKey] | undefined>)[key] =
-      snapshot[key]
-  }
-
-  return result
-}
-
-const applySettingChange = (configPresenter: IConfigPresenter, change: SettingsChange): void => {
-  switch (change.key) {
-    case 'fontSizeLevel':
-      configPresenter.setSetting('fontSizeLevel', change.value)
-      return
-    case 'fontFamily':
-      configPresenter.setFontFamily(change.value)
-      return
-    case 'codeFontFamily':
-      configPresenter.setCodeFontFamily(change.value)
-      return
-    case 'artifactsEffectEnabled':
-      configPresenter.setSetting('artifactsEffectEnabled', change.value)
-      return
-    case 'autoScrollEnabled':
-      configPresenter.setAutoScrollEnabled(change.value)
-      return
-    case 'autoCompactionEnabled':
-      configPresenter.setAutoCompactionEnabled(change.value)
-      return
-    case 'autoCompactionTriggerThreshold':
-      configPresenter.setAutoCompactionTriggerThreshold(change.value)
-      return
-    case 'autoCompactionRetainRecentPairs':
-      configPresenter.setAutoCompactionRetainRecentPairs(change.value)
-      return
-    case 'contentProtectionEnabled':
-      configPresenter.setContentProtectionEnabled(change.value)
-      return
-    case 'notificationsEnabled':
-      configPresenter.setNotificationsEnabled(change.value)
-      return
-    case 'traceDebugEnabled':
-      configPresenter.setTraceDebugEnabled(change.value)
-      return
-    case 'copyWithCotEnabled':
-      configPresenter.setCopyWithCotEnabled(change.value)
-      return
-    case 'loggingEnabled':
-      configPresenter.setLoggingEnabled(change.value)
-      return
-  }
-}
-
 export async function dispatchDeepchatRoute(
   runtime: MainKernelRouteRuntime,
   routeName: string,
@@ -116,38 +37,21 @@ export async function dispatchDeepchatRoute(
     throw new Error(`Unknown deepchat route: ${routeName}`)
   }
 
+  const settingsHandler = createSettingsRouteHandler(
+    createSettingsRouteAdapter(runtime.configPresenter)
+  )
+
   switch (routeName) {
     case settingsGetSnapshotRoute.name: {
-      const input = settingsGetSnapshotRoute.input.parse(rawInput)
-      const snapshot = readSettingsSnapshot(runtime.configPresenter)
-      return settingsGetSnapshotRoute.output.parse({
-        version: Date.now(),
-        values: pickSettingsSnapshot(snapshot, input.keys)
-      })
+      return settingsHandler.getSnapshot(rawInput)
+    }
+
+    case settingsListSystemFontsRoute.name: {
+      return await settingsHandler.listSystemFonts(rawInput)
     }
 
     case settingsUpdateRoute.name: {
-      const input = settingsUpdateRoute.input.parse(rawInput)
-      for (const change of input.changes) {
-        applySettingChange(runtime.configPresenter, change)
-      }
-
-      const snapshot = readSettingsSnapshot(runtime.configPresenter)
-      const changedKeys = input.changes.map((change) => change.key)
-      const values = pickSettingsSnapshot(snapshot, changedKeys)
-      const version = Date.now()
-
-      publishDeepchatEvent('settings.changed', {
-        changedKeys,
-        version,
-        values
-      })
-
-      return settingsUpdateRoute.output.parse({
-        version,
-        changedKeys,
-        values
-      })
+      return settingsHandler.update(rawInput)
     }
 
     case sessionsCreateRoute.name: {

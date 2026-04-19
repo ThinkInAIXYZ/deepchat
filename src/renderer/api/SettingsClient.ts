@@ -3,6 +3,7 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import { settingsChangedEvent } from '@shared/contracts/events'
 import {
   settingsGetSnapshotRoute,
+  settingsListSystemFontsRoute,
   settingsUpdateRoute,
   systemOpenSettingsRoute,
   type SettingsChange,
@@ -17,6 +18,11 @@ export class SettingsClient {
   async getSnapshot(keys?: SettingsKey[]): Promise<Partial<SettingsSnapshotValues>> {
     const result = await this.bridge.invoke(settingsGetSnapshotRoute.name, { keys })
     return result.values
+  }
+
+  async getSystemFonts(): Promise<string[]> {
+    const result = await this.bridge.invoke(settingsListSystemFontsRoute.name, {})
+    return result.fonts
   }
 
   async update(changes: SettingsChange[]) {

@@ -138,6 +138,14 @@
 - Automated verification for Phase 1 uses `pnpm run format`, `pnpm run i18n`, `pnpm run lint`
 - Repro smoke for Phase 1 is invoking `window.deepchat` routes through the new bridge and confirming typed event subscriptions receive `settings.changed`, `sessions.updated`, and `chat.stream.*`
 - Phase 1 artifacts are `src/shared/contracts/`, `src/preload/createBridge.ts`, `src/main/routes/`, and `src/renderer/api/`
+- Phase 2 implementation and automated verification completed on `2026-04-19`
+- Automated verification for Phase 2 uses `pnpm exec vitest --config vitest.config.ts test/main/routes/contracts.test.ts test/main/routes/dispatcher.test.ts test/main/routes/settingsHandler.test.ts`
+- Automated verification for Phase 2 uses `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/api/clients.test.ts test/renderer/stores/uiSettingsStore.test.ts`
+- Automated verification for Phase 2 uses `pnpm run typecheck`
+- Automated verification for Phase 2 uses `pnpm run format`, `pnpm run i18n`, `pnpm run lint`
+- Automated verification for Phase 2 uses `pnpm run architecture:baseline`
+- Repro smoke for Phase 2 is modifying font size, notifications, and font family through the settings UI, then restarting the app to confirm persistence and cross-window refresh
+- Phase 2 artifacts are `src/main/routes/settings/`, `src/main/routes/index.ts`, `src/renderer/api/SettingsClient.ts`, and `src/renderer/src/stores/uiSettingsStore.ts`
 
 ## Standard Verification Commands
 

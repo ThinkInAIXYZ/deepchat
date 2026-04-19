@@ -1,14 +1,14 @@
 # Main Kernel Boundary Baseline
 
 Generated on 2026-04-19.
-Current phase: P1.
+Current phase: P2.
 
 ## Metric Snapshot
 
 | Metric | Value |
 | --- | --- |
-| `renderer.usePresenter.count` | 90 |
-| `renderer.windowElectron.count` | 111 |
+| `renderer.usePresenter.count` | 89 |
+| `renderer.windowElectron.count` | 95 |
 | `renderer.windowApi.count` | 34 |
 | `hotpath.presenterEdge.count` | 11 |
 | `runtime.rawTimer.count` | 123 |
@@ -34,7 +34,7 @@ Current phase: P1.
 
 ## Renderer usePresenter
 
-- Total count: 90
+- Total count: 89
 
 - `src/renderer/src/components/chat-input/McpIndicator.vue`: 3
 - `src/renderer/src/components/chat/ChatStatusBar.vue`: 3
@@ -51,9 +51,8 @@ Current phase: P1.
 
 ## Renderer window.electron
 
-- Total count: 111
+- Total count: 95
 
-- `src/renderer/src/stores/uiSettingsStore.ts`: 16
 - `src/renderer/src/components/sidepanel/BrowserPanel.vue`: 12
 - `src/renderer/src/stores/sync.ts`: 7
 - `src/renderer/src/components/chat-input/composables/useRateLimitStatus.ts`: 6
@@ -65,6 +64,7 @@ Current phase: P1.
 - `src/renderer/src/components/message/SelectedTextContextMenu.vue`: 4
 - `src/renderer/src/stores/modelStore.ts`: 4
 - `src/renderer/src/stores/theme.ts`: 4
+- `src/renderer/src/stores/upgrade.ts`: 4
 
 ## Renderer window.api
 

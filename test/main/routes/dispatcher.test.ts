@@ -55,6 +55,7 @@ function createRuntime() {
     setNotificationsEnabled: vi.fn((value: boolean) => {
       settings.notificationsEnabled = value
     }),
+    getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono']),
     getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
     setCopyWithCotEnabled: vi.fn((value: boolean) => {
       settings.copyWithCotEnabled = value
@@ -165,6 +166,25 @@ describe('dispatchDeepchatRoute', () => {
         fontSizeLevel: 2,
         fontFamily: 'JetBrains Mono'
       }
+    })
+  })
+
+  it('lists system fonts through the settings handler adapter', async () => {
+    const { runtime, configPresenter } = createRuntime()
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'settings.listSystemFonts',
+      {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
+    expect(configPresenter.getSystemFonts).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({
+      fonts: ['Inter', 'JetBrains Mono']
     })
   })
 

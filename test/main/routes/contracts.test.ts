@@ -11,6 +11,7 @@ import {
   chatSendMessageRoute,
   chatStopStreamRoute,
   settingsGetSnapshotRoute,
+  settingsListSystemFontsRoute,
   settingsUpdateRoute,
   sessionsCreateRoute,
   sessionsListRoute,
@@ -27,6 +28,7 @@ describe('main kernel contracts', () => {
       sessionsListRoute.name,
       sessionsRestoreRoute.name,
       settingsGetSnapshotRoute.name,
+      settingsListSystemFontsRoute.name,
       settingsUpdateRoute.name,
       systemOpenSettingsRoute.name
     ])
@@ -51,6 +53,18 @@ describe('main kernel contracts', () => {
         { key: 'fontSizeLevel', value: 3 },
         { key: 'notificationsEnabled', value: true }
       ]
+    })
+  })
+
+  it('validates typed settings helper routes through the shared contract catalog', () => {
+    expect(settingsListSystemFontsRoute.input.parse({})).toEqual({})
+
+    expect(
+      settingsListSystemFontsRoute.output.parse({
+        fonts: ['Inter', 'JetBrains Mono']
+      })
+    ).toEqual({
+      fonts: ['Inter', 'JetBrains Mono']
     })
   })
 

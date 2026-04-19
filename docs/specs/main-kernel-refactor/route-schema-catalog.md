@@ -120,6 +120,7 @@ export const AppErrorSchema = z.object({
 | Route | Input summary | Output summary | Notes |
 | --- | --- | --- | --- |
 | `settings.getSnapshot` | optional key filter | settings snapshot | settings pilot 主入口 |
+| `settings.listSystemFonts` | none | normalized system font list | settings pilot 的字体选择辅助入口 |
 | `settings.update` | array of key/value changes | version + changed keys | 取代散落设置调用 |
 | `system.openSettings` | optional section | `{ windowId }` | 取代直接窗口调用 |
 
