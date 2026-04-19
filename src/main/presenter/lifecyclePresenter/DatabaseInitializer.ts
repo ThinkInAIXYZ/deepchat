@@ -1,6 +1,11 @@
 import { app } from 'electron'
 import path from 'path'
-import { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import {
+  isDestructiveDatabaseError,
+  repairSQLiteDatabaseFile,
+  SQLitePresenter
+} from '@/presenter/sqlitePresenter'
+import { classifySchemaError } from '@/presenter/sqlitePresenter/schemaErrorClassifier'
 
 /**
  * Database initialization interface
@@ -20,31 +25,52 @@ export class DatabaseInitializer implements IDatabaseInitializer {
   private password?: string
   private database?: SQLitePresenter
 
-  constructor(password?: string) {
+  constructor(options?: { password?: string; dbPath?: string }) {
     // Initialize database path
     const dbDir = path.join(app.getPath('userData'), 'app_db')
-    this.dbPath = path.join(dbDir, 'agent.db')
-    this.password = password
+    this.dbPath = options?.dbPath ?? path.join(dbDir, 'agent.db')
+    this.password = options?.password
   }
 
   /**
    * Initialize the database connection and perform setup
    */
   async initialize(): Promise<SQLitePresenter> {
+    let repairAttempted = false
+
     try {
       console.log('DatabaseInitializer: Starting database initialization')
 
-      // Create SQLitePresenter instance
-      this.database = new SQLitePresenter(this.dbPath, this.password)
+      while (true) {
+        try {
+          this.database = new SQLitePresenter(this.dbPath, this.password)
 
-      // Validate the connection
-      const isValid = await this.validateConnection()
-      if (!isValid) {
-        throw new Error('Database connection validation failed')
+          const isValid = await this.validateConnection()
+          if (!isValid) {
+            throw new Error('Database connection validation failed')
+          }
+
+          console.log('DatabaseInitializer: Database initialization completed successfully')
+          return this.database
+        } catch (error) {
+          this.database?.close()
+          this.database = undefined
+
+          const classified = classifySchemaError(error)
+          const shouldRepair =
+            !repairAttempted && !isDestructiveDatabaseError(error) && classified !== null
+
+          if (!shouldRepair) {
+            throw error
+          }
+
+          repairAttempted = true
+          console.warn(
+            `DatabaseInitializer: Attempting one-off schema repair for ${classified.dedupeKey}`
+          )
+          repairSQLiteDatabaseFile(this.dbPath, this.password)
+        }
       }
-
-      console.log('DatabaseInitializer: Database initialization completed successfully')
-      return this.database
     } catch (error) {
       console.error('DatabaseInitializer: Database initialization failed:', error)
       throw error

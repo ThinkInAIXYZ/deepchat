@@ -176,6 +176,7 @@ export const DEEPLINK_EVENTS = {
 // 全局通知相关事件
 export const NOTIFICATION_EVENTS = {
   SHOW_ERROR: 'notification:show-error', // 显示错误通知
+  DATABASE_REPAIR_SUGGESTED: 'notification:database-repair-suggested',
   SYS_NOTIFY_CLICKED: 'notification:sys-notify-clicked', // 系统通知点击事件
   DATA_RESET_COMPLETE_DEV: 'notification:data-reset-complete-dev' // 开发环境数据重置完成通知
 }

@@ -184,9 +184,14 @@
       "backupSuccessTitle": "Sauvegarde réussie",
       "backupSuccessMessage": "Données sauvegardées avec succès"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "Mettre à jour la config des modèles",
-      "description": "Force la mise à jour de provider.json depuis la source afin d’actualiser les capacités des modèles et les réglages par défaut.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "Mettre à jour",
       "updating": "Mise à jour...",
       "updatedTitle": "Configuration des modèles mise à jour",
@@ -208,6 +213,34 @@
       "confirmTitle": "Confirmer pour effacer les données de YoBrowser ?",
       "description": "Un bac à sable de navigateur indépendant qui ne partage pas de cookies ni de stockage local avec l'application principale. Les données YoBrowser peuvent être effacées en un seul clic ici.",
       "title": "Bac à sable YoBrowser"
+    },
+    "databaseRepair": {
+      "title": "Réparation de la base de données",
+      "description": "Detect and automatically repair the database",
+      "button": "Vérifier et réparer la base",
+      "running": "Vérification et réparation...",
+      "lastResultLabel": "Dernier résultat : {result}",
+      "summaryHealthy": "Saine",
+      "summaryRepaired": "{count} problème(s) réparé(s)",
+      "summaryRepairedWithManual": "{repaired} problème(s) réparé(s), {manual} à traiter manuellement",
+      "summaryManualOnly": "{manual} problème(s) nécessitent une intervention",
+      "manualHint": "{count} problème(s) nécessitent encore un traitement manuel.",
+      "toastSuggestedTitle": "Réparation de la base recommandée",
+      "toastSuggestedDescription": "DeepChat a détecté un problème de schéma ({reason}). Vous pouvez lancer la réparation maintenant.",
+      "toastAction": "Aller réparer",
+      "toastHealthyTitle": "La base de données est saine",
+      "toastHealthyDescription": "Aucun problème de schéma n'a été détecté.",
+      "toastCompletedTitle": "Réparation de la base terminée",
+      "toastRepairedDescription": "{count} problème(s) réparé(s).",
+      "toastManualDescription": "{repaired} problème(s) réparé(s). {manual} problème(s) nécessitent encore une intervention manuelle.",
+      "toastFailedTitle": "Échec de la réparation",
+      "toastFailedDescription": "Impossible de terminer la réparation de la base pour le moment. Vérifiez les journaux puis réessayez.",
+      "reasons": {
+        "missing-table": "table manquante",
+        "missing-column": "colonne manquante",
+        "column-count-mismatch": "nombre de colonnes incompatible",
+        "type-mismatch": "type de colonne incompatible"
+      }
     }
   },
   "dashboard": {

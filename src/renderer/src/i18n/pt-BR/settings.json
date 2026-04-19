@@ -184,9 +184,14 @@
       "backupSuccessTitle": "Backup bem-sucedido",
       "backupSuccessMessage": "Dados salvos em backup com sucesso"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "Atualizar configuração dos modelos",
-      "description": "Força a atualização do provider.json para trazer as capacidades mais recentes dos modelos e as configurações padrão.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "Atualizar agora",
       "updating": "Atualizando...",
       "updatedTitle": "Configuração dos modelos atualizada",
@@ -208,6 +213,34 @@
       "confirmTitle": "Confirmar para limpar os dados do YoBrowser?",
       "description": "Uma sandbox de navegador independente que não compartilha cookies e armazenamento local com o aplicativo principal. Os dados do YoBrowser podem ser apagados com um clique aqui.",
       "title": "Caixa de areia YoBrowser"
+    },
+    "databaseRepair": {
+      "title": "Reparo do banco de dados",
+      "description": "Detect and automatically repair the database",
+      "button": "Verificar e reparar banco de dados",
+      "running": "Verificando e reparando...",
+      "lastResultLabel": "Último resultado: {result}",
+      "summaryHealthy": "Íntegro",
+      "summaryRepaired": "{count} problema(s) reparado(s)",
+      "summaryRepairedWithManual": "{repaired} problema(s) reparado(s), {manual} exigem tratamento manual",
+      "summaryManualOnly": "{manual} problema(s) exigem atenção",
+      "manualHint": "{count} problema(s) ainda exigem tratamento manual.",
+      "toastSuggestedTitle": "Reparo do banco de dados recomendado",
+      "toastSuggestedDescription": "O DeepChat detectou um problema de esquema ({reason}). Você pode executar o reparo do banco agora.",
+      "toastAction": "Ir para reparo",
+      "toastHealthyTitle": "O banco de dados está íntegro",
+      "toastHealthyDescription": "Nenhum problema de esquema foi encontrado.",
+      "toastCompletedTitle": "Reparo do banco de dados concluído",
+      "toastRepairedDescription": "{count} problema(s) reparado(s).",
+      "toastManualDescription": "{repaired} problema(s) reparado(s). {manual} problema(s) ainda exigem tratamento manual.",
+      "toastFailedTitle": "Falha no reparo do banco de dados",
+      "toastFailedDescription": "Não foi possível concluir o reparo do banco de dados agora. Verifique os logs e tente novamente.",
+      "reasons": {
+        "missing-table": "tabela ausente",
+        "missing-column": "coluna ausente",
+        "column-count-mismatch": "incompatibilidade na quantidade de colunas",
+        "type-mismatch": "incompatibilidade no tipo da coluna"
+      }
     }
   },
   "dashboard": {

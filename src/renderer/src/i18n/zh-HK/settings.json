@@ -184,9 +184,14 @@
       "backupSuccessTitle": "備份成功",
       "backupSuccessMessage": "成功備份了數據"
     },
+    "syncSectionTitle": "資料備份與同步",
+    "operationsSectionTitle": "資料操作",
+    "resetDataDescription": "按類型重置聊天、知識庫、設定或全部資料。",
     "modelConfigUpdate": {
       "title": "更新模型設定",
-      "description": "從上游強制重新整理 provider.json，以最新的服務商中繼資料更新模型能力與預設設定。",
+      "descriptionPrefix": "從 ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": " 項目同步模型資料",
       "button": "立即更新",
       "updating": "更新中...",
       "updatedTitle": "模型設定已更新",
@@ -208,6 +213,34 @@
       "confirmTitle": "確認清空 YoBrowser 數據？",
       "description": "獨立的瀏覽器沙盒，不與主應用共享 Cookie 和本地存儲。\n可在此一鍵清空 YoBrowser 數據。",
       "title": "YoBrowser 沙盒"
+    },
+    "databaseRepair": {
+      "title": "資料庫修復",
+      "description": "檢測並自動修復資料庫",
+      "button": "檢查並修復資料庫",
+      "running": "檢查並修復中...",
+      "lastResultLabel": "最近結果：{result}",
+      "summaryHealthy": "結構正常",
+      "summaryRepaired": "已修復 {count} 個問題",
+      "summaryRepairedWithManual": "已修復 {repaired} 個問題，仍有 {manual} 個需手動處理",
+      "summaryManualOnly": "仍有 {manual} 個問題需要人工處理",
+      "manualHint": "仍有 {count} 個問題未自動修復，需要人工處理。",
+      "toastSuggestedTitle": "建議修復資料庫",
+      "toastSuggestedDescription": "DeepChat 偵測到資料庫結構問題（{reason}），可以現在執行資料庫修復。",
+      "toastAction": "去修復",
+      "toastHealthyTitle": "資料庫結構正常",
+      "toastHealthyDescription": "未發現需要修復的結構問題。",
+      "toastCompletedTitle": "資料庫修復完成",
+      "toastRepairedDescription": "已修復 {count} 個問題。",
+      "toastManualDescription": "已修復 {repaired} 個問題，仍有 {manual} 個問題需要人工處理。",
+      "toastFailedTitle": "資料庫修復失敗",
+      "toastFailedDescription": "暫時無法完成資料庫修復，請查看日誌後重試。",
+      "reasons": {
+        "missing-table": "缺資料表",
+        "missing-column": "缺欄位",
+        "column-count-mismatch": "欄位數不匹配",
+        "type-mismatch": "欄位類型不匹配"
+      }
     }
   },
   "dashboard": {

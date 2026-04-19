@@ -27,6 +27,7 @@ import {
   WINDOW_EVENTS
 } from '@/events' // System/Window/Config/Shortcut event constants
 import { presenter } from '../' // Global presenter registry
+import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
 import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
 import { TabPresenter } from '../tabPresenter' // TabPresenter type
@@ -676,10 +677,14 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     const windowId = appWindow.id
+    const appWebContentsId = appWindow.webContents.id
     this.windows.set(windowId, appWindow) // 将窗口实例存入 Map
 
     managedWindowState.manage(appWindow) // 管理窗口状态
     this.setupManagedWindowOpenHandler(appWindow)
+    appWindow.webContents.on('destroyed', () => {
+      releasePresenterCallErrorStateForWebContents(appWebContentsId)
+    })
 
     // 应用内容保护设置
     const contentProtectionEnabled = this.configPresenter.getContentProtectionEnabled()
@@ -1284,9 +1289,20 @@ export class WindowPresenter implements IWindowPresenter {
     this.settingsWindow = settingsWindow
     this.resetSettingsWindowState()
     const windowId = settingsWindow.id
+    const settingsWebContentsId = settingsWindow.webContents.id
+
+    if (navigation) {
+      this.pendingSettingsMessages.push({
+        channel: SETTINGS_EVENTS.NAVIGATE,
+        args: [navigation]
+      })
+    }
 
     // Manage window state to track position and size changes
     settingsWindowState.manage(settingsWindow)
+    settingsWindow.webContents.on('destroyed', () => {
+      releasePresenterCallErrorStateForWebContents(settingsWebContentsId)
+    })
 
     // Ensure links with target="_blank" open in the user's default browser
     settingsWindow.webContents.setWindowOpenHandler(({ url }) => {

@@ -2201,6 +2201,7 @@ export class ConfigPresenter implements IConfigPresenter {
     options?: { source?: ModelConfigSource }
   ): void {
     const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config, options)
+    this.providerModelHelper.invalidateProviderModelsCache(providerId)
     // Trigger model configuration change event (need to notify all tabs)
     eventBus.sendToRenderer(
       CONFIG_EVENTS.MODEL_CONFIG_CHANGED,
@@ -2218,6 +2219,7 @@ export class ConfigPresenter implements IConfigPresenter {
    */
   resetModelConfig(modelId: string, providerId: string): void {
     this.modelConfigHelper.resetModelConfig(modelId, providerId)
+    this.providerModelHelper.invalidateProviderModelsCache(providerId)
     // 触发模型配置重置事件（需要通知所有标签页）
     eventBus.sendToRenderer(
       CONFIG_EVENTS.MODEL_CONFIG_RESET,
@@ -2265,6 +2267,7 @@ export class ConfigPresenter implements IConfigPresenter {
    */
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean = false): void {
     this.modelConfigHelper.importConfigs(configs, overwrite)
+    this.providerModelHelper.invalidateAllProviderModelsCache()
     // 触发批量导入事件（需要通知所有标签页）
     eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, SendTarget.ALL_WINDOWS, overwrite)
   }

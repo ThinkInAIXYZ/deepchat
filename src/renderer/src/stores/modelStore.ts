@@ -16,7 +16,7 @@ import { usePresenter } from '@/composables/usePresenter'
 import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
+import { CONFIG_EVENTS } from '@/events'
 
 const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
@@ -40,11 +40,16 @@ export const useModelStore = defineStore('model', () => {
   const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const listenersRegistered = ref(false)
+  const initialized = ref(false)
+  const initializationPromise = ref<Promise<void> | null>(null)
 
   const providerModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const customModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const enabledModelQueries = new Map<string, ModelQueryHandle<RENDERER_MODEL_META[]>>()
   const queryCache = useQueryCache()
+  const inFlightRefreshes = new Map<string, Promise<void>>()
+  const rerunRequested = new Set<string>()
+  const pendingRefreshStarts = new Set<string>()
 
   const matchesProviderModelsEntry = (
     entry: { key: readonly unknown[] },
@@ -451,7 +456,7 @@ export const useModelStore = defineStore('model', () => {
     }
   }
 
-  const refreshProviderModels = async (providerId: string) => {
+  const refreshProviderModelsNow = async (providerId: string) => {
     if (providerId === 'acp') {
       try {
         const { rendererModels, modelMetas } = await agentModelStore.refreshAgentModels(providerId)
@@ -466,6 +471,39 @@ export const useModelStore = defineStore('model', () => {
 
     await refreshStandardModels(providerId)
     await refreshCustomModels(providerId)
+  }
+
+  const refreshProviderModels = (providerId: string): Promise<void> => {
+    const existingRefresh = inFlightRefreshes.get(providerId)
+    if (existingRefresh) {
+      if (!pendingRefreshStarts.has(providerId)) {
+        rerunRequested.add(providerId)
+      }
+      return existingRefresh
+    }
+
+    pendingRefreshStarts.add(providerId)
+    let refreshPromise: Promise<void> | null = null
+    refreshPromise = (async () => {
+      try {
+        await Promise.resolve()
+        pendingRefreshStarts.delete(providerId)
+
+        do {
+          rerunRequested.delete(providerId)
+          await refreshProviderModelsNow(providerId)
+        } while (rerunRequested.has(providerId))
+      } finally {
+        pendingRefreshStarts.delete(providerId)
+        rerunRequested.delete(providerId)
+        if (refreshPromise && inFlightRefreshes.get(providerId) === refreshPromise) {
+          inFlightRefreshes.delete(providerId)
+        }
+      }
+    })()
+
+    inFlightRefreshes.set(providerId, refreshPromise)
+    return refreshPromise
   }
 
   const _refreshAllModelsInternal = async () => {
@@ -739,26 +777,42 @@ export const useModelStore = defineStore('model', () => {
         updateLocalModelStatus(msg.providerId, msg.modelId, msg.enabled)
       }
     )
-
-    window.electron?.ipcRenderer?.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
-      await refreshAllModels()
-    })
-    window.electron?.ipcRenderer?.on(PROVIDER_DB_EVENTS.LOADED, async () => {
-      await refreshAllModels()
-    })
   }
 
   const cleanup = () => {
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.MODEL_LIST_CHANGED)
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.MODEL_STATUS_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(PROVIDER_DB_EVENTS.UPDATED)
-    window.electron?.ipcRenderer?.removeAllListeners(PROVIDER_DB_EVENTS.LOADED)
     listenersRegistered.value = false
+    initialized.value = false
+    initializationPromise.value = null
+    inFlightRefreshes.clear()
+    rerunRequested.clear()
+    pendingRefreshStarts.clear()
   }
 
   const initialize = async () => {
-    setupModelListeners()
-    await refreshAllModels()
+    if (initialized.value) {
+      return
+    }
+
+    if (initializationPromise.value) {
+      await initializationPromise.value
+      return
+    }
+
+    initializationPromise.value = (async () => {
+      setupModelListeners()
+      await refreshAllModels()
+      initialized.value = true
+    })()
+
+    try {
+      await initializationPromise.value
+    } finally {
+      if (!initialized.value) {
+        initializationPromise.value = null
+      }
+    }
   }
 
   const addCustomModelMutation = useIpcMutation({

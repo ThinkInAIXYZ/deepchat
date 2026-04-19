@@ -184,9 +184,14 @@
       "backupSuccessTitle": "גיבוי הושלם בהצלחה",
       "backupSuccessMessage": "הנתונים גובו בהצלחה"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "עדכון הגדרות המודלים",
-      "description": "מרענן בכפייה את provider.json מהמקור כדי לעדכן יכולות מודל והגדרות ברירת מחדל.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "עדכן עכשיו",
       "updating": "מעדכן...",
       "updatedTitle": "הגדרות המודלים עודכנו",
@@ -208,6 +213,34 @@
       "confirmTitle": "לאשר לנקות נתוני YoBrowser?",
       "description": "ארגז חול עצמאי של דפדפן שאינו חולק עוגיות ואחסון מקומי עם האפליקציה הראשית. ניתן לנקות את נתוני YoBrowser בלחיצה אחת כאן.",
       "title": "ארגז חול של YoBrowser"
+    },
+    "databaseRepair": {
+      "title": "תיקון מסד הנתונים",
+      "description": "Detect and automatically repair the database",
+      "button": "בדוק ותקן את מסד הנתונים",
+      "running": "בודק ומתקן...",
+      "lastResultLabel": "תוצאה אחרונה: {result}",
+      "summaryHealthy": "תקין",
+      "summaryRepaired": "{count} בעיות תוקנו",
+      "summaryRepairedWithManual": "{repaired} בעיות תוקנו, {manual} דורשות טיפול ידני",
+      "summaryManualOnly": "{manual} בעיות דורשות תשומת לב",
+      "manualHint": "עדיין נדרש טיפול ידני ב-{count} בעיות.",
+      "toastSuggestedTitle": "מומלץ לתקן את מסד הנתונים",
+      "toastSuggestedDescription": "DeepChat זיהה בעיית סכימה ({reason}). אפשר להפעיל עכשיו תיקון למסד הנתונים.",
+      "toastAction": "עבור לתיקון",
+      "toastHealthyTitle": "מסד הנתונים תקין",
+      "toastHealthyDescription": "לא נמצאו בעיות סכימה.",
+      "toastCompletedTitle": "תיקון מסד הנתונים הושלם",
+      "toastRepairedDescription": "{count} בעיות תוקנו.",
+      "toastManualDescription": "{repaired} בעיות תוקנו. {manual} בעיות עדיין דורשות טיפול ידני.",
+      "toastFailedTitle": "תיקון מסד הנתונים נכשל",
+      "toastFailedDescription": "לא ניתן להשלים כרגע את תיקון מסד הנתונים. בדוק את הלוגים ונסה שוב.",
+      "reasons": {
+        "missing-table": "טבלה חסרה",
+        "missing-column": "עמודה חסרה",
+        "column-count-mismatch": "אי-התאמה במספר העמודות",
+        "type-mismatch": "אי-התאמה בסוג העמודה"
+      }
     }
   },
   "dashboard": {

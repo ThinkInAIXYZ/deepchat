@@ -117,9 +117,14 @@
       "backupSuccessTitle": "Backup lykkedes",
       "backupSuccessMessage": "Data blev sikkerhedskopieret"
     },
+    "syncSectionTitle": "Sikkerhedskopiering og synkronisering",
+    "operationsSectionTitle": "Datahandlinger",
+    "resetDataDescription": "Nulstil chat, vidensbase, konfiguration eller alle data efter type.",
     "modelConfigUpdate": {
       "title": "Opdater modelkonfiguration",
-      "description": "Tving en opdatering af provider.json fra upstream for at hente de nyeste modelkapaciteter og standardindstillinger.",
+      "descriptionPrefix": "Synkroniser modeldata fra ",
+      "linkLabel": "repoet ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "Opdater nu",
       "updating": "Opdaterer...",
       "updatedTitle": "Modelkonfiguration opdateret",
@@ -141,6 +146,34 @@
       "confirmTitle": "Bekræft at rydde YoBrowser-data?",
       "description": "En uafhængig browsersandbox, der ikke deler cookies og lokal lagring med hovedapplikationen. YoBrowser-data kan ryddes med et enkelt klik her.",
       "title": "YoBrowser Sandbox"
+    },
+    "databaseRepair": {
+      "title": "Databasereparation",
+      "description": "Find og reparer databasen automatisk",
+      "button": "Kontrollér og reparer databasen",
+      "running": "Kontrollerer og reparerer...",
+      "lastResultLabel": "Seneste resultat: {result}",
+      "summaryHealthy": "Intakt",
+      "summaryRepaired": "Reparerede {count} problem(er)",
+      "summaryRepairedWithManual": "Reparerede {repaired} problem(er), {manual} kræver manuel håndtering",
+      "summaryManualOnly": "{manual} problem(er) kræver opmærksomhed",
+      "manualHint": "{count} problem(er) kræver stadig manuel håndtering.",
+      "toastSuggestedTitle": "Databasereparation anbefales",
+      "toastSuggestedDescription": "DeepChat opdagede et skemaproblem ({reason}). Du kan køre databasereparation nu.",
+      "toastAction": "Gå til reparation",
+      "toastHealthyTitle": "Databasen er intakt",
+      "toastHealthyDescription": "Der blev ikke fundet nogen skemaproblemer.",
+      "toastCompletedTitle": "Databasereparation fuldført",
+      "toastRepairedDescription": "Reparerede {count} problem(er).",
+      "toastManualDescription": "Reparerede {repaired} problem(er). {manual} problem(er) kræver stadig manuel håndtering.",
+      "toastFailedTitle": "Databasereparation mislykkedes",
+      "toastFailedDescription": "Databasereparation kunne ikke fuldføres lige nu. Tjek loggene, og prøv igen.",
+      "reasons": {
+        "missing-table": "manglende tabel",
+        "missing-column": "manglende kolonne",
+        "column-count-mismatch": "kolonneantal matcher ikke",
+        "type-mismatch": "kolonnetype matcher ikke"
+      }
     }
   },
   "dashboard": {

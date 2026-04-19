@@ -30,11 +30,13 @@ import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
+import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
+const windowPresenter = usePresenter('windowPresenter')
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
@@ -291,11 +293,35 @@ const handleStartDeeplink = (_event: unknown, payload?: Omit<StartDeeplinkPayloa
   void activatePendingStartDeeplink()
 }
 
+const handleDatabaseRepairSuggested = (payload: unknown) => {
+  const repairPayload = payload as DatabaseRepairSuggestedPayload | undefined
+  if (!repairPayload) {
+    return
+  }
+
+  toast({
+    title: t(repairPayload.title),
+    description: t(repairPayload.message, {
+      reason: t(`settings.data.databaseRepair.reasons.${repairPayload.reason}`)
+    }),
+    action: {
+      label: t('settings.data.databaseRepair.toastAction'),
+      onClick: () => {
+        void windowPresenter.createSettingsWindow({
+          routeName: 'settings-database',
+          section: 'database-repair'
+        })
+      }
+    }
+  })
+}
+
 const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRuntime({
   handleStartDeeplink: (event, payload) => {
     handleStartDeeplink(event, payload as Omit<StartDeeplinkPayload, 'token'> | undefined)
   },
   showErrorToast,
+  handleDatabaseRepairSuggested,
   handleZoomIn,
   handleZoomOut,
   handleZoomResume,

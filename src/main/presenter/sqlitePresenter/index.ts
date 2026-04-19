@@ -4,6 +4,8 @@ import fs from 'fs'
 import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
 import {
+  DatabaseRepairReport,
+  DatabaseSchemaDiagnosis,
   ISQLitePresenter,
   SQLITE_MESSAGE,
   CONVERSATION,
@@ -24,6 +26,168 @@ import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
+import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
+
+const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
+  /database disk image is malformed/i,
+  /file is not a database/i,
+  /SQLITE_CORRUPT/i,
+  /SQLITE_NOTADB/i
+]
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'object' && error && 'message' in error) {
+    return String((error as { message?: unknown }).message ?? '')
+  }
+
+  return String(error ?? '')
+}
+
+export function isDestructiveDatabaseError(error: unknown): boolean {
+  const message = getErrorMessage(error)
+  return DESTRUCTIVE_DATABASE_ERROR_PATTERNS.some((pattern) => pattern.test(message))
+}
+
+function ensureDatabaseDirectory(dbPath: string): void {
+  const dbDir = path.dirname(dbPath)
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true })
+  }
+}
+
+function configureDatabaseConnection(db: Database.Database, password?: string): void {
+  if (password) {
+    db.pragma(`cipher='sqlcipher'`)
+    const hexPassword = Buffer.from(password, 'utf8').toString('hex')
+    db.pragma(`key = "x'${hexPassword}'"`)
+  }
+
+  db.pragma('journal_mode = WAL')
+}
+
+export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
+  ensureDatabaseDirectory(dbPath)
+  const db = new Database(dbPath)
+  configureDatabaseConnection(db, password)
+  return db
+}
+
+export function repairSQLiteDatabaseFile(dbPath: string, password?: string): DatabaseRepairReport {
+  const db = openSQLiteDatabase(dbPath, password)
+
+  try {
+    return new DatabaseRepairService(db, dbPath).repair()
+  } finally {
+    db.close()
+  }
+}
+
+function stripLeadingSqlComments(statement: string): string {
+  return statement.replace(/^\s*(--[^\n]*(?:\r?\n|$))+/g, '').trim()
+}
+
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = []
+  let current = ''
+  let inSingleQuote = false
+  let inDoubleQuote = false
+
+  for (let index = 0; index < sql.length; index += 1) {
+    const char = sql[index]
+    const next = sql[index + 1]
+
+    if (!inSingleQuote && !inDoubleQuote) {
+      if (char === '-' && next === '-') {
+        while (index + 1 < sql.length && sql[index + 1] !== '\n' && sql[index + 1] !== '\r') {
+          index += 1
+        }
+        continue
+      }
+
+      if (char === '/' && next === '*') {
+        if (current.length > 0 && !/\s$/.test(current)) {
+          current += ' '
+        }
+
+        index += 2
+        while (index < sql.length && !(sql[index] === '*' && sql[index + 1] === '/')) {
+          index += 1
+        }
+
+        if (index >= sql.length) {
+          break
+        }
+
+        index += 1
+        continue
+      }
+    }
+
+    if (char === "'" && !inDoubleQuote) {
+      current += char
+      if (inSingleQuote && next === "'") {
+        current += next
+        index += 1
+        continue
+      }
+      inSingleQuote = !inSingleQuote
+      continue
+    }
+
+    if (char === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote
+      current += char
+      continue
+    }
+
+    if (char === ';' && !inSingleQuote && !inDoubleQuote) {
+      const trimmed = current.trim()
+      if (trimmed) {
+        statements.push(trimmed)
+      }
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  const trailing = current.trim()
+  if (trailing) {
+    statements.push(trailing)
+  }
+
+  return statements
+}
+
+function shouldIgnoreMigrationStatementError(statement: string, error: unknown): boolean {
+  const normalizedStatement = stripLeadingSqlComments(statement).toUpperCase()
+  const message = getErrorMessage(error)
+
+  if (
+    /^ALTER TABLE\b[\s\S]*\bADD COLUMN\b/.test(normalizedStatement) &&
+    /duplicate column name/i.test(message)
+  ) {
+    return true
+  }
+
+  if (/^CREATE(?: UNIQUE)? INDEX\b/.test(normalizedStatement) && /already exists/i.test(message)) {
+    return true
+  }
+
+  if (
+    /^ALTER TABLE\b[\s\S]*\bDROP COLUMN\b/.test(normalizedStatement) &&
+    /no such column/i.test(message)
+  ) {
+    return true
+  }
+
+  return false
+}
 
 /**
  * 导入模式枚举
@@ -53,70 +217,18 @@ export class SQLitePresenter implements ISQLitePresenter {
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
+  private destructiveInitializationRetryCount = 0
 
   constructor(dbPath: string, password?: string) {
     this.dbPath = dbPath
     this.password = password
     try {
-      // 确保数据库目录存在
-      const dbDir = path.dirname(dbPath)
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true })
-      }
-
-      // 初始化数据库连接
-      this.db = new Database(dbPath)
-      this.db.pragma('journal_mode = WAL')
-
-      if (password) {
-        this.db.pragma(`cipher='sqlcipher'`)
-        this.db.pragma(`key='${password}'`)
-      }
-
-      // 尝试执行一个简单的查询来验证数据库是否正常
-      this.db.prepare('SELECT 1').get()
-
-      // 初始化所有表
-      this.initTables()
-
-      // 初始化版本表
-      this.initVersionTable()
-
-      // 执行迁移
-      this.migrate()
+      this.initializeDatabase()
     } catch (error) {
-      console.error('Database initialization failed:', error)
-
-      // 如果数据库已经打开，先关闭它
-      if (this.db) {
-        try {
-          this.db.close()
-        } catch (closeError) {
-          console.error('Error closing database:', closeError)
-        }
-      }
-
-      // 备份现有的损坏数据库
-      this.backupDatabase()
-
-      // 删除现有的数据库文件和相关的 WAL/SHM 文件
-      this.cleanupDatabaseFiles()
-
-      // 重新创建一个新的数据库
-      this.db = new Database(dbPath)
-      this.db.pragma('journal_mode = WAL')
-
-      if (password) {
-        this.db.pragma(`cipher='sqlcipher'`)
-        this.db.pragma(`key='${password}'`)
-      }
-
-      // 重新初始化数据库
-      this.initTables()
-      this.initVersionTable()
-      this.migrate()
+      this.handleInitializationError(error)
     }
   }
+
   async deleteAllMessagesInConversation(conversationId: string): Promise<void> {
     return this.messagesTable.deleteAllInConversation(conversationId)
   }
@@ -125,12 +237,69 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.db
   }
 
+  public async diagnoseSchema(): Promise<DatabaseSchemaDiagnosis> {
+    return new SchemaInspector(this.db).diagnose()
+  }
+
+  public async repairSchema(): Promise<DatabaseRepairReport> {
+    return new DatabaseRepairService(this.db, this.dbPath).repair()
+  }
+
+  private initializeDatabase(): void {
+    this.db = openSQLiteDatabase(this.dbPath, this.password)
+    this.db.prepare('SELECT 1').get()
+    this.initTables()
+    this.initVersionTable()
+    this.migrate()
+  }
+
+  private handleInitializationError(error: unknown): void {
+    console.error('Database initialization failed:', error)
+
+    if (isDestructiveDatabaseError(error)) {
+      if (this.destructiveInitializationRetryCount > 0) {
+        console.error('Destructive database recovery was already attempted once; aborting retry.')
+        this.closeDatabaseSilently()
+        throw error
+      }
+
+      this.destructiveInitializationRetryCount += 1
+      this.backupDatabase()
+      this.closeDatabaseSilently()
+      this.cleanupDatabaseFiles()
+      try {
+        this.initializeDatabase()
+      } catch (retryError) {
+        this.handleInitializationError(retryError)
+      }
+      return
+    }
+
+    this.closeDatabaseSilently()
+    throw error
+  }
+
+  private closeDatabaseSilently(): void {
+    if (!this.db) {
+      return
+    }
+
+    try {
+      this.db.close()
+    } catch (error) {
+      console.error('Error closing database:', error)
+    }
+  }
+
   private backupDatabase(): void {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const backupPath = `${this.dbPath}.${timestamp}.bak`
 
     try {
       if (fs.existsSync(this.dbPath)) {
+        if (this.db?.open) {
+          this.db.pragma('wal_checkpoint(TRUNCATE)')
+        }
         fs.copyFileSync(this.dbPath, backupPath)
         console.log(`Database backed up to: ${backupPath}`)
       }
@@ -251,9 +420,20 @@ export class SQLitePresenter implements ISQLitePresenter {
       if (migrationSQLs.length > 0) {
         console.log(`Executing migration version ${version}`)
         this.db.transaction(() => {
-          migrationSQLs.forEach((sql) => {
-            console.log(`Executing SQL: ${sql}`)
-            this.db.exec(sql)
+          migrationSQLs.forEach((sqlBlock) => {
+            for (const statement of splitSqlStatements(sqlBlock)) {
+              console.log(`Executing SQL: ${statement}`)
+              try {
+                this.db.exec(statement)
+              } catch (error) {
+                if (shouldIgnoreMigrationStatementError(statement, error)) {
+                  console.warn(`Ignoring migration statement error for: ${statement}`, error)
+                  continue
+                }
+
+                throw error
+              }
+            }
           })
           this.db
             .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
@@ -275,25 +455,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public reopen() {
     try {
       this.close()
-
-      const dbDir = path.dirname(this.dbPath)
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true })
-      }
-
-      this.db = new Database(this.dbPath)
-      this.db.pragma('journal_mode = WAL')
-
-      if (this.password) {
-        this.db.pragma(`cipher='sqlcipher'`)
-        this.db.pragma(`key='${this.password}'`)
-      }
-
-      this.db.prepare('SELECT 1').get()
-
-      this.initTables()
-      this.initVersionTable()
-      this.migrate()
+      this.initializeDatabase()
     } catch (error) {
       console.error('Failed to reopen database:', error)
       throw error

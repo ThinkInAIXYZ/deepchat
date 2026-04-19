@@ -24,7 +24,7 @@ export class NewSessionsTable extends BaseTable {
   }
 
   getCreateTableSQL(): string {
-    return this.getCreateTableSQLForVersion(0)
+    return this.getCreateTableSQLForVersion(this.getLatestVersion())
   }
 
   override createTable(): void {
@@ -91,37 +91,11 @@ export class NewSessionsTable extends BaseTable {
         ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;
       `
     }
-    if (version === 21) {
-      if (this.getRecordedSchemaVersion() < 20) {
-        return null
-      }
-
-      const statements: string[] = []
-
-      if (!this.hasColumn('subagent_enabled')) {
-        statements.push(
-          'ALTER TABLE new_sessions ADD COLUMN subagent_enabled INTEGER NOT NULL DEFAULT 0;'
-        )
-      }
-      if (!this.hasColumn('session_kind')) {
-        statements.push(
-          "ALTER TABLE new_sessions ADD COLUMN session_kind TEXT NOT NULL DEFAULT 'regular';"
-        )
-      }
-      if (!this.hasColumn('parent_session_id')) {
-        statements.push('ALTER TABLE new_sessions ADD COLUMN parent_session_id TEXT;')
-      }
-      if (!this.hasColumn('subagent_meta_json')) {
-        statements.push('ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;')
-      }
-
-      return statements.length > 0 ? statements.join('\n') : null
-    }
     return null
   }
 
   getLatestVersion(): number {
-    return 21
+    return 20
   }
 
   create(

@@ -83,11 +83,22 @@ import { useOllamaStore } from '@/stores/ollamaStore'
 import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
-import type { LLM_PROVIDER, ProviderInstallPreview } from '@shared/presenter'
+import type {
+  DatabaseRepairSuggestedPayload,
+  LLM_PROVIDER,
+  ProviderInstallPreview
+} from '@shared/presenter'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
 import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
+
+const DATABASE_REPAIR_SECTION = 'database-repair'
+const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
+
+type SettingsWindowState = Window & {
+  __deepchatSettingsPendingSection?: string | null
+}
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -171,6 +182,42 @@ const hasSameRouteParams = (
   return nextEntries.every(([key, value]) => currentParams[key] === value)
 }
 
+const publishSettingsSection = async (section?: string) => {
+  if (!section) {
+    return
+  }
+
+  ;(window as SettingsWindowState).__deepchatSettingsPendingSection = section
+  await nextTick()
+  window.dispatchEvent(
+    new CustomEvent(SETTINGS_SECTION_EVENT, {
+      detail: { section }
+    })
+  )
+}
+
+const openDatabaseRepairSection = async () => {
+  await router.push({
+    name: 'settings-database'
+  })
+  await publishSettingsSection(DATABASE_REPAIR_SECTION)
+}
+
+const showDatabaseRepairSuggestedToast = (payload: DatabaseRepairSuggestedPayload) => {
+  toast({
+    title: t(payload.title),
+    description: t(payload.message, {
+      reason: t(`settings.data.databaseRepair.reasons.${payload.reason}`)
+    }),
+    action: {
+      label: t('settings.data.databaseRepair.toastAction'),
+      onClick: () => {
+        void openDatabaseRepairSection()
+      }
+    }
+  })
+}
+
 const handleSettingsNavigate = async (_event: unknown, payload?: SettingsNavigationPayload) => {
   const routeName = payload?.routeName
   const params = normalizeRouteParams(payload?.params)
@@ -188,6 +235,8 @@ const handleSettingsNavigate = async (_event: unknown, payload?: SettingsNavigat
   if (routeName === 'settings-provider') {
     await syncPendingProviderInstall()
   }
+
+  await publishSettingsSection(payload?.section)
 }
 
 let providerStoreInitializePromise: Promise<void> | null = null
@@ -474,6 +523,12 @@ onMounted(async () => {
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
     showErrorToast(error)
   })
+  window.electron.ipcRenderer.on(
+    NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED,
+    (_event, payload) => {
+      showDatabaseRepairSuggestedToast(payload as DatabaseRepairSuggestedPayload)
+    }
+  )
 
   await uiSettingsStore.loadSettings()
 
@@ -495,6 +550,7 @@ onBeforeUnmount(() => {
   }
 
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
+  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED)
   window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
   window.electron.ipcRenderer.removeListener(
     SETTINGS_EVENTS.PROVIDER_INSTALL,

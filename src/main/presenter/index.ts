@@ -74,6 +74,7 @@ import type { SQLitePresenter } from './sqlitePresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
 import type { ConfigQueryPort, SessionRuntimePort } from './runtimePorts'
+import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -735,9 +736,9 @@ function isFunction(obj: any, prop: string): obj is { [key: string]: (...args: a
 ipcMain.handle(
   'presenter:call',
   (event: IpcMainInvokeEvent, name: string, method: string, ...payloads: unknown[]) => {
+    const webContentsId = event.sender.id
     try {
       // 构建调用上下文
-      const webContentsId = event.sender.id
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       const context: IPCCallContext = {
@@ -778,7 +779,12 @@ ipcMain.handle(
       // 检查方法是否存在且为函数
       if (isFunction(calledPresenter, resolvedMethod)) {
         // 调用方法并返回结果
-        return calledPresenter[resolvedMethod](...resolvedPayloads)
+        const result = calledPresenter[resolvedMethod](...resolvedPayloads)
+        return handlePresenterCallResult(result, {
+          webContentsId,
+          presenterName: name,
+          methodName: method
+        })
       } else {
         console.warn(
           `[IPC Warning] WebContents:${context.webContentsId} called method is not a function or does not exist: ${name}.${method}`
@@ -789,11 +795,11 @@ ipcMain.handle(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       e: any
     ) {
-      // 尝试获取调用上下文以改进错误日志
-      const webContentsId = event.sender.id
-
-      console.error(`[IPC Error] WebContents:${webContentsId} ${name}.${method}:`, e)
-      return { error: e.message || String(e) }
+      return handlePresenterCallError(e, {
+        webContentsId,
+        presenterName: name,
+        methodName: method
+      })
     }
   }
 )

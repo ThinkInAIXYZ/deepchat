@@ -184,9 +184,14 @@
       "backupSuccessTitle": "백업 성공",
       "backupSuccessMessage": "데이터가 성공적으로 백업되었습니다."
     },
+    "syncSectionTitle": "백업 및 동기화",
+    "operationsSectionTitle": "데이터 작업",
+    "resetDataDescription": "채팅, 지식 베이스, 설정 또는 전체 데이터를 유형별로 초기화합니다.",
     "modelConfigUpdate": {
       "title": "모델 설정 업데이트",
-      "description": "업스트림 provider.json을 강제로 새로고침해 모델 기능과 기본 설정을 최신 상태로 맞춥니다.",
+      "descriptionPrefix": "다음 저장소에서 모델 데이터를 동기화합니다: ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "지금 업데이트",
       "updating": "업데이트 중...",
       "updatedTitle": "모델 설정을 업데이트했습니다",
@@ -208,6 +213,34 @@
       "confirmTitle": "YoBrowser 데이터를 삭제하시겠습니까?",
       "description": "기본 애플리케이션과 쿠키 및 로컬 저장소를 공유하지 않는 독립적인 브라우저 샌드박스입니다. 여기를 클릭하면 YoBrowser 데이터를 삭제할 수 있습니다.",
       "title": "요브라우저 샌드박스"
+    },
+    "databaseRepair": {
+      "title": "데이터베이스 복구",
+      "description": "데이터베이스 문제를 감지하고 자동으로 복구합니다.",
+      "button": "데이터베이스 점검 및 복구",
+      "running": "점검 및 복구 중...",
+      "lastResultLabel": "최근 결과: {result}",
+      "summaryHealthy": "정상",
+      "summaryRepaired": "{count}개 문제 복구됨",
+      "summaryRepairedWithManual": "{repaired}개 문제를 복구했고, {manual}개는 수동 처리가 필요함",
+      "summaryManualOnly": "{manual}개 문제는 수동 처리가 필요함",
+      "manualHint": "아직 {count}개 문제는 수동 처리가 필요합니다.",
+      "toastSuggestedTitle": "데이터베이스 복구가 권장됩니다",
+      "toastSuggestedDescription": "DeepChat이 데이터베이스 스키마 문제({reason})를 감지했습니다. 지금 복구를 실행할 수 있습니다.",
+      "toastAction": "복구하러 가기",
+      "toastHealthyTitle": "데이터베이스가 정상입니다",
+      "toastHealthyDescription": "복구가 필요한 스키마 문제가 발견되지 않았습니다.",
+      "toastCompletedTitle": "데이터베이스 복구 완료",
+      "toastRepairedDescription": "{count}개 문제를 복구했습니다.",
+      "toastManualDescription": "{repaired}개 문제를 복구했습니다. {manual}개 문제는 여전히 수동 처리가 필요합니다.",
+      "toastFailedTitle": "데이터베이스 복구 실패",
+      "toastFailedDescription": "지금은 데이터베이스 복구를 완료할 수 없습니다. 로그를 확인한 뒤 다시 시도해 주세요.",
+      "reasons": {
+        "missing-table": "누락된 테이블",
+        "missing-column": "누락된 컬럼",
+        "column-count-mismatch": "컬럼 수 불일치",
+        "type-mismatch": "컬럼 타입 불일치"
+      }
     }
   },
   "dashboard": {

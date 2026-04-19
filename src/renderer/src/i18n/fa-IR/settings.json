@@ -184,9 +184,14 @@
       "backupSuccessTitle": "پشتیبان گیری با موفقیت انجام شد",
       "backupSuccessMessage": "داده ها با موفقیت پشتیبان گیری شدند"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
     "modelConfigUpdate": {
       "title": "به‌روزرسانی پیکربندی مدل",
-      "description": "برای به‌روزرسانی قابلیت‌های مدل و تنظیمات پیش‌فرض، فایل provider.json را از مبدأ به‌صورت اجباری تازه‌سازی می‌کند.",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "اکنون به‌روزرسانی کن",
       "updating": "در حال به‌روزرسانی...",
       "updatedTitle": "پیکربندی مدل به‌روز شد",
@@ -208,6 +213,34 @@
       "confirmTitle": "برای پاک کردن داده‌های YoBrowser تأیید می‌کنید؟",
       "description": "یک سندباکس مرورگر مستقل که کوکی‌ها و فضای ذخیره‌سازی محلی را با برنامه اصلی به اشتراک نمی‌گذارد. داده های YoBrowser را می توان با یک کلیک در اینجا پاک کرد.",
       "title": "YoBrowser Sandbox"
+    },
+    "databaseRepair": {
+      "title": "ترمیم پایگاه داده",
+      "description": "Detect and automatically repair the database",
+      "button": "بررسی و ترمیم پایگاه داده",
+      "running": "در حال بررسی و ترمیم...",
+      "lastResultLabel": "آخرین نتیجه: {result}",
+      "summaryHealthy": "سالم",
+      "summaryRepaired": "{count} مورد برطرف شد",
+      "summaryRepairedWithManual": "{repaired} مورد برطرف شد، {manual} مورد نیاز به رسیدگی دستی دارد",
+      "summaryManualOnly": "{manual} مورد نیاز به رسیدگی دارد",
+      "manualHint": "هنوز {count} مورد نیاز به رسیدگی دستی دارد.",
+      "toastSuggestedTitle": "ترمیم پایگاه داده پیشنهاد می‌شود",
+      "toastSuggestedDescription": "DeepChat یک مشکل ساختاری در پایگاه داده شناسایی کرد ({reason}). می‌توانید همین حالا ترمیم را اجرا کنید.",
+      "toastAction": "رفتن به ترمیم",
+      "toastHealthyTitle": "پایگاه داده سالم است",
+      "toastHealthyDescription": "هیچ مشکل ساختاری‌ای پیدا نشد.",
+      "toastCompletedTitle": "ترمیم پایگاه داده کامل شد",
+      "toastRepairedDescription": "{count} مورد برطرف شد.",
+      "toastManualDescription": "{repaired} مورد برطرف شد. هنوز {manual} مورد نیاز به رسیدگی دستی دارد.",
+      "toastFailedTitle": "ترمیم پایگاه داده ناموفق بود",
+      "toastFailedDescription": "در حال حاضر ترمیم پایگاه داده تکمیل نشد. لطفاً گزارش‌ها را بررسی کنید و دوباره تلاش کنید.",
+      "reasons": {
+        "missing-table": "جدول مفقود",
+        "missing-column": "ستون مفقود",
+        "column-count-mismatch": "ناهماهنگی تعداد ستون‌ها",
+        "type-mismatch": "ناهماهنگی نوع ستون"
+      }
     }
   },
   "dashboard": {

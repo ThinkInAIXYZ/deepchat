@@ -11,6 +11,7 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem
 import type { AcpConfigState } from './llmprovider.presenter'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
+import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseSchema'
 import type { ISessionPresenter } from './session.presenter'
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
@@ -362,6 +363,8 @@ export interface IShortcutPresenter {
 export interface ISQLitePresenter {
   close(): void
   reopen(): void
+  diagnoseSchema(): Promise<DatabaseSchemaDiagnosis>
+  repairSchema(): Promise<DatabaseRepairReport>
   clearNewAgentData(): Promise<void>
   importLegacyChatDb(
     sourceDbPath: string,

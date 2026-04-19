@@ -4,6 +4,7 @@ import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 interface UseAppIpcRuntimeOptions {
   handleStartDeeplink: (event: unknown, payload?: unknown) => void
   showErrorToast: (error: { id: string; title: string; message: string; type: string }) => void
+  handleDatabaseRepairSuggested: (payload: unknown) => void
   handleZoomIn: () => void
   handleZoomOut: () => void
   handleZoomResume: () => void
@@ -26,6 +27,9 @@ export function useAppIpcRuntime(options: UseAppIpcRuntimeOptions) {
     scope.on(DEEPLINK_EVENTS.START, options.handleStartDeeplink)
     scope.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
       options.showErrorToast(error as { id: string; title: string; message: string; type: string })
+    })
+    scope.on(NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED, (_event, payload) => {
+      options.handleDatabaseRepairSuggested(payload)
     })
     scope.on(SHORTCUT_EVENTS.ZOOM_IN, options.handleZoomIn)
     scope.on(SHORTCUT_EVENTS.ZOOM_OUT, options.handleZoomOut)

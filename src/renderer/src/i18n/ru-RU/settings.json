@@ -184,9 +184,14 @@
       "backupSuccessTitle": "Резервное копирование выполнено успешно",
       "backupSuccessMessage": "Резервное копирование данных успешно выполнено"
     },
+    "syncSectionTitle": "Резервное копирование и синхронизация",
+    "operationsSectionTitle": "Операции с данными",
+    "resetDataDescription": "Сбросить чат, базу знаний, конфигурацию или все данные по типу.",
     "modelConfigUpdate": {
       "title": "Обновить конфигурацию моделей",
-      "description": "Принудительно обновляет provider.json из источника, чтобы подтянуть актуальные возможности моделей и настройки по умолчанию.",
+      "descriptionPrefix": "Синхронизировать данные моделей из ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
       "button": "Обновить сейчас",
       "updating": "Обновление...",
       "updatedTitle": "Конфигурация моделей обновлена",
@@ -208,6 +213,34 @@
       "confirmTitle": "Подтвердить очистку данных YoBrowser?",
       "description": "Независимая песочница браузера, которая не использует файлы cookie и локальное хранилище совместно с основным приложением. Данные YoBrowser можно очистить одним щелчком мыши здесь.",
       "title": "Песочница YoBrowser"
+    },
+    "databaseRepair": {
+      "title": "Восстановление базы данных",
+      "description": "Detect and automatically repair the database",
+      "button": "Проверить и восстановить базу данных",
+      "running": "Проверка и восстановление...",
+      "lastResultLabel": "Последний результат: {result}",
+      "summaryHealthy": "Исправна",
+      "summaryRepaired": "Исправлено {count} проблем",
+      "summaryRepairedWithManual": "Исправлено {repaired} проблем, {manual} требуют ручной обработки",
+      "summaryManualOnly": "{manual} проблем требуют внимания",
+      "manualHint": "Ещё {count} проблем требуют ручной обработки.",
+      "toastSuggestedTitle": "Рекомендуется восстановить базу данных",
+      "toastSuggestedDescription": "DeepChat обнаружил проблему со схемой базы данных ({reason}). Вы можете запустить восстановление прямо сейчас.",
+      "toastAction": "Перейти к восстановлению",
+      "toastHealthyTitle": "База данных исправна",
+      "toastHealthyDescription": "Проблем со схемой не обнаружено.",
+      "toastCompletedTitle": "Восстановление базы данных завершено",
+      "toastRepairedDescription": "Исправлено {count} проблем.",
+      "toastManualDescription": "Исправлено {repaired} проблем. Ещё {manual} проблем требуют ручной обработки.",
+      "toastFailedTitle": "Не удалось восстановить базу данных",
+      "toastFailedDescription": "Сейчас не удалось завершить восстановление базы данных. Проверьте логи и повторите попытку.",
+      "reasons": {
+        "missing-table": "отсутствует таблица",
+        "missing-column": "отсутствует столбец",
+        "column-count-mismatch": "несовпадение количества столбцов",
+        "type-mismatch": "несовпадение типа столбца"
+      }
     }
   },
   "dashboard": {
