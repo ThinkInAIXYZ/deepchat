@@ -61,6 +61,9 @@ Renderer
 | [docs/specs/main-kernel-refactor/test-plan.md](./specs/main-kernel-refactor/test-plan.md) | 分层测试方案与 smoke matrix |
 | [docs/specs/main-kernel-refactor/migration-governance.md](./specs/main-kernel-refactor/migration-governance.md) | 避免半新半旧长期共存的实施纪律、bridge 规则与 scoreboard |
 | [docs/specs/main-kernel-refactor/build-vs-buy.md](./specs/main-kernel-refactor/build-vs-buy.md) | 哪些能力引库、哪些能力自写，以及第三方依赖的边界 |
+| [docs/specs/main-kernel-refactor/ports-and-scheduler.md](./specs/main-kernel-refactor/ports-and-scheduler.md) | `port` 的职责边界、legacy -> port 映射，以及 `Scheduler` 的定位 |
+| [docs/specs/main-kernel-refactor/route-schema-catalog.md](./specs/main-kernel-refactor/route-schema-catalog.md) | route registry、common schema、typed event 与首批能力目录 |
+| [docs/specs/main-kernel-refactor/eventbus-migration.md](./specs/main-kernel-refactor/eventbus-migration.md) | EventBus 新旧位置、事件分类与迁移映射 |
 
 ## 活跃架构地图
 

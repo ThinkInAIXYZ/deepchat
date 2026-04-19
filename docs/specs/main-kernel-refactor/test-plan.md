@@ -53,6 +53,7 @@
 
 - `shared/contracts/routes.ts`
 - route registry schema
+- `shared/events/*` typed event catalog
 - `createBridge`
 - `renderer/api/*Client`
 
@@ -70,6 +71,7 @@
 - chat send/stream/stop
 - provider switch
 - tool execution
+- `WindowEventPort` publisher and EventBus wiring
 
 ### 5. Renderer Integration Tests
 

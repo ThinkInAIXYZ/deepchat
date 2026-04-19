@@ -9,6 +9,9 @@
 - [x] 编写 `acceptance.md`
 - [x] 编写 `test-plan.md`
 - [x] 编写 `migration-governance.md`
+- [x] 编写 `ports-and-scheduler.md`
+- [x] 编写 `route-schema-catalog.md`
+- [x] 编写 `eventbus-migration.md`
 - [x] 在 `docs/README.md` 增加入口
 
 ## Migration Governance
@@ -50,6 +53,7 @@
 
 - [ ] 新建 `src/shared/contracts/` 目录
 - [ ] 定义 `shared/contracts/routes.ts` 作为跨进程 API 唯一事实源
+- [ ] 按 `route-schema-catalog.md` 锁定首批 route naming 和 common schema
 - [ ] 为首批 route group 补充 input/output schema
 - [ ] 定义 `window.deepchat` capability 分组和命名规则
 - [ ] 新建 `src/preload/createBridge.ts`
@@ -66,6 +70,8 @@
 - [ ] 新建 `src/main/bootstrap/`
 - [ ] 新建 `src/main/di/serviceIds.ts`
 - [ ] 新建 `src/main/di/Scope.ts`
+- [ ] 按 `ports-and-scheduler.md` 锁定第一批 port 接口文件
+- [ ] 按 `eventbus-migration.md` 锁定新 EventBus 和 WindowEventPort 位置
 - [ ] 定义 `app/window/session` scope 语义
 - [ ] 把 logger、event bus、scheduler、repositories 收口到 app scope
 - [ ] 把 BrowserWindow / WebContents 收口到 window scope

@@ -114,6 +114,8 @@
 - [ ] `main/infra` / `main/platform/electron` 只实现 adapter 责任
 - [ ] `Scope` 为仓库内自写实现，而不是重型外部 DI 容器
 - [ ] `EventBus` 为仓库内自写语义模型
+- [ ] port catalog 与 legacy -> port 映射在实施中保持一致
+- [ ] EventBus 迁移符合 `eventbus-migration.md` 约定的位置和分层
 
 ### Renderer Boundary
 
@@ -129,6 +131,7 @@
 
 - [ ] 所有主链路 route 都在共享 route registry 中定义
 - [ ] 所有 input/output 都有 schema
+- [ ] route 命名、common schema 和 typed event 设计符合 `route-schema-catalog.md`
 - [ ] `ipcMain` handler 通过统一 router/controller 收口
 - [ ] preload bridge 从同一份 registry 生成
 - [ ] 不再新增匿名字符串 channel

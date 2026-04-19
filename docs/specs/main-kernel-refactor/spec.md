@@ -15,7 +15,7 @@ process 运行时，重构为一个 `Clean Main Kernel + Typed Bridge` 的可组
 
 ## Baseline
 
-以下基线来自 `2026-04-19` 对当前仓库的快速扫描，用于确定优先级。它们是文本命中/目录规模信号，不是正式审计报告，但足够说明问题集中区域。
+以下基线来自 `2026-04-19` 的最新扫描，用于确定优先级。它们是文本命中/目录规模信号，不是正式审计报告，但足够说明问题集中区域。
 
 | Signal | Baseline | Notes |
 | --- | --- | --- |
@@ -24,8 +24,10 @@ process 运行时，重构为一个 `Clean Main Kernel + Typed Bridge` 的可组
 | renderer `usePresenter(` 命中 | 90 | renderer 仍深度依赖 presenter |
 | renderer `window.electron*` 命中 | 111 | 存在直接 IPC / Electron 暴露 |
 | renderer `window.api` 命中 | 33 | 预加载桥接仍是多入口 |
-| `ipcMain` / `ipcRenderer` 相关命中 | 105 | channel 分散 |
-| `setTimeout` / `setInterval` 命中 | 135 | 时序与可测性风险明显 |
+| `ipcMain` / `ipcRenderer` 相关命中 | 205 | 跨进程入口仍较分散 |
+| `setTimeout` / `setInterval` 命中 | 123 | 时序与可测性风险明显 |
+| main dependency baseline | 346 files / 867 edges / 30 cycles | 见 `docs/architecture/baselines/dependency-report.md` |
+| renderer dependency baseline | 222 files / 475 edges / 4 cycles | 见 `docs/architecture/baselines/dependency-report.md` |
 
 当前已存在的治理基础：
 
@@ -36,6 +38,14 @@ process 运行时，重构为一个 `Clean Main Kernel + Typed Bridge` 的可组
 - `docs/specs/legacy-llm-provider-runtime-retirement/*`
 
 本次重构将建立在这些成果之上，而不是忽略它们重新发明一套流程。
+
+## Detailed Design Docs
+
+除 `spec/plan/tasks/acceptance/test-plan` 外，本轮还预先锁定三份实施设计文档：
+
+- [ports-and-scheduler.md](./ports-and-scheduler.md)
+- [route-schema-catalog.md](./route-schema-catalog.md)
+- [eventbus-migration.md](./eventbus-migration.md)
 
 ## Goals
 
@@ -367,6 +377,9 @@ window.deepchat.messages.insertAssistantMessage()
 ## Acceptance Criteria
 
 - 存在一套经批准的分阶段计划，覆盖 spec、plan、tasks、acceptance、test plan。
+- 存在一套经批准的 port catalog 与 legacy runtime -> port 映射。
+- 存在一套经批准的 route schema catalog 与 typed event catalog 设计。
+- 存在一套经批准的 EventBus 迁移设计，明确旧位置、新位置、迁移阶段与映射关系。
 - 存在一套经批准的迁移治理规则，覆盖 bridge 寿命、阶段硬门槛、PR 审查与 scoreboard。
 - 存在一套经批准的 build-vs-buy 决策，明确哪些能力引库、哪些能力自写。
 - 每个阶段都定义清晰的目标、交付物、退出条件、验证方式和不允许扩张的边界。

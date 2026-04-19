@@ -225,6 +225,7 @@ P0 Guardrails & Baseline
 - 扩展 `scripts/generate-architecture-baseline.mjs`
 - 引入 `dependency-cruiser`
 - 新增本次重构的文档集
+- 重跑 `docs/architecture/baselines/*` 并锁定最新数字
 - 补充针对 renderer/preload/main 边界的检查项
 - 明确 `window.deepchat` 命名和粒度约束
 
@@ -250,6 +251,7 @@ P0 Guardrails & Baseline
 
 - `src/shared/contracts/routes.ts`
 - route registry 与 schema
+- route schema catalog 文档先冻结命名、schema 粒度与 typed event 设计
 - `src/preload/createBridge.ts`
 - `src/preload/index.ts` 的 generated typed facade
 - `src/renderer/api/*Client`
@@ -279,6 +281,8 @@ P0 Guardrails & Baseline
 - `createAppKernel.ts`
 - `SERVICE_IDS`
 - `Scope` / child scope / dispose 机制
+- port catalog 与 `Scheduler` 设计先冻结
+- EventBus migration 文档先冻结旧新映射
 - `app` / `window` / `session` 的 scope 约定
 - main bootstrap 与 BrowserWindow 创建解耦
 
