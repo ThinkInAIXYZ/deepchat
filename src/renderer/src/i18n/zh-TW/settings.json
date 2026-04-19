@@ -208,6 +208,35 @@
       "confirmTitle": "確認清空 YoBrowser 數據？",
       "description": "獨立的瀏覽器沙盒，不與主應用共享 Cookie 和本地存儲。\n可在此一鍵清空 YoBrowser 數據。",
       "title": "YoBrowser 沙盒"
+    },
+    "databaseRepair": {
+      "title": "数据库修复",
+      "description": "检测并修复缺失的表、列和索引。列类型不匹配只会提示，需要手动处理。",
+      "button": "检查并修复数据库",
+      "running": "检查并修复中...",
+      "lastResultLabel": "最近结果：{result}",
+      "notCheckedYet": "尚未检查",
+      "summaryHealthy": "结构正常",
+      "summaryRepaired": "已修复 {count} 个问题",
+      "summaryRepairedWithManual": "已修复 {repaired} 个问题，仍有 {manual} 个需手动处理",
+      "summaryManualOnly": "仍有 {manual} 个问题需要人工处理",
+      "manualHint": "仍有 {count} 个问题未自动修复，需要人工处理。",
+      "toastSuggestedTitle": "建议修复数据库",
+      "toastSuggestedDescription": "DeepChat 检测到数据库结构问题（{reason}），可以现在执行数据库修复。",
+      "toastAction": "去修复",
+      "toastHealthyTitle": "数据库结构正常",
+      "toastHealthyDescription": "未发现需要修复的 schema 问题。",
+      "toastCompletedTitle": "数据库修复完成",
+      "toastRepairedDescription": "已修复 {count} 个问题。",
+      "toastManualDescription": "已修复 {repaired} 个问题，仍有 {manual} 个问题需要人工处理。",
+      "toastFailedTitle": "数据库修复失败",
+      "toastFailedDescription": "暂时无法完成数据库修复，请查看日志后重试。",
+      "reasons": {
+        "missing-table": "缺表",
+        "missing-column": "缺列",
+        "column-count-mismatch": "列数不匹配",
+        "type-mismatch": "列类型不匹配"
+      }
     }
   },
   "dashboard": {

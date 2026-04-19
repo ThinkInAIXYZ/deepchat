@@ -1285,6 +1285,13 @@ export class WindowPresenter implements IWindowPresenter {
     this.resetSettingsWindowState()
     const windowId = settingsWindow.id
 
+    if (navigation) {
+      this.pendingSettingsMessages.push({
+        channel: SETTINGS_EVENTS.NAVIGATE,
+        args: [navigation]
+      })
+    }
+
     // Manage window state to track position and size changes
     settingsWindowState.manage(settingsWindow)
 

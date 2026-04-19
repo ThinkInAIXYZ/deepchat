@@ -111,9 +111,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
       return this.getCreateTableSQL()
     }
     if (version === 22) {
-      return this.hasColumn('cache_write_input_tokens')
-        ? null
-        : `ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER NOT NULL DEFAULT 0;`
+      return `ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER NOT NULL DEFAULT 0;`
     }
     return null
   }

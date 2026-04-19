@@ -47,7 +47,7 @@ import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { YoBrowserPresenter } from './browser/YoBrowserPresenter'
-import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
+import { CONFIG_EVENTS, NOTIFICATION_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
@@ -74,6 +74,7 @@ import type { SQLitePresenter } from './sqlitePresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
 import type { ConfigQueryPort, SessionRuntimePort } from './runtimePorts'
+import { buildDatabaseRepairSuggestedPayload } from './sqlitePresenter/schemaErrorClassifier'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -83,6 +84,8 @@ interface IPCCallContext {
   methodName: string
   timestamp: number
 }
+
+const runtimeSchemaRepairSuggestionKeys = new Set<string>()
 
 // 注意: 现在大部分事件已在各自的 presenter 中直接发送到渲染进程
 // 剩余的自动转发事件已在 EventBus 的 DEFAULT_RENDERER_EVENTS 中定义
@@ -791,8 +794,26 @@ ipcMain.handle(
     ) {
       // 尝试获取调用上下文以改进错误日志
       const webContentsId = event.sender.id
+      const repairSuggestion = buildDatabaseRepairSuggestedPayload(e)
+      const suggestionKey = repairSuggestion
+        ? `${webContentsId}:${repairSuggestion.dedupeKey}`
+        : null
 
       console.error(`[IPC Error] WebContents:${webContentsId} ${name}.${method}:`, e)
+
+      if (
+        repairSuggestion &&
+        suggestionKey &&
+        !runtimeSchemaRepairSuggestionKeys.has(suggestionKey)
+      ) {
+        runtimeSchemaRepairSuggestionKeys.add(suggestionKey)
+        eventBus.sendToWebContents(
+          webContentsId,
+          NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED,
+          repairSuggestion
+        )
+      }
+
       return { error: e.message || String(e) }
     }
   }

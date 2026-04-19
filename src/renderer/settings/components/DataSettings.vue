@@ -149,6 +149,50 @@
 
       <div class="flex flex-col gap-3 p-4 border border-border rounded-lg bg-card/30">
         <div class="flex flex-row gap-3 items-start" :dir="languageStore.dir">
+          <Icon icon="lucide:database" class="w-4 h-4 text-muted-foreground mt-1" />
+          <div class="flex flex-col gap-1">
+            <div class="text-sm font-medium">{{ t('settings.data.databaseRepair.title') }}</div>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.data.databaseRepair.description') }}
+            </p>
+            <p class="text-xs text-muted-foreground">
+              {{
+                t('settings.data.databaseRepair.lastResultLabel', {
+                  result: repairSummaryText
+                })
+              }}
+            </p>
+            <p v-if="repairManualHintText" class="text-xs text-amber-600 dark:text-amber-400">
+              {{ repairManualHintText }}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          class="w-56"
+          :disabled="isRepairing"
+          :dir="languageStore.dir"
+          @click="runSchemaRepair()"
+        >
+          <Icon
+            :icon="isRepairing ? 'lucide:loader-2' : 'lucide:wrench'"
+            class="w-4 h-4 text-muted-foreground"
+            :class="isRepairing ? 'animate-spin' : ''"
+          />
+          <span class="text-sm font-medium">
+            {{
+              isRepairing
+                ? t('settings.data.databaseRepair.running')
+                : t('settings.data.databaseRepair.button')
+            }}
+          </span>
+        </Button>
+      </div>
+
+      <Separator class="my-4" />
+
+      <div class="flex flex-col gap-3 p-4 border border-border rounded-lg bg-card/30">
+        <div class="flex flex-row gap-3 items-start" :dir="languageStore.dir">
           <Icon icon="lucide:refresh-cw" class="w-4 h-4 text-muted-foreground mt-1" />
           <div class="flex flex-col gap-1">
             <div class="text-sm font-medium">{{ t('settings.data.modelConfigUpdate.title') }}</div>
@@ -187,7 +231,7 @@
           <Button
             variant="destructive"
             class="w-48"
-            :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
+            :disabled="isResetting"
             :dir="languageStore.dir"
           >
             <Icon icon="lucide:rotate-ccw" class="w-4 h-4" />
@@ -360,8 +404,9 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import type { DatabaseRepairReport } from '@shared/presenter'
 import {
   Dialog,
   DialogContent,
@@ -401,12 +446,28 @@ import { usePresenter } from '@/composables/usePresenter'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/use-toast'
 
+const DATABASE_REPAIR_SECTION = 'database-repair'
+const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
+
+type SettingsWindowState = Window & {
+  __deepchatSettingsPendingSection?: string | null
+}
+
+type PresenterErrorResult = {
+  error: string
+}
+
+const isPresenterError = (value: unknown): value is PresenterErrorResult => {
+  return typeof value === 'object' && value !== null && 'error' in value
+}
+
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
 const devicePresenter = usePresenter('devicePresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const configPresenter = usePresenter('configPresenter')
+const sqlitePresenter = usePresenter('sqlitePresenter')
 const { backups: backupsRef } = storeToRefs(syncStore)
 const { toast } = useToast()
 
@@ -420,6 +481,8 @@ const isResetting = ref(false)
 const isUpdatingModelConfig = ref(false)
 const isClearingSandbox = ref(false)
 const isClearSandboxDialogOpen = ref(false)
+const isRepairing = ref(false)
+const lastRepairReport = ref<DatabaseRepairReport | null>(null)
 
 // 使用计算属性处理双向绑定
 const syncEnabled = computed({
@@ -436,9 +499,138 @@ const handleSyncEnabledChange = (value: boolean) => {
   syncEnabled.value = value
 }
 
+const repairSummaryText = computed(() => {
+  const report = lastRepairReport.value
+  if (!report) {
+    return t('settings.data.databaseRepair.notCheckedYet')
+  }
+
+  if (report.status === 'healthy') {
+    return t('settings.data.databaseRepair.summaryHealthy')
+  }
+
+  const repairedCount = report.repairedIssues.length
+  const manualCount = report.remainingIssues.length
+
+  if (manualCount > 0 && repairedCount > 0) {
+    return t('settings.data.databaseRepair.summaryRepairedWithManual', {
+      repaired: repairedCount,
+      manual: manualCount
+    })
+  }
+
+  if (manualCount > 0) {
+    return t('settings.data.databaseRepair.summaryManualOnly', {
+      manual: manualCount
+    })
+  }
+
+  return t('settings.data.databaseRepair.summaryRepaired', {
+    count: repairedCount
+  })
+})
+
+const repairManualHintText = computed(() => {
+  const report = lastRepairReport.value
+  if (!report || report.remainingIssues.length === 0) {
+    return ''
+  }
+
+  return t('settings.data.databaseRepair.manualHint', {
+    count: report.remainingIssues.length
+  })
+})
+
+const consumePendingRepairSection = (): boolean => {
+  const state = window as SettingsWindowState
+  if (state.__deepchatSettingsPendingSection !== DATABASE_REPAIR_SECTION) {
+    return false
+  }
+
+  state.__deepchatSettingsPendingSection = null
+  return true
+}
+
+const buildRepairToastDescription = (report: DatabaseRepairReport) => {
+  if (report.status === 'healthy') {
+    return t('settings.data.databaseRepair.toastHealthyDescription')
+  }
+
+  if (report.remainingIssues.length > 0) {
+    return t('settings.data.databaseRepair.toastManualDescription', {
+      repaired: report.repairedIssues.length,
+      manual: report.remainingIssues.length
+    })
+  }
+
+  return t('settings.data.databaseRepair.toastRepairedDescription', {
+    count: report.repairedIssues.length
+  })
+}
+
+const runSchemaRepair = async () => {
+  if (isRepairing.value) {
+    return
+  }
+
+  isRepairing.value = true
+
+  try {
+    const result = await sqlitePresenter.repairSchema()
+    if (isPresenterError(result) || !result) {
+      toast({
+        title: t('settings.data.databaseRepair.toastFailedTitle'),
+        description: t('settings.data.databaseRepair.toastFailedDescription'),
+        variant: 'destructive'
+      })
+      return
+    }
+
+    lastRepairReport.value = result
+    toast({
+      title: t(
+        result.status === 'healthy'
+          ? 'settings.data.databaseRepair.toastHealthyTitle'
+          : 'settings.data.databaseRepair.toastCompletedTitle'
+      ),
+      description: buildRepairToastDescription(result),
+      variant: result.remainingIssues.length > 0 ? 'destructive' : 'default'
+    })
+  } catch (error) {
+    console.error('Failed to repair database schema:', error)
+    toast({
+      title: t('settings.data.databaseRepair.toastFailedTitle'),
+      description: t('settings.data.databaseRepair.toastFailedDescription'),
+      variant: 'destructive'
+    })
+  } finally {
+    isRepairing.value = false
+  }
+}
+
+const handleSettingsSectionNavigation = (event: Event) => {
+  const detail = (event as CustomEvent<{ section?: string }>).detail
+  if (detail?.section === DATABASE_REPAIR_SECTION) {
+    ;(window as SettingsWindowState).__deepchatSettingsPendingSection = null
+    void runSchemaRepair()
+  }
+}
+
 // 初始化
 onMounted(async () => {
   await syncStore.initialize()
+  window.addEventListener(SETTINGS_SECTION_EVENT, handleSettingsSectionNavigation as EventListener)
+
+  if (consumePendingRepairSection()) {
+    void runSchemaRepair()
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener(
+    SETTINGS_SECTION_EVENT,
+    handleSettingsSectionNavigation as EventListener
+  )
 })
 
 const availableBackups = computed(() => backupsRef.value || [])

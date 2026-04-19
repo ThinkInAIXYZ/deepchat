@@ -47,25 +47,91 @@ export class ConversationsTable extends BaseTable {
   }
 
   getCreateTableSQL(): string {
+    return this.getCreateTableSQLForVersion(this.getLatestVersion())
+  }
+
+  override createTable(): void {
+    if (this.tableExists()) {
+      return
+    }
+
+    this.db.exec(this.getCreateTableSQLForVersion(this.getRecordedSchemaVersion()))
+  }
+
+  private getCreateTableSQLForVersion(version: number): string {
+    const columns = [
+      'id INTEGER PRIMARY KEY AUTOINCREMENT',
+      'conv_id TEXT UNIQUE NOT NULL',
+      'title TEXT NOT NULL',
+      'created_at INTEGER NOT NULL',
+      'updated_at INTEGER NOT NULL'
+    ]
+
+    if (version < 1) {
+      columns.push('user_id INTEGER DEFAULT 0')
+    }
+
+    columns.push(
+      'is_pinned INTEGER DEFAULT 0',
+      "model_id TEXT DEFAULT 'gpt-4'",
+      "provider_id TEXT DEFAULT 'openai'",
+      'context_length INTEGER DEFAULT 10',
+      'max_tokens INTEGER DEFAULT 2000',
+      'temperature REAL DEFAULT 0.7',
+      "system_prompt TEXT DEFAULT ''",
+      "context_chain TEXT DEFAULT '[]'"
+    )
+
+    if (version >= 1) {
+      columns.push('is_new INTEGER DEFAULT 1')
+    }
+    if (version >= 2) {
+      columns.push('artifacts INTEGER DEFAULT 0')
+    }
+    if (version >= 3) {
+      columns.push("enabled_mcp_tools TEXT DEFAULT '[]'")
+    }
+    if (version >= 4) {
+      columns.push('thinking_budget INTEGER DEFAULT NULL')
+    }
+    if (version >= 6) {
+      columns.push('reasoning_effort TEXT DEFAULT NULL', 'verbosity TEXT DEFAULT NULL')
+    }
+    if (version >= 7) {
+      columns.push(
+        'enable_search INTEGER DEFAULT NULL',
+        'forced_search INTEGER DEFAULT NULL',
+        'search_strategy TEXT DEFAULT NULL'
+      )
+    }
+    if (version >= 8) {
+      columns.push('agent_workspace_path TEXT DEFAULT NULL', 'acp_workdir_map TEXT DEFAULT NULL')
+    }
+    if (version >= 9) {
+      columns.push(
+        'parent_conversation_id TEXT DEFAULT NULL',
+        'parent_message_id TEXT DEFAULT NULL',
+        'parent_selection TEXT DEFAULT NULL'
+      )
+    }
+    if (version >= 10) {
+      columns.push("active_skills TEXT DEFAULT '[]'")
+    }
+
     return `
       CREATE TABLE IF NOT EXISTS conversations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conv_id TEXT UNIQUE NOT NULL,
-        title TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        user_id INTEGER DEFAULT 0,
-        is_pinned INTEGER DEFAULT 0,
-        model_id TEXT DEFAULT 'gpt-4',
-        provider_id TEXT DEFAULT 'openai',
-        context_length INTEGER DEFAULT 10,
-        max_tokens INTEGER DEFAULT 2000,
-        temperature REAL DEFAULT 0.7,
-        system_prompt TEXT DEFAULT '',
-        context_chain TEXT DEFAULT '[]'
+        ${columns.join(',\n        ')}
       );
       CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC);
       CREATE INDEX idx_conversations_pinned ON conversations(is_pinned);
+      ${
+        version >= 9
+          ? `
+      CREATE INDEX idx_conversations_parent ON conversations(parent_conversation_id);
+      CREATE INDEX idx_conversations_parent_message ON conversations(parent_message_id);
+      `
+          : ''
+      }
     `
   }
   getMigrationSQL(version: number): string | null {

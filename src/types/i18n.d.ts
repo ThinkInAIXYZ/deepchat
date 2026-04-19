@@ -7,6 +7,8 @@ declare module 'vue-i18n' {
     feedbackButton: string
     disclaimerTitle: string
     checkUpdateButton: string
+    mockUpdateButton: string
+    clearMockUpdateButton: string
     updateChannel: string
     stableChannel: string
     betaChannel: string
@@ -499,6 +501,11 @@ declare module 'vue-i18n' {
         section: string
         empty: string
         loading: string
+        noWorkspace: {
+          title: string
+          description: string
+          button: string
+        }
         contextMenu: {
           openFile: string
           revealInFolder: string
@@ -1509,6 +1516,35 @@ declare module 'vue-i18n' {
       toast: {
         backupSuccessTitle: string
         backupSuccessMessage: string
+      }
+      databaseRepair: {
+        title: string
+        description: string
+        button: string
+        running: string
+        lastResultLabel: string
+        notCheckedYet: string
+        summaryHealthy: string
+        summaryRepaired: string
+        summaryRepairedWithManual: string
+        summaryManualOnly: string
+        manualHint: string
+        toastSuggestedTitle: string
+        toastSuggestedDescription: string
+        toastAction: string
+        toastHealthyTitle: string
+        toastHealthyDescription: string
+        toastCompletedTitle: string
+        toastRepairedDescription: string
+        toastManualDescription: string
+        toastFailedTitle: string
+        toastFailedDescription: string
+        reasons: {
+          'missing-table': string
+          'missing-column': string
+          'column-count-mismatch': string
+          'type-mismatch': string
+        }
       }
       modelConfigUpdate: {
         title: string

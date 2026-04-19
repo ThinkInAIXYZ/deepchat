@@ -37,7 +37,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     }
   })
 
-  it('recreates legacy conversation tables when schema version is already advanced', async () => {
+  it('repairs missing legacy conversation tables when schema version is already advanced', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -53,6 +53,12 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     bootstrapDb.close()
 
     const presenter = new SQLitePresenterCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(diagnosis.issues.some((issue) => issue.kind === 'missing_table')).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
+
     const conversationList = await presenter.getConversationList(1, 20)
     expect(conversationList.total).toBe(0)
     expect(conversationList.list).toEqual([])
@@ -238,7 +244,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     checkDb.close()
   })
 
-  it('migrates missing subagent columns when schema version is already 20', async () => {
+  it('repairs missing subagent columns when schema version is already 20', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -262,20 +268,38 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
+      INSERT INTO new_sessions (
+        id,
+        agent_id,
+        title,
+        project_dir,
+        is_pinned,
+        is_draft,
+        active_skills,
+        disabled_agent_tools,
+        created_at,
+        updated_at
+      ) VALUES (
+        'session-1',
+        'deepchat',
+        'Recovered session',
+        NULL,
+        0,
+        0,
+        '[]',
+        '[]',
+        1000,
+        2000
+      );
     `)
     bootstrapDb.close()
 
     const presenter = new SQLitePresenterCtor(dbPath)
-    presenter.newSessionsTable.create('session-1', 'deepchat', 'Recovered session', null, {
-      subagentEnabled: true,
-      sessionKind: 'subagent',
-      parentSessionId: 'parent-1',
-      subagentMetaJson: JSON.stringify({
-        slotId: 'slot-1',
-        displayName: 'Reviewer',
-        targetAgentId: 'acp-reviewer'
-      })
-    })
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(diagnosis.issues.some((issue) => issue.name === 'subagent_enabled')).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -305,20 +329,12 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
       | undefined
 
     expect(row).toEqual({
-      subagent_enabled: 1,
-      session_kind: 'subagent',
-      parent_session_id: 'parent-1',
-      subagent_meta_json: JSON.stringify({
-        slotId: 'slot-1',
-        displayName: 'Reviewer',
-        targetAgentId: 'acp-reviewer'
-      })
+      subagent_enabled: 0,
+      session_kind: 'regular',
+      parent_session_id: null,
+      subagent_meta_json: null
     })
 
-    const versions = checkDb
-      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
-      .all() as Array<{ version: number }>
-    expect(versions.map((entry) => entry.version)).toContain(21)
     checkDb.close()
   })
 
@@ -609,7 +625,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     checkDb.close()
   })
 
-  it('migrates missing deepchat_sessions columns when schema version is already 22', async () => {
+  it('repairs missing deepchat_sessions columns when schema version is already 22', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -637,20 +653,34 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
         summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1,
         summary_updated_at INTEGER
       );
+      INSERT INTO deepchat_sessions (
+        id,
+        provider_id,
+        model_id,
+        permission_mode,
+        system_prompt,
+        summary_text,
+        summary_cursor_order_seq
+      ) VALUES (
+        'session-1',
+        'anthropic',
+        'claude-sonnet-4',
+        'full_access',
+        NULL,
+        NULL,
+        1
+      );
     `)
     bootstrapDb.close()
 
     const presenter = new SQLitePresenterCtor(dbPath)
-    presenter.deepchatSessionsTable.create(
-      'session-1',
-      'anthropic',
-      'claude-sonnet-4',
-      'full_access',
-      {
-        forceInterleavedThinkingCompat: true,
-        reasoningVisibility: 'summarized'
-      }
-    )
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(
+      diagnosis.issues.some((issue) => issue.name === 'force_interleaved_thinking_compat')
+    ).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
@@ -674,14 +704,9 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
       | undefined
 
     expect(row).toEqual({
-      force_interleaved_thinking_compat: 1,
-      reasoning_visibility: 'summarized'
+      force_interleaved_thinking_compat: null,
+      reasoning_visibility: null
     })
-
-    const versions = checkDb
-      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
-      .all() as Array<{ version: number }>
-    expect(versions.map((entry) => entry.version)).toContain(23)
     checkDb.close()
   })
 

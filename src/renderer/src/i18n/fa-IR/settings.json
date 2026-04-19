@@ -208,6 +208,35 @@
       "confirmTitle": "برای پاک کردن داده‌های YoBrowser تأیید می‌کنید؟",
       "description": "یک سندباکس مرورگر مستقل که کوکی‌ها و فضای ذخیره‌سازی محلی را با برنامه اصلی به اشتراک نمی‌گذارد. داده های YoBrowser را می توان با یک کلیک در اینجا پاک کرد.",
       "title": "YoBrowser Sandbox"
+    },
+    "databaseRepair": {
+      "title": "Database Repair",
+      "description": "Detect and repair missing tables, columns, and indexes. Type mismatches are reported for manual handling.",
+      "button": "Check & Repair Database",
+      "running": "Checking & repairing...",
+      "lastResultLabel": "Last result: {result}",
+      "notCheckedYet": "Not checked yet",
+      "summaryHealthy": "Healthy",
+      "summaryRepaired": "Repaired {count} issue(s)",
+      "summaryRepairedWithManual": "Repaired {repaired} issue(s), {manual} manual issue(s)",
+      "summaryManualOnly": "{manual} manual issue(s) require attention",
+      "manualHint": "{count} issue(s) still require manual handling.",
+      "toastSuggestedTitle": "Database repair recommended",
+      "toastSuggestedDescription": "DeepChat detected a schema problem ({reason}). You can run database repair now.",
+      "toastAction": "Go Repair",
+      "toastHealthyTitle": "Database is healthy",
+      "toastHealthyDescription": "No schema issue was found.",
+      "toastCompletedTitle": "Database repair finished",
+      "toastRepairedDescription": "Repaired {count} issue(s).",
+      "toastManualDescription": "Repaired {repaired} issue(s). {manual} issue(s) still need manual handling.",
+      "toastFailedTitle": "Database repair failed",
+      "toastFailedDescription": "Unable to complete database repair right now. Please check the logs and try again.",
+      "reasons": {
+        "missing-table": "missing table",
+        "missing-column": "missing column",
+        "column-count-mismatch": "column count mismatch",
+        "type-mismatch": "column type mismatch"
+      }
     }
   },
   "dashboard": {

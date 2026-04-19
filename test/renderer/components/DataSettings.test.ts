@@ -51,6 +51,30 @@ const setup = async () => {
         providersCount: 1
       })
     },
+    sqlitePresenter: {
+      repairSchema: vi.fn().mockResolvedValue({
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+        status: 'healthy',
+        backupPath: null,
+        diagnosisBeforeRepair: {
+          checkedAt: Date.now(),
+          isHealthy: true,
+          issues: [],
+          repairableIssues: [],
+          manualIssues: []
+        },
+        diagnosisAfterRepair: {
+          checkedAt: Date.now(),
+          isHealthy: true,
+          issues: [],
+          repairableIssues: [],
+          manualIssues: []
+        },
+        repairedIssues: [],
+        remainingIssues: []
+      })
+    },
     devicePresenter: {
       resetDataByType: vi.fn().mockResolvedValue(undefined)
     },
@@ -151,6 +175,30 @@ const findRefreshButton = (wrapper: ReturnType<typeof mount>) => {
   return button
 }
 
+const findRepairButton = (wrapper: ReturnType<typeof mount>) => {
+  const button = wrapper
+    .findAll('button')
+    .find((item) => item.text().includes('settings.data.databaseRepair'))
+
+  if (!button) {
+    throw new Error('Repair database button not found')
+  }
+
+  return button
+}
+
+const findResetButton = (wrapper: ReturnType<typeof mount>) => {
+  const button = wrapper
+    .findAll('button')
+    .find((item) => item.text().includes('settings.data.resetData'))
+
+  if (!button) {
+    throw new Error('Reset data button not found')
+  }
+
+  return button
+}
+
 describe('DataSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -228,5 +276,28 @@ describe('DataSettings', () => {
       variant: 'destructive',
       duration: 4000
     })
+  })
+
+  it('runs schema repair and shows a healthy toast summary', async () => {
+    const { wrapper, toast, presenterMocks } = await setup()
+
+    await findRepairButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(presenterMocks.sqlitePresenter.repairSchema).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.data.databaseRepair.toastHealthyTitle',
+      description: 'settings.data.databaseRepair.toastHealthyDescription',
+      variant: 'default'
+    })
+  })
+
+  it('keeps reset data enabled when sync is disabled', async () => {
+    const { wrapper, syncStore } = await setup()
+
+    syncStore.syncEnabled = false
+    await nextTick()
+
+    expect(findResetButton(wrapper).attributes('disabled')).toBeUndefined()
   })
 })
