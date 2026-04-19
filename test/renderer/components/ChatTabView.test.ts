@@ -120,11 +120,22 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
+    modelStore,
     sessionStore
   }
 }
 
 describe('ChatTabView collapsed new chat button', () => {
+  it('does not initialize modelStore on mount', async () => {
+    const { modelStore } = await setup({
+      collapsed: false,
+      currentRoute: 'newThread',
+      selectedAgentId: 'deepchat'
+    })
+
+    expect(modelStore.initialize).not.toHaveBeenCalled()
+  })
+
   it('hides the collapsed new chat button when the sidebar is expanded', async () => {
     const { wrapper } = await setup({
       collapsed: false,

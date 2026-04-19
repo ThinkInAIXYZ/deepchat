@@ -18,8 +18,7 @@ export const initAppStores = async () => {
   await providerStore.initialize()
   await providerStore.refreshProviders()
 
-  modelStore.setupModelListeners()
-  await modelStore.refreshAllModels()
+  await modelStore.initialize()
 
   await ollamaStore.initialize()
 }

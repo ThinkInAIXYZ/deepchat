@@ -55,7 +55,6 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useProjectStore } from '@/stores/ui/project'
-import { useModelStore } from '@/stores/modelStore'
 
 const { t } = useI18n()
 const pageRouter = usePageRouterStore()
@@ -63,7 +62,6 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const sidebarStore = useSidebarStore()
 const projectStore = useProjectStore()
-const modelStore = useModelStore()
 const isReady = ref(false)
 const showCollapsedNewChatButton = computed(
   () =>
@@ -80,7 +78,6 @@ onMounted(async () => {
       pageRouter.initialize(),
       sessionStore.fetchSessions(),
       agentStore.fetchAgents(),
-      modelStore.initialize(),
       projectStore.fetchProjects()
     ])
   } finally {

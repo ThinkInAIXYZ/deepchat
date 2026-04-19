@@ -11,6 +11,7 @@ export interface IModelStore {
 }
 
 export const PROVIDER_MODELS_DIR = 'provider_models'
+const PROVIDER_MODEL_CACHE_TTL_MS = 250
 
 type ModelConfigResolver = (modelId: string, providerId?: string) => ModelConfig
 
@@ -31,6 +32,13 @@ export class ProviderModelHelper {
   private readonly setModelStatus: ModelStatusUpdater
   private readonly deleteModelStatus: ModelStatusRemover
   private readonly stores: Map<string, ElectronStore<IModelStore>> = new Map()
+  private readonly providerModelsCache = new Map<
+    string,
+    {
+      expiresAt: number
+      models: MODEL_META[]
+    }
+  >()
 
   constructor(options: ProviderModelHelperOptions) {
     this.userDataPath = options.userDataPath
@@ -62,56 +70,110 @@ export class ProviderModelHelper {
     return this.stores.get(providerId)!
   }
 
+  invalidateProviderModelsCache(providerId: string): void {
+    this.providerModelsCache.delete(providerId)
+  }
+
+  invalidateAllProviderModelsCache(): void {
+    this.providerModelsCache.clear()
+  }
+
+  private cloneModel(model: MODEL_META): MODEL_META {
+    return {
+      ...model
+    }
+  }
+
+  private cloneModels(models: MODEL_META[]): MODEL_META[] {
+    return models.map((model) => this.cloneModel(model))
+  }
+
+  private normalizeStoredModel(model: MODEL_META, providerId: string, source: string): MODEL_META {
+    const normalizedModel = this.cloneModel(model)
+
+    if (normalizedModel.providerId && normalizedModel.providerId !== providerId) {
+      console.warn(
+        `[ProviderModelHelper] ${source}: Model ${normalizedModel.id} has incorrect providerId: expected "${providerId}", got "${normalizedModel.providerId}". Fixing it.`
+      )
+      normalizedModel.providerId = providerId
+    } else if (!normalizedModel.providerId) {
+      console.warn(
+        `[ProviderModelHelper] ${source}: Model ${normalizedModel.id} missing providerId, setting to "${providerId}"`
+      )
+      normalizedModel.providerId = providerId
+    }
+
+    return normalizedModel
+  }
+
+  private applyResolvedModelConfig(model: MODEL_META, providerId: string): MODEL_META {
+    const normalizedModel = this.cloneModel(model)
+    const config = this.getModelConfig(normalizedModel.id, providerId)
+
+    if (config) {
+      normalizedModel.maxTokens = config.maxTokens
+      normalizedModel.contextLength = config.contextLength
+      normalizedModel.vision =
+        normalizedModel.vision !== undefined ? normalizedModel.vision : config.vision || false
+      normalizedModel.functionCall =
+        normalizedModel.functionCall !== undefined
+          ? normalizedModel.functionCall
+          : config.functionCall || false
+      normalizedModel.reasoning =
+        normalizedModel.reasoning !== undefined
+          ? normalizedModel.reasoning
+          : config.reasoning || false
+      normalizedModel.type =
+        normalizedModel.type !== undefined ? normalizedModel.type : config.type || ModelType.Chat
+      normalizedModel.endpointType = config.endpointType ?? normalizedModel.endpointType
+      return normalizedModel
+    }
+
+    normalizedModel.vision = normalizedModel.vision || false
+    normalizedModel.functionCall = normalizedModel.functionCall || false
+    normalizedModel.reasoning = normalizedModel.reasoning || false
+    normalizedModel.type = normalizedModel.type || ModelType.Chat
+    return normalizedModel
+  }
+
   getProviderModels(providerId: string): MODEL_META[] {
+    const cached = this.providerModelsCache.get(providerId)
+    if (cached && cached.expiresAt > Date.now()) {
+      return this.cloneModels(cached.models)
+    }
+
     const store = this.getProviderModelStore(providerId)
-    let models = store.get('models') || []
-    console.log(
-      `[ProviderModelHelper] getProviderModels: reading ${models.length} models for provider "${providerId}"`
+    const storedModels = (store.get('models') || []) as MODEL_META[]
+    const normalizedStoredModels = storedModels.map((model) =>
+      this.normalizeStoredModel(model, providerId, 'getProviderModels')
     )
 
-    const result = models.map((model) => {
-      // Validate and fix providerId if incorrect
-      if (model.providerId && model.providerId !== providerId) {
-        console.warn(
-          `[ProviderModelHelper] getProviderModels: Model ${model.id} has incorrect providerId: expected "${providerId}", got "${model.providerId}". Fixing it.`
-        )
-        model.providerId = providerId
-      } else if (!model.providerId) {
-        console.warn(
-          `[ProviderModelHelper] getProviderModels: Model ${model.id} missing providerId, setting to "${providerId}"`
-        )
-        model.providerId = providerId
-      }
-
-      const config = this.getModelConfig(model.id, providerId)
-      if (config) {
-        model.maxTokens = config.maxTokens
-        model.contextLength = config.contextLength
-        model.vision = model.vision !== undefined ? model.vision : config.vision || false
-        model.functionCall =
-          model.functionCall !== undefined ? model.functionCall : config.functionCall || false
-        model.reasoning =
-          model.reasoning !== undefined ? model.reasoning : config.reasoning || false
-        model.type = model.type !== undefined ? model.type : config.type || ModelType.Chat
-        model.endpointType = config.endpointType ?? model.endpointType
-      } else {
-        model.vision = model.vision || false
-        model.functionCall = model.functionCall || false
-        model.reasoning = model.reasoning || false
-        model.type = model.type || ModelType.Chat
-      }
-      return model
-    })
-
-    // Log validation results
-    const incorrectProviderIds = result.filter((m) => m.providerId !== providerId)
+    const incorrectProviderIds = normalizedStoredModels.filter(
+      (model) => model.providerId !== providerId
+    )
     if (incorrectProviderIds.length > 0) {
       console.error(
         `[ProviderModelHelper] getProviderModels: Found ${incorrectProviderIds.length} models with incorrect providerId for provider "${providerId}"`
       )
     }
 
-    return result
+    const shouldPersistNormalizedModels = normalizedStoredModels.some(
+      (model, index) => model.providerId !== storedModels[index]?.providerId
+    )
+    if (shouldPersistNormalizedModels) {
+      store.set('models', this.cloneModels(normalizedStoredModels))
+    }
+
+    const result = normalizedStoredModels.map((model) =>
+      this.applyResolvedModelConfig(model, providerId)
+    )
+
+    this.providerModelsCache.set(providerId, {
+      expiresAt: Date.now() + PROVIDER_MODEL_CACHE_TTL_MS,
+      models: this.cloneModels(result)
+    })
+
+    return this.cloneModels(result)
   }
 
   setProviderModels(providerId: string, models: MODEL_META[]): void {
@@ -145,6 +207,7 @@ export class ProviderModelHelper {
 
     const store = this.getProviderModelStore(providerId)
     store.set('models', validatedModels)
+    this.invalidateProviderModelsCache(providerId)
     console.log(
       `[ProviderModelHelper] setProviderModels: stored ${validatedModels.length} models for provider "${providerId}"`
     )
@@ -167,6 +230,7 @@ export class ProviderModelHelper {
   setCustomModels(providerId: string, models: MODEL_META[]): void {
     const store = this.getProviderModelStore(providerId)
     store.set('custom_models', models)
+    this.invalidateProviderModelsCache(providerId)
   }
 
   addCustomModel(providerId: string, model: MODEL_META): void {
