@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
+import { ref, computed, onScopeDispose, getCurrentScope, isRef, toRef, type Ref } from 'vue'
 import { SessionClient } from '../../../api/SessionClient'
 import type {
   DisplayAssistantMessageBlock,
@@ -16,6 +16,11 @@ import { bindMessageStoreIpc } from './messageIpc'
 
 const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
 
+function toStoreStateRef<T extends object, K extends keyof T>(store: T, key: K): Ref<any> {
+  const value = store[key]
+  return isRef(value) ? value : toRef(store, key)
+}
+
 type ParsedMessageCacheEntry = {
   updatedAt: number
   content: string
@@ -30,6 +35,10 @@ type ParsedMessageCacheEntry = {
 export const useMessageStore = defineStore('message', () => {
   const sessionClient = new SessionClient()
   const streamStateStore = useStreamStateStore()
+  const isStreaming = toStoreStateRef(streamStateStore, 'isStreaming')
+  const streamingBlocks = toStoreStateRef(streamStateStore, 'streamingBlocks')
+  const currentStreamMessageId = toStoreStateRef(streamStateStore, 'currentStreamMessageId')
+  const streamRevision = toStoreStateRef(streamStateStore, 'streamRevision')
 
   // --- State ---
   const messageIds = ref<string[]>([])
@@ -285,10 +294,10 @@ export const useMessageStore = defineStore('message', () => {
   return {
     messageIds,
     messageCache,
-    isStreaming: streamStateStore.isStreaming,
-    streamingBlocks: streamStateStore.streamingBlocks,
-    currentStreamMessageId: streamStateStore.currentStreamMessageId,
-    streamRevision: streamStateStore.streamRevision,
+    isStreaming,
+    streamingBlocks,
+    currentStreamMessageId,
+    streamRevision,
     lastPersistedRevision,
     messages,
     getAssistantMessageBlocks,

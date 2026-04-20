@@ -29,12 +29,12 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
   }
   const cleanups = [
     chatClient.onStreamUpdated((payload) => {
+      const blocks = payload.blocks as AssistantMessageBlock[]
       if (payload.sessionId !== options.getActiveSessionId()) {
         return
       }
 
       const streamMessageId = payload.messageId ?? payload.requestId
-      const blocks = payload.blocks as AssistantMessageBlock[]
       options.setStreamingState({
         sessionId: payload.sessionId,
         messageId: streamMessageId,
