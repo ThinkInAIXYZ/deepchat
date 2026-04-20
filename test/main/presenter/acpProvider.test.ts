@@ -487,4 +487,45 @@ describe('AcpProvider runDebugAction error handling', () => {
       ]
     )
   })
+
+  it('cancels the ACP prompt when the model timeout elapses', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const provider = Object.create(AcpProvider.prototype) as any
+      provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+
+      const cancel = vi.fn().mockResolvedValue(undefined)
+      const prompt = vi.fn().mockImplementation(() => new Promise(() => {}))
+      const queue = {
+        push: vi.fn(),
+        done: vi.fn()
+      }
+
+      const runPrompt = provider['runPrompt'](
+        {
+          sessionId: 'session-timeout',
+          connection: {
+            prompt,
+            cancel
+          }
+        },
+        [],
+        queue,
+        { timeout: 25 }
+      )
+
+      await vi.advanceTimersByTimeAsync(25)
+      await runPrompt
+
+      expect(cancel).toHaveBeenCalledWith({ sessionId: 'session-timeout' })
+      expect(queue.push).toHaveBeenCalledWith({
+        type: 'error',
+        error_message: 'ACP: Request timed out after 25ms'
+      })
+      expect(queue.done).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

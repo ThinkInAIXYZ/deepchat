@@ -492,7 +492,9 @@
         "maxTokensRequired": "حداکثر طول خروجی نمی تواند خالی باشد",
         "temperatureMax": "دما باید کمتر از یا برابر با 2 باشد",
         "temperatureMin": "دما باید بیشتر یا برابر با 0 باشد",
-        "temperatureRequired": "درجه حرارت نمی تواند خالی باشد"
+        "temperatureRequired": "درجه حرارت نمی تواند خالی باشد",
+        "timeoutMin": "Request timeout must be at least 1000ms",
+        "timeoutMax": "Request timeout cannot exceed 600000ms"
       },
       "vision": {
         "description": "آیا مدل از توانایی بصری پشتیبانی می کند؟",
@@ -527,6 +529,10 @@
           "omitted": "Omitted - محتوای استدلال را مخفی کن",
           "summarized": "Summarized - خلاصه استدلال را نمایش بده"
         }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
       }
     }
   },

@@ -100,7 +100,12 @@ export class VoiceAIProvider extends BaseLLMProvider {
       throw new Error('No user text provided for Voice.ai TTS')
     }
 
-    await this.generateSpeech(text, modelId, temperature)
+    await this.generateSpeech(
+      text,
+      modelId,
+      temperature,
+      this.configPresenter.getModelConfig(modelId, this.provider.id)
+    )
 
     return {
       content: text
@@ -117,7 +122,12 @@ export class VoiceAIProvider extends BaseLLMProvider {
       throw new Error('No text provided for Voice.ai TTS')
     }
 
-    await this.generateSpeech(text, modelId, temperature)
+    await this.generateSpeech(
+      text,
+      modelId,
+      temperature,
+      this.configPresenter.getModelConfig(modelId, this.provider.id)
+    )
 
     return {
       content: this.buildShortTitle(text)
@@ -134,7 +144,12 @@ export class VoiceAIProvider extends BaseLLMProvider {
       throw new Error('No prompt provided for Voice.ai TTS')
     }
 
-    await this.generateSpeech(prompt, modelId, temperature)
+    await this.generateSpeech(
+      prompt,
+      modelId,
+      temperature,
+      this.configPresenter.getModelConfig(modelId, this.provider.id)
+    )
 
     return {
       content: prompt
@@ -297,7 +312,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
 
   private async fetchAudioFromUrl(
     url: string,
-    fallbackMimeType: string
+    fallbackMimeType: string,
+    signal?: AbortSignal
   ): Promise<{ audioBase64: string; mimeType: string }> {
     const headers: Record<string, string> = { ...this.defaultHeaders }
     const baseUrl = this.getBaseUrl()
@@ -308,6 +324,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
     const response = await fetch(url, {
       method: 'GET',
       headers,
+      ...(signal ? { signal } : {}),
       ...this.getFetchOptions()
     })
 
@@ -324,7 +341,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
 
   private async resolveAudioValue(
     value: string,
-    fallbackMimeType: string
+    fallbackMimeType: string,
+    signal?: AbortSignal
   ): Promise<{ audioBase64: string; mimeType: string } | null> {
     const trimmed = value.trim()
     if (!trimmed) return null
@@ -335,7 +353,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
     }
 
     if (this.isHttpUrl(trimmed)) {
-      return await this.fetchAudioFromUrl(trimmed, fallbackMimeType)
+      return await this.fetchAudioFromUrl(trimmed, fallbackMimeType, signal)
     }
 
     return { audioBase64: trimmed, mimeType: fallbackMimeType }
@@ -343,7 +361,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
 
   private async resolveAudioFromJson(
     payload: unknown,
-    fallbackMimeType: string
+    fallbackMimeType: string,
+    signal?: AbortSignal
   ): Promise<{ audioBase64: string; mimeType: string } | null> {
     if (!payload || typeof payload !== 'object') return null
 
@@ -360,7 +379,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
         this.pickString(audioData, ['base64', 'data', 'audio_base64', 'audioBase64', 'audio']) ||
         this.pickString(audioData, ['url', 'audio_url', 'audioUrl'])
       if (audioValue) {
-        return await this.resolveAudioValue(audioValue, audioMimeType)
+        return await this.resolveAudioValue(audioValue, audioMimeType, signal)
       }
     }
 
@@ -368,7 +387,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       this.pickString(data, ['audio_base64', 'audioBase64', 'audio', 'data']) ||
       this.pickString(data, ['audio_url', 'audioUrl', 'url'])
     if (directAudioValue) {
-      return await this.resolveAudioValue(directAudioValue, rootMimeType)
+      return await this.resolveAudioValue(directAudioValue, rootMimeType, signal)
     }
 
     return null
@@ -397,6 +416,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
     temperature?: number,
     modelConfig?: ModelConfig
   ): Promise<{ audioBase64: string; mimeType: string }> {
+    const { signal, dispose } = this.createModelRequestSignal(modelConfig)
     const config = this.getTtsConfig()
     if (!SUPPORTED_LANGUAGES.has(config.language)) {
       throw new Error(
@@ -428,33 +448,43 @@ export class VoiceAIProvider extends BaseLLMProvider {
       })
     }
 
-    const response = await fetch(this.buildUrl('/api/v1/tts/speech'), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-      ...this.getFetchOptions()
-    })
+    try {
+      const response = await fetch(this.buildUrl('/api/v1/tts/speech'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        ...(signal ? { signal } : {}),
+        ...this.getFetchOptions()
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Voice.ai generate speech failed: ${response.status} ${errorText}`)
-    }
-
-    const contentType = response.headers.get('content-type')?.split(';')[0]?.trim()
-    const fallbackMimeType = this.getAudioMimeType(config.audioFormat)
-
-    if (contentType?.includes('application/json')) {
-      const json = await response.json()
-      const resolved = await this.resolveAudioFromJson(json, fallbackMimeType)
-      if (!resolved) {
-        throw new Error('Voice.ai generate speech returned JSON without audio data')
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Voice.ai generate speech failed: ${response.status} ${errorText}`)
       }
-      return resolved
-    }
 
-    const mimeType = contentType && contentType.length > 0 ? contentType : fallbackMimeType
-    const buffer = Buffer.from(await response.arrayBuffer())
-    return { audioBase64: buffer.toString('base64'), mimeType }
+      const contentType = response.headers.get('content-type')?.split(';')[0]?.trim()
+      const fallbackMimeType = this.getAudioMimeType(config.audioFormat)
+
+      if (contentType?.includes('application/json')) {
+        const json = await response.json()
+        const resolved = await this.resolveAudioFromJson(json, fallbackMimeType, signal)
+        if (!resolved) {
+          throw new Error('Voice.ai generate speech returned JSON without audio data')
+        }
+        return resolved
+      }
+
+      const mimeType = contentType && contentType.length > 0 ? contentType : fallbackMimeType
+      const buffer = Buffer.from(await response.arrayBuffer())
+      return { audioBase64: buffer.toString('base64'), mimeType }
+    } catch (error) {
+      if (signal?.aborted && signal.reason instanceof Error) {
+        throw signal.reason
+      }
+      throw error
+    } finally {
+      dispose()
+    }
   }
 
   private extractLatestUserText(messages: ChatMessage[]): string | null {

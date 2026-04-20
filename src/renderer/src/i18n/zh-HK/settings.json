@@ -492,7 +492,9 @@
         "maxTokensRequired": "最大輸出長度不能為空",
         "temperatureMax": "溫度必須小於等於2",
         "temperatureMin": "溫度必須大於等於0",
-        "temperatureRequired": "溫度不能為空"
+        "temperatureRequired": "溫度不能為空",
+        "timeoutMin": "請求逾時時間不能小於1000毫秒",
+        "timeoutMax": "請求逾時時間不能超過600000毫秒"
       },
       "vision": {
         "description": "模型是否支持視覺能力",
@@ -527,6 +529,10 @@
           "omitted": "Omitted - 隱藏推理內容",
           "summarized": "Summarized - 顯示推理摘要"
         }
+      },
+      "timeout": {
+        "label": "請求逾時時間（毫秒）",
+        "description": "設定模型單次請求的逾時時間，超過後將自動中斷請求。"
       }
     }
   },

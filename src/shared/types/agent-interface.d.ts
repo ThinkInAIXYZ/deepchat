@@ -22,6 +22,7 @@ export interface SessionGenerationSettings {
   temperature: number
   contextLength: number
   maxTokens: number
+  timeout: number
   thinkingBudget?: number
   reasoningEffort?: ReasoningEffort
   reasoningVisibility?: ReasoningVisibility

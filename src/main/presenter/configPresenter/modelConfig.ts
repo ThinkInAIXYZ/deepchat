@@ -6,6 +6,7 @@ import {
 } from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import {
+  DEFAULT_MODEL_TIMEOUT,
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
   resolveDerivedModelMaxTokens,
   resolveModelContextLength,
@@ -145,6 +146,7 @@ export class ModelConfigHelper {
     return {
       maxTokens: resolveDerivedModelMaxTokens(model.limit?.output),
       contextLength: resolveModelContextLength(model.limit?.context),
+      timeout: DEFAULT_MODEL_TIMEOUT,
       temperature: 0.6,
       vision: isImageInputSupported(model),
       functionCall: resolveModelFunctionCall(model.tool_call),
@@ -437,6 +439,7 @@ export class ModelConfigHelper {
     if (!finalConfig) {
       finalConfig = {
         ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+        timeout: DEFAULT_MODEL_TIMEOUT,
         temperature: 0.6,
         type: ModelType.Chat,
         apiEndpoint: ApiEndpointType.Chat,
@@ -460,6 +463,7 @@ export class ModelConfigHelper {
             ? resolveDerivedModelMaxTokens(storedConfig.maxTokens)
             : finalConfig.maxTokens,
         contextLength: storedConfig.contextLength ?? finalConfig.contextLength,
+        timeout: storedConfig.timeout ?? finalConfig.timeout,
         temperature: storedConfig.temperature ?? finalConfig.temperature,
         vision: storedConfig.vision ?? finalConfig.vision,
         functionCall: storedConfig.functionCall ?? finalConfig.functionCall,
@@ -503,9 +507,14 @@ export class ModelConfigHelper {
       source === 'provider'
         ? resolveDerivedModelMaxTokens(config.maxTokens)
         : (config.maxTokens ?? undefined)
+    const normalizedTimeout =
+      typeof config.timeout === 'number' && Number.isFinite(config.timeout) && config.timeout > 0
+        ? Math.round(config.timeout)
+        : undefined
     const storedConfig: ModelConfig = {
       ...config,
       ...(normalizedMaxTokens !== undefined ? { maxTokens: normalizedMaxTokens } : {}),
+      ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
       isUserDefined: source === 'user'
     }
     const configData: IModelConfig = {

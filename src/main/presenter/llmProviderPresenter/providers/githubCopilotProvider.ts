@@ -71,7 +71,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     this.init()
   }
 
-  private async getCopilotToken(): Promise<string> {
+  private async getCopilotToken(signal?: AbortSignal): Promise<string> {
     // 优先使用设备流获取 token
     if (this.deviceFlow) {
       try {
@@ -102,7 +102,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
     const requestOptions: RequestInitWithAgent = {
       method: 'GET',
-      headers
+      headers,
+      ...(signal ? { signal } : {})
     }
 
     // 添加代理支持
@@ -375,8 +376,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     tools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent, void, unknown> {
     if (!modelId) throw new Error('Model ID is required')
+    const { signal, dispose } = this.createModelRequestSignal(modelConfig)
     try {
-      const token = await this.getCopilotToken()
+      const token = await this.getCopilotToken(signal)
       const formattedMessages = this.formatMessages(messages)
 
       const requestBody = {
@@ -411,7 +413,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       const requestOptions: RequestInitWithAgent = {
         method: 'POST',
         headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        ...(signal ? { signal } : {})
       }
 
       await this.emitRequestTrace(modelConfig, {
@@ -535,8 +538,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         reader.releaseLock()
       }
     } catch (error) {
+      if (signal?.aborted && signal.reason instanceof Error) {
+        throw signal.reason
+      }
       console.error('GitHub Copilot stream error:', error)
       throw error
+    } finally {
+      dispose()
     }
   }
 
@@ -547,8 +555,10 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     _maxTokens?: number
   ): Promise<LLMResponse> {
     if (!modelId) throw new Error('Model ID is required')
+    const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+    const { signal, dispose } = this.createModelRequestSignal(modelConfig)
     try {
-      const token = await this.getCopilotToken()
+      const token = await this.getCopilotToken(signal)
       const formattedMessages = this.formatMessages(messages)
 
       const requestBody = {
@@ -582,7 +592,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       const requestOptions: RequestInitWithAgent = {
         method: 'POST',
         headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        ...(signal ? { signal } : {})
       }
 
       // 添加代理支持
@@ -645,8 +656,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       return result
     } catch (error) {
+      if (signal?.aborted && signal.reason instanceof Error) {
+        throw signal.reason
+      }
       console.error('GitHub Copilot completion error:', error)
       throw error
+    } finally {
+      dispose()
     }
   }
 

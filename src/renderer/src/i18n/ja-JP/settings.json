@@ -492,7 +492,9 @@
         "maxTokensRequired": "最大出力長を空にすることはできません",
         "temperatureMax": "温度は2以下でなければなりません",
         "temperatureMin": "温度は0以上でなければなりません",
-        "temperatureRequired": "温度を空にすることはできません"
+        "temperatureRequired": "温度を空にすることはできません",
+        "timeoutMin": "Request timeout must be at least 1000ms",
+        "timeoutMax": "Request timeout cannot exceed 600000ms"
       },
       "vision": {
         "description": "モデルは視覚能力をサポートしていますか？",
@@ -527,6 +529,10 @@
           "omitted": "Omitted - 推論内容を表示しない",
           "summarized": "Summarized - 推論の要約を表示する"
         }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
       }
     }
   },

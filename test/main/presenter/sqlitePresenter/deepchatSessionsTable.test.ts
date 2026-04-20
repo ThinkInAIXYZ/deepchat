@@ -106,13 +106,17 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
       throw new Error(`Unexpected SQL: ${sql}`)
     })
 
-    expect(table.getLatestVersion()).toBe(23)
+    expect(table.getLatestVersion()).toBe(24)
 
     expect(table.getMigrationSQL(23)).toBe(
       [
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
         'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;'
       ].join('\n')
+    )
+
+    expect(table.getMigrationSQL(24)).toBe(
+      'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;'
     )
   })
 
@@ -147,7 +151,7 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
 
         if (sql === 'SELECT MAX(version) as version FROM schema_versions') {
           return {
-            get: () => ({ version: 24 })
+            get: () => ({ version: 25 })
           }
         }
 
@@ -159,11 +163,11 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     const guardedTable = new DeepChatSessionsTable(guardedDb)
 
     expect(() => guardedTable.createTable()).toThrow(
-      'Recorded deepchat_sessions schema version 24 exceeds supported version 23.'
+      'Recorded deepchat_sessions schema version 25 exceeds supported version 24.'
     )
     expect(exec).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith(
-      'Recorded deepchat_sessions schema version 24 exceeds supported version 23. Refusing to create table from a downgraded schema.'
+      'Recorded deepchat_sessions schema version 25 exceeds supported version 24. Refusing to create table from a downgraded schema.'
     )
   })
 })

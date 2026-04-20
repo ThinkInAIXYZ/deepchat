@@ -566,7 +566,9 @@
         "contextLengthMax": "上下文长度不能超过10000000",
         "temperatureRequired": "温度不能为空",
         "temperatureMin": "温度必须大于等于0",
-        "temperatureMax": "温度必须小于等于2"
+        "temperatureMax": "温度必须小于等于2",
+        "timeoutMin": "请求超时时间不能小于1000毫秒",
+        "timeoutMax": "请求超时时间不能超过600000毫秒"
       },
       "endpointType": {
         "label": "协议类型",
@@ -589,6 +591,10 @@
           "omitted": "Omitted - 隐藏推理内容",
           "summarized": "Summarized - 显示推理摘要"
         }
+      },
+      "timeout": {
+        "label": "请求超时时间（毫秒）",
+        "description": "设置模型单次请求的超时时间，超过后将自动中断请求。"
       }
     }
   },

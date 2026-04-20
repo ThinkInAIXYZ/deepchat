@@ -155,6 +155,7 @@ export type ModelConfigSource = 'user' | 'provider' | 'system'
 export interface ModelConfig {
   maxTokens: number
   contextLength: number
+  timeout?: number
   temperature?: number
   vision: boolean
   functionCall: boolean
