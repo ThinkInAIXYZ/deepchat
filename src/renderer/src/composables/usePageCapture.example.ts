@@ -1,7 +1,7 @@
 // usePageCapture 使用示例
 
+import { DeviceClient } from '@api/DeviceClient'
 import { usePageCapture, createCapturePresets } from '@/composables/usePageCapture'
-import { useLegacyDevicePresenter } from '@api/legacy/presenters'
 import { useI18n } from 'vue-i18n'
 import { ref } from 'vue'
 
@@ -9,12 +9,12 @@ import { ref } from 'vue'
 export function useMessageCapture() {
   const { t } = useI18n()
   const { isCapturing, captureAndCopy } = usePageCapture()
-  const devicePresenter = useLegacyDevicePresenter()
+  const deviceClient = new DeviceClient()
   const appVersion = ref('')
 
   // 初始化应用版本
   const initAppVersion = async () => {
-    appVersion.value = await devicePresenter.getAppVersion()
+    appVersion.value = await deviceClient.getAppVersion()
   }
 
   // 获取水印配置

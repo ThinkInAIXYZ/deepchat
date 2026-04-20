@@ -149,6 +149,9 @@ legacy transport 只允许存在于显式 quarantine 区域。
 | `P4` | business layer remaining presenter family hits = `0`，包括 `agentSessionPresenter` / `skillPresenter` / `mcpPresenter` / `syncPresenter` / `upgradePresenter` / `dialogPresenter` / `toolPresenter` 等 |
 | `P5` | `src/renderer/src/**` business layer direct `usePresenter` / direct `window.electron` / direct `window.api` 全部为 `0`，quarantine 目录为空或满足量化退出标准 |
 
+`2026-04-20` 进度更新：P3 已完成。window / device / workspace / project / file / browser / tab family 已完成 typed contract、typed event、typed client cutover；业务层 P3 presenter hits 已清零，window/window-tab raw IPC 业务直连已清零，相关定向测试与 `format/i18n/lint/typecheck` 已通过。
+`2026-04-20` 审计备注：`WelcomePage.vue` 与 `NewThreadPage.vue` 已在 P3 范围内完成复核，前者无需变更，后者仅保留 `agentSessionPresenter` 的 P4 residual 调用，不再阻塞 P3 gate。
+
 ## Success Metrics
 
 重点不只是总数下降，而是“业务层清零，兼容层收口”。

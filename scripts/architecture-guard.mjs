@@ -25,6 +25,9 @@ const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
 const RENDERER_TYPED_BOUNDARY_ROOT = path.join(ROOT, 'src/renderer/api')
 const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
 const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
+const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
+  path.join(ROOT, 'src/renderer/api/runtime.ts')
+]
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const PHASE_ORDER = new Map([
   ['P0', 0],
@@ -390,6 +393,9 @@ async function main() {
       const usePresenterCount = countMatches(source, USE_PRESENTER_CALL_PATTERN)
       const windowElectronCount = countMatches(source, WINDOW_ELECTRON_PATTERN)
       const windowApiCount = countMatches(source, WINDOW_API_PATTERN)
+      const allowsWindowApi = RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST.some(
+        (allowlistedPath) => path.resolve(filePath) === path.resolve(allowlistedPath)
+      )
 
       if (usePresenterCount > 0) {
         violations.push(`[renderer-typed-boundary-direct-use-presenter] ${file}`)
@@ -399,7 +405,7 @@ async function main() {
         violations.push(`[renderer-typed-boundary-direct-window-electron] ${file}`)
       }
 
-      if (windowApiCount > 0) {
+      if (windowApiCount > 0 && !allowsWindowApi) {
         violations.push(`[renderer-typed-boundary-direct-window-api] ${file}`)
       }
     }

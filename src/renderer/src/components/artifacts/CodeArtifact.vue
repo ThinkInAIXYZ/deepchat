@@ -43,7 +43,7 @@ import { useI18n } from 'vue-i18n'
 import { useThrottleFn } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { MermaidBlockNode } from 'markstream-vue'
-import { copyLegacyText } from '@api/legacy/runtime'
+import { DeviceClient } from '@api/DeviceClient'
 import { useArtifactStore } from '@/stores/artifact'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { getLanguageIcon } from 'markstream-vue'
@@ -65,6 +65,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const deviceClient = new DeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { createEditor, updateCode, getEditorView } = useMonaco({
   wordWrap: 'on',
@@ -179,7 +180,7 @@ const displayLanguage = computed(() => {
 
 const handleCopy = async () => {
   try {
-    copyLegacyText(props.block.content)
+    deviceClient.copyText(props.block.content)
     copyText.value = t('common.copySuccess')
     setTimeout(() => {
       copyText.value = t('common.copy')

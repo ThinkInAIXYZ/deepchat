@@ -56,15 +56,20 @@
 
 ## P3: Window / Device / Workspace Family
 
-- [ ] 为 window / device / workspace / project / file / browser / tab 能力补 typed clients 或 runtime wrappers
-- [ ] 为 window / device / workspace / project / file / browser / tab family 补 typed event contracts
-- [ ] 迁移 `App.vue`
-- [ ] 迁移 `AppBar.vue`
-- [ ] 迁移 `WelcomePage.vue`
-- [ ] 迁移 `NewThreadPage.vue`
-- [ ] 迁移 `stores/ui/project.ts`
-- [ ] 迁移 workspace/browser 相关组件与 composables
-- [ ] 清理 window/device/workspace family 的 raw event listeners
+- [x] 为 window / device / workspace / project / file / browser / tab 能力补 typed clients 或 runtime wrappers
+- [x] 为 window / device / workspace / project / file / browser / tab family 补 typed event contracts
+- [x] 迁移 `App.vue`
+- [x] 迁移 `AppBar.vue`
+- [x] 迁移 `WelcomePage.vue`
+- [x] 迁移 `NewThreadPage.vue`
+- [x] 迁移 `stores/ui/project.ts`
+- [x] 迁移 workspace/browser 相关组件与 composables
+- [x] 清理 window/device/workspace family 的 raw event listeners
+
+`2026-04-20` 进度更新：P3 已完成。新增 `WindowClient`、`DeviceClient`、`WorkspaceClient`、`ProjectClient`、`FileClient`、`BrowserClient`、`TabClient` 与 `src/renderer/api/runtime.ts`，并完成 window / workspace / browser typed event cutover。
+`2026-04-20` 范围备注：`WelcomePage.vue` 为已满足 P3 gate 的既有 typed path，无需改动；`NewThreadPage.vue` 的 P3 范围已完成审计，剩余 legacy 调用仅属于 P4 的 `agentSessionPresenter` residual。
+`2026-04-20` 自动回归：`pnpm exec vitest --config vitest.config.ts test/main/routes/contracts.test.ts test/main/routes/dispatcher.test.ts test/main/presenter/workspacePresenter.test.ts` 与 `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/api/clients.test.ts test/renderer/stores/projectStore.test.ts test/renderer/components/WorkspacePanel.test.ts test/renderer/components/WindowSideBar.test.ts test/renderer/stores/spotlight.test.ts test/renderer/components/SvgArtifact.test.ts test/renderer/components/AgentWelcomePage.test.ts test/renderer/components/WelcomePage.test.ts test/renderer/components/NewThreadPage.test.ts test/renderer/pages/NewThreadPage.test.ts` 已通过。
+`2026-04-20` 静态检查：`pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 已通过。
 
 ## P4: Session Residual / MCP / Skill / Misc Family
 

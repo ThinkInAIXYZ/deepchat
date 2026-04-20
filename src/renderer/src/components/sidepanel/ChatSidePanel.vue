@@ -67,12 +67,10 @@ import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
+import { BrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
-import { YO_BROWSER_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
-import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
-import { getLegacyWindowId } from '@api/legacy/runtime'
 
 const props = defineProps<{
   sessionId: string | null
@@ -81,24 +79,19 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
-const browserEvents = createIpcSubscriptionScope()
+const browserClient = new BrowserClient()
+let stopBrowserOpenRequestedListener: (() => void) | null = null
 
 const shouldShow = computed(() => sidepanelStore.open && Boolean(props.sessionId))
 const panelWidth = computed(() => (shouldShow.value ? sidepanelStore.width : 0))
 
-const handleBrowserOpenRequested = (_event: unknown, payload: unknown) => {
-  const currentWindowId = getLegacyWindowId()
-  const requestedWindowId =
-    payload && typeof payload === 'object' && 'windowId' in payload ? payload.windowId : null
-  const requestedSessionId =
-    payload && typeof payload === 'object' && 'sessionId' in payload ? payload.sessionId : null
-
-  if (
-    !props.sessionId ||
-    requestedSessionId !== props.sessionId ||
-    typeof requestedWindowId !== 'number' ||
-    requestedWindowId !== currentWindowId
-  ) {
+const handleBrowserOpenRequested = (payload: {
+  sessionId: string
+  windowId: number
+  url: string
+  version: number
+}) => {
+  if (!props.sessionId || payload.sessionId !== props.sessionId) {
     return
   }
 
@@ -123,10 +116,13 @@ const startResize = (event: MouseEvent) => {
 }
 
 onMounted(() => {
-  browserEvents.on(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleBrowserOpenRequested)
+  stopBrowserOpenRequestedListener = browserClient.onOpenRequestedForCurrentWindow(
+    handleBrowserOpenRequested
+  )
 })
 
 onBeforeUnmount(() => {
-  browserEvents.cleanup()
+  stopBrowserOpenRequestedListener?.()
+  stopBrowserOpenRequestedListener = null
 })
 </script>

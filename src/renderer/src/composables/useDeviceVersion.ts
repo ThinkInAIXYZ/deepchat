@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 
 // === Composables ===
-import { useLegacyDevicePresenter } from '@api/legacy/presenters'
+import { DeviceClient } from '@api/DeviceClient'
 
 /**
  * Composable for detecting device platform and OS version
@@ -31,11 +31,11 @@ export function useDeviceVersion() {
   // === Local State ===
   const isWinMacOS = ref(false)
   const isMacOS = ref(false)
-  const devicePresenter = useLegacyDevicePresenter()
+  const deviceClient = new DeviceClient()
 
   // === Lifecycle Hooks ===
   onMounted(() => {
-    devicePresenter.getDeviceInfo().then((deviceInfo) => {
+    deviceClient.getDeviceInfo().then((deviceInfo) => {
       // Detect macOS (all versions)
       const isMacOSPlatform = deviceInfo.platform === 'darwin'
       isMacOS.value = isMacOSPlatform

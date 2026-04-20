@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import { useLegacyTabPresenter } from '@api/legacy/presenters'
-import { copyLegacyImage, getLegacyWebContentsId, getLegacyWindowId } from '@api/legacy/runtime'
+import { DeviceClient } from '@api/DeviceClient'
+import { TabClient } from '@api/TabClient'
 
 export interface CaptureRect {
   x: number
@@ -73,7 +73,8 @@ export interface CaptureResult {
 
 export function usePageCapture() {
   const isCapturing = ref(false)
-  const tabPresenter = useLegacyTabPresenter()
+  const tabClient = new TabClient()
+  const deviceClient = new DeviceClient()
 
   /**
    * 获取滚动容器元素
@@ -184,17 +185,6 @@ export function usePageCapture() {
         return { success: false, error: '截图区域高度无效' }
       }
 
-      // 优先使用当前 webContentsId；必要时回退到 windowId
-      const webContentsId = getLegacyWebContentsId()
-      const windowId = getLegacyWindowId()
-      const captureTargets: number[] = []
-      if (typeof webContentsId === 'number') {
-        captureTargets.push(webContentsId)
-      }
-      if (typeof windowId === 'number' && !captureTargets.includes(windowId)) {
-        captureTargets.push(windowId)
-      }
-
       // 获取滚动容器
       scrollContainer = getScrollContainer(config.container)
       if (!scrollContainer) {
@@ -270,15 +260,8 @@ export function usePageCapture() {
           height: Math.round(heightToCaptureFromSegment)
         }
 
-        // 执行截图：按 webContentsId -> windowId 顺序兜底
         try {
-          let segmentData: string | null = null
-          for (const targetId of captureTargets) {
-            segmentData = await tabPresenter.captureTabArea(targetId, captureRect)
-            if (segmentData) {
-              break
-            }
-          }
+          const segmentData = await tabClient.captureCurrentArea(captureRect)
 
           if (segmentData) {
             imageDataList.push(segmentData)
@@ -308,10 +291,10 @@ export function usePageCapture() {
       // 拼接图片并添加水印
       let finalImage: string | null = null
       if (config.watermark) {
-        finalImage = await tabPresenter.stitchImagesWithWatermark(imageDataList, config.watermark)
+        finalImage = await tabClient.stitchImagesWithWatermark(imageDataList, config.watermark)
       } else {
         // 如果不需要水印，只拼接图片
-        finalImage = await tabPresenter.stitchImagesWithWatermark(imageDataList, {})
+        finalImage = await tabClient.stitchImagesWithWatermark(imageDataList, {})
       }
 
       if (!finalImage) {
@@ -343,7 +326,7 @@ export function usePageCapture() {
     const result = await captureArea(config)
 
     if (result.success && result.imageData) {
-      copyLegacyImage(result.imageData)
+      deviceClient.copyImage(result.imageData)
       return true
     }
 

@@ -218,14 +218,11 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
+import { SettingsClient } from '@api/SettingsClient'
 import type { MCPToolDefinition } from '@shared/presenter'
-import { SETTINGS_EVENTS, SKILL_EVENTS } from '@/events'
+import { SKILL_EVENTS } from '@/events'
 import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
-import {
-  useLegacyAgentSessionPresenter,
-  useLegacyToolPresenter,
-  useLegacyWindowPresenter
-} from '@api/legacy/presenters'
+import { useLegacyAgentSessionPresenter, useLegacyToolPresenter } from '@api/legacy/presenters'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
 import { useDraftStore } from '@/stores/ui/draft'
@@ -298,7 +295,7 @@ const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
-const windowPresenter = useLegacyWindowPresenter()
+const settingsClient = new SettingsClient()
 const toolPresenter = useLegacyToolPresenter()
 const agentSessionPresenter = useLegacyAgentSessionPresenter()
 
@@ -537,17 +534,8 @@ const loadDeepchatTools = async () => {
   }
 }
 
-const navigateToMcpSettings = (windowId: number) => {
-  windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
-    routeName: 'settings-mcp'
-  })
-}
-
 const openSettings = async () => {
-  const settingsWindowId = await windowPresenter.createSettingsWindow()
-  if (settingsWindowId != null) {
-    navigateToMcpSettings(settingsWindowId)
-  }
+  await settingsClient.openSettings({ routeName: 'settings-mcp' })
   panelOpen.value = false
 }
 

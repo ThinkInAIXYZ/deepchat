@@ -63,7 +63,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { useLegacyWorkspacePresenter } from '@api/legacy/presenters'
+import { WorkspaceClient } from '@api/WorkspaceClient'
 import { setChatInputWorkspaceItemDragData } from '@/lib/chatInputWorkspaceReference'
 import {
   ContextMenu,
@@ -85,7 +85,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const workspacePresenter = useLegacyWorkspacePresenter()
+const workspaceClient = new WorkspaceClient()
 
 const extensionIconMap: Record<string, string> = {
   pdf: 'lucide:file-text',
@@ -142,7 +142,7 @@ const handleOpenFile = async () => {
   }
 
   try {
-    await workspacePresenter.openFile(props.node.path)
+    await workspaceClient.openFile(props.node.path)
   } catch (error) {
     console.error(`[Workspace] Failed to open file: ${props.node.path}`, error)
   }
@@ -150,7 +150,7 @@ const handleOpenFile = async () => {
 
 const handleRevealInFolder = async () => {
   try {
-    await workspacePresenter.revealFileInFolder(props.node.path)
+    await workspaceClient.revealFileInFolder(props.node.path)
   } catch (error) {
     console.error(`[Workspace] Failed to reveal path: ${props.node.path}`, error)
   }

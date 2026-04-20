@@ -1,7 +1,8 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useDebounceFn } from '@vueuse/core'
-import { useLegacyAgentSessionPresenter, useLegacyWindowPresenter } from '@api/legacy/presenters'
+import { SettingsClient } from '@api/SettingsClient'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
 import { useProviderStore } from '@/stores/providerStore'
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
@@ -127,7 +128,7 @@ const actionItems: Array<{
 
 export const useSpotlightStore = defineStore('spotlight', () => {
   const agentSessionPresenter = useLegacyAgentSessionPresenter()
-  const windowPresenter = useLegacyWindowPresenter()
+  const settingsClient = new SettingsClient()
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
   const agentStore = useAgentStore()
@@ -330,7 +331,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
       return
     }
 
-    await windowPresenter.createSettingsWindow(
+    await settingsClient.openSettings(
       routeParams ? { routeName, params: routeParams } : { routeName }
     )
   }
@@ -454,7 +455,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         await sessionStore.startNewConversation({ refresh: true })
         return
       case 'open-settings':
-        await windowPresenter.openOrFocusSettingsWindow()
+        await settingsClient.openSettings()
         return
       case 'open-providers':
       case 'open-agents':

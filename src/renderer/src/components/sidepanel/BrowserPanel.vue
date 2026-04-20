@@ -57,14 +57,11 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
+import { BrowserClient } from '@api/BrowserClient'
 import BrowserPlaceholder from './BrowserPlaceholder.vue'
 import type { YoBrowserStatus } from '@shared/types/browser'
-import { useLegacyBrowserPresenter } from '@api/legacy/presenters'
-import { YO_BROWSER_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
-import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
-import { getLegacyWindowId } from '@api/legacy/runtime'
 
 const props = defineProps<{
   sessionId: string | null
@@ -73,11 +70,9 @@ const props = defineProps<{
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
 const sessionStore = useSessionStore()
-const yoBrowserPresenter = useLegacyBrowserPresenter()
-const browserEvents = createIpcSubscriptionScope()
+const browserClient = new BrowserClient()
 
 const containerRef = ref<HTMLElement | null>(null)
-const hostWindowId = ref<number | null>(null)
 const browserStatus = ref<YoBrowserStatus>({
   initialized: false,
   page: null,
@@ -93,6 +88,8 @@ const canGoForward = ref(false)
 const lastSyncedBounds = ref<Rectangle | null>(null)
 const pendingBrowserDestroySessionIds = new Set<string>()
 let visibilityRunId = 0
+let stopOpenRequestedListener: (() => void) | null = null
+let stopStatusChangedListener: (() => void) | null = null
 
 const STABLE_RECT_SAMPLE_MS = 48
 const STABLE_RECT_TIMEOUT_MS = 1500
@@ -105,57 +102,17 @@ const isBrowserPanelVisible = computed(
   () => sidepanelStore.open && sidepanelStore.activeTab === 'browser'
 )
 
-const isPresenterError = (value: unknown): value is { error: string } => {
-  return Boolean(
-    value &&
-    typeof value === 'object' &&
-    'error' in value &&
-    typeof (value as { error?: unknown }).error === 'string'
-  )
-}
-
-const callPresenter = async <T>(
-  action: string,
-  promise: Promise<T | { error: string } | null>
-): Promise<T | null> => {
-  const result = await promise
-  if (isPresenterError(result)) {
-    console.error(`[BrowserPanel] ${action} failed`, result.error)
-    return null
-  }
-
-  return result as T | null
-}
-
-const resolvePayloadSessionId = (payload: unknown): string => {
-  if (!payload || typeof payload !== 'object') {
-    return ''
-  }
-
-  const typedPayload = payload as { sessionId?: unknown }
-  return typeof typedPayload.sessionId === 'string' ? typedPayload.sessionId : ''
-}
-
-const resolvePayloadWindowId = (payload: unknown): number | null => {
-  if (!payload || typeof payload !== 'object') {
-    return null
-  }
-
-  const typedPayload = payload as { windowId?: unknown }
-  return typeof typedPayload.windowId === 'number' ? typedPayload.windowId : null
-}
-
-const resolvePayloadUrl = (payload: unknown): string => {
-  if (!payload || typeof payload !== 'object') {
-    return ''
-  }
-
-  const typedPayload = payload as { url?: unknown }
-  return typeof typedPayload.url === 'string' ? typedPayload.url : ''
-}
-
 const getSessionUiStatus = (sessionId: string) => {
   return sessionStore.sessions.find((session) => session.id === sessionId)?.status ?? null
+}
+
+const callBrowserAction = async <T>(action: string, run: () => Promise<T>): Promise<T | null> => {
+  try {
+    return await run()
+  } catch (error) {
+    console.error(`[BrowserPanel] ${action} failed`, error)
+    return null
+  }
 }
 
 const resetBrowserState = () => {
@@ -171,6 +128,14 @@ const resetBrowserState = () => {
   urlInput.value = ''
   canGoBack.value = false
   canGoForward.value = false
+}
+
+const applyBrowserStatus = (status: YoBrowserStatus) => {
+  browserStatus.value = status
+  currentUrl.value = status.page?.url || 'about:blank'
+  urlInput.value = currentUrl.value === 'about:blank' ? '' : currentUrl.value
+  canGoBack.value = status.canGoBack
+  canGoForward.value = status.canGoForward
 }
 
 const captureContainerBounds = (): Rectangle | null => {
@@ -211,9 +176,7 @@ const waitForStableRect = async (runId: number): Promise<Rectangle | null> => {
     }
 
     if (Date.now() >= deadline) {
-      console.warn('[BrowserPanel] stable rect wait timed out', {
-        windowId: hostWindowId.value
-      })
+      console.warn('[BrowserPanel] stable rect wait timed out')
       return null
     }
 
@@ -229,10 +192,7 @@ const loadState = async (sessionId: string = currentSessionId.value) => {
     return
   }
 
-  const status = await callPresenter<YoBrowserStatus>(
-    'getBrowserStatus',
-    yoBrowserPresenter.getBrowserStatus(sessionId)
-  )
+  const status = await callBrowserAction('getStatus', () => browserClient.getStatus(sessionId))
   if (sessionId !== currentSessionId.value) {
     return
   }
@@ -242,20 +202,11 @@ const loadState = async (sessionId: string = currentSessionId.value) => {
     return
   }
 
-  browserStatus.value = status
-  currentUrl.value = status.page?.url || 'about:blank'
-  urlInput.value = currentUrl.value === 'about:blank' ? '' : currentUrl.value
-  canGoBack.value = status.canGoBack
-  canGoForward.value = status.canGoForward
+  applyBrowserStatus(status)
 }
 
 const syncVisibleBounds = async () => {
-  if (
-    hostWindowId.value == null ||
-    !currentSessionId.value ||
-    !browserStatus.value.initialized ||
-    !isBrowserPanelVisible.value
-  ) {
+  if (!currentSessionId.value || !browserStatus.value.initialized || !isBrowserPanelVisible.value) {
     return
   }
 
@@ -265,14 +216,8 @@ const syncVisibleBounds = async () => {
   }
 
   lastSyncedBounds.value = rect
-  await callPresenter(
-    'updateSessionBrowserBounds',
-    yoBrowserPresenter.updateSessionBrowserBounds(
-      currentSessionId.value,
-      hostWindowId.value,
-      rect,
-      true
-    )
+  await callBrowserAction('updateCurrentWindowBounds', () =>
+    browserClient.updateCurrentWindowBounds(currentSessionId.value, rect, true)
   )
 }
 
@@ -291,27 +236,14 @@ const hideEmbedded = async (sessionId: string = currentSessionId.value) => {
       height: 0
     }
 
-  if (hostWindowId.value != null) {
-    await callPresenter(
-      'updateSessionBrowserBounds(hidden)',
-      yoBrowserPresenter.updateSessionBrowserBounds(
-        sessionId,
-        hostWindowId.value,
-        hiddenBounds,
-        false
-      )
-    )
-  }
-  await callPresenter('detachSessionBrowser', yoBrowserPresenter.detachSessionBrowser(sessionId))
+  await callBrowserAction('updateCurrentWindowBounds(hidden)', () =>
+    browserClient.updateCurrentWindowBounds(sessionId, hiddenBounds, false)
+  )
+  await callBrowserAction('detach', () => browserClient.detach(sessionId))
 }
 
 const ensureVisibleAttachment = async () => {
-  if (
-    hostWindowId.value == null ||
-    !currentSessionId.value ||
-    !browserStatus.value.initialized ||
-    !isBrowserPanelVisible.value
-  ) {
+  if (!currentSessionId.value || !browserStatus.value.initialized || !isBrowserPanelVisible.value) {
     return
   }
 
@@ -319,67 +251,57 @@ const ensureVisibleAttachment = async () => {
   await nextTick()
 
   const stableRect = await waitForStableRect(runId)
-  if (
-    stableRect == null ||
-    runId !== visibilityRunId ||
-    hostWindowId.value == null ||
-    !isBrowserPanelVisible.value
-  ) {
+  if (stableRect == null || runId !== visibilityRunId || !isBrowserPanelVisible.value) {
     return
   }
 
-  const attached = await callPresenter<boolean>(
-    'attachSessionBrowser',
-    yoBrowserPresenter.attachSessionBrowser(currentSessionId.value, hostWindowId.value)
+  const attached = await callBrowserAction('attachCurrentWindow', () =>
+    browserClient.attachCurrentWindow(currentSessionId.value)
   )
   if (!attached || runId !== visibilityRunId) {
     return
   }
 
   lastSyncedBounds.value = stableRect
-  await callPresenter(
-    'updateSessionBrowserBounds(visible)',
-    yoBrowserPresenter.updateSessionBrowserBounds(
-      currentSessionId.value,
-      hostWindowId.value,
-      stableRect,
-      true
-    )
+  await callBrowserAction('updateCurrentWindowBounds(visible)', () =>
+    browserClient.updateCurrentWindowBounds(currentSessionId.value, stableRect, true)
   )
   await loadState(currentSessionId.value)
 }
 
-const handleBrowserEvent = async (_event: unknown, payload: unknown) => {
-  if (resolvePayloadSessionId(payload) !== currentSessionId.value) {
+const handleStatusChanged = async (payload: {
+  sessionId: string
+  reason: 'created' | 'updated' | 'closed' | 'focused' | 'visibility'
+  status: YoBrowserStatus | null
+  version: number
+}) => {
+  if (payload.sessionId !== currentSessionId.value) {
     return
   }
 
   await loadState(currentSessionId.value)
 }
 
-const handleOpenRequested = async (_event: unknown, payload: unknown) => {
-  if (
-    resolvePayloadSessionId(payload) !== currentSessionId.value ||
-    hostWindowId.value == null ||
-    resolvePayloadWindowId(payload) !== hostWindowId.value
-  ) {
+const handleOpenRequested = async (payload: {
+  sessionId: string
+  windowId: number
+  url: string
+  version: number
+}) => {
+  if (payload.sessionId !== currentSessionId.value) {
     return
   }
 
-  const url = resolvePayloadUrl(payload)
   console.info('[BrowserPanel] panel open requested', {
-    windowId: hostWindowId.value,
-    url
+    windowId: payload.windowId,
+    url: payload.url
   })
 
-  // Update the URL input to reflect the requested URL
-  if (url) {
-    urlInput.value = url
+  if (payload.url) {
+    urlInput.value = payload.url
   }
 
   await loadState(currentSessionId.value)
-
-  // Wait for panel to be visible and DOM ready before attaching
   await nextTick()
   if (isBrowserPanelVisible.value) {
     await ensureVisibleAttachment()
@@ -407,15 +329,14 @@ const navigate = async () => {
     return
   }
 
-  const result = await callPresenter<YoBrowserStatus>(
-    'loadUrl',
-    yoBrowserPresenter.loadUrl(currentSessionId.value, nextUrl)
+  const result = await callBrowserAction('loadUrl', () =>
+    browserClient.loadUrl(currentSessionId.value, nextUrl)
   )
   if (result === null) {
     return
   }
 
-  browserStatus.value = result
+  applyBrowserStatus(result)
   await loadState(currentSessionId.value)
 }
 
@@ -424,9 +345,8 @@ const goBack = async () => {
     return
   }
 
-  const result = await callPresenter<void>(
-    'goBack',
-    yoBrowserPresenter.goBack(currentSessionId.value)
+  const result = await callBrowserAction('goBack', () =>
+    browserClient.goBack(currentSessionId.value)
   )
   if (result === null) {
     return
@@ -440,9 +360,8 @@ const goForward = async () => {
     return
   }
 
-  const result = await callPresenter<void>(
-    'goForward',
-    yoBrowserPresenter.goForward(currentSessionId.value)
+  const result = await callBrowserAction('goForward', () =>
+    browserClient.goForward(currentSessionId.value)
   )
   if (result === null) {
     return
@@ -456,9 +375,8 @@ const reloadPage = async () => {
     return
   }
 
-  const result = await callPresenter<void>(
-    'reload',
-    yoBrowserPresenter.reload(currentSessionId.value)
+  const result = await callBrowserAction('reload', () =>
+    browserClient.reload(currentSessionId.value)
   )
   if (result === null) {
     return
@@ -479,7 +397,7 @@ const cleanupInactiveSession = async (sessionId: string) => {
   }
 
   pendingBrowserDestroySessionIds.delete(sessionId)
-  await callPresenter('destroySessionBrowser', yoBrowserPresenter.destroySessionBrowser(sessionId))
+  await callBrowserAction('destroy', () => browserClient.destroy(sessionId))
 }
 
 const flushPendingSessionDestroys = async () => {
@@ -489,10 +407,7 @@ const flushPendingSessionDestroys = async () => {
     }
 
     pendingBrowserDestroySessionIds.delete(sessionId)
-    await callPresenter(
-      'destroySessionBrowser',
-      yoBrowserPresenter.destroySessionBrowser(sessionId)
-    )
+    await callBrowserAction('destroy', () => browserClient.destroy(sessionId))
   }
 }
 
@@ -545,13 +460,8 @@ watch(
 )
 
 onMounted(async () => {
-  hostWindowId.value = getLegacyWindowId()
-  browserEvents.on(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleOpenRequested)
-  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_CREATED, handleBrowserEvent)
-  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_UPDATED, handleBrowserEvent)
-  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_CLOSED, handleBrowserEvent)
-  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_FOCUSED, handleBrowserEvent)
-  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED, handleBrowserEvent)
+  stopOpenRequestedListener = browserClient.onOpenRequestedForCurrentWindow(handleOpenRequested)
+  stopStatusChangedListener = browserClient.onStatusChanged(handleStatusChanged)
 
   if (currentSessionId.value) {
     await loadState(currentSessionId.value)
@@ -563,6 +473,9 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   void hideEmbedded(currentSessionId.value)
-  browserEvents.cleanup()
+  stopOpenRequestedListener?.()
+  stopOpenRequestedListener = null
+  stopStatusChangedListener?.()
+  stopStatusChangedListener = null
 })
 </script>

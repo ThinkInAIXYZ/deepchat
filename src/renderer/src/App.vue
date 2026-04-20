@@ -31,12 +31,13 @@ import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
 import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
-import { sendLegacyIpc } from '@api/legacy/runtime'
+import { WindowClient } from '@api/WindowClient'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
 const route = useRoute()
 const configClient = new ConfigClient()
+const windowClient = new WindowClient()
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
@@ -369,7 +370,7 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
 // Handle ESC key - close floating chat window
 const handleEscKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
-    sendLegacyIpc('close-floating-window')
+    void windowClient.closeFloatingCurrent()
   }
 }
 

@@ -766,7 +766,13 @@ registerMainKernelRoutes(ipcMain, () =>
         configPresenter: presenter.configPresenter,
         llmProviderPresenter: presenter.llmproviderPresenter,
         agentSessionPresenter: presenter.agentSessionPresenter,
-        windowPresenter: presenter.windowPresenter
+        windowPresenter: presenter.windowPresenter,
+        devicePresenter: presenter.devicePresenter,
+        projectPresenter: presenter.projectPresenter,
+        filePresenter: presenter.filePresenter,
+        workspacePresenter: presenter.workspacePresenter,
+        yoBrowserPresenter: presenter.yoBrowserPresenter,
+        tabPresenter: presenter.tabPresenter
       }))
     : undefined
 )

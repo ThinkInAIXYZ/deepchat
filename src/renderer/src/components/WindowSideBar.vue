@@ -334,9 +334,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { useLegacyRemoteControlPresenter, useLegacyWindowPresenter } from '@api/legacy/presenters'
-import { getLegacyWindowId } from '@api/legacy/runtime'
-import { SETTINGS_EVENTS } from '@/events'
+import { SettingsClient } from '@api/SettingsClient'
+import { useLegacyRemoteControlPresenter } from '@api/legacy/presenters'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
@@ -361,7 +360,7 @@ const PIN_FLIGHT_DURATION_MS = 500
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
 
-const windowPresenter = useLegacyWindowPresenter()
+const settingsClient = new SettingsClient()
 const remoteControlPresenter = useLegacyRemoteControlPresenter()
 const { t } = useI18n()
 const agentStore = useAgentStore()
@@ -642,28 +641,11 @@ watch(
 )
 
 const openSettings = () => {
-  const windowId = getLegacyWindowId()
-  if (windowId != null) {
-    void windowPresenter.openOrFocusSettingsWindow()
-  }
-}
-
-const navigateToSettings = (windowId: number, routeName: 'settings-remote') => {
-  void windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
-    routeName
-  })
+  void settingsClient.openSettings()
 }
 
 const openRemoteSettings = async () => {
-  const settingsWindowId = await windowPresenter.createSettingsWindow()
-  if (settingsWindowId == null) {
-    return
-  }
-
-  navigateToSettings(settingsWindowId, 'settings-remote')
-  window.setTimeout(() => {
-    navigateToSettings(settingsWindowId, 'settings-remote')
-  }, 250)
+  await settingsClient.openSettings({ routeName: 'settings-remote' })
 }
 
 const refreshRemoteControlStatus = async () => {

@@ -8,10 +8,10 @@ vi.mock('vue-i18n', () => ({
   })
 }))
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: () => ({
+vi.mock('@api/DeviceClient', () => ({
+  DeviceClient: vi.fn(() => ({
     sanitizeSvgContent: vi.fn(async (content: string) => content)
-  })
+  }))
 }))
 
 describe('SvgArtifact', () => {

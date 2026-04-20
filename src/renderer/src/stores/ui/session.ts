@@ -3,8 +3,10 @@ import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
 import { ChatClient } from '../../../api/ChatClient'
 import { ConfigClient } from '../../../api/ConfigClient'
 import { SessionClient } from '../../../api/SessionClient'
+import { TabClient } from '@api/TabClient'
+import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
-import { useLegacyAgentSessionPresenter, useLegacyTabPresenter } from '@api/legacy/presenters'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
 import type {
   DeepChatSubagentMeta,
   SessionWithState,
@@ -17,7 +19,6 @@ import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { bindSessionStoreIpc } from './sessionIpc'
-import { getRendererWindowContext } from '@/lib/windowContext'
 
 // --- Type Definitions ---
 
@@ -99,7 +100,7 @@ function isRegularSession(session: Pick<UISession, 'sessionKind'>): boolean {
 }
 
 function getCurrentWebContentsId(): number {
-  return getRendererWindowContext().webContentsId ?? -1
+  return getRuntimeWebContentsId() ?? -1
 }
 
 function registerStoreCleanup(cleanup: () => void): void {
@@ -193,8 +194,8 @@ export const useSessionStore = defineStore('session', () => {
   const sessionClient = new SessionClient()
   const chatClient = new ChatClient()
   const configClient = new ConfigClient()
+  const tabClient = new TabClient()
   const agentSessionPresenter = useLegacyAgentSessionPresenter()
-  const tabPresenter = useLegacyTabPresenter()
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
@@ -220,7 +221,7 @@ export const useSessionStore = defineStore('session', () => {
   const notifyRendererReady = (): void => {
     if (rendererReadyNotified) return
     rendererReadyNotified = true
-    void tabPresenter.onRendererTabReady(myWebContentsId)
+    void tabClient.notifyRendererReady()
   }
 
   notifyRendererReady()
@@ -612,7 +613,7 @@ export const useSessionStore = defineStore('session', () => {
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
       pageRouter.goToChat(sessionId)
-      void tabPresenter.onRendererTabActivated(sessionId)
+      void tabClient.notifyRendererActivated(sessionId)
     },
     onDeactivated: () => {
       messageStore.clearStreamingState()

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { BrowserPageStatus } from '../types/browser'
 import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import { JsonValueSchema, ProviderModelSummarySchema } from './common'
 import {
@@ -354,3 +355,178 @@ export const ConfigValueSchema = z.union([
   z.null(),
   JsonValueSchema
 ])
+
+const FileMetadataValueSchema = z.union([JsonValueSchema, z.date()])
+
+export const PreparedMessageFileSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  type: z.string().optional(),
+  size: z.number().optional(),
+  content: z.string().optional(),
+  mimeType: z.string().optional(),
+  token: z.number().optional(),
+  thumbnail: z.string().optional(),
+  metadata: z.record(FileMetadataValueSchema).optional()
+})
+
+export const DeviceInfoSchema = z.object({
+  platform: z.string(),
+  arch: z.string(),
+  cpuModel: z.string(),
+  totalMemory: z.number(),
+  osVersion: z.string(),
+  osVersionMetadata: z.array(
+    z.object({
+      name: z.string(),
+      build: z.number().int()
+    })
+  )
+})
+
+export const ProjectSchema = z.object({
+  path: z.string().min(1),
+  name: z.string(),
+  icon: z.string().nullable(),
+  lastAccessedAt: z.number().int()
+})
+
+export const EnvironmentSummarySchema = z.object({
+  path: z.string().min(1),
+  name: z.string(),
+  sessionCount: z.number().int(),
+  lastUsedAt: z.number().int(),
+  isTemp: z.boolean(),
+  exists: z.boolean()
+})
+
+export const WorkspaceInvalidationKindSchema = z.enum(['fs', 'git', 'full'])
+export const WorkspaceInvalidationSourceSchema = z.enum(['watcher', 'fallback', 'lifecycle'])
+export const WorkspaceFilePreviewKindSchema = z.enum([
+  'text',
+  'markdown',
+  'html',
+  'pdf',
+  'svg',
+  'image',
+  'binary'
+])
+export const WorkspaceGitChangeTypeSchema = z.enum([
+  'modified',
+  'added',
+  'deleted',
+  'renamed',
+  'copied',
+  'untracked',
+  'ignored',
+  'unmerged'
+])
+
+export const WorkspaceFileNodeSchema: z.ZodType<{
+  name: string
+  path: string
+  isDirectory: boolean
+  children?: Array<{
+    name: string
+    path: string
+    isDirectory: boolean
+    children?: unknown[]
+    expanded?: boolean
+  }>
+  expanded?: boolean
+}> = z.lazy(() =>
+  z.object({
+    name: z.string(),
+    path: z.string(),
+    isDirectory: z.boolean(),
+    children: z.array(WorkspaceFileNodeSchema).optional(),
+    expanded: z.boolean().optional()
+  })
+)
+
+export const WorkspaceFileMetadataSchema = z.object({
+  fileName: z.string(),
+  fileSize: z.number(),
+  fileDescription: z.string().optional(),
+  fileCreated: z.date(),
+  fileModified: z.date()
+})
+
+export const WorkspaceFilePreviewSchema = z.object({
+  path: z.string(),
+  relativePath: z.string(),
+  name: z.string(),
+  mimeType: z.string(),
+  kind: WorkspaceFilePreviewKindSchema,
+  content: z.string(),
+  previewUrl: z.string().optional(),
+  thumbnail: z.string().optional(),
+  language: z.string().nullable().optional(),
+  metadata: WorkspaceFileMetadataSchema
+})
+
+export const WorkspaceGitFileChangeSchema = z.object({
+  path: z.string(),
+  relativePath: z.string(),
+  previousPath: z.string().nullable().optional(),
+  stagedStatus: z.string().nullable(),
+  unstagedStatus: z.string().nullable(),
+  type: WorkspaceGitChangeTypeSchema
+})
+
+export const WorkspaceGitStateSchema = z.object({
+  workspacePath: z.string(),
+  branch: z.string().nullable(),
+  ahead: z.number().int(),
+  behind: z.number().int(),
+  changes: z.array(WorkspaceGitFileChangeSchema)
+})
+
+export const WorkspaceGitDiffSchema = z.object({
+  workspacePath: z.string(),
+  filePath: z.string().nullable(),
+  relativePath: z.string().nullable(),
+  staged: z.string(),
+  unstaged: z.string()
+})
+
+export const WorkspaceLinkedFileResolutionSchema = z.object({
+  path: z.string(),
+  name: z.string(),
+  relativePath: z.string(),
+  workspaceRoot: z.string().nullable()
+})
+
+export const BrowserPageInfoSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  title: z.string().optional(),
+  favicon: z.string().optional(),
+  status: z.nativeEnum(BrowserPageStatus),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int()
+})
+
+export const YoBrowserStatusSchema = z.object({
+  initialized: z.boolean(),
+  page: BrowserPageInfoSchema.nullable(),
+  canGoBack: z.boolean(),
+  canGoForward: z.boolean(),
+  visible: z.boolean(),
+  loading: z.boolean()
+})
+
+export const RectangleSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number()
+})
+
+export const WindowStateSchema = z.object({
+  windowId: z.number().int().nullable(),
+  exists: z.boolean(),
+  isMaximized: z.boolean(),
+  isFullScreen: z.boolean(),
+  isFocused: z.boolean()
+})

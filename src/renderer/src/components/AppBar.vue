@@ -56,19 +56,17 @@ import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
-import { useLegacyDevicePresenter, useLegacyWindowPresenter } from '@api/legacy/presenters'
-import { getLegacyWindowId } from '@api/legacy/runtime'
+import { DeviceClient } from '@api/DeviceClient'
+import { WindowClient } from '@api/WindowClient'
 import { Button } from '@shadcn/components/ui/button'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
-import { WINDOW_EVENTS } from '@/events'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useRoute } from 'vue-router'
-import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 
 const langStore = useLanguageStore()
-const windowPresenter = useLegacyWindowPresenter()
-const devicePresenter = useLegacyDevicePresenter()
+const windowClient = new WindowClient()
+const deviceClient = new DeviceClient()
 const upgrade = useUpgradeStore()
 const route = useRoute()
 
@@ -80,27 +78,17 @@ const isFullscreened = ref(false)
 const showUpdateButton = computed(
   () => route.name !== 'welcome' && upgrade.shouldShowTopbarInstallButton
 )
-const windowEvents = createIpcSubscriptionScope()
 
 const minimizeWindow = () => {
-  const id = getLegacyWindowId()
-  if (id != null) {
-    windowPresenter.minimize(id)
-  }
+  void windowClient.minimizeCurrent()
 }
 
 const toggleMaximize = () => {
-  const id = getLegacyWindowId()
-  if (id != null) {
-    windowPresenter.maximize(id)
-  }
+  void windowClient.toggleMaximizeCurrent()
 }
 
 const closeWindow = () => {
-  const id = getLegacyWindowId()
-  if (id != null) {
-    windowPresenter.close(id)
-  }
+  void windowClient.closeCurrent()
 }
 
 const handleInstallUpdate = async () => {
@@ -109,26 +97,26 @@ const handleInstallUpdate = async () => {
 
 onMounted(() => {
   void upgrade.refreshStatus()
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
+  deviceClient.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-  windowEvents.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, () => {
-    isMaximized.value = true
+
+  void windowClient.getCurrentState().then((state) => {
+    isMaximized.value = state.isMaximized
+    isFullscreened.value = state.isFullScreen
   })
-  windowEvents.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, () => {
-    isFullscreened.value = true
-  })
-  windowEvents.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, () => {
-    isMaximized.value = false
-  })
-  windowEvents.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, () => {
-    isFullscreened.value = false
+
+  stopWindowStateListener = windowClient.onCurrentStateChanged((payload) => {
+    isMaximized.value = payload.isMaximized
+    isFullscreened.value = payload.isFullScreen
   })
 })
 
 onBeforeUnmount(() => {
-  windowEvents.cleanup()
+  stopWindowStateListener?.()
 })
+
+let stopWindowStateListener: (() => void) | null = null
 </script>
 
 <style scoped>

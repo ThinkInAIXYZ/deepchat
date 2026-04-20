@@ -1,6 +1,17 @@
 import type { z } from 'zod'
 import type { RouteContract } from './common'
 import {
+  browserAttachCurrentWindowRoute,
+  browserDestroyRoute,
+  browserDetachRoute,
+  browserGetStatusRoute,
+  browserGoBackRoute,
+  browserGoForwardRoute,
+  browserLoadUrlRoute,
+  browserReloadRoute,
+  browserUpdateCurrentWindowBoundsRoute
+} from './routes/browser.routes'
+import {
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatStopStreamRoute
@@ -53,6 +64,21 @@ import {
   configUpdateVoiceAiConfigRoute
 } from './routes/config.routes'
 import {
+  deviceGetAppVersionRoute,
+  deviceGetInfoRoute,
+  deviceRestartAppRoute,
+  deviceSanitizeSvgRoute,
+  deviceSelectDirectoryRoute
+} from './routes/device.routes'
+import {
+  fileGetMimeTypeRoute,
+  fileIsDirectoryRoute,
+  filePrepareDirectoryRoute,
+  filePrepareFileRoute,
+  fileReadFileRoute,
+  fileWriteImageBase64Route
+} from './routes/file.routes'
+import {
   modelsAddCustomRoute,
   modelsExportConfigsRoute,
   modelsGetCapabilitiesRoute,
@@ -87,6 +113,12 @@ import {
   providersWarmupAcpProcessRoute
 } from './routes/providers.routes'
 import {
+  projectListEnvironmentsRoute,
+  projectListRecentRoute,
+  projectOpenDirectoryRoute,
+  projectSelectDirectoryRoute
+} from './routes/project.routes'
+import {
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute
@@ -100,16 +132,99 @@ import {
   sessionsRestoreRoute
 } from './routes/sessions.routes'
 import { systemOpenSettingsRoute } from './routes/system.routes'
+import {
+  tabCaptureCurrentAreaRoute,
+  tabNotifyRendererActivatedRoute,
+  tabNotifyRendererReadyRoute,
+  tabStitchImagesWithWatermarkRoute
+} from './routes/tab.routes'
+import {
+  windowCloseCurrentRoute,
+  windowCloseFloatingCurrentRoute,
+  windowGetCurrentStateRoute,
+  windowMinimizeCurrentRoute,
+  windowPreviewFileRoute,
+  windowToggleMaximizeCurrentRoute
+} from './routes/window.routes'
+import {
+  workspaceExpandDirectoryRoute,
+  workspaceGetGitDiffRoute,
+  workspaceGetGitStatusRoute,
+  workspaceOpenFileRoute,
+  workspaceReadDirectoryRoute,
+  workspaceReadFilePreviewRoute,
+  workspaceRegisterRoute,
+  workspaceResolveMarkdownLinkedFileRoute,
+  workspaceRevealFileInFolderRoute,
+  workspaceSearchFilesRoute,
+  workspaceUnregisterRoute,
+  workspaceUnwatchRoute,
+  workspaceWatchRoute
+} from './routes/workspace.routes'
 
+export * from './routes/browser.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
+export * from './routes/device.routes'
+export * from './routes/file.routes'
 export * from './routes/models.routes'
 export * from './routes/providers.routes'
+export * from './routes/project.routes'
 export * from './routes/settings.routes'
 export * from './routes/sessions.routes'
 export * from './routes/system.routes'
+export * from './routes/tab.routes'
+export * from './routes/window.routes'
+export * from './routes/workspace.routes'
 
 export const DEEPCHAT_ROUTE_CATALOG = {
+  [windowGetCurrentStateRoute.name]: windowGetCurrentStateRoute,
+  [windowMinimizeCurrentRoute.name]: windowMinimizeCurrentRoute,
+  [windowToggleMaximizeCurrentRoute.name]: windowToggleMaximizeCurrentRoute,
+  [windowCloseCurrentRoute.name]: windowCloseCurrentRoute,
+  [windowCloseFloatingCurrentRoute.name]: windowCloseFloatingCurrentRoute,
+  [windowPreviewFileRoute.name]: windowPreviewFileRoute,
+  [deviceGetAppVersionRoute.name]: deviceGetAppVersionRoute,
+  [deviceGetInfoRoute.name]: deviceGetInfoRoute,
+  [deviceSelectDirectoryRoute.name]: deviceSelectDirectoryRoute,
+  [deviceRestartAppRoute.name]: deviceRestartAppRoute,
+  [deviceSanitizeSvgRoute.name]: deviceSanitizeSvgRoute,
+  [projectListRecentRoute.name]: projectListRecentRoute,
+  [projectListEnvironmentsRoute.name]: projectListEnvironmentsRoute,
+  [projectOpenDirectoryRoute.name]: projectOpenDirectoryRoute,
+  [projectSelectDirectoryRoute.name]: projectSelectDirectoryRoute,
+  [fileGetMimeTypeRoute.name]: fileGetMimeTypeRoute,
+  [filePrepareFileRoute.name]: filePrepareFileRoute,
+  [filePrepareDirectoryRoute.name]: filePrepareDirectoryRoute,
+  [fileReadFileRoute.name]: fileReadFileRoute,
+  [fileIsDirectoryRoute.name]: fileIsDirectoryRoute,
+  [fileWriteImageBase64Route.name]: fileWriteImageBase64Route,
+  [workspaceRegisterRoute.name]: workspaceRegisterRoute,
+  [workspaceUnregisterRoute.name]: workspaceUnregisterRoute,
+  [workspaceWatchRoute.name]: workspaceWatchRoute,
+  [workspaceUnwatchRoute.name]: workspaceUnwatchRoute,
+  [workspaceReadDirectoryRoute.name]: workspaceReadDirectoryRoute,
+  [workspaceExpandDirectoryRoute.name]: workspaceExpandDirectoryRoute,
+  [workspaceRevealFileInFolderRoute.name]: workspaceRevealFileInFolderRoute,
+  [workspaceOpenFileRoute.name]: workspaceOpenFileRoute,
+  [workspaceReadFilePreviewRoute.name]: workspaceReadFilePreviewRoute,
+  [workspaceResolveMarkdownLinkedFileRoute.name]: workspaceResolveMarkdownLinkedFileRoute,
+  [workspaceGetGitStatusRoute.name]: workspaceGetGitStatusRoute,
+  [workspaceGetGitDiffRoute.name]: workspaceGetGitDiffRoute,
+  [workspaceSearchFilesRoute.name]: workspaceSearchFilesRoute,
+  [browserGetStatusRoute.name]: browserGetStatusRoute,
+  [browserLoadUrlRoute.name]: browserLoadUrlRoute,
+  [browserAttachCurrentWindowRoute.name]: browserAttachCurrentWindowRoute,
+  [browserUpdateCurrentWindowBoundsRoute.name]: browserUpdateCurrentWindowBoundsRoute,
+  [browserDetachRoute.name]: browserDetachRoute,
+  [browserDestroyRoute.name]: browserDestroyRoute,
+  [browserGoBackRoute.name]: browserGoBackRoute,
+  [browserGoForwardRoute.name]: browserGoForwardRoute,
+  [browserReloadRoute.name]: browserReloadRoute,
+  [tabNotifyRendererReadyRoute.name]: tabNotifyRendererReadyRoute,
+  [tabNotifyRendererActivatedRoute.name]: tabNotifyRendererActivatedRoute,
+  [tabCaptureCurrentAreaRoute.name]: tabCaptureCurrentAreaRoute,
+  [tabStitchImagesWithWatermarkRoute.name]: tabStitchImagesWithWatermarkRoute,
   [configGetEntriesRoute.name]: configGetEntriesRoute,
   [configUpdateEntriesRoute.name]: configUpdateEntriesRoute,
   [configGetLanguageRoute.name]: configGetLanguageRoute,

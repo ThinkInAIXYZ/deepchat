@@ -312,6 +312,16 @@ P0 Rules & Guard Hardening
 
 - 清掉第二批最容易让开发者“顺手继续写 raw IPC”的能力
 
+当前状态（`2026-04-20`）：
+
+- 已完成
+- 已补齐 `WindowClient`、`DeviceClient`、`WorkspaceClient`、`ProjectClient`、`FileClient`、`BrowserClient`、`TabClient`，并通过 `src/renderer/api/runtime.ts` 收口唯一 `window.api` typed runtime wrapper
+- 已补齐 window / workspace / browser family typed events，以及对应 shared route / event contracts 和 main route runtime 分发
+- `App.vue`、`AppBar.vue`、`stores/ui/project.ts`、workspace / browser / project / file / device 相关组件与 composables 已完成 cutover
+- `WelcomePage.vue` 与 `NewThreadPage.vue` 已完成 P3 范围审计：前者无需新增改动，后者仅残留 `agentSessionPresenter` 的 P4 scope 调用，不再包含 P3 family transport
+- 业务层 `windowPresenter` / `devicePresenter` / `workspacePresenter` / `projectPresenter` / `filePresenter` / `yoBrowserPresenter` / `tabPresenter` 命中已清零，`src/renderer/src/**` 中不再 direct 使用 window/window-tab 相关 raw IPC
+- P3 定向 main / renderer 自动回归，以及 `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 已通过；后续仅剩 P4 residual family 清理
+
 交付物：
 
 - `WindowClient`

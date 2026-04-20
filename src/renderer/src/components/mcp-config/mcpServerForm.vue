@@ -18,12 +18,12 @@ import { EmojiPicker } from '@/components/emoji-picker'
 import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
 import { X } from 'lucide-vue-next'
-import { useLegacyDevicePresenter } from '@api/legacy/presenters'
+import { DeviceClient } from '@api/DeviceClient'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
 const { toast } = useToast()
-const devicePresenter = useLegacyDevicePresenter()
+const deviceClient = new DeviceClient()
 const props = defineProps<{
   serverName?: string
   initialConfig?: MCPServerConfig
@@ -304,7 +304,7 @@ const foldersList = ref<string[]>([])
 // 添加文件夹选择方法
 const addFolder = async (): Promise<void> => {
   try {
-    const result = await devicePresenter.selectDirectory()
+    const result = await deviceClient.selectDirectory()
 
     if (!result.canceled && result.filePaths.length > 0) {
       const selectedPath = result.filePaths[0]

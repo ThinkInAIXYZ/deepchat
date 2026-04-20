@@ -1,5 +1,12 @@
+import { BrowserWindow } from 'electron'
 import { eventBus } from '@/eventbus'
-import { CONFIG_EVENTS, FLOATING_BUTTON_EVENTS, PROVIDER_DB_EVENTS, SYSTEM_EVENTS } from '@/events'
+import {
+  CONFIG_EVENTS,
+  FLOATING_BUTTON_EVENTS,
+  PROVIDER_DB_EVENTS,
+  SYSTEM_EVENTS,
+  WINDOW_EVENTS
+} from '@/events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 import type { IConfigPresenter, ILlmProviderPresenter, ShortcutKeySetting } from '@shared/presenter'
 import {
@@ -59,6 +66,38 @@ export function setupLegacyTypedEventBridge(deps: {
     })
   }
 
+  const resolveWindowId = (payload: unknown): number | null => {
+    if (typeof payload === 'number') {
+      return payload
+    }
+
+    if (
+      payload &&
+      typeof payload === 'object' &&
+      'windowId' in payload &&
+      typeof (payload as { windowId?: unknown }).windowId === 'number'
+    ) {
+      return (payload as { windowId: number }).windowId
+    }
+
+    return null
+  }
+
+  const publishWindowStateChanged = (payload: unknown, existsOverride?: boolean) => {
+    const windowId = resolveWindowId(payload)
+    const window = windowId != null ? BrowserWindow.fromId(windowId) : null
+    const exists = existsOverride ?? Boolean(window && !window.isDestroyed())
+
+    publishDeepchatEvent('window.state.changed', {
+      windowId,
+      exists,
+      isMaximized: exists ? window!.isMaximized() : false,
+      isFullScreen: exists ? window!.isFullScreen() : false,
+      isFocused: exists ? window!.isFocused() : false,
+      version: Date.now()
+    })
+  }
+
   eventBus.on(CONFIG_EVENTS.LANGUAGE_CHANGED, () => {
     publishLanguageChanged()
   })
@@ -79,6 +118,38 @@ export function setupLegacyTypedEventBridge(deps: {
       enabled: Boolean(enabled),
       version: Date.now()
     })
+  })
+
+  eventBus.on(WINDOW_EVENTS.WINDOW_CREATED, (payload?: unknown) => {
+    publishWindowStateChanged(payload)
+  })
+
+  eventBus.on(WINDOW_EVENTS.WINDOW_FOCUSED, (payload?: unknown) => {
+    publishWindowStateChanged(payload)
+  })
+
+  eventBus.on(WINDOW_EVENTS.WINDOW_BLURRED, (payload?: unknown) => {
+    publishWindowStateChanged(payload)
+  })
+
+  eventBus.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, (payload?: unknown) => {
+    publishWindowStateChanged(payload)
+  })
+
+  eventBus.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, (payload?: unknown) => {
+    publishWindowStateChanged(payload)
+  })
+
+  eventBus.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, (payload?: unknown) => {
+    publishWindowStateChanged(payload)
+  })
+
+  eventBus.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, (payload?: unknown) => {
+    publishWindowStateChanged(payload)
+  })
+
+  eventBus.on(WINDOW_EVENTS.WINDOW_CLOSED, (payload?: unknown) => {
+    publishWindowStateChanged(payload, false)
   })
 
   eventBus.on(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, () => {

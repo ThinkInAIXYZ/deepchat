@@ -26,8 +26,17 @@ import {
 } from '@shared/contracts/routes'
 
 describe('main kernel contracts', () => {
-  it('registers the phase2 route catalog', () => {
+  it('registers the phase2 and phase3 route catalog', () => {
     expect(Object.keys(DEEPCHAT_ROUTE_CATALOG).sort()).toEqual([
+      'browser.attachCurrentWindow',
+      'browser.destroy',
+      'browser.detach',
+      'browser.getStatus',
+      'browser.goBack',
+      'browser.goForward',
+      'browser.loadUrl',
+      'browser.reload',
+      'browser.updateCurrentWindowBounds',
       'chat.respondToolInteraction',
       'chat.sendMessage',
       'chat.stopStream',
@@ -76,6 +85,17 @@ describe('main kernel contracts', () => {
       'config.updateSyncSettings',
       'config.updateSystemPrompt',
       'config.updateVoiceAiConfig',
+      'device.getAppVersion',
+      'device.getInfo',
+      'device.restartApp',
+      'device.sanitizeSvg',
+      'device.selectDirectory',
+      'file.getMimeType',
+      'file.isDirectory',
+      'file.prepareDirectory',
+      'file.prepareFile',
+      'file.readFile',
+      'file.writeImageBase64',
       'models.addCustom',
       'models.exportConfigs',
       'models.getCapabilities',
@@ -90,6 +110,10 @@ describe('main kernel contracts', () => {
       'models.setConfig',
       'models.setStatus',
       'models.updateCustom',
+      'project.listEnvironments',
+      'project.listRecent',
+      'project.openDirectory',
+      'project.selectDirectory',
       'providers.add',
       'providers.getAcpProcessConfigOptions',
       'providers.getRateLimitStatus',
@@ -115,7 +139,30 @@ describe('main kernel contracts', () => {
       'settings.getSnapshot',
       'settings.listSystemFonts',
       'settings.update',
-      'system.openSettings'
+      'system.openSettings',
+      'tab.captureCurrentArea',
+      'tab.notifyRendererActivated',
+      'tab.notifyRendererReady',
+      'tab.stitchImagesWithWatermark',
+      'window.closeCurrent',
+      'window.closeFloatingCurrent',
+      'window.getCurrentState',
+      'window.minimizeCurrent',
+      'window.previewFile',
+      'window.toggleMaximizeCurrent',
+      'workspace.expandDirectory',
+      'workspace.getGitDiff',
+      'workspace.getGitStatus',
+      'workspace.openFile',
+      'workspace.readDirectory',
+      'workspace.readFilePreview',
+      'workspace.register',
+      'workspace.resolveMarkdownLinkedFile',
+      'workspace.revealFileInFolder',
+      'workspace.searchFiles',
+      'workspace.unregister',
+      'workspace.unwatch',
+      'workspace.watch'
     ])
   })
 
@@ -300,8 +347,10 @@ describe('main kernel contracts', () => {
     })
   })
 
-  it('registers the phase2 typed event catalog', () => {
+  it('registers the phase2 and phase3 typed event catalog', () => {
     expect(Object.keys(DEEPCHAT_EVENT_CATALOG).sort()).toEqual([
+      'browser.open.requested',
+      'browser.status.changed',
       'chat.stream.completed',
       'chat.stream.failed',
       'chat.stream.updated',
@@ -320,7 +369,9 @@ describe('main kernel contracts', () => {
       'models.status.changed',
       'providers.changed',
       'sessions.updated',
-      'settings.changed'
+      'settings.changed',
+      'window.state.changed',
+      'workspace.invalidated'
     ])
   })
 

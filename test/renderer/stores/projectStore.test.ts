@@ -37,8 +37,13 @@ const setupStore = async (overrides?: {
       defineStore: (_id: string, setup: () => unknown) => setup
     }
   })
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyProjectPresenter: () => projectPresenter
+  vi.doMock('../../../src/renderer/api/ProjectClient', () => ({
+    ProjectClient: vi.fn(() => ({
+      listRecent: projectPresenter.getRecentProjects,
+      listEnvironments: projectPresenter.getEnvironments,
+      openDirectory: projectPresenter.openDirectory,
+      selectDirectory: projectPresenter.selectDirectory
+    }))
   }))
   vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
     ConfigClient: vi.fn(() => configClient)

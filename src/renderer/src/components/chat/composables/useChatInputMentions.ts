@@ -2,14 +2,11 @@ import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
 import { VueRenderer } from '@tiptap/vue-3'
 import type { Editor, Range } from '@tiptap/core'
 import tippy from 'tippy.js'
+import { WorkspaceClient } from '@api/WorkspaceClient'
 import type { PromptListEntry, WorkspaceFileNode } from '@shared/presenter'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
 import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
-import {
-  useLegacyAgentSessionPresenter,
-  useLegacySkillPresenter,
-  useLegacyWorkspacePresenter
-} from '@api/legacy/presenters'
+import { useLegacyAgentSessionPresenter, useLegacySkillPresenter } from '@api/legacy/presenters'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
 import {
@@ -89,7 +86,7 @@ const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
 }
 
 export function useChatInputMentions(options: UseChatInputMentionsOptions) {
-  const workspacePresenter = useLegacyWorkspacePresenter()
+  const workspaceClient = new WorkspaceClient()
   const agentSessionPresenter = useLegacyAgentSessionPresenter()
   const skillPresenter = useLegacySkillPresenter()
   const mcpStore = useMcpStore()
@@ -133,11 +130,10 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
 
     try {
-      if (options.isAcpSession.value) {
-        await workspacePresenter.registerWorkdir(workspacePath)
-      } else {
-        await workspacePresenter.registerWorkspace(workspacePath)
-      }
+      await workspaceClient.registerWorkspace(
+        workspacePath,
+        options.isAcpSession.value ? 'workdir' : 'workspace'
+      )
       registeredWorkspacePath.value = workspacePath
       return true
     } catch (error) {
@@ -160,7 +156,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     try {
       const searchQuery = query.trim() || '**/*'
       const result =
-        (await workspacePresenter.searchFiles(workspacePath, searchQuery)) ??
+        (await workspaceClient.searchFiles(workspacePath, searchQuery)) ??
         ([] as WorkspaceFileNode[])
 
       return result.slice(0, 20).map((file) => {

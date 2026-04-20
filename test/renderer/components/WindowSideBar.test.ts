@@ -102,12 +102,8 @@ const setup = async (options: SetupOptions = {}) => {
       spotlightStore.open = !spotlightStore.open
     })
   })
-  const windowPresenter = {
-    openOrFocusSettingsWindow: vi.fn(),
-    createSettingsWindow: vi.fn().mockResolvedValue(99),
-    getSettingsWindowId: vi.fn().mockReturnValue(99),
-    sendToWindow: vi.fn(),
-    show: vi.fn()
+  const settingsClient = {
+    openSettings: vi.fn().mockResolvedValue({ windowId: 99 })
   }
   const remoteControlPresenter = {
     listRemoteChannels: vi.fn(async () => [
@@ -200,9 +196,11 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => windowPresenter,
-    useRemoteControlPresenter: () => remoteControlPresenter
+  vi.doMock('@api/SettingsClient', () => ({
+    SettingsClient: vi.fn(() => settingsClient)
+  }))
+  vi.doMock('@api/legacy/presenters', () => ({
+    useLegacyRemoteControlPresenter: () => remoteControlPresenter
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -280,7 +278,7 @@ const setup = async (options: SetupOptions = {}) => {
     operations,
     agentStore,
     sessionStore,
-    windowPresenter,
+    settingsClient,
     remoteControlPresenter,
     spotlightStore,
     pageRouterStore,
@@ -700,7 +698,7 @@ describe('WindowSideBar agent switch', () => {
   })
 
   it('opens settings and navigates to remote settings when remote button is clicked', async () => {
-    const { wrapper, windowPresenter } = await setup({
+    const { wrapper, settingsClient } = await setup({
       remoteStatus: {
         enabled: true,
         state: 'running'
@@ -709,13 +707,8 @@ describe('WindowSideBar agent switch', () => {
 
     await wrapper.find('[data-testid=\"remote-control-button\"]').trigger('click')
     await flushPromises()
-    await vi.advanceTimersByTimeAsync(250)
-
-    expect(windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
-    expect(windowPresenter.sendToWindow).toHaveBeenNthCalledWith(1, 99, 'settings:navigate', {
-      routeName: 'settings-remote'
-    })
-    expect(windowPresenter.sendToWindow).toHaveBeenNthCalledWith(2, 99, 'settings:navigate', {
+    expect(settingsClient.openSettings).toHaveBeenCalledTimes(1)
+    expect(settingsClient.openSettings).toHaveBeenCalledWith({
       routeName: 'settings-remote'
     })
 

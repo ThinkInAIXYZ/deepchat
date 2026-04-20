@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useLegacyProjectPresenter } from '@api/legacy/presenters'
 import { ConfigClient } from '../../../api/ConfigClient'
+import { ProjectClient } from '@api/ProjectClient'
 import type { EnvironmentSummary, Project } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -18,8 +18,8 @@ type ProjectSelectionSource = 'none' | 'manual' | 'default'
 // --- Store ---
 
 export const useProjectStore = defineStore('project', () => {
-  const projectPresenter = useLegacyProjectPresenter({ safeCall: false })
   const configClient = new ConfigClient()
+  const projectClient = new ProjectClient()
 
   // --- State ---
   const projects = ref<UIProject[]>([])
@@ -121,7 +121,7 @@ export const useProjectStore = defineStore('project', () => {
   async function fetchProjects(): Promise<void> {
     try {
       const [result, nextDefaultProjectPath] = await Promise.all([
-        projectPresenter.getRecentProjects(20),
+        projectClient.listRecent(20),
         configClient.getDefaultProjectPath()
       ])
 
@@ -141,7 +141,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function fetchEnvironments(): Promise<void> {
     try {
-      environments.value = await projectPresenter.getEnvironments()
+      environments.value = await projectClient.listEnvironments()
     } catch (e) {
       error.value = `Failed to load environments: ${e}`
     }
@@ -173,7 +173,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function openDirectory(path: string): Promise<void> {
     try {
-      await projectPresenter.openDirectory(path)
+      await projectClient.openDirectory(path)
     } catch (e) {
       error.value = `Failed to open directory: ${e}`
       throw e
@@ -186,7 +186,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function openFolderPicker(): Promise<void> {
     try {
-      const selectedPath = await projectPresenter.selectDirectory()
+      const selectedPath = await projectClient.selectDirectory()
       if (selectedPath) {
         const name = selectedPath.split(/[/\\]/).pop() ?? selectedPath
         const nextProjects = projects.value.filter((project) => project.path !== selectedPath)

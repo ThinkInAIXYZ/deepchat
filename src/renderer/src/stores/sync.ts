@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useLegacyDevicePresenter, useLegacySyncPresenter } from '@api/legacy/presenters'
+import { DeviceClient } from '@api/DeviceClient'
+import { useLegacySyncPresenter } from '@api/legacy/presenters'
 import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { ConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
@@ -25,7 +26,7 @@ export const useSyncStore = defineStore('sync', () => {
 
   const configClient = new ConfigClient()
   const syncPresenter = useLegacySyncPresenter()
-  const devicePresenter = useLegacyDevicePresenter()
+  const deviceClient = new DeviceClient()
   let syncEventsRegistered = false
   let syncSettingsListenerRegistered = false
 
@@ -174,7 +175,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const selectSyncFolder = async () => {
-    const result = await devicePresenter.selectDirectory()
+    const result = await deviceClient.selectDirectory()
     if (result && !result.canceled && result.filePaths.length > 0) {
       await setSyncFolderPath(result.filePaths[0])
     }
@@ -186,7 +187,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const restartApp = async () => {
-    await devicePresenter.restartApp()
+    await deviceClient.restartApp()
   }
 
   const clearImportResult = () => {

@@ -1,4 +1,5 @@
-import { useLegacyDevicePresenter, useLegacyUpgradePresenter } from '@api/legacy/presenters'
+import { DeviceClient } from '@api/DeviceClient'
+import { useLegacyUpgradePresenter } from '@api/legacy/presenters'
 import { hasLegacyIpcRenderer, onLegacyIpcChannel } from '@api/legacy/runtime'
 import { UPDATE_EVENTS } from '@/events'
 import { defineStore } from 'pinia'
@@ -66,7 +67,7 @@ const toProgressInfo = (progress: ProgressInfo | null | undefined): ProgressInfo
 
 export const useUpgradeStore = defineStore('upgrade', () => {
   const upgradeP = useLegacyUpgradePresenter()
-  const devicePresenter = useLegacyDevicePresenter()
+  const deviceClient = new DeviceClient()
 
   const rawStatus = ref<PresenterUpdateStatus>(null)
   const updateInfo = ref<UpdateInfo | null>(null)
@@ -210,7 +211,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   const loadDeviceInfo = async () => {
     try {
-      const deviceInfo = await devicePresenter.getDeviceInfo()
+      const deviceInfo = await deviceClient.getDeviceInfo()
       platform.value = deviceInfo?.platform ?? null
     } catch (error) {
       console.error('Failed to load device info:', error)

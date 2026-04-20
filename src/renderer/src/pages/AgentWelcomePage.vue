@@ -49,13 +49,12 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { useLegacyWindowPresenter } from '@api/legacy/presenters'
-import { SETTINGS_EVENTS } from '@/events'
+import { SettingsClient } from '@api/SettingsClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 
 const { t } = useI18n()
-const windowPresenter = useLegacyWindowPresenter()
+const settingsClient = new SettingsClient()
 const agentStore = useAgentStore()
 const displayedAgents = computed(() => agentStore.enabledAgents.slice(0, 9))
 
@@ -63,17 +62,10 @@ const selectAgent = (agentId: string) => {
   agentStore.setSelectedAgent(agentId)
 }
 
-const navigateToSettings = (windowId: number) => {
-  windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
+const openAgentSettings = async () => {
+  await settingsClient.openSettings({
     routeName: 'settings-deepchat-agents'
   })
-}
-
-const openAgentSettings = async () => {
-  const settingsWindowId = await windowPresenter.createSettingsWindow()
-  if (settingsWindowId != null) {
-    navigateToSettings(settingsWindowId)
-  }
 }
 </script>
 

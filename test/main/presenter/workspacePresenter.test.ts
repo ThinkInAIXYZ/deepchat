@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
 const { chokidarState, sendToRendererMock, execFileMock } = vi.hoisted(() => {
   const watchers: Array<{
@@ -206,12 +207,37 @@ describe('WorkspacePresenter watchers', () => {
 
     await vi.advanceTimersByTimeAsync(120)
 
-    expect(sendToRendererMock).toHaveBeenCalledTimes(1)
-    expect(sendToRendererMock).toHaveBeenCalledWith(WORKSPACE_EVENTS.INVALIDATED, 'all_windows', {
-      workspacePath,
-      kind: 'fs',
-      source: 'watcher'
-    })
+    const legacyCalls = sendToRendererMock.mock.calls.filter(
+      ([channel]) => channel === WORKSPACE_EVENTS.INVALIDATED
+    )
+    const typedCalls = sendToRendererMock.mock.calls.filter(
+      ([channel]) => channel === DEEPCHAT_EVENT_CHANNEL
+    )
+
+    expect(legacyCalls).toHaveLength(1)
+    expect(legacyCalls[0]).toEqual([
+      WORKSPACE_EVENTS.INVALIDATED,
+      'all_windows',
+      {
+        workspacePath,
+        kind: 'fs',
+        source: 'watcher'
+      }
+    ])
+    expect(typedCalls).toHaveLength(1)
+    expect(typedCalls[0]).toEqual([
+      DEEPCHAT_EVENT_CHANNEL,
+      'all_windows',
+      {
+        name: 'workspace.invalidated',
+        payload: {
+          workspacePath,
+          kind: 'fs',
+          source: 'watcher',
+          version: expect.any(Number)
+        }
+      }
+    ])
   })
 
   it('emits git invalidations from git metadata watcher changes', async () => {
@@ -226,6 +252,15 @@ describe('WorkspacePresenter watchers', () => {
       workspacePath,
       kind: 'git',
       source: 'watcher'
+    })
+    expect(sendToRendererMock).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, 'all_windows', {
+      name: 'workspace.invalidated',
+      payload: {
+        workspacePath,
+        kind: 'git',
+        source: 'watcher',
+        version: expect.any(Number)
+      }
     })
   })
 
