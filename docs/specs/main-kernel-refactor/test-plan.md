@@ -167,6 +167,15 @@
 - Automated verification for Phase 4 uses `pnpm run architecture:baseline`
 - Repro smoke for Phase 4 is: cold start the app, open provider settings and run one provider verification, create or open a session that triggers a permission/question overlay, approve or answer it through the overlay, confirm the overlay disappears and the message list refreshes, then stop any in-flight stream and confirm the session remains usable
 - Phase 4 artifacts are `src/main/presenter/runtimePorts.ts`, `src/main/presenter/index.ts`, `src/main/presenter/agentRuntimePresenter/index.ts`, `src/main/presenter/agentSessionPresenter/index.ts`, `src/main/routes/providers/providerService.ts`, `src/main/routes/hotPathPorts.ts`, `src/main/routes/index.ts`, `src/shared/contracts/routes/providers.routes.ts`, `src/shared/contracts/routes/chat.routes.ts`, `src/renderer/api/ProviderClient.ts`, `src/renderer/api/ChatClient.ts`, `src/renderer/src/stores/providerStore.ts`, and `src/renderer/src/pages/ChatPage.vue`
+- Phase 5 implementation and automated verification completed on `2026-04-20`
+- Automated verification for Phase 5 uses `pnpm exec vitest --config vitest.config.ts test/main/routes/contracts.test.ts test/main/routes/dispatcher.test.ts test/main/routes/settingsHandler.test.ts test/main/routes/sessionService.test.ts test/main/routes/chatService.test.ts test/main/routes/providerService.test.ts test/main/routes/scheduler.test.ts test/main/presenter/agentRuntimePresenter/echo.test.ts test/main/presenter/agentRuntimePresenter/agentRuntimePresenter.test.ts test/main/presenter/agentSessionPresenter/agentSessionPresenter.test.ts test/main/presenter/agentSessionPresenter/integration.test.ts test/main/presenter/agentSessionPresenter/usageDashboard.test.ts`
+- Automated verification for Phase 5 uses `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/api/createBridge.test.ts test/renderer/api/clients.test.ts test/renderer/stores/uiSettingsStore.test.ts test/renderer/stores/pageRouter.test.ts test/renderer/stores/messageStore.test.ts test/renderer/stores/sessionStore.test.ts test/renderer/components/ChatPage.test.ts`
+- The Phase 5 migrated-path regression pack passed with `19` test files and `269` tests
+- Automated verification for Phase 5 uses `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`
+- Automated verification for Phase 5 uses `pnpm run architecture:baseline`
+- Repro smoke for Phase 5 is: cold start the app, change one persisted setting, create a regular session, send one message, confirm stream updates render before completion, stop one in-flight reply, restart the app, restore the same session, run one provider verification, and complete one permission or question interaction
+- Phase 5 final smoke handoff result is `pending manual validation before commit`; use the runbook below to record pass/fail per step
+- Phase 5 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P5`, plus the updated `docs/README.md`, `docs/ARCHITECTURE.md`, and `docs/guides/code-navigation.md`
 
 ## Standard Verification Commands
 
@@ -218,6 +227,17 @@
 6. 关闭并重新打开相关页面或重启应用，确认会话与设置可恢复。
 7. 完成一次 provider 相关交互，确认结果正常返回。
 
+### Phase 5 Final Smoke Handoff
+
+1. 冷启动应用，确认主窗口打开且没有启动报错。
+2. 打开设置页，修改一个可持久化项，例如字体大小或通知开关，确认界面立即刷新。
+3. 完全退出应用后重新启动，确认刚才的设置仍然保留。
+4. 创建一个普通会话，发送一条短消息，确认用户消息和助手消息顺序正确。
+5. 在回答流式生成过程中确认增量内容持续追加，然后执行一次 stop/cancel。
+6. 重新打开刚才的会话，确认会话列表、消息历史和当前活跃会话恢复正常。
+7. 打开 provider 设置并执行一次 `test connection`，确认成功或失败信息能返回到界面。
+8. 触发一次权限或问题交互，确认通过 overlay 响应后 overlay 消失，消息列表继续刷新。
+
 ## Exit Evidence Per Phase
 
 每个阶段完成时，应附带：
@@ -240,3 +260,4 @@
 - stream reply
 - stop stream
 - provider or permission interaction
+- This regression gate was satisfied on `2026-04-20` by the Phase 5 targeted migrated-path suites listed above.

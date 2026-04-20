@@ -1,108 +1,105 @@
 # DeepChat 当前架构概览
 
-本文档描述 `2026-03-23` 完成 legacy `AgentPresenter` retirement 后的主架构。
+本文档描述 `2026-04-20` 完成 main kernel refactor phase5 收口后的主架构。
 
 ## 主链路
 
 ```mermaid
 flowchart LR
-    Renderer["Renderer / Stores / Views"] --> Preload["preload IPC bridge"]
-    Preload --> NewAgent["agentSessionPresenter"]
-    NewAgent --> Registry["AgentRegistry"]
-    Registry --> DeepChat["agentRuntimePresenter"]
-    DeepChat --> Tool["toolPresenter"]
-    DeepChat --> Llm["llmProviderPresenter"]
+    Renderer["Renderer / Stores / Views"] --> Client["renderer/api clients"]
+    Client --> Bridge["window.deepchat / preload bridge"]
+    Bridge --> Contracts["shared/contracts routes + events"]
+    Contracts --> Routes["src/main/routes dispatcher"]
+    Routes --> Settings["settings handler"]
+    Routes --> Sessions["SessionService"]
+    Routes --> Chat["ChatService"]
+    Routes --> Providers["ProviderService"]
+    Settings --> Config["configPresenter"]
+    Sessions --> Ports["presenter-backed hot path ports"]
+    Chat --> Ports
+    Providers --> Ports
+    Ports --> AgentSession["agentSessionPresenter"]
+    Ports --> Llm["llmProviderPresenter"]
+    Ports --> Window["windowPresenter"]
+    AgentSession --> Runtime["agentRuntimePresenter"]
+    Runtime --> Tool["toolPresenter"]
+    Runtime --> SQLite["sqlitePresenter"]
     Tool --> Mcp["mcpPresenter"]
     Tool --> AgentTools["toolPresenter/agentTools"]
     Llm --> Acp["llmProviderPresenter/acp"]
-    DeepChat --> SQLite["sqlitePresenter"]
-    NewAgent --> SessionDb["agentSessionPresenter/sessionManager"]
 ```
 
 主结论：
 
-- `agentSessionPresenter` 是 renderer 唯一会话入口。
-- `agentRuntimePresenter` 持有聊天 runtime、流式执行、工具交互、暂停恢复。
-- `toolPresenter` 统一路由 MCP tools 与本地 agent tools。
-- `llmProviderPresenter` 统一管理 provider 实例、流状态和 ACP provider helper。
+- migrated renderer boundary 先经过 `renderer/api`、`window.deepchat` 和 shared contracts，再进入 main。
+- `src/main/routes/index.ts` 是 settings / sessions / chat / providers 这些 migrated path 的 typed dispatcher 和装配入口。
+- 现有 presenter 仍然存在，但主要通过 `hotPathPorts` / `runtimePorts` 这样的窄 port 暴露给 route services。
+- `SessionPresenter` 继续保留为 legacy 数据平面和导出边界，不再是 migrated chat hot path 的 owner。
 
 ## 模块职责
 
 | 模块 | 位置 | 职责 |
 | --- | --- | --- |
-| `Presenter` 组装层 | `src/main/presenter/index.ts` | 组装 presenter 依赖，暴露主进程能力 |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | 会话创建、窗口绑定、agent 注册、IPC-facing API |
+| `renderer/api` | `src/renderer/api/` | 为 settings / sessions / chat / providers 提供 typed renderer client |
+| shared contracts | `src/shared/contracts/` | 维护 route registry、schema、typed event catalog |
+| preload bridge | `src/preload/createBridge.ts` / `src/preload/index.ts` | 统一暴露 `window.deepchat.invoke/on` |
+| main route runtime | `src/main/routes/` | typed route dispatch、settings handler、session/chat/provider services |
+| presenter-backed ports | `src/main/routes/hotPathPorts.ts` / `src/main/presenter/runtimePorts.ts` | 把现有 presenter 收敛成 route service 可依赖的窄接口 |
+| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | session registry、window binding、legacy import、runtime delegation |
 | `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | 聊天 runtime、stream loop、tool interaction、message persistence |
 | `ToolPresenter` | `src/main/presenter/toolPresenter/` | 工具定义聚合、调用路由、权限预检查 |
-| `Agent tools` | `src/main/presenter/toolPresenter/agentTools/` | 文件系统、命令、settings 等本地工具 |
-| `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider 实例、stream state、model 管理、embedding、ACP provider |
-| `ACP helpers` | `src/main/presenter/llmProviderPresenter/acp/` | ACP process/session/persistence/config/mcp 映射 |
-| `SessionPresenter` | `src/main/presenter/sessionPresenter/` | legacy 会话数据访问、导出、thread list 广播、清理挂钩 |
+| `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider 实例、stream state、model 管理、ACP provider helper |
+| `SessionPresenter` | `src/main/presenter/sessionPresenter/` | legacy 会话数据访问、导出、历史兼容边界 |
 
 ## 当前分层
 
-### 1. IPC / Session orchestration
+### 1. Renderer-main boundary
 
-`agentSessionPresenter` 负责：
+- `src/shared/contracts/routes*.ts` 与 `events*.ts` 是 migrated path 的唯一契约真源。
+- `src/preload/createBridge.ts` 负责把 route invoke 和 typed event subscribe 统一暴露到 `window.deepchat`。
+- `src/renderer/api/*Client.ts` 吸收 bridge 细节，组件和 store 不直接拼新的 raw channel 字符串。
 
-- 创建/删除/激活会话
-- 绑定 `webContentsId -> sessionId`
-- 维护 `AgentRegistry`
-- 将请求路由到具体 agent implementation
-- 持有 `LegacyChatImportService`
+### 2. Main route runtime
 
-### 2. Chat runtime
+- `src/main/routes/index.ts` 根据 route registry 分发请求。
+- settings 走 `settings handler + adapter`。
+- sessions、chat、providers 分别走 `SessionService`、`ChatService`、`ProviderService`。
+- `Scheduler` 统一承接 migrated chat path 上的 timeout、retry、cancel 语义。
 
-`agentRuntimePresenter` 负责：
+### 3. Presenter-backed runtime
 
-- `processMessage()` 和 `processStream()` 主循环
-- `sessionStore` / `messageStore` / `pendingInputStore`
-- 工具暂停、权限响应、继续生成
-- token context 构建、summary compaction、实时 echo
+- `createPresenterHotPathPorts()` 把 `agentSessionPresenter`、`configPresenter`、`llmProviderPresenter` 收敛成 route service 依赖的最小 port。
+- `AgentSessionPresenter` 仍持有 session registry、window 绑定和 legacy import helper。
+- `AgentRuntimePresenter` 继续拥有消息主循环、工具暂停恢复、消息持久化和增量 stream echo。
+- `ToolPresenter`、`LLMProviderPresenter` 和 `mcpPresenter` 继续服务未迁移能力与 runtime 内部协作。
 
-### 3. Tool routing
+### 4. Compatibility boundary
 
-`toolPresenter` 负责：
-
-- 从 `mcpPresenter` 聚合 MCP tools
-- 从 `toolPresenter/agentTools` 聚合本地 agent tools
-- 用 `ToolMapper` 建立 tool name -> source 映射
-- 在调用时自动路由，并支持权限预检查
-
-### 4. Provider layer
-
-`llmProviderPresenter` 负责：
-
-- provider instance lifecycle
-- active stream bookkeeping
-- model/embedding/rate limit 管理
-- ACP session persistence 与 workdir/config helper
-
-## 兼容边界
-
-这次 retirement 后仍然保留的 legacy 边界只有：
+仍然保留但已降级为兼容职责的边界：
 
 - `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
-- legacy import hook / status tracking
-- 旧 `conversations/messages` 表，作为 import-only 与导出数据源
-- `SessionPresenter` 作为 main 内部数据平面，不再是 renderer 主聊天入口
+- 旧 `conversations/messages` 数据域，作为 import-only 与导出数据源
+- `src/main/presenter/sessionPresenter/`，作为 main 内部 compatibility/data facade
+- `src/main/eventbus.ts`，继续服务未迁移路径，但 migrated UI 通知优先走 typed events
 
-明确不再存在的职责：
+## Phase 5 结论
 
-- 旧 `AgentPresenter -> SessionManager -> startStreamCompletion()` runtime 链路
-- renderer 对 `agentPresenter` / `sessionPresenter` 的公开依赖
-- `ILlmProviderPresenter.startStreamCompletion()` 旧 loop 壳
+- 本轮已经完成“边界稳定化 + 热路径减耦 + 可测试性提升”的目标。
+- 当前不继续发起一次性全量 `main kernel` rewrite。
+- 后续只在出现新的明确 hot path 收益时，再继续做 slice-driven typed-boundary migration。
 
-## 归档与防回归
+## 历史对照与防回归
 
-- 退休 runtime 的历史结构已经固化到 `docs/archives/` 文档，不再保留源码级导航入口
 - 历史架构文档见 [archives/legacy-agentpresenter-architecture.md](./archives/legacy-agentpresenter-architecture.md)
 - 历史流程文档见 [archives/legacy-agentpresenter-flows.md](./archives/legacy-agentpresenter-flows.md)
-- 防回归脚本：`scripts/agent-cleanup-guard.mjs`
+- main kernel 边界回归由 `scripts/architecture-guard.mjs` 和 `docs/architecture/baselines/main-kernel-*.{md,json}` 追踪
+- legacy agent cleanup 回归由 `scripts/agent-cleanup-guard.mjs` 追踪
 
 ## 推荐阅读顺序
 
-1. [FLOWS.md](./FLOWS.md)
-2. [architecture/agent-system.md](./architecture/agent-system.md)
-3. [architecture/tool-system.md](./architecture/tool-system.md)
-4. [architecture/session-management.md](./architecture/session-management.md)
+1. [README.md](./README.md)
+2. [guides/code-navigation.md](./guides/code-navigation.md)
+3. [FLOWS.md](./FLOWS.md)
+4. [architecture/agent-system.md](./architecture/agent-system.md)
+5. [architecture/tool-system.md](./architecture/tool-system.md)
+6. [architecture/session-management.md](./architecture/session-management.md)

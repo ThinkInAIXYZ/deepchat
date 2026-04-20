@@ -67,11 +67,11 @@
 
 ## Phase 5: Consolidation & Re-evaluation
 
-- [ ] 删除本轮仍存活的 bridge
-- [ ] 重跑 baseline 并更新 scoreboard
-- [ ] 更新 active docs 和实现说明
-- [ ] 记录最终 smoke 结果
-- [ ] 形成“是否继续推进更彻底 kernel 重构”的结论
+- [x] 删除本轮仍存活的 bridge
+- [x] 重跑 baseline 并更新 scoreboard
+- [x] 更新 active docs 和实现说明
+- [x] 记录最终 smoke 结果
+- [x] 形成“是否继续推进更彻底 kernel 重构”的结论
 
 ## Phase Exit Discipline
 

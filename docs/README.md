@@ -1,22 +1,21 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-04-19` 完成 main kernel refactor phase3 之后的代码结构。
+本文档反映 `2026-04-20` 完成 main kernel refactor phase5 自动化收口后的代码结构。
 
-当前聊天热路径已经收敛为：
+当前 migrated 聊天热路径已经收敛为：
 
 ```text
 Renderer
-  -> renderer/api (SettingsClient / SessionClient / ChatClient)
+  -> renderer/api (SettingsClient / SessionClient / ChatClient / ProviderClient)
   -> window.deepchat
   -> shared/contracts/routes + shared/contracts/events
-  -> main route services (SessionService / ChatService)
+  -> main route runtime (settings handler / SessionService / ChatService / ProviderService)
   -> presenter-backed hot path ports
-  -> agentRuntimePresenter
-  -> llmProviderPresenter / toolPresenter / mcpPresenter
-  -> sqlitePresenter
+  -> agentSessionPresenter / configPresenter / llmProviderPresenter / windowPresenter
+  -> agentRuntimePresenter / toolPresenter / mcpPresenter / sqlitePresenter
 ```
 
-`SessionPresenter` 和旧 `conversations/messages` 数据域仍然保留，但只承担兼容、导出和历史数据访问职责，不再是 migrated chat/session hot path 的主入口。
+`SessionPresenter` 和旧 `conversations/messages` 数据域仍然保留，但只承担兼容、导出和历史数据访问职责，不再是 migrated chat/session hot path 的主入口。`phase5` 的结论也已经固定：当前不继续发起一次性全量 `main kernel` rewrite，后续只在明确 hot path 需要时继续做增量 typed-boundary migration。
 
 ## 当前必读
 
@@ -54,12 +53,12 @@ Renderer
 | [docs/specs/architecture-simplification/tasks.md](./specs/architecture-simplification/tasks.md) | 首期实施清单 |
 | [docs/specs/agent-cleanup/spec.md](./specs/agent-cleanup/spec.md) | cleanup 主规格，已更新到 retirement 完成态 |
 
-## 下一阶段主内核重构规划
+## 主内核边界稳定化计划记录
 
-以下文档描述的是收敛后的下一阶段方案。
+以下文档记录的是本轮已经完成的边界稳定化计划、验收证据和后续治理结论。
 
 重点不再是一次性交付完整 `Clean Main Kernel`，而是优先解决 renderer-main 边界、hot path
-减耦、lifecycle owner 和可测试性问题。它们描述的是目标迁移方向，不代表当前代码已经完成切换：
+减耦、lifecycle owner 和可测试性问题。当前这些文档既描述实施路径，也记录 `phase5` 收口后的最终状态：
 
 | 位置 | 内容 |
 | --- | --- |

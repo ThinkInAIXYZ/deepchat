@@ -1,7 +1,7 @@
 # Main Kernel Migration Scoreboard
 
 Generated on 2026-04-20.
-Current phase: P4.
+Current phase: P5.
 
 Phase 0 establishes the comparison baseline. Later phases should update this report and compare against this checkpoint.
 

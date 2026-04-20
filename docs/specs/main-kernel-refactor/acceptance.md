@@ -134,41 +134,53 @@
 - Phase 4 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P4`
 - Phase 4 legacy metrics confirm no rebound versus the Phase 3 checkpoint while continuing the renderer boundary reduction: `renderer.usePresenter.count` `87 -> 86`, `renderer.windowElectron.count` `95 -> 95`, `renderer.windowApi.count` `33 -> 33`, `hotpath.presenterEdge.count` `10 -> 10`, and `bridge.active.count` remains `0`
 - Phase 4 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
+- [x] Phase 5 completed on `2026-04-20`
+- Phase 5 audit confirmed the bridge register remains empty, so no main-kernel temporary bridge survived into `P5`
+- Phase 5 automated verification covers the targeted migrated-path regression pack in `test/main/routes/*.test.ts`, `test/main/presenter/agentRuntimePresenter/*.test.ts`, `test/main/presenter/agentSessionPresenter/*.test.ts`, `test/renderer/api/*.test.ts`, `test/renderer/stores/*.test.ts`, and `test/renderer/components/ChatPage.test.ts`
+- Phase 5 automated verification covers `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`
+- Phase 5 automated verification covers `pnpm run architecture:baseline`
+- Phase 5 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P5`
+- Phase 5 documentation refresh covers `docs/README.md`, `docs/ARCHITECTURE.md`, and `docs/guides/code-navigation.md`
+- Phase 5 legacy metrics confirm the Phase 4 checkpoint held through final consolidation: `renderer.usePresenter.count` `86 -> 86`, `renderer.windowElectron.count` `95 -> 95`, `renderer.windowApi.count` `33 -> 33`, `hotpath.presenterEdge.count` `10 -> 10`, `migrated.rawChannel.count` `5 -> 5`, and `bridge.active.count` remains `0`
+- Phase 5 final smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
+- Phase 5 conclusion: do not start a full `main kernel` rewrite now; keep using slice-driven typed boundary migrations only when a concrete hot path still justifies it
 
 ## Final Acceptance Checklist
 
+结构性签收项已根据 `2026-04-20` 的自动化验证结果勾选；用户可见行为项保留到最终手工 smoke 后确认。
+
 ### Boundary
 
-- [ ] migrated path 的 renderer 调用统一走 `renderer/api` + `window.deepchat`
-- [ ] migrated path 不再新增 `usePresenter()`、`window.electron`、`window.api` 依赖
-- [ ] migrated path 的 route 和 typed event 都能在共享 registry / catalog 中追踪
-- [ ] 组件和 store 不直接拼新的 raw channel 字符串
+- [x] migrated path 的 renderer 调用统一走 `renderer/api` + `window.deepchat`
+- [x] migrated path 不再新增 `usePresenter()`、`window.electron`、`window.api` 依赖
+- [x] migrated path 的 route 和 typed event 都能在共享 registry / catalog 中追踪
+- [x] 组件和 store 不直接拼新的 raw channel 字符串
 
 ### Runtime Ownership
 
-- [ ] settings、chat、session、provider 这些 migrated path 都有明确 owner
-- [ ] `AgentSessionPresenter -> AgentRuntimePresenter` 不再是 migrated chat path 的主 owner 链
-- [ ] provider query / execution / permission 边界可解释，不依赖全局隐式协作
-- [ ] session / stream / permission cleanup 有明确 owner
+- [x] settings、chat、session、provider 这些 migrated path 都有明确 owner
+- [x] `AgentSessionPresenter -> AgentRuntimePresenter` 不再是 migrated chat path 的主 owner 链
+- [x] provider query / execution / permission 边界可解释，不依赖全局隐式协作
+- [x] session / stream / permission cleanup 有明确 owner
 
 ### Lifecycle and Scheduling
 
-- [ ] cancel、timeout、retry 在 migrated chat path 上走 `Scheduler`
-- [ ] window/session 相关 listener、subscription、abort controller 的清理可验证
-- [ ] 现有 `LifecycleManager` 或等价 setup 模块中，migrated path 的装配关系是可读的
+- [x] cancel、timeout、retry 在 migrated chat path 上走 `Scheduler`
+- [x] window/session 相关 listener、subscription、abort controller 的清理可验证
+- [x] 现有 `LifecycleManager` 或等价 setup 模块中，migrated path 的装配关系是可读的
 
 ### Cleanup
 
-- [ ] 本轮涉及的临时 bridge 已按计划删除
-- [ ] 对应 slice 的旧 owner 已冻结，不再继续长新逻辑
-- [ ] hot path 直连依赖相较基线净下降
-- [ ] 本轮不要求 `src/main/presenter` 目录归零，但 migrated path 不再依赖它的旧协作方式
+- [x] 本轮涉及的临时 bridge 已按计划删除
+- [x] 对应 slice 的旧 owner 已冻结，不再继续长新逻辑
+- [x] hot path 直连依赖相较基线净下降
+- [x] 本轮不要求 `src/main/presenter` 目录归零，但 migrated path 不再依赖它的旧协作方式
 
 ### Quality
 
-- [ ] route / client / service / scheduler / provider boundary 具备对应测试
-- [ ] `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 通过
-- [ ] baseline、tasks、test-plan、README 已同步更新
+- [x] route / client / service / scheduler / provider boundary 具备对应测试
+- [x] `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 通过
+- [x] baseline、tasks、test-plan、README 已同步更新
 
 ### User-Visible Behavior
 
