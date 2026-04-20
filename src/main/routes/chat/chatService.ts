@@ -39,34 +39,30 @@ export class ChatService {
       throw new Error(`A stream is already active for session ${sessionId}`)
     }
 
-    const session = await this.deps.scheduler.timeout({
-      task: this.deps.sessionRepository.get(sessionId),
-      ms: CHAT_LOOKUP_TIMEOUT_MS,
-      reason: `chat.sendMessage:${sessionId}:session`
-    })
-
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-
-    const agentType = await this.deps.scheduler.timeout({
-      task: this.deps.providerCatalogPort.getAgentType(session.agentId),
-      ms: CHAT_LOOKUP_TIMEOUT_MS,
-      reason: `chat.sendMessage:${sessionId}:agentType`
-    })
-
-    if (!agentType) {
-      throw new Error(`Agent type not found: ${session.agentId}`)
-    }
-
-    if (this.activeControllers.has(sessionId)) {
-      throw new Error(`A stream is already active for session ${sessionId}`)
-    }
-
     const controller = new AbortController()
     this.activeControllers.set(sessionId, controller)
 
     try {
+      const session = await this.deps.scheduler.timeout({
+        task: this.deps.sessionRepository.get(sessionId),
+        ms: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.sendMessage:${sessionId}:session`
+      })
+
+      if (!session) {
+        throw new Error(`Session not found: ${sessionId}`)
+      }
+
+      const agentType = await this.deps.scheduler.timeout({
+        task: this.deps.providerCatalogPort.getAgentType(session.agentId),
+        ms: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.sendMessage:${sessionId}:agentType`
+      })
+
+      if (!agentType) {
+        throw new Error(`Agent type not found: ${session.agentId}`)
+      }
+
       await this.deps.scheduler.timeout({
         task: this.deps.providerExecutionPort.sendMessage(sessionId, content),
         ms: CHAT_SEND_TIMEOUT_MS,

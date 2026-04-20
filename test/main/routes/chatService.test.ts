@@ -194,6 +194,103 @@ describe('ChatService', () => {
     expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledWith('session-1')
   })
 
+  it('aborts a pending send when stopStream races during preflight', async () => {
+    const createAbortError = (reason: string) => {
+      const error = new Error(reason)
+      error.name = 'AbortError'
+      return error
+    }
+    const scheduler = {
+      sleep: vi.fn(),
+      timeout: vi.fn(
+        async <T>({
+          task,
+          signal,
+          reason
+        }: {
+          task: Promise<T>
+          signal?: AbortSignal
+          reason: string
+        }) => {
+          if (signal?.aborted) {
+            throw createAbortError(reason)
+          }
+
+          return await new Promise<T>((resolve, reject) => {
+            const onAbort = () => {
+              signal?.removeEventListener('abort', onAbort)
+              reject(createAbortError(reason))
+            }
+
+            signal?.addEventListener('abort', onAbort, { once: true })
+            task.then(
+              (value) => {
+                signal?.removeEventListener('abort', onAbort)
+                resolve(value)
+              },
+              (error) => {
+                signal?.removeEventListener('abort', onAbort)
+                reject(error)
+              }
+            )
+          })
+        }
+      ),
+      retry: vi.fn()
+    }
+    let resolveSession!: (value: { id: string; agentId: string }) => void
+    const sessionRepository = {
+      get: vi.fn().mockImplementation(
+        async () =>
+          await new Promise<{ id: string; agentId: string }>((resolve) => {
+            resolveSession = resolve
+          })
+      )
+    }
+    const messageRepository = {
+      listBySession: vi.fn().mockResolvedValue([]),
+      get: vi.fn()
+    }
+    const providerExecutionPort = {
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn()
+    }
+    const providerCatalogPort = {
+      getAgentType: vi.fn().mockResolvedValue('deepchat')
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn().mockResolvedValue(undefined)
+    }
+
+    const service = new ChatService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: messageRepository as any,
+      providerExecutionPort,
+      providerCatalogPort,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    const pendingSend = service.sendMessage('session-1', 'hello')
+    await Promise.resolve()
+
+    await expect(service.stopStream({ sessionId: 'session-1' })).resolves.toEqual({
+      stopped: true
+    })
+
+    resolveSession({
+      id: 'session-1',
+      agentId: 'deepchat'
+    })
+
+    await expect(pendingSend).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
+    expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledWith('session-1')
+  })
+
   it('rejects a new send while another stream is still active for the session', async () => {
     const scheduler = createScheduler()
     const sessionRepository = {
