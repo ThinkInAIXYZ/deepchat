@@ -2,6 +2,11 @@
 
 本文档提供各种调试技巧，帮助开发者快速定位和解决问题。
 
+注意：
+
+- 当前 renderer-main 主边界优先调试 `renderer/api/*Client`、`window.deepchat` 和 typed contracts
+- 文中出现的 `window.api` 示例主要用于 legacy compatibility 场景，不应被视为新代码默认模式
+
 ## 🎯 主进程调试
 
 ### VSCode 调试配置

@@ -2,6 +2,10 @@
 
 本文档反映 `2026-04-20` 完成 main kernel refactor phase5 自动化收口后的代码结构。
 
+当前仓库的后续治理重点不是再发起一次新的 `main kernel` 全量重写，而是把 renderer-main 边界继续收成
+single-track。换句话说，typed client / typed event 现在已经是默认方向，`usePresenter()`、
+`window.electron`、`window.api` 只应被视为兼容路径，而不是新功能入口。
+
 当前 migrated 聊天热路径已经收敛为：
 
 ```text
@@ -32,6 +36,9 @@ Renderer
 | [architecture/baselines/main-kernel-boundary-baseline.md](./architecture/baselines/main-kernel-boundary-baseline.md) | main kernel refactor 当前阶段的边界指标与 hot path 快照 |
 | [architecture/baselines/main-kernel-bridge-register.md](./architecture/baselines/main-kernel-bridge-register.md) | main kernel refactor 的临时 bridge 登记表 |
 | [architecture/baselines/main-kernel-migration-scoreboard.md](./architecture/baselines/main-kernel-migration-scoreboard.md) | main kernel refactor 的轻量 migration scoreboard |
+| [specs/renderer-main-single-track/spec.md](./specs/renderer-main-single-track/spec.md) | `phase5` 之后 renderer-main 单轨化目标与验收标准 |
+| [specs/renderer-main-single-track/plan.md](./specs/renderer-main-single-track/plan.md) | 单轨化阶段计划、family 优先级与 merge gate |
+| [specs/renderer-main-single-track/tasks.md](./specs/renderer-main-single-track/tasks.md) | 单轨化执行清单 |
 | [architecture/baselines/test-failure-groups.md](./architecture/baselines/test-failure-groups.md) | 当前测试失败分组基线 |
 
 ## 本次清理落库
@@ -73,6 +80,17 @@ Renderer
 | [docs/specs/main-kernel-refactor/route-schema-catalog.md](./specs/main-kernel-refactor/route-schema-catalog.md) | migrated path 的 route registry、schema 和 typed event 目录 |
 | [docs/specs/main-kernel-refactor/eventbus-migration.md](./specs/main-kernel-refactor/eventbus-migration.md) | 本轮对 typed UI event 和 legacy EventBus 的收敛策略 |
 
+## Renderer-Main 单轨化计划记录
+
+以下文档描述的是 `phase5` 收口之后的新执行规则：不再接受 renderer 业务层双轨并存，而是继续把
+`renderer/api + window.deepchat + shared contracts` 固化成唯一默认路径。
+
+| 位置 | 内容 |
+| --- | --- |
+| [docs/specs/renderer-main-single-track/spec.md](./specs/renderer-main-single-track/spec.md) | 为什么当前分支还不能在双轨状态下直接合并，以及 single-track 的验收标准 |
+| [docs/specs/renderer-main-single-track/plan.md](./specs/renderer-main-single-track/plan.md) | 单轨化阶段划分、quarantine 模型、family 迁移顺序与最终 merge gate |
+| [docs/specs/renderer-main-single-track/tasks.md](./specs/renderer-main-single-track/tasks.md) | 具体执行清单 |
+
 ## 活跃架构地图
 
 ```text
@@ -96,6 +114,7 @@ docs/
 │   ├── architecture-simplification/
 │   ├── ai-sdk-runtime/
 │   ├── main-kernel-refactor/
+│   ├── renderer-main-single-track/
 │   ├── provider-layer-simplification/
 │   ├── legacy-llm-provider-runtime-retirement/
 │   └── legacy-agentpresenter-retirement/

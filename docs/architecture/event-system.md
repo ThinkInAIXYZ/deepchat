@@ -2,6 +2,12 @@
 
 本文档详细介绍 DeepChat 的事件系统架构，包括 EventBus、事件常量定义和通信模式。
 
+注意：
+
+- 当前 active renderer-main boundary 已经优先走 `renderer/api/*Client` + `window.deepchat` + typed contracts
+- 下文中涉及 `usePresenter()`、`window.api`、raw `window.electron` 的内容，应视为 legacy / compatibility 背景
+- `phase5` 之后的 single-track 规则见 `docs/specs/renderer-main-single-track/`
+
 ## 📋 核心组件
 
 | 组件 | 文件位置 | 职责 |
@@ -647,6 +653,14 @@ sequenceDiagram
 ```
 
 ## 📤 渲染层到主进程的 IPC 调用模式
+
+当前推荐模式：
+
+- typed route contract
+- typed event contract
+- `renderer/api/*Client`
+
+下面的 `usePresenter` 小节主要用于解释 legacy transport 是如何工作的，以及为什么它需要被继续收口。
 
 ### usePresenter - 类型安全的 Presenter 调用
 

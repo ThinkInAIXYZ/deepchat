@@ -88,12 +88,29 @@ flowchart LR
 - 当前不继续发起一次性全量 `main kernel` rewrite。
 - 后续只在出现新的明确 hot path 收益时，再继续做 slice-driven typed-boundary migration。
 
+## Post-P5 执行规则
+
+`phase5` 收口不等于 renderer-main 已经完成单轨化。
+
+当前后续工作的默认规则是：
+
+- renderer 新功能优先走 `renderer/api/*Client` + `window.deepchat` + shared contracts
+- `usePresenter()`、`window.electron`、`window.api` 只视为兼容路径，不再作为业务层默认入口
+- renderer 业务模块不应再混用 typed client 与 legacy transport
+
+单轨化的目标、阶段和 merge gate 见：
+
+- [specs/renderer-main-single-track/spec.md](./specs/renderer-main-single-track/spec.md)
+- [specs/renderer-main-single-track/plan.md](./specs/renderer-main-single-track/plan.md)
+- [specs/renderer-main-single-track/tasks.md](./specs/renderer-main-single-track/tasks.md)
+
 ## 历史对照与防回归
 
 - 历史架构文档见 [archives/legacy-agentpresenter-architecture.md](./archives/legacy-agentpresenter-architecture.md)
 - 历史流程文档见 [archives/legacy-agentpresenter-flows.md](./archives/legacy-agentpresenter-flows.md)
 - main kernel 边界回归由 `scripts/architecture-guard.mjs` 和 `docs/architecture/baselines/main-kernel-*.{md,json}` 追踪
 - legacy agent cleanup 回归由 `scripts/agent-cleanup-guard.mjs` 追踪
+- renderer-main 单轨化后续治理由 `docs/specs/renderer-main-single-track/` 追踪
 
 ## 推荐阅读顺序
 

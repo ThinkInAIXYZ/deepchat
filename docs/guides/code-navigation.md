@@ -2,6 +2,10 @@
 
 本文档只列当前仍然有效的入口。对于 main kernel refactor 覆盖的 migrated path，先看 typed boundary，再往 presenter/runtime 深入，不要一上来就从 legacy presenter 搜。
 
+`phase5` 之后，如果你在 renderer 做新功能，默认心智模型应当是 single-track：
+先看 `renderer/api`、shared contracts 和 typed events，再看 main route/runtime；
+不要把 `usePresenter()`、`window.electron`、`window.api` 当作默认开发入口。
+
 ## 先从哪里开始
 
 如果你要追当前 migrated chat path，按这个顺序跳：

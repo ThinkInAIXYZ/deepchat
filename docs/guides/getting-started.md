@@ -33,17 +33,24 @@ pnpm test
 
 ## 先建立正确心智模型
 
-当前聊天主链路不是 legacy `AgentPresenter`，而是：
+当前聊天主链路不是 legacy `AgentPresenter`，也不是 renderer 直接调 presenter，而是：
 
 ```text
 Renderer
-  -> agentSessionPresenter
-  -> agentRuntimePresenter
-  -> toolPresenter / llmProviderPresenter
+  -> renderer/api (SessionClient / ChatClient / ProviderClient / SettingsClient)
+  -> window.deepchat
+  -> shared/contracts/routes + shared/contracts/events
+  -> src/main/routes/*
+  -> presenter-backed hot path ports
+  -> agentSessionPresenter / agentRuntimePresenter / toolPresenter / llmProviderPresenter
 ```
 
 如果你在历史文档或旧提交里看到 `AgentPresenter`、`startStreamCompletion`、`agentLoopHandler`，
 那已经是 archive 内容。
+
+如果你在现有代码里看到 `usePresenter()`、`window.electron`、`window.api`，请先把它理解为兼容层，
+而不是新功能默认入口。`phase5` 之后的默认规则见
+`docs/specs/renderer-main-single-track/`。
 
 ## 项目目录速览
 
@@ -71,11 +78,16 @@ src/
 
 ## 进入代码的推荐顺序
 
-1. `src/main/presenter/index.ts`
-2. `src/main/presenter/agentSessionPresenter/index.ts`
-3. `src/main/presenter/agentRuntimePresenter/index.ts`
-4. `src/main/presenter/toolPresenter/index.ts`
-5. `src/main/presenter/llmProviderPresenter/index.ts`
+1. `src/shared/contracts/routes.ts`
+2. `src/shared/contracts/events.ts`
+3. `src/preload/createBridge.ts`
+4. `src/renderer/api/`
+5. `src/main/routes/index.ts`
+6. `src/main/routes/sessions/sessionService.ts`
+7. `src/main/routes/chat/chatService.ts`
+8. `src/main/routes/providers/providerService.ts`
+9. `src/main/presenter/agentSessionPresenter/index.ts`
+10. `src/main/presenter/agentRuntimePresenter/index.ts`
 
 ## 常见开发任务
 
@@ -129,6 +141,12 @@ pnpm run typecheck
 
 ```bash
 node scripts/agent-cleanup-guard.mjs
+```
+
+如改到了 renderer-main 边界，额外执行：
+
+```bash
+pnpm run lint:architecture
 ```
 
 ## 历史资料
