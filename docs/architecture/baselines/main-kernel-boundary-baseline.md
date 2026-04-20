@@ -8,13 +8,30 @@ Current phase: P5.
 | Metric | Value |
 | --- | --- |
 | `renderer.usePresenter.count` | 86 |
+| `renderer.business.usePresenter.count` | 86 |
+| `renderer.quarantine.usePresenter.count` | 0 |
 | `renderer.windowElectron.count` | 95 |
+| `renderer.business.windowElectron.count` | 95 |
+| `renderer.quarantine.windowElectron.count` | 0 |
 | `renderer.windowApi.count` | 33 |
+| `renderer.business.windowApi.count` | 33 |
+| `renderer.quarantine.windowApi.count` | 0 |
 | `hotpath.presenterEdge.count` | 10 |
 | `runtime.rawTimer.count` | 123 |
 | `migrated.rawChannel.count` | 5 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
+
+## Renderer Single-Track Split
+
+- Business layer: `src/renderer/src/**`
+- Quarantine layer: `src/renderer/api/legacy/**`
+
+| Legacy surface | Business layer | Quarantine layer | Total |
+| --- | --- | --- | --- |
+| `usePresenter()` | 86 | 0 | 86 |
+| `window.electron` | 95 | 0 | 95 |
+| `window.api` | 33 | 0 | 33 |
 
 ## Hot Path Direct Dependencies
 

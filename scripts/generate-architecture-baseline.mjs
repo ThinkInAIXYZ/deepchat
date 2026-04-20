@@ -28,6 +28,7 @@ const ANALYSIS_TARGETS = [
 
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
+const RENDERER_QUARANTINE_ROOTS = [path.join(ROOT, 'src/renderer/api/legacy')]
 const BRIDGE_REGISTER_PATH = path.join(
   ROOT,
   'docs/architecture/baselines/main-kernel-bridge-register.json'
@@ -367,6 +368,32 @@ async function collectPatternCounts(files, pattern) {
   return counts
 }
 
+function combineCountMaps(...maps) {
+  const combined = new Map()
+
+  for (const currentMap of maps) {
+    for (const [file, count] of currentMap) {
+      combined.set(file, (combined.get(file) ?? 0) + count)
+    }
+  }
+
+  return combined
+}
+
+async function collectRendererPatternCountsByLayer(pattern) {
+  const businessFiles = await walk(RENDERER_SOURCE_ROOT)
+  const quarantineFiles = await collectFilesFromTargets(RENDERER_QUARANTINE_ROOTS)
+
+  const business = await collectPatternCounts(businessFiles, pattern)
+  const quarantine = await collectPatternCounts(quarantineFiles, pattern)
+
+  return {
+    business,
+    quarantine,
+    total: combineCountMaps(business, quarantine)
+  }
+}
+
 async function collectMigratedRawChannelCounts() {
   const files = await collectFilesFromTargets(MIGRATED_RAW_CHANNEL_GUARD_PATHS)
   const counts = new Map()
@@ -609,6 +636,7 @@ function renderTopCountSection(lines, title, summary) {
 function renderBoundaryBaselineReport({
   currentPhase,
   metrics,
+  rendererLegacySplit,
   usePresenterSummary,
   windowElectronSummary,
   windowApiSummary,
@@ -627,8 +655,14 @@ function renderBoundaryBaselineReport({
     '| Metric | Value |',
     '| --- | --- |',
     `| \`renderer.usePresenter.count\` | ${metrics['renderer.usePresenter.count']} |`,
+    `| \`renderer.business.usePresenter.count\` | ${metrics['renderer.business.usePresenter.count']} |`,
+    `| \`renderer.quarantine.usePresenter.count\` | ${metrics['renderer.quarantine.usePresenter.count']} |`,
     `| \`renderer.windowElectron.count\` | ${metrics['renderer.windowElectron.count']} |`,
+    `| \`renderer.business.windowElectron.count\` | ${metrics['renderer.business.windowElectron.count']} |`,
+    `| \`renderer.quarantine.windowElectron.count\` | ${metrics['renderer.quarantine.windowElectron.count']} |`,
     `| \`renderer.windowApi.count\` | ${metrics['renderer.windowApi.count']} |`,
+    `| \`renderer.business.windowApi.count\` | ${metrics['renderer.business.windowApi.count']} |`,
+    `| \`renderer.quarantine.windowApi.count\` | ${metrics['renderer.quarantine.windowApi.count']} |`,
     `| \`hotpath.presenterEdge.count\` | ${metrics['hotpath.presenterEdge.count']} |`,
     `| \`runtime.rawTimer.count\` | ${metrics['runtime.rawTimer.count']} |`,
     `| \`migrated.rawChannel.count\` | ${metrics['migrated.rawChannel.count']} |`,
@@ -636,6 +670,24 @@ function renderBoundaryBaselineReport({
     `| \`bridge.expired.count\` | ${metrics['bridge.expired.count']} |`,
     ''
   ]
+
+  lines.push('## Renderer Single-Track Split')
+  lines.push('')
+  lines.push('- Business layer: `src/renderer/src/**`')
+  lines.push('- Quarantine layer: `src/renderer/api/legacy/**`')
+  lines.push('')
+  lines.push('| Legacy surface | Business layer | Quarantine layer | Total |')
+  lines.push('| --- | --- | --- | --- |')
+  lines.push(
+    `| \`usePresenter()\` | ${rendererLegacySplit.usePresenter.business.total} | ${rendererLegacySplit.usePresenter.quarantine.total} | ${rendererLegacySplit.usePresenter.total.total} |`
+  )
+  lines.push(
+    `| \`window.electron\` | ${rendererLegacySplit.windowElectron.business.total} | ${rendererLegacySplit.windowElectron.quarantine.total} | ${rendererLegacySplit.windowElectron.total.total} |`
+  )
+  lines.push(
+    `| \`window.api\` | ${rendererLegacySplit.windowApi.business.total} | ${rendererLegacySplit.windowApi.quarantine.total} | ${rendererLegacySplit.windowApi.total.total} |`
+  )
+  lines.push('')
 
   lines.push('## Hot Path Direct Dependencies')
   lines.push('')
@@ -726,21 +778,44 @@ async function main() {
   }
 
   const archiveReferences = await collectArchiveReferences()
-  const rendererFiles = await walk(RENDERER_SOURCE_ROOT)
   const mainAndRendererFiles = await collectFilesFromTargets([MAIN_SOURCE_ROOT, RENDERER_SOURCE_ROOT])
-  const usePresenterCounts = await collectPatternCounts(rendererFiles, USE_PRESENTER_CALL_PATTERN)
-  const windowElectronCounts = await collectPatternCounts(rendererFiles, WINDOW_ELECTRON_PATTERN)
-  const windowApiCounts = await collectPatternCounts(rendererFiles, WINDOW_API_PATTERN)
+  const usePresenterCountsByLayer = await collectRendererPatternCountsByLayer(USE_PRESENTER_CALL_PATTERN)
+  const windowElectronCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_ELECTRON_PATTERN)
+  const windowApiCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_API_PATTERN)
   const rawTimerCounts = await collectPatternCounts(mainAndRendererFiles, RAW_TIMER_PATTERN)
   const migratedRawChannelCounts = await collectMigratedRawChannelCounts()
   const hotPathEdges = await collectHotPathDirectEdges()
   const bridgeRegister = await loadBridgeRegister()
   const bridgeSummary = summarizeBridges(bridgeRegister)
 
+  const rendererLegacySplit = {
+    usePresenter: {
+      business: summarizeCounts(usePresenterCountsByLayer.business),
+      quarantine: summarizeCounts(usePresenterCountsByLayer.quarantine),
+      total: summarizeCounts(usePresenterCountsByLayer.total)
+    },
+    windowElectron: {
+      business: summarizeCounts(windowElectronCountsByLayer.business),
+      quarantine: summarizeCounts(windowElectronCountsByLayer.quarantine),
+      total: summarizeCounts(windowElectronCountsByLayer.total)
+    },
+    windowApi: {
+      business: summarizeCounts(windowApiCountsByLayer.business),
+      quarantine: summarizeCounts(windowApiCountsByLayer.quarantine),
+      total: summarizeCounts(windowApiCountsByLayer.total)
+    }
+  }
+
   const metrics = {
-    'renderer.usePresenter.count': summarizeCounts(usePresenterCounts).total,
-    'renderer.windowElectron.count': summarizeCounts(windowElectronCounts).total,
-    'renderer.windowApi.count': summarizeCounts(windowApiCounts).total,
+    'renderer.usePresenter.count': rendererLegacySplit.usePresenter.total.total,
+    'renderer.business.usePresenter.count': rendererLegacySplit.usePresenter.business.total,
+    'renderer.quarantine.usePresenter.count': rendererLegacySplit.usePresenter.quarantine.total,
+    'renderer.windowElectron.count': rendererLegacySplit.windowElectron.total.total,
+    'renderer.business.windowElectron.count': rendererLegacySplit.windowElectron.business.total,
+    'renderer.quarantine.windowElectron.count': rendererLegacySplit.windowElectron.quarantine.total,
+    'renderer.windowApi.count': rendererLegacySplit.windowApi.total.total,
+    'renderer.business.windowApi.count': rendererLegacySplit.windowApi.business.total,
+    'renderer.quarantine.windowApi.count': rendererLegacySplit.windowApi.quarantine.total,
     'hotpath.presenterEdge.count': hotPathEdges.length,
     'runtime.rawTimer.count': summarizeCounts(rawTimerCounts).total,
     'migrated.rawChannel.count': summarizeCounts(migratedRawChannelCounts).total,
@@ -748,9 +823,9 @@ async function main() {
     'bridge.expired.count': bridgeSummary.expiredCount
   }
 
-  const usePresenterSummary = summarizeCounts(usePresenterCounts)
-  const windowElectronSummary = summarizeCounts(windowElectronCounts)
-  const windowApiSummary = summarizeCounts(windowApiCounts)
+  const usePresenterSummary = rendererLegacySplit.usePresenter.total
+  const windowElectronSummary = rendererLegacySplit.windowElectron.total
+  const windowApiSummary = rendererLegacySplit.windowApi.total
   const rawTimerSummary = summarizeCounts(rawTimerCounts)
   const migratedRawChannelSummary = summarizeCounts(migratedRawChannelCounts)
 
@@ -781,6 +856,7 @@ async function main() {
       `${renderBoundaryBaselineReport({
         currentPhase: bridgeRegister.currentPhase,
         metrics,
+        rendererLegacySplit,
         usePresenterSummary,
         windowElectronSummary,
         windowApiSummary,

@@ -13,10 +13,10 @@
 ## P0: Rules & Guard Hardening
 
 - [x] 定义业务层 / typed boundary / quarantine 三层目录规则
-- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `usePresenter` 禁止规则
-- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.electron` 禁止规则
-- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.api` 禁止规则
-- [ ] 为 `scripts/generate-architecture-baseline.mjs` 增加 business-layer / quarantine-layer 分维度统计
+- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `usePresenter` 禁止规则
+- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.electron` 禁止规则
+- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.api` 禁止规则
+- [x] 为 `scripts/generate-architecture-baseline.mjs` 增加 business-layer / quarantine-layer 分维度统计
 - [x] 定义 single-track merge gate
 
 ## P1: Transport Consolidation

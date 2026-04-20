@@ -5,14 +5,14 @@ Generated on 2026-04-20.
 ## main
 
 - Total files: 355
-- Internal dependency edges: 891
+- Internal dependency edges: 892
 - Cycles detected: 30
 
 ### Top outgoing dependencies
 
 - `presenter\index.ts`: 41
 - `presenter\configPresenter\index.ts`: 23
-- `presenter\agentRuntimePresenter\index.ts`: 21
+- `presenter\agentRuntimePresenter\index.ts`: 22
 - `presenter\lifecyclePresenter\hooks\index.ts`: 17
 - `presenter\sqlitePresenter\index.ts`: 17
 - `presenter\sqlitePresenter\schemaCatalog.ts`: 17
@@ -70,7 +70,7 @@ Generated on 2026-04-20.
 ## renderer
 
 - Total files: 222
-- Internal dependency edges: 468
+- Internal dependency edges: 466
 - Cycles detected: 3
 
 ### Top outgoing dependencies
@@ -94,7 +94,7 @@ Generated on 2026-04-20.
 ### Top incoming dependencies
 
 - `composables\usePresenter.ts`: 62
-- `events.ts`: 30
+- `events.ts`: 29
 - `components\chat\messageListItems.ts`: 16
 - `stores\ui\session.ts`: 16
 - `stores\artifact.ts`: 13
