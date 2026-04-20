@@ -63,6 +63,17 @@ export class ChatService {
         throw new Error(`Agent type not found: ${session.agentId}`)
       }
 
+      const previousMessages = await this.deps.scheduler.timeout({
+        task: this.deps.messageRepository.listBySession(sessionId),
+        ms: CHAT_LOOKUP_TIMEOUT_MS,
+        reason: `chat.sendMessage:${sessionId}:messages:before`
+      })
+      const maxAssistantOrderSeq = previousMessages.reduce(
+        (maxOrderSeq, message) =>
+          message.role === 'assistant' ? Math.max(maxOrderSeq, message.orderSeq) : maxOrderSeq,
+        Number.NEGATIVE_INFINITY
+      )
+
       await this.deps.scheduler.timeout({
         task: this.deps.providerExecutionPort.sendMessage(sessionId, content),
         ms: CHAT_SEND_TIMEOUT_MS,
@@ -77,7 +88,9 @@ export class ChatService {
       })
       const latestAssistantMessage =
         [...messages]
-          .filter((message) => message.role === 'assistant')
+          .filter(
+            (message) => message.role === 'assistant' && message.orderSeq > maxAssistantOrderSeq
+          )
           .sort((left, right) => right.orderSeq - left.orderSeq)[0] ?? null
 
       return {
@@ -140,9 +153,30 @@ export class ChatService {
     }
 
     await this.deps.scheduler.timeout({
-      task: Promise.resolve(
-        this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
-      ).then(async () => await this.deps.providerExecutionPort.cancelGeneration(targetSessionId)),
+      task: Promise.allSettled([
+        Promise.resolve().then(() =>
+          this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
+        ),
+        Promise.resolve().then(() =>
+          this.deps.providerExecutionPort.cancelGeneration(targetSessionId)
+        )
+      ]).then((results) => {
+        const clearPermissionsResult = results[0]
+        if (clearPermissionsResult?.status === 'rejected') {
+          console.warn(
+            `[ChatService] Failed to clear session permissions during stop for ${targetSessionId}:`,
+            clearPermissionsResult.reason
+          )
+        }
+
+        const cancelGenerationResult = results[1]
+        if (cancelGenerationResult?.status === 'rejected') {
+          console.warn(
+            `[ChatService] Failed to cancel generation during stop for ${targetSessionId}:`,
+            cancelGenerationResult.reason
+          )
+        }
+      }),
       ms: CHAT_STOP_TIMEOUT_MS,
       reason: `chat.stopStream:${targetSessionId}`
     })

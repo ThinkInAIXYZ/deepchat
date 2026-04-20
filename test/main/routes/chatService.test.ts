@@ -16,7 +16,22 @@ describe('ChatService', () => {
       })
     }
     const messageRepository = {
-      listBySession: vi.fn().mockResolvedValue([]),
+      listBySession: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            id: 'assistant-1',
+            role: 'assistant',
+            orderSeq: 2
+          }
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'assistant-1',
+            role: 'assistant',
+            orderSeq: 2
+          }
+        ]),
       get: vi.fn()
     }
     const providerExecutionPort = {
@@ -42,12 +57,17 @@ describe('ChatService', () => {
       scheduler
     })
 
-    await service.sendMessage('session-1', 'hello')
+    await expect(service.sendMessage('session-1', 'hello')).resolves.toEqual({
+      accepted: true,
+      requestId: null,
+      messageId: null
+    })
 
     expect(sessionRepository.get).toHaveBeenCalledWith('session-1')
     expect(providerCatalogPort.getAgentType).toHaveBeenCalledWith('deepchat')
     expect(providerExecutionPort.sendMessage).toHaveBeenCalledWith('session-1', 'hello')
-    expect(scheduler.timeout).toHaveBeenCalledTimes(4)
+    expect(messageRepository.listBySession).toHaveBeenCalledTimes(2)
+    expect(scheduler.timeout).toHaveBeenCalledTimes(5)
   })
 
   it('resolves stopStream by request id and clears permissions before cancelling', async () => {
@@ -87,6 +107,46 @@ describe('ChatService', () => {
       stopped: true
     })
     expect(messageRepository.get).toHaveBeenCalledWith('message-1')
+    expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
+    expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledWith('session-1')
+  })
+
+  it('attempts both stopStream cleanups even if clearing permissions fails', async () => {
+    const scheduler = createScheduler()
+    const sessionRepository = {
+      get: vi.fn()
+    }
+    const messageRepository = {
+      listBySession: vi.fn(),
+      get: vi.fn().mockResolvedValue({
+        id: 'message-1',
+        sessionId: 'session-1'
+      })
+    }
+    const providerExecutionPort = {
+      sendMessage: vi.fn(),
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn()
+    }
+    const providerCatalogPort = {
+      getAgentType: vi.fn()
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn().mockRejectedValue(new Error('permission cleanup failed'))
+    }
+
+    const service = new ChatService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: messageRepository as any,
+      providerExecutionPort,
+      providerCatalogPort,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    await expect(service.stopStream({ requestId: 'message-1' })).resolves.toEqual({
+      stopped: true
+    })
     expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
     expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledWith('session-1')
   })
@@ -164,7 +224,7 @@ describe('ChatService', () => {
       })
     }
     const messageRepository = {
-      listBySession: vi.fn(),
+      listBySession: vi.fn().mockResolvedValue([]),
       get: vi.fn()
     }
     const providerExecutionPort = {
@@ -300,13 +360,27 @@ describe('ChatService', () => {
       })
     }
     const messageRepository = {
-      listBySession: vi.fn().mockResolvedValue([
-        {
-          id: 'assistant-1',
-          role: 'assistant',
-          orderSeq: 2
-        }
-      ]),
+      listBySession: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            id: 'assistant-0',
+            role: 'assistant',
+            orderSeq: 1
+          }
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'assistant-0',
+            role: 'assistant',
+            orderSeq: 1
+          },
+          {
+            id: 'assistant-1',
+            role: 'assistant',
+            orderSeq: 2
+          }
+        ]),
       get: vi.fn()
     }
     let resolveFirstSend!: () => void
