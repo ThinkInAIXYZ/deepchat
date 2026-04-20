@@ -1,6 +1,11 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { usePresenter } from '@/composables/usePresenter'
+import {
+  useLegacyConfigPresenter,
+  useLegacyDevicePresenter,
+  useLegacySyncPresenter
+} from '@api/legacy/presenters'
+import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { CONFIG_EVENTS, SYNC_EVENTS } from '@/events'
@@ -21,16 +26,17 @@ export const useSyncStore = defineStore('sync', () => {
     importedSessions?: number
   } | null>(null)
 
-  const configPresenter = usePresenter('configPresenter')
-  const syncPresenter = usePresenter('syncPresenter')
-  const devicePresenter = usePresenter('devicePresenter')
+  const configPresenter = useLegacyConfigPresenter()
+  const syncPresenter = useLegacySyncPresenter()
+  const devicePresenter = useLegacyDevicePresenter()
+  let syncEventsRegistered = false
+  let syncSettingsListenerRegistered = false
 
   const backupQueryKey = (): EntryKey => ['sync', 'backups'] as const
 
   const backupsQuery = useIpcQuery({
-    presenter: 'syncPresenter',
-    method: 'listBackups',
     key: backupQueryKey,
+    query: () => syncPresenter.listBackups(),
     staleTime: 60_000,
     gcTime: 300_000
   }) as UseQueryReturn<SyncBackupInfo[]>
@@ -49,8 +55,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const startBackupMutation = useIpcMutation({
-    presenter: 'syncPresenter',
-    method: 'startBackup',
+    mutation: () => syncPresenter.startBackup(),
     invalidateQueries: () => [backupQueryKey()]
   })
 
@@ -73,8 +78,8 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const importBackupMutation = useIpcMutation({
-    presenter: 'syncPresenter',
-    method: 'importFromSync',
+    mutation: (backupFile: string, mode: 'increment' | 'overwrite') =>
+      syncPresenter.importFromSync(backupFile, mode),
     invalidateQueries: () => [backupQueryKey()]
   })
 
@@ -123,33 +128,41 @@ export const useSyncStore = defineStore('sync', () => {
     isBackingUp.value = status.isBackingUp
 
     await refreshBackups()
+    setupSyncEventListeners()
+    setupSyncSettingsListener()
+  }
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_STARTED, () => {
+  const setupSyncEventListeners = () => {
+    if (syncEventsRegistered) {
+      return
+    }
+
+    syncEventsRegistered = true
+
+    onLegacyIpcChannel(SYNC_EVENTS.BACKUP_STARTED, () => {
       isBackingUp.value = true
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_COMPLETED, (_event, time) => {
+    onLegacyIpcChannel(SYNC_EVENTS.BACKUP_COMPLETED, (_event, time) => {
       isBackingUp.value = false
       lastSyncTime.value = time
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_ERROR, () => {
+    onLegacyIpcChannel(SYNC_EVENTS.BACKUP_ERROR, () => {
       isBackingUp.value = false
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_STARTED, () => {
+    onLegacyIpcChannel(SYNC_EVENTS.IMPORT_STARTED, () => {
       isImporting.value = true
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_COMPLETED, () => {
+    onLegacyIpcChannel(SYNC_EVENTS.IMPORT_COMPLETED, () => {
       isImporting.value = false
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_ERROR, () => {
+    onLegacyIpcChannel(SYNC_EVENTS.IMPORT_ERROR, () => {
       isImporting.value = false
     })
-
-    setupSyncSettingsListener()
   }
 
   const setSyncEnabled = async (enabled: boolean) => {
@@ -184,7 +197,13 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const setupSyncSettingsListener = () => {
-    window.electron.ipcRenderer.on(
+    if (syncSettingsListenerRegistered) {
+      return
+    }
+
+    syncSettingsListenerRegistered = true
+
+    onLegacyIpcChannel(
       CONFIG_EVENTS.SYNC_SETTINGS_CHANGED,
       async (_event, payload: { enabled?: boolean; folderPath?: string }) => {
         if (typeof payload.enabled === 'boolean') {

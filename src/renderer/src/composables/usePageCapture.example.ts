@@ -1,7 +1,7 @@
 // usePageCapture 使用示例
 
 import { usePageCapture, createCapturePresets } from '@/composables/usePageCapture'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyDevicePresenter } from '@api/legacy/presenters'
 import { useI18n } from 'vue-i18n'
 import { ref } from 'vue'
 
@@ -9,7 +9,7 @@ import { ref } from 'vue'
 export function useMessageCapture() {
   const { t } = useI18n()
   const { isCapturing, captureAndCopy } = usePageCapture()
-  const devicePresenter = usePresenter('devicePresenter')
+  const devicePresenter = useLegacyDevicePresenter()
   const appVersion = ref('')
 
   // 初始化应用版本

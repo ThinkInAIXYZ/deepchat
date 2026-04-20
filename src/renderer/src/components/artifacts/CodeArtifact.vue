@@ -43,6 +43,7 @@ import { useI18n } from 'vue-i18n'
 import { useThrottleFn } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { MermaidBlockNode } from 'markstream-vue'
+import { copyLegacyText } from '@api/legacy/runtime'
 import { useArtifactStore } from '@/stores/artifact'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { getLanguageIcon } from 'markstream-vue'
@@ -178,11 +179,7 @@ const displayLanguage = computed(() => {
 
 const handleCopy = async () => {
   try {
-    if (window.api?.copyText) {
-      window.api.copyText(props.block.content)
-    } else {
-      await navigator.clipboard.writeText(props.block.content)
-    }
+    copyLegacyText(props.block.content)
     copyText.value = t('common.copySuccess')
     setTimeout(() => {
       copyText.value = t('common.copy')

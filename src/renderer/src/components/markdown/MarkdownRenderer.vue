@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
 import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
@@ -47,7 +47,7 @@ const artifactStore = useArtifactStore()
 const fallbackMessageId = `artifact-msg-${nanoid()}`
 const fallbackThreadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const agentSessionPresenter = useLegacyAgentSessionPresenter()
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)

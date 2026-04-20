@@ -1,5 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { WORKSPACE_EVENTS } from '@/events'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 import type {
   IWorkspacePresenter,
   WorkspaceFileNode,
@@ -73,6 +74,7 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
   const loadingFiles = ref(false)
   const loadingFilePreview = ref(false)
   const loadingGitDiff = ref(false)
+  const workspaceEventScope = createLegacyIpcSubscriptionScope()
 
   const normalizedWorkspacePath = computed(() =>
     normalizeWorkspaceKey(options.workspacePath.value?.trim() || null)
@@ -384,7 +386,7 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
   )
 
   onMounted(() => {
-    window.electron.ipcRenderer.on(WORKSPACE_EVENTS.INVALIDATED, handleWorkspaceInvalidated)
+    workspaceEventScope.on(WORKSPACE_EVENTS.INVALIDATED, handleWorkspaceInvalidated)
   })
 
   onBeforeUnmount(() => {
@@ -393,10 +395,7 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
       refreshTimer = null
     }
 
-    window.electron.ipcRenderer.removeListener(
-      WORKSPACE_EVENTS.INVALIDATED,
-      handleWorkspaceInvalidated
-    )
+    workspaceEventScope.cleanup()
 
     if (watchedWorkspacePath) {
       const workspacePath = watchedWorkspacePath

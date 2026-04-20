@@ -5,7 +5,8 @@ import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
 import type { CONVERSATION_SETTINGS } from '@shared/presenter'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyLlmProviderPresenter } from '@api/legacy/presenters'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 
 // === Stores ===
 import { useProviderStore } from '@/stores/providerStore'
@@ -35,7 +36,8 @@ export function useRateLimitStatus(
   t: (key: string, params?: any) => string
 ) {
   // === Presenters ===
-  const llmPresenter = usePresenter('llmproviderPresenter')
+  const llmPresenter = useLegacyLlmProviderPresenter()
+  const rateLimitEventScope = createLegacyIpcSubscriptionScope()
 
   // === Stores ===
   const providerStore = useProviderStore()
@@ -195,18 +197,21 @@ export function useRateLimitStatus(
     startRateLimitPolling()
 
     // Register IPC event listeners
-    window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
-    window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)
-    window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
+    rateLimitEventScope.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, (_event, data) =>
+      handleRateLimitEvent(data)
+    )
+    rateLimitEventScope.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, (_event, data) =>
+      handleRateLimitEvent(data)
+    )
+    rateLimitEventScope.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, (_event, data) =>
+      handleRateLimitEvent(data)
+    )
   })
 
   onUnmounted(() => {
     stopRateLimitPolling()
 
-    // Remove IPC event listeners
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.CONFIG_UPDATED)
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_EXECUTED)
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_QUEUED)
+    rateLimitEventScope.cleanup()
   })
 
   // === Return Public API ===

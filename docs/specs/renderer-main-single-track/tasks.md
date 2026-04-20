@@ -24,15 +24,15 @@
 
 ## P1: Transport Consolidation
 
-- [ ] 依赖 P0 已固定 `src/renderer/api/legacy/**` 后再开始本阶段
-- [ ] 把 `usePresenter()` 降级为 quarantine-only utility
-- [ ] 在 renderer 层建立显式 legacy quarantine adapter 目录
-- [ ] 重写或退役 `useIpcQuery`
-- [ ] 重写或退役 `useIpcMutation`
-- [ ] 收口 `window.electron` / `window.api` 的 runtime wrapper
-- [ ] 清理 `src/renderer/src/**` 中对 transport primitive 的直接 import
-- [ ] 为 transport consolidation 补验证：业务层 direct `usePresenter` import = `0`
-- [ ] 为 transport consolidation 补验证：业务层 mixed transport module = `0`
+- [x] 依赖 P0 已固定 `src/renderer/api/legacy/**` 后再开始本阶段
+- [x] 把 `usePresenter()` 降级为 quarantine-only utility
+- [x] 在 renderer 层建立显式 legacy quarantine adapter 目录
+- [x] 重写或退役 `useIpcQuery`
+- [x] 重写或退役 `useIpcMutation`
+- [x] 收口 `window.electron` / `window.api` 的 runtime wrapper
+- [x] 清理 `src/renderer/src/**` 中对 transport primitive 的直接 import
+- [x] 为 transport consolidation 补验证：业务层 direct `usePresenter` import = `0`
+- [x] 为 transport consolidation 补验证：业务层 mixed transport module = `0`
 
 ## P2: Config / Provider / Model Family
 

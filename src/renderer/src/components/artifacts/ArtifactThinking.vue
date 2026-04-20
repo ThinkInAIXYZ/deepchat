@@ -9,10 +9,10 @@
 // import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { onMounted, ref, watch } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 
 // const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyConfigPresenter()
 const collapse = ref(false)
 
 watch(

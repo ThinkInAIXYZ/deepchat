@@ -42,12 +42,12 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyDevicePresenter } from '@api/legacy/presenters'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
-const devicePresenter = usePresenter('devicePresenter')
+const devicePresenter = useLegacyDevicePresenter()
 
 const props = defineProps<{
   block: {

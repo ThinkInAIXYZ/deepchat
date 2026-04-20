@@ -4,7 +4,12 @@ import type { Editor, Range } from '@tiptap/core'
 import tippy from 'tippy.js'
 import type { PromptListEntry, WorkspaceFileNode } from '@shared/presenter'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
-import { usePresenter } from '@/composables/usePresenter'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
+import {
+  useLegacyAgentSessionPresenter,
+  useLegacySkillPresenter,
+  useLegacyWorkspacePresenter
+} from '@api/legacy/presenters'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
 import {
@@ -84,9 +89,9 @@ const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
 }
 
 export function useChatInputMentions(options: UseChatInputMentionsOptions) {
-  const workspacePresenter = usePresenter('workspacePresenter')
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
-  const skillPresenter = usePresenter('skillPresenter')
+  const workspacePresenter = useLegacyWorkspacePresenter()
+  const agentSessionPresenter = useLegacyAgentSessionPresenter()
+  const skillPresenter = useLegacySkillPresenter()
   const mcpStore = useMcpStore()
   const skillsStore = useSkillsStore()
 
@@ -96,6 +101,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const isSuggestionMenuOpen = ref(false)
   const suppressSubmitUntil = ref(0)
   const registeredWorkspacePath = ref<string | null>(null)
+  const mentionEventScope = createLegacyIpcSubscriptionScope()
 
   const dialogState = ref<MentionDialogState | null>(null)
   const pendingCommand = ref<AcpSessionCommand | null>(null)
@@ -534,17 +540,11 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     void mcpStore.loadPrompts()
     void mcpStore.loadTools()
 
-    window.electron.ipcRenderer.on(
-      ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY,
-      handleAcpCommandsReady
-    )
+    mentionEventScope.on(ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY, handleAcpCommandsReady)
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener(
-      ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY,
-      handleAcpCommandsReady
-    )
+    mentionEventScope.cleanup()
   })
 
   return {

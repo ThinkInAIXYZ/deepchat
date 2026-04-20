@@ -1,3 +1,5 @@
+import { getLegacyWebContentsId, getLegacyWindowId } from '@api/legacy/runtime'
+
 export interface RendererWindowContext {
   windowId: number | null
   webContentsId: number | null
@@ -6,21 +8,10 @@ export interface RendererWindowContext {
 let cachedWindowContext: RendererWindowContext | null = null
 
 function readWindowContext(): RendererWindowContext {
-  if (typeof window === 'undefined' || !window.api) {
-    return {
-      windowId: null,
-      webContentsId: null
-    }
-  }
-
   try {
     return {
-      windowId:
-        typeof window.api.getWindowId === 'function' ? (window.api.getWindowId() ?? null) : null,
-      webContentsId:
-        typeof window.api.getWebContentsId === 'function'
-          ? (window.api.getWebContentsId() ?? null)
-          : null
+      windowId: getLegacyWindowId(),
+      webContentsId: getLegacyWebContentsId()
     }
   } catch (error) {
     console.warn('Failed to read renderer window context:', error)

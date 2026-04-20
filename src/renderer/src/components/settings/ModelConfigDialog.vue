@@ -470,7 +470,7 @@ import {
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 import {
   Dialog,
   DialogContent,
@@ -524,7 +524,7 @@ const modelConfigStore = useModelConfigStore()
 const modelStore = useModelStore()
 const providerStore = useProviderStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyConfigPresenter()
 const providerIdLower = computed(() => props.providerId?.toLowerCase() || '')
 const capabilityProviderId = ref(props.providerId)
 const currentProvider = computed(() =>

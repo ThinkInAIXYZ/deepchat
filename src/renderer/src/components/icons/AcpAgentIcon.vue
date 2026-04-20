@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 
@@ -28,7 +28,7 @@ const props = withDefaults(
 const svgMarkup = ref('')
 const imageLoadFailed = ref(false)
 const requestSeq = ref(0)
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyConfigPresenter()
 
 const isThemeableRegistryIcon = computed(() => {
   const icon = props.icon.trim()

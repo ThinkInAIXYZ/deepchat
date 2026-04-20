@@ -796,7 +796,12 @@ import {
 } from '@shared/utils/generationSettingsValidation'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import {
+  useLegacyAgentSessionPresenter,
+  useLegacyConfigPresenter,
+  useLegacyLlmProviderPresenter
+} from '@api/legacy/presenters'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useThemeStore } from '@/stores/theme'
@@ -816,6 +821,7 @@ const props = withDefaults(
     maxWidthClass: 'max-w-2xl'
   }
 )
+const acpConfigEventScope = createLegacyIpcSubscriptionScope()
 
 type ModelSelection = {
   providerId: string
@@ -853,9 +859,9 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const projectStore = useProjectStore()
-const configPresenter = usePresenter('configPresenter')
-const llmproviderPresenter = usePresenter('llmproviderPresenter')
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const configPresenter = useLegacyConfigPresenter()
+const llmproviderPresenter = useLegacyLlmProviderPresenter()
+const agentSessionPresenter = useLegacyAgentSessionPresenter()
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
@@ -2490,14 +2496,11 @@ watch(isModelPanelOpen, (open) => {
 onBeforeUnmount(() => {
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
-  window.electron?.ipcRenderer?.removeListener?.(
-    ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
-    handleAcpConfigOptionsReady
-  )
+  acpConfigEventScope.cleanup()
 })
 
 onMounted(() => {
-  window.electron?.ipcRenderer?.on?.(
+  acpConfigEventScope.on(
     ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
     handleAcpConfigOptionsReady
   )

@@ -110,7 +110,8 @@ import ChatAttachmentItem from '../chat/ChatAttachmentItem.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyWindowPresenter } from '@api/legacy/presenters'
+import { copyLegacyText } from '@api/legacy/runtime'
 import { computed, ref, watch, nextTick } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
@@ -146,7 +147,7 @@ const getVisibleMessageText = (message: DisplayUserMessage) => {
   return message.content.text || ''
 }
 
-const windowPresenter = usePresenter('windowPresenter')
+const windowPresenter = useLegacyWindowPresenter()
 const { t } = useI18n()
 
 const props = defineProps<{
@@ -260,7 +261,7 @@ const handleAction = (action: 'delete' | 'copy') => {
     }
     emit('delete', props.message.id)
   } else if (action === 'copy') {
-    window.api.copyText(getCopyText())
+    copyLegacyText(getCopyText())
   }
 }
 

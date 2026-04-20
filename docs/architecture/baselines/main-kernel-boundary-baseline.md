@@ -7,18 +7,18 @@ Current phase: P5.
 
 | Metric | Value |
 | --- | --- |
-| `renderer.usePresenter.count` | 86 |
-| `renderer.business.usePresenter.count` | 86 |
-| `renderer.quarantine.usePresenter.count` | 0 |
-| `renderer.windowElectron.count` | 95 |
-| `renderer.business.windowElectron.count` | 95 |
-| `renderer.quarantine.windowElectron.count` | 0 |
-| `renderer.windowApi.count` | 33 |
-| `renderer.business.windowApi.count` | 33 |
-| `renderer.quarantine.windowApi.count` | 0 |
+| `renderer.usePresenter.count` | 1 |
+| `renderer.business.usePresenter.count` | 0 |
+| `renderer.quarantine.usePresenter.count` | 1 |
+| `renderer.windowElectron.count` | 2 |
+| `renderer.business.windowElectron.count` | 0 |
+| `renderer.quarantine.windowElectron.count` | 2 |
+| `renderer.windowApi.count` | 2 |
+| `renderer.business.windowApi.count` | 0 |
+| `renderer.quarantine.windowApi.count` | 2 |
 | `hotpath.presenterEdge.count` | 10 |
 | `runtime.rawTimer.count` | 123 |
-| `migrated.rawChannel.count` | 5 |
+| `migrated.rawChannel.count` | 4 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
 
@@ -29,20 +29,20 @@ Current phase: P5.
 
 | Legacy surface | Business layer | Quarantine layer | Total |
 | --- | --- | --- | --- |
-| `usePresenter()` | 86 | 0 | 86 |
-| `window.electron` | 95 | 0 | 95 |
-| `window.api` | 33 | 0 | 33 |
+| `usePresenter()` | 0 | 1 | 1 |
+| `window.electron` | 0 | 2 | 2 |
+| `window.api` | 0 | 2 | 2 |
 
 ## Phase Gates
 
 | Phase | Gate indicator | Current signal | Status |
 | --- | --- | --- | --- |
 | `P0` | Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics | `src/renderer/api/legacy/**` exists; split metrics emitted | ready |
-| `P1` | Business layer direct `usePresenter` / `window.electron` / `window.api` counts must reach `0` | usePresenter=86, window.electron=95, window.api=33 | pending |
-| `P2` | Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0` | configPresenter=26, llmproviderPresenter=4 | pending |
-| `P3` | Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0` | window=9, device=8, workspace=5, project=2, file=2, browser=2, tab=2 | pending |
-| `P4` | Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0` | agentSession=13, skill=4, mcp=2, sync=1, upgrade=1, dialog=1, tool=1 | pending |
-| `P5` | Business layer direct legacy access must be `0`, and quarantine source files must be empty or satisfy the exit standard | businessLegacy=86/95/33, quarantineSourceFiles=0 | pending |
+| `P1` | Business layer direct `usePresenter` / `window.electron` / `window.api` counts must reach `0` | usePresenter=0, window.electron=0, window.api=0 | ready |
+| `P2` | Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0` | configPresenter=0, llmproviderPresenter=0 | ready |
+| `P3` | Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0` | window=0, device=0, workspace=0, project=0, file=0, browser=0, tab=0 | ready |
+| `P4` | Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0` | agentSession=0, skill=0, mcp=0, sync=0, upgrade=0, dialog=0, tool=0 | ready |
+| `P5` | Business layer direct legacy access must be `0`, and quarantine source files must be empty or satisfy the exit standard | businessLegacy=0/0/0, quarantineSourceFiles=3 | pending |
 
 ## Hot Path Direct Dependencies
 
@@ -61,54 +61,22 @@ Current phase: P5.
 
 ## Renderer usePresenter
 
-- Total count: 86
+- Total count: 1
 
-- `src/renderer/src/components/chat-input/McpIndicator.vue`: 3
-- `src/renderer/src/components/chat/ChatStatusBar.vue`: 3
-- `src/renderer/src/components/chat/composables/useChatInputMentions.ts`: 3
-- `src/renderer/src/components/sidepanel/WorkspacePanel.vue`: 3
-- `src/renderer/src/stores/sync.ts`: 3
-- `src/renderer/src/stores/ui/session.ts`: 3
-- `src/renderer/src/App.vue`: 2
-- `src/renderer/src/components/AppBar.vue`: 2
-- `src/renderer/src/components/markdown/useMarkdownLinkNavigation.ts`: 2
-- `src/renderer/src/pages/NewThreadPage.vue`: 2
-- `src/renderer/src/pages/WelcomePage.vue`: 2
-- `src/renderer/src/stores/mcp.ts`: 2
+- `src/renderer/api/legacy/presenters.ts`: 1
 
 ## Renderer window.electron
 
-- Total count: 95
+- Total count: 2
 
-- `src/renderer/src/components/sidepanel/BrowserPanel.vue`: 12
-- `src/renderer/src/stores/sync.ts`: 7
-- `src/renderer/src/components/chat-input/composables/useRateLimitStatus.ts`: 6
-- `src/renderer/src/components/chat-input/composables/useSkillsData.ts`: 6
-- `src/renderer/src/components/chat-input/McpIndicator.vue`: 6
-- `src/renderer/src/stores/mcp.ts`: 6
-- `src/renderer/src/stores/mcpSampling.ts`: 6
-- `src/renderer/src/stores/providerStore.ts`: 5
-- `src/renderer/src/components/message/SelectedTextContextMenu.vue`: 4
-- `src/renderer/src/stores/modelStore.ts`: 4
-- `src/renderer/src/stores/theme.ts`: 4
-- `src/renderer/src/stores/upgrade.ts`: 4
+- `src/renderer/api/legacy/presenterTransport.ts`: 1
+- `src/renderer/api/legacy/runtime.ts`: 1
 
 ## Renderer window.api
 
-- Total count: 33
+- Total count: 2
 
-- `src/renderer/src/lib/windowContext.ts`: 5
-- `src/renderer/src/components/message/MessageBlockToolCall.vue`: 4
-- `src/renderer/src/components/AppBar.vue`: 3
-- `src/renderer/src/composables/usePageCapture.ts`: 3
-- `src/renderer/src/components/artifacts/CodeArtifact.vue`: 2
-- `src/renderer/src/components/chat/composables/useChatInputFiles.ts`: 2
-- `src/renderer/src/components/markdown/useMarkdownLinkNavigation.ts`: 2
-- `src/renderer/src/components/message/MessageItemAssistant.vue`: 2
-- `src/renderer/src/components/artifacts/ArtifactBlock.vue`: 1
-- `src/renderer/src/components/chat-input/SkillsIndicator.vue`: 1
-- `src/renderer/src/components/message/MessageItemUser.vue`: 1
-- `src/renderer/src/components/sidepanel/BrowserPanel.vue`: 1
+- `src/renderer/api/legacy/runtime.ts`: 2
 
 ## Raw Timers
 
@@ -129,8 +97,7 @@ Current phase: P5.
 
 ## Migrated Path Raw Channel Literals
 
-- Total count: 5
+- Total count: 4
 
 - `src/main/presenter/windowPresenter/index.ts`: 4
-- `src/renderer/src/App.vue`: 1
 

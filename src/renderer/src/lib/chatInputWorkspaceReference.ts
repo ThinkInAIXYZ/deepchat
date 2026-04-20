@@ -1,3 +1,5 @@
+import { toLegacyRelativePath } from '@api/legacy/runtime'
+
 export const CHAT_INPUT_WORKSPACE_ITEM_MIME = 'application/x-deepchat-workspace-item'
 
 export interface ChatInputWorkspaceItemDragPayload {
@@ -99,7 +101,7 @@ export const resolveChatInputWorkspaceReferencePath = (
   }
 
   const relativePath =
-    window.api?.toRelativePath?.(normalizedTargetPath, normalizedWorkspacePath) ??
+    toLegacyRelativePath(normalizedTargetPath, normalizedWorkspacePath) ??
     resolveRelativePathFallback(normalizedTargetPath, normalizedWorkspacePath)
   const normalizedRelativePath = normalizeTrimmedString(relativePath)
   if (normalizedRelativePath && normalizedRelativePath !== '.') {

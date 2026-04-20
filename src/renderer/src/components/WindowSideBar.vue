@@ -330,7 +330,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
+import { useLegacyRemoteControlPresenter, useLegacyWindowPresenter } from '@api/legacy/presenters'
+import { getLegacyWindowId } from '@api/legacy/runtime'
 import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
@@ -356,8 +357,8 @@ const PIN_FLIGHT_DURATION_MS = 500
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
 
-const windowPresenter = usePresenter('windowPresenter')
-const remoteControlPresenter = useRemoteControlPresenter()
+const windowPresenter = useLegacyWindowPresenter()
+const remoteControlPresenter = useLegacyRemoteControlPresenter()
 const { t } = useI18n()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
@@ -637,7 +638,7 @@ watch(
 )
 
 const openSettings = () => {
-  const windowId = window.api.getWindowId()
+  const windowId = getLegacyWindowId()
   if (windowId != null) {
     void windowPresenter.openOrFocusSettingsWindow()
   }

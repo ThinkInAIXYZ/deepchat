@@ -1,10 +1,10 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { ModelConfig, IModelConfig } from '@shared/presenter'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 
 export const useModelConfigStore = defineStore('modelConfig', () => {
-  const configP = usePresenter('configPresenter')
+  const configP = useLegacyConfigPresenter()
 
   const cache = ref<Record<string, ModelConfig>>({})
 

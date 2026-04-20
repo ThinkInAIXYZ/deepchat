@@ -18,12 +18,12 @@ import { EmojiPicker } from '@/components/emoji-picker'
 import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
 import { X } from 'lucide-vue-next'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyDevicePresenter } from '@api/legacy/presenters'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
 const { toast } = useToast()
-const devicePresenter = usePresenter('devicePresenter')
+const devicePresenter = useLegacyDevicePresenter()
 const props = defineProps<{
   serverName?: string
   initialConfig?: MCPServerConfig

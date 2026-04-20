@@ -64,7 +64,8 @@
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter, useLegacyWindowPresenter } from '@api/legacy/presenters'
+import { getLegacyWindowId } from '@api/legacy/runtime'
 import { useThemeStore } from '@/stores/theme'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { SETTINGS_EVENTS } from '@/events'
@@ -73,8 +74,8 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
-const windowPresenter = usePresenter('windowPresenter')
+const configPresenter = useLegacyConfigPresenter()
+const windowPresenter = useLegacyWindowPresenter()
 const themeStore = useThemeStore()
 const pageRouter = usePageRouterStore()
 
@@ -96,7 +97,7 @@ const navigateToSettings = (windowId: number, routeName: SettingsRouteName) => {
 }
 
 const openSettings = async (routeName: SettingsRouteName) => {
-  const windowId = window.api.getWindowId()
+  const windowId = getLegacyWindowId()
   if (windowId == null) {
     return
   }

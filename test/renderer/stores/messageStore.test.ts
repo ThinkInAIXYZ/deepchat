@@ -338,8 +338,8 @@ describe('messageStore', () => {
 
     await store.loadMessages('s1')
 
-    expect(ipcListeners.end).toHaveLength(0)
-    expect(ipcListeners.error).toHaveLength(0)
+    expect(ipcListeners.end).toHaveLength(1)
+    expect(ipcListeners.error).toHaveLength(1)
 
     const completionHandler = streamListeners.completed[0]
     expect(typeof completionHandler).toBe('function')
@@ -350,6 +350,45 @@ describe('messageStore', () => {
       messageId: 'user-1',
       completedAt: 2
     })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(sessionClient.restore).toHaveBeenCalledTimes(2)
+    expect(store.messages.value).toHaveLength(1)
+    expect(store.messages.value[0]?.id).toBe('user-1')
+  })
+
+  it('reloads persisted messages when a legacy stream-end refresh arrives before typed completion', async () => {
+    const { store, sessionClient, ipcListeners } = await setupStore()
+    sessionClient.restore
+      .mockResolvedValueOnce({
+        session: { id: 's1' },
+        messages: []
+      })
+      .mockResolvedValueOnce({
+        session: { id: 's1' },
+        messages: [
+          {
+            id: 'user-1',
+            sessionId: 's1',
+            orderSeq: 1,
+            role: 'user',
+            content: '{"text":"hello","files":[],"links":[],"search":false,"think":false}',
+            status: 'sent',
+            isContextEdge: 0,
+            metadata: '{}',
+            traceCount: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ]
+      })
+
+    await store.loadMessages('s1')
+
+    const endHandler = ipcListeners.end[0]
+    expect(typeof endHandler).toBe('function')
+
+    endHandler({}, { conversationId: 's1', messageId: 'user-1', eventId: 'user-1' })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(sessionClient.restore).toHaveBeenCalledTimes(2)

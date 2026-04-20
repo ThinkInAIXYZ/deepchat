@@ -12,7 +12,7 @@
 import { useI18n } from 'vue-i18n'
 import { ThinkContent } from '@/components/think-content'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import { useThrottleFn } from '@vueuse/core'
 const props = defineProps<{
@@ -28,7 +28,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyConfigPresenter()
 
 // kept for potential future scroll anchoring; currently unused
 

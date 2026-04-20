@@ -70,30 +70,29 @@ Generated on 2026-04-20.
 ## renderer
 
 - Total files: 222
-- Internal dependency edges: 466
+- Internal dependency edges: 406
 - Cycles detected: 3
 
 ### Top outgoing dependencies
 
-- `App.vue`: 26
-- `pages\ChatPage.vue`: 17
+- `App.vue`: 25
+- `pages\ChatPage.vue`: 16
 - `components\message\MessageItemAssistant.vue`: 15
 - `i18n\index.ts`: 12
-- `components\chat\ChatStatusBar.vue`: 11
-- `components\ChatConfig.vue`: 9
-- `components\sidepanel\WorkspacePanel.vue`: 9
-- `pages\NewThreadPage.vue`: 9
+- `components\chat\ChatStatusBar.vue`: 10
 - `views\ChatTabView.vue`: 9
 - `components\AppBar.vue`: 8
-- `components\markdown\MarkdownRenderer.vue`: 8
+- `components\ChatConfig.vue`: 8
 - `components\mcp-config\components\McpServers.vue`: 8
-- `components\message\MessageBlockContent.vue`: 8
 - `components\sidepanel\viewer\WorkspacePreviewPane.vue`: 8
-- `components\WindowSideBar.vue`: 8
+- `components\sidepanel\WorkspacePanel.vue`: 8
+- `pages\NewThreadPage.vue`: 8
+- `components\markdown\MarkdownRenderer.vue`: 7
+- `components\mcp-config\components\index.ts`: 7
+- `components\message\MessageBlockContent.vue`: 7
 
 ### Top incoming dependencies
 
-- `composables\usePresenter.ts`: 62
 - `events.ts`: 29
 - `components\chat\messageListItems.ts`: 16
 - `stores\ui\session.ts`: 16
@@ -108,6 +107,7 @@ Generated on 2026-04-20.
 - `components\icons\ModelIcon.vue`: 6
 - `components\use-toast.ts`: 6
 - `stores\language.ts`: 6
+- `lib\ipcSubscription.ts`: 5
 
 ### Cycle samples
 

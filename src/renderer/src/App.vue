@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import { usePresenter } from './composables/usePresenter'
+import { useLegacyConfigPresenter, useLegacyWindowPresenter } from '@api/legacy/presenters'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useSessionStore } from '@/stores/ui/session'
@@ -31,12 +31,13 @@ import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
 import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
+import { sendLegacyIpc } from '@api/legacy/runtime'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
 const route = useRoute()
-const configPresenter = usePresenter('configPresenter')
-const windowPresenter = usePresenter('windowPresenter')
+const configPresenter = useLegacyConfigPresenter()
+const windowPresenter = useLegacyWindowPresenter()
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
@@ -369,7 +370,7 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
 // Handle ESC key - close floating chat window
 const handleEscKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
-    window.electron.ipcRenderer.send('close-floating-window')
+    sendLegacyIpc('close-floating-window')
   }
 }
 

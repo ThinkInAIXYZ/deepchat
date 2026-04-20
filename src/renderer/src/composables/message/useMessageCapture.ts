@@ -1,14 +1,14 @@
 import { ref, onUnmounted, nextTick } from 'vue'
 import { usePageCapture } from '@/composables/usePageCapture'
 import { useThemeStore } from '@/stores/theme'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyDevicePresenter } from '@api/legacy/presenters'
 import { useI18n } from 'vue-i18n'
 import type { CaptureOptions } from './types'
 
 export function useMessageCapture() {
   const { t } = useI18n()
   const themeStore = useThemeStore()
-  const devicePresenter = usePresenter('devicePresenter')
+  const devicePresenter = useLegacyDevicePresenter()
   const { isCapturing, captureAndCopy } = usePageCapture()
 
   const appVersion = ref('')

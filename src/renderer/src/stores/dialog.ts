@@ -1,14 +1,16 @@
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyDialogPresenter } from '@api/legacy/presenters'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 import { DIALOG_EVENTS } from '@/events'
 import { DialogRequest, DialogResponse } from '@shared/presenter'
 import { defineStore } from 'pinia'
 import { onMounted, onUnmounted, ref } from 'vue'
 
 export const useDialogStore = defineStore('dialog', () => {
-  const dialogP = usePresenter('dialogPresenter')
+  const dialogP = useLegacyDialogPresenter()
   const dialogRequest = ref<DialogRequest | null>(null)
   const showDialog = ref(false)
   const timeoutMilliseconds = ref(0)
+  const dialogEventScope = createLegacyIpcSubscriptionScope()
   let timer: NodeJS.Timeout | null = null
 
   // Clear the timer
@@ -35,7 +37,7 @@ export const useDialogStore = defineStore('dialog', () => {
 
   // Listen for dialog request events
   const setupUpdateListener = () => {
-    window.electron.ipcRenderer.on(DIALOG_EVENTS.REQUEST, async (_, event: DialogRequest) => {
+    dialogEventScope.on(DIALOG_EVENTS.REQUEST, async (_, event: DialogRequest) => {
       try {
         if (!event || !event.id || !event.title) {
           console.error('[DialogStore] Invalid dialog request:', event)
@@ -72,7 +74,7 @@ export const useDialogStore = defineStore('dialog', () => {
   // Remove dialog request listener
   const removeUpdateListener = () => {
     clearTimer()
-    window.electron.ipcRenderer.removeAllListeners(DIALOG_EVENTS.REQUEST)
+    dialogEventScope.cleanup()
   }
 
   // Respond to dialog

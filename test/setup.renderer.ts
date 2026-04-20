@@ -68,9 +68,54 @@ vi.mock('@iconify/vue', () => ({
 }))
 
 // Mock window.api (preload exposed APIs)
+Object.defineProperty(window, 'electron', {
+  value: {
+    ipcRenderer: {
+      invoke: vi.fn(),
+      on: vi.fn(),
+      removeAllListeners: vi.fn(),
+      removeListener: vi.fn(),
+      send: vi.fn()
+    }
+  },
+  writable: true
+})
+
 Object.defineProperty(window, 'api', {
   value: {
+    copyImage: vi.fn(),
+    copyText: vi.fn(),
+    formatPathForInput: vi.fn((value) => value),
+    getPathForFile: vi.fn(() => ''),
+    getWebContentsId: vi.fn(() => 1),
+    getWindowId: vi.fn(() => 1),
     openExternal: vi.fn(),
+    readClipboardText: vi.fn(() => ''),
+    toRelativePath: vi.fn((filePath: string, basePath?: string) => {
+      if (typeof filePath !== 'string' || typeof basePath !== 'string') {
+        return filePath
+      }
+
+      const normalize = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '').trim()
+
+      const normalizedFilePath = normalize(filePath)
+      const normalizedBasePath = normalize(basePath)
+
+      if (!normalizedBasePath) {
+        return filePath
+      }
+
+      if (normalizedFilePath === normalizedBasePath) {
+        return ''
+      }
+
+      const basePrefix = `${normalizedBasePath}/`
+      if (normalizedFilePath.startsWith(basePrefix)) {
+        return normalizedFilePath.slice(basePrefix.length)
+      }
+
+      return filePath
+    }),
     devicePresenter: {
       getDeviceInfo: vi.fn(() =>
         Promise.resolve({

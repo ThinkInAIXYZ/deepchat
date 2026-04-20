@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { useToast } from '@/components/use-toast'
 import type { MCPServerConfig } from '@shared/presenter'
@@ -12,7 +12,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyConfigPresenter()
 
 const loading = ref(false)
 const saving = ref(false)

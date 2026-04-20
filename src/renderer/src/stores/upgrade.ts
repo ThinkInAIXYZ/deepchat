@@ -1,4 +1,5 @@
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyDevicePresenter, useLegacyUpgradePresenter } from '@api/legacy/presenters'
+import { hasLegacyIpcRenderer, onLegacyIpcChannel } from '@api/legacy/runtime'
 import { UPDATE_EVENTS } from '@/events'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
@@ -64,8 +65,8 @@ const toProgressInfo = (progress: ProgressInfo | null | undefined): ProgressInfo
 }
 
 export const useUpgradeStore = defineStore('upgrade', () => {
-  const upgradeP = usePresenter('upgradePresenter')
-  const devicePresenter = usePresenter('devicePresenter')
+  const upgradeP = useLegacyUpgradePresenter()
+  const devicePresenter = useLegacyDevicePresenter()
 
   const rawStatus = ref<PresenterUpdateStatus>(null)
   const updateInfo = ref<UpdateInfo | null>(null)
@@ -332,15 +333,15 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   }
 
   const setupUpdateListener = () => {
-    if (listenersReady.value || !window?.electron?.ipcRenderer) {
+    if (listenersReady.value || !hasLegacyIpcRenderer()) {
       return
     }
 
     listenersReady.value = true
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.STATUS_CHANGED, handleStatusChanged)
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.PROGRESS, handleProgress)
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.WILL_RESTART, handleWillRestart)
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.ERROR, handleError)
+    onLegacyIpcChannel(UPDATE_EVENTS.STATUS_CHANGED, handleStatusChanged)
+    onLegacyIpcChannel(UPDATE_EVENTS.PROGRESS, handleProgress)
+    onLegacyIpcChannel(UPDATE_EVENTS.WILL_RESTART, handleWillRestart)
+    onLegacyIpcChannel(UPDATE_EVENTS.ERROR, handleError)
   }
 
   setupUpdateListener()

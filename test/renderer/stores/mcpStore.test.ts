@@ -43,11 +43,10 @@ vi.mock('@/composables/usePresenter', () => ({
 }))
 
 vi.mock('@/composables/useIpcMutation', () => ({
-  useIpcMutation: (options: { method: string }) => ({
-    mutateAsync:
-      options.method === 'setMcpServerEnabled'
-        ? setMcpServerEnabledMutate
-        : vi.fn().mockResolvedValue(undefined)
+  useIpcMutation: (options: { mutation?: (...args: any[]) => unknown }) => ({
+    mutateAsync: options.mutation?.toString().includes('setMcpServerEnabled')
+      ? setMcpServerEnabledMutate
+      : vi.fn().mockResolvedValue(undefined)
   })
 }))
 

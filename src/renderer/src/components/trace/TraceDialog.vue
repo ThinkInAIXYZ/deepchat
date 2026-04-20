@@ -94,13 +94,14 @@ import { Button } from '@shadcn/components/ui/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
+import { copyLegacyText } from '@api/legacy/runtime'
 import { useMonaco } from 'stream-monaco'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
 
 const { t } = useI18n()
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const agentSessionPresenter = useLegacyAgentSessionPresenter()
 const uiSettingsStore = useUiSettingsStore()
 
 const jsonEditor = ref<HTMLElement | null>(null)
@@ -301,7 +302,7 @@ const loadTraces = async (messageId: string) => {
 const copyJson = async () => {
   if (!formattedJson.value) return
   try {
-    await window.api.copyText(formattedJson.value)
+    copyLegacyText(formattedJson.value)
     copySuccess.value = true
     setTimeout(() => {
       copySuccess.value = false

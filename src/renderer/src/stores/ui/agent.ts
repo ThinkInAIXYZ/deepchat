@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
+import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { CONFIG_EVENTS } from '@/events'
 import type { Agent } from '@shared/types/agent-interface'
 
@@ -24,7 +25,8 @@ export interface UIAgent {
 // --- Store ---
 
 export const useAgentStore = defineStore('agent', () => {
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
+  const agentSessionPresenter = useLegacyAgentSessionPresenter()
+  let listenersRegistered = false
 
   // --- State ---
   const agents = ref<UIAgent[]>([])
@@ -78,18 +80,18 @@ export const useAgentStore = defineStore('agent', () => {
     selectedAgentId.value = selectedAgentId.value === id ? null : id
   }
 
-  window.electron.ipcRenderer.on(
-    CONFIG_EVENTS.MODEL_LIST_CHANGED,
-    (_: unknown, providerId?: string) => {
+  if (!listenersRegistered) {
+    listenersRegistered = true
+    onLegacyIpcChannel(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_: unknown, providerId?: string) => {
       if (providerId === 'acp') {
         void fetchAgents()
       }
-    }
-  )
+    })
 
-  window.electron.ipcRenderer.on(CONFIG_EVENTS.AGENTS_CHANGED, () => {
-    void fetchAgents()
-  })
+    onLegacyIpcChannel(CONFIG_EVENTS.AGENTS_CHANGED, () => {
+      void fetchAgents()
+    })
+  }
 
   return {
     agents,

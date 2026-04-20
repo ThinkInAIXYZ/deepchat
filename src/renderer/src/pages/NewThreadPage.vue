@@ -103,7 +103,7 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyAgentSessionPresenter, useLegacyConfigPresenter } from '@api/legacy/presenters'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -117,8 +117,8 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
-const configPresenter = usePresenter('configPresenter')
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const configPresenter = useLegacyConfigPresenter()
+const agentSessionPresenter = useLegacyAgentSessionPresenter()
 const { t } = useI18n()
 
 const message = ref('')

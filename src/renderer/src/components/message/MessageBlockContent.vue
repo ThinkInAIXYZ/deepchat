@@ -35,10 +35,10 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from 'vue'
 
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
 import type { SearchResult } from '@shared/types/core/search'
 
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const agentSessionPresenter = useLegacyAgentSessionPresenter()
 const searchResults = ref<SearchResult[]>([])
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'

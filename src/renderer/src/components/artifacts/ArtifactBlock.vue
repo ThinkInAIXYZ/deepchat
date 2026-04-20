@@ -25,6 +25,7 @@
 import { computed } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
+import { copyLegacyText } from '@api/legacy/runtime'
 import CodeArtifact from './CodeArtifact.vue'
 import MarkdownArtifact from './MarkdownArtifact.vue'
 import HTMLArtifact from './HTMLArtifact.vue'
@@ -84,7 +85,7 @@ const artifactClass = computed(() => {
 
 const handleCopy = () => {
   if (props.block.content) {
-    window.api.copyText(props.block.content)
+    copyLegacyText(props.block.content)
   }
 }
 </script>

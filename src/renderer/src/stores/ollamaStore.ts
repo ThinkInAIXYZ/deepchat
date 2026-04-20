@@ -1,15 +1,17 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { OLLAMA_EVENTS } from '@/events'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyLlmProviderPresenter } from '@api/legacy/presenters'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 import type { OllamaModel } from '@shared/presenter'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 
 export const useOllamaStore = defineStore('ollama', () => {
-  const llmP = usePresenter('llmproviderPresenter')
+  const llmP = useLegacyLlmProviderPresenter()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
+  const ollamaEventScope = createLegacyIpcSubscriptionScope()
 
   const runningModels = ref<Record<string, OllamaModel[]>>({})
   const localModels = ref<Record<string, OllamaModel[]>>({})
@@ -110,14 +112,14 @@ export const useOllamaStore = defineStore('ollama', () => {
   }
 
   const setupOllamaEventListeners = () => {
-    window.electron?.ipcRenderer?.on(
+    ollamaEventScope.on(
       OLLAMA_EVENTS.PULL_MODEL_PROGRESS,
       (_event: unknown, data: Record<string, unknown>) => handleOllamaModelPullEvent(data)
     )
   }
 
   const removeOllamaEventListeners = () => {
-    window.electron?.ipcRenderer?.removeAllListeners(OLLAMA_EVENTS.PULL_MODEL_PROGRESS)
+    ollamaEventScope.cleanup()
   }
 
   const clearOllamaProviderData = (providerId: string) => {

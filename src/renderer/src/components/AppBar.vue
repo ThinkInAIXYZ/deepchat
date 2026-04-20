@@ -56,17 +56,19 @@ import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyDevicePresenter, useLegacyWindowPresenter } from '@api/legacy/presenters'
+import { getLegacyWindowId } from '@api/legacy/runtime'
 import { Button } from '@shadcn/components/ui/button'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import { WINDOW_EVENTS } from '@/events'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useRoute } from 'vue-router'
+import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 
 const langStore = useLanguageStore()
-const windowPresenter = usePresenter('windowPresenter')
-const devicePresenter = usePresenter('devicePresenter')
+const windowPresenter = useLegacyWindowPresenter()
+const devicePresenter = useLegacyDevicePresenter()
 const upgrade = useUpgradeStore()
 const route = useRoute()
 
@@ -78,25 +80,24 @@ const isFullscreened = ref(false)
 const showUpdateButton = computed(
   () => route.name !== 'welcome' && upgrade.shouldShowTopbarInstallButton
 )
-
-const { ipcRenderer } = window.electron
+const windowEvents = createIpcSubscriptionScope()
 
 const minimizeWindow = () => {
-  const id = window.api.getWindowId()
+  const id = getLegacyWindowId()
   if (id != null) {
     windowPresenter.minimize(id)
   }
 }
 
 const toggleMaximize = () => {
-  const id = window.api.getWindowId()
+  const id = getLegacyWindowId()
   if (id != null) {
     windowPresenter.maximize(id)
   }
 }
 
 const closeWindow = () => {
-  const id = window.api.getWindowId()
+  const id = getLegacyWindowId()
   if (id != null) {
     windowPresenter.close(id)
   }
@@ -111,25 +112,22 @@ onMounted(() => {
   devicePresenter.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, () => {
+  windowEvents.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, () => {
     isMaximized.value = true
   })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, () => {
+  windowEvents.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, () => {
     isFullscreened.value = true
   })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, () => {
+  windowEvents.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, () => {
     isMaximized.value = false
   })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, () => {
+  windowEvents.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, () => {
     isFullscreened.value = false
   })
 })
 
 onBeforeUnmount(() => {
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_MAXIMIZED)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
+  windowEvents.cleanup()
 })
 </script>
 

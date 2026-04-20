@@ -18,7 +18,7 @@ import ConfigInputField from './ChatConfig/ConfigInputField.vue'
 import ConfigSelectField from './ChatConfig/ConfigSelectField.vue'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { useThinkingBudget } from '@/composables/useThinkingBudget'
 import { useModelTypeDetection } from '@/composables/useModelTypeDetection'
@@ -58,7 +58,7 @@ const emit = defineEmits<{
 // === Stores ===
 const { t } = useI18n()
 const langStore = useLanguageStore()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyConfigPresenter()
 
 // === Composable Integrations ===
 

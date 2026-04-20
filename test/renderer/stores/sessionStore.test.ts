@@ -33,6 +33,7 @@ const createSession = (overrides: Record<string, unknown> = {}) => ({
 const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.resetModules()
   const sessionListeners: Array<(payload: any) => void> = []
+  const sessionStatusListeners: Array<(event: unknown, payload: any) => void> = []
 
   const agentSessionPresenter = {
     createSession: vi.fn(),
@@ -141,12 +142,27 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   ;(window as any).api = {
     getWebContentsId: vi.fn(() => 1)
   }
+  ;(window as any).electron = {
+    ipcRenderer: {
+      on: vi.fn((channel: string, listener: (event: unknown, payload: any) => void) => {
+        if (channel === 'session:status-changed') {
+          sessionStatusListeners.push(listener)
+        }
+      }),
+      removeListener: vi.fn()
+    }
+  }
 
   const { useSessionStore } = await import('@/stores/ui/session')
   const store = useSessionStore()
   const emitSessionUpdate = (payload: unknown) => {
     for (const handler of sessionListeners) {
       handler(payload)
+    }
+  }
+  const emitSessionStatusChange = (payload: unknown) => {
+    for (const handler of sessionStatusListeners) {
+      handler({}, payload)
     }
   }
   return {
@@ -160,7 +176,8 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     chatClient,
     agentStore,
     pageRouter,
-    emitSessionUpdate
+    emitSessionUpdate,
+    emitSessionStatusChange
   }
 }
 
@@ -573,5 +590,25 @@ describe('sessionStore streaming cleanup', () => {
     expect(store.activeSessionId.value).toBe('session-external')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('agent-b')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
+  })
+
+  it('updates the local session status immediately from the legacy status event', async () => {
+    const { store, emitSessionStatusChange } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
+    store.activeSessionId.value = 'session-status'
+
+    emitSessionStatusChange({
+      sessionId: 'session-status',
+      status: 'generating'
+    })
+
+    expect(store.activeSession.value?.status).toBe('working')
+
+    emitSessionStatusChange({
+      sessionId: 'session-status',
+      status: 'idle'
+    })
+
+    expect(store.activeSession.value?.status).toBe('none')
   })
 })

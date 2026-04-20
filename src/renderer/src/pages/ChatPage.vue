@@ -126,7 +126,7 @@ import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
 import {
   applyChatSearchHighlights,
   clearChatSearchHighlights,
@@ -151,7 +151,7 @@ const pendingInputStore = usePendingInputStore()
 const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
 const chatClient = new ChatClient()
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const agentSessionPresenter = useLegacyAgentSessionPresenter()
 const { t } = useI18n()
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))

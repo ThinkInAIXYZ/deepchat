@@ -1,6 +1,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter, useLegacyMcpPresenter } from '@api/legacy/presenters'
+import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { MCP_EVENTS } from '@/events'
@@ -27,9 +28,9 @@ const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 export const useMcpStore = defineStore('mcp', () => {
   const { t } = useI18n()
   // 获取MCP相关的presenter
-  const mcpPresenter = usePresenter('mcpPresenter')
+  const mcpPresenter = useLegacyMcpPresenter()
   // 获取配置相关的presenter
-  const configPresenter = usePresenter('configPresenter')
+  const configPresenter = useLegacyConfigPresenter()
 
   // ==================== 状态定义 ====================
   // MCP配置
@@ -135,25 +136,22 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const toolsQuery = useIpcQuery({
-    presenter: 'mcpPresenter',
-    method: 'getAllToolDefinitions',
     key: () => ['mcp', 'tools'],
+    query: () => mcpPresenter.getAllToolDefinitions(),
     enabled: () => config.value.ready && config.value.mcpEnabled,
     staleTime: 30_000
   }) as UseQueryReturn<MCPToolDefinition[]>
 
   const clientsQuery = useIpcQuery({
-    presenter: 'mcpPresenter',
-    method: 'getMcpClients',
     key: () => ['mcp', 'clients'],
+    query: () => mcpPresenter.getMcpClients(),
     enabled: () => config.value.ready && config.value.mcpEnabled,
     staleTime: 30_000
   }) as UseQueryReturn<McpClient[]>
 
   const resourcesQuery = useIpcQuery({
-    presenter: 'mcpPresenter',
-    method: 'getAllResources',
     key: () => ['mcp', 'resources'],
+    query: () => mcpPresenter.getAllResources(),
     enabled: () => config.value.ready && config.value.mcpEnabled,
     staleTime: 30_000
   }) as UseQueryReturn<ResourceListEntry[]>
@@ -216,12 +214,12 @@ export const useMcpStore = defineStore('mcp', () => {
   type CallToolMutationVars = Parameters<(typeof mcpPresenter)['callTool']>
 
   const callToolMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'callTool',
+    mutation: (request: CallToolRequest, options?: CallToolMutationVars[1]) =>
+      mcpPresenter.callTool(request, options),
     onSuccess(result, variables) {
       const request = variables?.[0]
       const toolName = request?.function?.name
-      if (toolName) {
+      if (result && toolName) {
         toolResults.value[toolName] = result.content
       }
     },
@@ -413,8 +411,8 @@ export const useMcpStore = defineStore('mcp', () => {
   // ==================== Mutations ====================
   // Mutations for write operations with automatic cache invalidation
   const addServerMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'addMcpServer',
+    mutation: (serverName: string, serverConfig: MCPServerConfig) =>
+      mcpPresenter.addMcpServer(serverName, serverConfig),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -424,8 +422,8 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const updateServerMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'updateMcpServer',
+    mutation: (serverName: string, serverConfig: Partial<MCPServerConfig>) =>
+      mcpPresenter.updateMcpServer(serverName, serverConfig),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -435,8 +433,7 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const removeServerMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'removeMcpServer',
+    mutation: (serverName: string) => mcpPresenter.removeMcpServer(serverName),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -446,14 +443,13 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const setMcpServerEnabledMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'setMcpServerEnabled',
+    mutation: (serverName: string, enabled: boolean) =>
+      mcpPresenter.setMcpServerEnabled(serverName, enabled),
     invalidateQueries: () => [['mcp', 'config']]
   })
 
   const setMcpEnabledMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'setMcpEnabled',
+    mutation: (enabled: boolean) => mcpPresenter.setMcpEnabled(enabled),
     invalidateQueries: () => [['mcp', 'config']]
   })
 
@@ -903,7 +899,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // ==================== 事件监听 ====================
   // 初始化事件监听
   const initEvents = () => {
-    window.electron.ipcRenderer.on(MCP_EVENTS.SERVER_STARTED, (_event, serverName: string) => {
+    onLegacyIpcChannel(MCP_EVENTS.SERVER_STARTED, (_event, serverName: string) => {
       console.log(`MCP server started: ${serverName}`)
       updateServerStatus(serverName).then(() => {
         // Force refresh tools after server starts to ensure tool count is updated
@@ -915,7 +911,7 @@ export const useMcpStore = defineStore('mcp', () => {
       })
     })
 
-    window.electron.ipcRenderer.on(MCP_EVENTS.SERVER_STOPPED, (_event, serverName: string) => {
+    onLegacyIpcChannel(MCP_EVENTS.SERVER_STOPPED, (_event, serverName: string) => {
       console.log(`MCP server stopped: ${serverName}`)
       updateServerStatus(serverName).then(() => {
         // Force refresh tools after server stops to ensure tool count is updated
@@ -927,25 +923,22 @@ export const useMcpStore = defineStore('mcp', () => {
       })
     })
 
-    window.electron.ipcRenderer.on(
-      MCP_EVENTS.CONFIG_CHANGED,
-      (_event, payload?: ConfigQueryResult) => {
-        console.log('MCP config changed', payload)
-        if (payload) {
-          // Directly sync from event payload to avoid unnecessary query
-          syncConfigFromQuery(payload)
-          // Update server statuses after config sync
-          updateAllServerStatuses().catch((error) => {
-            console.error('Failed to update server statuses after config change:', error)
-          })
-        } else {
-          // Fallback to query if payload is missing
-          loadConfig()
-        }
+    onLegacyIpcChannel(MCP_EVENTS.CONFIG_CHANGED, (_event, payload?: ConfigQueryResult) => {
+      console.log('MCP config changed', payload)
+      if (payload) {
+        // Directly sync from event payload to avoid unnecessary query
+        syncConfigFromQuery(payload)
+        // Update server statuses after config sync
+        updateAllServerStatuses().catch((error) => {
+          console.error('Failed to update server statuses after config change:', error)
+        })
+      } else {
+        // Fallback to query if payload is missing
+        loadConfig()
       }
-    )
+    })
 
-    window.electron.ipcRenderer.on(
+    onLegacyIpcChannel(
       MCP_EVENTS.SERVER_STATUS_CHANGED,
       (_event, serverName: string, isRunning: boolean) => {
         console.log(`MCP server ${serverName} status changed: ${isRunning}`)
@@ -953,20 +946,17 @@ export const useMcpStore = defineStore('mcp', () => {
       }
     )
 
-    window.electron.ipcRenderer.on(
-      MCP_EVENTS.TOOL_CALL_RESULT,
-      (_event, result: MCPToolCallEventResult) => {
-        console.log(`MCP tool call result:`, result.function_name)
-        if (result && result.function_name) {
-          toolResults.value[result.function_name] = result.content
-        }
+    onLegacyIpcChannel(MCP_EVENTS.TOOL_CALL_RESULT, (_event, result: MCPToolCallEventResult) => {
+      console.log(`MCP tool call result:`, result.function_name)
+      if (result && result.function_name) {
+        toolResults.value[result.function_name] = result.content
       }
-    )
+    })
 
     // Listen for custom prompts changes
-    window.electron.ipcRenderer.on('config:custom-prompts-changed', () => {
+    onLegacyIpcChannel('config:custom-prompts-changed', () => {
       console.log('Custom prompts changed, reloading prompts list')
-      loadPrompts()
+      void loadPrompts()
     })
   }
 

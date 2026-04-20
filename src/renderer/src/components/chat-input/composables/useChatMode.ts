@@ -3,7 +3,8 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { hasLegacyIpcRenderer, onLegacyIpcChannel } from '@api/legacy/runtime'
 import { CONFIG_EVENTS } from '@/events'
 
 export type ChatMode = 'agent' | 'acp agent'
@@ -27,7 +28,7 @@ let hasAcpListener = false
  */
 export function useChatMode() {
   // === Presenters ===
-  const configPresenter = usePresenter('configPresenter')
+  const configPresenter = useLegacyConfigPresenter()
   const { t } = useI18n()
 
   // === Computed ===
@@ -137,9 +138,9 @@ export function useChatMode() {
 
   ensureLoaded()
 
-  if (!hasAcpListener && window.electron?.ipcRenderer) {
+  if (!hasAcpListener && hasLegacyIpcRenderer()) {
     hasAcpListener = true
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_, providerId?: string) => {
+    onLegacyIpcChannel(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_, providerId?: string) => {
       if (!providerId || providerId === 'acp') {
         void checkAcpAgents()
       }

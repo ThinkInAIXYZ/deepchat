@@ -1,17 +1,18 @@
 import { computed } from 'vue'
 import { defineStore } from 'pinia'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { type EntryKey, type UseQueryReturn } from '@pinia/colada'
 import type { Prompt } from '@shared/presenter'
 
 export const usePromptsStore = defineStore('prompts', () => {
+  const configPresenter = useLegacyConfigPresenter()
   const customPromptsKey: EntryKey = ['config', 'customPrompts'] as const
 
   const promptsQuery = useIpcQuery({
-    presenter: 'configPresenter',
-    method: 'getCustomPrompts',
     key: () => customPromptsKey,
+    query: () => configPresenter.getCustomPrompts(),
     staleTime: 60_000,
     gcTime: 300_000
   }) as UseQueryReturn<Prompt[]>
@@ -29,8 +30,7 @@ export const usePromptsStore = defineStore('prompts', () => {
   const invalidateCustomPrompts = (): EntryKey[] => [customPromptsKey]
 
   const savePromptsMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'setCustomPrompts',
+    mutation: (prompts: Prompt[]) => configPresenter.setCustomPrompts(prompts),
     invalidateQueries: () => invalidateCustomPrompts()
   })
 
@@ -44,8 +44,7 @@ export const usePromptsStore = defineStore('prompts', () => {
   }
 
   const addPromptMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'addCustomPrompt',
+    mutation: (prompt: Prompt) => configPresenter.addCustomPrompt(prompt),
     invalidateQueries: () => invalidateCustomPrompts()
   })
 
@@ -59,8 +58,8 @@ export const usePromptsStore = defineStore('prompts', () => {
   }
 
   const updatePromptMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'updateCustomPrompt',
+    mutation: (promptId: string, updates: Partial<Prompt>) =>
+      configPresenter.updateCustomPrompt(promptId, updates),
     invalidateQueries: () => invalidateCustomPrompts()
   })
 
@@ -74,8 +73,7 @@ export const usePromptsStore = defineStore('prompts', () => {
   }
 
   const deletePromptMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'deleteCustomPrompt',
+    mutation: (promptId: string) => configPresenter.deleteCustomPrompt(promptId),
     invalidateQueries: () => invalidateCustomPrompts()
   })
 

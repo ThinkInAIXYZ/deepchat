@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue'
 import type { MessageFile } from '@shared/types/agent-interface'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyFilePresenter } from '@api/legacy/presenters'
+import { getLegacyPathForFile } from '@api/legacy/runtime'
 import { useToast } from '@/components/use-toast'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'
 import { approximateTokenSize } from 'tokenx'
@@ -21,7 +22,7 @@ export function useChatInputFiles(
   emit: (event: 'file-upload', files: MessageFile[]) => void,
   t: (key: string, params?: any) => string
 ) {
-  const filePresenter = usePresenter('filePresenter')
+  const filePresenter = useLegacyFilePresenter()
   const { toast } = useToast()
   const selectedFiles = ref<MessageFile[]>([])
 
@@ -53,7 +54,7 @@ export function useChatInputFiles(
         }
       }
 
-      const path = window.api.getPathForFile(file)
+      const path = getLegacyPathForFile(file)
       const mimeType = await filePresenter.getMimeType(path)
       return await filePresenter.prepareFile(path, mimeType)
     } catch (error) {
@@ -64,7 +65,7 @@ export function useChatInputFiles(
 
   const processDroppedFile = async (file: File): Promise<MessageFile | null> => {
     try {
-      const path = window.api.getPathForFile(file)
+      const path = getLegacyPathForFile(file)
 
       if (file.type === '') {
         const isDirectory = await filePresenter.isDirectory(path)

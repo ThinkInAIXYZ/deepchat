@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacySkillPresenter } from '@api/legacy/presenters'
 import type {
   SkillMetadata,
   SkillInstallResult,
@@ -21,8 +21,8 @@ function createDefaultSkillExtension(): SkillExtensionConfig {
 }
 
 export const useSkillsStore = defineStore('skills', () => {
-  const skillPresenter = usePresenter('skillPresenter')
-  const skillPresenterStrict = usePresenter('skillPresenter', { safeCall: false })
+  const skillPresenter = useLegacySkillPresenter()
+  const skillPresenterStrict = useLegacySkillPresenter({ safeCall: false })
 
   const skills = ref<SkillMetadata[]>([])
   const skillExtensions = ref<Record<string, SkillExtensionConfig>>({})

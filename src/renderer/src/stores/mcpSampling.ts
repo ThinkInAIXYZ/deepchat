@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyMcpPresenter } from '@api/legacy/presenters'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 import { MCP_EVENTS } from '@/events'
 import type {
   McpSamplingDecision,
@@ -99,7 +100,7 @@ export const resolveSamplingDefaultModel = (input: {
 }
 
 export const useMcpSamplingStore = defineStore('mcpSampling', () => {
-  const mcpPresenter = usePresenter('mcpPresenter')
+  const mcpPresenter = useLegacyMcpPresenter()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
@@ -110,6 +111,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const isSubmitting = ref(false)
   const selectedProviderId = ref<string | null>(null)
   const selectedModel = ref<RENDERER_MODEL_META | null>(null)
+  const samplingEventScope = createLegacyIpcSubscriptionScope()
 
   // Session tracking for auto-approval
   const approvedServers = ref<Map<string, ApprovedServerInfo>>(new Map())
@@ -385,18 +387,13 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   }
 
   onMounted(() => {
-    window.electron.ipcRenderer.on(MCP_EVENTS.SAMPLING_REQUEST, handleSamplingRequest)
-    window.electron.ipcRenderer.on(MCP_EVENTS.SAMPLING_CANCELLED, handleSamplingCancelled)
-    window.electron.ipcRenderer.on(MCP_EVENTS.SAMPLING_DECISION, handleSamplingDecision)
+    samplingEventScope.on(MCP_EVENTS.SAMPLING_REQUEST, handleSamplingRequest)
+    samplingEventScope.on(MCP_EVENTS.SAMPLING_CANCELLED, handleSamplingCancelled)
+    samplingEventScope.on(MCP_EVENTS.SAMPLING_DECISION, handleSamplingDecision)
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener(MCP_EVENTS.SAMPLING_REQUEST, handleSamplingRequest)
-    window.electron.ipcRenderer.removeListener(
-      MCP_EVENTS.SAMPLING_CANCELLED,
-      handleSamplingCancelled
-    )
-    window.electron.ipcRenderer.removeListener(MCP_EVENTS.SAMPLING_DECISION, handleSamplingDecision)
+    samplingEventScope.cleanup()
   })
 
   return {

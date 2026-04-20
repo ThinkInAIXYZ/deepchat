@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, onMounted } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { hasLegacyIpcRenderer, onLegacyIpcChannel } from '@api/legacy/runtime'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
 
 export const useFloatingButtonStore = defineStore('floatingButton', () => {
-  const configP = usePresenter('configPresenter')
+  const configP = useLegacyConfigPresenter()
 
   // 悬浮按钮是否启用的状态
   const enabled = ref<boolean>(false)
@@ -49,17 +50,14 @@ export const useFloatingButtonStore = defineStore('floatingButton', () => {
       return
     }
 
-    if (!window?.electron?.ipcRenderer) {
+    if (!hasLegacyIpcRenderer()) {
       return
     }
 
     listenerRegistered = true
-    window.electron.ipcRenderer.on(
-      FLOATING_BUTTON_EVENTS.ENABLED_CHANGED,
-      (_event, value: boolean) => {
-        enabled.value = Boolean(value)
-      }
-    )
+    onLegacyIpcChannel(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, (_event, value: boolean) => {
+      enabled.value = Boolean(value)
+    })
   }
 
   // 在组件挂载时初始化

@@ -145,7 +145,11 @@ import { computed, ref, toRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import {
+  useLegacyFilePresenter,
+  useLegacyProjectPresenter,
+  useLegacyWorkspacePresenter
+} from '@api/legacy/presenters'
 import { extractArtifactsFromContent } from '@/composables/useArtifacts'
 import WorkspaceFileNode from '@/components/workspace/WorkspaceFileNode.vue'
 import WorkspaceViewer from './WorkspaceViewer.vue'
@@ -155,6 +159,7 @@ import { useMessageStore } from '@/stores/ui/message'
 import { useSidepanelStore, type WorkspaceArtifactContext } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
 import type { WorkspaceGitFileChange } from '@shared/presenter'
+import { getLegacyPathForFile } from '@api/legacy/runtime'
 
 const props = defineProps<{
   sessionId: string
@@ -181,9 +186,9 @@ const artifactStore = useArtifactStore()
 const messageStore = useMessageStore()
 const sidepanelStore = useSidepanelStore()
 const sessionStore = useSessionStore()
-const workspacePresenter = usePresenter('workspacePresenter')
-const projectPresenter = usePresenter('projectPresenter')
-const filePresenter = usePresenter('filePresenter')
+const workspacePresenter = useLegacyWorkspacePresenter()
+const projectPresenter = useLegacyProjectPresenter()
+const filePresenter = useLegacyFilePresenter()
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
 const {
@@ -467,7 +472,7 @@ function getDroppedFile(event: DragEvent): File | null {
 }
 
 function getDroppedFilePath(file: File): string | null {
-  const preloadPath = window.api?.getPathForFile?.(file)?.trim()
+  const preloadPath = getLegacyPathForFile(file)?.trim()
   if (preloadPath) {
     return preloadPath
   }

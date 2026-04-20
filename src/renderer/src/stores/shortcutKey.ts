@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia'
 import { onMounted, ref } from 'vue'
 import type { ShortcutKeySetting } from '@shared/presenter'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter, useLegacyShortcutPresenter } from '@api/legacy/presenters'
 
 export const useShortcutKeyStore = defineStore('shortcutKey', () => {
-  const configP = usePresenter('configPresenter')
-  const shortcutKeyP = usePresenter('shortcutPresenter')
+  const configP = useLegacyConfigPresenter()
+  const shortcutKeyP = useLegacyShortcutPresenter()
   const shortcutKeys = ref<ShortcutKeySetting>()
 
   const loadShortcutKeys = async () => {

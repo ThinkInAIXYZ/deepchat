@@ -59,10 +59,12 @@ import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import BrowserPlaceholder from './BrowserPlaceholder.vue'
 import type { YoBrowserStatus } from '@shared/types/browser'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyBrowserPresenter } from '@api/legacy/presenters'
 import { YO_BROWSER_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
+import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
+import { getLegacyWindowId } from '@api/legacy/runtime'
 
 const props = defineProps<{
   sessionId: string | null
@@ -71,7 +73,8 @@ const props = defineProps<{
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
 const sessionStore = useSessionStore()
-const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
+const yoBrowserPresenter = useLegacyBrowserPresenter()
+const browserEvents = createIpcSubscriptionScope()
 
 const containerRef = ref<HTMLElement | null>(null)
 const hostWindowId = ref<number | null>(null)
@@ -542,13 +545,13 @@ watch(
 )
 
 onMounted(async () => {
-  hostWindowId.value = window.api.getWindowId?.() ?? null
-  window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleOpenRequested)
-  window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.WINDOW_CREATED, handleBrowserEvent)
-  window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.WINDOW_UPDATED, handleBrowserEvent)
-  window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.WINDOW_CLOSED, handleBrowserEvent)
-  window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.WINDOW_FOCUSED, handleBrowserEvent)
-  window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED, handleBrowserEvent)
+  hostWindowId.value = getLegacyWindowId()
+  browserEvents.on(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleOpenRequested)
+  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_CREATED, handleBrowserEvent)
+  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_UPDATED, handleBrowserEvent)
+  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_CLOSED, handleBrowserEvent)
+  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_FOCUSED, handleBrowserEvent)
+  browserEvents.on(YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED, handleBrowserEvent)
 
   if (currentSessionId.value) {
     await loadState(currentSessionId.value)
@@ -560,14 +563,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   void hideEmbedded(currentSessionId.value)
-  window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleOpenRequested)
-  window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.WINDOW_CREATED, handleBrowserEvent)
-  window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.WINDOW_UPDATED, handleBrowserEvent)
-  window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.WINDOW_CLOSED, handleBrowserEvent)
-  window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.WINDOW_FOCUSED, handleBrowserEvent)
-  window.electron.ipcRenderer.removeListener(
-    YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED,
-    handleBrowserEvent
-  )
+  browserEvents.cleanup()
 })
 </script>

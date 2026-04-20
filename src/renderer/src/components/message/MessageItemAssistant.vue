@@ -202,6 +202,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@shadcn/components/ui/context-menu'
+import { copyLegacyText } from '@api/legacy/runtime'
 import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
   message: DisplayAssistantMessage
@@ -423,7 +424,7 @@ const handleSelectionCopy = () => {
   if (!text) {
     return
   }
-  window.api.copyText(text)
+  copyLegacyText(text)
 }
 
 const handleSelectionTranslate = () => {
@@ -479,7 +480,7 @@ const handleAction = (action: HandleActionType) => {
   } else if (action === 'delete') {
     emit('delete', currentMessage.value.id)
   } else if (action === 'copy') {
-    window.api.copyText(
+    copyLegacyText(
       currentContent.value
         .filter((block) => {
           if (

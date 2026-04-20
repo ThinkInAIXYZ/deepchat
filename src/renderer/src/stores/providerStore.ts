@@ -1,7 +1,8 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { ProviderClient } from '../../api/ProviderClient'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/presenter'
@@ -19,20 +20,18 @@ const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
 
 export const useProviderStore = defineStore('provider', () => {
-  const configP = usePresenter('configPresenter')
+  const configP = useLegacyConfigPresenter()
   const providerClient = new ProviderClient()
 
   const providersQuery = useIpcQuery({
-    presenter: 'configPresenter',
-    method: 'getProviders',
     key: () => ['providers'],
+    query: () => configP.getProviders(),
     staleTime: 30_000
   })
 
   const defaultProvidersQuery = useIpcQuery({
-    presenter: 'configPresenter',
-    method: 'getDefaultProviders',
     key: () => ['providers', 'defaults'],
+    query: () => configP.getDefaultProviders(),
     staleTime: 60_000,
     gcTime: 300_000
   })
@@ -159,23 +158,23 @@ export const useProviderStore = defineStore('provider', () => {
     if (listenersRegistered.value) return
     listenersRegistered.value = true
 
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_CHANGED, async () => {
+    onLegacyIpcChannel(CONFIG_EVENTS.PROVIDER_CHANGED, async () => {
       await refreshProviders()
     })
 
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, async () => {
+    onLegacyIpcChannel(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, async () => {
       await refreshProviders()
     })
 
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, async () => {
+    onLegacyIpcChannel(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, async () => {
       await refreshProviders()
     })
 
-    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
+    onLegacyIpcChannel(PROVIDER_DB_EVENTS.UPDATED, async () => {
       await refreshProviders()
     })
 
-    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.LOADED, async () => {
+    onLegacyIpcChannel(PROVIDER_DB_EVENTS.LOADED, async () => {
       await refreshProviders()
     })
   }

@@ -49,13 +49,13 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyWindowPresenter } from '@api/legacy/presenters'
 import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 
 const { t } = useI18n()
-const windowPresenter = usePresenter('windowPresenter')
+const windowPresenter = useLegacyWindowPresenter()
 const agentStore = useAgentStore()
 const displayedAgents = computed(() => agentStore.enabledAgents.slice(0, 9))
 

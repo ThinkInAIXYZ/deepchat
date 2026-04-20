@@ -63,7 +63,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyWorkspacePresenter } from '@api/legacy/presenters'
 import { setChatInputWorkspaceItemDragData } from '@/lib/chatInputWorkspaceReference'
 import {
   ContextMenu,
@@ -85,7 +85,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const workspacePresenter = usePresenter('workspacePresenter')
+const workspacePresenter = useLegacyWorkspacePresenter()
 
 const extensionIconMap: Record<string, string> = {
   pdf: 'lucide:file-text',

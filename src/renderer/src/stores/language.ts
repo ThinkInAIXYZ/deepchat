@@ -2,14 +2,16 @@ import { defineStore } from 'pinia'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { CONFIG_EVENTS } from '@/events'
 
 const RTL_LIST = ['fa-IR', 'he-IL']
+let languageListenerRegistered = false
 export const useLanguageStore = defineStore('language', () => {
   const { locale } = useI18n({ useScope: 'global' })
   const language = ref<string>('system')
-  const configPresenter = usePresenter('configPresenter')
+  const configPresenter = useLegacyConfigPresenter()
   const dir = ref('auto' as 'auto' | 'rtl' | 'ltr')
   // 初始化设置
   const initLanguage = async () => {
@@ -24,9 +26,9 @@ export const useLanguageStore = defineStore('language', () => {
         dir.value = 'auto'
       }
       // 监听语言变更事件
-      window.electron.ipcRenderer.on(
-        CONFIG_EVENTS.LANGUAGE_CHANGED,
-        async (_event, newLanguage: string) => {
+      if (!languageListenerRegistered) {
+        languageListenerRegistered = true
+        onLegacyIpcChannel(CONFIG_EVENTS.LANGUAGE_CHANGED, async (_event, newLanguage: string) => {
           language.value = newLanguage
           locale.value = await configPresenter.getLanguage()
           if (RTL_LIST.indexOf(locale.value) >= 0) {
@@ -34,8 +36,8 @@ export const useLanguageStore = defineStore('language', () => {
           } else {
             dir.value = 'auto'
           }
-        }
-      )
+        })
+      }
     } catch (error) {
       console.error('初始化语言失败:', error)
     }

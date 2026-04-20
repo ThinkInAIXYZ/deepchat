@@ -1,5 +1,6 @@
 import { ref } from 'vue'
-import { usePresenter } from './usePresenter'
+import { useLegacyTabPresenter } from '@api/legacy/presenters'
+import { copyLegacyImage, getLegacyWebContentsId, getLegacyWindowId } from '@api/legacy/runtime'
 
 export interface CaptureRect {
   x: number
@@ -72,7 +73,7 @@ export interface CaptureResult {
 
 export function usePageCapture() {
   const isCapturing = ref(false)
-  const tabPresenter = usePresenter('tabPresenter')
+  const tabPresenter = useLegacyTabPresenter()
 
   /**
    * 获取滚动容器元素
@@ -184,8 +185,8 @@ export function usePageCapture() {
       }
 
       // 优先使用当前 webContentsId；必要时回退到 windowId
-      const webContentsId = window.api.getWebContentsId()
-      const windowId = window.api.getWindowId()
+      const webContentsId = getLegacyWebContentsId()
+      const windowId = getLegacyWindowId()
       const captureTargets: number[] = []
       if (typeof webContentsId === 'number') {
         captureTargets.push(webContentsId)
@@ -342,7 +343,7 @@ export function usePageCapture() {
     const result = await captureArea(config)
 
     if (result.success && result.imageData) {
-      window.api.copyImage(result.imageData)
+      copyLegacyImage(result.imageData)
       return true
     }
 

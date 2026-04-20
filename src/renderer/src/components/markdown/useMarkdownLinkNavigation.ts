@@ -1,5 +1,6 @@
 import { toValue, type MaybeRefOrGetter } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyBrowserPresenter, useLegacyWorkspacePresenter } from '@api/legacy/presenters'
+import { openLegacyExternal } from '@api/legacy/runtime'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { classifyMarkdownLink, type MarkdownLinkContext } from './linkTypes'
@@ -21,8 +22,8 @@ function buildSafeAttributeSelector(value: string): string {
 export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOptions = {}) {
   const sessionStore = useSessionStore()
   const sidepanelStore = useSidepanelStore()
-  const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
-  const workspacePresenter = usePresenter('workspacePresenter')
+  const yoBrowserPresenter = useLegacyBrowserPresenter()
+  const workspacePresenter = useLegacyWorkspacePresenter()
 
   const getSessionContext = (): SessionContext => {
     const linkContext = toValue(options.linkContext)
@@ -40,12 +41,8 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
   }
 
   const openExternal = async (url: string): Promise<boolean> => {
-    if (!window.api?.openExternal) {
-      return false
-    }
-
     try {
-      await window.api.openExternal(url)
+      await openLegacyExternal(url)
       return true
     } catch (error) {
       console.warn('[markdown-links] Failed to open external link:', url, error)

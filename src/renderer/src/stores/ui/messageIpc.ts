@@ -1,4 +1,6 @@
 import { ChatClient } from '../../../api/ChatClient'
+import { onLegacyIpcChannel } from '@api/legacy/runtime'
+import { STREAM_EVENTS } from '@/events'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 
 interface BindMessageStoreIpcOptions {
@@ -24,6 +26,19 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
     options.clearStreamingState()
     void options.loadMessages(sessionId)
   }
+
+  const reloadPersistedMessagesFromLegacyEvent = (payload?: {
+    conversationId?: string
+    sessionId?: string
+  }) => {
+    const sessionId = payload?.conversationId ?? payload?.sessionId
+    if (!sessionId || sessionId !== options.getActiveSessionId()) {
+      return
+    }
+
+    reloadPersistedMessages(sessionId)
+  }
+
   const cleanups = [
     chatClient.onStreamUpdated((payload) => {
       const blocks = payload.blocks as AssistantMessageBlock[]
@@ -55,6 +70,12 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
       }
 
       reloadPersistedMessages(payload.sessionId)
+    }),
+    onLegacyIpcChannel(STREAM_EVENTS.END, (_event, payload) => {
+      reloadPersistedMessagesFromLegacyEvent(payload)
+    }),
+    onLegacyIpcChannel(STREAM_EVENTS.ERROR, (_event, payload) => {
+      reloadPersistedMessagesFromLegacyEvent(payload)
     })
   ]
 

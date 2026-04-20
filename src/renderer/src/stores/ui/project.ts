@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter, useLegacyProjectPresenter } from '@api/legacy/presenters'
+import { hasLegacyIpcRenderer, onLegacyIpcChannel } from '@api/legacy/runtime'
 import { CONFIG_EVENTS } from '@/events'
 import type { EnvironmentSummary, Project } from '@shared/types/agent-interface'
 
@@ -18,8 +19,8 @@ type ProjectSelectionSource = 'none' | 'manual' | 'default'
 // --- Store ---
 
 export const useProjectStore = defineStore('project', () => {
-  const projectPresenter = usePresenter('projectPresenter', { safeCall: false })
-  const configPresenter = usePresenter('configPresenter', { safeCall: false })
+  const projectPresenter = useLegacyProjectPresenter({ safeCall: false })
+  const configPresenter = useLegacyConfigPresenter({ safeCall: false })
 
   // --- State ---
   const projects = ref<UIProject[]>([])
@@ -97,11 +98,8 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   const ensureListenersRegistered = () => {
-    if (listenersRegistered || !window?.electron?.ipcRenderer) return
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED,
-      handleDefaultProjectPathChanged
-    )
+    if (listenersRegistered || !hasLegacyIpcRenderer()) return
+    onLegacyIpcChannel(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, handleDefaultProjectPathChanged)
     listenersRegistered = true
   }
 

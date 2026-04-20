@@ -12,7 +12,8 @@ import {
   resolveModelVision
 } from '@shared/modelConfigDefaults'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter, useLegacyLlmProviderPresenter } from '@api/legacy/presenters'
+import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
@@ -30,8 +31,8 @@ type ModelQueryHandle<TData> = {
 }
 
 export const useModelStore = defineStore('model', () => {
-  const configP = usePresenter('configPresenter')
-  const llmP = usePresenter('llmproviderPresenter')
+  const configP = useLegacyConfigPresenter()
+  const llmP = useLegacyLlmProviderPresenter()
   const providerStore = useProviderStore()
   const modelConfigStore = useModelConfigStore()
   const agentModelStore = useAgentModelStore()
@@ -47,6 +48,7 @@ export const useModelStore = defineStore('model', () => {
   const customModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const enabledModelQueries = new Map<string, ModelQueryHandle<RENDERER_MODEL_META[]>>()
   const queryCache = useQueryCache()
+  let removeModelListeners: (() => void) | null = null
   const inFlightRefreshes = new Map<string, Promise<void>>()
   const rerunRequested = new Set<string>()
   const pendingRefreshStarts = new Set<string>()
@@ -760,7 +762,7 @@ export const useModelStore = defineStore('model', () => {
     if (listenersRegistered.value) return
     listenersRegistered.value = true
 
-    window.electron?.ipcRenderer?.on(
+    const unsubscribeModelListChanged = onLegacyIpcChannel(
       CONFIG_EVENTS.MODEL_LIST_CHANGED,
       async (_event, providerId: string) => {
         if (providerId) {
@@ -771,17 +773,22 @@ export const useModelStore = defineStore('model', () => {
       }
     )
 
-    window.electron?.ipcRenderer?.on(
+    const unsubscribeModelStatusChanged = onLegacyIpcChannel(
       CONFIG_EVENTS.MODEL_STATUS_CHANGED,
       async (_event, msg: { providerId: string; modelId: string; enabled: boolean }) => {
         updateLocalModelStatus(msg.providerId, msg.modelId, msg.enabled)
       }
     )
+
+    removeModelListeners = () => {
+      unsubscribeModelListChanged()
+      unsubscribeModelStatusChanged()
+    }
   }
 
   const cleanup = () => {
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.MODEL_LIST_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.MODEL_STATUS_CHANGED)
+    removeModelListeners?.()
+    removeModelListeners = null
     listenersRegistered.value = false
     initialized.value = false
     initializationPromise.value = null
@@ -816,8 +823,10 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const addCustomModelMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'addCustomModel',
+    mutation: (
+      providerId: string,
+      model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
+    ) => configP.addCustomModel(providerId, model as MODEL_META),
     invalidateQueries: (_, [providerId]) => [
       CUSTOM_MODELS_KEY(providerId),
       ENABLED_MODELS_KEY(providerId)
@@ -825,8 +834,8 @@ export const useModelStore = defineStore('model', () => {
   })
 
   const removeCustomModelMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'removeCustomModel',
+    mutation: (providerId: string, modelId: string) =>
+      configP.removeCustomModel(providerId, modelId),
     invalidateQueries: (_, [providerId]) => [
       CUSTOM_MODELS_KEY(providerId),
       ENABLED_MODELS_KEY(providerId)
@@ -834,8 +843,11 @@ export const useModelStore = defineStore('model', () => {
   })
 
   const updateCustomModelMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'updateCustomModel',
+    mutation: (
+      providerId: string,
+      modelId: string,
+      updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
+    ) => configP.updateCustomModel(providerId, modelId, updates),
     invalidateQueries: (_, [providerId]) => [CUSTOM_MODELS_KEY(providerId)]
   })
 

@@ -1,13 +1,14 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
+import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { SESSION_EVENTS } from '@/events'
 import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/agent-interface'
 
 const MAX_PENDING_INPUTS = 5
 
 export const usePendingInputStore = defineStore('pendingInput', () => {
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
+  const agentSessionPresenter = useLegacyAgentSessionPresenter()
 
   const currentSessionId = ref<string | null>(null)
   const items = ref<PendingSessionInputRecord[]>([])
@@ -139,13 +140,11 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     void loadPendingInputs(msg.sessionId)
   }
 
-  window.electron.ipcRenderer.on(SESSION_EVENTS.PENDING_INPUTS_UPDATED, pendingInputsHandler)
-  onScopeDispose(() => {
-    window.electron.ipcRenderer.removeListener(
-      SESSION_EVENTS.PENDING_INPUTS_UPDATED,
-      pendingInputsHandler
-    )
-  })
+  const unsubscribePendingInputsUpdated = onLegacyIpcChannel(
+    SESSION_EVENTS.PENDING_INPUTS_UPDATED,
+    pendingInputsHandler
+  )
+  onScopeDispose(unsubscribePendingInputsUpdated)
 
   return {
     currentSessionId,

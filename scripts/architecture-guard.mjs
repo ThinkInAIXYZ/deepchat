@@ -46,149 +46,6 @@ const RENDERER_IPC_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/lib/storeInitializer.ts')
 ]
 
-const RENDERER_USE_PRESENTER_BASELINE = new Map([
-  ['src/renderer/src/App.vue', 2],
-  ['src/renderer/src/components/AppBar.vue', 2],
-  ['src/renderer/src/components/artifacts/ArtifactThinking.vue', 1],
-  ['src/renderer/src/components/artifacts/SvgArtifact.vue', 1],
-  ['src/renderer/src/components/chat-input/composables/useAgentMcpData.ts', 1],
-  ['src/renderer/src/components/chat-input/composables/useChatMode.ts', 1],
-  ['src/renderer/src/components/chat-input/composables/useInputSettings.ts', 1],
-  ['src/renderer/src/components/chat-input/composables/useRateLimitStatus.ts', 1],
-  ['src/renderer/src/components/chat-input/composables/useSkillsData.ts', 1],
-  ['src/renderer/src/components/chat-input/McpIndicator.vue', 3],
-  ['src/renderer/src/components/chat-input/SkillsIndicator.vue', 1],
-  ['src/renderer/src/components/chat/ChatStatusBar.vue', 3],
-  ['src/renderer/src/components/chat/composables/useChatInputFiles.ts', 1],
-  ['src/renderer/src/components/chat/composables/useChatInputMentions.ts', 3],
-  ['src/renderer/src/components/ChatConfig.vue', 1],
-  ['src/renderer/src/components/icons/AcpAgentIcon.vue', 1],
-  ['src/renderer/src/components/markdown/MarkdownRenderer.vue', 1],
-  ['src/renderer/src/components/markdown/useMarkdownLinkNavigation.ts', 2],
-  ['src/renderer/src/components/mcp-config/AgentMcpSelector.vue', 1],
-  ['src/renderer/src/components/mcp-config/mcpServerForm.vue', 1],
-  ['src/renderer/src/components/message/MessageBlockContent.vue', 1],
-  ['src/renderer/src/components/message/MessageBlockThink.vue', 1],
-  ['src/renderer/src/components/message/MessageItemUser.vue', 1],
-  ['src/renderer/src/components/popup/TranslatePopup.vue', 1],
-  ['src/renderer/src/components/settings/ModelConfigDialog.vue', 1],
-  ['src/renderer/src/components/sidepanel/BrowserPanel.vue', 1],
-  ['src/renderer/src/components/sidepanel/WorkspacePanel.vue', 3],
-  ['src/renderer/src/components/sidepanel/WorkspaceViewer.vue', 1],
-  ['src/renderer/src/components/trace/TraceDialog.vue', 1],
-  ['src/renderer/src/components/WindowSideBar.vue', 1],
-  ['src/renderer/src/components/workspace/WorkspaceFileNode.vue', 1],
-  ['src/renderer/src/composables/message/useMessageCapture.ts', 1],
-  ['src/renderer/src/composables/useDeviceVersion.ts', 1],
-  ['src/renderer/src/composables/useIpcMutation.ts', 1],
-  ['src/renderer/src/composables/useIpcQuery.ts', 1],
-  ['src/renderer/src/composables/usePageCapture.example.ts', 1],
-  ['src/renderer/src/composables/usePageCapture.ts', 1],
-  ['src/renderer/src/pages/AgentWelcomePage.vue', 1],
-  ['src/renderer/src/pages/ChatPage.vue', 1],
-  ['src/renderer/src/pages/NewThreadPage.vue', 2],
-  ['src/renderer/src/pages/WelcomePage.vue', 2],
-  ['src/renderer/src/stores/agentModelStore.ts', 1],
-  ['src/renderer/src/stores/dialog.ts', 1],
-  ['src/renderer/src/stores/floatingButton.ts', 1],
-  ['src/renderer/src/stores/language.ts', 1],
-  ['src/renderer/src/stores/mcp.ts', 2],
-  ['src/renderer/src/stores/mcpSampling.ts', 1],
-  ['src/renderer/src/stores/modelConfigStore.ts', 1],
-  ['src/renderer/src/stores/modelStore.ts', 2],
-  ['src/renderer/src/stores/ollamaStore.ts', 1],
-  ['src/renderer/src/stores/providerStore.ts', 1],
-  ['src/renderer/src/stores/shortcutKey.ts', 2],
-  ['src/renderer/src/stores/skillsStore.ts', 2],
-  ['src/renderer/src/stores/sync.ts', 3],
-  ['src/renderer/src/stores/systemPromptStore.ts', 1],
-  ['src/renderer/src/stores/theme.ts', 1],
-  ['src/renderer/src/stores/ui/agent.ts', 1],
-  ['src/renderer/src/stores/ui/pendingInput.ts', 1],
-  ['src/renderer/src/stores/ui/project.ts', 2],
-  ['src/renderer/src/stores/ui/session.ts', 3],
-  ['src/renderer/src/stores/ui/spotlight.ts', 2],
-  ['src/renderer/src/stores/upgrade.ts', 2]
-])
-
-const RENDERER_WINDOW_ELECTRON_BASELINE = new Map([
-  ['src/renderer/src/App.vue', 1],
-  ['src/renderer/src/components/AppBar.vue', 1],
-  ['src/renderer/src/components/chat/ChatStatusBar.vue', 2],
-  ['src/renderer/src/components/chat/composables/useChatInputMentions.ts', 2],
-  ['src/renderer/src/components/chat-input/composables/useChatMode.ts', 2],
-  ['src/renderer/src/components/chat-input/composables/useRateLimitStatus.ts', 6],
-  ['src/renderer/src/components/chat-input/composables/useSkillsData.ts', 6],
-  ['src/renderer/src/components/chat-input/McpIndicator.vue', 6],
-  ['src/renderer/src/components/message/SelectedTextContextMenu.vue', 4],
-  ['src/renderer/src/components/sidepanel/BrowserPanel.vue', 12],
-  ['src/renderer/src/components/sidepanel/ChatSidePanel.vue', 2],
-  ['src/renderer/src/components/sidepanel/composables/useWorkspaceSync.ts', 2],
-  ['src/renderer/src/composables/usePresenter.ts', 2],
-  ['src/renderer/src/stores/dialog.ts', 2],
-  ['src/renderer/src/stores/floatingButton.ts', 1],
-  ['src/renderer/src/stores/language.ts', 1],
-  ['src/renderer/src/stores/mcp.ts', 6],
-  ['src/renderer/src/stores/mcpSampling.ts', 6],
-  ['src/renderer/src/stores/modelStore.ts', 4],
-  ['src/renderer/src/stores/ollamaStore.ts', 2],
-  ['src/renderer/src/stores/providerStore.ts', 5],
-  ['src/renderer/src/stores/sync.ts', 7],
-  ['src/renderer/src/stores/theme.ts', 4],
-  ['src/renderer/src/stores/ui/agent.ts', 2],
-  ['src/renderer/src/stores/ui/pendingInput.ts', 2],
-  ['src/renderer/src/stores/ui/project.ts', 1],
-  ['src/renderer/src/stores/upgrade.ts', 4]
-])
-
-const RENDERER_WINDOW_API_BASELINE = new Map([
-  ['src/renderer/src/components/AppBar.vue', 3],
-  ['src/renderer/src/components/artifacts/ArtifactBlock.vue', 1],
-  ['src/renderer/src/components/artifacts/CodeArtifact.vue', 2],
-  ['src/renderer/src/components/chat/composables/useChatInputFiles.ts', 2],
-  ['src/renderer/src/components/chat-input/SkillsIndicator.vue', 1],
-  ['src/renderer/src/components/markdown/useMarkdownLinkNavigation.ts', 2],
-  ['src/renderer/src/components/message/MessageBlockToolCall.vue', 4],
-  ['src/renderer/src/components/message/MessageItemAssistant.vue', 2],
-  ['src/renderer/src/components/message/MessageItemUser.vue', 1],
-  ['src/renderer/src/components/sidepanel/BrowserPanel.vue', 1],
-  ['src/renderer/src/components/sidepanel/ChatSidePanel.vue', 1],
-  ['src/renderer/src/components/sidepanel/WorkspacePanel.vue', 1],
-  ['src/renderer/src/components/trace/TraceDialog.vue', 1],
-  ['src/renderer/src/components/WindowSideBar.vue', 1],
-  ['src/renderer/src/composables/usePageCapture.ts', 3],
-  ['src/renderer/src/lib/chatInputWorkspaceReference.ts', 1],
-  ['src/renderer/src/lib/windowContext.ts', 5],
-  ['src/renderer/src/pages/WelcomePage.vue', 1]
-])
-
-const RENDERER_IPC_LISTENER_BASELINE = new Map([
-  ['src/renderer/src/components/chat-input/composables/useChatMode.ts', 1],
-  ['src/renderer/src/components/chat-input/composables/useRateLimitStatus.ts', 3],
-  ['src/renderer/src/components/chat-input/composables/useSkillsData.ts', 2],
-  ['src/renderer/src/components/chat-input/McpIndicator.vue', 2],
-  ['src/renderer/src/components/chat/composables/useChatInputMentions.ts', 1],
-  ['src/renderer/src/components/message/SelectedTextContextMenu.vue', 2],
-  ['src/renderer/src/components/sidepanel/BrowserPanel.vue', 6],
-  ['src/renderer/src/components/sidepanel/ChatSidePanel.vue', 1],
-  ['src/renderer/src/components/sidepanel/composables/useWorkspaceSync.ts', 1],
-  ['src/renderer/src/stores/dialog.ts', 1],
-  ['src/renderer/src/stores/floatingButton.ts', 1],
-  ['src/renderer/src/stores/language.ts', 1],
-  ['src/renderer/src/stores/mcp.ts', 6],
-  ['src/renderer/src/stores/mcpSampling.ts', 3],
-  ['src/renderer/src/stores/modelStore.ts', 2],
-  ['src/renderer/src/stores/ollamaStore.ts', 1],
-  ['src/renderer/src/stores/providerStore.ts', 5],
-  ['src/renderer/src/stores/sync.ts', 7],
-  ['src/renderer/src/stores/theme.ts', 2],
-  ['src/renderer/src/stores/ui/agent.ts', 2],
-  ['src/renderer/src/stores/ui/pendingInput.ts', 1],
-  ['src/renderer/src/stores/ui/project.ts', 1],
-  ['src/renderer/src/stores/uiSettingsStore.ts', 8],
-  ['src/renderer/src/stores/upgrade.ts', 4]
-])
-
 const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/App.vue'),
   path.join(ROOT, 'src/renderer/src/stores/uiSettingsStore.ts'),
@@ -230,6 +87,8 @@ const HOT_PATH_FILES = [
 const HOT_PATH_EDGE_BASELINE = 11
 
 const USE_PRESENTER_CALL_PATTERN = /\busePresenter\s*\(/g
+const USE_PRESENTER_IMPORT_PATTERN =
+  /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*composables\/usePresenter['"]|\bimport\s*['"][^'"]*composables\/usePresenter['"]/g
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
@@ -306,7 +165,7 @@ function countMatches(source, pattern) {
   return count
 }
 
-async function resolveImport(specifier, importer) {
+async function resolveImport(specifier, importer, aliasRoot = MAIN_SOURCE_ROOT) {
   const tryFile = async (basePath) => {
     const candidates = [
       basePath,
@@ -337,7 +196,7 @@ async function resolveImport(specifier, importer) {
   }
 
   if (specifier.startsWith('@/')) {
-    return await tryFile(path.join(MAIN_SOURCE_ROOT, specifier.slice(2)))
+    return await tryFile(path.join(aliasRoot, specifier.slice(2)))
   }
 
   if (specifier.startsWith('.')) {
@@ -459,32 +318,6 @@ function extractModuleSpecifiers(source) {
   return [...specifiers]
 }
 
-function validateRendererLegacyAccess({
-  actualCount,
-  baselineMap,
-  filePath,
-  violations,
-  code
-}) {
-  if (actualCount === 0) {
-    return
-  }
-
-  const file = relativePath(filePath)
-  const baselineCount = baselineMap.get(file)
-
-  if (baselineCount === undefined) {
-    violations.push(
-      `[${code}] ${file} must move behind a typed client/runtime wrapper or be added to the quarantine whitelist`
-    )
-    return
-  }
-
-  if (actualCount > baselineCount) {
-    violations.push(`[${code}-growth] ${file} expected <= ${baselineCount}, found ${actualCount}`)
-  }
-}
-
 async function main() {
   const scanRoots = [path.join(ROOT, 'src'), path.join(ROOT, 'docs')]
   const fileSet = new Set()
@@ -516,37 +349,38 @@ async function main() {
     if (isUnder(filePath, RENDERER_SOURCE_ROOT)) {
       const file = relativePath(filePath)
       const usePresenterCount = countMatches(source, USE_PRESENTER_CALL_PATTERN)
+      const usePresenterImportCount = countMatches(source, USE_PRESENTER_IMPORT_PATTERN)
       const windowElectronCount = countMatches(source, WINDOW_ELECTRON_PATTERN)
       const windowApiCount = countMatches(source, WINDOW_API_PATTERN)
-
-      validateRendererLegacyAccess({
-        actualCount: usePresenterCount,
-        baselineMap: RENDERER_USE_PRESENTER_BASELINE,
-        filePath,
-        violations,
-        code: 'renderer-business-direct-use-presenter'
-      })
-      validateRendererLegacyAccess({
-        actualCount: windowElectronCount,
-        baselineMap: RENDERER_WINDOW_ELECTRON_BASELINE,
-        filePath,
-        violations,
-        code: 'renderer-business-direct-window-electron'
-      })
-      validateRendererLegacyAccess({
-        actualCount: windowApiCount,
-        baselineMap: RENDERER_WINDOW_API_BASELINE,
-        filePath,
-        violations,
-        code: 'renderer-business-direct-window-api'
-      })
-
       const actualListenerCount = countMatches(source, IPC_RENDERER_LISTENER_PATTERN)
-      const baselineListenerCount = RENDERER_IPC_LISTENER_BASELINE.get(file) ?? 0
 
-      if (actualListenerCount > baselineListenerCount) {
+      if (usePresenterImportCount > 0) {
         violations.push(
-          `[renderer-ipc-listener-growth] ${file} expected <= ${baselineListenerCount}, found ${actualListenerCount}`
+          `[renderer-business-direct-use-presenter-import] ${file} must not import composables/usePresenter`
+        )
+      }
+
+      if (usePresenterCount > 0) {
+        violations.push(
+          `[renderer-business-direct-use-presenter] ${file} expected 0, found ${usePresenterCount}`
+        )
+      }
+
+      if (windowElectronCount > 0) {
+        violations.push(
+          `[renderer-business-direct-window-electron] ${file} expected 0, found ${windowElectronCount}`
+        )
+      }
+
+      if (windowApiCount > 0) {
+        violations.push(
+          `[renderer-business-direct-window-api] ${file} expected 0, found ${windowApiCount}`
+        )
+      }
+
+      if (actualListenerCount > 0) {
+        violations.push(
+          `[renderer-business-direct-ipc-listener] ${file} expected 0, found ${actualListenerCount}`
         )
       }
     }

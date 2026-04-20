@@ -2,14 +2,14 @@
 import { ref, onMounted } from 'vue'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyConfigPresenter } from '@api/legacy/presenters'
 
 /**
  * Manages input-specific settings (deep thinking)
  */
 export function useInputSettings() {
   // === Presenters ===
-  const configPresenter = usePresenter('configPresenter')
+  const configPresenter = useLegacyConfigPresenter()
 
   // === Local State ===
   const settings = ref({

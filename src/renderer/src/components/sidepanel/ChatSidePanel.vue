@@ -71,6 +71,8 @@ import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
 import { YO_BROWSER_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
+import { getLegacyWindowId } from '@api/legacy/runtime'
 
 const props = defineProps<{
   sessionId: string | null
@@ -79,12 +81,13 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
+const browserEvents = createIpcSubscriptionScope()
 
 const shouldShow = computed(() => sidepanelStore.open && Boolean(props.sessionId))
 const panelWidth = computed(() => (shouldShow.value ? sidepanelStore.width : 0))
 
 const handleBrowserOpenRequested = (_event: unknown, payload: unknown) => {
-  const currentWindowId = window.api.getWindowId?.() ?? null
+  const currentWindowId = getLegacyWindowId()
   const requestedWindowId =
     payload && typeof payload === 'object' && 'windowId' in payload ? payload.windowId : null
   const requestedSessionId =
@@ -120,13 +123,10 @@ const startResize = (event: MouseEvent) => {
 }
 
 onMounted(() => {
-  window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleBrowserOpenRequested)
+  browserEvents.on(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleBrowserOpenRequested)
 })
 
 onBeforeUnmount(() => {
-  window.electron.ipcRenderer.removeListener(
-    YO_BROWSER_EVENTS.OPEN_REQUESTED,
-    handleBrowserOpenRequested
-  )
+  browserEvents.cleanup()
 })
 </script>

@@ -26,7 +26,7 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## renderer
 
-- Candidate count: 44
+- Candidate count: 45
 
 - `components\ChatConfig.vue`
 - `components\ChatConfig\ConfigSwitchField.vue`
@@ -57,6 +57,7 @@ These files have no in-repo importers inside their scope and need manual classif
 - `composables\useArtifactContext.ts`
 - `composables\useArtifactExport.ts`
 - `composables\useArtifactViewMode.ts`
+- `composables\usePresenter.ts`
 - `composables\useSearchConfig.ts`
 - `composables\useViewportSize.ts`
 - `env.d.ts`

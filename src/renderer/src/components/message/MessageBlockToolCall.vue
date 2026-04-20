@@ -183,6 +183,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import { copyLegacyText } from '@api/legacy/runtime'
 
 const { t } = useI18n()
 
@@ -563,11 +564,7 @@ const responseCopyText = ref(t('common.copy'))
 const copyParams = async () => {
   if (!hasParams.value) return
   try {
-    if (window.api?.copyText) {
-      window.api.copyText(paramsText.value)
-    } else {
-      await navigator.clipboard.writeText(paramsText.value)
-    }
+    copyLegacyText(paramsText.value)
     paramsCopyText.value = t('common.copySuccess')
     setTimeout(() => {
       paramsCopyText.value = t('common.copy')
@@ -580,11 +577,7 @@ const copyParams = async () => {
 const copyResponse = async () => {
   if (!hasResponse.value) return
   try {
-    if (window.api?.copyText) {
-      window.api.copyText(responseText.value)
-    } else {
-      await navigator.clipboard.writeText(responseText.value)
-    }
+    copyLegacyText(responseText.value)
     responseCopyText.value = t('common.copySuccess')
     setTimeout(() => {
       responseCopyText.value = t('common.copy')

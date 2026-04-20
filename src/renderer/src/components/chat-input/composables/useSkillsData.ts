@@ -3,10 +3,10 @@ import { ref, computed, watch, onMounted, onUnmounted, type Ref, type ComputedRe
 
 // === Types ===
 import type { SkillMetadata } from '@shared/types/skill'
-import type { IpcRendererEvent } from 'electron'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacySkillPresenter } from '@api/legacy/presenters'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 
 // === Stores ===
 import { useSkillsStore } from '@/stores/skillsStore'
@@ -25,8 +25,9 @@ import { SKILL_EVENTS } from '@/events'
  * - Event listeners for real-time updates
  */
 export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<string | null>) {
-  const skillPresenter = usePresenter('skillPresenter')
+  const skillPresenter = useLegacySkillPresenter()
   const skillsStore = useSkillsStore()
+  const skillEventScope = createLegacyIpcSubscriptionScope()
 
   // === State ===
   const activeSkills = ref<string[]>([])
@@ -184,7 +185,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
   // === IPC Event Handlers ===
   const handleSkillActivated = (
-    _event: IpcRendererEvent,
+    _event: unknown,
     payload: { conversationId: string; skills: string[] }
   ) => {
     if (payload.conversationId === conversationId.value && Array.isArray(payload.skills)) {
@@ -196,7 +197,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   }
 
   const handleSkillDeactivated = (
-    _event: IpcRendererEvent,
+    _event: unknown,
     payload: { conversationId: string; skills: string[] }
   ) => {
     if (payload.conversationId === conversationId.value && Array.isArray(payload.skills)) {
@@ -224,18 +225,12 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     }
 
     // Listen for skill activation events from main process via IPC
-    if (window.electron?.ipcRenderer) {
-      window.electron.ipcRenderer.on(SKILL_EVENTS.ACTIVATED, handleSkillActivated)
-      window.electron.ipcRenderer.on(SKILL_EVENTS.DEACTIVATED, handleSkillDeactivated)
-    }
+    skillEventScope.on(SKILL_EVENTS.ACTIVATED, handleSkillActivated)
+    skillEventScope.on(SKILL_EVENTS.DEACTIVATED, handleSkillDeactivated)
   })
 
   onUnmounted(() => {
-    // Remove IPC event listeners
-    if (window.electron?.ipcRenderer) {
-      window.electron.ipcRenderer.removeListener(SKILL_EVENTS.ACTIVATED, handleSkillActivated)
-      window.electron.ipcRenderer.removeListener(SKILL_EVENTS.DEACTIVATED, handleSkillDeactivated)
-    }
+    skillEventScope.cleanup()
   })
 
   // === Return Public API ===

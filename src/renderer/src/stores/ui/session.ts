@@ -3,7 +3,11 @@ import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
 import { ChatClient } from '../../../api/ChatClient'
 import { SessionClient } from '../../../api/SessionClient'
 import type { ComputedRef } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import {
+  useLegacyAgentSessionPresenter,
+  useLegacyConfigPresenter,
+  useLegacyTabPresenter
+} from '@api/legacy/presenters'
 import type {
   DeepChatSubagentMeta,
   SessionWithState,
@@ -191,9 +195,9 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
 export const useSessionStore = defineStore('session', () => {
   const sessionClient = new SessionClient()
   const chatClient = new ChatClient()
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
-  const tabPresenter = usePresenter('tabPresenter')
-  const configPresenter = usePresenter('configPresenter', { safeCall: false })
+  const agentSessionPresenter = useLegacyAgentSessionPresenter()
+  const tabPresenter = useLegacyTabPresenter()
+  const configPresenter = useLegacyConfigPresenter({ safeCall: false })
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
@@ -302,6 +306,24 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     agentStore.setSelectedAgent(targetAgentId)
+  }
+
+  const applySessionStatus = (sessionId: string, status: string): void => {
+    const nextStatus = mapSessionStatus(status)
+    const index = sessions.value.findIndex((session) => session.id === sessionId)
+    if (index < 0) {
+      return
+    }
+
+    const currentSession = sessions.value[index]
+    if (currentSession.status === nextStatus) {
+      return
+    }
+
+    sessions.value[index] = {
+      ...currentSession,
+      status: nextStatus
+    }
   }
 
   // --- Actions ---
@@ -599,6 +621,9 @@ export const useSessionStore = defineStore('session', () => {
       messageStore.clearStreamingState()
       setActiveSessionId(null)
       pageRouter.goToNewThread()
+    },
+    onStatusChanged: (sessionId, status) => {
+      applySessionStatus(sessionId, status)
     }
   })
   registerStoreCleanup(cleanupIpcBindings)
