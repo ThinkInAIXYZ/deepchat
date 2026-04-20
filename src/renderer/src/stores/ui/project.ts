@@ -152,7 +152,7 @@ export const useProjectStore = defineStore('project', () => {
     source: ProjectSelectionSource = normalizePath(path) ? 'manual' : 'none'
   ): void {
     selectedProjectPath.value = normalizePath(path)
-    selectionSource.value = selectedProjectPath.value ? source : 'none'
+    selectionSource.value = selectedProjectPath.value || source === 'manual' ? source : 'none'
     projects.value = reconcileProjects(projects.value)
   }
 
@@ -208,6 +208,7 @@ export const useProjectStore = defineStore('project', () => {
     environments,
     selectedProjectPath,
     defaultProjectPath,
+    selectionSource,
     error,
     selectedProject,
     fetchProjects,

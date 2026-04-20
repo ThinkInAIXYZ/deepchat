@@ -19,6 +19,7 @@
             <Button
               variant="ghost"
               size="sm"
+              data-testid="new-thread-project-trigger"
               class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"
             >
               <Icon icon="lucide:folder" class="w-3.5 h-3.5" />
@@ -28,6 +29,16 @@
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center" class="min-w-[200px]">
             <DropdownMenuLabel class="text-xs">{{ t('common.project.recent') }}</DropdownMenuLabel>
+            <DropdownMenuItem
+              data-testid="new-thread-clear-project"
+              class="gap-2 text-xs py-1.5 px-2"
+              :disabled="!canClearProjectSelection"
+              @click="clearSelectedProject"
+            >
+              <Icon icon="lucide:folder-x" class="w-3.5 h-3.5 text-muted-foreground" />
+              <span>{{ t('common.project.none') }}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               v-for="project in projectStore.projects"
               :key="project.path"
@@ -40,7 +51,6 @@
                 <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
               </div>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               class="gap-2 text-xs py-1.5 px-2"
               @click="projectStore.openFolderPicker()"
@@ -169,9 +179,16 @@ const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
-const selectedProjectName = computed(
-  () => projectStore.selectedProject?.name ?? t('common.project.select')
+const hasExplicitNoProjectSelection = computed(
+  () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )
+const selectedProjectName = computed(() => {
+  if (projectStore.selectedProject?.name) {
+    return projectStore.selectedProject.name
+  }
+  return hasExplicitNoProjectSelection.value ? t('common.project.none') : t('common.project.select')
+})
+const canClearProjectSelection = computed(() => Boolean(projectStore.selectedProject?.path?.trim()))
 const isAcpWorkdirMissing = computed(() => {
   if (!isAcpSelectedAgent.value) {
     return false
@@ -454,6 +471,10 @@ function onFilesChange(files: MessageFile[]) {
 
 function onPendingSkillsChange(skills: string[]) {
   pendingSkills.value = [...skills]
+}
+
+function clearSelectedProject() {
+  projectStore.selectProject(null, 'manual')
 }
 
 const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {

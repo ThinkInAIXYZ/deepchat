@@ -220,7 +220,7 @@ export class DevicePresenter implements IDevicePresenter {
         timeout: 10000 // 10秒超时
       })
 
-      // 获取内容类型并确定文件扩展名
+      // Handle string or string[] content-type headers consistently.
       const extension = getImageExtensionFromMimeType(response.headers['content-type'])
 
       const saveFileName = `${fileName}.${extension}`
