@@ -109,7 +109,7 @@ const setup = async (options?: {
     resetGenerationSettings: vi.fn()
   })
 
-  const configPresenter = {
+  const configClient = {
     getSetting: vi.fn((key: string) => {
       if (key === 'defaultModel') {
         return Promise.resolve(options?.defaultModel)
@@ -127,7 +127,7 @@ const setup = async (options?: {
     )
   }
 
-  const agentSessionPresenter = {
+  const sessionClient = {
     ensureAcpDraftSession: vi.fn().mockImplementation(
       options?.ensureAcpDraftSession ??
         (() => {
@@ -151,9 +151,11 @@ const setup = async (options?: {
   vi.doMock('@/stores/ui/draft', () => ({
     useDraftStore: () => draftStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) =>
-      name === 'configPresenter' ? configPresenter : agentSessionPresenter
+  vi.doMock('@api/ConfigClient', () => ({
+    ConfigClient: vi.fn(() => configClient)
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    SessionClient: vi.fn(() => sessionClient)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -203,20 +205,20 @@ const setup = async (options?: {
     agentStore,
     modelStore,
     draftStore,
-    agentSessionPresenter
+    sessionClient
   }
 }
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
   it('uses the preselected project path when default project selection is already applied', async () => {
-    const { agentSessionPresenter } = await setup({
+    const { sessionClient } = await setup({
       selectedProject: {
         path: '/tmp/default-workspace',
         name: 'default-workspace'
       }
     })
 
-    expect(agentSessionPresenter.ensureAcpDraftSession).toHaveBeenCalledWith({
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
       agentId: 'acp-agent',
       projectDir: '/tmp/default-workspace',
       permissionMode: 'full_access'
@@ -224,9 +226,9 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
   })
 
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {
-    const { wrapper, agentSessionPresenter } = await setup()
+    const { wrapper, sessionClient } = await setup()
 
-    expect(agentSessionPresenter.ensureAcpDraftSession).toHaveBeenCalledWith({
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
       agentId: 'acp-agent',
       projectDir: '/tmp/workspace',
       permissionMode: 'full_access'

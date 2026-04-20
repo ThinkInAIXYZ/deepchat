@@ -24,7 +24,7 @@ const setupStore = async () => {
   vi.resetModules()
   vi.useFakeTimers()
 
-  const llmPresenter = {
+  const providerClient = {
     listOllamaRunningModels: vi.fn(async () => [createModel('qwen3:8b')]),
     listOllamaModels: vi.fn(async () => [createModel('deepseek-r1:1.5b')]),
     refreshModels: vi.fn(async () => undefined),
@@ -35,13 +35,6 @@ const setupStore = async () => {
   }
   const providerStore = {
     providers: [{ id: 'ollama', apiType: 'ollama', enable: true }]
-  }
-
-  ;(window as any).electron = {
-    ipcRenderer: {
-      on: vi.fn(),
-      removeAllListeners: vi.fn()
-    }
   }
 
   vi.doMock('pinia', async () => {
@@ -61,8 +54,15 @@ const setupStore = async () => {
     }
   })
 
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => llmPresenter
+  vi.doMock('../../../src/renderer/api/ProviderClient', () => ({
+    ProviderClient: vi.fn(() => providerClient)
+  }))
+
+  vi.doMock('@api/legacy/runtime', () => ({
+    createLegacyIpcSubscriptionScope: () => ({
+      on: vi.fn(),
+      cleanup: vi.fn()
+    })
   }))
 
   vi.doMock('@/stores/modelStore', () => ({
@@ -77,7 +77,7 @@ const setupStore = async () => {
 
   return {
     store: useOllamaStore(),
-    llmPresenter,
+    providerClient,
     modelStore
   }
 }
@@ -88,7 +88,7 @@ afterEach(() => {
 
 describe('ollamaStore', () => {
   it('refreshes UI lists, then persists through main refresh and local modelStore refresh', async () => {
-    const { store, llmPresenter, modelStore } = await setupStore()
+    const { store, providerClient, modelStore } = await setupStore()
 
     await store.refreshOllamaModels('ollama')
 
@@ -96,12 +96,12 @@ describe('ollamaStore', () => {
     expect(store.getOllamaLocalModels('ollama').map((model) => model.name)).toEqual([
       'deepseek-r1:1.5b'
     ])
-    expect(llmPresenter.refreshModels).toHaveBeenCalledWith('ollama')
+    expect(providerClient.refreshModels).toHaveBeenCalledWith('ollama')
     expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('ollama')
   })
 
   it('reuses the same refresh chain when pull completes', async () => {
-    const { store, llmPresenter, modelStore } = await setupStore()
+    const { store, providerClient, modelStore } = await setupStore()
 
     store.handleOllamaModelPullEvent({
       eventId: 'pullOllamaModels',
@@ -112,7 +112,7 @@ describe('ollamaStore', () => {
 
     await vi.advanceTimersByTimeAsync(600)
 
-    expect(llmPresenter.refreshModels).toHaveBeenCalledWith('ollama')
+    expect(providerClient.refreshModels).toHaveBeenCalledWith('ollama')
     expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('ollama')
   })
 })

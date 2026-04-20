@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue'
 import type { MessageFile } from '@shared/types/agent-interface'
-import { usePresenter } from '@/composables/usePresenter'
+import { FileClient } from '@api/FileClient'
 import { useToast } from '@/components/use-toast'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'
 import { approximateTokenSize } from 'tokenx'
@@ -21,7 +21,7 @@ export function useChatInputFiles(
   emit: (event: 'file-upload', files: MessageFile[]) => void,
   t: (key: string, params?: any) => string
 ) {
-  const filePresenter = usePresenter('filePresenter')
+  const fileClient = new FileClient()
   const { toast } = useToast()
   const selectedFiles = ref<MessageFile[]>([])
 
@@ -31,7 +31,7 @@ export function useChatInputFiles(
         const base64 = (await imageFileToBase64(file)) as string
         const imageInfo = await getClipboardImageInfo(file)
 
-        const tempFilePath = await filePresenter.writeImageBase64({
+        const tempFilePath = await fileClient.writeImageBase64({
           name: file.name ?? 'image',
           content: base64
         })
@@ -53,9 +53,9 @@ export function useChatInputFiles(
         }
       }
 
-      const path = window.api.getPathForFile(file)
-      const mimeType = await filePresenter.getMimeType(path)
-      return await filePresenter.prepareFile(path, mimeType)
+      const path = fileClient.getPathForFile(file)
+      const mimeType = await fileClient.getMimeType(path)
+      return await fileClient.prepareFile(path, mimeType)
     } catch (error) {
       console.error('File processing failed:', error)
       return null
@@ -64,17 +64,17 @@ export function useChatInputFiles(
 
   const processDroppedFile = async (file: File): Promise<MessageFile | null> => {
     try {
-      const path = window.api.getPathForFile(file)
+      const path = fileClient.getPathForFile(file)
 
       if (file.type === '') {
-        const isDirectory = await filePresenter.isDirectory(path)
+        const isDirectory = await fileClient.isDirectory(path)
         if (isDirectory) {
-          return await filePresenter.prepareDirectory(path)
+          return await fileClient.prepareDirectory(path)
         }
       }
 
-      const mimeType = await filePresenter.getMimeType(path)
-      return await filePresenter.prepareFile(path, mimeType)
+      const mimeType = await fileClient.getMimeType(path)
+      return await fileClient.prepareFile(path, mimeType)
     } catch (error) {
       console.error('Dropped file processing failed:', error)
       return null
@@ -182,7 +182,7 @@ export function useChatInputFiles(
 
         if (!messageFile.content && fileItem.path) {
           try {
-            const fileContent = await filePresenter.readFile(fileItem.path)
+            const fileContent = await fileClient.readFile(fileItem.path)
             messageFile.content = fileContent
             messageFile.token = approximateTokenSize(fileContent)
           } catch (error) {

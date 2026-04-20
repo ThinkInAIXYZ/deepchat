@@ -1,14 +1,14 @@
-import { usePresenter } from '@/composables/usePresenter'
-import { DIALOG_EVENTS } from '@/events'
+import { DialogClient } from '@api/DialogClient'
 import { DialogRequest, DialogResponse } from '@shared/presenter'
 import { defineStore } from 'pinia'
 import { onMounted, onUnmounted, ref } from 'vue'
 
 export const useDialogStore = defineStore('dialog', () => {
-  const dialogP = usePresenter('dialogPresenter')
+  const dialogClient = new DialogClient()
   const dialogRequest = ref<DialogRequest | null>(null)
   const showDialog = ref(false)
   const timeoutMilliseconds = ref(0)
+  let unsubscribeDialogRequested: (() => void) | null = null
   let timer: NodeJS.Timeout | null = null
 
   // Clear the timer
@@ -35,7 +35,7 @@ export const useDialogStore = defineStore('dialog', () => {
 
   // Listen for dialog request events
   const setupUpdateListener = () => {
-    window.electron.ipcRenderer.on(DIALOG_EVENTS.REQUEST, async (_, event: DialogRequest) => {
+    unsubscribeDialogRequested = dialogClient.onRequested(async (event: DialogRequest) => {
       try {
         if (!event || !event.id || !event.title) {
           console.error('[DialogStore] Invalid dialog request:', event)
@@ -72,7 +72,8 @@ export const useDialogStore = defineStore('dialog', () => {
   // Remove dialog request listener
   const removeUpdateListener = () => {
     clearTimer()
-    window.electron.ipcRenderer.removeAllListeners(DIALOG_EVENTS.REQUEST)
+    unsubscribeDialogRequested?.()
+    unsubscribeDialogRequested = null
   }
 
   // Respond to dialog
@@ -83,7 +84,7 @@ export const useDialogStore = defineStore('dialog', () => {
         console.warn('No dialog request to respond')
         return
       }
-      await dialogP.handleDialogResponse(response)
+      await dialogClient.handleDialogResponse(response)
     } catch (error) {
       console.error('[DialogStore] Error handling dialog response:', error)
     } finally {
@@ -96,7 +97,7 @@ export const useDialogStore = defineStore('dialog', () => {
   const handleError = async (id: string) => {
     try {
       clearTimer()
-      await dialogP.handleDialogError(id)
+      await dialogClient.handleDialogError(id)
     } catch (error) {
       console.error('[DialogStore] Error handling dialog error:', error)
     } finally {

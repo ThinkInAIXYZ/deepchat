@@ -1,0 +1,216 @@
+# Main Kernel Refactor Acceptance
+
+## Acceptance Model
+
+本项目采用双层验收：
+
+- 阶段验收：每个 phase 都必须独立通过
+- 最终验收：所有阶段完成后，再检查本轮“边界稳定化”目标是否达成
+
+本轮验收重点不是“新目录是否漂亮”，而是：
+
+- migrated path 是否更稳定
+- owner 是否更清楚
+- 测试是否更容易写
+
+## Phase Gate Rules
+
+每个阶段都必须同时满足以下条件：
+
+1. 该阶段定义的真实 slice 或主路径切换已经完成
+2. 该阶段引入的 bridge 已登记 `deleteByPhase`
+3. 该阶段要求的自动化验证已通过
+4. 该阶段要求的 smoke 验证已通过
+5. legacy 指标相对上一阶段净下降，或至少没有反弹
+
+## Governance Hard Requirements
+
+以下要求来自 [migration-governance.md](./migration-governance.md)，属于硬门槛：
+
+- 同一条用户路径只能有一个 active owner
+- bridge 只能单向 `old -> new`
+- foundation 工作不能连续多轮脱离真实 slice
+- 旧实现一旦进入迁移阶段即冻结
+- migrated path 完成后必须看到可证明的耦合净下降
+
+## Phase Acceptance Criteria
+
+### Phase 0: Guardrails & Baseline
+
+- 能阻止新增 `useLegacyPresenter()`、新增 raw renderer IPC、新增 migrated path raw channel
+- 能输出 renderer / preload / hot path 相关趋势基线
+- bridge register 和 scoreboard 模板可用
+
+### Phase 1: Typed Boundary Foundation
+
+- 存在统一的 shared route registry
+- 存在 typed event catalog，至少覆盖 settings / sessions / chat 首批事件
+- preload bridge 和 `renderer/api` client 已能驱动首批主路径
+- 新增功能不再依赖 `useLegacyPresenter()` 接入
+
+### Phase 2: Settings Pilot Slice
+
+- settings 主读写链路走新 contract + client + handler
+- settings 相关 renderer/store 不再依赖旧 presenter 作为主入口
+- settings 变更通知通过 typed event 可追踪
+
+### Phase 3: Chat & Session Hot Path
+
+- session create / restore / activate 中至少主路径 owner 已明确
+- 发送消息、停止流主链路走显式 orchestration，而不是继续靠 presenter 互调
+- timeout / retry / cancel 通过 `Scheduler` 管理
+- migrated path 上的 cleanup 行为可测
+
+### Phase 4: Provider / Tool Boundary
+
+- provider query / execution / session 配置边界具备明确 port 或 adapter
+- permission / tool response 通过明确 contract 或 typed event 处理
+- migrated path 上 presenter 对 provider 的直接依赖已降到可解释范围
+
+### Phase 5: Consolidation & Re-evaluation
+
+- 本轮新增 bridge 已删除
+- 文档、baseline、scoreboard、smoke 记录已同步
+- 已形成“是否继续做下一轮更彻底 kernel 重构”的结论
+
+## Phase Status
+
+- [x] Phase 0 completed on `2026-04-19`
+- Phase 0 evidence lives in `scripts/architecture-guard.mjs` and `scripts/generate-architecture-baseline.mjs`
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-boundary-baseline.md`
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-bridge-register.md`
+- Phase 0 artifacts are `docs/architecture/baselines/main-kernel-migration-scoreboard.md`
+- Phase 0 establishes the baseline checkpoint, so later phases compare against this snapshot instead of a prior phase delta
+- [x] Phase 1 completed on `2026-04-19`
+- Phase 1 evidence lives in `src/shared/contracts/`, `src/preload/createBridge.ts`, `src/main/routes/`, and `src/renderer/api/`
+- Phase 1 automated verification covers `test/main/routes/contracts.test.ts`
+- Phase 1 automated verification covers `test/main/routes/dispatcher.test.ts`
+- Phase 1 automated verification covers `test/renderer/api/createBridge.test.ts`
+- Phase 1 automated verification covers `test/renderer/api/clients.test.ts`
+- Phase 1 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P1`
+- Phase 2 implementation and automated verification completed on `2026-04-19`
+- Phase 2 evidence lives in `src/main/routes/settings/`, `src/main/routes/index.ts`, `src/renderer/api/SettingsClient.ts`, and `src/renderer/src/stores/uiSettingsStore.ts`
+- Phase 2 automated verification covers `test/main/routes/contracts.test.ts`
+- Phase 2 automated verification covers `test/main/routes/dispatcher.test.ts`
+- Phase 2 automated verification covers `test/main/routes/settingsHandler.test.ts`
+- Phase 2 automated verification covers `test/renderer/api/clients.test.ts`
+- Phase 2 automated verification covers `test/renderer/stores/uiSettingsStore.test.ts`
+- Phase 2 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P2`
+- Phase 2 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
+- [x] Phase 3 completed on `2026-04-19`
+- Phase 3 evidence lives in `src/main/routes/chat/`, `src/main/routes/sessions/`, `src/main/routes/hotPathPorts.ts`, `src/main/routes/scheduler.ts`, and the migrated renderer hot path under `src/renderer/src/stores/ui/` plus `src/renderer/src/pages/ChatPage.vue`
+- Phase 3 migrated renderer boundary now uses `SessionClient` / `ChatClient` for `sessions.restore`, `sessions.activate`, `sessions.deactivate`, `sessions.getActive`, `chat.sendMessage`, and `chat.stopStream`
+- Phase 3 automated verification covers `test/main/routes/contracts.test.ts`
+- Phase 3 automated verification covers `test/main/routes/dispatcher.test.ts`
+- Phase 3 automated verification covers `test/main/routes/sessionService.test.ts`
+- Phase 3 automated verification covers `test/main/routes/chatService.test.ts`
+- Phase 3 automated verification covers `test/main/routes/scheduler.test.ts`
+- Phase 3 automated verification covers `test/renderer/api/clients.test.ts`
+- Phase 3 automated verification covers `test/renderer/stores/pageRouter.test.ts`
+- Phase 3 automated verification covers `test/renderer/stores/messageStore.test.ts`
+- Phase 3 automated verification covers `test/renderer/stores/sessionStore.test.ts`
+- Phase 3 follow-up verification on `2026-04-19` restored typed incremental stream delivery in `src/main/presenter/agentRuntimePresenter/echo.ts`, aligned rate-limit and deferred terminal-error branches with typed `chat.stream.*` events in `src/main/presenter/agentRuntimePresenter/index.ts`, and reintroduced renderer-side persisted refresh fallback in `src/renderer/src/stores/ui/messageIpc.ts`
+- Phase 3 follow-up verification covers `test/main/presenter/agentRuntimePresenter/echo.test.ts`
+- Phase 3 follow-up verification covers `test/renderer/components/ChatPage.test.ts`
+- Phase 3 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P3`
+- Phase 3 legacy metrics confirm net reduction versus the Phase 0 checkpoint: `renderer.usePresenter.count` `89 -> 87`, `renderer.windowApi.count` `34 -> 33`, `hotpath.presenterEdge.count` `11 -> 10`, and `bridge.active.count` remains `0`
+- Phase 3 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
+- [x] Phase 4 completed on `2026-04-20`
+- Phase 4 evidence lives in `src/main/presenter/runtimePorts.ts`, `src/main/presenter/index.ts`, `src/main/presenter/agentRuntimePresenter/index.ts`, `src/main/presenter/agentSessionPresenter/index.ts`, `src/main/routes/providers/providerService.ts`, `src/main/routes/hotPathPorts.ts`, `src/main/routes/index.ts`, `src/shared/contracts/routes/providers.routes.ts`, `src/shared/contracts/routes/chat.routes.ts`, `src/renderer/api/ProviderClient.ts`, `src/renderer/api/ChatClient.ts`, `src/renderer/src/stores/providerStore.ts`, and `src/renderer/src/pages/ChatPage.vue`
+- Phase 4 migrated renderer boundary now uses `ChatClient.respondToolInteraction` for permission/question responses and `ProviderClient.testConnection` for provider verification
+- Phase 4 automated verification covers `test/main/routes/contracts.test.ts`
+- Phase 4 automated verification covers `test/main/routes/dispatcher.test.ts`
+- Phase 4 automated verification covers `test/main/routes/chatService.test.ts`
+- Phase 4 automated verification covers `test/main/routes/providerService.test.ts`
+- Phase 4 automated verification covers `test/main/presenter/agentRuntimePresenter/agentRuntimePresenter.test.ts`
+- Phase 4 automated verification covers `test/main/presenter/agentSessionPresenter/agentSessionPresenter.test.ts`
+- Phase 4 automated verification covers `test/main/presenter/agentSessionPresenter/integration.test.ts`
+- Phase 4 automated verification covers `test/main/presenter/agentSessionPresenter/usageDashboard.test.ts`
+- Phase 4 automated verification covers `test/renderer/api/clients.test.ts`
+- Phase 4 automated verification covers `test/renderer/components/ChatPage.test.ts`
+- Phase 4 automated verification covers `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`
+- Phase 4 automated verification covers `node scripts/architecture-guard.mjs`
+- Phase 4 automated verification covers `pnpm run architecture:baseline`
+- Phase 4 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P4`
+- Phase 4 legacy metrics confirm no rebound versus the Phase 3 checkpoint while continuing the renderer boundary reduction: `renderer.usePresenter.count` `87 -> 86`, `renderer.windowElectron.count` `95 -> 95`, `renderer.windowApi.count` `33 -> 33`, `hotpath.presenterEdge.count` `10 -> 10`, and `bridge.active.count` remains `0`
+- Phase 4 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
+- [x] Phase 5 completed on `2026-04-20`
+- Phase 5 audit confirmed the bridge register remains empty, so no main-kernel temporary bridge survived into `P5`
+- Phase 5 automated verification covers the targeted migrated-path regression pack in `test/main/routes/*.test.ts`, `test/main/presenter/agentRuntimePresenter/*.test.ts`, `test/main/presenter/agentSessionPresenter/*.test.ts`, `test/renderer/api/*.test.ts`, `test/renderer/stores/*.test.ts`, and `test/renderer/components/ChatPage.test.ts`
+- Phase 5 automated verification covers `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`
+- Phase 5 automated verification covers `pnpm run architecture:baseline`
+- Phase 5 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P5`
+- Phase 5 documentation refresh covers `docs/README.md`, `docs/ARCHITECTURE.md`, and `docs/guides/code-navigation.md`
+- Phase 5 legacy metrics confirm the Phase 4 checkpoint held through final consolidation: `renderer.usePresenter.count` `86 -> 86`, `renderer.windowElectron.count` `95 -> 95`, `renderer.windowApi.count` `33 -> 33`, `hotpath.presenterEdge.count` `10 -> 10`, `migrated.rawChannel.count` `5 -> 5`, and `bridge.active.count` remains `0`
+- Phase 5 final smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
+- Phase 5 conclusion: do not start a full `main kernel` rewrite now; keep using slice-driven typed boundary migrations only when a concrete hot path still justifies it
+
+## Final Acceptance Checklist
+
+结构性签收项已根据 `2026-04-20` 的自动化验证结果勾选；用户可见行为项保留到最终手工 smoke 后确认。
+
+### Boundary
+
+- [x] migrated path 的 renderer 调用统一走 `renderer/api` + `window.deepchat`
+- [x] migrated path 不再新增 `useLegacyPresenter()`、`window.electron`、`window.api` 依赖
+- [x] migrated path 的 route 和 typed event 都能在共享 registry / catalog 中追踪
+- [x] 组件和 store 不直接拼新的 raw channel 字符串
+
+### Runtime Ownership
+
+- [x] settings、chat、session、provider 这些 migrated path 都有明确 owner
+- [x] `AgentSessionPresenter -> AgentRuntimePresenter` 不再是 migrated chat path 的主 owner 链
+- [x] provider query / execution / permission 边界可解释，不依赖全局隐式协作
+- [x] session / stream / permission cleanup 有明确 owner
+
+### Lifecycle and Scheduling
+
+- [x] cancel、timeout、retry 在 migrated chat path 上走 `Scheduler`
+- [x] window/session 相关 listener、subscription、abort controller 的清理可验证
+- [x] 现有 `LifecycleManager` 或等价 setup 模块中，migrated path 的装配关系是可读的
+
+### Cleanup
+
+- [x] 本轮涉及的临时 bridge 已按计划删除
+- [x] 对应 slice 的旧 owner 已冻结，不再继续长新逻辑
+- [x] hot path 直连依赖相较基线净下降
+- [x] 本轮不要求 `src/main/presenter` 目录归零，但 migrated path 不再依赖它的旧协作方式
+
+### Quality
+
+- [x] route / client / service / scheduler / provider boundary 具备对应测试
+- [x] `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 通过
+- [x] baseline、tasks、test-plan、README 已同步更新
+
+### User-Visible Behavior
+
+- [ ] 修改设置正常
+- [ ] 创建会话正常
+- [ ] 恢复会话正常
+- [ ] 发送消息正常
+- [ ] 流式回复正常
+- [ ] 停止流正常
+- [ ] provider 相关关键交互正常
+- [ ] 权限交互正常
+
+## What Is Not Required For Sign-Off
+
+以下内容不属于本轮最终签收硬门槛：
+
+- `src/main/presenter` 整体删除
+- `ServiceLocator` / singleton 在全仓归零
+- 完整 clean architecture 目录搬迁
+- EventBus 全量重写
+- 明显内存下降
+
+## Evidence Required Before Final Sign-Off
+
+- 最新基线报告
+- route registry 与 typed event catalog 摘要
+- bridge register
+- migration scoreboard
+- 自动化测试结果摘要
+- smoke 记录
+- 文档更新记录
+- 对“是否继续做更彻底 kernel 重构”的结论说明
+

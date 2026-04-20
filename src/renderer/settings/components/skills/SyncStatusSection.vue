@@ -55,7 +55,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import type { ScanResult } from '@shared/types/skillSync'
 import SyncStatusCard from './SyncStatusCard.vue'
 
@@ -65,7 +65,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const skillSyncPresenter = usePresenter('skillSyncPresenter')
+const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
 
 const tools = ref<ScanResult[]>([])
 const scanning = ref(false)

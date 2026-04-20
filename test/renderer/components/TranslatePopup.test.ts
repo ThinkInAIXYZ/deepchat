@@ -19,10 +19,10 @@ vi.mock('vue-i18n', () => ({
   })
 }))
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: () => ({
+vi.mock('@api/SessionClient', () => ({
+  SessionClient: vi.fn(() => ({
     translateText
-  })
+  }))
 }))
 
 vi.mock('@/stores/ui/agent', () => ({

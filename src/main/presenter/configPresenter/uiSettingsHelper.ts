@@ -1,5 +1,7 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import fontList from 'font-list'
 
 const AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT = 80
@@ -33,6 +35,16 @@ type GetSetting = <T>(key: string) => T | undefined
 interface UiSettingsHelperOptions {
   getSetting: GetSetting
   setSetting: SetSetting
+}
+
+const emitSettingsChanged = (changedKey: SettingsKey, value: string | number | boolean) => {
+  publishDeepchatEvent('settings.changed', {
+    changedKeys: [changedKey],
+    version: Date.now(),
+    values: {
+      [changedKey]: value
+    } as Partial<SettingsSnapshotValues>
+  })
 }
 
 export class UiSettingsHelper {
@@ -75,7 +87,9 @@ export class UiSettingsHelper {
   }
 
   setAutoCompactionEnabled(enabled: boolean): void {
-    this.setSetting('autoCompactionEnabled', Boolean(enabled))
+    const boolValue = Boolean(enabled)
+    this.setSetting('autoCompactionEnabled', boolValue)
+    emitSettingsChanged('autoCompactionEnabled', boolValue)
   }
 
   getAutoCompactionTriggerThreshold(): number {
@@ -85,10 +99,9 @@ export class UiSettingsHelper {
   }
 
   setAutoCompactionTriggerThreshold(threshold: number): void {
-    this.setSetting(
-      'autoCompactionTriggerThreshold',
-      this.normalizeAutoCompactionTriggerThreshold(threshold)
-    )
+    const normalized = this.normalizeAutoCompactionTriggerThreshold(threshold)
+    this.setSetting('autoCompactionTriggerThreshold', normalized)
+    emitSettingsChanged('autoCompactionTriggerThreshold', normalized)
   }
 
   getAutoCompactionRetainRecentPairs(): number {
@@ -98,10 +111,9 @@ export class UiSettingsHelper {
   }
 
   setAutoCompactionRetainRecentPairs(count: number): void {
-    this.setSetting(
-      'autoCompactionRetainRecentPairs',
-      this.normalizeAutoCompactionRetainRecentPairs(count)
-    )
+    const normalized = this.normalizeAutoCompactionRetainRecentPairs(count)
+    this.setSetting('autoCompactionRetainRecentPairs', normalized)
+    emitSettingsChanged('autoCompactionRetainRecentPairs', normalized)
   }
 
   getContentProtectionEnabled(): boolean {
@@ -138,8 +150,9 @@ export class UiSettingsHelper {
   }
 
   setNotificationsEnabled(enabled: boolean): void {
-    this.setSetting('notificationsEnabled', enabled)
-    eventBus.send(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, SendTarget.ALL_WINDOWS, Boolean(enabled))
+    const boolValue = Boolean(enabled)
+    this.setSetting('notificationsEnabled', boolValue)
+    eventBus.send(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
   }
 
   getFontFamily(): string {

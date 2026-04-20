@@ -62,6 +62,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
+        '@api': resolve('src/renderer/api'),
         '@shared': resolve('src/shared'),
         "@shadcn": resolve('src/shadcn'),
         vue: 'vue/dist/vue.esm-bundler.js'

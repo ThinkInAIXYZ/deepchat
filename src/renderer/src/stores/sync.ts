@@ -1,9 +1,10 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { usePresenter } from '@/composables/usePresenter'
+import { DeviceClient } from '@api/DeviceClient'
+import { SyncClient } from '@api/SyncClient'
+import { ConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { CONFIG_EVENTS, SYNC_EVENTS } from '@/events'
 import type { EntryKey, UseQueryReturn } from '@pinia/colada'
 import type { SyncBackupInfo } from '@shared/presenter'
 
@@ -21,16 +22,17 @@ export const useSyncStore = defineStore('sync', () => {
     importedSessions?: number
   } | null>(null)
 
-  const configPresenter = usePresenter('configPresenter')
-  const syncPresenter = usePresenter('syncPresenter')
-  const devicePresenter = usePresenter('devicePresenter')
+  const configClient = new ConfigClient()
+  const syncClient = new SyncClient()
+  const deviceClient = new DeviceClient()
+  let syncEventsRegistered = false
+  let syncSettingsListenerRegistered = false
 
   const backupQueryKey = (): EntryKey => ['sync', 'backups'] as const
 
   const backupsQuery = useIpcQuery({
-    presenter: 'syncPresenter',
-    method: 'listBackups',
     key: backupQueryKey,
+    query: () => syncClient.listBackups(),
     staleTime: 60_000,
     gcTime: 300_000
   }) as UseQueryReturn<SyncBackupInfo[]>
@@ -49,8 +51,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const startBackupMutation = useIpcMutation({
-    presenter: 'syncPresenter',
-    method: 'startBackup',
+    mutation: () => syncClient.startBackup(),
     invalidateQueries: () => [backupQueryKey()]
   })
 
@@ -73,8 +74,8 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const importBackupMutation = useIpcMutation({
-    presenter: 'syncPresenter',
-    method: 'importFromSync',
+    mutation: (backupFile: string, mode: 'increment' | 'overwrite') =>
+      syncClient.importFromSync(backupFile, mode),
     invalidateQueries: () => [backupQueryKey()]
   })
 
@@ -115,56 +116,64 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const initialize = async () => {
-    syncEnabled.value = await configPresenter.getSyncEnabled()
-    syncFolderPath.value = await configPresenter.getSyncFolderPath()
+    syncEnabled.value = await configClient.getSyncEnabled()
+    syncFolderPath.value = await configClient.getSyncFolderPath()
 
-    const status = await syncPresenter.getBackupStatus()
+    const status = await syncClient.getBackupStatus()
     lastSyncTime.value = status.lastBackupTime
     isBackingUp.value = status.isBackingUp
 
     await refreshBackups()
+    setupSyncEventListeners()
+    setupSyncSettingsListener()
+  }
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_STARTED, () => {
+  const setupSyncEventListeners = () => {
+    if (syncEventsRegistered) {
+      return
+    }
+
+    syncEventsRegistered = true
+
+    syncClient.onBackupStarted(() => {
       isBackingUp.value = true
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_COMPLETED, (_event, time) => {
+    syncClient.onBackupCompleted(({ timestamp }) => {
       isBackingUp.value = false
-      lastSyncTime.value = time
+      lastSyncTime.value = timestamp
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_ERROR, () => {
+    syncClient.onBackupError(() => {
       isBackingUp.value = false
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_STARTED, () => {
+    syncClient.onImportStarted(() => {
       isImporting.value = true
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_COMPLETED, () => {
+    syncClient.onImportCompleted(() => {
       isImporting.value = false
     })
 
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_ERROR, () => {
+    syncClient.onImportError(() => {
       isImporting.value = false
     })
-
-    setupSyncSettingsListener()
   }
 
   const setSyncEnabled = async (enabled: boolean) => {
     syncEnabled.value = enabled
-    await configPresenter.setSyncEnabled(enabled)
+    await configClient.setSyncEnabled(enabled)
   }
 
   const setSyncFolderPath = async (path: string) => {
     syncFolderPath.value = path
-    await configPresenter.setSyncFolderPath(path)
+    await configClient.setSyncFolderPath(path)
     await refreshBackups()
   }
 
   const selectSyncFolder = async () => {
-    const result = await devicePresenter.selectDirectory()
+    const result = await deviceClient.selectDirectory()
     if (result && !result.canceled && result.filePaths.length > 0) {
       await setSyncFolderPath(result.filePaths[0])
     }
@@ -172,11 +181,11 @@ export const useSyncStore = defineStore('sync', () => {
 
   const openSyncFolder = async () => {
     if (!syncEnabled.value) return
-    await syncPresenter.openSyncFolder()
+    await syncClient.openSyncFolder()
   }
 
   const restartApp = async () => {
-    await devicePresenter.restartApp()
+    await deviceClient.restartApp()
   }
 
   const clearImportResult = () => {
@@ -184,20 +193,20 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const setupSyncSettingsListener = () => {
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.SYNC_SETTINGS_CHANGED,
-      async (_event, payload: { enabled?: boolean; folderPath?: string }) => {
-        if (typeof payload.enabled === 'boolean') {
-          syncEnabled.value = payload.enabled
-        }
-        if (typeof payload.folderPath === 'string' && payload.folderPath !== syncFolderPath.value) {
-          syncFolderPath.value = payload.folderPath
-          await refreshBackups()
-        } else if (typeof payload.folderPath === 'string') {
-          syncFolderPath.value = payload.folderPath
-        }
+    if (syncSettingsListenerRegistered) {
+      return
+    }
+
+    syncSettingsListenerRegistered = true
+    configClient.onSyncSettingsChanged(async ({ enabled, folderPath }) => {
+      syncEnabled.value = enabled
+      if (folderPath !== syncFolderPath.value) {
+        syncFolderPath.value = folderPath
+        await refreshBackups()
+        return
       }
-    )
+      syncFolderPath.value = folderPath
+    })
   }
 
   return {

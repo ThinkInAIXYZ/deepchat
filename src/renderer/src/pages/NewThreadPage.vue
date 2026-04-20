@@ -113,7 +113,8 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
-import { usePresenter } from '@/composables/usePresenter'
+import { ConfigClient } from '@api/ConfigClient'
+import { SessionClient } from '@api/SessionClient'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -127,8 +128,8 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
-const configPresenter = usePresenter('configPresenter')
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const configClient = new ConfigClient()
+const sessionClient = new SessionClient()
 const { t } = useI18n()
 
 const message = ref('')
@@ -218,7 +219,7 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
   }
 
   // 1. preferredModel (last user selection)
-  const preferredModel = (await configPresenter.getSetting('preferredModel')) as
+  const preferredModel = (await configClient.getSetting('preferredModel')) as
     | { providerId: string; modelId: string }
     | undefined
   const resolvedPreferredModel = getEnabledModel(
@@ -230,7 +231,7 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
   }
 
   // 2. defaultModel from settings
-  const defaultModel = (await configPresenter.getSetting('defaultModel')) as
+  const defaultModel = (await configClient.getSetting('defaultModel')) as
     | { providerId: string; modelId: string }
     | undefined
   const resolvedDefaultModel = getEnabledModel(defaultModel?.providerId, defaultModel?.modelId)
@@ -390,11 +391,12 @@ const buildDraftGenerationSettings = (
 }
 
 const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgentConfig> => {
-  if (typeof configPresenter.resolveDeepChatAgentConfig === 'function') {
-    return configPresenter.resolveDeepChatAgentConfig(agentId)
+  const config = await configClient.resolveDeepChatAgentConfig(agentId)
+  if (config) {
+    return config
   }
 
-  const systemPrompt = await configPresenter.getSetting?.('default_system_prompt')
+  const systemPrompt = await configClient.getSetting('default_system_prompt')
 
   return normalizeDeepChatSubagentConfig({
     defaultModelPreset: undefined,
@@ -491,7 +493,7 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
   const requestSeq = ++acpDraftRequestSeq.value
 
   try {
-    const session = await agentSessionPresenter.ensureAcpDraftSession({
+    const session = await sessionClient.ensureAcpDraftSession({
       agentId,
       projectDir,
       permissionMode: draftStore.permissionMode

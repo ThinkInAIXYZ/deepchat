@@ -2,6 +2,7 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { SystemPrompt } from '@shared/presenter'
 import ElectronStore from 'electron-store'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 type SetSetting = <T>(key: string, value: T) => void
 
@@ -39,14 +40,17 @@ export class SystemPromptHelper {
 
   async setDefaultSystemPrompt(prompt: string): Promise<void> {
     this.setSetting('default_system_prompt', prompt)
+    await this.publishSystemPromptState()
   }
 
   async resetToDefaultPrompt(): Promise<void> {
     this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
+    await this.publishSystemPromptState()
   }
 
   async clearSystemPrompt(): Promise<void> {
     this.setSetting('default_system_prompt', '')
+    await this.publishSystemPromptState()
   }
 
   async getSystemPrompts(): Promise<SystemPrompt[]> {
@@ -60,6 +64,7 @@ export class SystemPromptHelper {
 
   async setSystemPrompts(prompts: SystemPrompt[]): Promise<void> {
     await this.systemPromptsStore.set('prompts', prompts)
+    await this.publishSystemPromptState()
   }
 
   async addSystemPrompt(prompt: SystemPrompt): Promise<void> {
@@ -94,6 +99,7 @@ export class SystemPromptHelper {
         promptId: 'empty',
         content: ''
       })
+      await this.publishSystemPromptState()
       return
     }
 
@@ -106,6 +112,7 @@ export class SystemPromptHelper {
         promptId,
         content: updatedPrompts[targetIndex].content
       })
+      await this.publishSystemPromptState()
     } else {
       await this.setSystemPrompts(updatedPrompts)
     }
@@ -124,5 +131,14 @@ export class SystemPromptHelper {
     }
 
     return prompts.find((p) => p.id === 'default')?.id || 'default'
+  }
+
+  private async publishSystemPromptState(): Promise<void> {
+    publishDeepchatEvent('config.systemPrompts.changed', {
+      prompts: await this.getSystemPrompts(),
+      defaultPromptId: await this.getDefaultSystemPromptId(),
+      prompt: await this.getDefaultSystemPrompt(),
+      version: Date.now()
+    })
   }
 }

@@ -64,17 +64,15 @@
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { usePresenter } from '@/composables/usePresenter'
+import { ConfigClient } from '@api/ConfigClient'
 import { useThemeStore } from '@/stores/theme'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
-import { SETTINGS_EVENTS } from '@/events'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
-const windowPresenter = usePresenter('windowPresenter')
+const configClient = new ConfigClient()
 const themeStore = useThemeStore()
 const pageRouter = usePageRouterStore()
 
@@ -89,29 +87,15 @@ const providers = [
 
 type SettingsRouteName = 'settings-provider' | 'settings-acp'
 
-const navigateToSettings = (windowId: number, routeName: SettingsRouteName) => {
-  windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
-    routeName
-  })
-}
-
 const openSettings = async (routeName: SettingsRouteName) => {
-  const windowId = window.api.getWindowId()
-  if (windowId == null) {
-    return
-  }
-
-  await configPresenter.setSetting('init_complete', true)
+  await configClient.setSetting('init_complete', true)
   pageRouter.goToNewThread()
 
   if (route.name === 'welcome') {
     await router.replace({ name: 'chat' })
   }
 
-  const settingsWindowId = await windowPresenter.createSettingsWindow()
-  if (settingsWindowId != null) {
-    navigateToSettings(settingsWindowId, routeName)
-  }
+  await configClient.openSettings({ routeName })
 }
 
 const onAddProvider = async () => {

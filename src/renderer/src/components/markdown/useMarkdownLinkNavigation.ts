@@ -1,5 +1,6 @@
 import { toValue, type MaybeRefOrGetter } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { BrowserClient } from '@api/BrowserClient'
+import { WorkspaceClient } from '@api/WorkspaceClient'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { classifyMarkdownLink, type MarkdownLinkContext } from './linkTypes'
@@ -21,8 +22,8 @@ function buildSafeAttributeSelector(value: string): string {
 export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOptions = {}) {
   const sessionStore = useSessionStore()
   const sidepanelStore = useSidepanelStore()
-  const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
-  const workspacePresenter = usePresenter('workspacePresenter')
+  const browserClient = new BrowserClient()
+  const workspaceClient = new WorkspaceClient()
 
   const getSessionContext = (): SessionContext => {
     const linkContext = toValue(options.linkContext)
@@ -40,12 +41,8 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
   }
 
   const openExternal = async (url: string): Promise<boolean> => {
-    if (!window.api?.openExternal) {
-      return false
-    }
-
     try {
-      await window.api.openExternal(url)
+      await browserClient.openExternal(url)
       return true
     } catch (error) {
       console.warn('[markdown-links] Failed to open external link:', url, error)
@@ -84,7 +81,7 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
 
     try {
       sidepanelStore.openBrowser()
-      await yoBrowserPresenter.loadUrl(sessionId, url)
+      await browserClient.loadUrl(sessionId, url)
       return true
     } catch (error) {
       console.warn('[markdown-links] Failed to open link in YoBrowser:', url, error)
@@ -94,7 +91,7 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
 
   const openLocalFile = async (href: string): Promise<boolean> => {
     const { sessionId, workspacePath, sourceFilePath } = getSessionContext()
-    const resolution = await workspacePresenter.resolveMarkdownLinkedFile({
+    const resolution = await workspaceClient.resolveMarkdownLinkedFile({
       workspacePath,
       href,
       sourceFilePath
@@ -113,7 +110,7 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
       return true
     }
 
-    await workspacePresenter.openFile(resolution.path)
+    await workspaceClient.openFile(resolution.path)
     return true
   }
 

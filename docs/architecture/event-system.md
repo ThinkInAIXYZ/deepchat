@@ -2,6 +2,12 @@
 
 本文档详细介绍 DeepChat 的事件系统架构，包括 EventBus、事件常量定义和通信模式。
 
+注意：
+
+- 当前 active renderer-main boundary 已经优先走 `renderer/api/*Client` + `window.deepchat` + typed contracts
+- 下文中涉及 `useLegacyPresenter()`、`window.api`、raw `window.electron` 的内容，应视为 legacy / compatibility 背景
+- `phase5` 之后的 single-track 规则见 `docs/specs/renderer-main-single-track/`
+
 ## 📋 核心组件
 
 | 组件 | 文件位置 | 职责 |
@@ -648,17 +654,25 @@ sequenceDiagram
 
 ## 📤 渲染层到主进程的 IPC 调用模式
 
-### usePresenter - 类型安全的 Presenter 调用
+当前推荐模式：
 
-**文件位置**：`src/renderer/src/composables/usePresenter.ts`
+- typed route contract
+- typed event contract
+- `renderer/api/*Client`
+
+下面的 `useLegacyPresenter()` 小节主要用于解释 legacy transport 是如何工作的，以及为什么它需要被继续收口。
+
+### useLegacyPresenter - legacy Presenter 兼容调用
+
+**文件位置**：`src/renderer/api/legacy/presenters.ts`
 
 | 组件 | 文件位置 | 职责 |
 |------|---------|------|
-| **usePresenter** | `src/renderer/src/composables/usePresenter.ts` | 为渲染层提供类型安全的 Presenter 方法调用代理 |
+| **useLegacyPresenter** | `src/renderer/api/legacy/presenters.ts` | 为兼容路径提供类型安全的 Presenter 方法调用代理 |
 
 ### 工作原理
 
-usePresenter 实现了渲染层到主进程的双向代理调用系统：
+`useLegacyPresenter()` 实现了渲染层到主进程的 legacy 双向代理调用系统：
 
 1. **类型安全** - 通过 TypeScript 泛型确保调用方法的类型正确
 2. **WebContentsId 映射** - 自动获取并缓存当前的 webContentsId，供主进程映射到 tabId/windowId
@@ -668,15 +682,15 @@ usePresenter 实现了渲染层到主进程的双向代理调用系统：
 ```mermaid
 sequenceDiagram
     participant UI as Vue Component
-    participant UP as usePresenter
+    participant UP as useLegacyPresenter
     participant IPC as electron.ipcRenderer
     participant Router as presenter:call
     participant P as Presenter
 
-    UI->>UP: usePresenter('agent')
+    UI->>UP: useLegacyPresenter('agentSessionPresenter')
     UI->>UP: sendMessage(...)
     UP->>UP: safeSerialize(payloads)
-    UP->>UP: getWebContentsId()
+    UP->>UP: getLegacyWebContentsId()
     UP->>IPC: invoke(presenter:call)
     IPC->>Router: 路由到指定 Presenter
     Router->>P: 调用 sendMessage
@@ -689,8 +703,11 @@ sequenceDiagram
 ### 核心实现
 
 ```typescript
-export function usePresenter<T extends keyof IPresenter>(name: T): IPresenter[T] {
-  return presentersProxy[name]
+export function useLegacyPresenter<T extends keyof IPresenter>(
+  name: T,
+  options?: LegacyPresenterOptions
+): IPresenter[T] {
+  return useLegacyPresenterTransport(name, options)
 }
 ```
 
@@ -700,7 +717,7 @@ export function usePresenter<T extends keyof IPresenter>(name: T): IPresenter[T]
 Proxy handler:
   get(presenterName, functionName) {
     return async (...payloads) => {
-      const webContentsId = getWebContentsId()
+      const webContentsId = getLegacyWebContentsId()
       const rawPayloads = payloads.map((e) => safeSerialize(toRaw(e)))
       return window.electron.ipcRenderer.invoke(
         'presenter:call',
@@ -714,7 +731,7 @@ Proxy handler:
 
 ### WebContentsId 到 tabId/windowId 映射
 
-- 渲染进程通过 `window.api.getWebContentsId()` 获取自己的 webContentsId
+- legacy runtime 通过 `getLegacyWebContentsId()` 包装 `window.api.getWebContentsId()` 获取自己的 webContentsId
 - 主进程通过 IPC 调用携带的 webContentsId 自动映射到对应的 tabId 和 windowId
 - 这解决了渲染层不知道自己所属 tabId 的问题
 
@@ -722,25 +739,25 @@ Proxy handler:
 
 ```typescript
 // Vue 组件中
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 
-const agentPresenter = usePresenter('agent')
-const conversationPresenter = usePresenter('conversation')
+const agentPresenter = useLegacyPresenter('agentSessionPresenter')
+const projectPresenter = useLegacyPresenter('projectPresenter')
 
 // 发送消息
-async function sendMessage(content: string) {
-  await agentPresenter.sendMessage(conversationId, content)
+async function sendMessage(sessionId: string, content: string) {
+  await agentPresenter.sendMessage(sessionId, content)
 }
 
-// 删除会话
-async function deleteConversation(id: string) {
-  await conversationPresenter.deleteConversation(id)
+// 打开项目目录
+async function openProject(path: string) {
+  await projectPresenter.openDirectory(path)
 }
 ```
 
 ### 与 EventBus 的区别
 
-| 特性 | EventBus | usePresenter (IPC) |
+| 特性 | EventBus | useLegacyPresenter (legacy IPC) |
 |------|----------|-------------------|
 | 模式 | pub/sub（发布/订阅） | request/response（请求/响应） |
 | 方向 | 主要主→渲染（广播） | 渲染→主（调用） |
@@ -825,7 +842,7 @@ export const useChatStore = defineStore('chat', {
 - **EventBus**: `src/main/eventbus.ts:1-152`
 - **事件常量**: `src/main/events.ts:1-263`
 - **Presenter 初始化**: `src/main/presenter/index.ts`
-- **usePresenter**: `src/renderer/src/composables/usePresenter.ts`
+- **useLegacyPresenter**: `src/renderer/api/legacy/presenters.ts`
 
 ## 📚 相关阅读
 
@@ -833,3 +850,4 @@ export const useChatStore = defineStore('chat', {
 - [Agent 系统详解](./agent-system.md)
 - [工具系统详解](./tool-system.md)
 - [核心流程](../FLOWS.md)
+

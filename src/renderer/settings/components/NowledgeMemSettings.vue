@@ -163,14 +163,14 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Icon } from '@iconify/vue'
 import { useToast } from '@/components/use-toast'
 
-const exporterPresenter = usePresenter('exporter')
+const exporterPresenter = useLegacyPresenter('exporter')
 const { toast } = useToast()
 const { t } = useI18n()
 

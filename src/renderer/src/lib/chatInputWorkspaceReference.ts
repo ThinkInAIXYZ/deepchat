@@ -1,9 +1,13 @@
+import { FileClient } from '@api/FileClient'
+
 export const CHAT_INPUT_WORKSPACE_ITEM_MIME = 'application/x-deepchat-workspace-item'
 
 export interface ChatInputWorkspaceItemDragPayload {
   path: string
   isDirectory: boolean
 }
+
+const fileClient = new FileClient()
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null
@@ -99,7 +103,7 @@ export const resolveChatInputWorkspaceReferencePath = (
   }
 
   const relativePath =
-    window.api?.toRelativePath?.(normalizedTargetPath, normalizedWorkspacePath) ??
+    fileClient.toRelativePath(normalizedTargetPath, normalizedWorkspacePath) ??
     resolveRelativePathFallback(normalizedTargetPath, normalizedWorkspacePath)
   const normalizedRelativePath = normalizeTrimmedString(relativePath)
   if (normalizedRelativePath && normalizedRelativePath !== '.') {

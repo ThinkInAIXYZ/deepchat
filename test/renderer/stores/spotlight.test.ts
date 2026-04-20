@@ -8,13 +8,11 @@ const setupStore = async (options?: {
 }) => {
   vi.resetModules()
 
-  const agentSessionPresenter = {
+  const sessionClient = {
     searchHistory: vi.fn().mockResolvedValue(options?.historyHits ?? [])
   }
-  const windowPresenter = {
-    createSettingsWindow: vi.fn().mockResolvedValue(9),
-    sendToWindow: vi.fn(),
-    openOrFocusSettingsWindow: vi.fn()
+  const settingsClient = {
+    openSettings: vi.fn().mockResolvedValue({ windowId: 9 })
   }
   const providerStore = reactive({
     sortedProviders: [
@@ -59,18 +57,11 @@ const setupStore = async (options?: {
     useDebounceFn: (fn: (...args: unknown[]) => unknown) => fn
   }))
 
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'agentSessionPresenter') {
-        return agentSessionPresenter
-      }
-
-      if (name === 'windowPresenter') {
-        return windowPresenter
-      }
-
-      return {}
-    }
+  vi.doMock('@api/SessionClient', () => ({
+    SessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('@api/SettingsClient', () => ({
+    SettingsClient: vi.fn(() => settingsClient)
   }))
 
   vi.doMock('@/stores/ui/session', () => ({
@@ -101,7 +92,7 @@ const setupStore = async (options?: {
     providerStore,
     sessionStore,
     pageRouterStore,
-    windowPresenter
+    settingsClient
   }
 }
 
@@ -210,7 +201,7 @@ describe('spotlightStore new-chat action', () => {
   })
 
   it('reuses settings-provider route params when opening a provider result', async () => {
-    const { store, windowPresenter } = await setupStore()
+    const { store, settingsClient } = await setupStore()
 
     await store.executeItem({
       id: 'setting:provider:openai',
@@ -224,14 +215,13 @@ describe('spotlightStore new-chat action', () => {
       score: 320
     })
 
-    expect(windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
-    expect(windowPresenter.createSettingsWindow).toHaveBeenCalledWith({
+    expect(settingsClient.openSettings).toHaveBeenCalledTimes(1)
+    expect(settingsClient.openSettings).toHaveBeenCalledWith({
       routeName: 'settings-provider',
       params: {
         providerId: 'openai'
       }
     })
-    expect(windowPresenter.sendToWindow).not.toHaveBeenCalled()
   })
 
   it('reruns an active query when provider matches change', async () => {

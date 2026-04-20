@@ -81,7 +81,7 @@ See [Full-Stack Mismatch Analysis](../../architecture/new-ui-store-presenter-mis
 ### Functional Requirements
 
 - [ ] Agent interface protocol defined as TypeScript types in `src/shared/types/`
-- [ ] agentPresenter registered in Presenter class, accessible via `usePresenter('agentSessionPresenter')`
+- [ ] agentPresenter registered in Presenter class, accessible via `useLegacyPresenter('agentSessionPresenter')`
 - [ ] agentPresenter.sessionManager creates session records in new `new_sessions` table
 - [ ] agentPresenter.agentRegistry returns `[{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }]`
 - [ ] agentPresenter routes `sendMessage()` to agentRuntimePresenter based on session's agentId
@@ -210,3 +210,4 @@ Additional block types added in later versions: `tool_call` (v2), `search` (v2),
 ## Open Questions
 
 None. All architectural decisions resolved in the mismatch analysis document.
+

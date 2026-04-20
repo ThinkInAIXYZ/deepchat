@@ -58,8 +58,8 @@ describe('WorkspaceViewer', () => {
       useSidepanelStore: () => sidepanelStore
     }))
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: () => ({
         openFile: openFileMock
       })
     }))

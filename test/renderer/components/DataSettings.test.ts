@@ -92,8 +92,8 @@ const setup = async () => {
       dir: 'ltr'
     })
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
+  vi.doMock('@api/legacy/presenters', () => ({
+    useLegacyPresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({

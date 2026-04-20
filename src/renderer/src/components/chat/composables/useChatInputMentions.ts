@@ -2,9 +2,10 @@ import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
 import { VueRenderer } from '@tiptap/vue-3'
 import type { Editor, Range } from '@tiptap/core'
 import tippy from 'tippy.js'
+import { SessionClient } from '@api/SessionClient'
+import { SkillClient } from '@api/SkillClient'
+import { WorkspaceClient } from '@api/WorkspaceClient'
 import type { PromptListEntry, WorkspaceFileNode } from '@shared/presenter'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
-import { usePresenter } from '@/composables/usePresenter'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
 import {
@@ -84,9 +85,9 @@ const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
 }
 
 export function useChatInputMentions(options: UseChatInputMentionsOptions) {
-  const workspacePresenter = usePresenter('workspacePresenter')
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
-  const skillPresenter = usePresenter('skillPresenter')
+  const workspaceClient = new WorkspaceClient()
+  const sessionClient = new SessionClient()
+  const skillClient = new SkillClient()
   const mcpStore = useMcpStore()
   const skillsStore = useSkillsStore()
 
@@ -96,6 +97,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const isSuggestionMenuOpen = ref(false)
   const suppressSubmitUntil = ref(0)
   const registeredWorkspacePath = ref<string | null>(null)
+  let unsubscribeAcpCommandsReady: (() => void) | null = null
 
   const dialogState = ref<MentionDialogState | null>(null)
   const pendingCommand = ref<AcpSessionCommand | null>(null)
@@ -127,11 +129,10 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
 
     try {
-      if (options.isAcpSession.value) {
-        await workspacePresenter.registerWorkdir(workspacePath)
-      } else {
-        await workspacePresenter.registerWorkspace(workspacePath)
-      }
+      await workspaceClient.registerWorkspace(
+        workspacePath,
+        options.isAcpSession.value ? 'workdir' : 'workspace'
+      )
       registeredWorkspacePath.value = workspacePath
       return true
     } catch (error) {
@@ -154,7 +155,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     try {
       const searchQuery = query.trim() || '**/*'
       const result =
-        (await workspacePresenter.searchFiles(workspacePath, searchQuery)) ??
+        (await workspaceClient.searchFiles(workspacePath, searchQuery)) ??
         ([] as WorkspaceFileNode[])
 
       return result.slice(0, 20).map((file) => {
@@ -237,7 +238,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
 
     try {
-      const commands = await agentSessionPresenter.getAcpSessionCommands(sessionId)
+      const commands = await sessionClient.getAcpSessionCommands(sessionId)
       if (fetchSeq !== acpCommandFetchSeq.value) {
         return
       }
@@ -266,12 +267,12 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       return
     }
 
-    const activeSkills = await skillPresenter.getActiveSkills(sessionId)
+    const activeSkills = await skillClient.getActiveSkills(sessionId)
     if (activeSkills.includes(skillName)) {
       return
     }
 
-    await skillPresenter.setActiveSkills(sessionId, [...activeSkills, skillName])
+    await skillClient.setActiveSkills(sessionId, [...activeSkills, skillName])
   }
 
   const insertPromptText = async (prompt: PromptListEntry, args?: Record<string, string>) => {
@@ -491,7 +492,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     render: createRenderer
   }
 
-  const handleAcpCommandsReady = (_event: unknown, payload?: Record<string, unknown>) => {
+  const handleAcpCommandsReady = (payload?: Record<string, unknown>) => {
     if (!payload) return
     const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : ''
     if (!conversationId || conversationId !== options.sessionId.value) {
@@ -534,17 +535,12 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     void mcpStore.loadPrompts()
     void mcpStore.loadTools()
 
-    window.electron.ipcRenderer.on(
-      ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY,
-      handleAcpCommandsReady
-    )
+    unsubscribeAcpCommandsReady = sessionClient.onAcpCommandsReady(handleAcpCommandsReady)
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener(
-      ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY,
-      handleAcpCommandsReady
-    )
+    unsubscribeAcpCommandsReady?.()
+    unsubscribeAcpCommandsReady = null
   })
 
   return {

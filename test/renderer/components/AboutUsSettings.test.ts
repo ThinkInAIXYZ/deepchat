@@ -50,8 +50,8 @@ const upgradeStoreMock = {
   handleUpdate: vi.fn().mockResolvedValue(undefined)
 }
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
+vi.mock('@api/legacy/presenters', () => ({
+  useLegacyPresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
 }))
 
 vi.mock('@/stores/upgrade', () => ({

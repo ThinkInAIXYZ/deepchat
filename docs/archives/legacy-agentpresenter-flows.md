@@ -156,7 +156,7 @@ sequenceDiagram
 
 **关键文件位置**：
 - chatStore.sendMessage + stream handlers: `src/renderer/src/stores/chat.ts`
-- Presenter IPC: `src/renderer/src/composables/usePresenter.ts`, `src/main/presenter/index.ts`
+- Presenter IPC: `src/renderer/api/legacy/presenters.ts`, `src/main/presenter/index.ts`
 - AgentPresenter.sendMessage: `src/main/presenter/agentPresenter/index.ts`
 - StreamGenerationHandler.startStreamCompletion: `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts`
 - LLMEventHandler + StreamUpdateScheduler: `src/main/presenter/agentPresenter/streaming/llmEventHandler.ts`, `src/main/presenter/agentPresenter/streaming/streamUpdateScheduler.ts`
@@ -648,3 +648,4 @@ sequenceDiagram
 ---
 
 > 💡 **提示**：所有时序图均基于当前实际代码结构绘制，代码位置标注了文件的 approximate 行数，方便快速定位。
+

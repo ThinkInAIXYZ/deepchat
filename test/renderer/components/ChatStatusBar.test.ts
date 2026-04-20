@@ -25,6 +25,8 @@ type ExtraModelGroup = {
     id: string
     name: string
     type?: 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
+    endpointType?: string
+    supportedEndpointTypes?: string[]
   }>
 }
 
@@ -187,6 +189,25 @@ const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
   const extraModelGroups = options.extraModelGroups ?? []
+  const normalizedExtraModelGroups = extraModelGroups.map((group) => ({
+    ...group,
+    apiType: group.apiType ?? (group.providerId === 'new-api' ? 'new-api' : 'openai-compatible'),
+    models: group.models.map((model) => {
+      if (
+        options.capabilityProviderId === 'anthropic' &&
+        group.providerId === 'new-api' &&
+        !model.endpointType
+      ) {
+        return {
+          ...model,
+          endpointType: 'anthropic',
+          supportedEndpointTypes: ['anthropic']
+        }
+      }
+
+      return model
+    })
+  }))
   const reasoningEffortDefault = options.reasoningEffortDefault ?? 'medium'
   const reasoningPortrait =
     options.reasoningPortrait ??
@@ -227,7 +248,7 @@ const setup = async (options: SetupOptions = {}) => {
     ['acp-agent', { model: { id: 'acp-agent', name: 'ACP Agent' } }],
     ['dimcode-acp', { model: { id: 'dimcode-acp', name: 'DimCode - Default' } }]
   ])
-  extraModelGroups.forEach((group) => {
+  normalizedExtraModelGroups.forEach((group) => {
     group.models.forEach((model) => {
       modelLookup.set(model.id, { model })
     })
@@ -238,7 +259,7 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const modelStore = reactive({
-    enabledModels: [...baseModelGroups, ...extraModelGroups],
+    enabledModels: [...baseModelGroups, ...normalizedExtraModelGroups],
     findModelByIdOrName: vi.fn((value: string) => modelLookup.get(value) ?? null)
   })
 
@@ -248,10 +269,10 @@ const setup = async (options: SetupOptions = {}) => {
       { id: 'anthropic', name: 'Anthropic', apiType: 'anthropic', enable: true },
       { id: 'acp', name: 'ACP', apiType: 'acp', enable: true }
     ].concat(
-      extraModelGroups.map((group) => ({
+      normalizedExtraModelGroups.map((group) => ({
         id: group.providerId,
         name: group.providerName,
-        apiType: group.apiType ?? 'openai-compatible',
+        apiType: group.apiType,
         enable: true
       }))
     )
@@ -349,6 +370,25 @@ const setup = async (options: SetupOptions = {}) => {
       return Promise.resolve(undefined)
     }),
     setSetting: vi.fn().mockResolvedValue(undefined),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
+      defaultModelPreset: undefined,
+      defaultProjectPath: undefined,
+      systemPrompt: 'Default prompt',
+      permissionMode: 'full_access',
+      disabledAgentTools: [],
+      subagentEnabled: false
+    }),
+    getDefaultSystemPrompt: vi.fn().mockResolvedValue('Default prompt'),
+    getSystemPrompts: vi.fn().mockResolvedValue([
+      {
+        id: 'preset-default',
+        name: 'Preset Default',
+        content: 'Default prompt'
+      }
+    ])
+  }
+
+  const modelClient = {
     getModelConfig: vi.fn().mockResolvedValue({
       temperature: 0.7,
       contextLength: 16000,
@@ -360,26 +400,15 @@ const setup = async (options: SetupOptions = {}) => {
       verbosity: 'medium',
       ...options.modelConfig
     }),
-    getCapabilityProviderId: vi
-      .fn()
-      .mockImplementation(async (providerId: string) => options.capabilityProviderId ?? providerId),
-    getReasoningPortrait: vi.fn().mockResolvedValue(reasoningPortrait),
-    getTemperatureCapability: vi.fn().mockResolvedValue(options.temperatureCapability),
-    supportsTemperatureControl: vi.fn().mockResolvedValue(options.temperatureCapability ?? true),
-    getDefaultSystemPrompt: vi.fn().mockResolvedValue('Default prompt'),
-    supportsReasoningCapability: vi.fn().mockReturnValue(true),
-    getThinkingBudgetRange: vi.fn().mockReturnValue({ min: 0, max: 8192, default: 512 }),
-    supportsReasoningEffortCapability: vi.fn().mockReturnValue(options.supportsEffort ?? true),
-    getReasoningEffortDefault: vi.fn().mockReturnValue(reasoningEffortDefault),
-    supportsVerbosityCapability: vi.fn().mockReturnValue(true),
-    getVerbosityDefault: vi.fn().mockReturnValue('medium'),
-    getSystemPrompts: vi.fn().mockResolvedValue([
-      {
-        id: 'preset-default',
-        name: 'Preset Default',
-        content: 'Default prompt'
-      }
-    ])
+    getCapabilities: vi.fn().mockResolvedValue({
+      supportsReasoning: reasoningPortrait?.supported ?? true,
+      reasoningPortrait,
+      thinkingBudgetRange: reasoningPortrait?.budget ?? null,
+      supportsSearch: null,
+      searchDefaults: null,
+      supportsTemperatureControl: options.temperatureCapability ?? true,
+      temperatureCapability: options.temperatureCapability ?? true
+    })
   }
 
   const baseSessionSettings: TestGenerationSettings = {
@@ -397,6 +426,15 @@ const setup = async (options: SetupOptions = {}) => {
 
   const sessionSettingsResult =
     options.sessionSettings === null ? null : ({ ...baseSessionSettings } as TestGenerationSettings)
+  let acpConfigOptionsReadyHandler:
+    | ((payload: {
+        conversationId?: string
+        agentId: string
+        workdir: string
+        configState: AcpConfigState
+        version: number
+      }) => void)
+    | undefined
 
   const agentSessionPresenter = {
     getPermissionMode: vi.fn().mockResolvedValue('full_access'),
@@ -418,7 +456,25 @@ const setup = async (options: SetupOptions = {}) => {
       .fn()
       .mockImplementation((_: string, patch: any) =>
         Promise.resolve({ ...baseSessionSettings, ...patch })
-      )
+      ),
+    onAcpConfigOptionsReady: vi.fn(
+      (
+        listener: (payload: {
+          conversationId?: string
+          agentId: string
+          workdir: string
+          configState: AcpConfigState
+          version: number
+        }) => void
+      ) => {
+        acpConfigOptionsReadyHandler = listener
+        return () => {
+          if (acpConfigOptionsReadyHandler === listener) {
+            acpConfigOptionsReadyHandler = undefined
+          }
+        }
+      }
+    )
   }
 
   const llmproviderPresenter = {
@@ -426,31 +482,18 @@ const setup = async (options: SetupOptions = {}) => {
     getAcpProcessConfigOptions: vi.fn().mockResolvedValue(options.acpProcessConfig ?? null)
   }
 
-  const ipcListeners = new Map<string, Set<(event: unknown, payload?: unknown) => void>>()
-  ;(
-    window as typeof window & {
-      electron?: {
-        ipcRenderer?: {
-          on: ReturnType<typeof vi.fn>
-          removeListener: ReturnType<typeof vi.fn>
-          emit: (channel: string, payload?: unknown) => void
-        }
-      }
-    }
-  ).electron = {
-    ipcRenderer: {
-      on: vi.fn((channel: string, handler: (event: unknown, payload?: unknown) => void) => {
-        const handlers = ipcListeners.get(channel) ?? new Set()
-        handlers.add(handler)
-        ipcListeners.set(channel, handlers)
-      }),
-      removeListener: vi.fn(
-        (channel: string, handler: (event: unknown, payload?: unknown) => void) => {
-          ipcListeners.get(channel)?.delete(handler)
-        }
-      ),
-      emit: (channel: string, payload?: unknown) => {
-        ipcListeners.get(channel)?.forEach((handler) => handler({}, payload))
+  const ipcRenderer = {
+    emit: (channel: string, payload?: unknown) => {
+      if (channel === ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY && payload) {
+        acpConfigOptionsReadyHandler?.({
+          ...(payload as {
+            conversationId?: string
+            agentId: string
+            workdir: string
+            configState: AcpConfigState
+          }),
+          version: Date.now()
+        })
       }
     }
   }
@@ -476,12 +519,17 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'configPresenter') return configPresenter
-      if (name === 'llmproviderPresenter') return llmproviderPresenter
-      return agentSessionPresenter
-    }
+  vi.doMock('@api/ConfigClient', () => ({
+    ConfigClient: vi.fn(() => configPresenter)
+  }))
+  vi.doMock('@api/ModelClient', () => ({
+    ModelClient: vi.fn(() => modelClient)
+  }))
+  vi.doMock('@api/ProviderClient', () => ({
+    ProviderClient: vi.fn(() => llmproviderPresenter)
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    SessionClient: vi.fn(() => agentSessionPresenter)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -551,12 +599,13 @@ const setup = async (options: SetupOptions = {}) => {
     wrapper,
     agentSessionPresenter,
     llmproviderPresenter,
+    modelClient,
     agentStore,
     sessionStore,
     draftStore,
     configPresenter,
     projectStore,
-    ipcRenderer: window.electron?.ipcRenderer
+    ipcRenderer
   }
 }
 
@@ -1405,7 +1454,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('treats negative thinking budget sentinels as switch-off state', async () => {
-    const { wrapper, configPresenter } = await setup({
+    const { wrapper, modelClient } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false,
       reasoningPortrait: {
@@ -1417,7 +1466,7 @@ describe('ChatStatusBar model and session panels', () => {
         verbosityOptions: ['low', 'medium', 'high']
       }
     })
-    configPresenter.getModelConfig.mockReturnValue({
+    modelClient.getModelConfig.mockReturnValue({
       temperature: 0.7,
       contextLength: 16000,
       maxTokens: 4096,
@@ -1748,11 +1797,11 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('resets draft numeric overrides when switching models without an active session', async () => {
-    const { wrapper, draftStore, configPresenter } = await setup({
+    const { wrapper, draftStore, modelClient } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false
     })
-    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+    modelClient.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
       if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
         return {
           temperature: 0.2,

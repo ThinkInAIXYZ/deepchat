@@ -56,17 +56,17 @@ import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { DeviceClient } from '@api/DeviceClient'
+import { WindowClient } from '@api/WindowClient'
 import { Button } from '@shadcn/components/ui/button'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
-import { WINDOW_EVENTS } from '@/events'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useRoute } from 'vue-router'
 
 const langStore = useLanguageStore()
-const windowPresenter = usePresenter('windowPresenter')
-const devicePresenter = usePresenter('devicePresenter')
+const windowClient = new WindowClient()
+const deviceClient = new DeviceClient()
 const upgrade = useUpgradeStore()
 const route = useRoute()
 
@@ -79,27 +79,16 @@ const showUpdateButton = computed(
   () => route.name !== 'welcome' && upgrade.shouldShowTopbarInstallButton
 )
 
-const { ipcRenderer } = window.electron
-
 const minimizeWindow = () => {
-  const id = window.api.getWindowId()
-  if (id != null) {
-    windowPresenter.minimize(id)
-  }
+  void windowClient.minimizeCurrent()
 }
 
 const toggleMaximize = () => {
-  const id = window.api.getWindowId()
-  if (id != null) {
-    windowPresenter.maximize(id)
-  }
+  void windowClient.toggleMaximizeCurrent()
 }
 
 const closeWindow = () => {
-  const id = window.api.getWindowId()
-  if (id != null) {
-    windowPresenter.close(id)
-  }
+  void windowClient.closeCurrent()
 }
 
 const handleInstallUpdate = async () => {
@@ -108,29 +97,26 @@ const handleInstallUpdate = async () => {
 
 onMounted(() => {
   void upgrade.refreshStatus()
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
+  deviceClient.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, () => {
-    isMaximized.value = true
+
+  void windowClient.getCurrentState().then((state) => {
+    isMaximized.value = state.isMaximized
+    isFullscreened.value = state.isFullScreen
   })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, () => {
-    isFullscreened.value = true
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, () => {
-    isMaximized.value = false
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, () => {
-    isFullscreened.value = false
+
+  stopWindowStateListener = windowClient.onCurrentStateChanged((payload) => {
+    isMaximized.value = payload.isMaximized
+    isFullscreened.value = payload.isFullScreen
   })
 })
 
 onBeforeUnmount(() => {
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_MAXIMIZED)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
+  stopWindowStateListener?.()
 })
+
+let stopWindowStateListener: (() => void) | null = null
 </script>
 
 <style scoped>

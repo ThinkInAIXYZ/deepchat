@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { ConfigClient } from '@api/ConfigClient'
 
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 
@@ -28,7 +28,7 @@ const props = withDefaults(
 const svgMarkup = ref('')
 const imageLoadFailed = ref(false)
 const requestSeq = ref(0)
-const configPresenter = usePresenter('configPresenter')
+const configClient = new ConfigClient()
 
 const isThemeableRegistryIcon = computed(() => {
   const icon = props.icon.trim()
@@ -83,7 +83,7 @@ const loadSvgMarkup = async () => {
 
     let pending = cached
     if (!pending) {
-      pending = configPresenter
+      pending = configClient
         .getAcpRegistryIconMarkup(agentId, icon)
         .then((markup) => {
           const normalized = markup ? normalizeSvgMarkup(markup) : ''

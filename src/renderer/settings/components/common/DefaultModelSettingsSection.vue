@@ -82,13 +82,13 @@ import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useModelStore } from '@/stores/modelStore'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
 const modelStore = useModelStore()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 
 const assistantModelSelectOpen = ref(false)
 const chatModelSelectOpen = ref(false)

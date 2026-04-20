@@ -7,6 +7,7 @@ import { shell } from 'electron'
 import { FSWatcher, watch } from 'chokidar'
 import { eventBus, SendTarget } from '@/eventbus'
 import { WORKSPACE_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { readDirectoryShallow } from './directoryReader'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import {
@@ -284,6 +285,10 @@ export class WorkspacePresenter implements IWorkspacePresenter {
 
   private emitInvalidation(payload: WorkspaceInvalidationEvent): void {
     eventBus.sendToRenderer(WORKSPACE_EVENTS.INVALIDATED, SendTarget.ALL_WINDOWS, payload)
+    publishDeepchatEvent('workspace.invalidated', {
+      ...payload,
+      version: Date.now()
+    })
   }
 
   private async refreshGitWatcher(runtime: WorkspaceWatchRuntime): Promise<void> {

@@ -201,7 +201,12 @@ export interface TabData {
 export interface IYoBrowserPresenter {
   initialize(): Promise<void>
   getBrowserStatus(sessionId: string): Promise<YoBrowserStatus>
-  loadUrl(sessionId: string, url: string, timeoutMs?: number): Promise<YoBrowserStatus>
+  loadUrl(
+    sessionId: string,
+    url: string,
+    timeoutMs?: number,
+    hostWindowId?: number
+  ): Promise<YoBrowserStatus>
   attachSessionBrowser(sessionId: string, hostWindowId: number): Promise<boolean>
   updateSessionBrowserBounds(
     sessionId: string,
@@ -1510,7 +1515,7 @@ export type LLMResponseStream = {
   }
 }
 export interface IUpgradePresenter {
-  checkUpdate(): Promise<void>
+  checkUpdate(type?: string): Promise<void>
   getUpdateStatus(): {
     status: UpdateStatus | null
     progress: UpdateProgress | null

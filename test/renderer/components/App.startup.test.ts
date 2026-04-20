@@ -105,6 +105,50 @@ const mountApp = async (options?: {
       send: vi.fn()
     }
   }
+  ;(window as any).deepchat = {
+    invoke: vi.fn((routeName: string) => {
+      switch (routeName) {
+        case 'config.getEntries':
+          return Promise.resolve({ version: 0, values: {} })
+        case 'models.getProviderCatalog':
+          return Promise.resolve({
+            catalog: {
+              providerModels: [],
+              customModels: [],
+              dbProviderModels: [],
+              modelStatusMap: {}
+            }
+          })
+        case 'models.getCapabilities':
+          return Promise.resolve({
+            capabilities: {
+              supportsReasoning: null,
+              reasoningPortrait: null,
+              thinkingBudgetRange: null,
+              supportsSearch: null,
+              searchDefaults: null,
+              supportsTemperatureControl: true,
+              temperatureCapability: true
+            }
+          })
+        case 'models.getConfig':
+          return Promise.resolve({
+            config: {
+              maxTokens: 4096,
+              contextLength: 16000,
+              temperature: 0.7,
+              vision: false,
+              functionCall: true,
+              reasoning: false,
+              type: 'chat'
+            }
+          })
+        default:
+          return Promise.resolve({})
+      }
+    }),
+    on: vi.fn(() => vi.fn())
+  }
 
   vi.doMock('vue-router', async () => {
     const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -121,11 +165,8 @@ const mountApp = async (options?: {
     })
   }))
 
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'configPresenter') return configPresenter
-      return {}
-    }
+  vi.doMock('@api/ConfigClient', () => ({
+    ConfigClient: vi.fn(() => configPresenter)
   }))
   vi.doMock('@/stores/artifact', () => ({
     useArtifactStore: () => ({
@@ -214,6 +255,7 @@ const mountApp = async (options?: {
         McpSamplingDialog: true,
         SelectedTextContextMenu: true,
         TranslatePopup: true,
+        SpotlightOverlay: true,
         ModelCheckDialog: {
           template: '<div />',
           props: ['open', 'providerId']

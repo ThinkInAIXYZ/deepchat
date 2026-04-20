@@ -191,7 +191,7 @@ import { Input } from '@shadcn/components/ui/input'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import type { AcpDebugEventEntry, AcpDebugRequest } from '@shared/presenter'
-import { usePresenter, getWebContentsId } from '@/composables/usePresenter'
+import { getLegacyWebContentsId, useLegacyPresenter } from '@api/legacy/presenters'
 import { ACP_DEBUG_EVENTS } from '@/events'
 import { useToast } from '@/components/use-toast'
 import { nanoid } from 'nanoid'
@@ -210,9 +210,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const llmProviderPresenter = usePresenter('llmproviderPresenter')
-const configPresenter = usePresenter('configPresenter')
-const devicePresenter = usePresenter('devicePresenter')
+const llmProviderPresenter = useLegacyPresenter('llmproviderPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
+const devicePresenter = useLegacyPresenter('devicePresenter')
 const uiSettingsStore = useUiSettingsStore()
 
 const selectedMethod = ref<AcpDebugRequest['action']>('newSession')
@@ -222,7 +222,7 @@ const customMethod = ref('')
 const loading = ref(false)
 const events = ref<AcpDebugEventEntry[]>([])
 const seenIds = new Set<string>()
-const webContentsId = getWebContentsId()
+const webContentsId = getLegacyWebContentsId()
 const debugSessionId = ref(createDebugSessionId())
 const processReady = ref(false)
 const payloadEditor = ref<HTMLElement | null>(null)

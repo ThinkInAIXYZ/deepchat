@@ -3,8 +3,8 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
-import { CONFIG_EVENTS } from '@/events'
+import { ConfigClient } from '@api/ConfigClient'
+import { ModelClient } from '@api/ModelClient'
 
 export type ChatMode = 'agent' | 'acp agent'
 
@@ -20,14 +20,14 @@ let hasLoaded = false
 let loadPromise: Promise<void> | null = null
 let modeUpdateVersion = 0
 let hasAcpListener = false
+const configClient = new ConfigClient()
+const modelClient = new ModelClient()
 
 /**
  * Manages chat mode selection (agent, acp agent)
- * Similar to useInputSettings, stores mode in database via configPresenter
+ * Similar to useInputSettings, stores mode in config entries
  */
 export function useChatMode() {
-  // === Presenters ===
-  const configPresenter = usePresenter('configPresenter')
   const { t } = useI18n()
 
   // === Computed ===
@@ -65,7 +65,7 @@ export function useChatMode() {
     currentMode.value = mode
 
     try {
-      await configPresenter.setSetting('input_chatMode', mode)
+      await configClient.setSetting('input_chatMode', mode)
     } catch (error) {
       // Revert to previous value on error
       if (modeUpdateVersion === updateVersion) {
@@ -78,12 +78,12 @@ export function useChatMode() {
 
   const checkAcpAgents = async () => {
     try {
-      const acpEnabled = await configPresenter.getAcpEnabled()
+      const acpEnabled = await configClient.getAcpEnabled()
       if (!acpEnabled) {
         hasAcpAgents.value = false
         return
       }
-      const agents = await configPresenter.getAcpAgents()
+      const agents = await configClient.getAcpAgents()
       hasAcpAgents.value = agents.length > 0
     } catch (error) {
       console.warn('Failed to check ACP agents:', error)
@@ -97,20 +97,20 @@ export function useChatMode() {
       // Check ACP agents availability first
       await checkAcpAgents()
 
-      const saved = await configPresenter.getSetting<string>('input_chatMode')
+      const saved = await configClient.getSetting('input_chatMode')
       if (modeUpdateVersion === loadVersion) {
         let savedMode: ChatMode = saved === 'acp agent' ? 'acp agent' : 'agent'
 
         // Migrate legacy 'chat' mode to 'agent' and persist
         if (saved === 'chat') {
           savedMode = 'agent'
-          await configPresenter.setSetting('input_chatMode', 'agent')
+          await configClient.setSetting('input_chatMode', 'agent')
         }
 
         // If saved mode is 'acp agent' but no agents are configured, fall back to 'agent'
         if (savedMode === 'acp agent' && !hasAcpAgents.value) {
           currentMode.value = 'agent'
-          await configPresenter.setSetting('input_chatMode', 'agent')
+          await configClient.setSetting('input_chatMode', 'agent')
         } else {
           currentMode.value = savedMode
         }
@@ -137,12 +137,15 @@ export function useChatMode() {
 
   ensureLoaded()
 
-  if (!hasAcpListener && window.electron?.ipcRenderer) {
+  if (!hasAcpListener) {
     hasAcpListener = true
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_, providerId?: string) => {
+    modelClient.onModelsChanged(({ providerId }) => {
       if (!providerId || providerId === 'acp') {
         void checkAcpAgents()
       }
+    })
+    configClient.onAgentsChanged(() => {
+      void checkAcpAgents()
     })
   }
 

@@ -20,6 +20,7 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 // Complete McpPresenter implementation
 export class McpPresenter implements IMCPPresenter {
@@ -558,6 +559,10 @@ export class McpPresenter implements IMCPPresenter {
       try {
         this.pendingSamplingRequests.set(request.requestId, { resolve, reject })
         eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_WINDOW, request)
+        publishDeepchatEvent('mcp.sampling.request', {
+          request,
+          version: Date.now()
+        })
       } catch (error) {
         this.pendingSamplingRequests.delete(request.requestId)
         reject(error instanceof Error ? error : new Error(String(error)))
@@ -582,6 +587,10 @@ export class McpPresenter implements IMCPPresenter {
     pending.resolve(decision)
 
     eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_DECISION, SendTarget.ALL_WINDOWS, decision)
+    publishDeepchatEvent('mcp.sampling.decision', {
+      decision,
+      version: Date.now()
+    })
   }
 
   async cancelSamplingRequest(requestId: string, reason?: string): Promise<void> {
@@ -600,6 +609,11 @@ export class McpPresenter implements IMCPPresenter {
     eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_CANCELLED, SendTarget.ALL_WINDOWS, {
       requestId,
       reason: reason ?? 'cancelled'
+    })
+    publishDeepchatEvent('mcp.sampling.cancelled', {
+      requestId,
+      reason: reason ?? 'cancelled',
+      version: Date.now()
     })
   }
 

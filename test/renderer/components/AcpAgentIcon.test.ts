@@ -7,10 +7,10 @@ const pendingRegistryIconUrl =
   'https://cdn.agentclientprotocol.com/registry/v1/latest/codex-acp.svg'
 const retryRegistryIconUrl = 'https://cdn.agentclientprotocol.com/registry/v1/latest/dimcode.svg'
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: () => ({
+vi.mock('@api/ConfigClient', () => ({
+  ConfigClient: vi.fn(() => ({
     getAcpRegistryIconMarkup
-  })
+  }))
 }))
 
 describe('AcpAgentIcon', () => {

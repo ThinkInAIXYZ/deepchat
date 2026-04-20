@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 import { ref } from 'vue'
-import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 
 const createQueryCache = () => {
   return {
@@ -23,8 +22,7 @@ const createQueryCache = () => {
 }
 
 const setupStore = async (overrides?: {
-  configPresenter?: Record<string, any>
-  llmPresenter?: Record<string, any>
+  modelClient?: Record<string, any>
   providerStore?: Record<string, any>
 }) => {
   vi.resetModules()
@@ -36,35 +34,24 @@ const setupStore = async (overrides?: {
   const modelConfigStore = {
     getModelConfig: vi.fn(async () => null)
   }
-  const configPresenter = {
+  const modelClient = {
     getDbProviderModels: vi.fn(async () => []),
     getProviderModels: vi.fn(async () => []),
     getCustomModels: vi.fn(async () => []),
     getBatchModelStatus: vi.fn(async () => ({})),
-    ...overrides?.configPresenter
-  }
-  const llmPresenter = {
     getModelList: vi.fn(async () => []),
     updateModelStatus: vi.fn(async () => undefined),
-    ...overrides?.llmPresenter
+    addCustomModel: vi.fn(async () => undefined),
+    removeCustomModel: vi.fn(async () => true),
+    updateCustomModel: vi.fn(async () => true),
+    onModelsChanged: vi.fn(() => vi.fn()),
+    onModelStatusChanged: vi.fn(() => vi.fn()),
+    onModelConfigChanged: vi.fn(() => vi.fn()),
+    ...overrides?.modelClient
   }
   const providerStore = {
     providers: [],
     ...overrides?.providerStore
-  }
-  const ipcHandlers = new Map<string, (...args: unknown[]) => unknown>()
-  const ipcOn = vi.fn((eventName: string, handler: (...args: unknown[]) => unknown) => {
-    ipcHandlers.set(eventName, handler)
-  })
-  const ipcRemoveAllListeners = vi.fn((eventName: string) => {
-    ipcHandlers.delete(eventName)
-  })
-
-  ;(window as Window & typeof globalThis & { electron?: unknown }).electron = {
-    ipcRenderer: {
-      on: ipcOn,
-      removeAllListeners: ipcRemoveAllListeners
-    }
   }
 
   vi.doMock('pinia', async () => {
@@ -91,8 +78,8 @@ const setupStore = async (overrides?: {
     useProviderStore: () => providerStore
   }))
 
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => (name === 'configPresenter' ? configPresenter : llmPresenter)
+  vi.doMock('../../../src/renderer/api/ModelClient', () => ({
+    ModelClient: vi.fn(() => modelClient)
   }))
 
   vi.doMock('@/composables/useIpcMutation', () => ({
@@ -105,9 +92,7 @@ const setupStore = async (overrides?: {
   return {
     store,
     agentModelStore,
-    configPresenter,
-    ipcHandlers,
-    llmPresenter
+    modelClient
   }
 }
 
@@ -126,19 +111,17 @@ const flushMicrotasks = async (times: number = 6) => {
 }
 
 describe('modelStore.refreshProviderModels', () => {
-  it('does not register provider-db listeners for model refreshes', async () => {
-    const { store, ipcHandlers } = await setupStore()
+  it('registers typed model listeners without legacy provider-db subscriptions', async () => {
+    const { store, modelClient } = await setupStore()
 
     store.setupModelListeners()
 
-    expect(ipcHandlers.has(CONFIG_EVENTS.MODEL_LIST_CHANGED)).toBe(true)
-    expect(ipcHandlers.has(CONFIG_EVENTS.MODEL_STATUS_CHANGED)).toBe(true)
-    expect(ipcHandlers.has(PROVIDER_DB_EVENTS.UPDATED)).toBe(false)
-    expect(ipcHandlers.has(PROVIDER_DB_EVENTS.LOADED)).toBe(false)
+    expect(modelClient.onModelsChanged).toHaveBeenCalledTimes(1)
+    expect(modelClient.onModelStatusChanged).toHaveBeenCalledTimes(1)
   })
 
   it('uses ACP refresh path for acp provider', async () => {
-    const { store, agentModelStore, configPresenter } = await setupStore()
+    const { store, agentModelStore, modelClient } = await setupStore()
     agentModelStore.refreshAgentModels.mockResolvedValue({
       rendererModels: [],
       modelMetas: []
@@ -147,17 +130,17 @@ describe('modelStore.refreshProviderModels', () => {
     await store.refreshProviderModels('acp')
 
     expect(agentModelStore.refreshAgentModels).toHaveBeenCalledWith('acp')
-    expect(configPresenter.getDbProviderModels).not.toHaveBeenCalled()
+    expect(modelClient.getDbProviderModels).not.toHaveBeenCalled()
   })
 
   it('uses standard refresh path for non-acp provider', async () => {
-    const { store, agentModelStore, configPresenter } = await setupStore()
+    const { store, agentModelStore, modelClient } = await setupStore()
 
     await store.refreshProviderModels('openai')
 
     expect(agentModelStore.refreshAgentModels).not.toHaveBeenCalled()
-    expect(configPresenter.getDbProviderModels).toHaveBeenCalledWith('openai')
-    expect(configPresenter.getProviderModels).toHaveBeenCalledWith('openai')
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledWith('openai')
+    expect(modelClient.getProviderModels).toHaveBeenCalledWith('openai')
   })
 
   it('merges same-tick concurrent refreshes into a single provider fetch', async () => {
@@ -170,8 +153,8 @@ describe('modelStore.refreshProviderModels', () => {
       contextLength: 128000,
       isCustom: false
     }
-    const { store, configPresenter } = await setupStore({
-      configPresenter: {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
         getDbProviderModels: vi.fn(async () => []),
         getProviderModels: vi.fn(() => deferredModels.promise),
         getCustomModels: vi.fn(async () => []),
@@ -185,12 +168,12 @@ describe('modelStore.refreshProviderModels', () => {
     await flushMicrotasks()
 
     expect(firstRefresh).toBe(secondRefresh)
-    expect(configPresenter.getProviderModels).toHaveBeenCalledTimes(1)
+    expect(modelClient.getProviderModels).toHaveBeenCalledTimes(1)
 
     deferredModels.resolve([model])
     await Promise.all([firstRefresh, secondRefresh])
 
-    expect(configPresenter.getProviderModels).toHaveBeenCalledTimes(1)
+    expect(modelClient.getProviderModels).toHaveBeenCalledTimes(1)
   })
 
   it('reruns one more provider refresh when another request arrives mid-flight', async () => {
@@ -203,8 +186,8 @@ describe('modelStore.refreshProviderModels', () => {
       contextLength: 128000,
       isCustom: false
     }
-    const { store, configPresenter } = await setupStore({
-      configPresenter: {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
         getDbProviderModels: vi.fn(async () => []),
         getProviderModels: vi
           .fn()
@@ -218,7 +201,7 @@ describe('modelStore.refreshProviderModels', () => {
     const firstRefresh = store.refreshProviderModels('openai')
 
     await flushMicrotasks()
-    expect(configPresenter.getProviderModels).toHaveBeenCalledTimes(1)
+    expect(modelClient.getProviderModels).toHaveBeenCalledTimes(1)
 
     const secondRefresh = store.refreshProviderModels('openai')
 
@@ -226,7 +209,7 @@ describe('modelStore.refreshProviderModels', () => {
     await Promise.all([firstRefresh, secondRefresh])
 
     expect(firstRefresh).toBe(secondRefresh)
-    expect(configPresenter.getProviderModels).toHaveBeenCalledTimes(2)
+    expect(modelClient.getProviderModels).toHaveBeenCalledTimes(2)
   })
 
   it('normalizes sparse model metadata with unified fallback defaults', async () => {
@@ -237,7 +220,7 @@ describe('modelStore.refreshProviderModels', () => {
       isCustom: false
     }
     const { store } = await setupStore({
-      configPresenter: {
+      modelClient: {
         getDbProviderModels: vi.fn(async () => []),
         getProviderModels: vi.fn(async () => [sparseModel]),
         getBatchModelStatus: vi.fn(async () => ({ 'gpt-sparse': true }))
@@ -298,7 +281,7 @@ describe('modelStore.refreshProviderModels', () => {
       isCustom: false
     }
     const { store } = await setupStore({
-      configPresenter: {
+      modelClient: {
         getDbProviderModels: vi.fn(async () => [dbModel]),
         getProviderModels: vi.fn(async () => [storedModel]),
         getBatchModelStatus: vi.fn(async () => ({ 'gpt-5.4': true }))
@@ -354,7 +337,7 @@ describe('modelStore.refreshProviderModels', () => {
       isCustom: false
     }
     const { store } = await setupStore({
-      configPresenter: {
+      modelClient: {
         getDbProviderModels: vi.fn(async () => [dbModel]),
         getProviderModels: vi.fn(async () => [storedModel]),
         getBatchModelStatus: vi.fn(async () => ({ 'gpt-5.4': true }))
@@ -387,7 +370,7 @@ describe('modelStore.refreshProviderModels', () => {
       isCustom: false
     }
     const { store } = await setupStore({
-      configPresenter: {
+      modelClient: {
         getDbProviderModels: vi.fn(async () => []),
         getProviderModels: vi.fn(async () => [storedModel]),
         getBatchModelStatus: vi.fn(async () => ({ 'custom-chat': true }))
@@ -422,7 +405,7 @@ describe('modelStore.refreshProviderModels', () => {
       isCustom: false
     }
     const { store } = await setupStore({
-      configPresenter: {
+      modelClient: {
         getDbProviderModels: vi.fn(async () => []),
         getProviderModels: vi.fn(async () => [storedModel]),
         getBatchModelStatus: vi.fn(async () => ({ 'custom-chat': true }))
@@ -445,11 +428,11 @@ describe('modelStore.refreshProviderModels', () => {
   })
 
   it('persists ollama model status changes through llm presenter', async () => {
-    const { store, llmPresenter } = await setupStore({
+    const { store, modelClient } = await setupStore({
       providerStore: {
         providers: [{ id: 'ollama', apiType: 'ollama' }]
       },
-      configPresenter: {
+      modelClient: {
         getDbProviderModels: vi.fn(async () => []),
         getProviderModels: vi.fn(async () => [
           {
@@ -466,6 +449,6 @@ describe('modelStore.refreshProviderModels', () => {
     await store.refreshProviderModels('ollama')
     await store.updateModelStatus('ollama', 'deepseek-r1:1.5b', false)
 
-    expect(llmPresenter.updateModelStatus).toHaveBeenCalledWith('ollama', 'deepseek-r1:1.5b', false)
+    expect(modelClient.updateModelStatus).toHaveBeenCalledWith('ollama', 'deepseek-r1:1.5b', false)
   })
 })

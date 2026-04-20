@@ -700,7 +700,7 @@ import {
 } from '@shadcn/components/ui/chart'
 import type { ChartConfig } from '@shadcn/components/ui/chart'
 import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/types/agent-interface'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 
 type CalendarCell = UsageDashboardCalendarDay | null
 type TokenUsageTrendKey = 'input' | 'output' | 'cached' | 'cost'
@@ -735,7 +735,7 @@ type NostalgiaDetailItem = {
 }
 
 const { t, locale } = useI18n()
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const agentSessionPresenter = useLegacyPresenter('agentSessionPresenter')
 
 const isLoading = ref(true)
 const isRetryingRtk = ref(false)

@@ -25,6 +25,7 @@
 import { computed } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
+import { DeviceClient } from '@api/DeviceClient'
 import CodeArtifact from './CodeArtifact.vue'
 import MarkdownArtifact from './MarkdownArtifact.vue'
 import HTMLArtifact from './HTMLArtifact.vue'
@@ -41,6 +42,7 @@ const props = defineProps<{
     content: string
   }
 }>()
+const deviceClient = new DeviceClient()
 
 const artifactComponent = computed(() => {
   if (!props.block.artifact) return null
@@ -84,7 +86,7 @@ const artifactClass = computed(() => {
 
 const handleCopy = () => {
   if (props.block.content) {
-    window.api.copyText(props.block.content)
+    deviceClient.copyText(props.block.content)
   }
 }
 </script>

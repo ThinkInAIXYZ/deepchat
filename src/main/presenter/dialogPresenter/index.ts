@@ -12,6 +12,7 @@ import {
 } from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { DIALOG_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { nanoid } from 'nanoid'
 
 export class DialogPresenter implements IDialogPresenter {
@@ -50,6 +51,10 @@ export class DialogPresenter implements IDialogPresenter {
         try {
           // send dialog request to renderer
           eventBus.sendToRenderer(DIALOG_EVENTS.REQUEST, SendTarget.DEFAULT_WINDOW, finalRequest)
+          publishDeepchatEvent('dialog.requested', {
+            ...finalRequest,
+            version: Date.now()
+          })
         } catch (error) {
           // Clean up the pending dialog entry
           this.pendingDialogs.delete(finalRequest.id)

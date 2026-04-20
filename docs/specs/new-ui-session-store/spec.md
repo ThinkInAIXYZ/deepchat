@@ -86,7 +86,7 @@ type GroupMode = 'time' | 'project'
 
 ```typescript
 export const useSessionStore = defineStore('session', () => {
-  const sessionPresenter = usePresenter('sessionPresenter')
+  const sessionPresenter = useLegacyPresenter('sessionPresenter')
   const pageRouter = usePageRouterStore()
 
   // --- State ---
@@ -183,7 +183,7 @@ async function createSession(params: CreateSessionInput) {
     pageRouter.goToChat(sessionId)
 
     // Send the initial message
-    const agentPresenter = usePresenter('agentPresenter')
+    const agentPresenter = useLegacyPresenter('agentPresenter')
     await agentPresenter.chat(sessionId, params.message, tabId)
   } catch (e) {
     error.value = `Failed to create session: ${e}`
@@ -359,3 +359,4 @@ The `error` state is cleared at the start of each action.
 8. `groupByProject` correctly groups by projectDir
 9. `getFilteredGroups` filters by agentId when provided
 10. Error states are set on failure and cleared on retry
+

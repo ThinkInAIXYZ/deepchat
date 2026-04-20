@@ -183,11 +183,13 @@ import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import { DeviceClient } from '@api/DeviceClient'
 
 const { t } = useI18n()
 
 const themeStore = useThemeStore()
 const sessionStore = useSessionStore()
+const deviceClient = new DeviceClient()
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
@@ -563,11 +565,7 @@ const responseCopyText = ref(t('common.copy'))
 const copyParams = async () => {
   if (!hasParams.value) return
   try {
-    if (window.api?.copyText) {
-      window.api.copyText(paramsText.value)
-    } else {
-      await navigator.clipboard.writeText(paramsText.value)
-    }
+    deviceClient.copyText(paramsText.value)
     paramsCopyText.value = t('common.copySuccess')
     setTimeout(() => {
       paramsCopyText.value = t('common.copy')
@@ -580,11 +578,7 @@ const copyParams = async () => {
 const copyResponse = async () => {
   if (!hasResponse.value) return
   try {
-    if (window.api?.copyText) {
-      window.api.copyText(responseText.value)
-    } else {
-      await navigator.clipboard.writeText(responseText.value)
-    }
+    deviceClient.copyText(responseText.value)
     responseCopyText.value = t('common.copySuccess')
     setTimeout(() => {
       responseCopyText.value = t('common.copy')

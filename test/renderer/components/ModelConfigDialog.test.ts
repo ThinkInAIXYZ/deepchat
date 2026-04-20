@@ -68,13 +68,16 @@ const setup = async (options: SetupOptions) => {
     providers: [{ id: options.providerId, apiType: options.providerApiType ?? 'openai-compatible' }]
   })
 
-  const configPresenter = {
-    getCapabilityProviderId: vi
-      .fn()
-      .mockImplementation(async (providerId: string) => options.capabilityProviderId ?? providerId),
-    getReasoningPortrait: vi.fn().mockResolvedValue(options.reasoningPortrait ?? null),
-    getTemperatureCapability: vi.fn().mockResolvedValue(options.temperatureCapability),
-    supportsTemperatureControl: vi.fn().mockResolvedValue(options.temperatureCapability ?? true)
+  const modelClient = {
+    getCapabilities: vi.fn().mockResolvedValue({
+      supportsReasoning: options.reasoningPortrait?.supported ?? true,
+      reasoningPortrait: options.reasoningPortrait ?? null,
+      thinkingBudgetRange: options.reasoningPortrait?.budget ?? null,
+      supportsSearch: null,
+      searchDefaults: null,
+      supportsTemperatureControl: options.temperatureCapability ?? true,
+      temperatureCapability: options.temperatureCapability ?? true
+    })
   }
 
   vi.doMock('@/stores/modelConfigStore', () => ({
@@ -96,8 +99,8 @@ const setup = async (options: SetupOptions) => {
   vi.doMock('@/stores/providerStore', () => ({
     useProviderStore: () => providerStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => configPresenter
+  vi.doMock('@api/ModelClient', () => ({
+    ModelClient: vi.fn(() => modelClient)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

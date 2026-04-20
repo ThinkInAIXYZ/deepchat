@@ -52,7 +52,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { Input } from '@shadcn/components/ui/input'
 import {
   Select,
@@ -64,7 +64,7 @@ import {
 import { useLanguageStore } from '@/stores/language'
 
 const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 const langStore = useLanguageStore()
 
 const selectedProxyMode = ref('system')

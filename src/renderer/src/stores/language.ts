@@ -2,40 +2,33 @@ import { defineStore } from 'pinia'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { usePresenter } from '@/composables/usePresenter'
-import { CONFIG_EVENTS } from '@/events'
+import { ConfigClient } from '../../api/ConfigClient'
 
 const RTL_LIST = ['fa-IR', 'he-IL']
+let languageListenerRegistered = false
 export const useLanguageStore = defineStore('language', () => {
   const { locale } = useI18n({ useScope: 'global' })
   const language = ref<string>('system')
-  const configPresenter = usePresenter('configPresenter')
+  const configClient = new ConfigClient()
   const dir = ref('auto' as 'auto' | 'rtl' | 'ltr')
   // 初始化设置
   const initLanguage = async () => {
     try {
+      const languageState = await configClient.getLanguageState()
       // 获取语言
-      language.value = (await configPresenter.getSetting('language')) || 'system'
+      language.value = languageState.requestedLanguage || 'system'
       // 设置语言
-      locale.value = await configPresenter.getLanguage()
-      if (RTL_LIST.indexOf(locale.value) >= 0) {
-        dir.value = 'rtl'
-      } else {
-        dir.value = 'auto'
-      }
+      locale.value = languageState.locale
+      dir.value = RTL_LIST.indexOf(locale.value) >= 0 ? 'rtl' : 'auto'
       // 监听语言变更事件
-      window.electron.ipcRenderer.on(
-        CONFIG_EVENTS.LANGUAGE_CHANGED,
-        async (_event, newLanguage: string) => {
-          language.value = newLanguage
-          locale.value = await configPresenter.getLanguage()
-          if (RTL_LIST.indexOf(locale.value) >= 0) {
-            dir.value = 'rtl'
-          } else {
-            dir.value = 'auto'
-          }
-        }
-      )
+      if (!languageListenerRegistered) {
+        languageListenerRegistered = true
+        configClient.onLanguageChanged((payload) => {
+          language.value = payload.requestedLanguage
+          locale.value = payload.locale
+          dir.value = payload.direction === 'rtl' ? 'rtl' : 'auto'
+        })
+      }
     } catch (error) {
       console.error('初始化语言失败:', error)
     }
@@ -43,7 +36,7 @@ export const useLanguageStore = defineStore('language', () => {
 
   // 更新语言
   const updateLanguage = async (newLanguage: string) => {
-    await configPresenter.setLanguage(newLanguage)
+    await configClient.setLanguage(newLanguage)
     language.value = newLanguage
   }
 

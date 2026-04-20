@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { usePresenter } from '@/composables/usePresenter'
+import { SessionClient } from '@api/SessionClient'
 import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
@@ -47,7 +47,7 @@ const artifactStore = useArtifactStore()
 const fallbackMessageId = `artifact-msg-${nanoid()}`
 const fallbackThreadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const sessionClient = new SessionClient()
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)
@@ -117,7 +117,7 @@ watch(
           messageId: effectiveMessageId.value,
           threadId: effectiveThreadId.value,
           onClick(event?: MouseEvent) {
-            agentSessionPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
+            sessionClient.getSearchResults(effectiveMessageId.value).then((results) => {
               const index = parseInt(_props.node.id, 10) - 1
               if (index >= 0 && index < results.length) {
                 void navigateLink(results[index].url, event)
@@ -126,7 +126,7 @@ watch(
           },
           onMouseEnter() {
             referenceStore.hideReference()
-            agentSessionPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
+            sessionClient.getSearchResults(effectiveMessageId.value).then((results) => {
               const index = parseInt(_props.node.id, 10) - 1
               if (index >= 0 && index < results.length && referenceNode.value) {
                 referenceStore.showReference(

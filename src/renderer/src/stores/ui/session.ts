@@ -1,7 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
+import { ChatClient } from '../../../api/ChatClient'
+import { ConfigClient } from '../../../api/ConfigClient'
+import { SessionClient } from '../../../api/SessionClient'
+import { TabClient } from '@api/TabClient'
+import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
 import type {
   DeepChatSubagentMeta,
   SessionWithState,
@@ -14,7 +18,6 @@ import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { bindSessionStoreIpc } from './sessionIpc'
-import { getRendererWindowContext } from '@/lib/windowContext'
 
 // --- Type Definitions ---
 
@@ -96,7 +99,7 @@ function isRegularSession(session: Pick<UISession, 'sessionKind'>): boolean {
 }
 
 function getCurrentWebContentsId(): number {
-  return getRendererWindowContext().webContentsId ?? -1
+  return getRuntimeWebContentsId() ?? -1
 }
 
 function registerStoreCleanup(cleanup: () => void): void {
@@ -187,9 +190,10 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
 // --- Store ---
 
 export const useSessionStore = defineStore('session', () => {
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
-  const tabPresenter = usePresenter('tabPresenter')
-  const configPresenter = usePresenter('configPresenter', { safeCall: false })
+  const sessionClient = new SessionClient()
+  const chatClient = new ChatClient()
+  const configClient = new ConfigClient()
+  const tabClient = new TabClient()
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
@@ -207,10 +211,15 @@ export const useSessionStore = defineStore('session', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  const setActiveSessionId = (sessionId: string | null): void => {
+    activeSessionId.value = sessionId
+    messageStore.setCurrentSessionId(sessionId)
+  }
+
   const notifyRendererReady = (): void => {
     if (rendererReadyNotified) return
     rendererReadyNotified = true
-    void tabPresenter.onRendererTabReady(myWebContentsId)
+    void tabClient.notifyRendererReady()
   }
 
   notifyRendererReady()
@@ -222,7 +231,7 @@ export const useSessionStore = defineStore('session', () => {
     const loadVersion = groupModeUpdateVersion
 
     try {
-      const savedGroupMode = await configPresenter.getSetting<GroupMode>(SIDEBAR_GROUP_MODE_KEY)
+      const savedGroupMode = await configClient.getSetting(SIDEBAR_GROUP_MODE_KEY)
       if (groupModeUpdateVersion === loadVersion) {
         groupMode.value = normalizeGroupMode(savedGroupMode)
       }
@@ -295,6 +304,24 @@ export const useSessionStore = defineStore('session', () => {
     agentStore.setSelectedAgent(targetAgentId)
   }
 
+  const applySessionStatus = (sessionId: string, status: string): void => {
+    const nextStatus = mapSessionStatus(status)
+    const index = sessions.value.findIndex((session) => session.id === sessionId)
+    if (index < 0) {
+      return
+    }
+
+    const currentSession = sessions.value[index]
+    if (currentSession.status === nextStatus) {
+      return
+    }
+
+    sessions.value[index] = {
+      ...currentSession,
+      status: nextStatus
+    }
+  }
+
   // --- Actions ---
 
   async function fetchSessions(): Promise<void> {
@@ -302,21 +329,20 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       await ensureGroupModeLoaded()
-      const webContentsId = getCurrentWebContentsId()
       const previousActiveSessionId = activeSessionId.value
       const [result, activeSession] = await Promise.all([
-        agentSessionPresenter.getSessionList({ includeSubagents: true }),
-        agentSessionPresenter.getActiveSession(webContentsId)
+        sessionClient.list({ includeSubagents: true }),
+        sessionClient.getActive()
       ])
-      sessions.value = result.map(mapToUISession)
+      sessions.value = result.sessions.map(mapToUISession)
 
-      const nextActiveSessionId = activeSession?.id ?? null
+      const nextActiveSessionId = activeSession.session?.id ?? null
       if (previousActiveSessionId !== nextActiveSessionId) {
         if (previousActiveSessionId && previousActiveSessionId !== nextActiveSessionId) {
           messageStore.clearStreamingState()
         }
-        activeSessionId.value = nextActiveSessionId
       }
+      setActiveSessionId(nextActiveSessionId)
       syncSelectedAgentToSession(nextActiveSessionId, sessions.value)
       if (previousActiveSessionId && !nextActiveSessionId && pageRouter.currentRoute === 'chat') {
         pageRouter.goToNewThread()
@@ -331,9 +357,9 @@ export const useSessionStore = defineStore('session', () => {
   async function createSession(input: CreateSessionInput): Promise<void> {
     error.value = null
     try {
-      const webContentsId = getCurrentWebContentsId()
-      const session = await agentSessionPresenter.createSession(input, webContentsId)
-      activeSessionId.value = session.id
+      const result = await sessionClient.create(input)
+      const session = result.session
+      setActiveSessionId(session.id)
 
       await fetchSessions()
       pageRouter.goToChat(session.id)
@@ -348,10 +374,9 @@ export const useSessionStore = defineStore('session', () => {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
       }
-      const webContentsId = getCurrentWebContentsId()
-      await agentSessionPresenter.activateSession(webContentsId, sessionId)
+      await sessionClient.activate(sessionId)
       syncSelectedAgentToSession(sessionId)
-      activeSessionId.value = sessionId
+      setActiveSessionId(sessionId)
       pageRouter.goToChat(sessionId)
     } catch (e) {
       error.value = `Failed to select session: ${e}`
@@ -362,9 +387,8 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       messageStore.clearStreamingState()
-      const webContentsId = getCurrentWebContentsId()
-      await agentSessionPresenter.deactivateSession(webContentsId)
-      activeSessionId.value = null
+      await sessionClient.deactivate()
+      setActiveSessionId(null)
       pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
     } catch (e) {
       error.value = `Failed to close session: ${e}`
@@ -394,7 +418,7 @@ export const useSessionStore = defineStore('session', () => {
   async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
     error.value = null
     try {
-      await agentSessionPresenter.sendMessage(sessionId, content)
+      await chatClient.sendMessage(sessionId, content)
     } catch (e) {
       error.value = `Failed to send message: ${e}`
     }
@@ -407,7 +431,7 @@ export const useSessionStore = defineStore('session', () => {
   ): Promise<void> {
     error.value = null
     try {
-      const updated = await agentSessionPresenter.setSessionModel(sessionId, providerId, modelId)
+      const updated = await sessionClient.setSessionModel(sessionId, providerId, modelId)
       const index = sessions.value.findIndex((item) => item.id === sessionId)
       if (index >= 0) {
         sessions.value[index] = mapToUISession(updated)
@@ -421,9 +445,9 @@ export const useSessionStore = defineStore('session', () => {
   async function deleteSession(sessionId: string): Promise<void> {
     error.value = null
     try {
-      await agentSessionPresenter.deleteSession(sessionId)
+      await sessionClient.deleteSession(sessionId)
       if (activeSessionId.value === sessionId) {
-        activeSessionId.value = null
+        setActiveSessionId(null)
         pageRouter.goToNewThread()
       }
       await fetchSessions()
@@ -435,7 +459,7 @@ export const useSessionStore = defineStore('session', () => {
   async function setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<void> {
     error.value = null
     try {
-      const updated = await agentSessionPresenter.setSessionSubagentEnabled(sessionId, enabled)
+      const updated = await sessionClient.setSessionSubagentEnabled(sessionId, enabled)
       const index = sessions.value.findIndex((item) => item.id === sessionId)
       if (index >= 0) {
         sessions.value[index] = mapToUISession(updated)
@@ -451,7 +475,7 @@ export const useSessionStore = defineStore('session', () => {
   async function setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
     error.value = null
     try {
-      const updated = await agentSessionPresenter.setSessionProjectDir(sessionId, projectDir)
+      const updated = await sessionClient.setSessionProjectDir(sessionId, projectDir)
       const index = sessions.value.findIndex((item) => item.id === sessionId)
       if (index >= 0) {
         sessions.value[index] = mapToUISession(updated)
@@ -469,7 +493,7 @@ export const useSessionStore = defineStore('session', () => {
       if (!normalized) {
         return
       }
-      await agentSessionPresenter.renameSession(sessionId, normalized)
+      await sessionClient.renameSession(sessionId, normalized)
       const target = sessions.value.find((session) => session.id === sessionId)
       if (target) {
         target.title = normalized
@@ -483,7 +507,7 @@ export const useSessionStore = defineStore('session', () => {
   async function toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
     error.value = null
     try {
-      await agentSessionPresenter.toggleSessionPinned(sessionId, pinned)
+      await sessionClient.toggleSessionPinned(sessionId, pinned)
       const target = sessions.value.find((session) => session.id === sessionId)
       if (target) {
         target.isPinned = pinned
@@ -497,7 +521,7 @@ export const useSessionStore = defineStore('session', () => {
   async function clearSessionMessages(sessionId: string): Promise<void> {
     error.value = null
     try {
-      await agentSessionPresenter.clearSessionMessages(sessionId)
+      await sessionClient.clearSessionMessages(sessionId)
       if (activeSessionId.value === sessionId) {
         messageStore.clearStreamingState()
         await messageStore.loadMessages(sessionId)
@@ -514,7 +538,7 @@ export const useSessionStore = defineStore('session', () => {
   ): Promise<{ filename: string; content: string }> {
     error.value = null
     try {
-      const result = await agentSessionPresenter.exportSession(sessionId, format)
+      const result = await sessionClient.exportSession(sessionId, format)
       const blob = new Blob([result.content], {
         type: getContentType(format)
       })
@@ -533,7 +557,7 @@ export const useSessionStore = defineStore('session', () => {
 
     groupModeWritePromise = groupModeWritePromise.then(async () => {
       try {
-        await configPresenter.setSetting(SIDEBAR_GROUP_MODE_KEY, groupMode.value)
+        await configClient.setSetting(SIDEBAR_GROUP_MODE_KEY, groupMode.value)
         if (localVersion !== groupModeUpdateVersion) {
           return
         }
@@ -585,20 +609,17 @@ export const useSessionStore = defineStore('session', () => {
         messageStore.clearStreamingState()
       }
       syncSelectedAgentToSession(sessionId)
-      activeSessionId.value = sessionId
+      setActiveSessionId(sessionId)
       pageRouter.goToChat(sessionId)
-      void tabPresenter.onRendererTabActivated(sessionId)
+      void tabClient.notifyRendererActivated(sessionId)
     },
     onDeactivated: () => {
       messageStore.clearStreamingState()
-      activeSessionId.value = null
+      setActiveSessionId(null)
       pageRouter.goToNewThread()
     },
-    onStatusChanged: (payload) => {
-      const session = sessions.value.find((item) => item.id === payload.sessionId)
-      if (session) {
-        session.status = mapSessionStatus(payload.status)
-      }
+    onStatusChanged: (sessionId, status) => {
+      applySessionStatus(sessionId, status)
     }
   })
   registerStoreCleanup(cleanupIpcBindings)

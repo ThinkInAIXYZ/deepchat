@@ -145,7 +145,9 @@ import { computed, ref, toRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { FileClient } from '@api/FileClient'
+import { ProjectClient } from '@api/ProjectClient'
+import { WorkspaceClient } from '@api/WorkspaceClient'
 import { extractArtifactsFromContent } from '@/composables/useArtifacts'
 import WorkspaceFileNode from '@/components/workspace/WorkspaceFileNode.vue'
 import WorkspaceViewer from './WorkspaceViewer.vue'
@@ -181,9 +183,9 @@ const artifactStore = useArtifactStore()
 const messageStore = useMessageStore()
 const sidepanelStore = useSidepanelStore()
 const sessionStore = useSessionStore()
-const workspacePresenter = usePresenter('workspacePresenter')
-const projectPresenter = usePresenter('projectPresenter')
-const filePresenter = usePresenter('filePresenter')
+const workspaceClient = new WorkspaceClient()
+const projectClient = new ProjectClient()
+const fileClient = new FileClient()
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
 const {
@@ -200,7 +202,7 @@ const {
   workspacePath: toRef(props, 'workspacePath'),
   active: computed(() => sidepanelStore.open),
   sessionState,
-  workspacePresenter,
+  workspaceClient,
   sidepanelStore
 })
 
@@ -363,7 +365,7 @@ const isDragging = ref(false)
 
 async function selectFolder() {
   try {
-    const selectedPath = await projectPresenter.selectDirectory()
+    const selectedPath = await projectClient.selectDirectory()
     if (selectedPath) {
       await sessionStore.setSessionProjectDir(props.sessionId, selectedPath)
       emit('update:workspacePath', selectedPath)
@@ -415,7 +417,7 @@ async function handleDrop(event: DragEvent) {
   }
 
   try {
-    const isDirectory = await filePresenter.isDirectory(filePath)
+    const isDirectory = await fileClient.isDirectory(filePath)
     if (!isDirectory) {
       console.warn('[WorkspacePanel] Dropped path is not a directory:', filePath)
       return
@@ -467,7 +469,7 @@ function getDroppedFile(event: DragEvent): File | null {
 }
 
 function getDroppedFilePath(file: File): string | null {
-  const preloadPath = window.api?.getPathForFile?.(file)?.trim()
+  const preloadPath = fileClient.getPathForFile(file).trim()
   if (preloadPath) {
     return preloadPath
   }

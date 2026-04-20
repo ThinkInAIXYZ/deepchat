@@ -136,6 +136,7 @@ describe('processStream', () => {
       toolOutputGuard: new ToolOutputGuard(),
       io: {
         sessionId: 's1',
+        requestId: 'req-1',
         messageId: 'm1',
         messageStore,
         abortSignal: new AbortController().signal
@@ -778,6 +779,7 @@ describe('processStream', () => {
       coreStream,
       io: {
         sessionId: 's1',
+        requestId: 'req-1',
         messageId: 'm1',
         messageStore,
         abortSignal: abortController.signal
@@ -843,6 +845,7 @@ describe('processStream', () => {
       coreStream,
       io: {
         sessionId: 's1',
+        requestId: 'req-1',
         messageId: 'm1',
         messageStore,
         abortSignal: abortController.signal
@@ -907,6 +910,7 @@ describe('processStream', () => {
       tools: [makeTool('action')],
       io: {
         sessionId: 's1',
+        requestId: 'req-1',
         messageId: 'm1',
         messageStore,
         abortSignal: abortController.signal

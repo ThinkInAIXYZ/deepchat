@@ -67,6 +67,13 @@ const DropdownMenuItemStub = defineComponent({
     '<button v-bind="$attrs" type="button" @click="$emit(\'select\', $event)"><slot /></button>'
 })
 
+vi.mock('@/components/ModelSelect.vue', () => ({
+  default: defineComponent({
+    name: 'ModelSelect',
+    template: '<div data-testid="model-select-stub"></div>'
+  })
+}))
+
 describe('DeepChatAgentsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -144,8 +151,8 @@ describe('DeepChatAgentsSettings', () => {
       }))
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -284,8 +291,8 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -397,8 +404,8 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -525,8 +532,8 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -643,8 +650,8 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -785,8 +792,8 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -924,8 +931,8 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -1098,8 +1105,8 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter

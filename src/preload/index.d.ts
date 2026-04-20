@@ -1,8 +1,10 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
+import type { DeepchatBridge } from '@shared/contracts/bridge'
 
 declare global {
   interface Window {
     electron: ElectronAPI
+    deepchat: DeepchatBridge
     api: {
       copyText(text: string): void
       copyImage(image: string): void

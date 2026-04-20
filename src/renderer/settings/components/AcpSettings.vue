@@ -578,7 +578,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { Icon } from '@iconify/vue'
 import {
   Card,
@@ -619,7 +619,7 @@ import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 
 type RegistryDialogFilter = 'all' | 'installed' | 'not_installed'
 

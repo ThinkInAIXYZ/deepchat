@@ -338,7 +338,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import type {
   HookCommandItem,
   HookEventName,
@@ -363,7 +363,7 @@ type HookDocField =
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 
 const config = ref<HooksNotificationsSettings | null>(null)
 const isLoading = ref(false)

@@ -202,6 +202,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@shadcn/components/ui/context-menu'
+import { DeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
   message: DisplayAssistantMessage
@@ -213,6 +214,7 @@ const props = defineProps<{
 }>()
 
 const themeStore = useThemeStore()
+const deviceClient = new DeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
 
@@ -423,7 +425,7 @@ const handleSelectionCopy = () => {
   if (!text) {
     return
   }
-  window.api.copyText(text)
+  deviceClient.copyText(text)
 }
 
 const handleSelectionTranslate = () => {
@@ -479,7 +481,7 @@ const handleAction = (action: HandleActionType) => {
   } else if (action === 'delete') {
     emit('delete', currentMessage.value.id)
   } else if (action === 'copy') {
-    window.api.copyText(
+    deviceClient.copyText(
       currentContent.value
         .filter((block) => {
           if (

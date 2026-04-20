@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import { usePresenter } from './composables/usePresenter'
+import { ConfigClient } from '@api/ConfigClient'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useSessionStore } from '@/stores/ui/session'
@@ -31,12 +31,13 @@ import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
 import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
+import { WindowClient } from '@api/WindowClient'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
 const route = useRoute()
-const configPresenter = usePresenter('configPresenter')
-const windowPresenter = usePresenter('windowPresenter')
+const configClient = new ConfigClient()
+const windowClient = new WindowClient()
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
@@ -193,7 +194,7 @@ const ensureStartupWelcomeState = async () => {
       return
     }
 
-    const initComplete = Boolean(await configPresenter.getSetting('init_complete'))
+    const initComplete = Boolean(await configClient.getSetting('init_complete'))
     if (!initComplete) {
       if (!isWelcomeRoute) {
         await router.replace({ name: 'welcome' })
@@ -252,7 +253,7 @@ const activatePendingStartDeeplink = async () => {
   processingStartDeeplinkToken.value = token
 
   try {
-    const initComplete = Boolean(await configPresenter.getSetting('init_complete'))
+    const initComplete = Boolean(await configClient.getSetting('init_complete'))
     if (!initComplete) {
       return
     }
@@ -307,7 +308,7 @@ const handleDatabaseRepairSuggested = (payload: unknown) => {
     action: {
       label: t('settings.data.databaseRepair.toastAction'),
       onClick: () => {
-        void windowPresenter.createSettingsWindow({
+        void configClient.openSettings({
           routeName: 'settings-database',
           section: 'database-repair'
         })
@@ -369,7 +370,7 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
 // Handle ESC key - close floating chat window
 const handleEscKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
-    window.electron.ipcRenderer.send('close-floating-window')
+    void windowClient.closeFloatingCurrent()
   }
 }
 

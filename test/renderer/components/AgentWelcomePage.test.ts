@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { SETTINGS_EVENTS } from '@/events'
 
 afterEach(() => {
   vi.clearAllTimers()
@@ -12,9 +11,8 @@ describe('AgentWelcomePage', () => {
     vi.resetModules()
     vi.useFakeTimers()
 
-    const windowPresenter = {
-      createSettingsWindow: vi.fn().mockResolvedValue(9),
-      sendToWindow: vi.fn(() => true)
+    const settingsClient = {
+      openSettings: vi.fn().mockResolvedValue({ windowId: 9 })
     }
     const agentStore = {
       enabledAgents: Array.from({ length: 12 }, (_, index) => ({
@@ -26,11 +24,8 @@ describe('AgentWelcomePage', () => {
       setSelectedAgent: vi.fn()
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
-        if (name === 'windowPresenter') return windowPresenter
-        return {}
-      }
+    vi.doMock('@api/SettingsClient', () => ({
+      SettingsClient: vi.fn(() => settingsClient)
     }))
     vi.doMock('@/stores/ui/agent', () => ({
       useAgentStore: () => agentStore
@@ -95,10 +90,9 @@ describe('AgentWelcomePage', () => {
     await manageButton!.trigger('click')
     await vi.runAllTimersAsync()
 
-    expect(windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledWith(9, SETTINGS_EVENTS.NAVIGATE, {
+    expect(settingsClient.openSettings).toHaveBeenCalledTimes(1)
+    expect(settingsClient.openSettings).toHaveBeenCalledWith({
       routeName: 'settings-deepchat-agents'
     })
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(1)
   })
 })

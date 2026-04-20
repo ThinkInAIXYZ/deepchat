@@ -1,5 +1,6 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type {
   PendingSessionInputRecord,
   PendingSessionInputState,
@@ -165,6 +166,10 @@ export class PendingInputCoordinator {
   private emitUpdated(sessionId: string): void {
     eventBus.sendToRenderer(SESSION_EVENTS.PENDING_INPUTS_UPDATED, SendTarget.ALL_WINDOWS, {
       sessionId
+    })
+    publishDeepchatEvent('sessions.pendingInputs.changed', {
+      sessionId,
+      version: Date.now()
     })
   }
 }

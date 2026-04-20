@@ -42,12 +42,12 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { DeviceClient } from '@api/DeviceClient'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
-const devicePresenter = usePresenter('devicePresenter')
+const deviceClient = new DeviceClient()
 
 const props = defineProps<{
   block: {
@@ -74,7 +74,7 @@ const sanitizeSvgContent = async (content: string) => {
 
   try {
     // Call main process to sanitize SVG content
-    const result = await devicePresenter.sanitizeSvgContent(content)
+    const result = await deviceClient.sanitizeSvgContent(content)
     sanitizedContent.value = result || ''
 
     if (!result) {

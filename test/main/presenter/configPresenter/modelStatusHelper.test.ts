@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelStatusHelper } from '../../../../src/main/presenter/configPresenter/modelStatusHelper'
 
-const { sendToRenderer } = vi.hoisted(() => ({
-  sendToRenderer: vi.fn()
+const { send } = vi.hoisted(() => ({
+  send: vi.fn()
 }))
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
-    sendToRenderer
+    send
   },
   SendTarget: {
     ALL_WINDOWS: 'ALL_WINDOWS'
@@ -36,7 +36,7 @@ class MockElectronStore {
 
 describe('ModelStatusHelper.ensureModelStatus', () => {
   beforeEach(() => {
-    sendToRenderer.mockReset()
+    send.mockReset()
   })
 
   it('writes the default value only when no status exists yet', () => {
@@ -49,7 +49,7 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     helper.ensureModelStatus('ollama', 'qwen3:8b', true)
 
     expect(helper.getModelStatus('ollama', 'qwen3:8b')).toBe(true)
-    expect(sendToRenderer).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
   })
 
   it('preserves an explicit user choice when ensureModelStatus runs later', () => {
@@ -63,6 +63,6 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     helper.ensureModelStatus('ollama', 'deepseek-r1:1.5b', true)
 
     expect(helper.getModelStatus('ollama', 'deepseek-r1:1.5b')).toBe(false)
-    expect(sendToRenderer).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledTimes(1)
   })
 })

@@ -6,7 +6,9 @@ const setupStore = async (overrides?: {
 }) => {
   vi.resetModules()
 
-  const listeners = new Map<string, Array<(...args: any[]) => void>>()
+  const defaultProjectPathListeners: Array<
+    (payload: { path: string | null; version: number }) => void
+  > = []
   const projectPresenter = {
     getRecentProjects: vi
       .fn()
@@ -17,9 +19,15 @@ const setupStore = async (overrides?: {
     openDirectory: vi.fn().mockResolvedValue(undefined),
     selectDirectory: vi.fn().mockResolvedValue(null)
   }
-  const configPresenter = {
+  const configClient = {
     getDefaultProjectPath: vi.fn().mockResolvedValue(overrides?.defaultProjectPath ?? null),
-    setDefaultProjectPath: vi.fn().mockResolvedValue(undefined)
+    setDefaultProjectPath: vi.fn().mockResolvedValue(undefined),
+    onDefaultProjectPathChanged: vi.fn(
+      (listener: (payload: { path: string | null; version: number }) => void) => {
+        defaultProjectPathListeners.push(listener)
+        return () => undefined
+      }
+    )
   }
 
   vi.doMock('pinia', async () => {
@@ -29,35 +37,34 @@ const setupStore = async (overrides?: {
       defineStore: (_id: string, setup: () => unknown) => setup
     }
   })
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) =>
-      name === 'projectPresenter' ? projectPresenter : configPresenter
+  vi.doMock('../../../src/renderer/api/ProjectClient', () => ({
+    ProjectClient: vi.fn(() => ({
+      listRecent: projectPresenter.getRecentProjects,
+      listEnvironments: projectPresenter.getEnvironments,
+      openDirectory: projectPresenter.openDirectory,
+      selectDirectory: projectPresenter.selectDirectory
+    }))
   }))
-  ;(window as any).electron = {
-    ipcRenderer: {
-      on: vi.fn((event: string, handler: (...args: any[]) => void) => {
-        const handlers = listeners.get(event) ?? []
-        handlers.push(handler)
-        listeners.set(event, handlers)
-      })
-    }
-  }
+  vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
+    ConfigClient: vi.fn(() => configClient)
+  }))
 
   const { useProjectStore } = await import('@/stores/ui/project')
-  const { CONFIG_EVENTS } = await import('@/events')
   const store = useProjectStore()
-  const emitIpc = (event: string, payload?: unknown) => {
-    for (const handler of listeners.get(event) ?? []) {
-      handler(undefined, payload)
+  const emitDefaultProjectPathChanged = (path: string | null) => {
+    for (const listener of defaultProjectPathListeners) {
+      listener({
+        path,
+        version: 1
+      })
     }
   }
 
   return {
     store,
     projectPresenter,
-    configPresenter,
-    CONFIG_EVENTS,
-    emitIpc
+    configClient,
+    emitDefaultProjectPathChanged
   }
 }
 
@@ -84,7 +91,7 @@ describe('projectStore default project handling', () => {
   })
 
   it('keeps a manual project selection when the default project changes later', async () => {
-    const { store, emitIpc, CONFIG_EVENTS } = await setupStore({
+    const { store, emitDefaultProjectPathChanged } = await setupStore({
       recentProjects: [{ path: '/work/recent', name: 'recent', icon: null }],
       defaultProjectPath: '/work/default'
     })
@@ -92,9 +99,7 @@ describe('projectStore default project handling', () => {
     await store.fetchProjects()
     store.selectProject('/work/manual')
 
-    emitIpc(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, {
-      path: '/work/changed-default'
-    })
+    emitDefaultProjectPathChanged('/work/changed-default')
 
     expect(store.defaultProjectPath.value).toBe('/work/changed-default')
     expect(store.selectedProject.value?.path).toBe('/work/manual')
@@ -106,22 +111,20 @@ describe('projectStore default project handling', () => {
   })
 
   it('updates the selected project when the default selection source is still active', async () => {
-    const { store, emitIpc, CONFIG_EVENTS } = await setupStore({
+    const { store, emitDefaultProjectPathChanged } = await setupStore({
       recentProjects: [{ path: '/work/recent', name: 'recent', icon: null }],
       defaultProjectPath: '/work/default'
     })
 
     await store.fetchProjects()
 
-    emitIpc(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, {
-      path: '/work/changed-default'
-    })
+    emitDefaultProjectPathChanged('/work/changed-default')
 
     expect(store.selectedProject.value?.path).toBe('/work/changed-default')
   })
 
   it('keeps an explicit clear selection instead of reapplying the default directory', async () => {
-    const { store, emitIpc, CONFIG_EVENTS } = await setupStore({
+    const { store, emitDefaultProjectPathChanged } = await setupStore({
       recentProjects: [{ path: '/work/recent', name: 'recent', icon: null }],
       defaultProjectPath: '/work/default'
     })
@@ -132,9 +135,7 @@ describe('projectStore default project handling', () => {
     expect(store.selectedProjectPath.value).toBeNull()
     expect(store.selectedProject.value).toBeUndefined()
 
-    emitIpc(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, {
-      path: '/work/changed-default'
-    })
+    emitDefaultProjectPathChanged('/work/changed-default')
 
     expect(store.defaultProjectPath.value).toBe('/work/changed-default')
     expect(store.selectedProjectPath.value).toBeNull()

@@ -105,10 +105,11 @@ pnpm run dev
 
 ## 项目结构
 
-- `src/main/`：Electron 主进程。Presenter 全部集中于此（window/tab/thread/config/llmProvider/mcp/knowledge/sync/浮窗/deeplink/OAuth 等）。
-- `src/preload/`：开启 contextIsolation 的 IPC 桥，只暴露白名单 API 给渲染进程。
-- `src/renderer/`：Vue 3 + Pinia 应用。业务代码在 `src/renderer/src`（components、stores、views、lib、i18n），Shell UI 在 `src/renderer/shell/`。
-- `src/shared/`：主渲染共享的类型、工具和 presenter 契约。
+- `src/main/`：Electron 主进程。Presenter、typed route handler、运行时编排与持久化 owner 都在这里（window/tab/thread/config/llmProvider/mcp/knowledge/sync/浮窗/deeplink/OAuth 等）。
+- `src/preload/`：开启 `contextIsolation` 的桥接层，对渲染进程暴露 typed `window.deepchat` API，以及极小的 legacy compatibility surface。
+- `src/renderer/`：Vue 3 + Pinia 应用。业务/UI 代码在 `src/renderer/src`（components、stores、views、lib、i18n），Shell UI 在 `src/renderer/shell/`。
+- `src/renderer/api/`：renderer-main 边界层。typed `*Client`、event subscription、命名 runtime wrapper 都应放在这里；`src/renderer/api/legacy/` 仅作为 quarantine compatibility 目录。
+- `src/shared/`：主渲染共享的 route contract、event contract、类型与工具。legacy presenter typing 仍会为 main 内部和 quarantine adapter 保留。
 - `runtime/`：随应用发布的 MCP/Agent 运行时（Node/uv）。
 - `scripts/`、`resources/`：构建、打包与资产管线。
 - `build/`、`out/`、`dist/`：构建产物（请勿直接修改）。
@@ -119,27 +120,33 @@ pnpm run dev
 
 ### 设计原则
 
-- **Presenter 模式**：系统能力集中在主进程 Presenter，通过 preload 的 `usePresenter` 类型化调用。
+- **Single-track renderer-main 边界**：新的 renderer 业务代码应通过 typed route contract、typed event contract、`src/renderer/api/*Client` 与明确命名的 runtime wrapper 接入 main，不要把 presenter naming 当作公开 API。
+- **Presenter 留在 main 内部**：Presenter 仍承载大量主进程能力，但在 active path 上它们应被 routes、events、wrapper 隔离起来；`src/renderer/api/legacy/**` 只作为 quarantine compatibility code 存在。
 - **多窗口 + 多 Tab Shell**：WindowPresenter 与 TabPresenter 管理真正的 Electron 窗口/BrowserView，可分离/移动；EventBus 负责跨进程广播。
 - **清晰数据边界**：聊天数据在 SQLite（`app_db/chat.db`），设置在 Electron Store，知识库在 DuckDB，备份由 SyncPresenter 负责；渲染进程不直接读写文件系统。
 - **工具优先运行时**：LLMProviderPresenter 统一流式处理、限流、实例管理（云/本地/ACP Agent）；MCPPresenter 启动 MCP 服务器、Router 市场和内置工具，捆绑 Node 运行时。
-- **安全与韧性**：开启 contextIsolation；文件访问经 Presenter 授权（如 ACP 需要 `registerWorkdir`）；备份/导入校验输入；限流保护避免 Provider 过载。
+- **安全与韧性**：开启 `contextIsolation`；renderer 侧 OS/文件/网络访问必须经 typed bridge 或 quarantine wrapper；备份/导入校验输入；限流保护避免 Provider 过载。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Electron Main (TS)                       │
-│  Presenters: window/tab/thread/config/llm/mcp/knowledge/    │
-│  sync/oauth/deeplink/浮窗                                   │
+│  Presenters + routes + runtime owners + persistence         │
+│  window/tab/thread/config/llm/mcp/knowledge/sync/...        │
 │  存储: SQLite chat.db, ElectronStore, 备份                  │
 └───────────────┬─────────────────────────────────────────────┘
-                │ IPC (contextBridge + EventBus)
+                │ typed routes/events + limited legacy IPC
 ┌───────────────▼─────────────────────────────────────────────┐
-│                    Preload (strict API)                     │
+│       Preload（`window.deepchat` + compat whitelist）       │
 └───────────────┬─────────────────────────────────────────────┘
-                │ Typed presenters via `usePresenter`
+                │ typed client / runtime wrapper / quarantine
 ┌───────────────▼─────────────────────────────────────────────┐
-│      Renderer (Vue 3 + Pinia + Tailwind + shadcn/ui)        │
-│  Shell UI, 聊天流转, ACP 工作区, MCP 控制台, 设置           │
+│ Renderer boundary：`src/renderer/api/*Client` + wrapper     │
+│ quarantine：`src/renderer/api/legacy/**`                    │
+└───────────────┬─────────────────────────────────────────────┘
+                │
+┌───────────────▼─────────────────────────────────────────────┐
+│ Renderer business：`src/renderer/src/**`                    │
+│ Shell UI, 聊天流转, ACP 工作区, MCP 控制台, 设置            │
 └───────────────┬─────────────────────────────────────────────┘
                 │
 ┌───────────────▼─────────────────────────────────────────────┐
@@ -158,11 +165,12 @@ pnpm run dev
 
 ## 最佳实践
 
-- **渲染层勿直接用 Node API**：所有 OS/网络/文件操作经 preload Presenter；注意使用 `tabId`/`windowId` 保障多窗口安全。
+- **renderer 业务层优先使用 typed client 与 runtime wrapper**：在 `src/renderer/src/**` 中，优先走 `src/renderer/api/*Client`、typed event helper 与命名 wrapper；不要直接 import `@api/legacy/presenters`，也不要新增 presenter-name-based transport。
+- **渲染层勿直接用 Node API**：所有 OS/网络/文件操作都应经 `window.deepchat`、typed client 或命名 wrapper；注意使用 `tabId`/`windowId` 保障多窗口安全。
 - **全量 i18n**：用户可见文案放在 `src/renderer/src/i18n`，避免组件内硬编码。
 - **状态与 UI**：倾向 Pinia store 与组合式工具，保持组件尽量无状态并兼容 tab 分离；修改聊天流时留意 artifacts、variants、流式状态。
-- **LLM/MCP/ACP 变更**：尊重限流；切换 Provider 前清理活跃流；通过 eventBus 派发事件。MCP 相关改动要落盘到 `configPresenter`，并呈现 server start/stop 事件。ACP 访问文件前调用 `registerWorkdir`，会话结束需清理计划/工作区状态。
-- **数据与持久化**：会话用 `sqlitePresenter`，设置/Provider 用 `configPresenter`，备份导入用 `syncPresenter`；不要从渲染进程直接写 `appData`。
+- **LLM/MCP/ACP 变更**：尊重限流；切换 Provider 前清理活跃流；migrated path 优先补 typed event，不要再新增 raw IPC 或 presenter reflection。MCP 相关改动应通过 main-owned config/runtime 层持久化，并呈现 server start/stop 事件。ACP 访问文件前调用 `registerWorkdir`，会话结束需清理计划/工作区状态。
+- **数据与持久化**：会话/设置/Provider/备份相关修改应通过 main-owned client 或 compatibility adapter 落地；不要从渲染进程直接写 `appData` 或其他本地存储。
 - **质量门槛**：提交前运行 `pnpm run format`、`pnpm run lint`、`pnpm run typecheck` 及相关 `pnpm test*`。新增文案后跑 `pnpm run i18n` 校验 key。
 
 ## 代码风格

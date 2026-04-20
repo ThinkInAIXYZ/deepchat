@@ -1,15 +1,15 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { OLLAMA_EVENTS } from '@/events'
-import { usePresenter } from '@/composables/usePresenter'
+import { ProviderClient } from '../../api/ProviderClient'
 import type { OllamaModel } from '@shared/presenter'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 
 export const useOllamaStore = defineStore('ollama', () => {
-  const llmP = usePresenter('llmproviderPresenter')
+  const providerClient = new ProviderClient()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
+  let unsubscribeOllamaPullProgress: (() => void) | null = null
 
   const runningModels = ref<Record<string, OllamaModel[]>>({})
   const localModels = ref<Record<string, OllamaModel[]>>({})
@@ -59,12 +59,12 @@ export const useOllamaStore = defineStore('ollama', () => {
   const refreshOllamaModels = async (providerId: string): Promise<void> => {
     try {
       const [running, local] = await Promise.all([
-        llmP.listOllamaRunningModels(providerId),
-        llmP.listOllamaModels(providerId)
+        providerClient.listOllamaRunningModels(providerId),
+        providerClient.listOllamaModels(providerId)
       ])
       setRunningModels(providerId, running)
       setLocalModels(providerId, local)
-      await llmP.refreshModels(providerId)
+      await providerClient.refreshModels(providerId)
       await modelStore.refreshProviderModels(providerId)
     } catch (error) {
       console.error('Failed to refresh Ollama models for', providerId, error)
@@ -74,7 +74,7 @@ export const useOllamaStore = defineStore('ollama', () => {
   const pullOllamaModel = async (providerId: string, modelName: string) => {
     try {
       updatePullingProgress(providerId, modelName, 0)
-      const success = await llmP.pullOllamaModels(providerId, modelName)
+      const success = await providerClient.pullOllamaModels(providerId, modelName)
       if (!success) {
         updatePullingProgress(providerId, modelName)
       }
@@ -110,14 +110,18 @@ export const useOllamaStore = defineStore('ollama', () => {
   }
 
   const setupOllamaEventListeners = () => {
-    window.electron?.ipcRenderer?.on(
-      OLLAMA_EVENTS.PULL_MODEL_PROGRESS,
-      (_event: unknown, data: Record<string, unknown>) => handleOllamaModelPullEvent(data)
+    if (unsubscribeOllamaPullProgress) {
+      return
+    }
+
+    unsubscribeOllamaPullProgress = providerClient.onOllamaPullProgress((data) =>
+      handleOllamaModelPullEvent(data)
     )
   }
 
   const removeOllamaEventListeners = () => {
-    window.electron?.ipcRenderer?.removeAllListeners(OLLAMA_EVENTS.PULL_MODEL_PROGRESS)
+    unsubscribeOllamaPullProgress?.()
+    unsubscribeOllamaPullProgress = null
   }
 
   const clearOllamaProviderData = (providerId: string) => {

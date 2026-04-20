@@ -218,9 +218,11 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
+import { SettingsClient } from '@api/SettingsClient'
+import { SessionClient } from '@api/SessionClient'
+import { SkillClient } from '@api/SkillClient'
+import { ToolClient } from '@api/ToolClient'
 import type { MCPToolDefinition } from '@shared/presenter'
-import { SETTINGS_EVENTS, SKILL_EVENTS } from '@/events'
-import { usePresenter } from '@/composables/usePresenter'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
 import { useDraftStore } from '@/stores/ui/draft'
@@ -293,9 +295,10 @@ const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
-const windowPresenter = usePresenter('windowPresenter')
-const toolPresenter = usePresenter('toolPresenter')
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const settingsClient = new SettingsClient()
+const toolClient = new ToolClient()
+const sessionClient = new SessionClient()
+const skillClient = new SkillClient()
 
 const panelOpen = ref(false)
 const toolsLoading = ref(false)
@@ -303,6 +306,7 @@ const agentTools = ref<MCPToolDefinition[]>([])
 const disabledToolNames = ref<string[]>([])
 const pendingToolNames = ref<string[]>([])
 let latestLoadToken = 0
+let unsubscribeSkillSessionChanged: (() => void) | null = null
 
 const enabledServers = computed(() => mcpStore.enabledServers)
 const enabledServerCount = computed(() => mcpStore.enabledServerCount)
@@ -497,13 +501,13 @@ const loadDeepchatTools = async () => {
 
   try {
     const [toolDefinitions, persistedDisabledTools] = await Promise.all([
-      toolPresenter.getAllToolDefinitions({
+      toolClient.getAllToolDefinitions({
         chatMode: 'agent',
         conversationId: deepchatSessionId.value ?? undefined,
         agentWorkspacePath: workspacePath.value
       }),
       deepchatSessionId.value
-        ? agentSessionPresenter.getSessionDisabledAgentTools(deepchatSessionId.value)
+        ? sessionClient.getSessionDisabledAgentTools(deepchatSessionId.value)
         : Promise.resolve([...draftStore.disabledAgentTools])
     ])
 
@@ -531,17 +535,8 @@ const loadDeepchatTools = async () => {
   }
 }
 
-const navigateToMcpSettings = (windowId: number) => {
-  windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
-    routeName: 'settings-mcp'
-  })
-}
-
 const openSettings = async () => {
-  const settingsWindowId = await windowPresenter.createSettingsWindow()
-  if (settingsWindowId != null) {
-    navigateToMcpSettings(settingsWindowId)
-  }
+  await settingsClient.openSettings({ routeName: 'settings-mcp' })
   panelOpen.value = false
 }
 
@@ -554,7 +549,7 @@ const persistDisabledTools = async (nextList: string[], affectedToolNames: strin
 
   setToolsPending(affectedToolNames, true)
   try {
-    const persisted = await agentSessionPresenter.updateSessionDisabledAgentTools(
+    const persisted = await sessionClient.updateSessionDisabledAgentTools(
       deepchatSessionId.value,
       nextList
     )
@@ -629,10 +624,11 @@ const setGroupEnabled = async (group: ToolGroup, enabled: boolean) => {
   }
 }
 
-const handleSkillRuntimeChange = (
-  _event: unknown,
-  payload: { conversationId?: string | null; skills?: string[] }
-) => {
+const handleSkillRuntimeChange = (payload: {
+  conversationId?: string | null
+  skills?: string[]
+  change: 'activated' | 'deactivated'
+}) => {
   if (!isDeepchatContext.value || !deepchatSessionId.value) {
     return
   }
@@ -671,20 +667,11 @@ watch(
 )
 
 onMounted(() => {
-  if (!window.electron?.ipcRenderer) {
-    return
-  }
-
-  window.electron.ipcRenderer.on(SKILL_EVENTS.ACTIVATED, handleSkillRuntimeChange)
-  window.electron.ipcRenderer.on(SKILL_EVENTS.DEACTIVATED, handleSkillRuntimeChange)
+  unsubscribeSkillSessionChanged = skillClient.onSessionChanged(handleSkillRuntimeChange)
 })
 
 onUnmounted(() => {
-  if (!window.electron?.ipcRenderer) {
-    return
-  }
-
-  window.electron.ipcRenderer.removeListener(SKILL_EVENTS.ACTIVATED, handleSkillRuntimeChange)
-  window.electron.ipcRenderer.removeListener(SKILL_EVENTS.DEACTIVATED, handleSkillRuntimeChange)
+  unsubscribeSkillSessionChanged?.()
+  unsubscribeSkillSessionChanged = null
 })
 </script>

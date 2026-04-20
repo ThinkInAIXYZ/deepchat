@@ -51,7 +51,7 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Button } from '@shadcn/components/ui/button'
-import { usePresenter } from '@/composables/usePresenter'
+import { SettingsClient } from '@api/SettingsClient'
 import { useSkillsData } from './composables/useSkillsData'
 import SkillsPanel from './SkillsPanel.vue'
 
@@ -60,7 +60,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const windowPresenter = usePresenter('windowPresenter')
+const settingsClient = new SettingsClient()
 
 // Panel open state
 const panelOpen = ref(false)
@@ -77,10 +77,7 @@ const handleToggle = async (skillName: string) => {
 
 // Open settings page at Skills section
 const openSettings = () => {
-  const windowId = window.api.getWindowId()
-  if (windowId != null) {
-    void windowPresenter.openOrFocusSettingsWindow()
-  }
+  void settingsClient.openSettings({ routeName: 'settings-skills' })
   panelOpen.value = false
 }
 

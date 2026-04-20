@@ -1,0 +1,75 @@
+{
+  "program": "main-kernel-refactor",
+  "generatedOn": "2026-04-20",
+  "currentPhase": "P5",
+  "metrics": {
+    "renderer.usePresenter.count": 1,
+    "renderer.business.usePresenter.count": 0,
+    "renderer.quarantine.usePresenter.count": 1,
+    "renderer.windowElectron.count": 2,
+    "renderer.business.windowElectron.count": 0,
+    "renderer.quarantine.windowElectron.count": 2,
+    "renderer.windowApi.count": 2,
+    "renderer.business.windowApi.count": 0,
+    "renderer.quarantine.windowApi.count": 2,
+    "renderer.quarantine.sourceFile.count": 3,
+    "hotpath.presenterEdge.count": 10,
+    "runtime.rawTimer.count": 122,
+    "migrated.rawChannel.count": 4,
+    "bridge.active.count": 0,
+    "bridge.expired.count": 0
+  },
+  "phaseGates": [
+    {
+      "phase": "P0",
+      "indicator": "Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics",
+      "current": "`src/renderer/api/legacy/**` exists; split metrics emitted",
+      "status": "ready"
+    },
+    {
+      "phase": "P1",
+      "indicator": "Business layer direct legacy presenter helper / `window.electron` / `window.api` counts must reach `0`",
+      "current": "legacyPresenter=0, window.electron=0, window.api=0",
+      "status": "ready"
+    },
+    {
+      "phase": "P2",
+      "indicator": "Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0`",
+      "current": "configPresenter=0, llmproviderPresenter=0",
+      "status": "ready"
+    },
+    {
+      "phase": "P3",
+      "indicator": "Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0`",
+      "current": "window=0, device=0, workspace=0, project=0, file=0, browser=0, tab=0",
+      "status": "ready"
+    },
+    {
+      "phase": "P4",
+      "indicator": "Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0`",
+      "current": "agentSession=0, skill=0, mcp=0, sync=0, upgrade=0, dialog=0, tool=0",
+      "status": "ready"
+    },
+    {
+      "phase": "P5",
+      "indicator": "Business layer direct legacy access must be `0`, and quarantine source files must satisfy the exit standard (`<= 3` source files)",
+      "current": "businessLegacy=0/0/0, quarantineSourceFiles=3/3",
+      "status": "ready"
+    }
+  ],
+  "hotPathEdges": [
+    "src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/agentSessionPresenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts",
+    "src/main/presenter/index.ts -> src/main/presenter/agentSessionPresenter/index.ts",
+    "src/main/presenter/index.ts -> src/main/presenter/llmProviderPresenter/index.ts",
+    "src/main/presenter/index.ts -> src/main/presenter/sessionPresenter/index.ts",
+    "src/main/presenter/llmProviderPresenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/sessionPresenter/index.ts -> src/main/eventbus.ts",
+    "src/main/presenter/sessionPresenter/index.ts -> src/main/presenter/index.ts"
+  ],
+  "migratedRawChannels": {
+    "src/main/presenter/windowPresenter/index.ts": 4
+  }
+}

@@ -53,10 +53,10 @@ const setup = async (props: Record<string, unknown> = {}) => {
     })
   }))
 
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => ({
+  vi.doMock('@api/SessionClient', () => ({
+    SessionClient: vi.fn(() => ({
       getSearchResults: getSearchResultsMock
-    })
+    }))
   }))
 
   vi.doMock('@/components/markdown/useMarkdownLinkNavigation', () => ({

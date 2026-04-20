@@ -1205,7 +1205,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
-import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter, useLegacyRemoteControlPresenter } from '@api/legacy/presenters'
 import { useToast } from '@/components/use-toast'
 import type { Agent } from '@shared/types/agent-interface'
 import type {
@@ -1283,8 +1283,8 @@ const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
   }
 ]
 
-const remoteControlPresenter = useRemoteControlPresenter()
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const remoteControlPresenter = useLegacyRemoteControlPresenter()
+const agentSessionPresenter = useLegacyPresenter('agentSessionPresenter')
 const { t } = useI18n()
 const { toast } = useToast()
 

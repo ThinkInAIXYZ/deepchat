@@ -138,6 +138,10 @@ const setup = async (options: SetupOptions = {}) => {
     editUserMessage: vi.fn().mockResolvedValue(undefined),
     forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
   }
+  const chatClient = {
+    stopStream: vi.fn().mockResolvedValue({ stopped: true }),
+    respondToolInteraction: vi.fn().mockResolvedValue({ accepted: true })
+  }
 
   const spotlightStore = reactive({
     pendingMessageJump: options.spotlightPendingJump ?? null,
@@ -158,8 +162,11 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => agentSessionPresenter
+  vi.doMock('@api/legacy/presenters', () => ({
+    useLegacyPresenter: () => agentSessionPresenter
+  }))
+  vi.doMock('../../../src/renderer/api/ChatClient', () => ({
+    ChatClient: vi.fn(() => chatClient)
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
@@ -276,7 +283,9 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/components/chat/ChatToolInteractionOverlay.vue', () => ({
     default: defineComponent({
       name: 'ChatToolInteractionOverlay',
-      template: '<div class="chat-tool-interaction-overlay-stub" />'
+      emits: ['respond'],
+      template:
+        '<button class="chat-tool-interaction-overlay-stub" @click="$emit(\'respond\', { kind: \'permission\', granted: true })" />'
     })
   }))
   vi.doMock('@/components/chat/ChatSearchBar.vue', () => ({
@@ -322,6 +331,8 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
+    agentSessionPresenter,
+    chatClient,
     messageStore,
     pendingInputStore,
     spotlightStore
@@ -462,6 +473,44 @@ describe('ChatPage', () => {
     expect(html.indexOf('chat-tool-interaction-overlay-stub')).toBeLessThan(
       html.indexOf('pending-input-lane-stub')
     )
+  })
+
+  it('routes tool interaction responses through ChatClient and refreshes messages', async () => {
+    const { wrapper, chatClient, agentSessionPresenter, messageStore } = await setup({
+      messages: [
+        buildAssistantMessage([
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: {
+              id: 'tool-1',
+              name: 'write_file'
+            },
+            extra: {
+              permissionRequest:
+                '{"permissionType":"write","serverName":"agent-filesystem","toolName":"write_file"}'
+            }
+          }
+        ])
+      ]
+    })
+
+    await wrapper.find('.chat-tool-interaction-overlay-stub').trigger('click')
+    await flushPromises()
+
+    expect(chatClient.respondToolInteraction).toHaveBeenCalledWith({
+      sessionId: 's1',
+      messageId: 'm1',
+      toolCallId: 'tool-1',
+      response: {
+        kind: 'permission',
+        granted: true
+      }
+    })
+    expect(agentSessionPresenter.respondToolInteraction).not.toHaveBeenCalled()
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
   })
 
   it('renders pending lane above the input box when no tool interaction is active', async () => {

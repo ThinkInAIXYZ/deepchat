@@ -24,6 +24,7 @@ import {
 } from '@shared/types/skill'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SKILL_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import logger from '@shared/logger'
 import { normalizeSkillAllowedTools } from './toolNameMapping'
 
@@ -317,6 +318,11 @@ export class SkillPresenter implements ISkillPresenter {
       )
     })
     eventBus.sendToRenderer(SKILL_EVENTS.DISCOVERED, SendTarget.ALL_WINDOWS, skills)
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'discovered',
+      skills,
+      version: Date.now()
+    })
 
     return skills
   }
@@ -1008,6 +1014,11 @@ export class SkillPresenter implements ISkillPresenter {
       }
 
       eventBus.sendToRenderer(SKILL_EVENTS.INSTALLED, SendTarget.ALL_WINDOWS, { name: skillName })
+      publishDeepchatEvent('skills.catalog.changed', {
+        reason: 'installed',
+        name: skillName,
+        version: Date.now()
+      })
 
       return { success: true, skillName }
     } catch (error) {
@@ -1172,6 +1183,11 @@ export class SkillPresenter implements ISkillPresenter {
       this.deleteSkillExtension(name)
 
       eventBus.sendToRenderer(SKILL_EVENTS.UNINSTALLED, SendTarget.ALL_WINDOWS, { name })
+      publishDeepchatEvent('skills.catalog.changed', {
+        reason: 'uninstalled',
+        name,
+        version: Date.now()
+      })
 
       return { success: true, skillName: name }
     } catch (error) {
@@ -1501,12 +1517,24 @@ export class SkillPresenter implements ISkillPresenter {
           conversationId,
           skills: activated
         })
+        publishDeepchatEvent('skills.session.changed', {
+          conversationId,
+          skills: activated,
+          change: 'activated',
+          version: Date.now()
+        })
       }
 
       if (deactivated.length > 0) {
         eventBus.sendToRenderer(SKILL_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
           conversationId,
           skills: deactivated
+        })
+        publishDeepchatEvent('skills.session.changed', {
+          conversationId,
+          skills: deactivated,
+          change: 'deactivated',
+          version: Date.now()
         })
       }
 
@@ -1612,6 +1640,12 @@ export class SkillPresenter implements ISkillPresenter {
           }
           this.metadataCache.set(metadata.name, metadata)
           eventBus.sendToRenderer(SKILL_EVENTS.METADATA_UPDATED, SendTarget.ALL_WINDOWS, metadata)
+          publishDeepchatEvent('skills.catalog.changed', {
+            reason: 'metadata-updated',
+            name: metadata.name,
+            skill: metadata,
+            version: Date.now()
+          })
         }
       }
     })
@@ -1640,6 +1674,12 @@ export class SkillPresenter implements ISkillPresenter {
           eventBus.sendToRenderer(SKILL_EVENTS.INSTALLED, SendTarget.ALL_WINDOWS, {
             name: metadata.name
           })
+          publishDeepchatEvent('skills.catalog.changed', {
+            reason: 'installed',
+            name: metadata.name,
+            skill: metadata,
+            version: Date.now()
+          })
         }
       }
     })
@@ -1652,6 +1692,11 @@ export class SkillPresenter implements ISkillPresenter {
         this.contentCache.delete(skillName)
         eventBus.sendToRenderer(SKILL_EVENTS.UNINSTALLED, SendTarget.ALL_WINDOWS, {
           name: skillName
+        })
+        publishDeepchatEvent('skills.catalog.changed', {
+          reason: 'uninstalled',
+          name: skillName,
+          version: Date.now()
         })
       }
     })

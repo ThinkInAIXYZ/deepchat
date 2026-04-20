@@ -32,23 +32,36 @@ const createSession = (overrides: Record<string, unknown> = {}) => ({
 
 const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.resetModules()
+  const sessionListeners: Array<(payload: any) => void> = []
+  const sessionStatusListeners: Array<(payload: any) => void> = []
 
-  const agentSessionPresenter = {
-    getSessionList: vi.fn().mockResolvedValue([]),
-    getActiveSession: vi.fn().mockResolvedValue(null),
-    createSession: vi.fn(),
-    activateSession: vi.fn(),
-    deactivateSession: vi.fn(),
-    sendMessage: vi.fn(),
-    renameSession: vi.fn(),
-    toggleSessionPinned: vi.fn(),
-    clearSessionMessages: vi.fn(),
-    exportSession: vi.fn(),
-    deleteSession: vi.fn()
+  const sessionClient = {
+    list: vi.fn().mockResolvedValue({ sessions: [] }),
+    getActive: vi.fn().mockResolvedValue({ session: null }),
+    create: vi.fn().mockResolvedValue({
+      session: createSession()
+    }),
+    activate: vi.fn().mockResolvedValue({ activated: true }),
+    deactivate: vi.fn().mockResolvedValue({ deactivated: true }),
+    onUpdated: vi.fn((listener: (payload: any) => void) => {
+      sessionListeners.push(listener)
+      return () => undefined
+    }),
+    onStatusChanged: vi.fn((listener: (payload: any) => void) => {
+      sessionStatusListeners.push(listener)
+      return () => undefined
+    })
   }
-  const tabPresenter = {
-    onRendererTabReady: vi.fn(),
-    onRendererTabActivated: vi.fn()
+  const chatClient = {
+    sendMessage: vi.fn().mockResolvedValue({
+      accepted: true,
+      requestId: null,
+      messageId: null
+    })
+  }
+  const tabClient = {
+    notifyRendererReady: vi.fn().mockResolvedValue(undefined),
+    notifyRendererActivated: vi.fn().mockResolvedValue(undefined)
   }
   const pageRouter = {
     goToChat: vi.fn(),
@@ -68,7 +81,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     })
   })
   const settings = { ...(options.initialSettings ?? {}) }
-  const configPresenter = {
+  const configClient = {
     getSetting: vi.fn(async <T>(key: string) => {
       if (options.failGetSetting) {
         throw new Error('failed to read setting')
@@ -82,8 +95,6 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       settings[key] = value
     })
   }
-  const listeners = new Map<string, Array<(...args: any[]) => void>>()
-
   vi.doMock('pinia', async () => {
     const actual = await vi.importActual<typeof import('pinia')>('pinia')
     return {
@@ -92,12 +103,17 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     }
   })
 
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'tabPresenter') return tabPresenter
-      if (name === 'configPresenter') return configPresenter
-      return agentSessionPresenter
-    }
+  vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
+    ConfigClient: vi.fn(() => configClient)
+  }))
+  vi.doMock('../../../src/renderer/api/SessionClient', () => ({
+    SessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('../../../src/renderer/api/ChatClient', () => ({
+    ChatClient: vi.fn(() => chatClient)
+  }))
+  vi.doMock('@api/TabClient', () => ({
+    TabClient: vi.fn(() => tabClient)
   }))
 
   vi.doMock('@/stores/ui/pageRouter', () => ({
@@ -107,44 +123,42 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     useAgentStore: () => agentStore
   }))
   const clearStreamingState = vi.fn()
+  const setCurrentSessionId = vi.fn()
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => ({
       clearStreamingState,
-      loadMessages: vi.fn()
+      loadMessages: vi.fn(),
+      setCurrentSessionId
     })
   }))
-  ;(window as any).electron = {
-    ipcRenderer: {
-      on: vi.fn((event: string, handler: (...args: any[]) => void) => {
-        const handlers = listeners.get(event) ?? []
-        handlers.push(handler)
-        listeners.set(event, handlers)
-      }),
-      removeListener: vi.fn()
-    }
-  }
   ;(window as any).api = {
     getWebContentsId: vi.fn(() => 1)
   }
 
   const { useSessionStore } = await import('@/stores/ui/session')
-  const { SESSION_EVENTS } = await import('@/events')
   const store = useSessionStore()
-  const emitIpc = (event: string, payload?: unknown) => {
-    for (const handler of listeners.get(event) ?? []) {
-      handler(undefined, payload)
+  const emitSessionUpdate = (payload: unknown) => {
+    for (const handler of sessionListeners) {
+      handler(payload)
+    }
+  }
+  const emitSessionStatusChange = (payload: unknown) => {
+    for (const handler of sessionStatusListeners) {
+      handler(payload)
     }
   }
   return {
     store,
     settings,
-    configPresenter,
+    configClient,
     clearStreamingState,
-    agentSessionPresenter,
+    setCurrentSessionId,
+    sessionClient,
+    chatClient,
     agentStore,
     pageRouter,
-    emitIpc,
-    SESSION_EVENTS
+    emitSessionUpdate,
+    emitSessionStatusChange
   }
 }
 
@@ -343,18 +357,18 @@ describe('sessionStore group mode preferences', () => {
   })
 
   it('persists toggled group mode changes', async () => {
-    const { store, settings, configPresenter } = await setupStore()
+    const { store, settings, configClient } = await setupStore()
 
     await store.fetchSessions()
     await store.toggleGroupMode()
 
     expect(store.groupMode.value).toBe('time')
-    expect(configPresenter.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
+    expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
     expect(settings[SIDEBAR_GROUP_MODE_KEY]).toBe('time')
   })
 
   it('rolls back the group mode when persistence fails', async () => {
-    const { store, configPresenter } = await setupStore({
+    const { store, configClient } = await setupStore({
       failSetSetting: true
     })
 
@@ -362,15 +376,15 @@ describe('sessionStore group mode preferences', () => {
     await store.toggleGroupMode()
 
     expect(store.groupMode.value).toBe('project')
-    expect(configPresenter.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
+    expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
   })
 
   it('serializes concurrent group mode writes and persists the last toggle', async () => {
-    const { store, settings, configPresenter } = await setupStore()
+    const { store, settings, configClient } = await setupStore()
     const pendingResolvers: Array<() => void> = []
 
     await store.fetchSessions()
-    configPresenter.setSetting.mockImplementation(async <T>(key: string, value: T) => {
+    configClient.setSetting.mockImplementation(async <T>(key: string, value: T) => {
       await new Promise<void>((resolve) => {
         pendingResolvers.push(() => {
           settings[key] = value
@@ -385,12 +399,12 @@ describe('sessionStore group mode preferences', () => {
     await Promise.resolve()
 
     expect(store.groupMode.value).toBe('project')
-    expect(configPresenter.setSetting).toHaveBeenCalledTimes(1)
+    expect(configClient.setSetting).toHaveBeenCalledTimes(1)
 
     pendingResolvers.shift()?.()
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(configPresenter.setSetting).toHaveBeenCalledTimes(2)
+    expect(configClient.setSetting).toHaveBeenCalledTimes(2)
 
     pendingResolvers.shift()?.()
     await Promise.all([firstToggle, secondToggle])
@@ -401,7 +415,7 @@ describe('sessionStore group mode preferences', () => {
 
 describe('sessionStore.startNewConversation', () => {
   it('selects the first enabled agent from the all-agents welcome state', async () => {
-    const { store, agentStore, pageRouter, agentSessionPresenter } = await setupStore({
+    const { store, agentStore, pageRouter, sessionClient } = await setupStore({
       selectedAgentId: null,
       enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
     })
@@ -409,12 +423,12 @@ describe('sessionStore.startNewConversation', () => {
     await store.startNewConversation({ refresh: true })
 
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('deepchat')
-    expect(agentSessionPresenter.deactivateSession).not.toHaveBeenCalled()
+    expect(sessionClient.deactivate).not.toHaveBeenCalled()
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
   })
 
   it('keeps the active session agent when all agents is selected during a chat', async () => {
-    const { store, agentStore, pageRouter, agentSessionPresenter } = await setupStore({
+    const { store, agentStore, pageRouter, sessionClient } = await setupStore({
       selectedAgentId: null,
       enabledAgents: []
     })
@@ -425,13 +439,13 @@ describe('sessionStore.startNewConversation', () => {
     await store.startNewConversation({ refresh: true })
 
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
-    expect(agentSessionPresenter.deactivateSession).toHaveBeenCalledWith(1)
+    expect(sessionClient.deactivate).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBeNull()
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
   })
 
   it('preserves the selected agent when one is already chosen', async () => {
-    const { store, agentStore, pageRouter, agentSessionPresenter } = await setupStore({
+    const { store, agentStore, pageRouter, sessionClient } = await setupStore({
       selectedAgentId: 'acp-a',
       enabledAgents: [{ id: 'acp-a', type: 'acp' }]
     })
@@ -439,61 +453,70 @@ describe('sessionStore.startNewConversation', () => {
     await store.startNewConversation({ refresh: true })
 
     expect(agentStore.setSelectedAgent).not.toHaveBeenCalled()
-    expect(agentSessionPresenter.deactivateSession).not.toHaveBeenCalled()
+    expect(sessionClient.deactivate).not.toHaveBeenCalled()
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
   })
 })
 
 describe('sessionStore streaming cleanup', () => {
   it('clears streaming state when switching active session', async () => {
-    const { store, clearStreamingState, agentSessionPresenter, agentStore } = await setupStore({
-      selectedAgentId: 'deepchat'
-    })
+    const { store, clearStreamingState, setCurrentSessionId, sessionClient, agentStore } =
+      await setupStore({
+        selectedAgentId: 'deepchat'
+      })
     store.activeSessionId.value = 'session-a'
     store.sessions.value = [createSession({ id: 'session-b', agentId: 'acp-a' })]
 
     await store.selectSession('session-b')
 
-    expect(agentSessionPresenter.activateSession).toHaveBeenCalledWith(1, 'session-b')
+    expect(sessionClient.activate).toHaveBeenCalledWith('session-b')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
+    expect(setCurrentSessionId).toHaveBeenCalledWith('session-b')
   })
 
-  it('syncs active session and selected agent from presenter when fetching sessions', async () => {
-    const { store, agentSessionPresenter, agentStore } = await setupStore({
+  it('syncs active session and selected agent from SessionClient when fetching sessions', async () => {
+    const { store, sessionClient, setCurrentSessionId, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
     })
-    agentSessionPresenter.getSessionList.mockResolvedValueOnce([
-      {
-        id: 'session-sync-1',
-        title: 'Session Sync',
-        agentId: 'acp-sync',
-        status: 'idle',
-        projectDir: null,
-        providerId: 'acp',
-        modelId: 'acp-sync',
-        isPinned: false,
-        isDraft: false,
-        createdAt: 1,
-        updatedAt: 2
+    sessionClient.list.mockResolvedValueOnce({
+      sessions: [
+        {
+          id: 'session-sync-1',
+          title: 'Session Sync',
+          agentId: 'acp-sync',
+          status: 'idle',
+          projectDir: null,
+          providerId: 'acp',
+          modelId: 'acp-sync',
+          isPinned: false,
+          isDraft: false,
+          createdAt: 1,
+          updatedAt: 2
+        }
+      ]
+    })
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: {
+        id: 'session-sync-1'
       }
-    ])
-    agentSessionPresenter.getActiveSession.mockResolvedValueOnce({
-      id: 'session-sync-1'
     })
 
     await store.fetchSessions()
 
-    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(1)
+    expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBe('session-sync-1')
+    expect(setCurrentSessionId).toHaveBeenCalledWith('session-sync-1')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-sync')
   })
 
   it('clears streaming when fetch detects active session switch', async () => {
-    const { store, clearStreamingState, agentSessionPresenter } = await setupStore()
+    const { store, clearStreamingState, sessionClient } = await setupStore()
     store.activeSessionId.value = 'session-a'
-    agentSessionPresenter.getActiveSession.mockResolvedValueOnce({
-      id: 'session-b'
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: {
+        id: 'session-b'
+      }
     })
 
     await store.fetchSessions()
@@ -503,41 +526,70 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('returns to new thread when active session becomes unavailable', async () => {
-    const { store, clearStreamingState, agentSessionPresenter, pageRouter } = await setupStore()
+    const { store, clearStreamingState, setCurrentSessionId, sessionClient, pageRouter } =
+      await setupStore()
     store.activeSessionId.value = 'session-a'
     pageRouter.currentRoute = 'chat'
-    agentSessionPresenter.getActiveSession.mockResolvedValueOnce(null)
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: null
+    })
 
     await store.fetchSessions()
 
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBeNull()
+    expect(setCurrentSessionId).toHaveBeenCalledWith(null)
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
   })
 
   it('reloads sessions when the session list update event fires', async () => {
-    const { agentSessionPresenter, emitIpc, SESSION_EVENTS } = await setupStore()
+    const { sessionClient, emitSessionUpdate } = await setupStore()
 
-    emitIpc(SESSION_EVENTS.LIST_UPDATED)
+    emitSessionUpdate({
+      sessionIds: [],
+      reason: 'list-refreshed'
+    })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(agentSessionPresenter.getSessionList).toHaveBeenCalledTimes(1)
-    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledTimes(1)
+    expect(sessionClient.list).toHaveBeenCalledTimes(1)
+    expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
   })
 
   it('routes to chat and syncs the selected agent on external session activation', async () => {
-    const { store, pageRouter, emitIpc, SESSION_EVENTS, agentStore } = await setupStore({
+    const { store, pageRouter, emitSessionUpdate, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
     })
     store.sessions.value = [createSession({ id: 'session-external', agentId: 'agent-b' })]
 
-    emitIpc(SESSION_EVENTS.ACTIVATED, {
+    emitSessionUpdate({
+      sessionIds: ['session-external'],
+      reason: 'activated',
       webContentsId: 1,
-      sessionId: 'session-external'
+      activeSessionId: 'session-external'
     })
 
     expect(store.activeSessionId.value).toBe('session-external')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('agent-b')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
+  })
+
+  it('updates the local session status immediately from the session status event', async () => {
+    const { store, emitSessionStatusChange } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
+    store.activeSessionId.value = 'session-status'
+
+    emitSessionStatusChange({
+      sessionId: 'session-status',
+      status: 'generating'
+    })
+
+    expect(store.activeSession.value?.status).toBe('working')
+
+    emitSessionStatusChange({
+      sessionId: 'session-status',
+      status: 'idle'
+    })
+
+    expect(store.activeSession.value?.status).toBe('none')
   })
 })

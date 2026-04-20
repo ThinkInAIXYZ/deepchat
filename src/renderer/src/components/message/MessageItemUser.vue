@@ -110,7 +110,8 @@ import ChatAttachmentItem from '../chat/ChatAttachmentItem.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { DeviceClient } from '@api/DeviceClient'
+import { WindowClient } from '@api/WindowClient'
 import { computed, ref, watch, nextTick } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
@@ -146,7 +147,8 @@ const getVisibleMessageText = (message: DisplayUserMessage) => {
   return message.content.text || ''
 }
 
-const windowPresenter = usePresenter('windowPresenter')
+const deviceClient = new DeviceClient()
+const windowClient = new WindowClient()
 const { t } = useI18n()
 
 const props = defineProps<{
@@ -179,7 +181,7 @@ const emit = defineEmits<{
 }>()
 
 const previewFile = (filePath: string) => {
-  windowPresenter.previewFile(filePath)
+  void windowClient.previewFile(filePath)
 }
 
 const toggleExpanded = () => {
@@ -260,7 +262,7 @@ const handleAction = (action: 'delete' | 'copy') => {
     }
     emit('delete', props.message.id)
   } else if (action === 'copy') {
-    window.api.copyText(getCopyText())
+    deviceClient.copyText(getCopyText())
   }
 }
 

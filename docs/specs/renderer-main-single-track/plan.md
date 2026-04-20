@@ -1,0 +1,468 @@
+# Renderer-Main Single Track Plan
+
+## Planning Goal
+
+本计划解决的是一个非常具体的问题：
+
+`main kernel refactor` 已经把 renderer-main 主边界做成了可迁移、可测试、可扩展的 typed path，
+但 renderer 业务层还没有真正切到单轨。
+
+因此，这一轮计划的目标不是继续“重构 main”，而是：
+
+- 先把 renderer 业务层的 transport 心智模型收成一条
+- 再按 capability family 分批迁掉剩余 legacy 调用
+- 最后用 guard + docs + merge gate 固化规则
+
+## Baseline Snapshot
+
+以下基线来自 `2026-04-20` 当前仓库扫描：
+
+| Metric | Value | Meaning |
+| --- | --- | --- |
+| `renderer.usePresenter.count` | `86` | 业务代码仍直接知道 presenter naming |
+| `renderer.windowElectron.count` | `95` | 业务代码仍直接知道 Electron IPC |
+| `renderer.windowApi.count` | `33` | 业务代码仍直接知道 legacy preload multi-entry |
+| `hotpath.presenterEdge.count` | `10` | main hot path 已明显收口，但 renderer 入口仍不单轨 |
+| `bridge.active.count` | `0` | `main kernel refactor` 已经没有过渡 bridge 残留 |
+
+这说明当前分支的主要风险已经不在 main hot path，而在 renderer 开发入口仍然模糊。
+
+说明：`renderer.usePresenter.count` 保留旧 metric id，用于连续追踪当前
+legacy presenter helper 的剩余触点。
+
+## Current Presenter Hotspots
+
+按 `useLegacyPresenter()` 名称分布，当前主要热点为：
+
+| Legacy Surface | Current Hits | Target Single-Track Surface | Priority |
+| --- | --- | --- | --- |
+| `configPresenter` | `26` | 扩展 `SettingsClient`，并补 `ConfigClient` / provider-model typed contracts | P2 |
+| `agentSessionPresenter` | `13` | 扩展 `SessionClient` 覆盖 session action / pending-input / export 等能力 | P4 |
+| `windowPresenter` | `9` | `WindowClient` + typed window/system events | P3 |
+| `devicePresenter` | `8` | `DeviceClient` + runtime wrappers | P3 |
+| `workspacePresenter` | `5` | `WorkspaceClient` | P3 |
+| `llmproviderPresenter` | `4` | 扩展 `ProviderClient` 或补 `ModelClient` | P2 / P4 |
+| `skillPresenter` | `4` | `SkillClient` | P4 |
+| `filePresenter` | `2` | `FileClient` | P3 |
+| `mcpPresenter` | `2` | `McpClient` + typed events | P4 |
+| `projectPresenter` | `2` | `ProjectClient` | P3 |
+| `tabPresenter` | `2` | `TabClient` 或并入 window runtime layer | P3 |
+| `yoBrowserPresenter` | `2` | `BrowserClient` | P3 |
+| others | `1` each | 对应 typed client / runtime wrapper | P4 |
+
+这决定了迁移顺序不应该是“86 个点逐个改”，而应该按 capability family 收口。
+
+## Handoff Decision
+
+本计划的关键决策如下：
+
+### 1. Merge Gate Before Branch Merge
+
+当前双轨状态不作为最终可合并状态。
+
+合并前必须先完成 renderer 业务层单轨化，而不是把“后面继续慢慢迁”当作默认路径。
+
+### 2. `useLegacyPresenter()` Downgraded To Internal Compatibility Utility
+
+`useLegacyPresenter()` 不再是新功能入口。
+
+在计划完成前，它最多只能存在于 quarantine adapter 内部，不能再被 `src/renderer/src/**` 业务模块直接 import。
+
+### 3. Business Layer Must Not See Raw Electron IPC
+
+`window.electron` 和 `window.api` 只能存在于极少数 bridge / runtime wrapper。
+
+业务模块只允许看到：
+
+- typed client
+- typed event subscription helper
+- 明确命名的 runtime service
+
+### 4. No Mixed Transport Per Module
+
+如果某个模块已经开始用 typed client，就不能再保留 presenter / raw IPC 调用。
+
+允许短期 mixed mode 的唯一位置，是显式 quarantine adapter。
+
+## Target State
+
+目标态如下：
+
+```text
+renderer component / store / page / composable
+  -> domain-level client or runtime wrapper
+  -> src/renderer/api/*Client
+  -> window.deepchat
+  -> shared/contracts/routes + shared/contracts/events
+  -> src/main/routes/*
+  -> hot path ports / presenters / runtime internals
+```
+
+legacy transport 的唯一允许形态：
+
+```text
+temporary quarantine adapter
+  -> useLegacyPresenter() or raw window.electron / window.api
+```
+
+并且 quarantine adapter 不允许被视为“长期公共 API”。
+
+## Allowed Public Surfaces
+
+计划完成后，renderer 对 main 的公开入口只允许是：
+
+- `src/renderer/api/*Client`
+- typed event subscription API
+- 明确命名的 runtime wrapper，例如 window context / device context / shell integration wrapper
+
+以下实现细节只能留在 wrapper / adapter 层：
+
+- `window.deepchat`
+- `window.electron`
+- `window.api`
+- presenter reflection transport
+
+## Forbidden Surfaces
+
+以下行为在本计划中视为禁止：
+
+1. 在 `src/renderer/src/**` 新增 `useLegacyPresenter()` import
+2. 在 `src/renderer/src/**` 新增 `window.electron.*`
+3. 在 `src/renderer/src/**` 新增 `window.api.*`
+4. 在同一个业务模块内混用 typed client 与 legacy transport
+5. 用新的 generic helper 再包一层 presenter reflection，表面看像 typed helper，实质仍走旧协议
+
+## Quarantine Model
+
+为了避免“一边迁，一边到处混用”，本计划要求先建立 quarantine 规则：
+
+- 业务层：`src/renderer/src/**`
+- typed boundary 层：`src/renderer/api/**`
+- temporary quarantine 层：固定为 `src/renderer/api/legacy/**`
+
+规则：
+
+- 业务层只能 import typed boundary 层
+- quarantine 层可以暂时调用 legacy transport
+- 任何 legacy transport 都不得继续散落在业务层
+
+补充规则：
+
+- 不允许再创建第二个 quarantine 目录，例如 `compat/`、`legacy2/`、`v1/`
+- 任何 quarantine 文件都必须是 capability adapter，不允许在其中继续长业务状态管理逻辑
+- `P0` 完成前不进入 `P1`
+
+## Client Boundary Decision Rules
+
+为避免后续围绕“该扩展旧 client 还是新建 client”反复争论，本计划定义以下规则：
+
+### Rule 1: Same Capability Family, Same Owner, Same Event Domain -> Extend
+
+如果某能力同时满足：
+
+- 属于同一 capability family
+- 主要由同一 main route/service owner 承载
+- 使用同一组 typed route / typed event 契约
+
+则优先扩展现有 client。
+
+例子：
+
+- `SessionClient` 扩展 session rename / delete / export / pending-input
+- `ProviderClient` 扩展 provider query / validation / provider-level mutations
+
+### Rule 2: New Capability Family Or Different Event Semantics -> New Client
+
+如果某能力满足以下任一条件，则优先新建 client：
+
+- 与现有 client 不属于同一 capability family
+- 需要独立的 typed event contract family
+- 生命周期、权限模型或调用频率与现有 client 明显不同
+- 将其塞进现有 client 会让该 client 同时承担多个不相干 owner
+
+例子：
+
+- window/system navigation 与 provider config 不应共用同一个 client
+- workspace file tree 与 chat/session action 不应共用同一个 client
+
+### Rule 3: Config Is Not A Dumping Ground
+
+`SettingsClient` 只承载真正属于 settings/settings snapshot 的能力。
+
+如果某能力虽然历史上挂在 `configPresenter` 上，但语义上属于 provider/model/agent/workspace 域，
+应迁移到对应 domain client，而不是继续往 `SettingsClient` 塞。
+
+### Rule 4: Transport Wrapper Is Not A Client
+
+如果某模块只是为了封装 `window.deepchat` / `window.electron` / `window.api` 的调用细节，
+但没有 capability-level 语义，就应视为 runtime wrapper 或 adapter，不应伪装成 domain client。
+
+## Typed Event Ownership
+
+typed event contract 的建立不是隐含工作，而是每个 phase 的显式交付物。
+
+规则如下：
+
+- 迁移哪个 capability family，哪个 phase 就负责定义该 family 的 typed events
+- 不允许先删 raw listener，再把 typed event 留给“后面顺手补”
+- client、event contract、store subscription 改造必须同 phase 收口
+
+归属划分：
+
+| Phase | Typed Event Ownership |
+| --- | --- |
+| `P2` | config / provider / model family typed events |
+| `P3` | window / device / workspace / browser / project family typed events |
+| `P4` | session residual / skill / mcp / sync / upgrade / dialog family typed events |
+
+## Rollback / Fallback Rule
+
+如果某个 capability family 在迁移中被证明无法在当前 phase 完成 cutover：
+
+1. 不允许把半完成 mixed transport 直接留在业务模块
+2. 必须回退到：
+   - 原有单一 legacy 路径，或
+   - quarantine adapter 中的单一路径
+3. 必须在 `tasks.md` 中记录 blocked reason 和下一阶段 owner
+4. 不允许以“先保留双轨，后面再说”作为默认 fallback
+
+## Phase Map
+
+```text
+P0 Rules & Guard Hardening
+  -> P1 Transport Consolidation
+  -> P2 Config / Provider / Model Family
+  -> P3 Window / Device / Workspace Family
+  -> P4 Session Residual / MCP / Skill / Misc Family
+  -> P5 Retirement, Docs, Merge Gate
+```
+
+## Phase Details
+
+### P0: Rules & Guard Hardening
+
+目标：
+
+- 把“单轨化”从目标口号变成强约束
+- 让后续改动不能再回流到业务层 legacy transport
+
+交付物：
+
+- single-track spec / plan / tasks
+- 更新 `docs/README.md`、`docs/ARCHITECTURE.md`、`docs/spec-driven-dev.md`、`docs/guides/getting-started.md`
+- `architecture-guard` 从“防增长”升级为“业务层禁用 + quarantine 白名单”
+- baseline 报告增加 business-layer / quarantine-layer 维度
+- 固定唯一 quarantine 目录：`src/renderer/api/legacy/**`
+
+退出条件：
+
+- 新功能无法再在业务层直接新增 `useLegacyPresenter()` 或 raw IPC
+- 入口文档已经明确 single-track 规则
+- `P1` 所需的 quarantine 输出已经存在且路径固定
+
+### P1: Transport Consolidation
+
+目标：
+
+- 先把 transport helper 自己做成单轨
+- 移除“helper 名字变了，但底层还是 presenter reflection”的伪单轨
+
+交付物：
+
+- `useLegacyPresenter()` 迁入 internal compatibility transport，或降级为 quarantine-only utility
+- `src/renderer/api/legacy/` 目录实际建立并承接 legacy transport
+- `useIpcQuery` / `useIpcMutation` 改为：
+  - 面向 typed client 的 helper，或
+  - 直接退役
+- `window.api` / `window.electron` 相关 runtime access 收口到专用 wrapper
+- 业务层停止直接 import transport primitive
+
+退出条件：
+
+- `src/renderer/src/**` 不再 direct import `@api/legacy/presenters`
+- mixed transport module 被消除
+
+### P2: Config / Provider / Model Family
+
+目标：
+
+- 先清掉最大头的 `configPresenter` 系列调用
+- 把 provider / model / config 相关能力全部收成 typed client
+
+当前状态（`2026-04-20`）：
+
+- 已完成
+- `src/renderer/src/**` 中 `configPresenter` / `llmproviderPresenter` 的 P2 业务命中已清零
+- provider / model / config family 已补齐 typed contracts、typed events、typed clients，并完成相关 store / page / component 迁移
+- 相关 renderer/main 定向测试，以及 `pnpm run typecheck`、`pnpm run format`、`pnpm run i18n`、`pnpm run lint` 已通过
+- 验收补丁已对齐 `config.resolveDeepChatAgentConfig` 的 nullable agent config contract，避免 legacy persisted config 在单轨 route 出口被误拒绝
+
+交付物：
+
+- 扩展 `SettingsClient`
+- 补 `ConfigClient`、`ProviderClient`、必要时补 `ModelClient`
+- provider / model / theme / language / system prompt / floating button / shortcut 相关 typed contracts 和 typed events
+- 清理 `providerStore`、`modelStore`、`modelConfigStore`、`systemPromptStore`、`themeStore`、`languageStore`、`shortcutKey`、`floatingButton`、`agentModelStore`
+
+退出条件：
+
+- `configPresenter` 和 `llmproviderPresenter` 不再出现在 `src/renderer/src/**` 业务代码
+- provider family 的事件监听改为 typed event subscription
+
+### P3: Window / Device / Workspace Family
+
+目标：
+
+- 清掉第二批最容易让开发者“顺手继续写 raw IPC”的能力
+
+当前状态（`2026-04-20`）：
+
+- 已完成
+- 已补齐 `WindowClient`、`DeviceClient`、`WorkspaceClient`、`ProjectClient`、`FileClient`、`BrowserClient`、`TabClient`，并通过 `src/renderer/api/runtime.ts` 收口唯一 `window.api` typed runtime wrapper
+- 已补齐 window / workspace / browser family typed events，以及对应 shared route / event contracts 和 main route runtime 分发
+- `App.vue`、`AppBar.vue`、`stores/ui/project.ts`、workspace / browser / project / file / device 相关组件与 composables 已完成 cutover
+- `WelcomePage.vue` 与 `NewThreadPage.vue` 已完成 P3 范围审计：前者无需新增改动，后者仅残留 `agentSessionPresenter` 的 P4 scope 调用，不再包含 P3 family transport
+- 业务层 `windowPresenter` / `devicePresenter` / `workspacePresenter` / `projectPresenter` / `filePresenter` / `yoBrowserPresenter` / `tabPresenter` 命中已清零，`src/renderer/src/**` 中不再 direct 使用 window/window-tab 相关 raw IPC
+- P3 定向 main / renderer 自动回归，以及 `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 已通过；后续仅剩 P4 residual family 清理
+
+交付物：
+
+- `WindowClient`
+- `DeviceClient`
+- `WorkspaceClient`
+- `ProjectClient`
+- `FileClient`
+- `BrowserClient`
+- 必要时补 `TabClient` 或 window runtime adapter
+- window / device / workspace family typed events
+- 清理 `App.vue`、`AppBar.vue`、`WelcomePage.vue`、`NewThreadPage.vue`、workspace / browser / project 相关 stores 与组件
+
+退出条件：
+
+- `windowPresenter`、`devicePresenter`、`workspacePresenter`、`projectPresenter`、`filePresenter`、`yoBrowserPresenter`、`tabPresenter`
+  不再出现在业务代码
+- `src/renderer/src/**` 不再 direct 使用 window/window-tab 相关 raw IPC
+
+### P4: Session Residual / MCP / Skill / Misc Family
+
+目标：
+
+- 收掉剩余 presenter family
+- 把“已经有 typed session/chat 主路径，但残余动作还走 presenter”这种半迁移状态补齐
+
+当前状态（`2026-04-20`）：
+
+- 已完成
+- 已扩展 `SessionClient` 覆盖 rename / delete / export / pending-input / search / translate / session setting / ACP session config 等 residual 动作，并补齐 `SkillClient`、`McpClient`、`SyncClient`、`UpgradeClient`、`DialogClient`、`ToolClient`
+- 已补齐 skill / mcp / sync / upgrade / dialog / session residual family 的 typed route、typed event、main dispatcher/runtime 接线，以及 direct `sendToRenderer` 源的 typed event publish
+- `stores/ui/session.ts`、`stores/ui/pendingInput.ts`、`stores/skillsStore.ts`、`stores/mcp.ts`、`stores/mcpSampling.ts`、`stores/sync.ts`、`stores/upgrade.ts`、`stores/dialog.ts`、`stores/ollamaStore.ts` 与相关 pages/components/composables 已完成 cutover
+- 业务层 `agentSessionPresenter`、`skillPresenter`、`mcpPresenter`、`syncPresenter`、`upgradePresenter`、`dialogPresenter`、`toolPresenter` 命中已清零，P4 family raw listeners 已改为 typed event subscription
+- `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 与 P4 定向 main/renderer 自动回归已通过
+
+交付物：
+
+- 扩展 `SessionClient` 覆盖 rename / delete / export / session settings / pending input 等残余动作
+- `SkillClient`
+- `McpClient`
+- `SyncClient`
+- `UpgradeClient`
+- `DialogClient`
+- 其他低频 capability 的 typed route / typed event
+- 清理 `skillsStore`、`mcp.ts`、`mcpSampling.ts`、`sync.ts`、`upgrade.ts`、`dialog.ts`、`ollamaStore` 及相关组件
+
+退出条件：
+
+- `agentSessionPresenter`、`skillPresenter`、`mcpPresenter`、`syncPresenter`、`upgradePresenter`、
+  `dialogPresenter`、`toolPresenter` 等残余业务层调用清零
+
+### P5: Retirement, Docs, Merge Gate
+
+目标：
+
+- 从“迁移进行中”切换到“规则落地完成”
+
+当前状态（`2026-04-20`）：
+
+- 已完成
+- 旧的通用 `usePresenter()` naming 已退役；remaining legacy presenter entry 仅保留在 `src/renderer/api/legacy/presenters.ts`
+- settings compatibility surfaces 继续从 quarantine adapter import；`src/renderer/src/**` 业务层已改为通过明确命名的 runtime wrapper 使用 residual legacy capability，不再直接 import `@api/legacy/presenters`
+- `scripts/architecture-guard.mjs` 已补 `renderer-retired-legacy-entry` 与 quarantine `<= 3` source files gate，稳定阻止 shim 回流和 quarantine 膨胀
+- 未使用的 convenience exports 已从 `src/renderer/api/legacy/presenters.ts` 删除，剩余 legacy presenter helper metric 已降到 `renderer.usePresenter = renderer.quarantine.usePresenter = 1`
+- architecture baseline / scoreboard 已刷新，`P5` gate 现为 `ready`：business legacy signal `0/0/0`，quarantine source files `3/3`
+- active docs 已补充 `P5` 最终状态与 quarantine 导航入口；剩余 quarantine 仅保留 `presenters.ts`、`presenterTransport.ts`、`runtime.ts`
+
+交付物：
+
+- `useLegacyPresenter()` internal-only 或完全删除
+- `window.electron` / `window.api` 只存在于文档明确列出的 bridge / runtime wrapper
+- 刷新基线、任务状态、代码导航和 onboarding 文档
+- 最终 merge gate checklist
+
+退出条件：
+
+- 业务层 single-track 达成
+- quarantine 范围可审计且足够小，或已经清零
+- reviewer 可以不靠口头说明，只看文档和 guard 就判定合规性
+
+## Verification Strategy
+
+所有 phase 都同步执行：
+
+- guard 校验
+- baseline 报告刷新
+- typed client / typed event 单测
+- 关键 store / page 回归测试
+- 迁移 slice 的 smoke 验证
+
+重点不是“迁了多少文件”，而是：
+
+- 有没有把错误入口真正封死
+- 有没有把业务层 transport 真的收成一条
+
+## Parallel Work Policy
+
+`P0` 与 `P1` 必须串行执行。
+
+原因很简单：
+
+- `P0` 固定规则、guard 和 quarantine 目录
+- `P1` 固定 transport helper 与 quarantine 收口方式
+
+这两步没锁定之前，并行切 family 只会制造第二套约定。
+
+`P2`、`P3`、`P4` 允许并行，但只能按 capability family 并行，且必须满足：
+
+1. 每个 family 有唯一 owner
+2. 并行 PR 不得同时修改 `architecture-guard`、baseline schema、shared transport primitive
+3. 并行 PR 不得争用同一个 typed route / typed event contract 文件
+4. 每个 PR 必须声明自己负责的 capability family 和禁止触碰范围
+
+推荐并行粒度：
+
+- 一条 PR = 一个 capability family
+- 一条 PR 同时完成 routes/contracts + client + store cutover + raw listener cleanup
+
+## Final Merge Gate
+
+该分支进入主线前，至少满足：
+
+1. `src/renderer/src/**` direct legacy presenter helper import = `0`
+2. `src/renderer/src/**` direct `window.electron` access = `0`
+3. `src/renderer/src/**` direct `window.api` access = `0`
+4. `useIpcQuery` / `useIpcMutation` 不再依赖 presenter reflection
+5. active docs 已经把 typed client / typed event 写成默认路径
+6. `architecture-guard` 可以稳定阻止回退
+
+## Risk Notes
+
+- 最大风险不是迁不完，而是“表面建了 client，业务层还是继续碰 legacy transport”。
+- 第二类风险是把 single-track 做成“把 86 个点一个个改名”，却没有建立 quarantine 和 merge gate。
+- 第三类风险是过于强调一次性清零，反而不先建立 guard，导致迁移中途继续长新 legacy 点。
+
+因此，本计划的顺序是：
+
+1. 先锁规则
+2. 再锁 transport helper
+3. 再按 family 清理
+4. 最后再 merge
+

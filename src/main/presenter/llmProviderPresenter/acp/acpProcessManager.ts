@@ -17,6 +17,7 @@ import type {
   AcpConfigState,
   AcpResolvedLaunchSpec
 } from '@shared/presenter'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
 import {
   getPathEntriesFromEnv,
@@ -1077,6 +1078,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private notifyConfigOptionsReady(handle: AcpProcessHandle, conversationId?: string): void {
+    const configState = handle.configState ?? createEmptyAcpConfigState('legacy')
     eventBus.sendToRenderer(
       ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
       SendTarget.ALL_WINDOWS,
@@ -1084,9 +1086,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         conversationId: conversationId ?? handle.boundConversationId,
         agentId: handle.agentId,
         workdir: handle.workdir,
-        configState: handle.configState ?? createEmptyAcpConfigState('legacy')
+        configState
       }
     )
+    publishDeepchatEvent('sessions.acp.configOptions.ready', {
+      conversationId: conversationId ?? handle.boundConversationId ?? undefined,
+      agentId: handle.agentId,
+      workdir: handle.workdir,
+      configState,
+      version: Date.now()
+    })
   }
 
   private getScopedHandle(agentId: string, workdir?: string): AcpProcessHandle | undefined {

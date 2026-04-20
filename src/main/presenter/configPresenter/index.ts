@@ -66,6 +66,8 @@ import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from './acpRegistryConstants'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   Agent,
@@ -236,6 +238,61 @@ const getLiveLegacyModelSelection = (
   return isDeprecatedBuiltinProviderId(normalizedSelection.providerId, deprecatedProviderIds)
     ? null
     : normalizedSelection
+}
+
+const toTrackedSettingsChangePayload = (
+  key: string,
+  value: unknown
+): { changedKey: SettingsKey; value: SettingsSnapshotValues[SettingsKey] } | null => {
+  switch (key) {
+    case 'fontSizeLevel':
+      return {
+        changedKey: 'fontSizeLevel',
+        value: typeof value === 'number' ? value : 1
+      }
+    case 'fontFamily':
+      return {
+        changedKey: 'fontFamily',
+        value: typeof value === 'string' ? value : ''
+      }
+    case 'codeFontFamily':
+      return {
+        changedKey: 'codeFontFamily',
+        value: typeof value === 'string' ? value : ''
+      }
+    case 'artifactsEffectEnabled':
+      return {
+        changedKey: 'artifactsEffectEnabled',
+        value: Boolean(value)
+      }
+    case 'autoScrollEnabled':
+      return {
+        changedKey: 'autoScrollEnabled',
+        value: Boolean(value)
+      }
+    case 'contentProtectionEnabled':
+      return {
+        changedKey: 'contentProtectionEnabled',
+        value: Boolean(value)
+      }
+    case 'notificationsEnabled':
+      return {
+        changedKey: 'notificationsEnabled',
+        value: Boolean(value)
+      }
+    case 'traceDebugEnabled':
+      return {
+        changedKey: 'traceDebugEnabled',
+        value: Boolean(value)
+      }
+    case 'copyWithCotEnabled':
+      return {
+        changedKey: 'copyWithCotEnabled',
+        value: Boolean(value)
+      }
+    default:
+      return null
+  }
 }
 
 export const getAnthropicModelSelectionKeysToClear = (
@@ -1097,6 +1154,17 @@ export class ConfigPresenter implements IConfigPresenter {
       if (key === 'fontSizeLevel') {
         eventBus.sendToRenderer(CONFIG_EVENTS.FONT_SIZE_CHANGED, SendTarget.ALL_WINDOWS, value)
       }
+
+      const trackedChange = toTrackedSettingsChangePayload(key, value)
+      if (trackedChange) {
+        publishDeepchatEvent('settings.changed', {
+          changedKeys: [trackedChange.changedKey],
+          version: Date.now(),
+          values: {
+            [trackedChange.changedKey]: trackedChange.value
+          } as Partial<SettingsSnapshotValues>
+        })
+      }
     } catch (error) {
       console.error(`[Config] Failed to set setting ${key}:`, error)
     }
@@ -1369,7 +1437,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setLanguage(language: string): void {
     this.setSetting('language', language)
     // Trigger language change event (need to notify all tabs)
-    eventBus.sendToRenderer(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
+    eventBus.send(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
 
     try {
       presenter.floatingButtonPresenter.refreshLanguage()
@@ -1581,8 +1649,16 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   setAutoCompactionEnabled(enabled: boolean): void {
+    const nextValue = Boolean(enabled)
     this.updateBuiltinDeepChatConfig({
-      autoCompactionEnabled: Boolean(enabled)
+      autoCompactionEnabled: nextValue
+    })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionEnabled'],
+      version: Date.now(),
+      values: {
+        autoCompactionEnabled: nextValue
+      }
     })
   }
 
@@ -1597,6 +1673,13 @@ export class ConfigPresenter implements IConfigPresenter {
     this.updateBuiltinDeepChatConfig({
       autoCompactionTriggerThreshold: threshold
     })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionTriggerThreshold'],
+      version: Date.now(),
+      values: {
+        autoCompactionTriggerThreshold: this.getAutoCompactionTriggerThreshold()
+      }
+    })
   }
 
   getAutoCompactionRetainRecentPairs(): number {
@@ -1609,6 +1692,13 @@ export class ConfigPresenter implements IConfigPresenter {
   setAutoCompactionRetainRecentPairs(count: number): void {
     this.updateBuiltinDeepChatConfig({
       autoCompactionRetainRecentPairs: count
+    })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionRetainRecentPairs'],
+      version: Date.now(),
+      values: {
+        autoCompactionRetainRecentPairs: this.getAutoCompactionRetainRecentPairs()
+      }
     })
   }
 
@@ -1626,6 +1716,13 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setLoggingEnabled(enabled: boolean): void {
     this.setSetting('loggingEnabled', enabled)
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['loggingEnabled'],
+      version: Date.now(),
+      values: {
+        loggingEnabled: Boolean(enabled)
+      }
+    })
     setTimeout(() => {
       presenter.devicePresenter.restartApp()
     }, 1000)
@@ -1676,8 +1773,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set floating button switch status
   setFloatingButtonEnabled(enabled: boolean): void {
     this.setSetting('floatingButtonEnabled', enabled)
-    eventBus.sendToMain(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, enabled)
-    eventBus.sendToRenderer(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    eventBus.send(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
 
     try {
       presenter.floatingButtonPresenter.setEnabled(enabled)
@@ -2168,8 +2264,8 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private notifyAcpAgentsChanged() {
     console.log('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
-    eventBus.sendToRenderer(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS)
+    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
+    eventBus.send(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS)
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
   }
 
@@ -2203,7 +2299,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config, options)
     this.providerModelHelper.invalidateProviderModelsCache(providerId)
     // Trigger model configuration change event (need to notify all tabs)
-    eventBus.sendToRenderer(
+    eventBus.send(
       CONFIG_EVENTS.MODEL_CONFIG_CHANGED,
       SendTarget.ALL_WINDOWS,
       providerId,
@@ -2221,12 +2317,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelConfigHelper.resetModelConfig(modelId, providerId)
     this.providerModelHelper.invalidateProviderModelsCache(providerId)
     // 触发模型配置重置事件（需要通知所有标签页）
-    eventBus.sendToRenderer(
-      CONFIG_EVENTS.MODEL_CONFIG_RESET,
-      SendTarget.ALL_WINDOWS,
-      providerId,
-      modelId
-    )
+    eventBus.send(CONFIG_EVENTS.MODEL_CONFIG_RESET, SendTarget.ALL_WINDOWS, providerId, modelId)
   }
 
   /**
@@ -2269,7 +2360,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelConfigHelper.importConfigs(configs, overwrite)
     this.providerModelHelper.invalidateAllProviderModelsCache()
     // 触发批量导入事件（需要通知所有标签页）
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, SendTarget.ALL_WINDOWS, overwrite)
+    eventBus.send(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, SendTarget.ALL_WINDOWS, overwrite)
   }
 
   getNotificationsEnabled(): boolean {
@@ -2304,7 +2395,7 @@ export class ConfigPresenter implements IConfigPresenter {
     nativeTheme.themeSource = theme
     this.setSetting('appTheme', theme)
     // 通知所有窗口主题已更改
-    eventBus.sendToRenderer(CONFIG_EVENTS.THEME_CHANGED, SendTarget.ALL_WINDOWS, theme)
+    eventBus.send(CONFIG_EVENTS.THEME_CHANGED, SendTarget.ALL_WINDOWS, theme)
 
     try {
       void presenter.floatingButtonPresenter.refreshTheme()
@@ -2353,7 +2444,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.clearCustomPromptsCache()
     console.log(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
     // Notify all windows about custom prompts change
-    eventBus.sendToRenderer(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, SendTarget.ALL_WINDOWS, {
+    eventBus.send(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, SendTarget.ALL_WINDOWS, {
       count: prompts.length
     })
   }
@@ -2668,7 +2759,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setDefaultProjectPath(projectPath: string | null): void {
     const normalized = projectPath?.trim() ? projectPath.trim() : null
     this.setSetting('defaultProjectPath', normalized)
-    eventBus.sendToRenderer(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, SendTarget.ALL_WINDOWS, {
+    eventBus.send(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, SendTarget.ALL_WINDOWS, {
       path: normalized
     })
   }

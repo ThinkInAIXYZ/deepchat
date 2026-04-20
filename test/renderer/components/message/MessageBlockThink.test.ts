@@ -12,13 +12,13 @@ vi.mock('@vueuse/core', () => ({
   useThrottleFn: (fn: () => void) => fn
 }))
 
-const configPresenter = {
+const configClient = {
   getSetting: vi.fn().mockResolvedValue(false),
   setSetting: vi.fn()
 }
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: () => configPresenter
+vi.mock('@api/ConfigClient', () => ({
+  ConfigClient: vi.fn(() => configClient)
 }))
 
 vi.mock('@/components/think-content', () => ({

@@ -796,7 +796,10 @@ import {
 } from '@shared/utils/generationSettingsValidation'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { ConfigClient } from '@api/ConfigClient'
+import { ModelClient } from '@api/ModelClient'
+import { ProviderClient } from '@api/ProviderClient'
+import { SessionClient } from '@api/SessionClient'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useThemeStore } from '@/stores/theme'
@@ -804,7 +807,6 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore } from '@/stores/ui/draft'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
 
 const props = withDefaults(
   defineProps<{
@@ -853,9 +855,10 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const projectStore = useProjectStore()
-const configPresenter = usePresenter('configPresenter')
-const llmproviderPresenter = usePresenter('llmproviderPresenter')
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const configClient = new ConfigClient()
+const modelClient = new ModelClient()
+const providerClient = new ProviderClient()
+const sessionClient = new SessionClient()
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
@@ -903,6 +906,7 @@ let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
 let generationLocalRevision = 0
+let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
 const isSubagentToggleUpdating = ref(false)
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
@@ -926,14 +930,12 @@ const inferAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' 
 }
 
 const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgentConfig> => {
-  if (typeof configPresenter.resolveDeepChatAgentConfig === 'function') {
-    return configPresenter.resolveDeepChatAgentConfig(agentId)
+  const config = await configClient.resolveDeepChatAgentConfig(agentId)
+  if (config) {
+    return config
   }
 
-  const defaultSystemPrompt =
-    (typeof configPresenter.getDefaultSystemPrompt === 'function'
-      ? await configPresenter.getDefaultSystemPrompt()
-      : await configPresenter.getSetting?.('default_system_prompt')) ?? ''
+  const defaultSystemPrompt = (await configClient.getDefaultSystemPrompt()) ?? ''
 
   return normalizeDeepChatSubagentConfig({
     defaultModelPreset: undefined,
@@ -1885,7 +1887,7 @@ const syncDraftModelSelection = async () => {
       }
     }
 
-    const preferredModel = (await configPresenter.getSetting('preferredModel')) as unknown
+    const preferredModel = (await configClient.getSetting('preferredModel')) as unknown
     if (token !== draftModelSyncToken) return
     if (isModelSelection(preferredModel)) {
       const resolvedPreferred = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
@@ -1895,7 +1897,7 @@ const syncDraftModelSelection = async () => {
       }
     }
 
-    const defaultModel = (await configPresenter.getSetting('defaultModel')) as unknown
+    const defaultModel = (await configClient.getSetting('defaultModel')) as unknown
     if (token !== draftModelSyncToken) return
     if (isModelSelection(defaultModel)) {
       const resolvedDefault = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
@@ -1918,13 +1920,14 @@ const resolveDefaultGenerationSettings = async (
   agentId: string = 'deepchat'
 ): Promise<SessionGenerationSettings> => {
   const agentConfig = await resolveDeepChatAgentConfig(agentId)
-  const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
+  const modelConfig = await modelClient.getModelConfig(modelId, providerId)
+  const capabilities = await modelClient.getCapabilities(providerId, modelId)
   const resolvedCapabilityProviderId = resolveCapabilityProviderIdForSelection(
     providerId,
     modelId,
     modelConfig.endpointType
   )
-  const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
+  const portrait = capabilities.reasoningPortrait ?? null
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
     toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
@@ -2000,25 +2003,22 @@ const resolveDefaultGenerationSettings = async (
 
 const fetchCapabilities = async (providerId: string, modelId: string): Promise<void> => {
   try {
-    const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
+    const modelConfig = await modelClient.getModelConfig(modelId, providerId)
+    const capabilities = await modelClient.getCapabilities(providerId, modelId)
     capabilityProviderId.value = resolveCapabilityProviderIdForSelection(
       providerId,
       modelId,
       modelConfig.endpointType
     )
-    const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
-    const temperatureSupport = await configPresenter.supportsTemperatureControl?.(
-      providerId,
-      modelId
-    )
+    const portrait = capabilities.reasoningPortrait ?? null
 
     capabilityReasoningPortrait.value = portrait
     capabilitySupportsReasoning.value =
       typeof portrait?.supported === 'boolean' ? portrait.supported : null
     capabilitySupportsTemperature.value =
-      typeof temperatureSupport === 'boolean'
-        ? temperatureSupport
-        : ((await configPresenter.getTemperatureCapability?.(providerId, modelId)) ?? null)
+      typeof capabilities.supportsTemperatureControl === 'boolean'
+        ? capabilities.supportsTemperatureControl
+        : capabilities.temperatureCapability
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
     capabilityProviderId.value = providerId
@@ -2046,7 +2046,7 @@ const flushGenerationPatch = async () => {
   const requestToken = ++generationPersistRequestToken
   const localRevisionAtRequest = generationLocalRevision
   try {
-    const updated = await agentSessionPresenter.updateSessionGenerationSettings(sessionId, patch)
+    const updated = await sessionClient.updateSessionGenerationSettings(sessionId, patch)
     if (requestToken !== generationPersistRequestToken) {
       return
     }
@@ -2156,7 +2156,7 @@ const syncGenerationSettings = async () => {
   const sessionId = sessionStore.activeSessionId
   if (sessionId) {
     try {
-      const settings = await agentSessionPresenter.getSessionGenerationSettings(sessionId)
+      const settings = await sessionClient.getSessionGenerationSettings(sessionId)
       if (token !== generationSyncToken) {
         return
       }
@@ -2213,7 +2213,7 @@ const syncAcpConfigOptions = async () => {
     acpConfigLoadedRequestKey.value = null
 
     try {
-      const state = await agentSessionPresenter.getAcpSessionConfigOptions(activeAcpSessionId.value)
+      const state = await sessionClient.getAcpSessionConfigOptions(activeAcpSessionId.value)
       if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
@@ -2248,13 +2248,13 @@ const syncAcpConfigOptions = async () => {
     try {
       let warmupFailed = false
       try {
-        await llmproviderPresenter.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
+        await providerClient.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
       } catch (error) {
         warmupFailed = true
         console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
       }
 
-      const state = await llmproviderPresenter.getAcpProcessConfigOptions(
+      const state = await providerClient.getAcpProcessConfigOptions(
         agentId,
         acpWorkspacePath.value ?? undefined
       )
@@ -2297,11 +2297,7 @@ const updateAcpConfigOption = async (configId: string, value: string | boolean) 
 
   acpOptionSavingIds.value = [...acpOptionSavingIds.value, configId]
   try {
-    const updated = await agentSessionPresenter.setAcpSessionConfigOption(
-      sessionId,
-      configId,
-      value
-    )
+    const updated = await sessionClient.setAcpSessionConfigOption(sessionId, configId, value)
     setCachedAcpConfigState(agentId, updated)
     if (activeAcpSessionId.value !== sessionId) {
       return
@@ -2318,14 +2314,14 @@ const isAcpOptionSaving = (configId: string) => acpOptionSavingIds.value.include
 
 const reloadSystemPrompts = async () => {
   try {
-    systemPromptList.value = await configPresenter.getSystemPrompts()
+    systemPromptList.value = await configClient.getSystemPrompts()
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to load system prompt options:', error)
     systemPromptList.value = []
   }
 }
 
-const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, unknown>) => {
+const handleAcpConfigOptionsReady = (payload?: Record<string, unknown>) => {
   if (!payload || !isAcpAgent.value) {
     return
   }
@@ -2385,7 +2381,7 @@ watch(
     }
 
     try {
-      const mode = await agentSessionPresenter.getPermissionMode(sessionId)
+      const mode = await sessionClient.getPermissionMode(sessionId)
       if (token !== permissionSyncToken) return
       permissionMode.value = mode === 'default' ? 'default' : 'full_access'
     } catch (error) {
@@ -2490,15 +2486,12 @@ watch(isModelPanelOpen, (open) => {
 onBeforeUnmount(() => {
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
-  window.electron?.ipcRenderer?.removeListener?.(
-    ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
-    handleAcpConfigOptionsReady
-  )
+  unsubscribeAcpConfigOptionsReady?.()
+  unsubscribeAcpConfigOptionsReady = null
 })
 
 onMounted(() => {
-  window.electron?.ipcRenderer?.on?.(
-    ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
+  unsubscribeAcpConfigOptionsReady = sessionClient.onAcpConfigOptionsReady(
     handleAcpConfigOptionsReady
   )
 })
@@ -2567,7 +2560,7 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     draftModelSelection.value = { providerId, modelId }
     draftStore.providerId = providerId
     draftStore.modelId = modelId
-    await configPresenter.setSetting('preferredModel', { providerId, modelId })
+    await configClient.setSetting('preferredModel', { providerId, modelId })
     return true
   } catch (error) {
     draftModelSelection.value = previousDraftSelection
@@ -2880,7 +2873,7 @@ async function selectPermissionMode(mode: PermissionMode) {
     return
   }
   try {
-    await agentSessionPresenter.setPermissionMode(sessionId, mode)
+    await sessionClient.setPermissionMode(sessionId, mode)
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to set permission mode:', error)
   }

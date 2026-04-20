@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
-import { CONFIG_EVENTS } from '@/events'
+import { ConfigClient } from '../../../api/ConfigClient'
+import { ModelClient } from '../../../api/ModelClient'
+import { SessionClient } from '../../../api/SessionClient'
 import type { Agent } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -24,7 +25,10 @@ export interface UIAgent {
 // --- Store ---
 
 export const useAgentStore = defineStore('agent', () => {
-  const agentSessionPresenter = usePresenter('agentSessionPresenter')
+  const sessionClient = new SessionClient()
+  const configClient = new ConfigClient()
+  const modelClient = new ModelClient()
+  let listenersRegistered = false
 
   // --- State ---
   const agents = ref<UIAgent[]>([])
@@ -42,7 +46,7 @@ export const useAgentStore = defineStore('agent', () => {
     loading.value = true
     error.value = null
     try {
-      const result: Agent[] = await agentSessionPresenter.getAgents()
+      const result: Agent[] = await sessionClient.getAgents()
       agents.value = result.map((a) => ({
         id: a.id,
         name: a.name,
@@ -78,18 +82,17 @@ export const useAgentStore = defineStore('agent', () => {
     selectedAgentId.value = selectedAgentId.value === id ? null : id
   }
 
-  window.electron.ipcRenderer.on(
-    CONFIG_EVENTS.MODEL_LIST_CHANGED,
-    (_: unknown, providerId?: string) => {
+  if (!listenersRegistered) {
+    listenersRegistered = true
+    modelClient.onModelsChanged(({ providerId }) => {
       if (providerId === 'acp') {
         void fetchAgents()
       }
-    }
-  )
-
-  window.electron.ipcRenderer.on(CONFIG_EVENTS.AGENTS_CHANGED, () => {
-    void fetchAgents()
-  })
+    })
+    configClient.onAgentsChanged(() => {
+      void fetchAgents()
+    })
+  }
 
   return {
     agents,

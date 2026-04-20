@@ -62,6 +62,7 @@ import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
 import { PendingInputCoordinator } from './pendingInputCoordinator'
 import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
+import { cloneBlocksForRenderer } from './echo'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { InterleavedReasoningConfig, PendingToolInteraction, ProcessResult } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
@@ -69,7 +70,8 @@ import type { ProviderRequestTracePayload } from '../llmProviderPresenter/reques
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
-import type { ConfigQueryPort, SessionRuntimePort } from '../runtimePorts'
+import type { ProviderCatalogPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
@@ -173,8 +175,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
-  private readonly configQueryPort: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
-  private readonly sessionRuntimePort?: SessionRuntimePort
+  private readonly providerCatalogPort: Pick<
+    ProviderCatalogPort,
+    'getProviderModels' | 'getCustomModels'
+  >
+  private readonly sessionPermissionPort?: SessionPermissionPort
+  private readonly sessionUiPort?: SessionUiPort
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
     'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
@@ -188,8 +194,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     toolPresenter?: IToolPresenter,
     hooksBridge?: NewSessionHooksBridge,
     runtimePorts?: {
-      configQueryPort?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
-      sessionRuntimePort?: SessionRuntimePort
+      providerCatalogPort?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
+      sessionPermissionPort?: SessionPermissionPort
+      sessionUiPort?: SessionUiPort
       skillPresenter?: Pick<
         ISkillPresenter,
         'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
@@ -220,11 +227,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     )
     this.toolOutputGuard = new ToolOutputGuard()
     this.hooksBridge = hooksBridge
-    this.configQueryPort = runtimePorts?.configQueryPort ?? {
+    this.providerCatalogPort = runtimePorts?.providerCatalogPort ?? {
       getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
       getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? []
     }
-    this.sessionRuntimePort = runtimePorts?.sessionRuntimePort
+    this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
+    this.sessionUiPort = runtimePorts?.sessionUiPort
     this.skillPresenter = runtimePorts?.skillPresenter
 
     const recovered = this.messageStore.recoverPendingMessages()
@@ -238,6 +246,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         `DeepChatAgent: recovered ${recoveredPendingInputs} sessions with claimed pending inputs`
       )
     }
+  }
+
+  private requireSessionPermissionPort(): SessionPermissionPort {
+    if (this.sessionPermissionPort) {
+      return this.sessionPermissionPort
+    }
+
+    throw new Error('Session permission port is not available.')
   }
 
   async initSession(
@@ -778,6 +794,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               conversationId: sessionId,
               eventId: messageId,
               messageId,
+              error: execution.terminalError
+            })
+            publishDeepchatEvent('chat.stream.failed', {
+              requestId: this.resolveStreamRequestId(sessionId, messageId),
+              sessionId,
+              messageId,
+              failedAt: Date.now(),
               error: execution.terminalError
             })
             this.dispatchHook('Stop', {
@@ -1584,11 +1607,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               signal: abortController.signal,
               onQueued: (snapshot) => {
                 queuedForRateLimit = true
-                emitRateLimitWaitingMessage(sessionId, rateLimitMessageId, snapshot)
+                emitRateLimitWaitingMessage(
+                  sessionId,
+                  rateLimitMessageId,
+                  activeGeneration.runId,
+                  snapshot
+                )
               }
             })
             if (queuedForRateLimit) {
-              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId)
+              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
               queuedForRateLimit = false
             }
             if (abortController.signal.aborted) {
@@ -1615,7 +1643,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             }
           } catch (error) {
             if (queuedForRateLimit) {
-              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId)
+              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
             }
             if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
               pendingInputCoordinator.releaseClaimedInputs(sessionId)
@@ -1703,7 +1731,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             })
           },
           autoGrantPermission: async (permission) => {
-            await this.sessionRuntimePort?.approvePermission(sessionId, permission)
+            await this.requireSessionPermissionPort().approvePermission(sessionId, permission)
           },
           normalizeToolResult: async (tool) =>
             await this.normalizeToolResultContent({
@@ -1718,6 +1746,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         },
         io: {
           sessionId,
+          requestId: activeGeneration.runId,
           messageId,
           messageStore: this.messageStore,
           abortSignal: abortController.signal
@@ -1891,6 +1920,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private emitRateLimitWaitingMessage(
     sessionId: string,
     messageId: string,
+    requestId: string,
     snapshot: RateLimitQueueSnapshot
   ): void {
     const block: AssistantMessageBlock = {
@@ -1907,22 +1937,52 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         estimatedWaitTime: snapshot.estimatedWaitTime
       }
     }
+    const renderedBlocks = cloneBlocksForRenderer([block])
 
     eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
       conversationId: sessionId,
       eventId: messageId,
       messageId,
-      blocks: [block]
+      blocks: renderedBlocks
+    })
+    publishDeepchatEvent('chat.stream.updated', {
+      kind: 'snapshot',
+      requestId,
+      sessionId,
+      messageId,
+      updatedAt: Date.now(),
+      blocks: renderedBlocks
     })
   }
 
-  private clearRateLimitWaitingMessage(sessionId: string, messageId: string): void {
+  private clearRateLimitWaitingMessage(
+    sessionId: string,
+    messageId: string,
+    requestId: string
+  ): void {
     eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
       conversationId: sessionId,
       eventId: messageId,
       messageId,
       blocks: []
     })
+    publishDeepchatEvent('chat.stream.updated', {
+      kind: 'snapshot',
+      requestId,
+      sessionId,
+      messageId,
+      updatedAt: Date.now(),
+      blocks: []
+    })
+  }
+
+  private resolveStreamRequestId(sessionId: string, messageId: string): string {
+    const activeGeneration = this.activeGenerations.get(sessionId)
+    if (activeGeneration?.messageId === messageId) {
+      return activeGeneration.runId
+    }
+
+    return messageId
   }
 
   private applyProcessResultStatus(
@@ -2053,6 +2113,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             conversationId: sessionId,
             eventId: messageId,
             messageId,
+            error: resumeBudget.message
+          })
+          publishDeepchatEvent('chat.stream.failed', {
+            requestId: this.resolveStreamRequestId(sessionId, messageId),
+            sessionId,
+            messageId,
+            failedAt: Date.now(),
             error: resumeBudget.message
           })
           this.setSessionStatus(sessionId, 'error')
@@ -2249,7 +2316,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         modelId,
         workdir,
         now,
-        modelLookup: this.configQueryPort
+        modelLookup: this.providerCatalogPort
       })
     } catch (error) {
       console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
@@ -3442,6 +3509,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   ): Promise<void> {
     if (!payload) return
 
+    const sessionPermissionPort = this.requireSessionPermissionPort()
     const permissionType = payload.permissionType
     const serverName = payload.serverName || toolCall.server_name || ''
     const toolName = payload.toolName || toolCall.name || ''
@@ -3450,7 +3518,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const command = payload.command || payload.commandInfo?.command || ''
       const signature = payload.commandSignature || payload.commandInfo?.signature || command
       if (signature) {
-        await this.sessionRuntimePort?.approvePermission(sessionId, {
+        await sessionPermissionPort.approvePermission(sessionId, {
           permissionType: 'command',
           command,
           commandSignature: signature,
@@ -3461,7 +3529,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     if (serverName === 'agent-filesystem' && Array.isArray(payload.paths) && payload.paths.length) {
-      await this.sessionRuntimePort?.approvePermission(sessionId, {
+      await sessionPermissionPort.approvePermission(sessionId, {
         permissionType: 'write',
         serverName,
         toolName,
@@ -3471,7 +3539,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     if (serverName === 'deepchat-settings' && toolName) {
-      await this.sessionRuntimePort?.approvePermission(sessionId, {
+      await sessionPermissionPort.approvePermission(sessionId, {
         permissionType: 'write',
         serverName,
         toolName
@@ -3483,7 +3551,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       serverName &&
       (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
     ) {
-      await this.sessionRuntimePort?.approvePermission(sessionId, {
+      await sessionPermissionPort.approvePermission(sessionId, {
         permissionType,
         serverName,
         toolName
@@ -4124,6 +4192,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       sessionId,
       status
     })
+    publishDeepchatEvent('sessions.status.changed', {
+      sessionId,
+      status,
+      version: Date.now()
+    })
+    publishDeepchatEvent('sessions.updated', {
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
     emitDeepChatInternalSessionUpdate({
       sessionId,
       kind: 'status',
@@ -4131,7 +4208,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       status
     })
 
-    this.sessionRuntimePort?.refreshSessionUi()
+    this.sessionUiPort?.refreshSessionUi()
   }
 
   private emitMessageRefresh(sessionId: string, messageId: string): void {

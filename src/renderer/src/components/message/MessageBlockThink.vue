@@ -12,7 +12,7 @@
 import { useI18n } from 'vue-i18n'
 import { ThinkContent } from '@/components/think-content'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { ConfigClient } from '@api/ConfigClient'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import { useThrottleFn } from '@vueuse/core'
 const props = defineProps<{
@@ -28,7 +28,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const configPresenter = usePresenter('configPresenter')
+const configClient = new ConfigClient()
 
 // kept for potential future scroll anchoring; currently unused
 
@@ -102,7 +102,7 @@ const headerText = computed(() => {
 watch(
   () => collapse.value,
   (newValue) => {
-    configPresenter.setSetting('think_collapse', newValue)
+    void configClient.setSetting('think_collapse', newValue)
     emit('toggle-collapse', !newValue)
   }
 )
@@ -142,7 +142,7 @@ watch(
 )
 
 onMounted(async () => {
-  collapse.value = Boolean(await configPresenter.getSetting('think_collapse'))
+  collapse.value = Boolean(await configClient.getSetting('think_collapse'))
 })
 
 onBeforeUnmount(() => {

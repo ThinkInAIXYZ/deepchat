@@ -1,46 +1,48 @@
-import { SESSION_EVENTS } from '@/events'
-import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
+import { SessionClient } from '../../../api/SessionClient'
 
 interface BindSessionStoreIpcOptions {
   webContentsId: number | null
   fetchSessions: () => void | Promise<void>
   onActivated: (sessionId: string) => void
   onDeactivated: () => void
-  onStatusChanged: (payload: { sessionId: string; status: string }) => void
+  onStatusChanged: (sessionId: string, status: string) => void
 }
 
 export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): () => void {
-  const scope = createIpcSubscriptionScope()
-
-  scope.on(SESSION_EVENTS.LIST_UPDATED, () => {
-    void options.fetchSessions()
-  })
-
-  scope.on(
-    SESSION_EVENTS.ACTIVATED,
-    (_event, payload: { webContentsId: number; sessionId: string }) => {
-      if (payload?.webContentsId !== options.webContentsId) {
+  const sessionClient = new SessionClient()
+  const cleanups = [
+    sessionClient.onUpdated((payload) => {
+      if (
+        payload.reason === 'activated' &&
+        payload.activeSessionId &&
+        payload.webContentsId === options.webContentsId
+      ) {
+        options.onActivated(payload.activeSessionId)
         return
       }
 
-      options.onActivated(payload.sessionId)
+      if (payload.reason === 'deactivated' && payload.webContentsId === options.webContentsId) {
+        options.onDeactivated()
+        return
+      }
+
+      if (
+        payload.reason === 'created' ||
+        payload.reason === 'list-refreshed' ||
+        payload.reason === 'updated' ||
+        payload.reason === 'deleted'
+      ) {
+        void options.fetchSessions()
+      }
+    }),
+    sessionClient.onStatusChanged((payload) => {
+      options.onStatusChanged(payload.sessionId, payload.status)
+    })
+  ]
+
+  return () => {
+    for (const cleanup of cleanups) {
+      cleanup()
     }
-  )
-
-  scope.on(SESSION_EVENTS.DEACTIVATED, (_event, payload: { webContentsId: number }) => {
-    if (payload?.webContentsId !== options.webContentsId) {
-      return
-    }
-
-    options.onDeactivated()
-  })
-
-  scope.on(
-    SESSION_EVENTS.STATUS_CHANGED,
-    (_event, payload: { sessionId: string; status: string }) => {
-      options.onStatusChanged(payload)
-    }
-  )
-
-  return scope.cleanup
+  }
 }

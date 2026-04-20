@@ -94,13 +94,15 @@ import { Button } from '@shadcn/components/ui/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { DeviceClient } from '@api/DeviceClient'
+import { SessionClient } from '@api/SessionClient'
 import { useMonaco } from 'stream-monaco'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
 
 const { t } = useI18n()
-const agentSessionPresenter = usePresenter('agentSessionPresenter')
+const deviceClient = new DeviceClient()
+const sessionClient = new SessionClient()
 const uiSettingsStore = useUiSettingsStore()
 
 const jsonEditor = ref<HTMLElement | null>(null)
@@ -274,7 +276,7 @@ const loadTraces = async (messageId: string) => {
   selectedTraceId.value = null
 
   try {
-    const result = await agentSessionPresenter.listMessageTraces(messageId)
+    const result = await sessionClient.listMessageTraces(messageId)
     if (currentRequestId !== requestId.value) {
       return
     }
@@ -301,7 +303,7 @@ const loadTraces = async (messageId: string) => {
 const copyJson = async () => {
   if (!formattedJson.value) return
   try {
-    await window.api.copyText(formattedJson.value)
+    deviceClient.copyText(formattedJson.value)
     copySuccess.value = true
     setTimeout(() => {
       copySuccess.value = false

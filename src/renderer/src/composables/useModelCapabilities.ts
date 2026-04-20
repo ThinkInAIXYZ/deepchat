@@ -1,10 +1,7 @@
 // === Vue Core ===
 import { ref, watch, type Ref } from 'vue'
 
-// === Types ===
-import type { IPresenter } from '@shared/presenter'
-
-type ConfigPresenter = IPresenter['configPresenter']
+import { ModelClient } from '@api/ModelClient'
 
 // === Interfaces ===
 export interface ModelCapabilities {
@@ -25,7 +22,6 @@ export interface ModelCapabilities {
 export interface UseModelCapabilitiesOptions {
   providerId: Ref<string | undefined>
   modelId: Ref<string | undefined>
-  configPresenter: ConfigPresenter
 }
 
 /**
@@ -33,7 +29,8 @@ export interface UseModelCapabilitiesOptions {
  * Handles reasoning support, thinking budget ranges, and search capabilities
  */
 export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
-  const { providerId, modelId, configPresenter } = options
+  const { providerId, modelId } = options
+  const modelClient = new ModelClient()
 
   // === Local State ===
   const capabilitySupportsReasoning = ref<boolean | null>(null)
@@ -67,10 +64,10 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     isLoading.value = true
     try {
       const [sr, br, ss, sd] = await Promise.all([
-        configPresenter.supportsReasoningCapability?.(providerId.value, modelId.value),
-        configPresenter.getThinkingBudgetRange?.(providerId.value, modelId.value),
-        configPresenter.supportsSearchCapability?.(providerId.value, modelId.value),
-        configPresenter.getSearchDefaults?.(providerId.value, modelId.value)
+        modelClient.supportsReasoningCapability(providerId.value, modelId.value),
+        modelClient.getThinkingBudgetRange(providerId.value, modelId.value),
+        modelClient.supportsSearchCapability(providerId.value, modelId.value),
+        modelClient.getSearchDefaults(providerId.value, modelId.value)
       ])
 
       capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null

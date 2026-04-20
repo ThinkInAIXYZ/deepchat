@@ -15,6 +15,10 @@ vi.mock('@/eventbus', () => ({
   SendTarget: { ALL_WINDOWS: 'all' }
 }))
 
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
+}))
+
 vi.mock('@/events', () => ({
   SESSION_EVENTS: {
     LIST_UPDATED: 'session:list-updated',
@@ -70,6 +74,7 @@ vi.mock('@/presenter/agentRuntimePresenter/process', () => ({
 import { eventBus } from '@/eventbus'
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { presenter } from '@/presenter'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
@@ -264,6 +269,10 @@ describe('AgentRuntimePresenter', () => {
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let toolPresenter: ReturnType<typeof createMockToolPresenter>
+  let sessionPermissionPort: {
+    clearSessionPermissions: ReturnType<typeof vi.fn>
+    approvePermission: ReturnType<typeof vi.fn>
+  }
   let agent: AgentRuntimePresenter
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
@@ -279,6 +288,10 @@ describe('AgentRuntimePresenter', () => {
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
     toolPresenter = createMockToolPresenter()
+    sessionPermissionPort = {
+      clearSessionPermissions: vi.fn(),
+      approvePermission: vi.fn().mockResolvedValue(undefined)
+    }
     hookDispatcher = { dispatchEvent: vi.fn() }
     agent = new AgentRuntimePresenter(
       llmProvider,
@@ -287,7 +300,8 @@ describe('AgentRuntimePresenter', () => {
       toolPresenter,
       new NewSessionHooksBridge(hookDispatcher),
       {
-        skillPresenter
+        skillPresenter,
+        sessionPermissionPort
       }
     )
   })
@@ -655,6 +669,34 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('fails loudly when auto-grant is requested without a session permission port', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const agentWithoutPermissionPort = new AgentRuntimePresenter(
+        llmProvider,
+        configPresenter,
+        sqlitePresenter,
+        toolPresenter,
+        new NewSessionHooksBridge(hookDispatcher),
+        {
+          skillPresenter
+        }
+      )
+
+      ;(processStream as ReturnType<typeof vi.fn>).mockClear()
+      await agentWithoutPermissionPort.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agentWithoutPermissionPort.processMessage('s1', 'Hello')
+
+      const params = (processStream as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+      await expect(
+        params.hooks?.autoGrantPermission?.({
+          permissionType: 'write',
+          description: 'Need permission',
+          toolName: 'write_file',
+          serverName: 'agent-filesystem'
+        })
+      ).rejects.toThrow('Session permission port is not available.')
+    })
+
     it('includes conversation history in LLM call', async () => {
       // Set up: first user message already in DB as sent
       const existingMessages = [
@@ -974,6 +1016,22 @@ describe('AgentRuntimePresenter', () => {
           Array.isArray(payload.blocks) &&
           payload.blocks.length === 0
       )
+      const typedStreamUpdates = (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([eventName]) => eventName === 'chat.stream.updated')
+        .map(([, payload]) => payload)
+        .filter((payload) => typeof payload?.messageId === 'string')
+      const typedRateLimitShow = typedStreamUpdates.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 1
+      )
+      const typedRateLimitClear = typedStreamUpdates.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 0
+      )
 
       expect(rateLimitShow).toMatchObject({
         conversationId: 's1',
@@ -992,6 +1050,22 @@ describe('AgentRuntimePresenter', () => {
       })
       expect(rateLimitClear).toMatchObject({
         conversationId: 's1',
+        blocks: []
+      })
+      expect(typedRateLimitShow).toMatchObject({
+        requestId: expect.stringMatching(/^s1:\d+$/),
+        sessionId: 's1',
+        blocks: [
+          expect.objectContaining({
+            type: 'action',
+            action_type: 'rate_limit',
+            status: 'pending'
+          })
+        ]
+      })
+      expect(typedRateLimitClear).toMatchObject({
+        requestId: expect.stringMatching(/^s1:\d+$/),
+        sessionId: 's1',
         blocks: []
       })
     })
@@ -3301,6 +3375,58 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
     })
 
+    it('fails loudly when a confirmed permission grant has no session permission port', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const agentWithoutPermissionPort = new AgentRuntimePresenter(
+        llmProvider,
+        configPresenter,
+        sqlitePresenter,
+        toolPresenter,
+        new NewSessionHooksBridge(hookDispatcher),
+        {
+          skillPresenter
+        }
+      )
+
+      await agentWithoutPermissionPort.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                paths: ['a.txt']
+              })
+            }
+          }
+        ]
+      })
+
+      await expect(
+        agentWithoutPermissionPort.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+      ).rejects.toThrow('Session permission port is not available.')
+    })
+
     it('normalizes deferred screenshot tool results before resume', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-deferred-offload-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
@@ -3732,6 +3858,79 @@ describe('AgentRuntimePresenter', () => {
           responseText: "Tool 'exec' is disabled for the current session."
         })
       )
+    })
+
+    it('publishes typed stream failure when deferred tool execution returns a terminal error', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = {
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 1,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'run_shell', params: '{"command":"dir"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'run_shell', params: '{"command":"dir"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'Need permission',
+                toolName: 'run_shell',
+                command: 'dir'
+              })
+            }
+          }
+        ]),
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: Date.now(),
+        updated_at: Date.now()
+      }
+      sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+        id === row.id ? row : undefined
+      )
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
+
+      const executeDeferredToolCallSpy = vi
+        .spyOn(agent as any, 'executeDeferredToolCall')
+        .mockResolvedValue({
+          responseText: 'terminal failure',
+          isError: true,
+          terminalError: 'terminal failure'
+        })
+
+      try {
+        const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+
+        expect(result).toEqual({ resumed: false })
+        expect(publishDeepchatEvent).toHaveBeenCalledWith(
+          'chat.stream.failed',
+          expect.objectContaining({
+            requestId: 'm1',
+            sessionId: 's1',
+            messageId: 'm1',
+            error: 'terminal failure'
+          })
+        )
+      } finally {
+        executeDeferredToolCallSpy.mockRestore()
+      }
     })
 
     it('passes providerId when executing a deferred MCP tool call', async () => {

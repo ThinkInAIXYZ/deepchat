@@ -162,7 +162,11 @@
           </div>
         </div>
 
-        <div v-if="!collapsed" class="px-3 pb-2">
+        <div
+          v-if="!collapsed"
+          data-testid="window-sidebar-search"
+          class="window-no-drag-region px-3 pb-2"
+        >
           <div class="relative">
             <Icon
               icon="lucide:search"
@@ -330,8 +334,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
-import { SETTINGS_EVENTS } from '@/events'
+import { SettingsClient } from '@api/SettingsClient'
+import { RemoteControlRuntime } from '@api/RemoteControlRuntime'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
@@ -356,8 +360,8 @@ const PIN_FLIGHT_DURATION_MS = 500
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
 
-const windowPresenter = usePresenter('windowPresenter')
-const remoteControlPresenter = useRemoteControlPresenter()
+const settingsClient = new SettingsClient()
+const remoteControlRuntime = new RemoteControlRuntime()
 const { t } = useI18n()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
@@ -454,10 +458,6 @@ const selectedAgentName = computed(() => {
   return matchedAgent?.name ?? t('chat.sidebar.allAgents')
 })
 
-const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
-  listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
-  getChannelStatus?: (channel: RemoteChannel) => Promise<RemoteChannelStatus>
-}
 const implementedRemoteChannels = computed(() =>
   remoteChannelDescriptors.value
     .filter((descriptor) => descriptor.implemented)
@@ -637,48 +637,33 @@ watch(
 )
 
 const openSettings = () => {
-  const windowId = window.api.getWindowId()
-  if (windowId != null) {
-    void windowPresenter.openOrFocusSettingsWindow()
-  }
-}
-
-const navigateToSettings = (windowId: number, routeName: 'settings-remote') => {
-  void windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
-    routeName
-  })
+  void settingsClient.openSettings()
 }
 
 const openRemoteSettings = async () => {
-  const settingsWindowId = await windowPresenter.createSettingsWindow()
-  if (settingsWindowId == null) {
-    return
-  }
-
-  navigateToSettings(settingsWindowId, 'settings-remote')
-  window.setTimeout(() => {
-    navigateToSettings(settingsWindowId, 'settings-remote')
-  }, 250)
+  await settingsClient.openSettings({ routeName: 'settings-remote' })
 }
 
 const refreshRemoteControlStatus = async () => {
   try {
-    remoteChannelDescriptors.value = presenterCompat.listRemoteChannels
-      ? await presenterCompat.listRemoteChannels()
-      : fallbackRemoteChannels
-    if (presenterCompat.getChannelStatus) {
-      const channels = remoteChannelDescriptors.value
-        .filter((descriptor) => descriptor.implemented)
-        .map((descriptor) => descriptor.id)
-      const statuses = await Promise.all(
-        channels.map(
-          async (channel) => [channel, await presenterCompat.getChannelStatus!(channel)] as const
-        )
-      )
+    remoteChannelDescriptors.value =
+      (await remoteControlRuntime.listRemoteChannels()) ?? fallbackRemoteChannels
+
+    const channels = remoteChannelDescriptors.value
+      .filter((descriptor) => descriptor.implemented)
+      .map((descriptor) => descriptor.id)
+    const statuses = await Promise.all(
+      channels.map(async (channel) => ({
+        channel,
+        status: await remoteControlRuntime.getChannelStatus(channel)
+      }))
+    )
+
+    if (statuses.every((entry) => entry.status !== null)) {
       remoteControlStatus.value = statuses.reduce(
-        (acc, [channel, status]) => ({
+        (acc, entry) => ({
           ...acc,
-          [channel]: status
+          [entry.channel]: entry.status as RemoteChannelStatus
         }),
         createRemoteStatusMap()
       )
@@ -687,8 +672,8 @@ const refreshRemoteControlStatus = async () => {
 
     remoteControlStatus.value = {
       ...createRemoteStatusMap(),
-      telegram: await remoteControlPresenter.getTelegramStatus(),
-      'weixin-ilink': await remoteControlPresenter.getWeixinIlinkStatus()
+      telegram: await remoteControlRuntime.getTelegramStatus(),
+      'weixin-ilink': await remoteControlRuntime.getWeixinIlinkStatus()
     }
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
@@ -974,11 +959,16 @@ onUnmounted(() => {
   -webkit-app-region: drag;
 }
 
+.window-no-drag-region {
+  -webkit-app-region: no-drag;
+}
+
 .session-list {
   overflow-anchor: none;
 }
 
-button {
+button,
+input {
   -webkit-app-region: no-drag;
 }
 

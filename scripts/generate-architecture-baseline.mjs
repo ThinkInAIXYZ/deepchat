@@ -6,6 +6,14 @@ const ROOT = process.cwd()
 const REPORT_DIR = path.join(ROOT, 'docs/architecture/baselines')
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.d.ts'])
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build'])
+const PHASE_ORDER = new Map([
+  ['P0', 0],
+  ['P1', 1],
+  ['P2', 2],
+  ['P3', 3],
+  ['P4', 4],
+  ['P5', 5]
+])
 
 const ANALYSIS_TARGETS = [
   {
@@ -18,16 +26,136 @@ const ANALYSIS_TARGETS = [
   }
 ]
 
+const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
+const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
+const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
+const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
+const RENDERER_QUARANTINE_EXIT_MAX_FILES = 3
+const BRIDGE_REGISTER_PATH = path.join(
+  ROOT,
+  'docs/architecture/baselines/main-kernel-bridge-register.json'
+)
+
+const HOT_PATH_FILES = [
+  path.join(ROOT, 'src/main/presenter/index.ts'),
+  path.join(ROOT, 'src/main/eventbus.ts'),
+  path.join(ROOT, 'src/main/presenter/agentSessionPresenter/index.ts'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
+  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts'),
+  path.join(ROOT, 'src/main/presenter/sessionPresenter/index.ts')
+]
+
+const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
+  path.join(ROOT, 'src/renderer/src/App.vue'),
+  path.join(ROOT, 'src/renderer/src/stores/uiSettingsStore.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/session.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/message.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/agent.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/pendingInput.ts'),
+  path.join(ROOT, 'src/renderer/src/stores/ui/pageRouter.ts'),
+  path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
+  path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
+  path.join(ROOT, 'src/main/presenter/windowPresenter'),
+  path.join(ROOT, 'src/main/presenter/configPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
+  path.join(ROOT, 'src/main/presenter/sessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
+  path.join(ROOT, 'src/shared/contracts'),
+  path.join(ROOT, 'src/renderer/api'),
+  path.join(ROOT, 'src/preload/createBridge.ts'),
+  path.join(ROOT, 'src/preload/bridges'),
+  path.join(ROOT, 'src/main/ipc'),
+  path.join(ROOT, 'src/main/routes')
+]
+
+const GENERIC_LEGACY_PRESENTER_CALL_PATTERN =
+  /(?<!function\s)\b(?:usePresenter|useLegacyPresenter)\s*\(/g
+const LEGACY_PRESENTER_HELPER_CALL_PATTERN =
+  /(?<!function\s)\b(?:usePresenter|useLegacyPresenter|useLegacy[A-Z][A-Za-z]*Presenter)\s*\(/g
+const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
+const WINDOW_API_PATTERN = /window\.api\b/g
+const RAW_TIMER_PATTERN = /\b(?:setTimeout|setInterval)\s*\(/g
+const INLINE_IPC_CHANNEL_PATTERN =
+  /(?:window\.electron(?:\?\.|\.)ipcRenderer|ipcRenderer|ipcMain)(?:\?\.|\.)(?:invoke|send|on|once|handle|handleOnce|removeListener|removeAllListeners|addListener)\s*\(\s*['"`][^'"`]+['"`]/g
+const INLINE_EVENTBUS_CHANNEL_PATTERN =
+  /(?:sendToRenderer|publish|publishToWindow|publishToWebContents)\s*\(\s*['"`][^'"`]+['"`]/g
+const PRESENTER_PHASE_GATES = {
+  P2: ['configPresenter', 'llmproviderPresenter'],
+  P3: [
+    'windowPresenter',
+    'devicePresenter',
+    'workspacePresenter',
+    'projectPresenter',
+    'filePresenter',
+    'yoBrowserPresenter',
+    'tabPresenter'
+  ],
+  P4: [
+    'agentSessionPresenter',
+    'skillPresenter',
+    'mcpPresenter',
+    'syncPresenter',
+    'upgradePresenter',
+    'dialogPresenter',
+    'toolPresenter'
+  ]
+}
+
 function toPosix(value) {
   return value.split(path.sep).join('/')
+}
+
+function relativePath(filePath) {
+  return toPosix(path.relative(ROOT, filePath))
+}
+
+function isUnder(targetPath, parentPath) {
+  const normalizedTarget = path.resolve(targetPath)
+  const normalizedParent = path.resolve(parentPath)
+  return (
+    normalizedTarget === normalizedParent ||
+    normalizedTarget.startsWith(`${normalizedParent}${path.sep}`)
+  )
 }
 
 async function ensureDir(dirPath) {
   await fs.mkdir(dirPath, { recursive: true })
 }
 
+async function pathExists(targetPath) {
+  try {
+    await fs.stat(targetPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function walk(dirPath, output = []) {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true })
+  let stats = null
+
+  try {
+    stats = await fs.stat(dirPath)
+  } catch {
+    return output
+  }
+
+  if (stats.isFile()) {
+    if (SOURCE_EXTENSIONS.has(path.extname(dirPath))) {
+      output.push(dirPath)
+    }
+
+    return output
+  }
+
+  let entries = []
+
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true })
+  } catch {
+    return output
+  }
 
   for (const entry of entries) {
     if (EXCLUDED_DIRS.has(entry.name)) {
@@ -48,12 +176,36 @@ async function walk(dirPath, output = []) {
   return output
 }
 
+function countMatches(source, pattern) {
+  let count = 0
+  pattern.lastIndex = 0
+
+  while (pattern.exec(source) !== null) {
+    count += 1
+  }
+
+  pattern.lastIndex = 0
+  return count
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function createUsePresenterNamePattern(presenterName) {
+  return new RegExp(
+    `(?<!function\\s)\\b(?:usePresenter|useLegacyPresenter)\\s*\\(\\s*['"\`]${escapeRegExp(presenterName)}['"\`]`,
+    'g'
+  )
+}
+
 function extractSpecifiers(source) {
   const specifiers = new Set()
   const patterns = [
     /\bimport\s+(?:type\s+)?[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g,
     /\bexport\s+[\s\S]*?\bfrom\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    /\bimport\s*['"]([^'"]+)['"]/g
   ]
 
   for (const pattern of patterns) {
@@ -235,6 +387,209 @@ async function collectArchiveReferences() {
   )
 }
 
+async function collectFilesFromTargets(targets) {
+  const files = []
+
+  for (const target of targets) {
+    const targetFiles = await walk(target)
+    for (const file of targetFiles) {
+      files.push(file)
+    }
+  }
+
+  return [...new Set(files)].sort()
+}
+
+async function collectPatternCounts(files, pattern) {
+  const counts = new Map()
+
+  for (const file of files) {
+    const source = await fs.readFile(file, 'utf8')
+    const count = countMatches(source, pattern)
+    if (count > 0) {
+      counts.set(relativePath(file), count)
+    }
+  }
+
+  return counts
+}
+
+async function collectPresenterFamilyCounts(files, presenterNames) {
+  const patterns = presenterNames.map((presenterName) => [
+    presenterName,
+    createUsePresenterNamePattern(presenterName)
+  ])
+  const counts = Object.fromEntries(presenterNames.map((presenterName) => [presenterName, 0]))
+
+  for (const file of files) {
+    const source = await fs.readFile(file, 'utf8')
+    for (const [presenterName, pattern] of patterns) {
+      counts[presenterName] += countMatches(source, pattern)
+    }
+  }
+
+  return counts
+}
+
+function combineCountMaps(...maps) {
+  const combined = new Map()
+
+  for (const currentMap of maps) {
+    for (const [file, count] of currentMap) {
+      combined.set(file, (combined.get(file) ?? 0) + count)
+    }
+  }
+
+  return combined
+}
+
+async function collectRendererPatternCountsByLayer(pattern) {
+  const businessFiles = await walk(RENDERER_SOURCE_ROOT)
+  const quarantineFiles = await collectFilesFromTargets(RENDERER_QUARANTINE_ROOTS)
+
+  const business = await collectPatternCounts(businessFiles, pattern)
+  const quarantine = await collectPatternCounts(quarantineFiles, pattern)
+
+  return {
+    business,
+    quarantine,
+    total: combineCountMaps(business, quarantine)
+  }
+}
+
+async function collectMigratedRawChannelCounts() {
+  const files = await collectFilesFromTargets(MIGRATED_RAW_CHANNEL_GUARD_PATHS)
+  const counts = new Map()
+
+  for (const file of files) {
+    const source = await fs.readFile(file, 'utf8')
+    const count =
+      countMatches(source, INLINE_IPC_CHANNEL_PATTERN) +
+      countMatches(source, INLINE_EVENTBUS_CHANNEL_PATTERN)
+
+    if (count > 0) {
+      counts.set(relativePath(file), count)
+    }
+  }
+
+  return counts
+}
+
+async function collectHotPathDirectEdges() {
+  const hotPathFileSet = new Set(HOT_PATH_FILES)
+  const edges = []
+
+  for (const file of HOT_PATH_FILES) {
+    const source = await fs.readFile(file, 'utf8')
+    for (const specifier of extractSpecifiers(source)) {
+      const resolved = await resolveImport(specifier, file, MAIN_SOURCE_ROOT)
+      if (!resolved || !hotPathFileSet.has(resolved)) {
+        continue
+      }
+
+      edges.push({
+        source: relativePath(file),
+        target: relativePath(resolved)
+      })
+    }
+  }
+
+  return edges.sort((left, right) =>
+    `${left.source}->${left.target}`.localeCompare(`${right.source}->${right.target}`)
+  )
+}
+
+async function loadBridgeRegister() {
+  const raw = await fs.readFile(BRIDGE_REGISTER_PATH, 'utf8')
+  const parsed = JSON.parse(raw)
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('bridge register must be a JSON object')
+  }
+
+  if (!PHASE_ORDER.has(parsed.currentPhase)) {
+    throw new Error(`unsupported currentPhase: ${String(parsed.currentPhase)}`)
+  }
+
+  if (!Array.isArray(parsed.bridges)) {
+    throw new Error('bridge register must include a bridges array')
+  }
+
+  const seenIds = new Set()
+  for (const bridge of parsed.bridges) {
+    if (!bridge || typeof bridge !== 'object') {
+      throw new Error('bridge entries must be JSON objects')
+    }
+
+    const requiredFields = [
+      'id',
+      'owner',
+      'legacyEntry',
+      'newTarget',
+      'introducedIn',
+      'deleteByPhase',
+      'status',
+      'notes'
+    ]
+
+    for (const field of requiredFields) {
+      if (typeof bridge[field] !== 'string' || bridge[field].trim().length === 0) {
+        throw new Error(`bridge entry field ${field} must be a non-empty string`)
+      }
+    }
+
+    if (!PHASE_ORDER.has(bridge.deleteByPhase)) {
+      throw new Error(`bridge ${bridge.id} has unsupported deleteByPhase ${bridge.deleteByPhase}`)
+    }
+
+    if (bridge.status !== 'active' && bridge.status !== 'removed') {
+      throw new Error(`bridge ${bridge.id} has unsupported status ${bridge.status}`)
+    }
+
+    if (seenIds.has(bridge.id)) {
+      throw new Error(`duplicate bridge id ${bridge.id}`)
+    }
+
+    seenIds.add(bridge.id)
+  }
+
+  return parsed
+}
+
+function summarizeCounts(counts) {
+  const items = [...counts.entries()].sort((left, right) => {
+    if (right[1] !== left[1]) {
+      return right[1] - left[1]
+    }
+
+    return left[0].localeCompare(right[0])
+  })
+
+  return {
+    total: items.reduce((sum, [, count]) => sum + count, 0),
+    top: items.slice(0, 12)
+  }
+}
+
+function summarizeBridges(register) {
+  const currentPhaseOrder = PHASE_ORDER.get(register.currentPhase)
+  let activeCount = 0
+  let expiredCount = 0
+
+  for (const bridge of register.bridges) {
+    if (bridge.status !== 'active') {
+      continue
+    }
+
+    activeCount += 1
+    if (PHASE_ORDER.get(bridge.deleteByPhase) < currentPhaseOrder) {
+      expiredCount += 1
+    }
+  }
+
+  return { activeCount, expiredCount }
+}
+
 function renderDependencyReport(scopes) {
   const lines = [
     '# Dependency Baseline',
@@ -324,6 +679,200 @@ function renderArchiveReferenceReport(references) {
   return lines.join('\n')
 }
 
+function renderTopCountSection(lines, title, summary) {
+  lines.push(`## ${title}`)
+  lines.push('')
+  lines.push(`- Total count: ${summary.total}`)
+  lines.push('')
+
+  if (summary.top.length === 0) {
+    lines.push('- None')
+  } else {
+    for (const [file, count] of summary.top) {
+      lines.push(`- \`${file}\`: ${count}`)
+    }
+  }
+
+  lines.push('')
+}
+
+function renderBoundaryBaselineReport({
+  currentPhase,
+  metrics,
+  rendererLegacySplit,
+  quarantineSourceFiles,
+  phaseGates,
+  usePresenterSummary,
+  windowElectronSummary,
+  windowApiSummary,
+  rawTimerSummary,
+  migratedRawChannelSummary,
+  hotPathEdges
+}) {
+  const lines = [
+    '# Main Kernel Boundary Baseline',
+    '',
+    `Generated on ${new Date().toISOString().slice(0, 10)}.`,
+    `Current phase: ${currentPhase}.`,
+    '',
+    '## Metric Snapshot',
+    '',
+    '| Metric | Value |',
+    '| --- | --- |',
+    `| \`renderer.usePresenter.count\` | ${metrics['renderer.usePresenter.count']} |`,
+    `| \`renderer.business.usePresenter.count\` | ${metrics['renderer.business.usePresenter.count']} |`,
+    `| \`renderer.quarantine.usePresenter.count\` | ${metrics['renderer.quarantine.usePresenter.count']} |`,
+    `| \`renderer.windowElectron.count\` | ${metrics['renderer.windowElectron.count']} |`,
+    `| \`renderer.business.windowElectron.count\` | ${metrics['renderer.business.windowElectron.count']} |`,
+    `| \`renderer.quarantine.windowElectron.count\` | ${metrics['renderer.quarantine.windowElectron.count']} |`,
+    `| \`renderer.windowApi.count\` | ${metrics['renderer.windowApi.count']} |`,
+    `| \`renderer.business.windowApi.count\` | ${metrics['renderer.business.windowApi.count']} |`,
+    `| \`renderer.quarantine.windowApi.count\` | ${metrics['renderer.quarantine.windowApi.count']} |`,
+    `| \`renderer.quarantine.sourceFile.count\` | ${metrics['renderer.quarantine.sourceFile.count']} |`,
+    `| \`hotpath.presenterEdge.count\` | ${metrics['hotpath.presenterEdge.count']} |`,
+    `| \`runtime.rawTimer.count\` | ${metrics['runtime.rawTimer.count']} |`,
+    `| \`migrated.rawChannel.count\` | ${metrics['migrated.rawChannel.count']} |`,
+    `| \`bridge.active.count\` | ${metrics['bridge.active.count']} |`,
+    `| \`bridge.expired.count\` | ${metrics['bridge.expired.count']} |`,
+    ''
+  ]
+
+  lines.push('## Renderer Single-Track Split')
+  lines.push('')
+  lines.push('- Business layer: `src/renderer/src/**`')
+  lines.push('- Quarantine layer: `src/renderer/api/legacy/**`')
+  lines.push('')
+  lines.push('| Legacy surface | Business layer | Quarantine layer | Total |')
+  lines.push('| --- | --- | --- | --- |')
+  lines.push(
+    `| legacy presenter helper | ${rendererLegacySplit.usePresenter.business.total} | ${rendererLegacySplit.usePresenter.quarantine.total} | ${rendererLegacySplit.usePresenter.total.total} |`
+  )
+  lines.push(
+    `| \`window.electron\` | ${rendererLegacySplit.windowElectron.business.total} | ${rendererLegacySplit.windowElectron.quarantine.total} | ${rendererLegacySplit.windowElectron.total.total} |`
+  )
+  lines.push(
+    `| \`window.api\` | ${rendererLegacySplit.windowApi.business.total} | ${rendererLegacySplit.windowApi.quarantine.total} | ${rendererLegacySplit.windowApi.total.total} |`
+  )
+  lines.push('')
+
+  lines.push('## Quarantine Exit Snapshot')
+  lines.push('')
+  lines.push('- Retained capability family: `renderer legacy transport`')
+  lines.push(
+    `- Source files: ${quarantineSourceFiles.length} / ${RENDERER_QUARANTINE_EXIT_MAX_FILES}`
+  )
+  lines.push(
+    '- Delete condition: remove after settings compatibility surfaces stop importing the quarantine adapters.'
+  )
+  lines.push('')
+
+  if (quarantineSourceFiles.length === 0) {
+    lines.push('- None')
+  } else {
+    for (const file of quarantineSourceFiles) {
+      lines.push(`- \`${file}\``)
+    }
+  }
+
+  lines.push('')
+
+  lines.push('## Phase Gates')
+  lines.push('')
+  lines.push('| Phase | Gate indicator | Current signal | Status |')
+  lines.push('| --- | --- | --- | --- |')
+  for (const gate of phaseGates) {
+    lines.push(`| \`${gate.phase}\` | ${gate.indicator} | ${gate.current} | ${gate.status} |`)
+  }
+  lines.push('')
+
+  lines.push('## Hot Path Direct Dependencies')
+  lines.push('')
+  lines.push(`- Direct edge count: ${hotPathEdges.length}`)
+  lines.push('')
+
+  if (hotPathEdges.length === 0) {
+    lines.push('- None')
+  } else {
+    for (const edge of hotPathEdges) {
+      lines.push(`- \`${edge.source} -> ${edge.target}\``)
+    }
+  }
+
+  lines.push('')
+
+  renderTopCountSection(lines, 'Renderer legacy presenter helpers', usePresenterSummary)
+  renderTopCountSection(lines, 'Renderer window.electron', windowElectronSummary)
+  renderTopCountSection(lines, 'Renderer window.api', windowApiSummary)
+  renderTopCountSection(lines, 'Raw Timers', rawTimerSummary)
+  renderTopCountSection(lines, 'Migrated Path Raw Channel Literals', migratedRawChannelSummary)
+
+  return lines.join('\n')
+}
+
+function renderMigrationScoreboardReport({ currentPhase, metrics, phaseGates }) {
+  const lines = [
+    '# Main Kernel Migration Scoreboard',
+    '',
+    `Generated on ${new Date().toISOString().slice(0, 10)}.`,
+    `Current phase: ${currentPhase}.`,
+    '',
+    'Phase 0 establishes the comparison baseline. Later phases should update this report and compare against this checkpoint.',
+    '',
+    '| Metric | Value | Status |',
+    '| --- | --- | --- |'
+  ]
+
+  for (const [metric, value] of Object.entries(metrics)) {
+    lines.push(`| \`${metric}\` | ${value} | baseline |`)
+  }
+
+  lines.push('')
+  lines.push('## Phase Gate Status')
+  lines.push('')
+  lines.push('| Phase | Status | Current signal |')
+  lines.push('| --- | --- | --- |')
+  for (const gate of phaseGates) {
+    lines.push(`| \`${gate.phase}\` | ${gate.status} | ${gate.current} |`)
+  }
+  lines.push('')
+  return lines.join('\n')
+}
+
+function renderBridgeRegisterReport(register, bridgeSummary) {
+  const lines = [
+    '# Main Kernel Bridge Register',
+    '',
+    `Updated on ${register.updatedOn}.`,
+    `Current phase: ${register.currentPhase}.`,
+    '',
+    `- Active bridges: ${bridgeSummary.activeCount}`,
+    `- Expired bridges: ${bridgeSummary.expiredCount}`,
+    ''
+  ]
+
+  if (register.bridges.length === 0) {
+    lines.push('## Entries')
+    lines.push('')
+    lines.push('- None')
+    lines.push('')
+    return lines.join('\n')
+  }
+
+  lines.push('## Entries')
+  lines.push('')
+  lines.push('| id | owner | legacyEntry | newTarget | introducedIn | deleteByPhase | status | notes |')
+  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |')
+
+  for (const bridge of register.bridges) {
+    lines.push(
+      `| ${bridge.id} | ${bridge.owner} | ${bridge.legacyEntry} | ${bridge.newTarget} | ${bridge.introducedIn} | ${bridge.deleteByPhase} | ${bridge.status} | ${bridge.notes} |`
+    )
+  }
+
+  lines.push('')
+  return lines.join('\n')
+}
+
 async function main() {
   await ensureDir(REPORT_DIR)
   const scopes = []
@@ -333,6 +882,160 @@ async function main() {
   }
 
   const archiveReferences = await collectArchiveReferences()
+  const mainAndRendererFiles = await collectFilesFromTargets([MAIN_SOURCE_ROOT, RENDERER_SOURCE_ROOT])
+  const rendererBusinessFiles = await walk(RENDERER_SOURCE_ROOT)
+  const quarantineExists = await pathExists(RENDERER_QUARANTINE_ROOT)
+  const quarantineSourceFiles = await collectFilesFromTargets(RENDERER_QUARANTINE_ROOTS)
+  const usePresenterCountsByLayer = await collectRendererPatternCountsByLayer(
+    LEGACY_PRESENTER_HELPER_CALL_PATTERN
+  )
+  const windowElectronCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_ELECTRON_PATTERN)
+  const windowApiCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_API_PATTERN)
+  const rawTimerCounts = await collectPatternCounts(mainAndRendererFiles, RAW_TIMER_PATTERN)
+  const migratedRawChannelCounts = await collectMigratedRawChannelCounts()
+  const hotPathEdges = await collectHotPathDirectEdges()
+  const bridgeRegister = await loadBridgeRegister()
+  const bridgeSummary = summarizeBridges(bridgeRegister)
+  const p2PresenterCounts = await collectPresenterFamilyCounts(
+    rendererBusinessFiles,
+    PRESENTER_PHASE_GATES.P2
+  )
+  const p3PresenterCounts = await collectPresenterFamilyCounts(
+    rendererBusinessFiles,
+    PRESENTER_PHASE_GATES.P3
+  )
+  const p4PresenterCounts = await collectPresenterFamilyCounts(
+    rendererBusinessFiles,
+    PRESENTER_PHASE_GATES.P4
+  )
+
+  const rendererLegacySplit = {
+    usePresenter: {
+      business: summarizeCounts(usePresenterCountsByLayer.business),
+      quarantine: summarizeCounts(usePresenterCountsByLayer.quarantine),
+      total: summarizeCounts(usePresenterCountsByLayer.total)
+    },
+    windowElectron: {
+      business: summarizeCounts(windowElectronCountsByLayer.business),
+      quarantine: summarizeCounts(windowElectronCountsByLayer.quarantine),
+      total: summarizeCounts(windowElectronCountsByLayer.total)
+    },
+    windowApi: {
+      business: summarizeCounts(windowApiCountsByLayer.business),
+      quarantine: summarizeCounts(windowApiCountsByLayer.quarantine),
+      total: summarizeCounts(windowApiCountsByLayer.total)
+    }
+  }
+
+  const metrics = {
+    'renderer.usePresenter.count': rendererLegacySplit.usePresenter.total.total,
+    'renderer.business.usePresenter.count': rendererLegacySplit.usePresenter.business.total,
+    'renderer.quarantine.usePresenter.count': rendererLegacySplit.usePresenter.quarantine.total,
+    'renderer.windowElectron.count': rendererLegacySplit.windowElectron.total.total,
+    'renderer.business.windowElectron.count': rendererLegacySplit.windowElectron.business.total,
+    'renderer.quarantine.windowElectron.count': rendererLegacySplit.windowElectron.quarantine.total,
+    'renderer.windowApi.count': rendererLegacySplit.windowApi.total.total,
+    'renderer.business.windowApi.count': rendererLegacySplit.windowApi.business.total,
+    'renderer.quarantine.windowApi.count': rendererLegacySplit.windowApi.quarantine.total,
+    'renderer.quarantine.sourceFile.count': quarantineSourceFiles.length,
+    'hotpath.presenterEdge.count': hotPathEdges.length,
+    'runtime.rawTimer.count': summarizeCounts(rawTimerCounts).total,
+    'migrated.rawChannel.count': summarizeCounts(migratedRawChannelCounts).total,
+    'bridge.active.count': bridgeSummary.activeCount,
+    'bridge.expired.count': bridgeSummary.expiredCount
+  }
+
+  const usePresenterSummary = rendererLegacySplit.usePresenter.total
+  const windowElectronSummary = rendererLegacySplit.windowElectron.total
+  const windowApiSummary = rendererLegacySplit.windowApi.total
+  const rawTimerSummary = summarizeCounts(rawTimerCounts)
+  const migratedRawChannelSummary = summarizeCounts(migratedRawChannelCounts)
+  const p1Ready =
+    metrics['renderer.business.usePresenter.count'] === 0 &&
+    metrics['renderer.business.windowElectron.count'] === 0 &&
+    metrics['renderer.business.windowApi.count'] === 0
+  const p2Ready = Object.values(p2PresenterCounts).every((count) => count === 0)
+  const p3Ready = Object.values(p3PresenterCounts).every((count) => count === 0)
+  const p4Ready = Object.values(p4PresenterCounts).every((count) => count === 0)
+  const p5Ready = p1Ready && quarantineSourceFiles.length <= RENDERER_QUARANTINE_EXIT_MAX_FILES
+  const phaseGates = [
+    {
+      phase: 'P0',
+      indicator:
+        'Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics',
+      current: quarantineExists
+        ? '`src/renderer/api/legacy/**` exists; split metrics emitted'
+        : '`src/renderer/api/legacy/**` missing',
+      status: quarantineExists ? 'ready' : 'blocked'
+    },
+    {
+      phase: 'P1',
+      indicator:
+        'Business layer direct legacy presenter helper / `window.electron` / `window.api` counts must reach `0`',
+      current:
+        `legacyPresenter=${metrics['renderer.business.usePresenter.count']}, ` +
+        `window.electron=${metrics['renderer.business.windowElectron.count']}, ` +
+        `window.api=${metrics['renderer.business.windowApi.count']}`,
+      status: p1Ready ? 'ready' : 'pending'
+    },
+    {
+      phase: 'P2',
+      indicator: 'Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0`',
+      current:
+        `configPresenter=${p2PresenterCounts.configPresenter}, ` +
+        `llmproviderPresenter=${p2PresenterCounts.llmproviderPresenter}`,
+      status: p2Ready ? 'ready' : 'pending'
+    },
+    {
+      phase: 'P3',
+      indicator:
+        'Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0`',
+      current:
+        `window=${p3PresenterCounts.windowPresenter}, ` +
+        `device=${p3PresenterCounts.devicePresenter}, ` +
+        `workspace=${p3PresenterCounts.workspacePresenter}, ` +
+        `project=${p3PresenterCounts.projectPresenter}, ` +
+        `file=${p3PresenterCounts.filePresenter}, ` +
+        `browser=${p3PresenterCounts.yoBrowserPresenter}, ` +
+        `tab=${p3PresenterCounts.tabPresenter}`,
+      status: p3Ready ? 'ready' : 'pending'
+    },
+    {
+      phase: 'P4',
+      indicator:
+        'Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0`',
+      current:
+        `agentSession=${p4PresenterCounts.agentSessionPresenter}, ` +
+        `skill=${p4PresenterCounts.skillPresenter}, ` +
+        `mcp=${p4PresenterCounts.mcpPresenter}, ` +
+        `sync=${p4PresenterCounts.syncPresenter}, ` +
+        `upgrade=${p4PresenterCounts.upgradePresenter}, ` +
+        `dialog=${p4PresenterCounts.dialogPresenter}, ` +
+        `tool=${p4PresenterCounts.toolPresenter}`,
+      status: p4Ready ? 'ready' : 'pending'
+    },
+    {
+      phase: 'P5',
+      indicator:
+        'Business layer direct legacy access must be `0`, and quarantine source files must satisfy the exit standard (`<= 3` source files)',
+      current:
+        `businessLegacy=${metrics['renderer.business.usePresenter.count']}/` +
+        `${metrics['renderer.business.windowElectron.count']}/` +
+        `${metrics['renderer.business.windowApi.count']}, ` +
+        `quarantineSourceFiles=${quarantineSourceFiles.length}/${RENDERER_QUARANTINE_EXIT_MAX_FILES}`,
+      status: p5Ready ? 'ready' : 'pending'
+    }
+  ]
+
+  const scoreboardPayload = {
+    program: 'main-kernel-refactor',
+    generatedOn: new Date().toISOString().slice(0, 10),
+    currentPhase: bridgeRegister.currentPhase,
+    metrics,
+    phaseGates,
+    hotPathEdges: hotPathEdges.map((edge) => `${edge.source} -> ${edge.target}`),
+    migratedRawChannels: Object.fromEntries(migratedRawChannelCounts)
+  }
 
   await Promise.all([
     fs.writeFile(
@@ -346,6 +1049,38 @@ async function main() {
     fs.writeFile(
       path.join(REPORT_DIR, 'archive-reference-report.md'),
       `${renderArchiveReferenceReport(archiveReferences)}\n`
+    ),
+    fs.writeFile(
+      path.join(REPORT_DIR, 'main-kernel-boundary-baseline.md'),
+      `${renderBoundaryBaselineReport({
+        currentPhase: bridgeRegister.currentPhase,
+        metrics,
+        rendererLegacySplit,
+        quarantineSourceFiles: quarantineSourceFiles.map((file) => relativePath(file)),
+        phaseGates,
+        usePresenterSummary,
+        windowElectronSummary,
+        windowApiSummary,
+        rawTimerSummary,
+        migratedRawChannelSummary,
+        hotPathEdges
+      })}\n`
+    ),
+    fs.writeFile(
+      path.join(REPORT_DIR, 'main-kernel-migration-scoreboard.md'),
+      `${renderMigrationScoreboardReport({
+        currentPhase: bridgeRegister.currentPhase,
+        metrics,
+        phaseGates
+      })}\n`
+    ),
+    fs.writeFile(
+      path.join(REPORT_DIR, 'main-kernel-migration-scoreboard.json'),
+      `${JSON.stringify(scoreboardPayload, null, 2)}\n`
+    ),
+    fs.writeFile(
+      path.join(REPORT_DIR, 'main-kernel-bridge-register.md'),
+      `${renderBridgeRegisterReport(bridgeRegister, bridgeSummary)}\n`
     )
   ])
 
