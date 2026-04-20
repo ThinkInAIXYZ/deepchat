@@ -190,7 +190,12 @@ export class DevicePresenter implements IDevicePresenter {
       })
 
       // 获取内容类型并确定文件扩展名
-      const contentType = response.headers['content-type'] || 'image/jpeg'
+      const rawContentType = response.headers['content-type']
+      const contentType = Array.isArray(rawContentType)
+        ? rawContentType.join(';')
+        : typeof rawContentType === 'string'
+          ? rawContentType
+          : 'image/jpeg'
       let extension = 'jpg'
 
       if (contentType.includes('png')) {

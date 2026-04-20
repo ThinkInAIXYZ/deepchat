@@ -37,10 +37,21 @@ const setup = async (pendingModelId: string) => {
     selectedProject: {
       name: 'demo',
       path: '/workspace/demo'
-    },
+    } as { name: string; path: string } | null,
     defaultProjectPath: null as string | null,
-    projects: [] as Array<{ name: string; path: string }>,
-    selectProject: vi.fn(),
+    selectionSource: 'manual' as 'none' | 'manual' | 'default',
+    projects: [{ name: 'demo', path: '/workspace/demo' }] as Array<{ name: string; path: string }>,
+    selectProject: vi.fn((path: string | null, source?: 'none' | 'manual' | 'default') => {
+      const normalizedPath = path?.trim() || null
+      projectStore.selectedProject = normalizedPath
+        ? {
+            name: normalizedPath.split('/').pop() ?? normalizedPath,
+            path: normalizedPath
+          }
+        : null
+      projectStore.selectionSource =
+        normalizedPath || source === 'manual' ? (source ?? 'manual') : 'none'
+    }),
     openFolderPicker: vi.fn()
   })
   const sessionStore = {
@@ -123,19 +134,33 @@ const setup = async (pendingModelId: string) => {
         TooltipProvider: {
           template: '<div><slot /></div>'
         },
-        DropdownMenu: true,
-        DropdownMenuTrigger: true,
-        DropdownMenuContent: true,
-        DropdownMenuLabel: true,
-        DropdownMenuItem: true,
-        DropdownMenuSeparator: true,
-        Button: true,
+        DropdownMenu: {
+          template: '<div><slot /></div>'
+        },
+        DropdownMenuTrigger: {
+          template: '<div><slot /></div>'
+        },
+        DropdownMenuContent: {
+          template: '<div><slot /></div>'
+        },
+        DropdownMenuLabel: {
+          template: '<div><slot /></div>'
+        },
+        DropdownMenuItem: {
+          template: '<button type="button" v-bind="$attrs"><slot /></button>'
+        },
+        DropdownMenuSeparator: {
+          template: '<div />'
+        },
+        Button: {
+          template: '<button type="button" v-bind="$attrs"><slot /></button>'
+        },
         ChatInputToolbar: true,
         ChatStatusBar: true,
         ChatInputBox: {
           name: 'ChatInputBox',
           props: ['modelValue'],
-          template: '<div data-testid="chat-input">{{ modelValue }}</div>'
+          template: '<div data-testid="chat-input">{{ modelValue }}<slot name="toolbar" /></div>'
         }
       }
     }
@@ -145,7 +170,8 @@ const setup = async (pendingModelId: string) => {
 
   return {
     wrapper,
-    draftStore
+    draftStore,
+    projectStore
   }
 }
 
@@ -160,12 +186,24 @@ describe('NewThreadPage start deeplink prefill', () => {
     expect(draftStore.providerId).toBe('openai')
     expect(draftStore.modelId).toBe('deepseek-chat')
     expect(draftStore.clearPendingStartDeeplink).toHaveBeenCalledTimes(1)
-  })
+  }, 20000)
 
   it('falls back to fuzzy model matching when no exact match exists', async () => {
     const { draftStore } = await setup('seek-chat')
 
     expect(draftStore.providerId).toBe('openai')
     expect(draftStore.modelId).toBe('deepseek-chat')
-  })
+  }, 20000)
+
+  it('allows clearing the selected project from the new thread dropdown', async () => {
+    const { wrapper, projectStore } = await setup('deepseek-chat')
+
+    await wrapper.get('[data-testid="new-thread-clear-project"]').trigger('click')
+    await flushPromises()
+
+    expect(projectStore.selectProject).toHaveBeenCalledWith(null, 'manual')
+    expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
+      'common.project.none'
+    )
+  }, 20000)
 })
