@@ -3,10 +3,10 @@
 本文档反映 `2026-04-20` 完成 main kernel refactor phase5 自动化收口后的代码结构。
 
 当前仓库的后续治理重点不是再发起一次新的 `main kernel` 全量重写，而是把 renderer-main 边界继续收成
-single-track。换句话说，typed client / typed event 现在已经是默认方向，`usePresenter()`、
+single-track。换句话说，typed client / typed event 现在已经是默认方向，`useLegacyPresenter()`、
 `window.electron`、`window.api` 只应被视为兼容路径，而不是新功能入口。
 唯一允许的 quarantine 目录固定为 `src/renderer/api/legacy/**`，原先位于
-`src/renderer/src/composables/usePresenter.ts` 的 shim 已在 `P5` 退役，剩余 legacy transport
+`src/renderer/api/legacy/presenters.ts` 的 shim 已在 `P5` 退役，剩余 legacy transport
 只允许从 quarantine adapter 引用。
 
 当前 migrated 聊天热路径已经收敛为：
@@ -151,3 +151,4 @@ docs/
    - 工具与权限： [architecture/tool-system.md](./architecture/tool-system.md)
    - 会话与兼容边界： [architecture/session-management.md](./architecture/session-management.md)
 4. 如果需要对照旧实现，再去看 `archives/` 历史文档，不要依赖已经移除的历史源码快照。
+

@@ -149,7 +149,7 @@ describe('AcpSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: () => configPresenter
+      useLegacyPresenter: () => configPresenter
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({

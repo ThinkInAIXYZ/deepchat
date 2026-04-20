@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
@@ -243,8 +243,8 @@ const { toast } = useToast()
 const themeStore = useThemeStore()
 const languageStore = useLanguageStore()
 const route = useRoute()
-const devicePresenter = usePresenter('devicePresenter')
-const configPresenter = usePresenter('configPresenter')
+const devicePresenter = useLegacyPresenter('devicePresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 const appVersion = ref('')
 const upgrade = useUpgradeStore()
 const updateChannel = ref('stable')

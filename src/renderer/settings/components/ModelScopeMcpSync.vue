@@ -114,7 +114,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 
 const { t } = useI18n()
 
@@ -122,7 +122,7 @@ const props = defineProps<{
   provider: LLM_PROVIDER
 }>()
 
-const llmP = usePresenter('llmproviderPresenter')
+const llmP = useLegacyPresenter('llmproviderPresenter')
 
 const isSyncing = ref(false)
 const errorMessage = ref('')

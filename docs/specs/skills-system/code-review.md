@@ -317,7 +317,7 @@ const handleFolderDrop = async (event: DragEvent) => {
 **Description**: The `filePresenter` is used to read skill file content, but the store already has methods to handle this. This creates an inconsistent pattern where some operations go through the store and others directly through presenters.
 
 ```typescript
-const filePresenter = usePresenter('filePresenter')
+const filePresenter = useLegacyPresenter('filePresenter')
 // ...
 const content = await filePresenter.readFile(skill.path)
 ```
@@ -819,3 +819,4 @@ The Skills system implementation is solid overall with good security practices (
 9. **Issue 20 (Permission errors)** - Unhandled exceptions in folder tree
 
 The remaining issues are primarily defensive programming improvements, UX enhancements, and minor memory/cleanup concerns rather than critical bugs.
+

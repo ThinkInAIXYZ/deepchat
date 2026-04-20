@@ -596,15 +596,15 @@ import { BuiltinKnowledgeConfig, RENDERER_MODEL_META } from '@shared/presenter'
 import { toast } from '@/components/use-toast'
 import { useRoute } from 'vue-router'
 import { nanoid } from 'nanoid'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useModelStore } from '@/stores/modelStore'
 // 全局对象
 const { t } = useI18n()
 const mcpStore = useMcpStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
-const llmP = usePresenter('llmproviderPresenter')
-const knowledgeP = usePresenter('knowledgePresenter')
+const llmP = useLegacyPresenter('llmproviderPresenter')
+const knowledgeP = useLegacyPresenter('knowledgePresenter')
 const emit = defineEmits<{
   (e: 'showDetail', config: BuiltinKnowledgeConfig): void
 }>()

@@ -98,7 +98,7 @@ async function setup(options?: {
   }))
 
   vi.doMock('@api/legacy/presenters', () => ({
-    usePresenter: (name: string) => {
+    useLegacyPresenter: (name: string) => {
       if (name === 'llmproviderPresenter') return llmproviderPresenter
       throw new Error(`Unexpected presenter: ${name}`)
     }

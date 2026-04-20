@@ -80,7 +80,7 @@ import { useI18n } from 'vue-i18n'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { RATE_LIMIT_EVENTS } from '@/events'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useToast } from '@/components/use-toast'
@@ -104,7 +104,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const llmPresenter = usePresenter('llmproviderPresenter')
+const llmPresenter = useLegacyPresenter('llmproviderPresenter')
 const { toast } = useToast()
 
 const rateLimitEnabled = ref(props.provider.rateLimit?.enabled ?? false)

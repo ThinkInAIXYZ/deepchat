@@ -281,7 +281,7 @@ import {
   SheetTitle
 } from '@shadcn/components/ui/sheet'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { MessageFile } from '@shared/chat'
 import { getMimeTypeIcon } from '@/lib/utils'
 import { FileItem } from '@shared/presenter'
@@ -317,7 +317,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const filePresenter = usePresenter('filePresenter')
+const filePresenter = useLegacyPresenter('filePresenter')
 
 const form = reactive<PromptForm>({
   id: '',

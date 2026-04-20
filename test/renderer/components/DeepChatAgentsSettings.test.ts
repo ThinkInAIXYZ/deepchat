@@ -152,7 +152,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -292,7 +292,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -405,7 +405,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -533,7 +533,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -651,7 +651,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -793,7 +793,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -932,7 +932,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter
@@ -1106,7 +1106,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
         if (name === 'toolPresenter') return toolPresenter

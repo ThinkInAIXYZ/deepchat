@@ -91,7 +91,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useToast } from '@/components/use-toast'
 import type { ScanResult, ImportPreview } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
@@ -111,7 +111,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const skillSyncPresenter = usePresenter('skillSyncPresenter')
+const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
 
 // State
 const scanning = ref(false)

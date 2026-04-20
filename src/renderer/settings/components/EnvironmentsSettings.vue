@@ -138,7 +138,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useProjectStore } from '@/stores/ui/project'
 import type { EnvironmentSummary } from '@shared/types/agent-interface'
 
@@ -149,7 +149,7 @@ type EnvironmentListItem = EnvironmentSummary & {
 const { t, locale } = useI18n()
 const { toast } = useToast()
 const projectStore = useProjectStore()
-const projectPresenter = usePresenter('projectPresenter', { safeCall: false })
+const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
 
 const isLoading = ref(false)
 const showMissing = ref(false)

@@ -389,7 +389,7 @@ export const useSkillsStore = defineStore('skills', {
     async loadSkills() {
       this.loading = true
       try {
-        const presenter = usePresenter('skillPresenter')
+        const presenter = useLegacyPresenter('skillPresenter')
         this.skills = await presenter.getMetadataList()
       } finally {
         this.loading = false
@@ -488,7 +488,7 @@ export const useSkillsStore = defineStore('skills', {
 
 ## 9. Presenter 接口
 
-UI 层通过 `usePresenter('skillPresenter')` 调用以下方法：
+UI 层通过 `useLegacyPresenter('skillPresenter')` 调用以下方法：
 
 ```typescript
 interface SkillPresenter {
@@ -543,3 +543,4 @@ onMounted(() => {
   })
 })
 ```
+

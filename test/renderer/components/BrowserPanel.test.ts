@@ -92,7 +92,7 @@ describe('BrowserPanel', () => {
     }))
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: () => yoBrowserPresenter
+      useLegacyPresenter: () => yoBrowserPresenter
     }))
     ;(window as any).api = {
       ...(window as any).api,

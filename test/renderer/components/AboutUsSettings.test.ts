@@ -51,7 +51,7 @@ const upgradeStoreMock = {
 }
 
 vi.mock('@api/legacy/presenters', () => ({
-  usePresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
+  useLegacyPresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
 }))
 
 vi.mock('@/stores/upgrade', () => ({

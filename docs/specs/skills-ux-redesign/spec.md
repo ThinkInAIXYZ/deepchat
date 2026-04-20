@@ -97,7 +97,7 @@ Create composable: `src/renderer/src/components/chat-input/composables/useSkills
 
 ```typescript
 export function useSkillsData(conversationId: Ref<string | null>) {
-  const skillPresenter = usePresenter('skillPresenter')
+  const skillPresenter = useLegacyPresenter('skillPresenter')
   const skills = ref<SkillMetadata[]>([])
   const activeSkills = ref<string[]>([])
 
@@ -771,3 +771,4 @@ None. All changes are additive or modify internal behavior.
 ### Data Migration
 
 None required. Skills state already stored per-conversation in database.
+

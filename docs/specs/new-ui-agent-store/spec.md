@@ -57,7 +57,7 @@ function mapCustomAgent(agent: AcpCustomAgent): UIAgent {
 
 ```typescript
 export const useAgentStore = defineStore('agent', () => {
-  const configPresenter = usePresenter('configPresenter')
+  const configPresenter = useLegacyPresenter('configPresenter')
 
   // --- State ---
   const agents = ref<UIAgent[]>([])
@@ -152,3 +152,4 @@ Errors are caught in `fetchAgents` and stored in `error` ref. The DeepChat agent
 5. `selectAgent` toggles selection (same id deselects)
 6. `selectedAgentName` returns 'All Agents' when nothing selected
 7. Error during fetch sets `error` and still includes DeepChat agent
+

@@ -55,7 +55,7 @@ describe('Settings App', () => {
     })
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
             getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
@@ -276,7 +276,7 @@ describe('Settings App', () => {
     })
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
             getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
@@ -497,7 +497,7 @@ describe('Settings App', () => {
     })
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
             getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
@@ -738,7 +738,7 @@ describe('Settings App', () => {
     })
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
             getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
@@ -972,7 +972,7 @@ describe('Settings App', () => {
     })
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
             getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })

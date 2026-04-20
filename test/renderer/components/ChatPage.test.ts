@@ -163,7 +163,7 @@ const setup = async (options: SetupOptions = {}) => {
     useModelStore: () => modelStore
   }))
   vi.doMock('@api/legacy/presenters', () => ({
-    usePresenter: () => agentSessionPresenter
+    useLegacyPresenter: () => agentSessionPresenter
   }))
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
     ChatClient: vi.fn(() => chatClient)

@@ -508,7 +508,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/use-toast'
 
@@ -531,10 +531,10 @@ const isPresenterError = (value: unknown): value is PresenterErrorResult => {
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
-const devicePresenter = usePresenter('devicePresenter')
-const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
-const configPresenter = usePresenter('configPresenter')
-const sqlitePresenter = usePresenter('sqlitePresenter')
+const devicePresenter = useLegacyPresenter('devicePresenter')
+const yoBrowserPresenter = useLegacyPresenter('yoBrowserPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
+const sqlitePresenter = useLegacyPresenter('sqlitePresenter')
 const {
   backups: backupsRef,
   isBackingUp: isBackingUpRef,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-describe('usePresenter', () => {
+describe('useLegacyPresenter', () => {
   beforeEach(() => {
     vi.resetModules()
     ;(window as any).api = {
@@ -14,8 +14,8 @@ describe('usePresenter', () => {
   })
 
   it('preserves undefined properties in object payloads across IPC', async () => {
-    const { usePresenter } = await import('@api/legacy/presenters')
-    const presenter = usePresenter('agentSessionPresenter')
+    const { useLegacyPresenter } = await import('@api/legacy/presenters')
+    const presenter = useLegacyPresenter('agentSessionPresenter')
 
     await presenter.updateSessionGenerationSettings('s1', {
       temperature: 0.7,

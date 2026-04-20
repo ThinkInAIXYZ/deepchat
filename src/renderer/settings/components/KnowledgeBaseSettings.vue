@@ -45,7 +45,7 @@ import NowledgeMemSettings from './NowledgeMemSettings.vue'
 import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 
 const difySettingsRef = ref<InstanceType<typeof DifyKnowledgeSettings> | null>(null)
 const ragflowSettingsRef = ref<InstanceType<typeof RagflowKnowledgeSettings> | null>(null)
@@ -54,7 +54,7 @@ const nowledgeMemSettingsRef = ref<InstanceType<typeof NowledgeMemSettings> | nu
 const builtinSettingsRef = ref<InstanceType<typeof BuiltinKnowledgeSettings> | null>(null)
 
 // 根据系统版本控制是否展示内置知识库
-const knowledgePresenter = usePresenter('knowledgePresenter')
+const knowledgePresenter = useLegacyPresenter('knowledgePresenter')
 const enableBuiltinKnowledge = ref(false)
 knowledgePresenter.isSupported().then((res) => {
   enableBuiltinKnowledge.value = res

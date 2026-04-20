@@ -7,9 +7,9 @@ Phase 0 establishes the comparison baseline. Later phases should update this rep
 
 | Metric | Value | Status |
 | --- | --- | --- |
-| `renderer.usePresenter.count` | 0 | baseline |
+| `renderer.usePresenter.count` | 17 | baseline |
 | `renderer.business.usePresenter.count` | 0 | baseline |
-| `renderer.quarantine.usePresenter.count` | 0 | baseline |
+| `renderer.quarantine.usePresenter.count` | 17 | baseline |
 | `renderer.windowElectron.count` | 2 | baseline |
 | `renderer.business.windowElectron.count` | 0 | baseline |
 | `renderer.quarantine.windowElectron.count` | 2 | baseline |
@@ -28,7 +28,7 @@ Phase 0 establishes the comparison baseline. Later phases should update this rep
 | Phase | Status | Current signal |
 | --- | --- | --- |
 | `P0` | ready | `src/renderer/api/legacy/**` exists; split metrics emitted |
-| `P1` | ready | usePresenter=0, window.electron=0, window.api=0 |
+| `P1` | ready | legacyPresenter=0, window.electron=0, window.api=0 |
 | `P2` | ready | configPresenter=0, llmproviderPresenter=0 |
 | `P3` | ready | window=0, device=0, workspace=0, project=0, file=0, browser=0, tab=0 |
 | `P4` | ready | agentSession=0, skill=0, mcp=0, sync=0, upgrade=0, dialog=0, tool=0 |

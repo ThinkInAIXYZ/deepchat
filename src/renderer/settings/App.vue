@@ -64,7 +64,7 @@ import { useRouter, useRoute, RouterView } from 'vue-router'
 import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import CloseIcon from './icons/CloseIcon.vue'
 import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
@@ -100,9 +100,9 @@ type SettingsWindowState = Window & {
   __deepchatSettingsPendingSection?: string | null
 }
 
-const devicePresenter = usePresenter('devicePresenter')
-const windowPresenter = usePresenter('windowPresenter')
-const configPresenter = usePresenter('configPresenter')
+const devicePresenter = useLegacyPresenter('devicePresenter')
+const windowPresenter = useLegacyPresenter('windowPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 
 // Initialize stores
 const uiSettingsStore = useUiSettingsStore()

@@ -144,7 +144,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 
 const props = defineProps<{
   open: boolean
@@ -158,7 +158,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
-const devicePresenter = usePresenter('devicePresenter')
+const devicePresenter = useLegacyPresenter('devicePresenter')
 
 const isOpen = computed({
   get: () => props.open,

@@ -105,7 +105,7 @@ const setup = async (options: SetupOptions = {}) => {
   const settingsClient = {
     openSettings: vi.fn().mockResolvedValue({ windowId: 99 })
   }
-  const remoteControlPresenter = {
+  const remoteControlRuntime = {
     listRemoteChannels: vi.fn(async () => [
       { id: 'telegram', implemented: true },
       { id: 'feishu', implemented: true },
@@ -199,8 +199,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/SettingsClient', () => ({
     SettingsClient: vi.fn(() => settingsClient)
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyRemoteControlPresenter: () => remoteControlPresenter
+  vi.doMock('@api/RemoteControlRuntime', () => ({
+    RemoteControlRuntime: vi.fn(() => remoteControlRuntime)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -279,7 +279,7 @@ const setup = async (options: SetupOptions = {}) => {
     agentStore,
     sessionStore,
     settingsClient,
-    remoteControlPresenter,
+    remoteControlRuntime,
     spotlightStore,
     pageRouterStore,
     sidebarStore

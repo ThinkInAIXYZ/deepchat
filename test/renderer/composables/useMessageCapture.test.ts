@@ -8,7 +8,7 @@ vi.mock('@/composables/usePageCapture', () => ({
   })
 }))
 vi.mock('@api/legacy/presenters', () => ({
-  usePresenter: (name: string) => {
+  useLegacyPresenter: (name: string) => {
     if (name === 'devicePresenter') {
       return { getAppVersion: vi.fn().mockResolvedValue('1.0.0') }
     }

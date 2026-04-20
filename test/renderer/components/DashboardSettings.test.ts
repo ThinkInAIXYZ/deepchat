@@ -202,7 +202,7 @@ async function setup(
   const retryRtkHealthCheck = options.retryRtkHealthCheck ?? vi.fn().mockResolvedValue(undefined)
 
   vi.doMock('@api/legacy/presenters', () => ({
-    usePresenter: () => ({
+    useLegacyPresenter: () => ({
       getUsageDashboard,
       retryRtkHealthCheck
     })

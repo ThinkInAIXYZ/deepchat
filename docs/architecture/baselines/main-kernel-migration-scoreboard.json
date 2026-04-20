@@ -3,9 +3,9 @@
   "generatedOn": "2026-04-20",
   "currentPhase": "P5",
   "metrics": {
-    "renderer.usePresenter.count": 0,
+    "renderer.usePresenter.count": 17,
     "renderer.business.usePresenter.count": 0,
-    "renderer.quarantine.usePresenter.count": 0,
+    "renderer.quarantine.usePresenter.count": 17,
     "renderer.windowElectron.count": 2,
     "renderer.business.windowElectron.count": 0,
     "renderer.quarantine.windowElectron.count": 2,
@@ -28,8 +28,8 @@
     },
     {
       "phase": "P1",
-      "indicator": "Business layer direct `usePresenter` / `window.electron` / `window.api` counts must reach `0`",
-      "current": "usePresenter=0, window.electron=0, window.api=0",
+      "indicator": "Business layer direct legacy presenter helper / `window.electron` / `window.api` counts must reach `0`",
+      "current": "legacyPresenter=0, window.electron=0, window.api=0",
       "status": "ready"
     },
     {

@@ -698,12 +698,12 @@ const setup = async (options: SetupOptions = {}) => {
   }
 
   vi.doMock('@api/legacy/presenters', () => ({
-    usePresenter: (name: string) => {
+    useLegacyPresenter: (name: string) => {
       if (name === 'agentSessionPresenter') return agentSessionPresenter
       if (name === 'projectPresenter') return projectPresenter
       return null
     },
-    useRemoteControlPresenter: () => remoteControlPresenter
+    useLegacyRemoteControlPresenter: () => remoteControlPresenter
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({

@@ -264,7 +264,7 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { storeToRefs } from 'pinia'
@@ -284,7 +284,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const skillSyncPresenter = usePresenter('skillSyncPresenter')
+const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
 const skillsStore = useSkillsStore()
 const { skills: localSkills, loading: loadingSkills } = storeToRefs(skillsStore)
 

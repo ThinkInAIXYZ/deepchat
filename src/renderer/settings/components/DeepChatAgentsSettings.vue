@@ -635,7 +635,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/compon
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useModelStore } from '@/stores/modelStore'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
@@ -717,9 +717,9 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
-const projectPresenter = usePresenter('projectPresenter', { safeCall: false })
-const toolPresenter = usePresenter('toolPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
+const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
+const toolPresenter = useLegacyPresenter('toolPresenter')
 const modelStore = useModelStore()
 const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
 

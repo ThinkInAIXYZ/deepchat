@@ -59,7 +59,7 @@ describe('WorkspaceViewer', () => {
     }))
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: () => ({
+      useLegacyPresenter: () => ({
         openFile: openFileMock
       })
     }))

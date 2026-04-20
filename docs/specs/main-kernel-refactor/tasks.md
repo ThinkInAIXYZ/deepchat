@@ -18,11 +18,11 @@
 
 ## Phase 0: Guardrails & Baseline
 
-- [x] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `usePresenter()` 调用点
+- [x] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `useLegacyPresenter()` 调用点
 - [x] 扩展 `scripts/architecture-guard.mjs`，阻止新增 `window.electron.ipcRenderer.*` 监听
 - [x] 扩展 `scripts/architecture-guard.mjs`，阻止在 migrated path 中新增 raw channel 字符串
 - [x] 为 hot path direct dependency 增加趋势检查
-- [x] 扩展 baseline 脚本，输出 `usePresenter` / `window.electron` / `window.api` / raw timer / bridge 数量
+- [x] 扩展 baseline 脚本，输出 legacy presenter helper（metric id 保持 `renderer.usePresenter.count`）/ `window.electron` / `window.api` / raw timer / bridge 数量
 - [x] 建立 bridge register
 - [x] 建立轻量 migration scoreboard
 
@@ -41,7 +41,7 @@
 
 - [x] 设计 settings contract / handler / adapter
 - [x] 将 settings renderer/store 迁移到 `SettingsClient`
-- [x] 清理 settings 主路径上的 `usePresenter()` / raw IPC 依赖
+- [x] 清理 settings 主路径上的 `useLegacyPresenter()` / raw IPC 依赖
 - [x] 补齐 settings 单测、集成测试和 smoke
 - [x] 删除 settings 迁移过程中的临时桥接
 
@@ -81,3 +81,4 @@
 - [x] 每个阶段完成时更新 `docs/architecture/baselines/*`
 - [x] 每个阶段完成时更新 bridge register 与 scoreboard
 - [x] 每个阶段完成时确认 legacy 指标净下降
+

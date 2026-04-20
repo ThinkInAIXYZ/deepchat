@@ -27,9 +27,12 @@
 
 这说明当前分支的主要风险已经不在 main hot path，而在 renderer 开发入口仍然模糊。
 
+说明：`renderer.usePresenter.count` 保留旧 metric id，用于连续追踪当前
+legacy presenter helper 的剩余触点。
+
 ## Current Presenter Hotspots
 
-按 `usePresenter()` 名称分布，当前主要热点为：
+按 `useLegacyPresenter()` 名称分布，当前主要热点为：
 
 | Legacy Surface | Current Hits | Target Single-Track Surface | Priority |
 | --- | --- | --- | --- |
@@ -59,9 +62,9 @@
 
 合并前必须先完成 renderer 业务层单轨化，而不是把“后面继续慢慢迁”当作默认路径。
 
-### 2. `usePresenter()` Downgraded To Internal Compatibility Utility
+### 2. `useLegacyPresenter()` Downgraded To Internal Compatibility Utility
 
-`usePresenter()` 不再是新功能入口。
+`useLegacyPresenter()` 不再是新功能入口。
 
 在计划完成前，它最多只能存在于 quarantine adapter 内部，不能再被 `src/renderer/src/**` 业务模块直接 import。
 
@@ -99,7 +102,7 @@ legacy transport 的唯一允许形态：
 
 ```text
 temporary quarantine adapter
-  -> usePresenter() or raw window.electron / window.api
+  -> useLegacyPresenter() or raw window.electron / window.api
 ```
 
 并且 quarantine adapter 不允许被视为“长期公共 API”。
@@ -123,7 +126,7 @@ temporary quarantine adapter
 
 以下行为在本计划中视为禁止：
 
-1. 在 `src/renderer/src/**` 新增 `usePresenter()` import
+1. 在 `src/renderer/src/**` 新增 `useLegacyPresenter()` import
 2. 在 `src/renderer/src/**` 新增 `window.electron.*`
 3. 在 `src/renderer/src/**` 新增 `window.api.*`
 4. 在同一个业务模块内混用 typed client 与 legacy transport
@@ -253,7 +256,7 @@ P0 Rules & Guard Hardening
 
 退出条件：
 
-- 新功能无法再在业务层直接新增 `usePresenter()` 或 raw IPC
+- 新功能无法再在业务层直接新增 `useLegacyPresenter()` 或 raw IPC
 - 入口文档已经明确 single-track 规则
 - `P1` 所需的 quarantine 输出已经存在且路径固定
 
@@ -266,7 +269,7 @@ P0 Rules & Guard Hardening
 
 交付物：
 
-- `usePresenter()` 迁入 internal compatibility transport，或降级为 quarantine-only utility
+- `useLegacyPresenter()` 迁入 internal compatibility transport，或降级为 quarantine-only utility
 - `src/renderer/api/legacy/` 目录实际建立并承接 legacy transport
 - `useIpcQuery` / `useIpcMutation` 改为：
   - 面向 typed client 的 helper，或
@@ -276,7 +279,7 @@ P0 Rules & Guard Hardening
 
 退出条件：
 
-- `src/renderer/src/**` 不再 direct import `@/composables/usePresenter`
+- `src/renderer/src/**` 不再 direct import `@api/legacy/presenters`
 - mixed transport module 被消除
 
 ### P2: Config / Provider / Model Family
@@ -381,15 +384,15 @@ P0 Rules & Guard Hardening
 当前状态（`2026-04-20`）：
 
 - 已完成
-- `src/renderer/src/composables/usePresenter.ts` 已删除，remaining legacy presenter entry 只保留在 `src/renderer/api/legacy/presenters.ts`
-- settings compatibility surfaces 已改为从 quarantine adapter import，`usePresenter()` 不再通过 `src/renderer/src/**` 路径暴露
+- 旧的通用 `usePresenter()` naming 已退役；remaining legacy presenter entry 仅保留在 `src/renderer/api/legacy/presenters.ts`
+- settings compatibility surfaces 继续从 quarantine adapter import；`src/renderer/src/**` 业务层已改为通过明确命名的 runtime wrapper 使用 residual legacy capability，不再直接 import `@api/legacy/presenters`
 - `scripts/architecture-guard.mjs` 已补 `renderer-retired-legacy-entry` 与 quarantine `<= 3` source files gate，稳定阻止 shim 回流和 quarantine 膨胀
 - architecture baseline / scoreboard 已刷新，`P5` gate 现为 `ready`：business legacy signal `0/0/0`，quarantine source files `3/3`
 - active docs 已补充 `P5` 最终状态与 quarantine 导航入口；剩余 quarantine 仅保留 `presenters.ts`、`presenterTransport.ts`、`runtime.ts`
 
 交付物：
 
-- `usePresenter()` internal-only 或完全删除
+- `useLegacyPresenter()` internal-only 或完全删除
 - `window.electron` / `window.api` 只存在于文档明确列出的 bridge / runtime wrapper
 - 刷新基线、任务状态、代码导航和 onboarding 文档
 - 最终 merge gate checklist
@@ -442,7 +445,7 @@ P0 Rules & Guard Hardening
 
 该分支进入主线前，至少满足：
 
-1. `src/renderer/src/**` direct `usePresenter` import = `0`
+1. `src/renderer/src/**` direct legacy presenter helper import = `0`
 2. `src/renderer/src/**` direct `window.electron` access = `0`
 3. `src/renderer/src/**` direct `window.api` access = `0`
 4. `useIpcQuery` / `useIpcMutation` 不再依赖 presenter reflection
@@ -461,3 +464,4 @@ P0 Rules & Guard Hardening
 2. 再锁 transport helper
 3. 再按 family 清理
 4. 最后再 merge
+

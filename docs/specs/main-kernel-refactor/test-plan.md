@@ -24,7 +24,7 @@
 
 - `architecture-guard`
 - baseline 生成脚本
-- grep 型 guard：`usePresenter`、`window.electron`、`window.api`
+- grep 型 guard：`useLegacyPresenter`、`window.electron`、`window.api`
 - migrated path 的 raw channel / raw timer 检查
 - hot path direct dependency 趋势检查
 - bridge register / scoreboard 一致性检查
@@ -198,7 +198,7 @@
 ### Settings Slice
 
 - 验证读、写、变更通知、重启持久化
-- 验证 settings store 不再依赖 `usePresenter()` 主入口
+- 验证 settings store 不再依赖 `useLegacyPresenter()` 主入口
 - 验证 settings 通知走 typed event
 
 ### Chat & Session Slice
@@ -261,3 +261,4 @@
 - stop stream
 - provider or permission interaction
 - This regression gate was satisfied on `2026-04-20` by the Phase 5 targeted migrated-path suites listed above.
+

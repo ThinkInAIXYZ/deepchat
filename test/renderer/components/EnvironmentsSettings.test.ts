@@ -136,7 +136,7 @@ async function setup(overrides?: {
     useProjectStore: () => projectStore
   }))
   vi.doMock('@api/legacy/presenters', () => ({
-    usePresenter: () => ({
+    useLegacyPresenter: () => ({
       pathExists: vi.fn().mockResolvedValue(overrides?.pathExists ?? true)
     })
   }))

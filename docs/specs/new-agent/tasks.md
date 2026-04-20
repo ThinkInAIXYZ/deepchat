@@ -45,7 +45,7 @@
 
 - [x] Add `IAgentSessionPresenter` and `IProjectPresenter` to `IPresenter` interface in `src/shared/types/presenters/legacy.presenters.d.ts`
 - [x] Add properties and constructor instantiation in `src/main/presenter/index.ts`
-- [x] Verify: `usePresenter('agentSessionPresenter')` and `usePresenter('projectPresenter')` callable from renderer
+- [x] Verify: `useLegacyPresenter('agentSessionPresenter')` and `useLegacyPresenter('projectPresenter')` callable from renderer
 
 ## T6 Renderer Stores
 
@@ -110,3 +110,4 @@
 - [x] Delete `streamHandler.ts` and `agentLoop.ts`
 - [x] Tests: `throttle.test.ts` (7), `accumulator.test.ts` (14), `echo.test.ts` (5), `dispatch.test.ts` (14), `process.test.ts` (9), updated `agentRuntimePresenter.test.ts` (19)
 - [x] Quality gate: typecheck, lint, format, 89 tests passing
+

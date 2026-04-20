@@ -69,7 +69,10 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/main/routes')
 ]
 
-const USE_PRESENTER_CALL_PATTERN = /\busePresenter\s*\(/g
+const GENERIC_LEGACY_PRESENTER_CALL_PATTERN =
+  /(?<!function\s)\b(?:usePresenter|useLegacyPresenter)\s*\(/g
+const LEGACY_PRESENTER_HELPER_CALL_PATTERN =
+  /(?<!function\s)\b(?:usePresenter|useLegacyPresenter|useLegacy[A-Z][A-Za-z]*Presenter)\s*\(/g
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const RAW_TIMER_PATTERN = /\b(?:setTimeout|setInterval)\s*\(/g
@@ -191,7 +194,7 @@ function escapeRegExp(value) {
 
 function createUsePresenterNamePattern(presenterName) {
   return new RegExp(
-    `\\busePresenter\\s*\\(\\s*['"\`]${escapeRegExp(presenterName)}['"\`]`,
+    `(?<!function\\s)\\b(?:usePresenter|useLegacyPresenter)\\s*\\(\\s*['"\`]${escapeRegExp(presenterName)}['"\`]`,
     'g'
   )
 }
@@ -742,7 +745,7 @@ function renderBoundaryBaselineReport({
   lines.push('| Legacy surface | Business layer | Quarantine layer | Total |')
   lines.push('| --- | --- | --- | --- |')
   lines.push(
-    `| \`usePresenter()\` | ${rendererLegacySplit.usePresenter.business.total} | ${rendererLegacySplit.usePresenter.quarantine.total} | ${rendererLegacySplit.usePresenter.total.total} |`
+    `| legacy presenter helper | ${rendererLegacySplit.usePresenter.business.total} | ${rendererLegacySplit.usePresenter.quarantine.total} | ${rendererLegacySplit.usePresenter.total.total} |`
   )
   lines.push(
     `| \`window.electron\` | ${rendererLegacySplit.windowElectron.business.total} | ${rendererLegacySplit.windowElectron.quarantine.total} | ${rendererLegacySplit.windowElectron.total.total} |`
@@ -797,7 +800,7 @@ function renderBoundaryBaselineReport({
 
   lines.push('')
 
-  renderTopCountSection(lines, 'Renderer usePresenter', usePresenterSummary)
+  renderTopCountSection(lines, 'Renderer legacy presenter helpers', usePresenterSummary)
   renderTopCountSection(lines, 'Renderer window.electron', windowElectronSummary)
   renderTopCountSection(lines, 'Renderer window.api', windowApiSummary)
   renderTopCountSection(lines, 'Raw Timers', rawTimerSummary)
@@ -883,7 +886,9 @@ async function main() {
   const rendererBusinessFiles = await walk(RENDERER_SOURCE_ROOT)
   const quarantineExists = await pathExists(RENDERER_QUARANTINE_ROOT)
   const quarantineSourceFiles = await collectFilesFromTargets(RENDERER_QUARANTINE_ROOTS)
-  const usePresenterCountsByLayer = await collectRendererPatternCountsByLayer(USE_PRESENTER_CALL_PATTERN)
+  const usePresenterCountsByLayer = await collectRendererPatternCountsByLayer(
+    LEGACY_PRESENTER_HELPER_CALL_PATTERN
+  )
   const windowElectronCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_ELECTRON_PATTERN)
   const windowApiCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_API_PATTERN)
   const rawTimerCounts = await collectPatternCounts(mainAndRendererFiles, RAW_TIMER_PATTERN)
@@ -966,9 +971,9 @@ async function main() {
     {
       phase: 'P1',
       indicator:
-        'Business layer direct `usePresenter` / `window.electron` / `window.api` counts must reach `0`',
+        'Business layer direct legacy presenter helper / `window.electron` / `window.api` counts must reach `0`',
       current:
-        `usePresenter=${metrics['renderer.business.usePresenter.count']}, ` +
+        `legacyPresenter=${metrics['renderer.business.usePresenter.count']}, ` +
         `window.electron=${metrics['renderer.business.windowElectron.count']}, ` +
         `window.api=${metrics['renderer.business.windowApi.count']}`,
       status: p1Ready ? 'ready' : 'pending'

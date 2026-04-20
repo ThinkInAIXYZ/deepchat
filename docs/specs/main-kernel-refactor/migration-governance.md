@@ -51,7 +51,7 @@ new typed route -> presenter reflection dispatcher
 
 本轮新增功能如果涉及 renderer-main 能力，必须先进入 typed boundary。
 
-不允许一边写“未来会迁移”，一边继续新增 `usePresenter()` 或 raw IPC。
+不允许一边写“未来会迁移”，一边继续新增 `useLegacyPresenter()` 或 raw IPC。
 
 ### 4. One Real Slice Per Phase
 
@@ -94,7 +94,7 @@ new typed route -> presenter reflection dispatcher
 
 以下行为在本轮实施期间视为红线：
 
-1. 在 renderer 新增 `usePresenter()`
+1. 在 renderer 新增 `useLegacyPresenter()`
 2. 在 renderer 新增 `window.electron.ipcRenderer.*`
 3. 在 migrated path 新增 raw channel 字符串
 4. 新 orchestration 反向依赖旧 presenter
@@ -186,3 +186,4 @@ Scoreboard 目标不是绝对精确，而是持续证明：
 - renderer 边界稳定了
 - hot path 耦合净下降
 - bridge register 对本轮范围归零
+

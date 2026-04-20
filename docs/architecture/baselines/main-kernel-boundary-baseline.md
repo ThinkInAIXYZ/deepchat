@@ -7,9 +7,9 @@ Current phase: P5.
 
 | Metric | Value |
 | --- | --- |
-| `renderer.usePresenter.count` | 0 |
+| `renderer.usePresenter.count` | 17 |
 | `renderer.business.usePresenter.count` | 0 |
-| `renderer.quarantine.usePresenter.count` | 0 |
+| `renderer.quarantine.usePresenter.count` | 17 |
 | `renderer.windowElectron.count` | 2 |
 | `renderer.business.windowElectron.count` | 0 |
 | `renderer.quarantine.windowElectron.count` | 2 |
@@ -30,7 +30,7 @@ Current phase: P5.
 
 | Legacy surface | Business layer | Quarantine layer | Total |
 | --- | --- | --- | --- |
-| `usePresenter()` | 0 | 0 | 0 |
+| legacy presenter helper | 0 | 17 | 17 |
 | `window.electron` | 0 | 2 | 2 |
 | `window.api` | 0 | 2 | 2 |
 
@@ -49,7 +49,7 @@ Current phase: P5.
 | Phase | Gate indicator | Current signal | Status |
 | --- | --- | --- | --- |
 | `P0` | Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics | `src/renderer/api/legacy/**` exists; split metrics emitted | ready |
-| `P1` | Business layer direct `usePresenter` / `window.electron` / `window.api` counts must reach `0` | usePresenter=0, window.electron=0, window.api=0 | ready |
+| `P1` | Business layer direct legacy presenter helper / `window.electron` / `window.api` counts must reach `0` | legacyPresenter=0, window.electron=0, window.api=0 | ready |
 | `P2` | Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0` | configPresenter=0, llmproviderPresenter=0 | ready |
 | `P3` | Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0` | window=0, device=0, workspace=0, project=0, file=0, browser=0, tab=0 | ready |
 | `P4` | Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0` | agentSession=0, skill=0, mcp=0, sync=0, upgrade=0, dialog=0, tool=0 | ready |
@@ -70,11 +70,11 @@ Current phase: P5.
 - `src/main/presenter/sessionPresenter/index.ts -> src/main/eventbus.ts`
 - `src/main/presenter/sessionPresenter/index.ts -> src/main/presenter/index.ts`
 
-## Renderer usePresenter
+## Renderer legacy presenter helpers
 
-- Total count: 0
+- Total count: 17
 
-- None
+- `src/renderer/api/legacy/presenters.ts`: 17
 
 ## Renderer window.electron
 

@@ -335,7 +335,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { SettingsClient } from '@api/SettingsClient'
-import { useLegacyRemoteControlPresenter } from '@api/legacy/presenters'
+import { RemoteControlRuntime } from '@api/RemoteControlRuntime'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
@@ -361,7 +361,7 @@ const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
 
 const settingsClient = new SettingsClient()
-const remoteControlPresenter = useLegacyRemoteControlPresenter()
+const remoteControlRuntime = new RemoteControlRuntime()
 const { t } = useI18n()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
@@ -458,10 +458,6 @@ const selectedAgentName = computed(() => {
   return matchedAgent?.name ?? t('chat.sidebar.allAgents')
 })
 
-const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
-  listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
-  getChannelStatus?: (channel: RemoteChannel) => Promise<RemoteChannelStatus>
-}
 const implementedRemoteChannels = computed(() =>
   remoteChannelDescriptors.value
     .filter((descriptor) => descriptor.implemented)
@@ -650,22 +646,24 @@ const openRemoteSettings = async () => {
 
 const refreshRemoteControlStatus = async () => {
   try {
-    remoteChannelDescriptors.value = presenterCompat.listRemoteChannels
-      ? await presenterCompat.listRemoteChannels()
-      : fallbackRemoteChannels
-    if (presenterCompat.getChannelStatus) {
-      const channels = remoteChannelDescriptors.value
-        .filter((descriptor) => descriptor.implemented)
-        .map((descriptor) => descriptor.id)
-      const statuses = await Promise.all(
-        channels.map(
-          async (channel) => [channel, await presenterCompat.getChannelStatus!(channel)] as const
-        )
-      )
+    remoteChannelDescriptors.value =
+      (await remoteControlRuntime.listRemoteChannels()) ?? fallbackRemoteChannels
+
+    const channels = remoteChannelDescriptors.value
+      .filter((descriptor) => descriptor.implemented)
+      .map((descriptor) => descriptor.id)
+    const statuses = await Promise.all(
+      channels.map(async (channel) => ({
+        channel,
+        status: await remoteControlRuntime.getChannelStatus(channel)
+      }))
+    )
+
+    if (statuses.every((entry) => entry.status !== null)) {
       remoteControlStatus.value = statuses.reduce(
-        (acc, [channel, status]) => ({
+        (acc, entry) => ({
           ...acc,
-          [channel]: status
+          [entry.channel]: entry.status as RemoteChannelStatus
         }),
         createRemoteStatusMap()
       )
@@ -674,8 +672,8 @@ const refreshRemoteControlStatus = async () => {
 
     remoteControlStatus.value = {
       ...createRemoteStatusMap(),
-      telegram: await remoteControlPresenter.getTelegramStatus(),
-      'weixin-ilink': await remoteControlPresenter.getWeixinIlinkStatus()
+      telegram: await remoteControlRuntime.getTelegramStatus(),
+      'weixin-ilink': await remoteControlRuntime.getWeixinIlinkStatus()
     }
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)

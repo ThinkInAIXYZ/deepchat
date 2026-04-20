@@ -48,7 +48,7 @@ describe('LinkNode', () => {
     }))
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: (name: string) => {
+      useLegacyPresenter: (name: string) => {
         if (name === 'yoBrowserPresenter') {
           return yoBrowserPresenter
         }
@@ -132,7 +132,7 @@ describe('LinkNode', () => {
     }))
 
     vi.doMock('@api/legacy/presenters', () => ({
-      usePresenter: () => ({})
+      useLegacyPresenter: () => ({})
     }))
 
     const LinkNode = (await import('@/components/markdown/LinkNode.vue')).default

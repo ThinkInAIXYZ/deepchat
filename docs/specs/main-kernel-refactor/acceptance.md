@@ -37,7 +37,7 @@
 
 ### Phase 0: Guardrails & Baseline
 
-- 能阻止新增 `usePresenter()`、新增 raw renderer IPC、新增 migrated path raw channel
+- 能阻止新增 `useLegacyPresenter()`、新增 raw renderer IPC、新增 migrated path raw channel
 - 能输出 renderer / preload / hot path 相关趋势基线
 - bridge register 和 scoreboard 模板可用
 
@@ -46,7 +46,7 @@
 - 存在统一的 shared route registry
 - 存在 typed event catalog，至少覆盖 settings / sessions / chat 首批事件
 - preload bridge 和 `renderer/api` client 已能驱动首批主路径
-- 新增功能不再依赖 `usePresenter()` 接入
+- 新增功能不再依赖 `useLegacyPresenter()` 接入
 
 ### Phase 2: Settings Pilot Slice
 
@@ -152,7 +152,7 @@
 ### Boundary
 
 - [x] migrated path 的 renderer 调用统一走 `renderer/api` + `window.deepchat`
-- [x] migrated path 不再新增 `usePresenter()`、`window.electron`、`window.api` 依赖
+- [x] migrated path 不再新增 `useLegacyPresenter()`、`window.electron`、`window.api` 依赖
 - [x] migrated path 的 route 和 typed event 都能在共享 registry / catalog 中追踪
 - [x] 组件和 store 不直接拼新的 raw channel 字符串
 
@@ -213,3 +213,4 @@
 - smoke 记录
 - 文档更新记录
 - 对“是否继续做更彻底 kernel 重构”的结论说明
+

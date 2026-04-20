@@ -159,7 +159,7 @@ const mountSettingsApp = async (options?: {
     }
   }))
   vi.doMock('@api/legacy/presenters', () => ({
-    usePresenter: (name: string) => {
+    useLegacyPresenter: (name: string) => {
       if (name === 'devicePresenter') {
         return {
           getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })

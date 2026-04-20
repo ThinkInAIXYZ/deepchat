@@ -39,8 +39,8 @@ Follow DeepChat's existing architectural patterns:
 
 Every feature should integrate seamlessly with existing Presenters and use the established event flow patterns.
 
-对于 renderer-main 新能力，当前默认路径已经从 `usePresenter()` 转向 typed route / typed event +
-`renderer/api/*Client`。`usePresenter()` 只保留给兼容路径，不应再作为新代码模式复制。
+对于 renderer-main 新能力，当前默认路径已经从 `useLegacyPresenter()` 转向 typed route / typed event +
+`renderer/api/*Client`。`useLegacyPresenter()` 只保留给兼容路径，不应再作为新代码模式复制。
 
 ### 3. Minimal Complexity
 
@@ -122,7 +122,7 @@ const settingsClient = new SettingsClient()
 Compatibility note:
 
 - 新 renderer-main 能力优先定义 `shared/contracts/*` 和 `renderer/api/*Client`
-- `usePresenter()` 不再是推荐模式
+- `useLegacyPresenter()` 不再是推荐模式
 - 如果必须临时保留 legacy transport，应先收口到 `src/renderer/api/legacy/**`，而不是直接进入业务模块
 - 不允许再创建第二个 quarantine 目录来承接 renderer-main legacy transport
 
@@ -145,3 +145,4 @@ A feature is “done” when:
 - Lint/typecheck/tests pass locally
 - User-facing strings use i18n keys
 - Any migrations or breaking changes are documented
+

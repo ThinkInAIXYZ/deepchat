@@ -93,9 +93,12 @@ const HOT_PATH_FILES = [
 
 const HOT_PATH_EDGE_BASELINE = 11
 
-const USE_PRESENTER_CALL_PATTERN = /\busePresenter\s*\(/g
-const USE_PRESENTER_IMPORT_PATTERN =
-  /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*composables\/usePresenter['"]|\bimport\s*['"][^'"]*composables\/usePresenter['"]/g
+const GENERIC_LEGACY_PRESENTER_CALL_PATTERN =
+  /(?<!function\s)\b(?:usePresenter|useLegacyPresenter)\s*\(/g
+const LEGACY_PRESENTER_HELPER_CALL_PATTERN =
+  /(?<!function\s)\b(?:usePresenter|useLegacyPresenter|useLegacy[A-Z][A-Za-z]*Presenter)\s*\(/g
+const LEGACY_PRESENTER_IMPORT_PATTERN =
+  /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]|\bimport\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]/g
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
@@ -370,21 +373,24 @@ async function main() {
 
     if (isUnder(filePath, RENDERER_SOURCE_ROOT)) {
       const file = relativePath(filePath)
-      const usePresenterCount = countMatches(source, USE_PRESENTER_CALL_PATTERN)
-      const usePresenterImportCount = countMatches(source, USE_PRESENTER_IMPORT_PATTERN)
+      const legacyPresenterHelperCount = countMatches(
+        source,
+        LEGACY_PRESENTER_HELPER_CALL_PATTERN
+      )
+      const legacyPresenterImportCount = countMatches(source, LEGACY_PRESENTER_IMPORT_PATTERN)
       const windowElectronCount = countMatches(source, WINDOW_ELECTRON_PATTERN)
       const windowApiCount = countMatches(source, WINDOW_API_PATTERN)
       const actualListenerCount = countMatches(source, IPC_RENDERER_LISTENER_PATTERN)
 
-      if (usePresenterImportCount > 0) {
+      if (legacyPresenterImportCount > 0) {
         violations.push(
-          `[renderer-business-direct-use-presenter-import] ${file} must not import composables/usePresenter`
+          `[renderer-business-direct-use-presenter-import] ${file} must not import renderer legacy presenter helpers`
         )
       }
 
-      if (usePresenterCount > 0) {
+      if (legacyPresenterHelperCount > 0) {
         violations.push(
-          `[renderer-business-direct-use-presenter] ${file} expected 0, found ${usePresenterCount}`
+          `[renderer-business-direct-use-presenter] ${file} expected 0, found ${legacyPresenterHelperCount}`
         )
       }
 
@@ -409,7 +415,7 @@ async function main() {
 
     if (isUnder(filePath, RENDERER_TYPED_BOUNDARY_ROOT) && !isRendererQuarantineFile(filePath)) {
       const file = relativePath(filePath)
-      const usePresenterCount = countMatches(source, USE_PRESENTER_CALL_PATTERN)
+      const usePresenterCount = countMatches(source, GENERIC_LEGACY_PRESENTER_CALL_PATTERN)
       const windowElectronCount = countMatches(source, WINDOW_ELECTRON_PATTERN)
       const windowApiCount = countMatches(source, WINDOW_API_PATTERN)
       const allowsWindowApi = RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST.some(

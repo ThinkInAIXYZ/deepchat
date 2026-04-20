@@ -129,7 +129,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import type { SkillMetadata } from '@shared/types/skill'
 
 import SkillsHeader from './SkillsHeader.vue'
@@ -143,7 +143,7 @@ import { SkillSyncDialog } from './SkillSyncDialog'
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 
 const { skills, skillExtensions, skillScripts, loading } = storeToRefs(skillsStore)
 

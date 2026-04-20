@@ -18,7 +18,7 @@
 
 - `src/main/presenter/index.ts` — singleton `Presenter` class, IPC handler at line ~358 does `presenter[name as keyof Presenter]`
 - `src/shared/types/presenters/legacy.presenters.d.ts` — `IPresenter` interface
-- `src/renderer/src/composables/usePresenter.ts` — proxy-based IPC caller
+- `src/renderer/api/legacy/presenters.ts` — proxy-based IPC caller
 
 ### 1.4 SQLite
 
@@ -35,7 +35,7 @@
 
 ### 2.1 Naming: `agentSessionPresenter` not `agentPresenter`
 
-The old `agentPresenter` still exists and must keep working. The new one is registered as `agentSessionPresenter` in IPresenter to avoid name collision. Renderer calls `usePresenter('agentSessionPresenter')`. When old UI is removed, rename to `agentPresenter`.
+The old `agentPresenter` still exists and must keep working. The new one is registered as `agentSessionPresenter` in IPresenter to avoid name collision. Renderer calls `useLegacyPresenter('agentSessionPresenter')`. When old UI is removed, rename to `agentPresenter`.
 
 ### 2.2 Database: new tables in same chat.db
 
@@ -327,14 +327,14 @@ STREAM_EVENTS reused as-is — same event names, same payload format. All stream
 
 **`session.ts`** — rewrite
 
-- Uses `usePresenter('agentSessionPresenter')`
+- Uses `useLegacyPresenter('agentSessionPresenter')`
 - State: `sessions: Session[]`, `activeSessionId`, `groupMode`
 - Actions: `fetchSessions()`, `createSession(input)`, `selectSession(id)`, `closeSession()`
 - Listens to: `SESSION_EVENTS.LIST_UPDATED`, `SESSION_EVENTS.ACTIVATED`, `SESSION_EVENTS.DEACTIVATED`, `SESSION_EVENTS.STATUS_CHANGED`
 
 **`message.ts`** — new
 
-- Uses `usePresenter('agentSessionPresenter')`
+- Uses `useLegacyPresenter('agentSessionPresenter')`
 - State: `messageIds: string[]`, `messageCache: Map<string, ChatMessage>`, `isStreaming: boolean`, `streamingBlocks: AssistantMessageBlock[]`
 - Actions: `loadMessages(sessionId)`, `getMessage(id)`
 - Listens to: `STREAM_EVENTS.RESPONSE` (update streaming blocks from `LLMAgentEventData`), `STREAM_EVENTS.END` (finalize), `STREAM_EVENTS.ERROR`
@@ -342,13 +342,13 @@ STREAM_EVENTS reused as-is — same event names, same payload format. All stream
 
 **`agent.ts`** — rewrite
 
-- Uses `usePresenter('agentSessionPresenter')`
+- Uses `useLegacyPresenter('agentSessionPresenter')`
 - State: `agents: Agent[]`, `selectedAgentId`
 - Actions: `fetchAgents()`, `selectAgent(id)`
 
 **`project.ts`** — rewrite
 
-- Uses `usePresenter('projectPresenter')`
+- Uses `useLegacyPresenter('projectPresenter')`
 - State: `projects: Project[]`, `selectedProjectPath`
 - Actions: `fetchProjects()`, `selectProject(path)`, `openFolderPicker()`
 
@@ -408,3 +408,4 @@ STREAM_EVENTS reused as-is — same event names, same payload format. All stream
 - [ ] Unit tests pass for all new modules
 - [ ] Integration test: create session + stream response end-to-end
 - [ ] Old UI regression: `sessionPresenter.getSessionList()` returns same results as before
+

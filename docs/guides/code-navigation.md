@@ -4,9 +4,9 @@
 
 `phase5` 之后，如果你在 renderer 做新功能，默认心智模型应当是 single-track：
 先看 `renderer/api`、shared contracts 和 typed events，再看 main route/runtime；
-不要把 `usePresenter()`、`window.electron`、`window.api` 当作默认开发入口。
+不要把 `useLegacyPresenter()`、`window.electron`、`window.api` 当作默认开发入口。
 如果你是在审计剩余兼容路径，直接看 `src/renderer/api/legacy/`，不要再从
-`src/renderer/src/composables/usePresenter.ts` 找入口，它已经在 `P5` 退役。
+`src/renderer/api/legacy/presenters.ts` 找入口，它已经在 `P5` 退役。
 
 ## 先从哪里开始
 
@@ -132,3 +132,4 @@ rg "settingsChangedEvent|sessionsUpdatedEvent|chatStream" src/shared src/main sr
 - `docs/archives/legacy-agentpresenter-architecture.md`
 - `docs/archives/legacy-agentpresenter-flows.md`
 - `docs/archives/thread-presenter-migration-plan.md`
+

@@ -271,7 +271,7 @@ import {
 } from '@shadcn/components/ui/sheet'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import type {
   SkillExtensionConfig,
   SkillMetadata,
@@ -296,7 +296,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
-const skillPresenter = usePresenter('skillPresenter', { safeCall: false })
+const skillPresenter = useLegacyPresenter('skillPresenter', { safeCall: false })
 
 const isOpen = computed({
   get: () => props.open,

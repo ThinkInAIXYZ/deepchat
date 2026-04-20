@@ -19,7 +19,7 @@ vi.mock('@/stores/artifact', () => ({
 }))
 
 vi.mock('@api/legacy/presenters', () => ({
-  usePresenter: () => ({
+  useLegacyPresenter: () => ({
     getSearchResults: getSearchResultsMock
   })
 }))

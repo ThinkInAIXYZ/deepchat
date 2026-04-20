@@ -6,7 +6,7 @@
 但 renderer 侧仍然处于明显的双轨状态：
 
 - 一部分能力已经通过 `renderer/api/*Client` + `window.deepchat` + shared contracts 进入 main
-- 另一部分能力仍然通过 `usePresenter()`、`window.electron`、`window.api` 直接触达旧兼容面
+- 另一部分能力仍然通过 `useLegacyPresenter()`、`window.electron`、`window.api` 直接触达旧兼容面
 - 同一个 store / page / composable 内同时混用两种 transport 和两套 owner 语义
 
 这会直接导致后续开发者在实现功能时继续复制“typed client + legacy presenter + raw IPC”混搭模式，
@@ -27,10 +27,13 @@
 
 这些数字说明当前分支已经“可运行”，但还没有“可长期维护”。
 
+说明：`renderer.usePresenter.count` 保留旧 metric id，用于连续追踪当前
+`useLegacyPresenter()` 与其他 legacy presenter helper 的剩余触点。
+
 如果现在在双轨状态下直接合并，后续新功能大概率会继续沿着旧路径长，最终形成：
 
 - typed client 继续存在
-- `usePresenter()` 继续存在
+- `useLegacyPresenter()` 继续存在
 - raw `window.electron` / `window.api` 继续存在
 - 文档、测试和代码审查标准继续模糊
 
@@ -44,7 +47,7 @@
   - typed event contracts
   - `renderer/api/*Client`
   - 明确命名的 runtime wrapper
-- 把 `usePresenter()` 从“通用开发入口”降级为“迁移期间的内部兼容工具”，并最终退出业务层。
+- 把 `useLegacyPresenter()` 从“通用开发入口”降级为“迁移期间的内部兼容工具”，并最终退出业务层。
 - 把 `window.electron` / `window.api` 从业务层清退到极小、可审计、可删除的 wrapper / adapter 范围。
 - 把“新功能如何接入 main”这件事写成强规则，而不是口头共识。
 
@@ -68,7 +71,7 @@
 - `src/renderer/src/**` 的 renderer-main 调用方式
 - `renderer/api/*Client`
 - typed route / event contract 的继续扩展
-- `usePresenter()` / `window.electron` / `window.api` 的 quarantine 与退役路径
+- `useLegacyPresenter()` / `window.electron` / `window.api` 的 quarantine 与退役路径
 - guard、baseline、文档和 merge gate
 - 现有 store / page / composable 的 transport 单轨化
 
@@ -99,7 +102,7 @@
 同一个 `src/renderer/src/**` 模块内，不允许同时出现：
 
 - typed client
-- `usePresenter()`
+- `useLegacyPresenter()`
 - raw `window.electron`
 - raw `window.api`
 
@@ -123,11 +126,11 @@ legacy transport 只允许存在于显式 quarantine 区域。
 - 对应 client / runtime wrapper
 - 对应测试
 
-不允许新增 “先走 `usePresenter()`，以后再迁” 的临时实现。
+不允许新增 “先走 `useLegacyPresenter()`，以后再迁” 的临时实现。
 
 ## Acceptance Criteria
 
-- `src/renderer/src/**` 业务模块中直接 import `@/composables/usePresenter` 的数量降为 `0`。
+- `src/renderer/src/**` 业务模块中直接 import `@api/legacy/presenters` 的数量降为 `0`。
 - `src/renderer/src/**` 业务模块中 direct `window.electron` 的数量降为 `0`，仅允许文档明确列出的 bridge / runtime wrapper 保留。
 - `src/renderer/src/**` 业务模块中 direct `window.api` 的数量降为 `0`，仅允许文档明确列出的 bridge / runtime wrapper 保留。
 - `useIpcQuery` / `useIpcMutation` 不再建立在 presenter-name / method-name reflection 之上，或被更明确的 typed helper 替代。
@@ -143,16 +146,16 @@ legacy transport 只允许存在于显式 quarantine 区域。
 | Phase | Gate |
 | --- | --- |
 | `P0` | quarantine 路径、guard 规则、baseline 维度和 merge gate 已固定成文档与脚本任务 |
-| `P1` | `src/renderer/src/**` direct import `@/composables/usePresenter` = `0`，业务层 direct `window.electron` / `window.api` 新增点 = `0`，legacy transport 已收口到 `src/renderer/api/legacy/**` 或 typed runtime wrapper |
+| `P1` | `src/renderer/src/**` direct import `@api/legacy/presenters` = `0`，业务层 direct `window.electron` / `window.api` 新增点 = `0`，legacy transport 已收口到 `src/renderer/api/legacy/**` 或 typed runtime wrapper |
 | `P2` | business layer `configPresenter` hits = `0`，business layer `llmproviderPresenter` hits = `0`，config/provider/model family 的 raw event listeners 清零 |
 | `P3` | business layer `windowPresenter` / `devicePresenter` / `workspacePresenter` / `projectPresenter` / `filePresenter` / `yoBrowserPresenter` / `tabPresenter` hits = `0` |
 | `P4` | business layer remaining presenter family hits = `0`，包括 `agentSessionPresenter` / `skillPresenter` / `mcpPresenter` / `syncPresenter` / `upgradePresenter` / `dialogPresenter` / `toolPresenter` 等 |
-| `P5` | `src/renderer/src/**` business layer direct `usePresenter` / direct `window.electron` / direct `window.api` 全部为 `0`，quarantine 目录为空或满足量化退出标准 |
+| `P5` | `src/renderer/src/**` business layer direct legacy presenter helper / direct `window.electron` / direct `window.api` 全部为 `0`，quarantine 目录为空或满足量化退出标准 |
 
 `2026-04-20` 进度更新：P3 已完成。window / device / workspace / project / file / browser / tab family 已完成 typed contract、typed event、typed client cutover；业务层 P3 presenter hits 已清零，window/window-tab raw IPC 业务直连已清零，相关定向测试与 `format/i18n/lint/typecheck` 已通过。
 `2026-04-20` 审计备注：`WelcomePage.vue` 与 `NewThreadPage.vue` 已在 P3 范围内完成复核，前者无需变更，后者仅保留 `agentSessionPresenter` 的 P4 residual 调用，不再阻塞 P3 gate。
 `2026-04-20` 进度更新：P4 已完成。session residual / skill / mcp / sync / upgrade / dialog / tool family 已完成 typed contract、typed event、typed client cutover；业务层 P4 presenter hits 已清零，相关 raw listeners 已切换到 typed event subscription，且定向 main/renderer 自动回归与 `format/i18n/lint/typecheck` 已通过。
-`2026-04-20` 进度更新：P5 已完成。`src/renderer/src/composables/usePresenter.ts` 已退役，remaining legacy presenter entry 仅保留在 `src/renderer/api/legacy/presenters.ts`；baseline 现显示 `renderer.business.usePresenter/windowElectron/windowApi = 0/0/0`，且 quarantine source files 满足 `3/3` 退出标准，`P5` gate 已转为 `ready`。
+`2026-04-20` 进度更新：P5 已完成。旧的通用 `usePresenter()` naming 已退役；remaining legacy presenter entry 仅保留在 `src/renderer/api/legacy/presenters.ts`，并通过明确命名的 quarantine helper / runtime wrapper 暴露给兼容路径。baseline 现显示 `renderer.business.usePresenter/windowElectron/windowApi = 0/0/0`，且 quarantine source files 满足 `3/3` 退出标准，`P5` gate 已转为 `ready`。
 
 ## Success Metrics
 
@@ -192,3 +195,4 @@ legacy transport 只允许存在于显式 quarantine 区域。
 
 实现层面的命名差异，例如某些能力最终是扩展现有 `Client` 还是拆成新 `Client`，
 由 `plan.md` 在不破坏 single-track 原则的前提下决定。
+

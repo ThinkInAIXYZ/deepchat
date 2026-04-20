@@ -192,7 +192,7 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
@@ -207,7 +207,7 @@ interface ProviderWebsites {
 }
 
 const { t } = useI18n()
-const llmProviderPresenter = usePresenter('llmproviderPresenter')
+const llmProviderPresenter = useLegacyPresenter('llmproviderPresenter')
 const modelCheckStore = useModelCheckStore()
 const { toast } = useToast()
 

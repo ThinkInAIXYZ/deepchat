@@ -136,7 +136,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useProviderStore } from '@/stores/providerStore'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useModelCheckStore } from '@/stores/modelCheck'
@@ -152,7 +152,7 @@ const emit = defineEmits<{
   'auth-error': [error: string]
 }>()
 
-const oauthPresenter = usePresenter('oauthPresenter')
+const oauthPresenter = useLegacyPresenter('oauthPresenter')
 const providerStore = useProviderStore()
 const modelCheckStore = useModelCheckStore()
 

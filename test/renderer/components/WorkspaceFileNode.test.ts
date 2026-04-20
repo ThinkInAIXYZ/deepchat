@@ -18,7 +18,7 @@ vi.mock('@iconify/vue', () => ({
 }))
 
 vi.mock('@api/legacy/presenters', () => ({
-  usePresenter: () => ({
+  useLegacyPresenter: () => ({
     openFile: vi.fn(),
     revealFileInFolder: vi.fn()
   })

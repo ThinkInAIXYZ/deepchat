@@ -203,7 +203,7 @@ import {
 import { toast } from '@/components/use-toast'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Input } from '@shadcn/components/ui/input'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import KnowledgeFileItem from './KnowledgeFileItem.vue'
 import { BuiltinKnowledgeConfig, KnowledgeFileMessage } from '@shared/presenter'
 import { RAG_EVENTS } from '@/events'
@@ -235,7 +235,7 @@ const { t } = useI18n()
 const fileList = ref<KnowledgeFileMessage[]>([])
 // 允许的文件扩展名 - 动态加载
 const acceptExts = ref<string[]>([])
-const knowledgePresenter = usePresenter('knowledgePresenter')
+const knowledgePresenter = useLegacyPresenter('knowledgePresenter')
 // 弹窗状态
 const isSearchDialogOpen = ref(false)
 

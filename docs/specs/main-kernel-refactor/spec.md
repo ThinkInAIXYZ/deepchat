@@ -7,7 +7,7 @@
 目标不是一次性把 `src/main` 改造成完整的 `main/app + domain + infra` 新世界，也不是在本轮强行把
 `src/main/presenter/` 清零；目标是先解决当前最影响稳定性、可维护性和可测试性的几类问题：
 
-- renderer 通过 `usePresenter()`、`window.electron`、`window.api` 直接知道 main 内部实现
+- renderer 通过 `useLegacyPresenter()`、`window.electron`、`window.api` 直接知道 main 内部实现
 - main hot path 通过 presenter-to-presenter 直接协作，owner 不清楚
 - session / window 生命周期和 stream / timer cleanup 缺少明确 owner
 - 新代码继续回流到旧边界，导致耦合只增不减
@@ -40,7 +40,7 @@
 | --- | --- | --- |
 | `src/main/presenter/index.ts` 行数 | 769 | 组合根过重，依赖装配和运行时 owner 混在一起 |
 | main dependency cycles | 30 | presenter 互相引用和全局入口回流仍明显 |
-| renderer `usePresenter(` 命中 | 90 | renderer 仍依赖 presenter naming |
+| renderer `useLegacyPresenter(` 命中 | 90 | renderer 仍依赖 presenter naming |
 | renderer `window.electron*` 命中 | 111 | renderer 仍深度感知 Electron / IPC 实现 |
 | renderer `window.api` 命中 | 34 | preload 仍是多入口兼容面 |
 | `setTimeout` / `setInterval` 命中 | 123 | cleanup、超时和轮询语义散落 |
@@ -65,7 +65,7 @@
 ## Goals
 
 - 让 renderer-main 主边界收敛到 typed route registry、typed event 和 `renderer/api` client。
-- 阻止新增 `usePresenter()`、新增 raw renderer IPC、新增旧桥接依赖。
+- 阻止新增 `useLegacyPresenter()`、新增 raw renderer IPC、新增旧桥接依赖。
 - 拆掉 chat / session / provider hot path 上最深的 presenter-to-presenter 直接耦合。
 - 让 session / window / stream cleanup 的 owner 明确且可测试。
 - 让关键流程可以通过 fake port、stub provider、fake scheduler 做稳定测试。
@@ -122,7 +122,7 @@
 
 优先处理最深的主链路耦合：
 
-- `usePresenter()` / raw IPC
+- `useLegacyPresenter()` / raw IPC
 - `AgentSessionPresenter -> AgentRuntimePresenter`
 - `SessionPresenter` / `AgentSessionPresenter` / `AgentRuntimePresenter` 对 provider 运行时的直接索取
 
@@ -213,3 +213,4 @@ main 侧允许在过渡期保持混合结构，但必须满足：
 - `Presenter` 可作为过渡期 composition shell 保留，但不再继续吞新主链路。
 - `EventBus` 先冻结新增错误用法，优先给 migrated path 建 typed UI event；是否全量重写，等本轮收敛后再评估。
 - 本轮结束后再决定是否还有必要推进更彻底的 `main kernel` 目录重构。
+

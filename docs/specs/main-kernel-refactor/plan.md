@@ -23,7 +23,7 @@
 
 当前优先级最高的热点：
 
-- `src/renderer/src/composables/usePresenter.ts` 使 renderer 直接感知 presenter 名称与反射调用协议
+- `src/renderer/api/legacy/presenters.ts` 使 renderer 直接感知 presenter 名称与反射调用协议
 - `src/preload/index.ts` 同时承载多入口桥接和旧兼容 API
 - `src/main/presenter/index.ts` 同时承担 composition root、service locator、IPC dispatcher
 - `SessionPresenter` 仍直接回拿全局 `presenter`
@@ -51,7 +51,7 @@ renderer component / store
 
 但不允许：
 
-- 在 migrated path 上继续新增 `usePresenter()` / raw renderer IPC
+- 在 migrated path 上继续新增 `useLegacyPresenter()` / raw renderer IPC
 - 在新 hot path 上继续通过 presenter 互相找彼此
 - 继续把 cleanup / cancel / timeout 塞进匿名回调和散落 timer
 
@@ -96,12 +96,12 @@ P0 Guardrails & Baseline
 
 - 扩展 `architecture-guard`
 - 扩展 baseline 脚本
-- 追踪 `usePresenter`、`window.electron`、`window.api`、hot path direct dependency、raw timer、raw channel
+- 追踪 legacy presenter helper（metric id 仍为 `renderer.usePresenter.count`）、`window.electron`、`window.api`、hot path direct dependency、raw timer、raw channel
 - 定义 bridge register 和轻量 scoreboard
 
 退出条件：
 
-- 能阻止新增 `usePresenter()`、新增 raw renderer IPC、新增 migrated path raw channel
+- 能阻止新增 `useLegacyPresenter()`、新增 raw renderer IPC、新增 migrated path raw channel
 - 能重复生成基线
 - 能看出 hot path direct dependency 是否下降
 
@@ -121,7 +121,7 @@ P0 Guardrails & Baseline
 
 退出条件：
 
-- 新增功能不再通过 `usePresenter()` 接入
+- 新增功能不再通过 `useLegacyPresenter()` 接入
 - migrated path 的 renderer 调用能从 route registry 追踪
 - typed event 能承接 settings / sessions / chat 的首批 UI 通知
 
@@ -140,7 +140,7 @@ P0 Guardrails & Baseline
 
 退出条件：
 
-- settings 主读写链路不再依赖 `usePresenter()` 或 raw IPC
+- settings 主读写链路不再依赖 `useLegacyPresenter()` 或 raw IPC
 - 设置持久化和变更通知具备独立测试
 - 对应 bridge 无超期残留
 
@@ -233,3 +233,4 @@ P0 Guardrails & Baseline
 - 另一类风险是把 phase 2 之前的基础工作拖太久，导致迟迟不切真实 slice。
 - `Chat / Session / Provider` 三块最耦合，不应并行乱切；建议按 owner 顺序推进。
 - 如果某个阶段不得不引入桥接，必须在下一阶段优先删除，而不是留到“最后统一收尾”。
+

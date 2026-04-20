@@ -21,7 +21,7 @@ interface UIProject {
 
 ```typescript
 export const useProjectStore = defineStore('project', () => {
-  const filePresenter = usePresenter('filePresenter')
+  const filePresenter = useLegacyPresenter('filePresenter')
 
   // --- State ---
   const projects = ref<UIProject[]>([])
@@ -127,3 +127,4 @@ sessionStore.fetchSessions()
 3. `selectProject` updates selectedProjectPath
 4. `openFolderPicker` adds new project and selects it
 5. Duplicate paths are not added
+

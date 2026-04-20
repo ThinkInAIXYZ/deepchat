@@ -74,7 +74,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import { usePresenter } from '@api/legacy/presenters'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import type { NewDiscovery } from '@shared/types/skillSync'
 import { SKILL_SYNC_EVENTS } from '@/events'
 
@@ -84,7 +84,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const skillSyncPresenter = usePresenter('skillSyncPresenter')
+const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
 
 const isOpen = ref(false)
 const discoveries = ref<NewDiscovery[]>([])
