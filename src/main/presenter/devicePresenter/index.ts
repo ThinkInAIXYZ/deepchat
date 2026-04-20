@@ -13,6 +13,37 @@ import { NOTIFICATION_EVENTS } from '../../events'
 import { svgSanitizer } from '../../lib/svgSanitizer'
 const execAsync = promisify(exec)
 
+function toMimeType(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string') ?? ''
+  }
+
+  return ''
+}
+
+function getImageExtensionFromMimeType(value: unknown): string {
+  const mimeType = toMimeType(value).toLowerCase()
+
+  if (mimeType.includes('png')) {
+    return 'png'
+  }
+  if (mimeType.includes('gif')) {
+    return 'gif'
+  }
+  if (mimeType.includes('webp')) {
+    return 'webp'
+  }
+  if (mimeType.includes('svg')) {
+    return 'svg'
+  }
+
+  return 'jpg'
+}
+
 export class DevicePresenter implements IDevicePresenter {
   static getDefaultHeaders(): Record<string, string> {
     const version = app.getVersion()
@@ -190,18 +221,7 @@ export class DevicePresenter implements IDevicePresenter {
       })
 
       // 获取内容类型并确定文件扩展名
-      const contentType = response.headers['content-type'] || 'image/jpeg'
-      let extension = 'jpg'
-
-      if (contentType.includes('png')) {
-        extension = 'png'
-      } else if (contentType.includes('gif')) {
-        extension = 'gif'
-      } else if (contentType.includes('webp')) {
-        extension = 'webp'
-      } else if (contentType.includes('svg')) {
-        extension = 'svg'
-      }
+      const extension = getImageExtensionFromMimeType(response.headers['content-type'])
 
       const saveFileName = `${fileName}.${extension}`
       const fullPath = path.join(cacheDir, saveFileName)
@@ -242,16 +262,7 @@ export class DevicePresenter implements IDevicePresenter {
       const base64Content = matches[2]
 
       // 根据MIME类型确定文件扩展名
-      let extension = 'jpg'
-      if (mimeType.includes('png')) {
-        extension = 'png'
-      } else if (mimeType.includes('gif')) {
-        extension = 'gif'
-      } else if (mimeType.includes('webp')) {
-        extension = 'webp'
-      } else if (mimeType.includes('svg')) {
-        extension = 'svg'
-      }
+      const extension = getImageExtensionFromMimeType(mimeType)
 
       const saveFileName = `${fileName}.${extension}`
       const fullPath = path.join(cacheDir, saveFileName)
