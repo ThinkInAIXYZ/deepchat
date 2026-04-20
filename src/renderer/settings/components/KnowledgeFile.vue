@@ -203,7 +203,7 @@ import {
 import { toast } from '@/components/use-toast'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Input } from '@shadcn/components/ui/input'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import KnowledgeFileItem from './KnowledgeFileItem.vue'
 import { BuiltinKnowledgeConfig, KnowledgeFileMessage } from '@shared/presenter'
 import { RAG_EVENTS } from '@/events'

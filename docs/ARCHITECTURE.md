@@ -96,6 +96,8 @@ flowchart LR
 
 - renderer 新功能优先走 `renderer/api/*Client` + `window.deepchat` + shared contracts
 - `usePresenter()`、`window.electron`、`window.api` 只视为兼容路径，不再作为业务层默认入口
+- `src/renderer/src/composables/usePresenter.ts` 已退役，剩余 quarantine-only 入口固定为
+  `src/renderer/api/legacy/presenters.ts`
 - renderer 业务模块不应再混用 typed client 与 legacy transport
 - renderer legacy quarantine 目录固定为 `src/renderer/api/legacy/**`，不再允许创建第二个 quarantine 路径
 

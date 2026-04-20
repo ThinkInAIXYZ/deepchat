@@ -152,6 +152,7 @@ legacy transport 只允许存在于显式 quarantine 区域。
 `2026-04-20` 进度更新：P3 已完成。window / device / workspace / project / file / browser / tab family 已完成 typed contract、typed event、typed client cutover；业务层 P3 presenter hits 已清零，window/window-tab raw IPC 业务直连已清零，相关定向测试与 `format/i18n/lint/typecheck` 已通过。
 `2026-04-20` 审计备注：`WelcomePage.vue` 与 `NewThreadPage.vue` 已在 P3 范围内完成复核，前者无需变更，后者仅保留 `agentSessionPresenter` 的 P4 residual 调用，不再阻塞 P3 gate。
 `2026-04-20` 进度更新：P4 已完成。session residual / skill / mcp / sync / upgrade / dialog / tool family 已完成 typed contract、typed event、typed client cutover；业务层 P4 presenter hits 已清零，相关 raw listeners 已切换到 typed event subscription，且定向 main/renderer 自动回归与 `format/i18n/lint/typecheck` 已通过。
+`2026-04-20` 进度更新：P5 已完成。`src/renderer/src/composables/usePresenter.ts` 已退役，remaining legacy presenter entry 仅保留在 `src/renderer/api/legacy/presenters.ts`；baseline 现显示 `renderer.business.usePresenter/windowElectron/windowApi = 0/0/0`，且 quarantine source files 满足 `3/3` 退出标准，`P5` gate 已转为 `ready`。
 
 ## Success Metrics
 
@@ -178,6 +179,12 @@ legacy transport 只允许存在于显式 quarantine 区域。
 - 每个剩余文件都必须在 `tasks.md` 或后续 follow-up 规格中写明 owner、删除条件和最晚退出阶段
 
 如果做不到以上条件，则不满足 single-track merge gate。
+
+`2026-04-20` P5 审计结果：
+
+- 剩余 quarantine source files 为 `presenters.ts`、`presenterTransport.ts`、`runtime.ts`
+- 剩余 quarantine capability family 为单一的 `renderer legacy transport`
+- 删除条件：settings compatibility surfaces 不再 import `@api/legacy/presenters` / `@api/legacy/runtime`
 
 ## Open Questions
 

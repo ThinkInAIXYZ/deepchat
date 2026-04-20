@@ -74,7 +74,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import type { NewDiscovery } from '@shared/types/skillSync'
 import { SKILL_SYNC_EVENTS } from '@/events'
 

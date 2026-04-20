@@ -700,7 +700,7 @@ import {
 } from '@shadcn/components/ui/chart'
 import type { ChartConfig } from '@shadcn/components/ui/chart'
 import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/types/agent-interface'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 
 type CalendarCell = UsageDashboardCalendarDay | null
 type TokenUsageTrendKey = 'input' | 'output' | 'cached' | 'cost'

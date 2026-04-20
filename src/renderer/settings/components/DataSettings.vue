@@ -508,7 +508,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/use-toast'
 

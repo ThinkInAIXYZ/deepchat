@@ -1205,7 +1205,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
-import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
+import { usePresenter, useRemoteControlPresenter } from '@api/legacy/presenters'
 import { useToast } from '@/components/use-toast'
 import type { Agent } from '@shared/types/agent-interface'
 import type {

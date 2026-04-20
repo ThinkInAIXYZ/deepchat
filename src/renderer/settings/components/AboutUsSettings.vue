@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'

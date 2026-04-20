@@ -1,6 +1,10 @@
 import type { IPresenter } from '@shared/presenter'
 import { type IRemoteControlPresenter } from '@shared/presenter'
-import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
+import {
+  useLegacyPresenterTransport,
+  useLegacyRemoteControlPresenterTransport
+} from './presenterTransport'
+import { getLegacyWebContentsId } from './runtime'
 
 interface LegacyPresenterOptions {
   safeCall?: boolean
@@ -10,7 +14,20 @@ function useLegacyPresenter<T extends keyof IPresenter>(
   name: T,
   options?: LegacyPresenterOptions
 ): IPresenter[T] {
-  return usePresenter(name, options)
+  return useLegacyPresenterTransport(name, options)
+}
+
+export function usePresenter<T extends keyof IPresenter>(
+  name: T,
+  options?: LegacyPresenterOptions
+): IPresenter[T] {
+  return useLegacyPresenter(name, options)
+}
+
+export function useRemoteControlPresenter(
+  options?: LegacyPresenterOptions
+): IRemoteControlPresenter {
+  return useLegacyRemoteControlPresenterTransport(options)
 }
 
 export function useLegacyConfigPresenter(options?: LegacyPresenterOptions) {
@@ -81,8 +98,5 @@ export function useLegacyMcpPresenter(options?: LegacyPresenterOptions) {
   return useLegacyPresenter('mcpPresenter', options)
 }
 
-export function useLegacyRemoteControlPresenter(
-  options?: LegacyPresenterOptions
-): IRemoteControlPresenter {
-  return useRemoteControlPresenter(options)
-}
+export const useLegacyRemoteControlPresenter = useRemoteControlPresenter
+export const getWebContentsId = getLegacyWebContentsId

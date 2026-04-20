@@ -271,7 +271,7 @@ import {
 } from '@shadcn/components/ui/sheet'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import type {
   SkillExtensionConfig,
   SkillMetadata,

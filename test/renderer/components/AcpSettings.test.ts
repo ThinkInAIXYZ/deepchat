@@ -148,7 +148,7 @@ describe('AcpSettings', () => {
       uninstallAcpRegistryAgent: vi.fn().mockResolvedValue(undefined)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: () => configPresenter
     }))
     vi.doMock('vue-i18n', () => ({

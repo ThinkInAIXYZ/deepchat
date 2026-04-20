@@ -66,7 +66,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useLanguageStore } from '@/stores/language'
 

@@ -578,7 +578,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import { Icon } from '@iconify/vue'
 import {
   Card,

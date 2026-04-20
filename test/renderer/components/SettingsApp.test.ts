@@ -54,7 +54,7 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('../../../src/renderer/src/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
@@ -275,7 +275,7 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('../../../src/renderer/src/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
@@ -496,7 +496,7 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('../../../src/renderer/src/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
@@ -737,7 +737,7 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('../../../src/renderer/src/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {
@@ -971,7 +971,7 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('../../../src/renderer/src/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'devicePresenter') {
           return {

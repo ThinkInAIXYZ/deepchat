@@ -144,7 +144,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 
 const props = defineProps<{
   open: boolean

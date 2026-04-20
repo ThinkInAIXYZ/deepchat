@@ -338,7 +338,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import type {
   HookCommandItem,
   HookEventName,

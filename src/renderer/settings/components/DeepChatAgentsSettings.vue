@@ -635,7 +635,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/compon
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import { useModelStore } from '@/stores/modelStore'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {

@@ -158,7 +158,7 @@ const mountSettingsApp = async (options?: {
       template: '<div />'
     }
   }))
-  vi.doMock('../../../src/renderer/src/composables/usePresenter', () => ({
+  vi.doMock('@api/legacy/presenters', () => ({
     usePresenter: (name: string) => {
       if (name === 'devicePresenter') {
         return {

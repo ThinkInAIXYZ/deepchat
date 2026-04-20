@@ -7,17 +7,18 @@ Current phase: P5.
 
 | Metric | Value |
 | --- | --- |
-| `renderer.usePresenter.count` | 1 |
+| `renderer.usePresenter.count` | 0 |
 | `renderer.business.usePresenter.count` | 0 |
-| `renderer.quarantine.usePresenter.count` | 1 |
+| `renderer.quarantine.usePresenter.count` | 0 |
 | `renderer.windowElectron.count` | 2 |
 | `renderer.business.windowElectron.count` | 0 |
 | `renderer.quarantine.windowElectron.count` | 2 |
 | `renderer.windowApi.count` | 2 |
 | `renderer.business.windowApi.count` | 0 |
 | `renderer.quarantine.windowApi.count` | 2 |
+| `renderer.quarantine.sourceFile.count` | 3 |
 | `hotpath.presenterEdge.count` | 10 |
-| `runtime.rawTimer.count` | 123 |
+| `runtime.rawTimer.count` | 122 |
 | `migrated.rawChannel.count` | 4 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
@@ -29,9 +30,19 @@ Current phase: P5.
 
 | Legacy surface | Business layer | Quarantine layer | Total |
 | --- | --- | --- | --- |
-| `usePresenter()` | 0 | 1 | 1 |
+| `usePresenter()` | 0 | 0 | 0 |
 | `window.electron` | 0 | 2 | 2 |
 | `window.api` | 0 | 2 | 2 |
+
+## Quarantine Exit Snapshot
+
+- Retained capability family: `renderer legacy transport`
+- Source files: 3 / 3
+- Delete condition: remove after settings compatibility surfaces stop importing the quarantine adapters.
+
+- `src/renderer/api/legacy/presenterTransport.ts`
+- `src/renderer/api/legacy/presenters.ts`
+- `src/renderer/api/legacy/runtime.ts`
 
 ## Phase Gates
 
@@ -42,7 +53,7 @@ Current phase: P5.
 | `P2` | Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0` | configPresenter=0, llmproviderPresenter=0 | ready |
 | `P3` | Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0` | window=0, device=0, workspace=0, project=0, file=0, browser=0, tab=0 | ready |
 | `P4` | Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0` | agentSession=0, skill=0, mcp=0, sync=0, upgrade=0, dialog=0, tool=0 | ready |
-| `P5` | Business layer direct legacy access must be `0`, and quarantine source files must be empty or satisfy the exit standard | businessLegacy=0/0/0, quarantineSourceFiles=3 | pending |
+| `P5` | Business layer direct legacy access must be `0`, and quarantine source files must satisfy the exit standard (`<= 3` source files) | businessLegacy=0/0/0, quarantineSourceFiles=3/3 | ready |
 
 ## Hot Path Direct Dependencies
 
@@ -61,9 +72,9 @@ Current phase: P5.
 
 ## Renderer usePresenter
 
-- Total count: 1
+- Total count: 0
 
-- `src/renderer/api/legacy/presenters.ts`: 1
+- None
 
 ## Renderer window.electron
 
@@ -80,7 +91,7 @@ Current phase: P5.
 
 ## Raw Timers
 
-- Total count: 123
+- Total count: 122
 
 - `src/main/presenter/githubCopilotDeviceFlow.ts`: 6
 - `src/main/presenter/browser/BrowserTab.ts`: 5
@@ -92,8 +103,8 @@ Current phase: P5.
 - `src/main/presenter/skillPresenter/skillExecutionService.ts`: 3
 - `src/main/presenter/tabPresenter.ts`: 3
 - `src/main/presenter/upgradePresenter/index.ts`: 3
-- `src/renderer/src/components/WindowSideBar.vue`: 3
 - `src/renderer/src/stores/mcp.ts`: 3
+- `src/main/lib/agentRuntime/rtkRuntimeService.ts`: 2
 
 ## Migrated Path Raw Channel Literals
 

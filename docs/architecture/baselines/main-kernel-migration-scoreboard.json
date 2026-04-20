@@ -3,17 +3,18 @@
   "generatedOn": "2026-04-20",
   "currentPhase": "P5",
   "metrics": {
-    "renderer.usePresenter.count": 1,
+    "renderer.usePresenter.count": 0,
     "renderer.business.usePresenter.count": 0,
-    "renderer.quarantine.usePresenter.count": 1,
+    "renderer.quarantine.usePresenter.count": 0,
     "renderer.windowElectron.count": 2,
     "renderer.business.windowElectron.count": 0,
     "renderer.quarantine.windowElectron.count": 2,
     "renderer.windowApi.count": 2,
     "renderer.business.windowApi.count": 0,
     "renderer.quarantine.windowApi.count": 2,
+    "renderer.quarantine.sourceFile.count": 3,
     "hotpath.presenterEdge.count": 10,
-    "runtime.rawTimer.count": 123,
+    "runtime.rawTimer.count": 122,
     "migrated.rawChannel.count": 4,
     "bridge.active.count": 0,
     "bridge.expired.count": 0
@@ -51,9 +52,9 @@
     },
     {
       "phase": "P5",
-      "indicator": "Business layer direct legacy access must be `0`, and quarantine source files must be empty or satisfy the exit standard",
-      "current": "businessLegacy=0/0/0, quarantineSourceFiles=3",
-      "status": "pending"
+      "indicator": "Business layer direct legacy access must be `0`, and quarantine source files must satisfy the exit standard (`<= 3` source files)",
+      "current": "businessLegacy=0/0/0, quarantineSourceFiles=3/3",
+      "status": "ready"
     }
   ],
   "hotPathEdges": [

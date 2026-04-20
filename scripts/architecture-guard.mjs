@@ -25,6 +25,10 @@ const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
 const RENDERER_TYPED_BOUNDARY_ROOT = path.join(ROOT, 'src/renderer/api')
 const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
 const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
+const RETIRED_RENDERER_LEGACY_ENTRY_PATHS = [
+  path.join(ROOT, 'src/renderer/src/composables/usePresenter.ts')
+]
+const RENDERER_QUARANTINE_MAX_SOURCE_FILES = 3
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
@@ -343,6 +347,21 @@ async function main() {
     violations.push(
       `[renderer-quarantine-missing] ${relativePath(RENDERER_QUARANTINE_ROOT)} must exist as the only allowed renderer legacy quarantine directory`
     )
+  }
+
+  const quarantineFiles = await collectFiles(RENDERER_QUARANTINE_ROOT)
+  if (quarantineFiles.length > RENDERER_QUARANTINE_MAX_SOURCE_FILES) {
+    violations.push(
+      `[renderer-quarantine-growth] ${relativePath(RENDERER_QUARANTINE_ROOT)} expected <= ${RENDERER_QUARANTINE_MAX_SOURCE_FILES} source files, found ${quarantineFiles.length}`
+    )
+  }
+
+  for (const retiredEntryPath of RETIRED_RENDERER_LEGACY_ENTRY_PATHS) {
+    if (await pathExists(retiredEntryPath)) {
+      violations.push(
+        `[renderer-retired-legacy-entry] ${relativePath(retiredEntryPath)} must remain deleted`
+      )
+    }
   }
 
   for (const filePath of [...fileSet].sort()) {

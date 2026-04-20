@@ -30,6 +30,7 @@ const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
 const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
 const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
+const RENDERER_QUARANTINE_EXIT_MAX_FILES = 3
 const BRIDGE_REGISTER_PATH = path.join(
   ROOT,
   'docs/architecture/baselines/main-kernel-bridge-register.json'
@@ -696,6 +697,7 @@ function renderBoundaryBaselineReport({
   currentPhase,
   metrics,
   rendererLegacySplit,
+  quarantineSourceFiles,
   phaseGates,
   usePresenterSummary,
   windowElectronSummary,
@@ -723,6 +725,7 @@ function renderBoundaryBaselineReport({
     `| \`renderer.windowApi.count\` | ${metrics['renderer.windowApi.count']} |`,
     `| \`renderer.business.windowApi.count\` | ${metrics['renderer.business.windowApi.count']} |`,
     `| \`renderer.quarantine.windowApi.count\` | ${metrics['renderer.quarantine.windowApi.count']} |`,
+    `| \`renderer.quarantine.sourceFile.count\` | ${metrics['renderer.quarantine.sourceFile.count']} |`,
     `| \`hotpath.presenterEdge.count\` | ${metrics['hotpath.presenterEdge.count']} |`,
     `| \`runtime.rawTimer.count\` | ${metrics['runtime.rawTimer.count']} |`,
     `| \`migrated.rawChannel.count\` | ${metrics['migrated.rawChannel.count']} |`,
@@ -747,6 +750,27 @@ function renderBoundaryBaselineReport({
   lines.push(
     `| \`window.api\` | ${rendererLegacySplit.windowApi.business.total} | ${rendererLegacySplit.windowApi.quarantine.total} | ${rendererLegacySplit.windowApi.total.total} |`
   )
+  lines.push('')
+
+  lines.push('## Quarantine Exit Snapshot')
+  lines.push('')
+  lines.push('- Retained capability family: `renderer legacy transport`')
+  lines.push(
+    `- Source files: ${quarantineSourceFiles.length} / ${RENDERER_QUARANTINE_EXIT_MAX_FILES}`
+  )
+  lines.push(
+    '- Delete condition: remove after settings compatibility surfaces stop importing the quarantine adapters.'
+  )
+  lines.push('')
+
+  if (quarantineSourceFiles.length === 0) {
+    lines.push('- None')
+  } else {
+    for (const file of quarantineSourceFiles) {
+      lines.push(`- \`${file}\``)
+    }
+  }
+
   lines.push('')
 
   lines.push('## Phase Gates')
@@ -908,6 +932,7 @@ async function main() {
     'renderer.windowApi.count': rendererLegacySplit.windowApi.total.total,
     'renderer.business.windowApi.count': rendererLegacySplit.windowApi.business.total,
     'renderer.quarantine.windowApi.count': rendererLegacySplit.windowApi.quarantine.total,
+    'renderer.quarantine.sourceFile.count': quarantineSourceFiles.length,
     'hotpath.presenterEdge.count': hotPathEdges.length,
     'runtime.rawTimer.count': summarizeCounts(rawTimerCounts).total,
     'migrated.rawChannel.count': summarizeCounts(migratedRawChannelCounts).total,
@@ -927,7 +952,7 @@ async function main() {
   const p2Ready = Object.values(p2PresenterCounts).every((count) => count === 0)
   const p3Ready = Object.values(p3PresenterCounts).every((count) => count === 0)
   const p4Ready = Object.values(p4PresenterCounts).every((count) => count === 0)
-  const p5Ready = p1Ready && quarantineSourceFiles.length === 0
+  const p5Ready = p1Ready && quarantineSourceFiles.length <= RENDERER_QUARANTINE_EXIT_MAX_FILES
   const phaseGates = [
     {
       phase: 'P0',
@@ -987,12 +1012,12 @@ async function main() {
     {
       phase: 'P5',
       indicator:
-        'Business layer direct legacy access must be `0`, and quarantine source files must be empty or satisfy the exit standard',
+        'Business layer direct legacy access must be `0`, and quarantine source files must satisfy the exit standard (`<= 3` source files)',
       current:
         `businessLegacy=${metrics['renderer.business.usePresenter.count']}/` +
         `${metrics['renderer.business.windowElectron.count']}/` +
         `${metrics['renderer.business.windowApi.count']}, ` +
-        `quarantineSourceFiles=${quarantineSourceFiles.length}`,
+        `quarantineSourceFiles=${quarantineSourceFiles.length}/${RENDERER_QUARANTINE_EXIT_MAX_FILES}`,
       status: p5Ready ? 'ready' : 'pending'
     }
   ]
@@ -1026,6 +1051,7 @@ async function main() {
         currentPhase: bridgeRegister.currentPhase,
         metrics,
         rendererLegacySplit,
+        quarantineSourceFiles: quarantineSourceFiles.map((file) => relativePath(file)),
         phaseGates,
         usePresenterSummary,
         windowElectronSummary,

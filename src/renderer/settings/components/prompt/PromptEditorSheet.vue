@@ -281,7 +281,7 @@ import {
   SheetTitle
 } from '@shadcn/components/ui/sheet'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import { MessageFile } from '@shared/chat'
 import { getMimeTypeIcon } from '@/lib/utils'
 import { FileItem } from '@shared/presenter'

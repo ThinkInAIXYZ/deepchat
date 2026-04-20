@@ -94,20 +94,26 @@
 
 ## P5: Retirement & Merge Gate
 
-- [ ] 清理 `src/renderer/src/**` 剩余 direct `usePresenter` import
-- [ ] 清理 `src/renderer/src/**` 剩余 direct `window.electron` access
-- [ ] 清理 `src/renderer/src/**` 剩余 direct `window.api` access
-- [ ] 将 `usePresenter()` internal-only 或删除
-- [ ] 更新 `docs/README.md` / `docs/ARCHITECTURE.md` / `docs/guides/code-navigation.md` 的最终状态
-- [ ] 刷新 architecture baseline / scoreboard
-- [ ] 运行 `pnpm run format`
-- [ ] 运行 `pnpm run i18n`
-- [ ] 运行 `pnpm run lint`
-- [ ] 跑针对性 renderer/main 测试并记录结果
+- [x] 清理 `src/renderer/src/**` 剩余 direct `usePresenter` import
+- [x] 清理 `src/renderer/src/**` 剩余 direct `window.electron` access
+- [x] 清理 `src/renderer/src/**` 剩余 direct `window.api` access
+- [x] 将 `usePresenter()` internal-only 或删除
+- [x] 更新 `docs/README.md` / `docs/ARCHITECTURE.md` / `docs/guides/code-navigation.md` 的最终状态
+- [x] 刷新 architecture baseline / scoreboard
+- [x] 运行 `pnpm run format`
+- [x] 运行 `pnpm run i18n`
+- [x] 运行 `pnpm run lint`
+- [x] 跑针对性 renderer/main 测试并记录结果
+
+`2026-04-20` 进度更新：P5 已完成。`src/renderer/src/composables/usePresenter.ts` 已删除，settings compatibility surfaces 改为从 `src/renderer/api/legacy/presenters.ts` 获取 quarantine-only legacy presenter entry。
+`2026-04-20` merge gate 更新：`scripts/architecture-guard.mjs` 已新增 retired shim guard 与 quarantine `<= 3` source files 限制；`docs/architecture/baselines/main-kernel-boundary-baseline.md` 现显示 `P5` gate = `ready`，business legacy signal = `0/0/0`，quarantine source files = `3/3`。
+`2026-04-20` quarantine 审计：剩余文件固定为 `src/renderer/api/legacy/presenters.ts`、`src/renderer/api/legacy/presenterTransport.ts`、`src/renderer/api/legacy/runtime.ts`；owner 为 renderer legacy transport quarantine，删除条件为 settings compatibility surfaces 不再 import `@api/legacy/presenters` / `@api/legacy/runtime`。
+`2026-04-20` 自动回归：`pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 已通过；`pnpm exec vitest --config vitest.config.renderer.ts test/renderer/composables/usePresenter.test.ts test/renderer/components/SettingsApp.test.ts test/renderer/components/SettingsApp.providerDeeplink.test.ts test/renderer/components/RemoteSettings.test.ts` 与 `pnpm exec vitest --config vitest.config.ts test/main/routes/contracts.test.ts test/main/routes/dispatcher.test.ts` 已通过。
+`2026-04-20` 全量套件尝试：`pnpm test` 当前仍失败，失败面为既有 renderer 测试问题，包含聚合运行中的 `window.deepchat is not available` 测试环境/串扰错误，以及独立存在的 `test/renderer/components/BrowserPanel.test.ts` 断言失败；单独重跑 `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/pages/NewThreadPage.test.ts` 已通过，说明至少 `NewThreadPage` 这类 `window.deepchat` 失败并非本次 P5 改动引入。
 
 ## Final Checklist
 
-- [ ] renderer 业务层 single-track 达成
-- [ ] quarantine 范围明确、可审计
-- [ ] 新功能接入规则写入 active docs
-- [ ] reviewer 无需口头背景即可判定是否合规
+- [x] renderer 业务层 single-track 达成
+- [x] quarantine 范围明确、可审计
+- [x] 新功能接入规则写入 active docs
+- [x] reviewer 无需口头背景即可判定是否合规

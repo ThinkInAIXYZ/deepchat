@@ -697,7 +697,7 @@ const setup = async (options: SetupOptions = {}) => {
     })
   }
 
-  vi.doMock('@/composables/usePresenter', () => ({
+  vi.doMock('@api/legacy/presenters', () => ({
     usePresenter: (name: string) => {
       if (name === 'agentSessionPresenter') return agentSessionPresenter
       if (name === 'projectPresenter') return projectPresenter

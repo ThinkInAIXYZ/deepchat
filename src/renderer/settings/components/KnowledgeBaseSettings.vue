@@ -45,7 +45,7 @@ import NowledgeMemSettings from './NowledgeMemSettings.vue'
 import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 
 const difySettingsRef = ref<InstanceType<typeof DifyKnowledgeSettings> | null>(null)
 const ragflowSettingsRef = ref<InstanceType<typeof RagflowKnowledgeSettings> | null>(null)

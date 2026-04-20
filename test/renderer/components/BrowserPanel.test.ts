@@ -91,7 +91,7 @@ describe('BrowserPanel', () => {
       useSessionStore: () => sessionStore
     }))
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: () => yoBrowserPresenter
     }))
     ;(window as any).api = {

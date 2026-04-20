@@ -378,6 +378,15 @@ P0 Rules & Guard Hardening
 
 - 从“迁移进行中”切换到“规则落地完成”
 
+当前状态（`2026-04-20`）：
+
+- 已完成
+- `src/renderer/src/composables/usePresenter.ts` 已删除，remaining legacy presenter entry 只保留在 `src/renderer/api/legacy/presenters.ts`
+- settings compatibility surfaces 已改为从 quarantine adapter import，`usePresenter()` 不再通过 `src/renderer/src/**` 路径暴露
+- `scripts/architecture-guard.mjs` 已补 `renderer-retired-legacy-entry` 与 quarantine `<= 3` source files gate，稳定阻止 shim 回流和 quarantine 膨胀
+- architecture baseline / scoreboard 已刷新，`P5` gate 现为 `ready`：business legacy signal `0/0/0`，quarantine source files `3/3`
+- active docs 已补充 `P5` 最终状态与 quarantine 导航入口；剩余 quarantine 仅保留 `presenters.ts`、`presenterTransport.ts`、`runtime.ts`
+
 交付物：
 
 - `usePresenter()` internal-only 或完全删除

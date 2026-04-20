@@ -151,7 +151,7 @@ describe('DeepChatAgentsSettings', () => {
       }))
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
@@ -291,7 +291,7 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
@@ -404,7 +404,7 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
@@ -532,7 +532,7 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
@@ -650,7 +650,7 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
@@ -792,7 +792,7 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
@@ -931,7 +931,7 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter
@@ -1105,7 +1105,7 @@ describe('DeepChatAgentsSettings', () => {
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'configPresenter') return configPresenter
         if (name === 'projectPresenter') return projectPresenter

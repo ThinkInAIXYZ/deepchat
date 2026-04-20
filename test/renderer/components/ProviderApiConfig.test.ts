@@ -97,7 +97,7 @@ async function setup(options?: {
     })
   }))
 
-  vi.doMock('@/composables/usePresenter', () => ({
+  vi.doMock('@api/legacy/presenters', () => ({
     usePresenter: (name: string) => {
       if (name === 'llmproviderPresenter') return llmproviderPresenter
       throw new Error(`Unexpected presenter: ${name}`)

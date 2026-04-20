@@ -5,6 +5,8 @@
 `phase5` 之后，如果你在 renderer 做新功能，默认心智模型应当是 single-track：
 先看 `renderer/api`、shared contracts 和 typed events，再看 main route/runtime；
 不要把 `usePresenter()`、`window.electron`、`window.api` 当作默认开发入口。
+如果你是在审计剩余兼容路径，直接看 `src/renderer/api/legacy/`，不要再从
+`src/renderer/src/composables/usePresenter.ts` 找入口，它已经在 `P5` 退役。
 
 ## 先从哪里开始
 
@@ -33,6 +35,7 @@
 | preload bridge builder | `src/preload/createBridge.ts` | 统一 `invoke/on` 协议 |
 | preload 暴露点 | `src/preload/index.ts` | 把 bridge 暴露到 `window.deepchat` |
 | renderer clients | `src/renderer/api/` | migrated path 的 renderer 主入口 |
+| renderer legacy quarantine | `src/renderer/api/legacy/` | 仅保留 settings compatibility 所需的 legacy transport adapter |
 
 ### Settings
 

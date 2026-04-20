@@ -596,7 +596,7 @@ import { BuiltinKnowledgeConfig, RENDERER_MODEL_META } from '@shared/presenter'
 import { toast } from '@/components/use-toast'
 import { useRoute } from 'vue-router'
 import { nanoid } from 'nanoid'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import { useModelStore } from '@/stores/modelStore'
 // 全局对象
 const { t } = useI18n()

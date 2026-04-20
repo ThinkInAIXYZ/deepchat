@@ -68,7 +68,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 
 const { t } = useI18n()
 const configPresenter = usePresenter('configPresenter')

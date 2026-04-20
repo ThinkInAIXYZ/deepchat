@@ -47,7 +47,7 @@ describe('LinkNode', () => {
       useSessionStore: () => sessionStore
     }))
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: (name: string) => {
         if (name === 'yoBrowserPresenter') {
           return yoBrowserPresenter
@@ -131,7 +131,7 @@ describe('LinkNode', () => {
       })
     }))
 
-    vi.doMock('@/composables/usePresenter', () => ({
+    vi.doMock('@api/legacy/presenters', () => ({
       usePresenter: () => ({})
     }))
 

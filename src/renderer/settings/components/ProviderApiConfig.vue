@@ -192,7 +192,7 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter } from '@api/legacy/presenters'
 import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
