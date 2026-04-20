@@ -1,13 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
 import { ChatClient } from '../../../api/ChatClient'
+import { ConfigClient } from '../../../api/ConfigClient'
 import { SessionClient } from '../../../api/SessionClient'
 import type { ComputedRef } from 'vue'
-import {
-  useLegacyAgentSessionPresenter,
-  useLegacyConfigPresenter,
-  useLegacyTabPresenter
-} from '@api/legacy/presenters'
+import { useLegacyAgentSessionPresenter, useLegacyTabPresenter } from '@api/legacy/presenters'
 import type {
   DeepChatSubagentMeta,
   SessionWithState,
@@ -195,9 +192,9 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
 export const useSessionStore = defineStore('session', () => {
   const sessionClient = new SessionClient()
   const chatClient = new ChatClient()
+  const configClient = new ConfigClient()
   const agentSessionPresenter = useLegacyAgentSessionPresenter()
   const tabPresenter = useLegacyTabPresenter()
-  const configPresenter = useLegacyConfigPresenter({ safeCall: false })
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
@@ -235,7 +232,7 @@ export const useSessionStore = defineStore('session', () => {
     const loadVersion = groupModeUpdateVersion
 
     try {
-      const savedGroupMode = await configPresenter.getSetting<GroupMode>(SIDEBAR_GROUP_MODE_KEY)
+      const savedGroupMode = await configClient.getSetting(SIDEBAR_GROUP_MODE_KEY)
       if (groupModeUpdateVersion === loadVersion) {
         groupMode.value = normalizeGroupMode(savedGroupMode)
       }
@@ -561,7 +558,7 @@ export const useSessionStore = defineStore('session', () => {
 
     groupModeWritePromise = groupModeWritePromise.then(async () => {
       try {
-        await configPresenter.setSetting(SIDEBAR_GROUP_MODE_KEY, groupMode.value)
+        await configClient.setSetting(SIDEBAR_GROUP_MODE_KEY, groupMode.value)
         if (localVersion !== groupModeUpdateVersion) {
           return
         }

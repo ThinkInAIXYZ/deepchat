@@ -221,11 +221,7 @@ export class AcpProvider extends BaseLLMProvider {
       await this.autoEnableModelsIfNeeded()
       // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
       console.log(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
-      eventBus.sendToRenderer(
-        CONFIG_EVENTS.MODEL_LIST_CHANGED,
-        SendTarget.ALL_WINDOWS,
-        this.provider.id
-      )
+      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
       console.info('Provider initialized successfully:', this.provider.name)
     } catch (error) {
       console.warn('Provider initialization failed:', this.provider.name, error)
@@ -245,11 +241,7 @@ export class AcpProvider extends BaseLLMProvider {
       console.log(
         `[ACP] handleEnableStateChange: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
       )
-      eventBus.sendToRenderer(
-        CONFIG_EVENTS.MODEL_LIST_CHANGED,
-        SendTarget.ALL_WINDOWS,
-        this.provider.id
-      )
+      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
     }
   }
 

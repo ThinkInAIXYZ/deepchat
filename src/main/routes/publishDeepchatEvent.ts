@@ -7,12 +7,9 @@ import {
   type DeepchatEventPayload
 } from '@shared/contracts/events'
 
-export function publishDeepchatEvent<T extends DeepchatEventName>(
-  name: T,
-  payload: DeepchatEventPayload<T>
-): void {
+export function publishDeepchatEvent<T extends DeepchatEventName>(name: T, payload: unknown): void {
   const contract = getDeepchatEventContract(name)
-  const normalizedPayload = contract.payload.parse(payload)
+  const normalizedPayload = contract.payload.parse(payload) as DeepchatEventPayload<T>
   const envelope: DeepchatEventEnvelope<T> = {
     name,
     payload: normalizedPayload

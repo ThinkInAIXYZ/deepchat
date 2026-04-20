@@ -162,7 +162,11 @@
           </div>
         </div>
 
-        <div v-if="!collapsed" class="px-3 pb-2">
+        <div
+          v-if="!collapsed"
+          data-testid="window-sidebar-search"
+          class="window-no-drag-region px-3 pb-2"
+        >
           <div class="relative">
             <Icon
               icon="lucide:search"
@@ -975,11 +979,16 @@ onUnmounted(() => {
   -webkit-app-region: drag;
 }
 
+.window-no-drag-region {
+  -webkit-app-region: no-drag;
+}
+
 .session-list {
   overflow-anchor: none;
 }
 
-button {
+button,
+input {
   -webkit-app-region: no-drag;
 }
 

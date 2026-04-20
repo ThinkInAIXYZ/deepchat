@@ -1,18 +1,14 @@
 // === Vue Core ===
-import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, type Ref } from 'vue'
 
 // === Types ===
 import type { CONVERSATION_SETTINGS } from '@shared/presenter'
 
 // === Composables ===
-import { useLegacyLlmProviderPresenter } from '@api/legacy/presenters'
-import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
+import { ProviderClient } from '@api/ProviderClient'
 
 // === Stores ===
 import { useProviderStore } from '@/stores/providerStore'
-
-// === Events ===
-import { RATE_LIMIT_EVENTS } from '@/events'
 
 /**
  * Rate limit status interface
@@ -35,9 +31,8 @@ export function useRateLimitStatus(
   chatConfig: Ref<CONVERSATION_SETTINGS>,
   t: (key: string, params?: any) => string
 ) {
-  // === Presenters ===
-  const llmPresenter = useLegacyLlmProviderPresenter()
-  const rateLimitEventScope = createLegacyIpcSubscriptionScope()
+  // === Clients ===
+  const providerClient = new ProviderClient()
 
   // === Stores ===
   const providerStore = useProviderStore()
@@ -82,7 +77,7 @@ export function useRateLimitStatus(
     }
 
     try {
-      const status = await llmPresenter.getProviderRateLimitStatus(currentProviderId)
+      const status = await providerClient.getProviderRateLimitStatus(currentProviderId)
       rateLimitStatus.value = status
     } catch (error) {
       console.error('Failed to load rate limit status:', error)
@@ -108,20 +103,6 @@ export function useRateLimitStatus(
     if (statusInterval) {
       clearInterval(statusInterval)
       statusInterval = null
-    }
-  }
-
-  /**
-   * Handle rate limit events from IPC
-   */
-  const handleRateLimitEvent = (data: any) => {
-    if (data.providerId === chatConfig.value.providerId) {
-      if (data.config && !data.config.enabled) {
-        rateLimitStatus.value = null
-      } else {
-        loadRateLimitStatus()
-      }
-      startRateLimitPolling()
     }
   }
 
@@ -193,26 +174,22 @@ export function useRateLimitStatus(
 
   // === Lifecycle Hooks ===
   onMounted(() => {
-    loadRateLimitStatus()
+    void loadRateLimitStatus()
     startRateLimitPolling()
-
-    // Register IPC event listeners
-    rateLimitEventScope.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, (_event, data) =>
-      handleRateLimitEvent(data)
-    )
-    rateLimitEventScope.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, (_event, data) =>
-      handleRateLimitEvent(data)
-    )
-    rateLimitEventScope.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, (_event, data) =>
-      handleRateLimitEvent(data)
-    )
   })
 
   onUnmounted(() => {
     stopRateLimitPolling()
-
-    rateLimitEventScope.cleanup()
   })
+
+  watch(
+    () => [chatConfig.value.providerId, providerStore.providers] as const,
+    () => {
+      void loadRateLimitStatus()
+      startRateLimitPolling()
+    },
+    { immediate: true, deep: true }
+  )
 
   // === Return Public API ===
   return {

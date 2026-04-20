@@ -10,6 +10,11 @@ import {
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatStopStreamRoute,
+  hasDeepchatRouteContract,
+  settingsGetSnapshotRoute,
+  settingsListSystemFontsRoute,
+  settingsUpdateRoute,
+  systemOpenSettingsRoute,
   providersListModelsRoute,
   providersTestConnectionRoute,
   sessionsActivateRoute,
@@ -17,15 +22,13 @@ import {
   sessionsDeactivateRoute,
   sessionsGetActiveRoute,
   sessionsListRoute,
-  sessionsRestoreRoute,
-  hasDeepchatRouteContract,
-  settingsGetSnapshotRoute,
-  settingsListSystemFontsRoute,
-  settingsUpdateRoute,
-  systemOpenSettingsRoute
+  sessionsRestoreRoute
 } from '@shared/contracts/routes'
 import { ChatService } from './chat/chatService'
+import { dispatchConfigRoute } from './config/configRouteHandler'
 import { createPresenterHotPathPorts } from './hotPathPorts'
+import { dispatchModelRoute } from './models/modelRouteHandler'
+import { dispatchProviderRoute } from './providers/providerRouteHandler'
 import { createNodeScheduler } from './scheduler'
 import { ProviderService } from './providers/providerService'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
@@ -33,6 +36,8 @@ import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
 
 export type MainKernelRouteRuntime = {
+  configPresenter: IConfigPresenter
+  llmProviderPresenter: ILlmProviderPresenter
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sessionService: SessionService
   chatService: ChatService
@@ -56,6 +61,8 @@ export function createMainKernelRouteRuntime(deps: {
   })
 
   return {
+    configPresenter: deps.configPresenter,
+    llmProviderPresenter: deps.llmProviderPresenter,
     settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
     sessionService: new SessionService({
       sessionRepository: hotPathPorts.sessionRepository,
@@ -92,6 +99,35 @@ export async function dispatchDeepchatRoute(
 ): Promise<unknown> {
   if (!hasDeepchatRouteContract(routeName)) {
     throw new Error(`Unknown deepchat route: ${routeName}`)
+  }
+
+  const configResult = await dispatchConfigRoute(runtime.configPresenter, routeName, rawInput)
+  if (configResult !== undefined) {
+    return configResult
+  }
+
+  const providerResult = await dispatchProviderRoute(
+    {
+      configPresenter: runtime.configPresenter,
+      llmProviderPresenter: runtime.llmProviderPresenter
+    },
+    routeName,
+    rawInput
+  )
+  if (providerResult !== undefined) {
+    return providerResult
+  }
+
+  const modelResult = await dispatchModelRoute(
+    {
+      configPresenter: runtime.configPresenter,
+      llmProviderPresenter: runtime.llmProviderPresenter
+    },
+    routeName,
+    rawInput
+  )
+  if (modelResult !== undefined) {
+    return modelResult
   }
 
   switch (routeName) {
@@ -191,6 +227,8 @@ export async function dispatchDeepchatRoute(
       return systemOpenSettingsRoute.output.parse({ windowId })
     }
   }
+
+  throw new Error(`Unhandled deepchat route: ${routeName}`)
 }
 
 export function registerMainKernelRoutes(

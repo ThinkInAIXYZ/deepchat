@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { ConfigClient } from '@api/ConfigClient'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { useToast } from '@/components/use-toast'
-import type { MCPServerConfig } from '@shared/presenter'
 
 const emit = defineEmits<{
   'update:selections': [selections: string[]]
@@ -12,11 +11,11 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configPresenter = useLegacyConfigPresenter()
+const configClient = new ConfigClient()
 
 const loading = ref(false)
 const saving = ref(false)
-const availableServers = ref<Array<{ name: string; config: MCPServerConfig }>>([])
+const availableServers = ref<Array<{ name: string; config: { type?: string } }>>([])
 const selections = ref<string[]>([])
 
 const selectableServers = computed(() =>
@@ -29,8 +28,8 @@ const load = async () => {
   loading.value = true
   try {
     const [servers, currentSelections] = await Promise.all([
-      configPresenter.getMcpServers(),
-      configPresenter.getAcpSharedMcpSelections()
+      configClient.getMcpServers(),
+      configClient.getAcpSharedMcpSelections()
     ])
 
     availableServers.value = Object.entries(servers ?? {}).map(([name, config]) => ({
@@ -50,7 +49,7 @@ const persist = async (
 ) => {
   saving.value = true
   try {
-    await configPresenter.setAcpSharedMcpSelections(nextSelections)
+    await configClient.setAcpSharedMcpSelections(nextSelections)
     emit('update:selections', nextSelections)
   } catch (error) {
     selections.value = previousSelections

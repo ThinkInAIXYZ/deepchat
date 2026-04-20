@@ -167,6 +167,32 @@ describe('ChatInputBox attachments', () => {
     activeSkillsRef.value = []
     pendingSkillsRef.value = []
     lastEditorOptions = null
+    Object.assign(((window as any).api ??= {}), {
+      toRelativePath: vi.fn((filePath: string, basePath?: string) => {
+        if (typeof filePath !== 'string' || typeof basePath !== 'string') {
+          return filePath
+        }
+
+        const normalize = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '').trim()
+        const normalizedFilePath = normalize(filePath)
+        const normalizedBasePath = normalize(basePath)
+
+        if (!normalizedBasePath) {
+          return filePath
+        }
+
+        if (normalizedFilePath === normalizedBasePath) {
+          return ''
+        }
+
+        const basePrefix = `${normalizedBasePath}/`
+        if (normalizedFilePath.startsWith(basePrefix)) {
+          return normalizedFilePath.slice(basePrefix.length)
+        }
+
+        return filePath
+      })
+    })
   })
 
   const mountComponent = async (options?: { files?: any[] }) => {

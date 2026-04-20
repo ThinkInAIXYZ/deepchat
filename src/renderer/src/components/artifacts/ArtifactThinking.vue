@@ -9,20 +9,20 @@
 // import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { onMounted, ref, watch } from 'vue'
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { ConfigClient } from '@api/ConfigClient'
 
 // const { t } = useI18n()
-const configPresenter = useLegacyConfigPresenter()
+const configClient = new ConfigClient()
 const collapse = ref(false)
 
 watch(
   () => collapse.value,
   () => {
-    configPresenter.setSetting('artifact_think_collapse', collapse.value)
+    void configClient.setSetting('artifact_think_collapse', collapse.value)
   }
 )
 
 onMounted(async () => {
-  collapse.value = Boolean(await configPresenter.getSetting('artifact_think_collapse'))
+  collapse.value = Boolean(await configClient.getSetting('artifact_think_collapse'))
 })
 </script>

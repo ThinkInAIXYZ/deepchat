@@ -7,7 +7,7 @@ import type {
   RENDERER_MODEL_META
 } from '@shared/presenter'
 import { ModelType } from '@shared/model'
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { ConfigClient } from '../../api/ConfigClient'
 
 export interface AgentModelRefreshResult {
   rendererModels: RENDERER_MODEL_META[]
@@ -20,7 +20,7 @@ const buildProcessKey = (providerId: string, agentId: string) =>
   `${providerId}${PROCESS_KEY_SEPARATOR}${agentId}`
 
 export const useAgentModelStore = defineStore('agent-model', () => {
-  const configPresenter = useLegacyConfigPresenter()
+  const configClient = new ConfigClient()
 
   const agentModels = ref<Record<string, RENDERER_MODEL_META[]>>({})
   const sessionStatus = ref<Record<string, AgentSessionState>>({})
@@ -32,13 +32,13 @@ export const useAgentModelStore = defineStore('agent-model', () => {
       return { rendererModels: [], modelMetas: [] }
     }
 
-    const acpEnabled = await configPresenter.getAcpEnabled()
+    const acpEnabled = await configClient.getAcpEnabled()
     if (!acpEnabled) {
       agentModels.value[providerId] = []
       return { rendererModels: [], modelMetas: [] }
     }
 
-    const agents = await configPresenter.getAcpAgents()
+    const agents = await configClient.getAcpAgents()
     const rendererModels: RENDERER_MODEL_META[] = agents.map((agent) => ({
       id: agent.id,
       name: agent.name,

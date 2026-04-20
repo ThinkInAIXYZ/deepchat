@@ -17,7 +17,8 @@ const mcpPresenterMock = vi.hoisted(() => ({
 const configPresenterMock = vi.hoisted(() => ({
   getCustomPrompts: vi.fn().mockResolvedValue([]),
   getSetting: vi.fn().mockResolvedValue([]),
-  setSetting: vi.fn().mockResolvedValue(undefined)
+  setSetting: vi.fn().mockResolvedValue(undefined),
+  onCustomPromptsChanged: vi.fn(() => vi.fn())
 }))
 
 const createQueryState = () => ({
@@ -38,8 +39,16 @@ vi.mock('vue', async () => {
   }
 })
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: (name: string) => (name === 'mcpPresenter' ? mcpPresenterMock : configPresenterMock)
+vi.mock('@api/legacy/presenters', () => ({
+  useLegacyMcpPresenter: () => mcpPresenterMock
+}))
+
+vi.mock('@api/legacy/runtime', () => ({
+  onLegacyIpcChannel: vi.fn(() => () => {})
+}))
+
+vi.mock('../../../src/renderer/api/ConfigClient', () => ({
+  ConfigClient: vi.fn(() => configPresenterMock)
 }))
 
 vi.mock('@/composables/useIpcMutation', () => ({

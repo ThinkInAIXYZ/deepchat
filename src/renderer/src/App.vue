@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import { useLegacyConfigPresenter, useLegacyWindowPresenter } from '@api/legacy/presenters'
+import { ConfigClient } from '@api/ConfigClient'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useSessionStore } from '@/stores/ui/session'
@@ -36,8 +36,7 @@ import { sendLegacyIpc } from '@api/legacy/runtime'
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
 const route = useRoute()
-const configPresenter = useLegacyConfigPresenter()
-const windowPresenter = useLegacyWindowPresenter()
+const configClient = new ConfigClient()
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
@@ -194,7 +193,7 @@ const ensureStartupWelcomeState = async () => {
       return
     }
 
-    const initComplete = Boolean(await configPresenter.getSetting('init_complete'))
+    const initComplete = Boolean(await configClient.getSetting('init_complete'))
     if (!initComplete) {
       if (!isWelcomeRoute) {
         await router.replace({ name: 'welcome' })
@@ -253,7 +252,7 @@ const activatePendingStartDeeplink = async () => {
   processingStartDeeplinkToken.value = token
 
   try {
-    const initComplete = Boolean(await configPresenter.getSetting('init_complete'))
+    const initComplete = Boolean(await configClient.getSetting('init_complete'))
     if (!initComplete) {
       return
     }
@@ -308,7 +307,7 @@ const handleDatabaseRepairSuggested = (payload: unknown) => {
     action: {
       label: t('settings.data.databaseRepair.toastAction'),
       onClick: () => {
-        void windowPresenter.createSettingsWindow({
+        void configClient.openSettings({
           routeName: 'settings-database',
           section: 'database-repair'
         })

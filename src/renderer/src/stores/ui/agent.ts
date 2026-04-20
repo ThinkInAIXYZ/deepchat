@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
-import { onLegacyIpcChannel } from '@api/legacy/runtime'
-import { CONFIG_EVENTS } from '@/events'
+import { ConfigClient } from '../../../api/ConfigClient'
+import { ModelClient } from '../../../api/ModelClient'
 import type { Agent } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -26,6 +26,8 @@ export interface UIAgent {
 
 export const useAgentStore = defineStore('agent', () => {
   const agentSessionPresenter = useLegacyAgentSessionPresenter()
+  const configClient = new ConfigClient()
+  const modelClient = new ModelClient()
   let listenersRegistered = false
 
   // --- State ---
@@ -82,13 +84,12 @@ export const useAgentStore = defineStore('agent', () => {
 
   if (!listenersRegistered) {
     listenersRegistered = true
-    onLegacyIpcChannel(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_: unknown, providerId?: string) => {
+    modelClient.onModelsChanged(({ providerId }) => {
       if (providerId === 'acp') {
         void fetchAgents()
       }
     })
-
-    onLegacyIpcChannel(CONFIG_EVENTS.AGENTS_CHANGED, () => {
+    configClient.onAgentsChanged(() => {
       void fetchAgents()
     })
   }

@@ -5,16 +5,51 @@ import {
   chatStreamFailedEvent,
   chatStreamUpdatedEvent
 } from './events/chat.events'
+import {
+  configCustomPromptsChangedEvent,
+  configAgentsChangedEvent,
+  configDefaultProjectPathChangedEvent,
+  configFloatingButtonChangedEvent,
+  configLanguageChangedEvent,
+  configShortcutKeysChangedEvent,
+  configSyncSettingsChangedEvent,
+  configSystemPromptsChangedEvent,
+  configSystemThemeChangedEvent,
+  configThemeChangedEvent
+} from './events/config.events'
+import {
+  modelsChangedEvent,
+  modelsConfigChangedEvent,
+  modelsStatusChangedEvent
+} from './events/models.events'
+import { providersChangedEvent } from './events/providers.events'
 import { settingsChangedEvent } from './events/settings.events'
 import { sessionsUpdatedEvent } from './events/sessions.events'
 
 export * from './events/chat.events'
+export * from './events/config.events'
+export * from './events/models.events'
+export * from './events/providers.events'
 export * from './events/settings.events'
 export * from './events/sessions.events'
 
 export const DEEPCHAT_EVENT_CATALOG = {
   [settingsChangedEvent.name]: settingsChangedEvent,
   [sessionsUpdatedEvent.name]: sessionsUpdatedEvent,
+  [configLanguageChangedEvent.name]: configLanguageChangedEvent,
+  [configThemeChangedEvent.name]: configThemeChangedEvent,
+  [configSystemThemeChangedEvent.name]: configSystemThemeChangedEvent,
+  [configFloatingButtonChangedEvent.name]: configFloatingButtonChangedEvent,
+  [configSyncSettingsChangedEvent.name]: configSyncSettingsChangedEvent,
+  [configDefaultProjectPathChangedEvent.name]: configDefaultProjectPathChangedEvent,
+  [configAgentsChangedEvent.name]: configAgentsChangedEvent,
+  [configShortcutKeysChangedEvent.name]: configShortcutKeysChangedEvent,
+  [configSystemPromptsChangedEvent.name]: configSystemPromptsChangedEvent,
+  [configCustomPromptsChangedEvent.name]: configCustomPromptsChangedEvent,
+  [providersChangedEvent.name]: providersChangedEvent,
+  [modelsChangedEvent.name]: modelsChangedEvent,
+  [modelsStatusChangedEvent.name]: modelsStatusChangedEvent,
+  [modelsConfigChangedEvent.name]: modelsConfigChangedEvent,
   [chatStreamUpdatedEvent.name]: chatStreamUpdatedEvent,
   [chatStreamCompletedEvent.name]: chatStreamCompletedEvent,
   [chatStreamFailedEvent.name]: chatStreamFailedEvent

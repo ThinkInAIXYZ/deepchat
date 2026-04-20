@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { SystemPrompt } from '@shared/presenter'
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { ConfigClient } from '../../api/ConfigClient'
 
 export const useSystemPromptStore = defineStore('systemPrompt', () => {
-  const configP = useLegacyConfigPresenter()
+  const configClient = new ConfigClient()
 
   const prompts = ref<SystemPrompt[]>([])
   const defaultPromptId = ref<string>('default')
@@ -16,44 +16,44 @@ export const useSystemPromptStore = defineStore('systemPrompt', () => {
   )
 
   const loadPrompts = async () => {
-    prompts.value = await configP.getSystemPrompts()
-    defaultPromptId.value = await configP.getDefaultSystemPromptId()
+    prompts.value = await configClient.getSystemPrompts()
+    defaultPromptId.value = await configClient.getDefaultSystemPromptId()
   }
 
   const savePrompts = async (list: SystemPrompt[]) => {
     prompts.value = list
-    await configP.setSystemPrompts(list)
+    await configClient.setSystemPrompts(list)
   }
 
   const setDefaultSystemPrompt = async (content: string) => {
-    await configP.setDefaultSystemPrompt(content)
+    await configClient.setDefaultSystemPrompt(content)
   }
 
   const resetToDefaultPrompt = async () => {
-    await configP.resetToDefaultPrompt()
+    await configClient.resetToDefaultPrompt()
   }
 
   const clearSystemPrompt = async () => {
-    await configP.clearSystemPrompt()
+    await configClient.clearSystemPrompt()
   }
 
   const addSystemPrompt = async (prompt: SystemPrompt) => {
-    await configP.addSystemPrompt(prompt)
+    await configClient.addSystemPrompt(prompt)
     await loadPrompts()
   }
 
   const updateSystemPrompt = async (promptId: string, updates: Partial<SystemPrompt>) => {
-    await configP.updateSystemPrompt(promptId, updates)
+    await configClient.updateSystemPrompt(promptId, updates)
     await loadPrompts()
   }
 
   const deleteSystemPrompt = async (promptId: string) => {
-    await configP.deleteSystemPrompt(promptId)
+    await configClient.deleteSystemPrompt(promptId)
     await loadPrompts()
   }
 
   const setDefaultSystemPromptId = async (promptId: string) => {
-    await configP.setDefaultSystemPromptId(promptId)
+    await configClient.setDefaultSystemPromptId(promptId)
     defaultPromptId.value = promptId
     await loadPrompts()
   }

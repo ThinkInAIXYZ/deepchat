@@ -2,14 +2,14 @@
 import { ref, onMounted } from 'vue'
 
 // === Composables ===
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { ConfigClient } from '@api/ConfigClient'
 
 /**
  * Manages input-specific settings (deep thinking)
  */
 export function useInputSettings() {
-  // === Presenters ===
-  const configPresenter = useLegacyConfigPresenter()
+  // === Clients ===
+  const configClient = new ConfigClient()
 
   // === Local State ===
   const settings = ref({
@@ -22,7 +22,7 @@ export function useInputSettings() {
     settings.value.deepThinking = !settings.value.deepThinking
 
     try {
-      await configPresenter.setSetting('input_deepThinking', settings.value.deepThinking)
+      await configClient.setSetting('input_deepThinking', settings.value.deepThinking)
     } catch (error) {
       // Revert to previous value on error
       settings.value.deepThinking = previousValue
@@ -33,7 +33,7 @@ export function useInputSettings() {
 
   const loadSettings = async () => {
     try {
-      settings.value.deepThinking = Boolean(await configPresenter.getSetting('input_deepThinking'))
+      settings.value.deepThinking = Boolean(await configClient.getSetting('input_deepThinking'))
     } catch (error) {
       // Fall back to safe defaults on error
       settings.value.deepThinking = false

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { SETTINGS_EVENTS } from '@/events'
 
 afterEach(() => {
   vi.clearAllTimers()
@@ -21,21 +20,12 @@ describe('WelcomePage', () => {
     const configPresenter = {
       setSetting: vi.fn().mockResolvedValue(undefined)
     }
-    const windowPresenter = {
-      createSettingsWindow: vi.fn().mockResolvedValue(9),
-      sendToWindow: vi.fn(() => true)
-    }
-
-    ;(window as any).api = {
-      getWindowId: vi.fn(() => 7)
-    }
-
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'windowPresenter') return windowPresenter
-        return {}
-      }
+    const openSettings = vi.fn().mockResolvedValue(undefined)
+    vi.doMock('@api/ConfigClient', () => ({
+      ConfigClient: vi.fn(() => ({
+        setSetting: configPresenter.setSetting,
+        openSettings
+      }))
     }))
     vi.doMock('@/stores/ui/pageRouter', () => ({
       usePageRouterStore: () => pageRouter
@@ -95,11 +85,7 @@ describe('WelcomePage', () => {
     expect(configPresenter.setSetting).toHaveBeenCalledWith('init_complete', true)
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
     expect(router.replace).toHaveBeenCalledWith({ name: 'chat' })
-    expect(windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledWith(9, SETTINGS_EVENTS.NAVIGATE, {
-      routeName: 'settings-provider'
-    })
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(1)
+    expect(openSettings).toHaveBeenCalledWith({ routeName: 'settings-provider' })
   })
 
   it('navigates the ACP entry to ACP settings', async () => {
@@ -115,21 +101,12 @@ describe('WelcomePage', () => {
     const configPresenter = {
       setSetting: vi.fn().mockResolvedValue(undefined)
     }
-    const windowPresenter = {
-      createSettingsWindow: vi.fn().mockResolvedValue(9),
-      sendToWindow: vi.fn(() => true)
-    }
-
-    ;(window as any).api = {
-      getWindowId: vi.fn(() => 7)
-    }
-
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'windowPresenter') return windowPresenter
-        return {}
-      }
+    const openSettings = vi.fn().mockResolvedValue(undefined)
+    vi.doMock('@api/ConfigClient', () => ({
+      ConfigClient: vi.fn(() => ({
+        setSetting: configPresenter.setSetting,
+        openSettings
+      }))
     }))
     vi.doMock('@/stores/ui/pageRouter', () => ({
       usePageRouterStore: () => pageRouter
@@ -189,14 +166,10 @@ describe('WelcomePage', () => {
     expect(configPresenter.setSetting).toHaveBeenCalledWith('init_complete', true)
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
     expect(router.replace).toHaveBeenCalledWith({ name: 'chat' })
-    expect(windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledWith(9, SETTINGS_EVENTS.NAVIGATE, {
-      routeName: 'settings-acp'
-    })
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(1)
+    expect(openSettings).toHaveBeenCalledWith({ routeName: 'settings-acp' })
   })
 
-  it('does nothing when no window id is available', async () => {
+  it('opens settings without redirect when already outside the welcome route', async () => {
     vi.resetModules()
 
     const router = {
@@ -208,21 +181,13 @@ describe('WelcomePage', () => {
     const configPresenter = {
       setSetting: vi.fn().mockResolvedValue(undefined)
     }
-    const windowPresenter = {
-      createSettingsWindow: vi.fn().mockResolvedValue(9),
-      sendToWindow: vi.fn(() => true)
-    }
+    const openSettings = vi.fn().mockResolvedValue(undefined)
 
-    ;(window as any).api = {
-      getWindowId: vi.fn(() => null)
-    }
-
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'windowPresenter') return windowPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      ConfigClient: vi.fn(() => ({
+        setSetting: configPresenter.setSetting,
+        openSettings
+      }))
     }))
     vi.doMock('@/stores/ui/pageRouter', () => ({
       usePageRouterStore: () => pageRouter
@@ -249,7 +214,7 @@ describe('WelcomePage', () => {
       return {
         ...actual,
         useRoute: () => ({
-          name: 'welcome'
+          name: 'chat'
         }),
         useRouter: () => router
       }
@@ -278,10 +243,9 @@ describe('WelcomePage', () => {
 
     await browseButton!.trigger('click')
 
-    expect(configPresenter.setSetting).not.toHaveBeenCalled()
-    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+    expect(configPresenter.setSetting).toHaveBeenCalledWith('init_complete', true)
+    expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
     expect(router.replace).not.toHaveBeenCalled()
-    expect(windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
-    expect(windowPresenter.sendToWindow).not.toHaveBeenCalled()
+    expect(openSettings).toHaveBeenCalledWith({ routeName: 'settings-provider' })
   })
 })

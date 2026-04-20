@@ -796,11 +796,10 @@ import {
 } from '@shared/utils/generationSettingsValidation'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import {
-  useLegacyAgentSessionPresenter,
-  useLegacyConfigPresenter,
-  useLegacyLlmProviderPresenter
-} from '@api/legacy/presenters'
+import { ConfigClient } from '@api/ConfigClient'
+import { ModelClient } from '@api/ModelClient'
+import { ProviderClient } from '@api/ProviderClient'
+import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
 import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
@@ -859,8 +858,9 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const projectStore = useProjectStore()
-const configPresenter = useLegacyConfigPresenter()
-const llmproviderPresenter = useLegacyLlmProviderPresenter()
+const configClient = new ConfigClient()
+const modelClient = new ModelClient()
+const providerClient = new ProviderClient()
 const agentSessionPresenter = useLegacyAgentSessionPresenter()
 const { t } = useI18n()
 
@@ -932,14 +932,12 @@ const inferAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' 
 }
 
 const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgentConfig> => {
-  if (typeof configPresenter.resolveDeepChatAgentConfig === 'function') {
-    return configPresenter.resolveDeepChatAgentConfig(agentId)
+  const config = await configClient.resolveDeepChatAgentConfig(agentId)
+  if (config) {
+    return config
   }
 
-  const defaultSystemPrompt =
-    (typeof configPresenter.getDefaultSystemPrompt === 'function'
-      ? await configPresenter.getDefaultSystemPrompt()
-      : await configPresenter.getSetting?.('default_system_prompt')) ?? ''
+  const defaultSystemPrompt = (await configClient.getDefaultSystemPrompt()) ?? ''
 
   return normalizeDeepChatSubagentConfig({
     defaultModelPreset: undefined,
@@ -1891,7 +1889,7 @@ const syncDraftModelSelection = async () => {
       }
     }
 
-    const preferredModel = (await configPresenter.getSetting('preferredModel')) as unknown
+    const preferredModel = (await configClient.getSetting('preferredModel')) as unknown
     if (token !== draftModelSyncToken) return
     if (isModelSelection(preferredModel)) {
       const resolvedPreferred = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
@@ -1901,7 +1899,7 @@ const syncDraftModelSelection = async () => {
       }
     }
 
-    const defaultModel = (await configPresenter.getSetting('defaultModel')) as unknown
+    const defaultModel = (await configClient.getSetting('defaultModel')) as unknown
     if (token !== draftModelSyncToken) return
     if (isModelSelection(defaultModel)) {
       const resolvedDefault = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
@@ -1924,13 +1922,14 @@ const resolveDefaultGenerationSettings = async (
   agentId: string = 'deepchat'
 ): Promise<SessionGenerationSettings> => {
   const agentConfig = await resolveDeepChatAgentConfig(agentId)
-  const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
+  const modelConfig = await modelClient.getModelConfig(modelId, providerId)
+  const capabilities = await modelClient.getCapabilities(providerId, modelId)
   const resolvedCapabilityProviderId = resolveCapabilityProviderIdForSelection(
     providerId,
     modelId,
     modelConfig.endpointType
   )
-  const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
+  const portrait = capabilities.reasoningPortrait ?? null
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
     toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
@@ -2006,25 +2005,22 @@ const resolveDefaultGenerationSettings = async (
 
 const fetchCapabilities = async (providerId: string, modelId: string): Promise<void> => {
   try {
-    const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
+    const modelConfig = await modelClient.getModelConfig(modelId, providerId)
+    const capabilities = await modelClient.getCapabilities(providerId, modelId)
     capabilityProviderId.value = resolveCapabilityProviderIdForSelection(
       providerId,
       modelId,
       modelConfig.endpointType
     )
-    const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
-    const temperatureSupport = await configPresenter.supportsTemperatureControl?.(
-      providerId,
-      modelId
-    )
+    const portrait = capabilities.reasoningPortrait ?? null
 
     capabilityReasoningPortrait.value = portrait
     capabilitySupportsReasoning.value =
       typeof portrait?.supported === 'boolean' ? portrait.supported : null
     capabilitySupportsTemperature.value =
-      typeof temperatureSupport === 'boolean'
-        ? temperatureSupport
-        : ((await configPresenter.getTemperatureCapability?.(providerId, modelId)) ?? null)
+      typeof capabilities.supportsTemperatureControl === 'boolean'
+        ? capabilities.supportsTemperatureControl
+        : capabilities.temperatureCapability
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
     capabilityProviderId.value = providerId
@@ -2254,13 +2250,13 @@ const syncAcpConfigOptions = async () => {
     try {
       let warmupFailed = false
       try {
-        await llmproviderPresenter.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
+        await providerClient.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
       } catch (error) {
         warmupFailed = true
         console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
       }
 
-      const state = await llmproviderPresenter.getAcpProcessConfigOptions(
+      const state = await providerClient.getAcpProcessConfigOptions(
         agentId,
         acpWorkspacePath.value ?? undefined
       )
@@ -2324,7 +2320,7 @@ const isAcpOptionSaving = (configId: string) => acpOptionSavingIds.value.include
 
 const reloadSystemPrompts = async () => {
   try {
-    systemPromptList.value = await configPresenter.getSystemPrompts()
+    systemPromptList.value = await configClient.getSystemPrompts()
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to load system prompt options:', error)
     systemPromptList.value = []
@@ -2570,7 +2566,7 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     draftModelSelection.value = { providerId, modelId }
     draftStore.providerId = providerId
     draftStore.modelId = modelId
-    await configPresenter.setSetting('preferredModel', { providerId, modelId })
+    await configClient.setSetting('preferredModel', { providerId, modelId })
     return true
   } catch (error) {
     draftModelSelection.value = previousDraftSelection

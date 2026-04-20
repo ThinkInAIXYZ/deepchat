@@ -227,11 +227,7 @@ export abstract class BaseLLMProvider {
     logger.info(
       `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
     )
-    eventBus.sendToRenderer(
-      CONFIG_EVENTS.MODEL_LIST_CHANGED,
-      SendTarget.ALL_WINDOWS,
-      this.provider.id
-    )
+    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
   }
 
   /**

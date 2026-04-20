@@ -1,11 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, onMounted } from 'vue'
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
-import { hasLegacyIpcRenderer, onLegacyIpcChannel } from '@api/legacy/runtime'
-import { FLOATING_BUTTON_EVENTS } from '@/events'
+import { ConfigClient } from '../../api/ConfigClient'
 
 export const useFloatingButtonStore = defineStore('floatingButton', () => {
-  const configP = useLegacyConfigPresenter()
+  const configClient = new ConfigClient()
 
   // 悬浮按钮是否启用的状态
   const enabled = ref<boolean>(false)
@@ -14,7 +12,7 @@ export const useFloatingButtonStore = defineStore('floatingButton', () => {
   // 获取悬浮按钮启用状态
   const getFloatingButtonEnabled = async (): Promise<boolean> => {
     try {
-      return await configP.getFloatingButtonEnabled()
+      return await configClient.getFloatingButtonEnabled()
     } catch (error) {
       console.error('Failed to get floating button enabled status:', error)
       return false
@@ -25,7 +23,7 @@ export const useFloatingButtonStore = defineStore('floatingButton', () => {
   const setFloatingButtonEnabled = async (value: boolean) => {
     try {
       enabled.value = Boolean(value)
-      await configP.setFloatingButtonEnabled(value)
+      await configClient.setFloatingButtonEnabled(value)
     } catch (error) {
       console.error('Failed to set floating button enabled status:', error)
       // 如果设置失败，回滚本地状态
@@ -50,13 +48,9 @@ export const useFloatingButtonStore = defineStore('floatingButton', () => {
       return
     }
 
-    if (!hasLegacyIpcRenderer()) {
-      return
-    }
-
     listenerRegistered = true
-    onLegacyIpcChannel(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, (_event, value: boolean) => {
-      enabled.value = Boolean(value)
+    configClient.onFloatingButtonChanged((payload) => {
+      enabled.value = Boolean(payload.enabled)
     })
   }
 

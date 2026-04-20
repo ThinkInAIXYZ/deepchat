@@ -470,7 +470,7 @@ import {
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { ModelClient } from '@api/ModelClient'
 import {
   Dialog,
   DialogContent,
@@ -524,7 +524,7 @@ const modelConfigStore = useModelConfigStore()
 const modelStore = useModelStore()
 const providerStore = useProviderStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
-const configPresenter = useLegacyConfigPresenter()
+const modelClient = new ModelClient()
 const providerIdLower = computed(() => props.providerId?.toLowerCase() || '')
 const capabilityProviderId = ref(props.providerId)
 const currentProvider = computed(() =>
@@ -750,8 +750,9 @@ const capabilityReasoningVisibilityDefault = ref<AnthropicReasoningVisibility | 
 
 const fetchCapabilities = async () => {
   syncCapabilityProviderId()
+  const targetModelId = currentModelLookupId.value
 
-  if (!props.providerId || !props.modelId) {
+  if (!props.providerId || !targetModelId) {
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
@@ -764,8 +765,8 @@ const fetchCapabilities = async () => {
     return
   }
   try {
-    const portrait =
-      (await configPresenter.getReasoningPortrait?.(props.providerId, props.modelId)) ?? null
+    const capabilities = await modelClient.getCapabilities(props.providerId, targetModelId)
+    const portrait = capabilities.reasoningPortrait ?? null
     capabilityReasoningPortrait.value = portrait
     capabilitySupportsReasoning.value =
       typeof portrait?.supported === 'boolean' ? portrait.supported : null
@@ -778,15 +779,10 @@ const fetchCapabilities = async () => {
             : {})
         }
       : null
-    const temperatureSupport = await configPresenter.supportsTemperatureControl?.(
-      props.providerId,
-      props.modelId
-    )
     capabilitySupportsTemperature.value =
-      typeof temperatureSupport === 'boolean'
-        ? temperatureSupport
-        : ((await configPresenter.getTemperatureCapability?.(props.providerId, props.modelId)) ??
-          null)
+      typeof capabilities.supportsTemperatureControl === 'boolean'
+        ? capabilities.supportsTemperatureControl
+        : capabilities.temperatureCapability
     capabilitySupportsEffort.value = hasReasoningEffortSupport(portrait)
     capabilityEffortDefault.value = normalizeReasoningEffortValue(portrait, portrait?.effort)
     capabilitySupportsVerbosity.value = hasVerbositySupport(portrait)

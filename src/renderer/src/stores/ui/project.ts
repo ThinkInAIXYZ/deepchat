@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useLegacyConfigPresenter, useLegacyProjectPresenter } from '@api/legacy/presenters'
-import { hasLegacyIpcRenderer, onLegacyIpcChannel } from '@api/legacy/runtime'
-import { CONFIG_EVENTS } from '@/events'
+import { useLegacyProjectPresenter } from '@api/legacy/presenters'
+import { ConfigClient } from '../../../api/ConfigClient'
 import type { EnvironmentSummary, Project } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -20,7 +19,7 @@ type ProjectSelectionSource = 'none' | 'manual' | 'default'
 
 export const useProjectStore = defineStore('project', () => {
   const projectPresenter = useLegacyProjectPresenter({ safeCall: false })
-  const configPresenter = useLegacyConfigPresenter({ safeCall: false })
+  const configClient = new ConfigClient()
 
   // --- State ---
   const projects = ref<UIProject[]>([])
@@ -98,8 +97,10 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   const ensureListenersRegistered = () => {
-    if (listenersRegistered || !hasLegacyIpcRenderer()) return
-    onLegacyIpcChannel(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, handleDefaultProjectPathChanged)
+    if (listenersRegistered) return
+    configClient.onDefaultProjectPathChanged(({ path }) => {
+      handleDefaultProjectPathChanged(undefined, { path })
+    })
     listenersRegistered = true
   }
 
@@ -109,7 +110,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function loadDefaultProjectPath(): Promise<void> {
     try {
-      defaultProjectPath.value = normalizePath(await configPresenter.getDefaultProjectPath())
+      defaultProjectPath.value = normalizePath(await configClient.getDefaultProjectPath())
       projects.value = reconcileProjects(projects.value)
       applyDefaultSelection()
     } catch (e) {
@@ -121,7 +122,7 @@ export const useProjectStore = defineStore('project', () => {
     try {
       const [result, nextDefaultProjectPath] = await Promise.all([
         projectPresenter.getRecentProjects(20),
-        configPresenter.getDefaultProjectPath()
+        configClient.getDefaultProjectPath()
       ])
 
       defaultProjectPath.value = normalizePath(nextDefaultProjectPath)
@@ -158,7 +159,7 @@ export const useProjectStore = defineStore('project', () => {
   async function setDefaultProject(path: string | null): Promise<void> {
     const normalizedPath = normalizePath(path)
     try {
-      await configPresenter.setDefaultProjectPath(normalizedPath)
+      await configClient.setDefaultProjectPath(normalizedPath)
       handleDefaultProjectPathChanged(undefined, { path: normalizedPath })
     } catch (e) {
       error.value = `Failed to update default project path: ${e}`

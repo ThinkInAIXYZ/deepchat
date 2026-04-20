@@ -109,7 +109,7 @@ const setup = async (options?: {
     resetGenerationSettings: vi.fn()
   })
 
-  const configPresenter = {
+  const configClient = {
     getSetting: vi.fn((key: string) => {
       if (key === 'defaultModel') {
         return Promise.resolve(options?.defaultModel)
@@ -151,9 +151,11 @@ const setup = async (options?: {
   vi.doMock('@/stores/ui/draft', () => ({
     useDraftStore: () => draftStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) =>
-      name === 'configPresenter' ? configPresenter : agentSessionPresenter
+  vi.doMock('@api/ConfigClient', () => ({
+    ConfigClient: vi.fn(() => configClient)
+  }))
+  vi.doMock('@api/legacy/presenters', () => ({
+    useLegacyAgentSessionPresenter: () => agentSessionPresenter
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

@@ -1,4 +1,6 @@
+export * from './ConfigClient'
 export * from './ChatClient'
+export * from './ModelClient'
 export * from './ProviderClient'
 export * from './SessionClient'
 export * from './SettingsClient'

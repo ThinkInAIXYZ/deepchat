@@ -88,7 +88,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     })
   })
   const settings = { ...(options.initialSettings ?? {}) }
-  const configPresenter = {
+  const configClient = {
     getSetting: vi.fn(async <T>(key: string) => {
       if (options.failGetSetting) {
         throw new Error('failed to read setting')
@@ -110,12 +110,12 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     }
   })
 
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'tabPresenter') return tabPresenter
-      if (name === 'configPresenter') return configPresenter
-      return agentSessionPresenter
-    }
+  vi.doMock('@api/legacy/presenters', () => ({
+    useLegacyAgentSessionPresenter: () => agentSessionPresenter,
+    useLegacyTabPresenter: () => tabPresenter
+  }))
+  vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
+    ConfigClient: vi.fn(() => configClient)
   }))
   vi.doMock('../../../src/renderer/api/SessionClient', () => ({
     SessionClient: vi.fn(() => sessionClient)
@@ -168,7 +168,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   return {
     store,
     settings,
-    configPresenter,
+    configClient,
     clearStreamingState,
     setCurrentSessionId,
     agentSessionPresenter,
@@ -376,18 +376,18 @@ describe('sessionStore group mode preferences', () => {
   })
 
   it('persists toggled group mode changes', async () => {
-    const { store, settings, configPresenter } = await setupStore()
+    const { store, settings, configClient } = await setupStore()
 
     await store.fetchSessions()
     await store.toggleGroupMode()
 
     expect(store.groupMode.value).toBe('time')
-    expect(configPresenter.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
+    expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
     expect(settings[SIDEBAR_GROUP_MODE_KEY]).toBe('time')
   })
 
   it('rolls back the group mode when persistence fails', async () => {
-    const { store, configPresenter } = await setupStore({
+    const { store, configClient } = await setupStore({
       failSetSetting: true
     })
 
@@ -395,15 +395,15 @@ describe('sessionStore group mode preferences', () => {
     await store.toggleGroupMode()
 
     expect(store.groupMode.value).toBe('project')
-    expect(configPresenter.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
+    expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
   })
 
   it('serializes concurrent group mode writes and persists the last toggle', async () => {
-    const { store, settings, configPresenter } = await setupStore()
+    const { store, settings, configClient } = await setupStore()
     const pendingResolvers: Array<() => void> = []
 
     await store.fetchSessions()
-    configPresenter.setSetting.mockImplementation(async <T>(key: string, value: T) => {
+    configClient.setSetting.mockImplementation(async <T>(key: string, value: T) => {
       await new Promise<void>((resolve) => {
         pendingResolvers.push(() => {
           settings[key] = value
@@ -418,12 +418,12 @@ describe('sessionStore group mode preferences', () => {
     await Promise.resolve()
 
     expect(store.groupMode.value).toBe('project')
-    expect(configPresenter.setSetting).toHaveBeenCalledTimes(1)
+    expect(configClient.setSetting).toHaveBeenCalledTimes(1)
 
     pendingResolvers.shift()?.()
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(configPresenter.setSetting).toHaveBeenCalledTimes(2)
+    expect(configClient.setSetting).toHaveBeenCalledTimes(2)
 
     pendingResolvers.shift()?.()
     await Promise.all([firstToggle, secondToggle])

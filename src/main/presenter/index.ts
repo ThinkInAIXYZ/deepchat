@@ -81,6 +81,7 @@ import type {
 } from './runtimePorts'
 import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
+import { setupLegacyTypedEventBridge } from '@/routes/legacyTypedEventBridge'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -752,6 +753,10 @@ let cachedMainKernelRouteRuntime: ReturnType<typeof createMainKernelRouteRuntime
 export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
   // only allow initialize once
   if (presenter == null) presenter = Presenter.getInstance(lifecycleManager)
+  setupLegacyTypedEventBridge({
+    configPresenter: presenter.configPresenter,
+    llmProviderPresenter: presenter.llmproviderPresenter
+  })
   return presenter
 }
 

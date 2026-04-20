@@ -1,14 +1,14 @@
 import { computed, ref, watch } from 'vue'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { ConfigClient } from '@api/ConfigClient'
 
 const CUSTOM_PROMPTS_CLIENT = 'deepchat/custom-prompts-server'
 
 export function useAgentMcpData() {
   const sessionStore = useSessionStore()
   const mcpStore = useMcpStore()
-  const configPresenter = useLegacyConfigPresenter()
+  const configClient = new ConfigClient()
   const activeSelections = ref<string[] | null>(null)
   let requestSeq = 0
 
@@ -27,7 +27,7 @@ export function useAgentMcpData() {
       }
 
       try {
-        const selections = await configPresenter.getAgentMcpSelections(agentId)
+        const selections = await configClient.getAgentMcpSelections(agentId)
         if (seq !== requestSeq) return
         activeSelections.value = Array.isArray(selections) ? selections : []
       } catch (error) {

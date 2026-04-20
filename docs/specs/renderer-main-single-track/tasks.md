@@ -36,20 +36,23 @@
 
 ## P2: Config / Provider / Model Family
 
-- [ ] 扩展 `SettingsClient` 覆盖仍属于 settings/config 域的基础读写
-- [ ] 为 provider / model / config 能力补 typed contracts
-- [ ] 为 provider / model / config family 补 typed event contracts
-- [ ] 为 provider / model / config 能力补 typed clients
-- [ ] 迁移 `providerStore.ts`
-- [ ] 迁移 `modelStore.ts`
-- [ ] 迁移 `modelConfigStore.ts`
-- [ ] 迁移 `systemPromptStore.ts`
-- [ ] 迁移 `theme.ts`
-- [ ] 迁移 `language.ts`
-- [ ] 迁移 `floatingButton.ts`
-- [ ] 迁移 `shortcutKey.ts`
-- [ ] 迁移 `agentModelStore.ts`
-- [ ] 清理 config/provider/model family 的 raw event listeners
+- [x] 扩展 `SettingsClient` 覆盖仍属于 settings/config 域的基础读写
+- [x] 为 provider / model / config 能力补 typed contracts
+- [x] 为 provider / model / config family 补 typed event contracts
+- [x] 为 provider / model / config 能力补 typed clients
+- [x] 迁移 `providerStore.ts`
+- [x] 迁移 `modelStore.ts`
+- [x] 迁移 `modelConfigStore.ts`
+- [x] 迁移 `systemPromptStore.ts`
+- [x] 迁移 `theme.ts`
+- [x] 迁移 `language.ts`
+- [x] 迁移 `floatingButton.ts`
+- [x] 迁移 `shortcutKey.ts`
+- [x] 迁移 `agentModelStore.ts`
+- [x] 清理 config/provider/model family 的 raw event listeners
+
+`2026-04-20` 进度更新：P2 已完成，相关 renderer/main 定向测试、`typecheck`、`format`、`i18n`、`lint` 已通过。
+`2026-04-20` 验收修复：补齐 `config.resolveDeepChatAgentConfig` 的 nullable agent config contract 兼容，自动回归已重新通过。
 
 ## P3: Window / Device / Workspace Family
 

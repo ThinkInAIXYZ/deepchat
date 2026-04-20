@@ -1,10 +1,10 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { ModelConfig, IModelConfig } from '@shared/presenter'
-import { useLegacyConfigPresenter } from '@api/legacy/presenters'
+import { ModelClient } from '../../api/ModelClient'
 
 export const useModelConfigStore = defineStore('modelConfig', () => {
-  const configP = useLegacyConfigPresenter()
+  const modelClient = new ModelClient()
 
   const cache = ref<Record<string, ModelConfig>>({})
 
@@ -16,35 +16,35 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     if (cache.value[key]) {
       return cache.value[key]
     }
-    const config = await configP.getModelConfig(modelId, providerId)
+    const config = await modelClient.getModelConfig(modelId, providerId)
     cache.value[key] = config
     return config
   }
 
   const setModelConfig = async (modelId: string, providerId: string, config: ModelConfig) => {
-    await configP.setModelConfig(modelId, providerId, config)
+    await modelClient.setModelConfig(modelId, providerId, config)
     cache.value[getCacheKey(modelId, providerId)] = config
   }
 
   const resetModelConfig = async (modelId: string, providerId: string) => {
-    await configP.resetModelConfig(modelId, providerId)
+    await modelClient.resetModelConfig(modelId, providerId)
     delete cache.value[getCacheKey(modelId, providerId)]
   }
 
   const getProviderModelConfigs = async (providerId: string) => {
-    return await configP.getProviderModelConfigs(providerId)
+    return await modelClient.getProviderModelConfigs(providerId)
   }
 
   const hasUserModelConfig = async (modelId: string, providerId: string) => {
-    return configP.hasUserModelConfig(modelId, providerId)
+    return await modelClient.hasUserModelConfig(modelId, providerId)
   }
 
   const importConfigs = async (configs: Record<string, IModelConfig>, overwrite = false) => {
-    await configP.importModelConfigs(configs, overwrite)
+    await modelClient.importModelConfigs(configs, overwrite)
   }
 
   const exportConfigs = async () => {
-    return configP.exportModelConfigs()
+    return await modelClient.exportModelConfigs()
   }
 
   return {

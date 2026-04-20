@@ -77,7 +77,7 @@ export class ModelStatusHelper {
     const statusKey = this.getStatusKey(providerId, modelId)
     this.setSetting(statusKey, enabled)
     this.cache.set(statusKey, enabled)
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+    eventBus.send(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
       providerId,
       modelId,
       enabled

@@ -1,14 +1,14 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { OLLAMA_EVENTS } from '@/events'
-import { useLegacyLlmProviderPresenter } from '@api/legacy/presenters'
+import { ProviderClient } from '../../api/ProviderClient'
 import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 import type { OllamaModel } from '@shared/presenter'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 
 export const useOllamaStore = defineStore('ollama', () => {
-  const llmP = useLegacyLlmProviderPresenter()
+  const providerClient = new ProviderClient()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
   const ollamaEventScope = createLegacyIpcSubscriptionScope()
@@ -61,12 +61,12 @@ export const useOllamaStore = defineStore('ollama', () => {
   const refreshOllamaModels = async (providerId: string): Promise<void> => {
     try {
       const [running, local] = await Promise.all([
-        llmP.listOllamaRunningModels(providerId),
-        llmP.listOllamaModels(providerId)
+        providerClient.listOllamaRunningModels(providerId),
+        providerClient.listOllamaModels(providerId)
       ])
       setRunningModels(providerId, running)
       setLocalModels(providerId, local)
-      await llmP.refreshModels(providerId)
+      await providerClient.refreshModels(providerId)
       await modelStore.refreshProviderModels(providerId)
     } catch (error) {
       console.error('Failed to refresh Ollama models for', providerId, error)
@@ -76,7 +76,7 @@ export const useOllamaStore = defineStore('ollama', () => {
   const pullOllamaModel = async (providerId: string, modelName: string) => {
     try {
       updatePullingProgress(providerId, modelName, 0)
-      const success = await llmP.pullOllamaModels(providerId, modelName)
+      const success = await providerClient.pullOllamaModels(providerId, modelName)
       if (!success) {
         updatePullingProgress(providerId, modelName)
       }

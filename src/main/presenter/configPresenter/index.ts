@@ -1437,7 +1437,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setLanguage(language: string): void {
     this.setSetting('language', language)
     // Trigger language change event (need to notify all tabs)
-    eventBus.sendToRenderer(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
+    eventBus.send(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
 
     try {
       presenter.floatingButtonPresenter.refreshLanguage()
@@ -1773,8 +1773,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set floating button switch status
   setFloatingButtonEnabled(enabled: boolean): void {
     this.setSetting('floatingButtonEnabled', enabled)
-    eventBus.sendToMain(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, enabled)
-    eventBus.sendToRenderer(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    eventBus.send(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
 
     try {
       presenter.floatingButtonPresenter.setEnabled(enabled)
@@ -2265,8 +2264,8 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private notifyAcpAgentsChanged() {
     console.log('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
-    eventBus.sendToRenderer(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS)
+    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
+    eventBus.send(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS)
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
   }
 
@@ -2300,7 +2299,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config, options)
     this.providerModelHelper.invalidateProviderModelsCache(providerId)
     // Trigger model configuration change event (need to notify all tabs)
-    eventBus.sendToRenderer(
+    eventBus.send(
       CONFIG_EVENTS.MODEL_CONFIG_CHANGED,
       SendTarget.ALL_WINDOWS,
       providerId,
@@ -2318,12 +2317,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelConfigHelper.resetModelConfig(modelId, providerId)
     this.providerModelHelper.invalidateProviderModelsCache(providerId)
     // 触发模型配置重置事件（需要通知所有标签页）
-    eventBus.sendToRenderer(
-      CONFIG_EVENTS.MODEL_CONFIG_RESET,
-      SendTarget.ALL_WINDOWS,
-      providerId,
-      modelId
-    )
+    eventBus.send(CONFIG_EVENTS.MODEL_CONFIG_RESET, SendTarget.ALL_WINDOWS, providerId, modelId)
   }
 
   /**
@@ -2366,7 +2360,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelConfigHelper.importConfigs(configs, overwrite)
     this.providerModelHelper.invalidateAllProviderModelsCache()
     // 触发批量导入事件（需要通知所有标签页）
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, SendTarget.ALL_WINDOWS, overwrite)
+    eventBus.send(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, SendTarget.ALL_WINDOWS, overwrite)
   }
 
   getNotificationsEnabled(): boolean {
@@ -2401,7 +2395,7 @@ export class ConfigPresenter implements IConfigPresenter {
     nativeTheme.themeSource = theme
     this.setSetting('appTheme', theme)
     // 通知所有窗口主题已更改
-    eventBus.sendToRenderer(CONFIG_EVENTS.THEME_CHANGED, SendTarget.ALL_WINDOWS, theme)
+    eventBus.send(CONFIG_EVENTS.THEME_CHANGED, SendTarget.ALL_WINDOWS, theme)
 
     try {
       void presenter.floatingButtonPresenter.refreshTheme()
@@ -2450,7 +2444,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.clearCustomPromptsCache()
     console.log(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
     // Notify all windows about custom prompts change
-    eventBus.sendToRenderer(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, SendTarget.ALL_WINDOWS, {
+    eventBus.send(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, SendTarget.ALL_WINDOWS, {
       count: prompts.length
     })
   }
@@ -2765,7 +2759,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setDefaultProjectPath(projectPath: string | null): void {
     const normalized = projectPath?.trim() ? projectPath.trim() : null
     this.setSetting('defaultProjectPath', normalized)
-    eventBus.sendToRenderer(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, SendTarget.ALL_WINDOWS, {
+    eventBus.send(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, SendTarget.ALL_WINDOWS, {
       path: normalized
     })
   }

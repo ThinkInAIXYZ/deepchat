@@ -65,7 +65,7 @@ const setup = async (pendingModelId: string) => {
       }
     ]
   })
-  const configPresenter = {
+  const configClient = {
     getSetting: vi.fn().mockResolvedValue(undefined),
     resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
       defaultModelPreset: {
@@ -96,12 +96,11 @@ const setup = async (pendingModelId: string) => {
   vi.doMock('@/stores/ui/draft', () => ({
     useDraftStore: () => draftStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'configPresenter') return configPresenter
-      if (name === 'agentSessionPresenter') return agentSessionPresenter
-      return {}
-    }
+  vi.doMock('@api/ConfigClient', () => ({
+    ConfigClient: vi.fn(() => configClient)
+  }))
+  vi.doMock('@api/legacy/presenters', () => ({
+    useLegacyAgentSessionPresenter: () => agentSessionPresenter
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

@@ -12,12 +12,10 @@ import {
   resolveModelVision
 } from '@shared/modelConfigDefaults'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { useLegacyConfigPresenter, useLegacyLlmProviderPresenter } from '@api/legacy/presenters'
-import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { CONFIG_EVENTS } from '@/events'
+import { ModelClient } from '../../api/ModelClient'
 
 const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
@@ -31,8 +29,7 @@ type ModelQueryHandle<TData> = {
 }
 
 export const useModelStore = defineStore('model', () => {
-  const configP = useLegacyConfigPresenter()
-  const llmP = useLegacyLlmProviderPresenter()
+  const modelClient = new ModelClient()
   const providerStore = useProviderStore()
   const modelConfigStore = useModelConfigStore()
   const agentModelStore = useAgentModelStore()
@@ -173,7 +170,7 @@ export const useModelStore = defineStore('model', () => {
     return ensureQueryHandle(providerModelQueries, providerId, {
       key: PROVIDER_MODELS_KEY(providerId),
       staleTime: 30_000,
-      query: async () => configP.getProviderModels(providerId)
+      query: async () => modelClient.getProviderModels(providerId)
     })
   }
 
@@ -181,7 +178,7 @@ export const useModelStore = defineStore('model', () => {
     return ensureQueryHandle(customModelQueries, providerId, {
       key: CUSTOM_MODELS_KEY(providerId),
       staleTime: 30_000,
-      query: async () => configP.getCustomModels(providerId)
+      query: async () => modelClient.getCustomModels(providerId)
     })
   }
 
@@ -191,12 +188,13 @@ export const useModelStore = defineStore('model', () => {
       staleTime: 30_000,
       query: async () => {
         const [providerModels, customModelsList] = await Promise.all([
-          configP.getProviderModels(providerId),
-          configP.getCustomModels(providerId)
+          modelClient.getProviderModels(providerId),
+          modelClient.getCustomModels(providerId)
         ])
-        const modelIds = [...providerModels, ...customModelsList].map((model) => model.id)
-        const statusMap =
-          modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
+        const statusMap = await modelClient.getBatchModelStatus(
+          providerId,
+          [...providerModels, ...customModelsList].map((model) => model.id)
+        )
         return [...providerModels, ...customModelsList]
           .filter((model) => statusMap[model.id] === true)
           .map((model) => ({ ...normalizeRendererModel(model, providerId), enabled: true }))
@@ -291,8 +289,7 @@ export const useModelStore = defineStore('model', () => {
       }
 
       const modelIds = customModelsList.map((model) => model.id)
-      const modelStatusMap =
-        modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
+      const modelStatusMap = await modelClient.getBatchModelStatus(providerId, modelIds)
 
       const customModelsWithStatus = await Promise.all(
         customModelsList.map(async (model) => {
@@ -321,7 +318,7 @@ export const useModelStore = defineStore('model', () => {
   const refreshStandardModels = async (providerId: string): Promise<void> => {
     try {
       await invalidateProviderModelsCache(providerId)
-      let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
+      let models: RENDERER_MODEL_META[] = await modelClient.getDbProviderModels(providerId)
 
       const providerModelsQuery = getProviderModelsQuery(providerId)
       await providerModelsQuery.refetch()
@@ -329,7 +326,7 @@ export const useModelStore = defineStore('model', () => {
 
       if (storedModels.length === 0) {
         // Fallback: try to get models directly from config
-        const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
+        const fallbackProviderModels = (await modelClient.getProviderModels(providerId)) ?? []
         if (fallbackProviderModels.length > 0) {
           storedModels = fallbackProviderModels
           updateProviderModelsCache(providerId, fallbackProviderModels)
@@ -408,7 +405,7 @@ export const useModelStore = defineStore('model', () => {
 
       if (!models || models.length === 0) {
         try {
-          const modelMetas = await llmP.getModelList(providerId)
+          const modelMetas = await modelClient.getModelList(providerId)
           if (modelMetas) {
             models = modelMetas.map((meta) => ({
               id: meta.id,
@@ -435,8 +432,7 @@ export const useModelStore = defineStore('model', () => {
       }
 
       const modelIds = models.map((model) => model.id)
-      const modelStatusMap =
-        modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
+      const modelStatusMap = await modelClient.getBatchModelStatus(providerId, modelIds)
 
       const modelsWithStatus = await Promise.all(
         models.map(async (model) => {
@@ -619,7 +615,7 @@ export const useModelStore = defineStore('model', () => {
     updateLocalModelStatus(providerId, modelId, enabled)
 
     try {
-      await llmP.updateModelStatus(providerId, modelId, enabled)
+      await modelClient.updateModelStatus(providerId, modelId, enabled)
       await refreshProviderModels(providerId)
     } catch (error) {
       console.error('Failed to update model status:', error)
@@ -634,8 +630,7 @@ export const useModelStore = defineStore('model', () => {
     model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
   ) => {
     try {
-      const newModel = await llmP.addCustomModel(providerId, model)
-      await configP.addCustomModel(providerId, newModel)
+      const newModel = await modelClient.addCustomModel(providerId, model)
       await refreshCustomModels(providerId)
       return newModel
     } catch (error) {
@@ -646,8 +641,7 @@ export const useModelStore = defineStore('model', () => {
 
   const removeCustomModel = async (providerId: string, modelId: string) => {
     try {
-      await configP.removeCustomModel(providerId, modelId)
-      const success = await llmP.removeCustomModel(providerId, modelId)
+      const success = await modelClient.removeCustomModel(providerId, modelId)
       if (success) {
         await refreshCustomModels(providerId)
       }
@@ -664,7 +658,7 @@ export const useModelStore = defineStore('model', () => {
     updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
   ) => {
     try {
-      const success = await llmP.updateCustomModel(providerId, modelId, updates)
+      const success = await modelClient.updateCustomModel(providerId, modelId, updates)
       if (success) {
         await refreshCustomModels(providerId)
       }
@@ -685,7 +679,7 @@ export const useModelStore = defineStore('model', () => {
 
       for (const model of providerModelsData.models) {
         if (!model.enabled) {
-          await llmP.updateModelStatus(providerId, model.id, true)
+          await modelClient.updateModelStatus(providerId, model.id, true)
         }
       }
       await refreshProviderModels(providerId)
@@ -707,14 +701,14 @@ export const useModelStore = defineStore('model', () => {
       const standardModels = providerModelsData.models
       for (const model of standardModels) {
         if (model.enabled) {
-          await llmP.updateModelStatus(providerId, model.id, false)
+          await modelClient.updateModelStatus(providerId, model.id, false)
         }
       }
 
       if (customModelsData) {
         for (const model of customModelsData.models) {
           if (model.enabled) {
-            await llmP.updateModelStatus(providerId, model.id, false)
+            await modelClient.updateModelStatus(providerId, model.id, false)
           }
         }
       }
@@ -762,20 +756,16 @@ export const useModelStore = defineStore('model', () => {
     if (listenersRegistered.value) return
     listenersRegistered.value = true
 
-    const unsubscribeModelListChanged = onLegacyIpcChannel(
-      CONFIG_EVENTS.MODEL_LIST_CHANGED,
-      async (_event, providerId: string) => {
-        if (providerId) {
-          await refreshProviderModels(providerId)
-        } else {
-          await refreshAllModels()
-        }
+    const unsubscribeModelListChanged = modelClient.onModelsChanged(async ({ providerId }) => {
+      if (providerId) {
+        await refreshProviderModels(providerId)
+      } else {
+        await refreshAllModels()
       }
-    )
+    })
 
-    const unsubscribeModelStatusChanged = onLegacyIpcChannel(
-      CONFIG_EVENTS.MODEL_STATUS_CHANGED,
-      async (_event, msg: { providerId: string; modelId: string; enabled: boolean }) => {
+    const unsubscribeModelStatusChanged = modelClient.onModelStatusChanged(
+      async (msg: { providerId: string; modelId: string; enabled: boolean }) => {
         updateLocalModelStatus(msg.providerId, msg.modelId, msg.enabled)
       }
     )
@@ -826,7 +816,7 @@ export const useModelStore = defineStore('model', () => {
     mutation: (
       providerId: string,
       model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
-    ) => configP.addCustomModel(providerId, model as MODEL_META),
+    ) => modelClient.addCustomModel(providerId, model),
     invalidateQueries: (_, [providerId]) => [
       CUSTOM_MODELS_KEY(providerId),
       ENABLED_MODELS_KEY(providerId)
@@ -835,7 +825,7 @@ export const useModelStore = defineStore('model', () => {
 
   const removeCustomModelMutation = useIpcMutation({
     mutation: (providerId: string, modelId: string) =>
-      configP.removeCustomModel(providerId, modelId),
+      modelClient.removeCustomModel(providerId, modelId),
     invalidateQueries: (_, [providerId]) => [
       CUSTOM_MODELS_KEY(providerId),
       ENABLED_MODELS_KEY(providerId)
@@ -847,7 +837,7 @@ export const useModelStore = defineStore('model', () => {
       providerId: string,
       modelId: string,
       updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
-    ) => configP.updateCustomModel(providerId, modelId, updates),
+    ) => modelClient.updateCustomModel(providerId, modelId, updates),
     invalidateQueries: (_, [providerId]) => [CUSTOM_MODELS_KEY(providerId)]
   })
 

@@ -469,6 +469,18 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
+    'keeps the sidebar search region interactive outside the drag area',
+    async () => {
+      const { wrapper } = await setup()
+
+      expect(wrapper.get('[data-testid="window-sidebar-search"]').classes()).toContain(
+        'window-no-drag-region'
+      )
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
     'toggles spotlight from the rail search button',
     async () => {
       const { wrapper, spotlightStore } = await setup()

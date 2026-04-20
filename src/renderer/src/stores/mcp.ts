@@ -1,7 +1,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { useLegacyConfigPresenter, useLegacyMcpPresenter } from '@api/legacy/presenters'
+import { useLegacyMcpPresenter } from '@api/legacy/presenters'
 import { onLegacyIpcChannel } from '@api/legacy/runtime'
+import { ConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { MCP_EVENTS } from '@/events'
@@ -29,8 +30,8 @@ export const useMcpStore = defineStore('mcp', () => {
   const { t } = useI18n()
   // 获取MCP相关的presenter
   const mcpPresenter = useLegacyMcpPresenter()
-  // 获取配置相关的presenter
-  const configPresenter = useLegacyConfigPresenter()
+  // 获取配置相关的client
+  const configClient = new ConfigClient()
 
   // ==================== 状态定义 ====================
   // MCP配置
@@ -86,7 +87,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const persistEnabledToolNames = async () => {
     try {
-      await configPresenter.setSetting(ENABLED_MCP_TOOLS_KEY, [...enabledToolNames.value])
+      await configClient.setSetting(ENABLED_MCP_TOOLS_KEY, [...enabledToolNames.value])
     } catch (error) {
       console.warn('Failed to persist enabled MCP tools:', error)
     }
@@ -105,7 +106,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const loadEnabledToolNames = async () => {
     try {
-      const stored = await configPresenter.getSetting(ENABLED_MCP_TOOLS_KEY)
+      const stored = await configClient.getSetting(ENABLED_MCP_TOOLS_KEY)
       await setEnabledToolNames(normalizeEnabledToolNames(stored), false)
     } catch (error) {
       console.warn('Failed to load enabled MCP tools:', error)
@@ -167,7 +168,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const loadCustomPrompts = async (): Promise<PromptListEntry[]> => {
     try {
-      const configPrompts: Prompt[] = await configPresenter.getCustomPrompts()
+      const configPrompts: Prompt[] = await configClient.getCustomPrompts()
       return configPrompts.map((prompt) => ({
         name: prompt.name,
         description: prompt.description,
@@ -814,7 +815,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
       if (isCustomPrompt) {
         // 自定义 prompt 从 config 获取，不需要 MCP 启用
-        const customPrompts: Prompt[] = await configPresenter.getCustomPrompts()
+        const customPrompts: Prompt[] = await configClient.getCustomPrompts()
         const matchedPrompt = customPrompts.find((p) => p.name === prompt.name)
 
         if (!matchedPrompt) {
@@ -953,8 +954,7 @@ export const useMcpStore = defineStore('mcp', () => {
       }
     })
 
-    // Listen for custom prompts changes
-    onLegacyIpcChannel('config:custom-prompts-changed', () => {
+    configClient.onCustomPromptsChanged(() => {
       console.log('Custom prompts changed, reloading prompts list')
       void loadPrompts()
     })

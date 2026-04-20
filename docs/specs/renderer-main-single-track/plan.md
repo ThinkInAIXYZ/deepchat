@@ -286,6 +286,14 @@ P0 Rules & Guard Hardening
 - 先清掉最大头的 `configPresenter` 系列调用
 - 把 provider / model / config 相关能力全部收成 typed client
 
+当前状态（`2026-04-20`）：
+
+- 已完成
+- `src/renderer/src/**` 中 `configPresenter` / `llmproviderPresenter` 的 P2 业务命中已清零
+- provider / model / config family 已补齐 typed contracts、typed events、typed clients，并完成相关 store / page / component 迁移
+- 相关 renderer/main 定向测试，以及 `pnpm run typecheck`、`pnpm run format`、`pnpm run i18n`、`pnpm run lint` 已通过
+- 验收补丁已对齐 `config.resolveDeepChatAgentConfig` 的 nullable agent config contract，避免 legacy persisted config 在单轨 route 出口被误拒绝
+
 交付物：
 
 - 扩展 `SettingsClient`

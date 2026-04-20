@@ -1,14 +1,11 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import {
-  useLegacyConfigPresenter,
-  useLegacyDevicePresenter,
-  useLegacySyncPresenter
-} from '@api/legacy/presenters'
+import { useLegacyDevicePresenter, useLegacySyncPresenter } from '@api/legacy/presenters'
 import { onLegacyIpcChannel } from '@api/legacy/runtime'
+import { ConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { CONFIG_EVENTS, SYNC_EVENTS } from '@/events'
+import { SYNC_EVENTS } from '@/events'
 import type { EntryKey, UseQueryReturn } from '@pinia/colada'
 import type { SyncBackupInfo } from '@shared/presenter'
 
@@ -26,7 +23,7 @@ export const useSyncStore = defineStore('sync', () => {
     importedSessions?: number
   } | null>(null)
 
-  const configPresenter = useLegacyConfigPresenter()
+  const configClient = new ConfigClient()
   const syncPresenter = useLegacySyncPresenter()
   const devicePresenter = useLegacyDevicePresenter()
   let syncEventsRegistered = false
@@ -120,8 +117,8 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const initialize = async () => {
-    syncEnabled.value = await configPresenter.getSyncEnabled()
-    syncFolderPath.value = await configPresenter.getSyncFolderPath()
+    syncEnabled.value = await configClient.getSyncEnabled()
+    syncFolderPath.value = await configClient.getSyncFolderPath()
 
     const status = await syncPresenter.getBackupStatus()
     lastSyncTime.value = status.lastBackupTime
@@ -167,12 +164,12 @@ export const useSyncStore = defineStore('sync', () => {
 
   const setSyncEnabled = async (enabled: boolean) => {
     syncEnabled.value = enabled
-    await configPresenter.setSyncEnabled(enabled)
+    await configClient.setSyncEnabled(enabled)
   }
 
   const setSyncFolderPath = async (path: string) => {
     syncFolderPath.value = path
-    await configPresenter.setSyncFolderPath(path)
+    await configClient.setSyncFolderPath(path)
     await refreshBackups()
   }
 
@@ -202,21 +199,15 @@ export const useSyncStore = defineStore('sync', () => {
     }
 
     syncSettingsListenerRegistered = true
-
-    onLegacyIpcChannel(
-      CONFIG_EVENTS.SYNC_SETTINGS_CHANGED,
-      async (_event, payload: { enabled?: boolean; folderPath?: string }) => {
-        if (typeof payload.enabled === 'boolean') {
-          syncEnabled.value = payload.enabled
-        }
-        if (typeof payload.folderPath === 'string' && payload.folderPath !== syncFolderPath.value) {
-          syncFolderPath.value = payload.folderPath
-          await refreshBackups()
-        } else if (typeof payload.folderPath === 'string') {
-          syncFolderPath.value = payload.folderPath
-        }
+    configClient.onSyncSettingsChanged(async ({ enabled, folderPath }) => {
+      syncEnabled.value = enabled
+      if (folderPath !== syncFolderPath.value) {
+        syncFolderPath.value = folderPath
+        await refreshBackups()
+        return
       }
-    )
+      syncFolderPath.value = folderPath
+    })
   }
 
   return {
