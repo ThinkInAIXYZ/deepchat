@@ -13,25 +13,32 @@
 ## P0: Rules & Guard Hardening
 
 - [x] 定义业务层 / typed boundary / quarantine 三层目录规则
-- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `usePresenter` 禁止规则
-- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.electron` 禁止规则
-- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.api` 禁止规则
-- [x] 为 `scripts/generate-architecture-baseline.mjs` 增加 business-layer / quarantine-layer 分维度统计
+- [ ] 固定唯一 quarantine 目录为 `src/renderer/api/legacy/**`
+- [ ] 在仓库中实际创建 `src/renderer/api/legacy/` 目录与说明文件或首个 adapter
+- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `usePresenter` 禁止规则
+- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.electron` 禁止规则
+- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.api` 禁止规则
+- [ ] 为 `scripts/generate-architecture-baseline.mjs` 增加 business-layer / quarantine-layer 分维度统计
 - [x] 定义 single-track merge gate
+- [ ] 定义阶段性 phase gate 指标并写入 baseline / guard 说明
 
 ## P1: Transport Consolidation
 
+- [ ] 依赖 P0 已固定 `src/renderer/api/legacy/**` 后再开始本阶段
 - [ ] 把 `usePresenter()` 降级为 quarantine-only utility
 - [ ] 在 renderer 层建立显式 legacy quarantine adapter 目录
 - [ ] 重写或退役 `useIpcQuery`
 - [ ] 重写或退役 `useIpcMutation`
 - [ ] 收口 `window.electron` / `window.api` 的 runtime wrapper
 - [ ] 清理 `src/renderer/src/**` 中对 transport primitive 的直接 import
+- [ ] 为 transport consolidation 补验证：业务层 direct `usePresenter` import = `0`
+- [ ] 为 transport consolidation 补验证：业务层 mixed transport module = `0`
 
 ## P2: Config / Provider / Model Family
 
 - [ ] 扩展 `SettingsClient` 覆盖仍属于 settings/config 域的基础读写
 - [ ] 为 provider / model / config 能力补 typed contracts
+- [ ] 为 provider / model / config family 补 typed event contracts
 - [ ] 为 provider / model / config 能力补 typed clients
 - [ ] 迁移 `providerStore.ts`
 - [ ] 迁移 `modelStore.ts`
@@ -47,6 +54,7 @@
 ## P3: Window / Device / Workspace Family
 
 - [ ] 为 window / device / workspace / project / file / browser / tab 能力补 typed clients 或 runtime wrappers
+- [ ] 为 window / device / workspace / project / file / browser / tab family 补 typed event contracts
 - [ ] 迁移 `App.vue`
 - [ ] 迁移 `AppBar.vue`
 - [ ] 迁移 `WelcomePage.vue`
@@ -59,6 +67,7 @@
 
 - [ ] 扩展 `SessionClient` 覆盖 rename / delete / export / pending input / session setting 类动作
 - [ ] 为 skill / mcp / sync / upgrade / dialog 等能力补 typed contracts
+- [ ] 为 skill / mcp / sync / upgrade / dialog 等 family 补 typed event contracts
 - [ ] 为 skill / mcp / sync / upgrade / dialog 等能力补 typed clients
 - [ ] 迁移 `stores/ui/session.ts` 的 residual presenter calls
 - [ ] 迁移 `stores/ui/pendingInput.ts`

@@ -109,6 +109,10 @@
 
 legacy transport 只允许存在于显式 quarantine 区域。
 
+唯一允许的 quarantine 路径固定为：
+
+- `src/renderer/api/legacy/**`
+
 业务代码不能直接 import / 调用 legacy transport helper。
 
 ### 4. Typed-First For New Work
@@ -132,6 +136,19 @@ legacy transport 只允许存在于显式 quarantine 区域。
 - `docs/README.md`、`docs/ARCHITECTURE.md`、`docs/spec-driven-dev.md`、`docs/guides/getting-started.md` 等高频入口明确声明 single-track 规则。
 - 合并前存在一份清晰的 merge gate，能让 reviewer 判定“是否允许进入主线”。
 
+## Phase Gates
+
+为了避免 merge gate 只剩最终口号，本计划为每个阶段定义中间达标线：
+
+| Phase | Gate |
+| --- | --- |
+| `P0` | quarantine 路径、guard 规则、baseline 维度和 merge gate 已固定成文档与脚本任务 |
+| `P1` | `src/renderer/src/**` direct import `@/composables/usePresenter` = `0`，业务层 direct `window.electron` / `window.api` 新增点 = `0`，legacy transport 已收口到 `src/renderer/api/legacy/**` 或 typed runtime wrapper |
+| `P2` | business layer `configPresenter` hits = `0`，business layer `llmproviderPresenter` hits = `0`，config/provider/model family 的 raw event listeners 清零 |
+| `P3` | business layer `windowPresenter` / `devicePresenter` / `workspacePresenter` / `projectPresenter` / `filePresenter` / `yoBrowserPresenter` / `tabPresenter` hits = `0` |
+| `P4` | business layer remaining presenter family hits = `0`，包括 `agentSessionPresenter` / `skillPresenter` / `mcpPresenter` / `syncPresenter` / `upgradePresenter` / `dialogPresenter` / `toolPresenter` 等 |
+| `P5` | `src/renderer/src/**` business layer direct `usePresenter` / direct `window.electron` / direct `window.api` 全部为 `0`，quarantine 目录为空或满足量化退出标准 |
+
 ## Success Metrics
 
 重点不只是总数下降，而是“业务层清零，兼容层收口”。
@@ -144,6 +161,19 @@ legacy transport 只允许存在于显式 quarantine 区域。
 - business-layer direct import / direct access count
 - quarantine-layer count
 - typed client / typed event 覆盖的 capability 数量
+
+## Quarantine Exit Standard
+
+本计划的理想终点是 quarantine 清零。
+
+如果在 `P5` 合并前仍因阻塞性兼容约束需要保留 quarantine，则必须同时满足：
+
+- `src/renderer/src/**` 业务层 direct legacy access 仍为 `0`
+- `src/renderer/api/legacy/**` 文件数 `<= 3`
+- 剩余 quarantine 只允许覆盖 `<= 1` 个 capability family
+- 每个剩余文件都必须在 `tasks.md` 或后续 follow-up 规格中写明 owner、删除条件和最晚退出阶段
+
+如果做不到以上条件，则不满足 single-track merge gate。
 
 ## Open Questions
 

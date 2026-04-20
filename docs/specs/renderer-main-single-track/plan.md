@@ -135,13 +135,93 @@ temporary quarantine adapter
 
 - 业务层：`src/renderer/src/**`
 - typed boundary 层：`src/renderer/api/**`
-- temporary quarantine 层：建议为 `src/renderer/api/legacy/**` 或同等显式目录
+- temporary quarantine 层：固定为 `src/renderer/api/legacy/**`
 
 规则：
 
 - 业务层只能 import typed boundary 层
 - quarantine 层可以暂时调用 legacy transport
 - 任何 legacy transport 都不得继续散落在业务层
+
+补充规则：
+
+- 不允许再创建第二个 quarantine 目录，例如 `compat/`、`legacy2/`、`v1/`
+- 任何 quarantine 文件都必须是 capability adapter，不允许在其中继续长业务状态管理逻辑
+- `P0` 完成前不进入 `P1`
+
+## Client Boundary Decision Rules
+
+为避免后续围绕“该扩展旧 client 还是新建 client”反复争论，本计划定义以下规则：
+
+### Rule 1: Same Capability Family, Same Owner, Same Event Domain -> Extend
+
+如果某能力同时满足：
+
+- 属于同一 capability family
+- 主要由同一 main route/service owner 承载
+- 使用同一组 typed route / typed event 契约
+
+则优先扩展现有 client。
+
+例子：
+
+- `SessionClient` 扩展 session rename / delete / export / pending-input
+- `ProviderClient` 扩展 provider query / validation / provider-level mutations
+
+### Rule 2: New Capability Family Or Different Event Semantics -> New Client
+
+如果某能力满足以下任一条件，则优先新建 client：
+
+- 与现有 client 不属于同一 capability family
+- 需要独立的 typed event contract family
+- 生命周期、权限模型或调用频率与现有 client 明显不同
+- 将其塞进现有 client 会让该 client 同时承担多个不相干 owner
+
+例子：
+
+- window/system navigation 与 provider config 不应共用同一个 client
+- workspace file tree 与 chat/session action 不应共用同一个 client
+
+### Rule 3: Config Is Not A Dumping Ground
+
+`SettingsClient` 只承载真正属于 settings/settings snapshot 的能力。
+
+如果某能力虽然历史上挂在 `configPresenter` 上，但语义上属于 provider/model/agent/workspace 域，
+应迁移到对应 domain client，而不是继续往 `SettingsClient` 塞。
+
+### Rule 4: Transport Wrapper Is Not A Client
+
+如果某模块只是为了封装 `window.deepchat` / `window.electron` / `window.api` 的调用细节，
+但没有 capability-level 语义，就应视为 runtime wrapper 或 adapter，不应伪装成 domain client。
+
+## Typed Event Ownership
+
+typed event contract 的建立不是隐含工作，而是每个 phase 的显式交付物。
+
+规则如下：
+
+- 迁移哪个 capability family，哪个 phase 就负责定义该 family 的 typed events
+- 不允许先删 raw listener，再把 typed event 留给“后面顺手补”
+- client、event contract、store subscription 改造必须同 phase 收口
+
+归属划分：
+
+| Phase | Typed Event Ownership |
+| --- | --- |
+| `P2` | config / provider / model family typed events |
+| `P3` | window / device / workspace / browser / project family typed events |
+| `P4` | session residual / skill / mcp / sync / upgrade / dialog family typed events |
+
+## Rollback / Fallback Rule
+
+如果某个 capability family 在迁移中被证明无法在当前 phase 完成 cutover：
+
+1. 不允许把半完成 mixed transport 直接留在业务模块
+2. 必须回退到：
+   - 原有单一 legacy 路径，或
+   - quarantine adapter 中的单一路径
+3. 必须在 `tasks.md` 中记录 blocked reason 和下一阶段 owner
+4. 不允许以“先保留双轨，后面再说”作为默认 fallback
 
 ## Phase Map
 
@@ -169,11 +249,13 @@ P0 Rules & Guard Hardening
 - 更新 `docs/README.md`、`docs/ARCHITECTURE.md`、`docs/spec-driven-dev.md`、`docs/guides/getting-started.md`
 - `architecture-guard` 从“防增长”升级为“业务层禁用 + quarantine 白名单”
 - baseline 报告增加 business-layer / quarantine-layer 维度
+- 固定唯一 quarantine 目录：`src/renderer/api/legacy/**`
 
 退出条件：
 
 - 新功能无法再在业务层直接新增 `usePresenter()` 或 raw IPC
 - 入口文档已经明确 single-track 规则
+- `P1` 所需的 quarantine 输出已经存在且路径固定
 
 ### P1: Transport Consolidation
 
@@ -185,6 +267,7 @@ P0 Rules & Guard Hardening
 交付物：
 
 - `usePresenter()` 迁入 internal compatibility transport，或降级为 quarantine-only utility
+- `src/renderer/api/legacy/` 目录实际建立并承接 legacy transport
 - `useIpcQuery` / `useIpcMutation` 改为：
   - 面向 typed client 的 helper，或
   - 直接退役
@@ -230,6 +313,7 @@ P0 Rules & Guard Hardening
 - `FileClient`
 - `BrowserClient`
 - 必要时补 `TabClient` 或 window runtime adapter
+- window / device / workspace family typed events
 - 清理 `App.vue`、`AppBar.vue`、`WelcomePage.vue`、`NewThreadPage.vue`、workspace / browser / project 相关 stores 与组件
 
 退出条件：
@@ -294,6 +378,29 @@ P0 Rules & Guard Hardening
 
 - 有没有把错误入口真正封死
 - 有没有把业务层 transport 真的收成一条
+
+## Parallel Work Policy
+
+`P0` 与 `P1` 必须串行执行。
+
+原因很简单：
+
+- `P0` 固定规则、guard 和 quarantine 目录
+- `P1` 固定 transport helper 与 quarantine 收口方式
+
+这两步没锁定之前，并行切 family 只会制造第二套约定。
+
+`P2`、`P3`、`P4` 允许并行，但只能按 capability family 并行，且必须满足：
+
+1. 每个 family 有唯一 owner
+2. 并行 PR 不得同时修改 `architecture-guard`、baseline schema、shared transport primitive
+3. 并行 PR 不得争用同一个 typed route / typed event contract 文件
+4. 每个 PR 必须声明自己负责的 capability family 和禁止触碰范围
+
+推荐并行粒度：
+
+- 一条 PR = 一个 capability family
+- 一条 PR 同时完成 routes/contracts + client + store cutover + raw listener cleanup
 
 ## Final Merge Gate
 
