@@ -1,6 +1,4 @@
 import { SessionClient } from '../../../api/SessionClient'
-import { onLegacyIpcChannel } from '@api/legacy/runtime'
-import { SESSION_EVENTS } from '@/events'
 
 interface BindSessionStoreIpcOptions {
   webContentsId: number | null
@@ -37,16 +35,9 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): () => 
         void options.fetchSessions()
       }
     }),
-    onLegacyIpcChannel(
-      SESSION_EVENTS.STATUS_CHANGED,
-      (_event, payload?: { sessionId?: string; status?: string }) => {
-        if (!payload?.sessionId || !payload?.status) {
-          return
-        }
-
-        options.onStatusChanged(payload.sessionId, payload.status)
-      }
-    )
+    sessionClient.onStatusChanged((payload) => {
+      options.onStatusChanged(payload.sessionId, payload.status)
+    })
   ]
 
   return () => {

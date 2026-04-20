@@ -57,26 +57,30 @@ const setup = async (options?: {
   subagentEnabled?: boolean
 }) => {
   vi.resetModules()
-
-  const ipcListeners = new Map<string, Set<(...args: unknown[]) => void>>()
+  let skillSessionChangedHandler:
+    | ((payload: {
+        conversationId?: string | null
+        skills?: string[]
+        change: 'activated' | 'deactivated'
+      }) => void)
+    | undefined
   const ipcRenderer = {
-    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-      const listeners = ipcListeners.get(event) ?? new Set()
-      listeners.add(handler)
-      ipcListeners.set(event, listeners)
-    }),
-    removeListener: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-      ipcListeners.get(event)?.delete(handler)
-    }),
-    emit: (event: string, payload?: unknown) => {
-      for (const listener of ipcListeners.get(event) ?? []) {
-        listener({}, payload)
+    emit: (event: string, payload?: { conversationId?: string; skills?: string[] }) => {
+      if (event === 'skill:activated') {
+        skillSessionChangedHandler?.({
+          conversationId: payload?.conversationId ?? null,
+          skills: payload?.skills,
+          change: 'activated'
+        })
+      }
+      if (event === 'skill:deactivated') {
+        skillSessionChangedHandler?.({
+          conversationId: payload?.conversationId ?? null,
+          skills: payload?.skills,
+          change: 'deactivated'
+        })
       }
     }
-  }
-
-  ;(window as any).electron = {
-    ipcRenderer
   }
 
   const mcpStore = reactive({
@@ -155,12 +159,41 @@ const setup = async (options?: {
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'toolPresenter') return toolPresenter
-      if (name === 'agentSessionPresenter') return agentSessionPresenter
-      return windowPresenter
-    }
+  vi.doMock('@api/ToolClient', () => ({
+    ToolClient: vi.fn(() => ({
+      getAllToolDefinitions: toolPresenter.getAllToolDefinitions
+    }))
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    SessionClient: vi.fn(() => ({
+      getSessionDisabledAgentTools: agentSessionPresenter.getSessionDisabledAgentTools,
+      updateSessionDisabledAgentTools: agentSessionPresenter.updateSessionDisabledAgentTools
+    }))
+  }))
+  vi.doMock('@api/SkillClient', () => ({
+    SkillClient: vi.fn(() => ({
+      onSessionChanged: vi.fn(
+        (
+          listener: (payload: {
+            conversationId?: string | null
+            skills?: string[]
+            change: 'activated' | 'deactivated'
+          }) => void
+        ) => {
+          skillSessionChangedHandler = listener
+          return () => {
+            if (skillSessionChangedHandler === listener) {
+              skillSessionChangedHandler = undefined
+            }
+          }
+        }
+      )
+    }))
+  }))
+  vi.doMock('@api/SettingsClient', () => ({
+    SettingsClient: vi.fn(() => ({
+      openSettings: windowPresenter.createSettingsWindow
+    }))
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

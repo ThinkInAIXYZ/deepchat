@@ -799,8 +799,7 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { ConfigClient } from '@api/ConfigClient'
 import { ModelClient } from '@api/ModelClient'
 import { ProviderClient } from '@api/ProviderClient'
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
-import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
+import { SessionClient } from '@api/SessionClient'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useThemeStore } from '@/stores/theme'
@@ -808,7 +807,6 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore } from '@/stores/ui/draft'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
 
 const props = withDefaults(
   defineProps<{
@@ -820,7 +818,6 @@ const props = withDefaults(
     maxWidthClass: 'max-w-2xl'
   }
 )
-const acpConfigEventScope = createLegacyIpcSubscriptionScope()
 
 type ModelSelection = {
   providerId: string
@@ -861,7 +858,7 @@ const projectStore = useProjectStore()
 const configClient = new ConfigClient()
 const modelClient = new ModelClient()
 const providerClient = new ProviderClient()
-const agentSessionPresenter = useLegacyAgentSessionPresenter()
+const sessionClient = new SessionClient()
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
@@ -909,6 +906,7 @@ let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
 let generationLocalRevision = 0
+let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
 const isSubagentToggleUpdating = ref(false)
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
@@ -2048,7 +2046,7 @@ const flushGenerationPatch = async () => {
   const requestToken = ++generationPersistRequestToken
   const localRevisionAtRequest = generationLocalRevision
   try {
-    const updated = await agentSessionPresenter.updateSessionGenerationSettings(sessionId, patch)
+    const updated = await sessionClient.updateSessionGenerationSettings(sessionId, patch)
     if (requestToken !== generationPersistRequestToken) {
       return
     }
@@ -2158,7 +2156,7 @@ const syncGenerationSettings = async () => {
   const sessionId = sessionStore.activeSessionId
   if (sessionId) {
     try {
-      const settings = await agentSessionPresenter.getSessionGenerationSettings(sessionId)
+      const settings = await sessionClient.getSessionGenerationSettings(sessionId)
       if (token !== generationSyncToken) {
         return
       }
@@ -2215,7 +2213,7 @@ const syncAcpConfigOptions = async () => {
     acpConfigLoadedRequestKey.value = null
 
     try {
-      const state = await agentSessionPresenter.getAcpSessionConfigOptions(activeAcpSessionId.value)
+      const state = await sessionClient.getAcpSessionConfigOptions(activeAcpSessionId.value)
       if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
@@ -2299,11 +2297,7 @@ const updateAcpConfigOption = async (configId: string, value: string | boolean) 
 
   acpOptionSavingIds.value = [...acpOptionSavingIds.value, configId]
   try {
-    const updated = await agentSessionPresenter.setAcpSessionConfigOption(
-      sessionId,
-      configId,
-      value
-    )
+    const updated = await sessionClient.setAcpSessionConfigOption(sessionId, configId, value)
     setCachedAcpConfigState(agentId, updated)
     if (activeAcpSessionId.value !== sessionId) {
       return
@@ -2327,7 +2321,7 @@ const reloadSystemPrompts = async () => {
   }
 }
 
-const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, unknown>) => {
+const handleAcpConfigOptionsReady = (payload?: Record<string, unknown>) => {
   if (!payload || !isAcpAgent.value) {
     return
   }
@@ -2387,7 +2381,7 @@ watch(
     }
 
     try {
-      const mode = await agentSessionPresenter.getPermissionMode(sessionId)
+      const mode = await sessionClient.getPermissionMode(sessionId)
       if (token !== permissionSyncToken) return
       permissionMode.value = mode === 'default' ? 'default' : 'full_access'
     } catch (error) {
@@ -2492,12 +2486,12 @@ watch(isModelPanelOpen, (open) => {
 onBeforeUnmount(() => {
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
-  acpConfigEventScope.cleanup()
+  unsubscribeAcpConfigOptionsReady?.()
+  unsubscribeAcpConfigOptionsReady = null
 })
 
 onMounted(() => {
-  acpConfigEventScope.on(
-    ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
+  unsubscribeAcpConfigOptionsReady = sessionClient.onAcpConfigOptionsReady(
     handleAcpConfigOptionsReady
   )
 })
@@ -2879,7 +2873,7 @@ async function selectPermissionMode(mode: PermissionMode) {
     return
   }
   try {
-    await agentSessionPresenter.setPermissionMode(sessionId, mode)
+    await sessionClient.setPermissionMode(sessionId, mode)
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to set permission mode:', error)
   }

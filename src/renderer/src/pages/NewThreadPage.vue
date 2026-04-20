@@ -114,7 +114,7 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { ConfigClient } from '@api/ConfigClient'
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
+import { SessionClient } from '@api/SessionClient'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -129,7 +129,7 @@ const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configClient = new ConfigClient()
-const agentSessionPresenter = useLegacyAgentSessionPresenter()
+const sessionClient = new SessionClient()
 const { t } = useI18n()
 
 const message = ref('')
@@ -493,7 +493,7 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
   const requestSeq = ++acpDraftRequestSeq.value
 
   try {
-    const session = await agentSessionPresenter.ensureAcpDraftSession({
+    const session = await sessionClient.ensureAcpDraftSession({
       agentId,
       projectDir,
       permissionMode: draftStore.permissionMode

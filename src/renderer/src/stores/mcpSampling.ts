@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useLegacyMcpPresenter } from '@api/legacy/presenters'
-import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
-import { MCP_EVENTS } from '@/events'
+import { McpClient } from '@api/McpClient'
 import type {
   McpSamplingDecision,
   McpSamplingRequestPayload,
@@ -100,7 +98,7 @@ export const resolveSamplingDefaultModel = (input: {
 }
 
 export const useMcpSamplingStore = defineStore('mcpSampling', () => {
-  const mcpPresenter = useLegacyMcpPresenter()
+  const mcpClient = new McpClient()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
@@ -111,7 +109,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const isSubmitting = ref(false)
   const selectedProviderId = ref<string | null>(null)
   const selectedModel = ref<RENDERER_MODEL_META | null>(null)
-  const samplingEventScope = createLegacyIpcSubscriptionScope()
+  const eventCleanups: Array<() => void> = []
 
   // Session tracking for auto-approval
   const approvedServers = ref<Map<string, ApprovedServerInfo>>(new Map())
@@ -311,13 +309,13 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
 
     isSubmitting.value = true
     try {
-      await mcpPresenter.submitSamplingDecision(decision)
+      await mcpClient.submitSamplingDecision(decision)
       clearRequest()
     } catch (error) {
       console.error('[MCP Sampling] Failed to submit decision:', error)
 
       try {
-        await mcpPresenter.cancelSamplingRequest?.(
+        await mcpClient.cancelSamplingRequest(
           activeRequestId,
           'Sampling decision submission failed'
         )
@@ -370,30 +368,37 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     })
   }
 
-  const handleSamplingRequest = (_event: unknown, payload: McpSamplingRequestPayload) => {
-    openRequest(payload)
+  const handleSamplingRequest = (payload: { request: unknown }) => {
+    if (!payload?.request) {
+      return
+    }
+
+    openRequest(payload.request as McpSamplingRequestPayload)
   }
 
-  const handleSamplingCancelled = (_event: unknown, payload: { requestId: string }) => {
+  const handleSamplingCancelled = (payload: { requestId: string }) => {
     if (request.value && payload.requestId === request.value.requestId) {
       clearRequest()
     }
   }
 
-  const handleSamplingDecision = (_event: unknown, payload: McpSamplingDecision) => {
-    if (request.value && payload.requestId === request.value.requestId) {
+  const handleSamplingDecision = (payload: { decision: unknown }) => {
+    const decision = payload.decision as McpSamplingDecision | undefined
+    if (request.value && decision?.requestId === request.value.requestId) {
       clearRequest()
     }
   }
 
   onMounted(() => {
-    samplingEventScope.on(MCP_EVENTS.SAMPLING_REQUEST, handleSamplingRequest)
-    samplingEventScope.on(MCP_EVENTS.SAMPLING_CANCELLED, handleSamplingCancelled)
-    samplingEventScope.on(MCP_EVENTS.SAMPLING_DECISION, handleSamplingDecision)
+    eventCleanups.push(mcpClient.onSamplingRequest(handleSamplingRequest))
+    eventCleanups.push(mcpClient.onSamplingCancelled(handleSamplingCancelled))
+    eventCleanups.push(mcpClient.onSamplingDecision(handleSamplingDecision))
   })
 
   onUnmounted(() => {
-    samplingEventScope.cleanup()
+    while (eventCleanups.length > 0) {
+      eventCleanups.pop()?.()
+    }
   })
 
   return {

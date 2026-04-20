@@ -2,7 +2,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useDebounceFn } from '@vueuse/core'
 import { SettingsClient } from '@api/SettingsClient'
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
+import { SessionClient } from '@api/SessionClient'
 import { useProviderStore } from '@/stores/providerStore'
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
@@ -127,7 +127,7 @@ const actionItems: Array<{
 ]
 
 export const useSpotlightStore = defineStore('spotlight', () => {
-  const agentSessionPresenter = useLegacyAgentSessionPresenter()
+  const sessionClient = new SessionClient()
   const settingsClient = new SettingsClient()
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
@@ -302,7 +302,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
       return
     }
 
-    const historyHits = await agentSessionPresenter.searchHistory(normalizedQuery, {
+    const historyHits = await sessionClient.searchHistory(normalizedQuery, {
       limit: MAX_RESULTS
     })
 

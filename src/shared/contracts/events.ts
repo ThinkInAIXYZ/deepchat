@@ -6,6 +6,7 @@ import {
   chatStreamFailedEvent,
   chatStreamUpdatedEvent
 } from './events/chat.events'
+import { dialogRequestedEvent } from './events/dialog.events'
 import {
   configCustomPromptsChangedEvent,
   configAgentsChangedEvent,
@@ -19,23 +20,62 @@ import {
   configThemeChangedEvent
 } from './events/config.events'
 import {
+  mcpConfigChangedEvent,
+  mcpSamplingCancelledEvent,
+  mcpSamplingDecisionEvent,
+  mcpSamplingRequestEvent,
+  mcpServerStartedEvent,
+  mcpServerStatusChangedEvent,
+  mcpServerStoppedEvent,
+  mcpToolCallResultEvent
+} from './events/mcp.events'
+import {
   modelsChangedEvent,
   modelsConfigChangedEvent,
   modelsStatusChangedEvent
 } from './events/models.events'
+import { providersOllamaPullProgressEvent } from './events/misc.providers.events'
 import { providersChangedEvent } from './events/providers.events'
 import { settingsChangedEvent } from './events/settings.events'
-import { sessionsUpdatedEvent } from './events/sessions.events'
+import {
+  sessionsAcpCommandsReadyEvent,
+  sessionsAcpConfigOptionsReadyEvent,
+  sessionsPendingInputsChangedEvent,
+  sessionsStatusChangedEvent,
+  sessionsUpdatedEvent
+} from './events/sessions.events'
+import { skillsCatalogChangedEvent, skillsSessionChangedEvent } from './events/skills.events'
+import {
+  syncBackupCompletedEvent,
+  syncBackupErrorEvent,
+  syncBackupStartedEvent,
+  syncBackupStatusChangedEvent,
+  syncImportCompletedEvent,
+  syncImportErrorEvent,
+  syncImportStartedEvent
+} from './events/sync.events'
+import {
+  upgradeErrorEvent,
+  upgradeProgressEvent,
+  upgradeStatusChangedEvent,
+  upgradeWillRestartEvent
+} from './events/upgrade.events'
 import { windowStateChangedEvent } from './events/window.events'
 import { workspaceInvalidatedEvent } from './events/workspace.events'
 
 export * from './events/browser.events'
 export * from './events/chat.events'
 export * from './events/config.events'
+export * from './events/dialog.events'
+export * from './events/mcp.events'
+export * from './events/misc.providers.events'
 export * from './events/models.events'
 export * from './events/providers.events'
 export * from './events/settings.events'
 export * from './events/sessions.events'
+export * from './events/skills.events'
+export * from './events/sync.events'
+export * from './events/upgrade.events'
 export * from './events/window.events'
 export * from './events/workspace.events'
 
@@ -46,6 +86,10 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [browserStatusChangedEvent.name]: browserStatusChangedEvent,
   [settingsChangedEvent.name]: settingsChangedEvent,
   [sessionsUpdatedEvent.name]: sessionsUpdatedEvent,
+  [sessionsStatusChangedEvent.name]: sessionsStatusChangedEvent,
+  [sessionsPendingInputsChangedEvent.name]: sessionsPendingInputsChangedEvent,
+  [sessionsAcpCommandsReadyEvent.name]: sessionsAcpCommandsReadyEvent,
+  [sessionsAcpConfigOptionsReadyEvent.name]: sessionsAcpConfigOptionsReadyEvent,
   [configLanguageChangedEvent.name]: configLanguageChangedEvent,
   [configThemeChangedEvent.name]: configThemeChangedEvent,
   [configSystemThemeChangedEvent.name]: configSystemThemeChangedEvent,
@@ -57,12 +101,35 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [configSystemPromptsChangedEvent.name]: configSystemPromptsChangedEvent,
   [configCustomPromptsChangedEvent.name]: configCustomPromptsChangedEvent,
   [providersChangedEvent.name]: providersChangedEvent,
+  [providersOllamaPullProgressEvent.name]: providersOllamaPullProgressEvent,
   [modelsChangedEvent.name]: modelsChangedEvent,
   [modelsStatusChangedEvent.name]: modelsStatusChangedEvent,
   [modelsConfigChangedEvent.name]: modelsConfigChangedEvent,
   [chatStreamUpdatedEvent.name]: chatStreamUpdatedEvent,
   [chatStreamCompletedEvent.name]: chatStreamCompletedEvent,
-  [chatStreamFailedEvent.name]: chatStreamFailedEvent
+  [chatStreamFailedEvent.name]: chatStreamFailedEvent,
+  [skillsCatalogChangedEvent.name]: skillsCatalogChangedEvent,
+  [skillsSessionChangedEvent.name]: skillsSessionChangedEvent,
+  [mcpServerStartedEvent.name]: mcpServerStartedEvent,
+  [mcpServerStoppedEvent.name]: mcpServerStoppedEvent,
+  [mcpConfigChangedEvent.name]: mcpConfigChangedEvent,
+  [mcpServerStatusChangedEvent.name]: mcpServerStatusChangedEvent,
+  [mcpToolCallResultEvent.name]: mcpToolCallResultEvent,
+  [mcpSamplingRequestEvent.name]: mcpSamplingRequestEvent,
+  [mcpSamplingDecisionEvent.name]: mcpSamplingDecisionEvent,
+  [mcpSamplingCancelledEvent.name]: mcpSamplingCancelledEvent,
+  [syncBackupStartedEvent.name]: syncBackupStartedEvent,
+  [syncBackupCompletedEvent.name]: syncBackupCompletedEvent,
+  [syncBackupErrorEvent.name]: syncBackupErrorEvent,
+  [syncBackupStatusChangedEvent.name]: syncBackupStatusChangedEvent,
+  [syncImportStartedEvent.name]: syncImportStartedEvent,
+  [syncImportCompletedEvent.name]: syncImportCompletedEvent,
+  [syncImportErrorEvent.name]: syncImportErrorEvent,
+  [upgradeStatusChangedEvent.name]: upgradeStatusChangedEvent,
+  [upgradeProgressEvent.name]: upgradeProgressEvent,
+  [upgradeWillRestartEvent.name]: upgradeWillRestartEvent,
+  [upgradeErrorEvent.name]: upgradeErrorEvent,
+  [dialogRequestedEvent.name]: dialogRequestedEvent
 } satisfies Record<string, EventContract>
 
 export type DeepchatEventCatalog = typeof DEEPCHAT_EVENT_CATALOG

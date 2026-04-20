@@ -24,6 +24,7 @@ import { ModelType } from '@shared/model'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_DEBUG_EVENTS, ACP_WORKSPACE_EVENTS, CONFIG_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { app } from 'electron'
 import {
   AcpProcessManager,
@@ -996,6 +997,12 @@ export class AcpProvider extends BaseLLMProvider {
       agentId,
       commands
     })
+    publishDeepchatEvent('sessions.acp.commands.ready', {
+      conversationId,
+      agentId,
+      commands,
+      version: Date.now()
+    })
   }
 
   private emitSessionConfigOptionsReady(
@@ -1014,6 +1021,13 @@ export class AcpProvider extends BaseLLMProvider {
         configState: configState ?? normalizeAcpConfigState({})
       }
     )
+    publishDeepchatEvent('sessions.acp.configOptions.ready', {
+      conversationId,
+      agentId,
+      workdir,
+      configState: configState ?? normalizeAcpConfigState({}),
+      version: Date.now()
+    })
   }
 
   private async handlePermissionRequest(

@@ -3,7 +3,9 @@ import { eventBus } from '@/eventbus'
 import {
   CONFIG_EVENTS,
   FLOATING_BUTTON_EVENTS,
+  MCP_EVENTS,
   PROVIDER_DB_EVENTS,
+  SYNC_EVENTS,
   SYSTEM_EVENTS,
   WINDOW_EVENTS
 } from '@/events'
@@ -62,6 +64,14 @@ export function setupLegacyTypedEventBridge(deps: {
   const publishCustomPromptsChanged = async () => {
     publishDeepchatEvent('config.customPrompts.changed', {
       prompts: await configPresenter.getCustomPrompts(),
+      version: Date.now()
+    })
+  }
+
+  const publishMcpConfigChanged = async () => {
+    publishDeepchatEvent('mcp.config.changed', {
+      mcpServers: await configPresenter.getMcpServers(),
+      mcpEnabled: await configPresenter.getMcpEnabled(),
       version: Date.now()
     })
   }
@@ -174,6 +184,129 @@ export function setupLegacyTypedEventBridge(deps: {
 
   eventBus.on(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, () => {
     void publishCustomPromptsChanged()
+  })
+
+  eventBus.on(MCP_EVENTS.SERVER_STARTED, (serverName?: string) => {
+    if (!serverName) {
+      return
+    }
+
+    publishDeepchatEvent('mcp.server.started', {
+      serverName,
+      version: Date.now()
+    })
+  })
+
+  eventBus.on(MCP_EVENTS.SERVER_STOPPED, (serverName?: string) => {
+    if (!serverName) {
+      return
+    }
+
+    publishDeepchatEvent('mcp.server.stopped', {
+      serverName,
+      version: Date.now()
+    })
+  })
+
+  eventBus.on(MCP_EVENTS.CONFIG_CHANGED, () => {
+    void publishMcpConfigChanged()
+  })
+
+  eventBus.on(
+    MCP_EVENTS.SERVER_STATUS_CHANGED,
+    (payload?: { name?: string; serverName?: string; status?: string; isRunning?: boolean }) => {
+      const serverName = payload?.serverName ?? payload?.name
+      if (!serverName) {
+        return
+      }
+
+      const isRunning =
+        typeof payload?.isRunning === 'boolean' ? payload.isRunning : payload?.status === 'running'
+
+      publishDeepchatEvent('mcp.server.status.changed', {
+        serverName,
+        isRunning,
+        version: Date.now()
+      })
+    }
+  )
+
+  eventBus.on(
+    MCP_EVENTS.TOOL_CALL_RESULT,
+    (payload?: { function_name?: string; functionName?: string; content?: unknown }) => {
+      if (!payload || payload.content === undefined) {
+        return
+      }
+
+      publishDeepchatEvent('mcp.toolCall.result', {
+        functionName: payload.functionName ?? payload.function_name,
+        content: payload.content,
+        version: Date.now()
+      })
+    }
+  )
+
+  eventBus.on(SYNC_EVENTS.BACKUP_STARTED, () => {
+    publishDeepchatEvent('sync.backup.started', {
+      version: Date.now()
+    })
+  })
+
+  eventBus.on(SYNC_EVENTS.BACKUP_COMPLETED, (timestamp?: number) => {
+    publishDeepchatEvent('sync.backup.completed', {
+      timestamp: timestamp ?? Date.now(),
+      version: Date.now()
+    })
+  })
+
+  eventBus.on(SYNC_EVENTS.BACKUP_ERROR, (error?: string) => {
+    publishDeepchatEvent('sync.backup.error', {
+      error,
+      version: Date.now()
+    })
+  })
+
+  eventBus.on(
+    SYNC_EVENTS.BACKUP_STATUS_CHANGED,
+    (payload?: {
+      status?: string
+      previousStatus?: string
+      lastSuccessfulBackupTime?: number
+      failed?: boolean
+      message?: string
+    }) => {
+      if (!payload?.status) {
+        return
+      }
+
+      publishDeepchatEvent('sync.backup.status.changed', {
+        status: payload.status,
+        previousStatus: payload.previousStatus,
+        lastSuccessfulBackupTime: payload.lastSuccessfulBackupTime,
+        failed: payload.failed,
+        message: payload.message,
+        version: Date.now()
+      })
+    }
+  )
+
+  eventBus.on(SYNC_EVENTS.IMPORT_STARTED, () => {
+    publishDeepchatEvent('sync.import.started', {
+      version: Date.now()
+    })
+  })
+
+  eventBus.on(SYNC_EVENTS.IMPORT_COMPLETED, () => {
+    publishDeepchatEvent('sync.import.completed', {
+      version: Date.now()
+    })
+  })
+
+  eventBus.on(SYNC_EVENTS.IMPORT_ERROR, (error?: string) => {
+    publishDeepchatEvent('sync.import.error', {
+      error,
+      version: Date.now()
+    })
   })
 
   eventBus.on(CONFIG_EVENTS.PROVIDER_CHANGED, () => {

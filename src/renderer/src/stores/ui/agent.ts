@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
 import { ConfigClient } from '../../../api/ConfigClient'
 import { ModelClient } from '../../../api/ModelClient'
+import { SessionClient } from '../../../api/SessionClient'
 import type { Agent } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -25,7 +25,7 @@ export interface UIAgent {
 // --- Store ---
 
 export const useAgentStore = defineStore('agent', () => {
-  const agentSessionPresenter = useLegacyAgentSessionPresenter()
+  const sessionClient = new SessionClient()
   const configClient = new ConfigClient()
   const modelClient = new ModelClient()
   let listenersRegistered = false
@@ -46,7 +46,7 @@ export const useAgentStore = defineStore('agent', () => {
     loading.value = true
     error.value = null
     try {
-      const result: Agent[] = await agentSessionPresenter.getAgents()
+      const result: Agent[] = await sessionClient.getAgents()
       agents.value = result.map((a) => ({
         id: a.id,
         name: a.name,

@@ -1,7 +1,5 @@
 import { DeviceClient } from '@api/DeviceClient'
-import { useLegacyUpgradePresenter } from '@api/legacy/presenters'
-import { hasLegacyIpcRenderer, onLegacyIpcChannel } from '@api/legacy/runtime'
-import { UPDATE_EVENTS } from '@/events'
+import { UpgradeClient } from '@api/UpgradeClient'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -66,7 +64,7 @@ const toProgressInfo = (progress: ProgressInfo | null | undefined): ProgressInfo
 }
 
 export const useUpgradeStore = defineStore('upgrade', () => {
-  const upgradeP = useLegacyUpgradePresenter()
+  const upgradeClient = new UpgradeClient()
   const deviceClient = new DeviceClient()
 
   const rawStatus = ref<PresenterUpdateStatus>(null)
@@ -130,7 +128,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     const requestId = ++latestSyncRequestId
     const mutationTokenBeforeRequest = externalMutationToken
     try {
-      const snapshot = (await upgradeP.getUpdateStatus()) as PresenterStatusSnapshot | null
+      const snapshot = (await upgradeClient.getUpdateStatus()) as PresenterStatusSnapshot | null
 
       if (!snapshot || snapshot.status == null) {
         return rawStatus.value
@@ -226,7 +224,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
     try {
       applyStatus('checking', updateInfo.value, null)
-      await upgradeP.checkUpdate()
+      await upgradeClient.checkUpdate()
       return await syncFromPresenterStatus()
     } catch (error) {
       console.error('Failed to check update:', error)
@@ -237,7 +235,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   const startUpdate = async (type: 'github' | 'official') => {
     try {
-      return await upgradeP.goDownloadUpgrade(type)
+      return await upgradeClient.goDownloadUpgrade(type)
     } catch (error) {
       console.error('Failed to start update:', error)
       return false
@@ -246,7 +244,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   const mockDownloadedUpdate = async () => {
     try {
-      const success = await upgradeP.mockDownloadedUpdate()
+      const success = await upgradeClient.mockDownloadedUpdate()
       if (!success) {
         return rawStatus.value
       }
@@ -261,7 +259,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   const clearMockUpdate = async () => {
     try {
-      const success = await upgradeP.clearMockUpdate()
+      const success = await upgradeClient.clearMockUpdate()
       if (!success) {
         return rawStatus.value
       }
@@ -278,7 +276,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     isUpdating.value = true
     try {
       if (isReadyToInstall.value) {
-        await upgradeP.restartToUpdate()
+        await upgradeClient.restartToUpdate()
         return
       }
 
@@ -287,7 +285,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
       }
 
       if (type === 'auto') {
-        const success = await upgradeP.startDownloadUpdate()
+        const success = await upgradeClient.startDownloadUpdate()
         if (!success) {
           applyStatus('error', updateInfo.value, updateError.value)
         }
@@ -334,15 +332,15 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   }
 
   const setupUpdateListener = () => {
-    if (listenersReady.value || !hasLegacyIpcRenderer()) {
+    if (listenersReady.value) {
       return
     }
 
     listenersReady.value = true
-    onLegacyIpcChannel(UPDATE_EVENTS.STATUS_CHANGED, handleStatusChanged)
-    onLegacyIpcChannel(UPDATE_EVENTS.PROGRESS, handleProgress)
-    onLegacyIpcChannel(UPDATE_EVENTS.WILL_RESTART, handleWillRestart)
-    onLegacyIpcChannel(UPDATE_EVENTS.ERROR, handleError)
+    upgradeClient.onStatusChanged((event) => handleStatusChanged(undefined, event))
+    upgradeClient.onProgress((event) => handleProgress(undefined, event))
+    upgradeClient.onWillRestart(handleWillRestart)
+    upgradeClient.onError((event) => handleError(undefined, event))
   }
 
   setupUpdateListener()

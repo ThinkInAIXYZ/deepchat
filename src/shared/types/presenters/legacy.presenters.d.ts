@@ -1515,7 +1515,7 @@ export type LLMResponseStream = {
   }
 }
 export interface IUpgradePresenter {
-  checkUpdate(): Promise<void>
+  checkUpdate(type?: string): Promise<void>
   getUpdateStatus(): {
     status: UpdateStatus | null
     progress: UpdateProgress | null

@@ -49,19 +49,19 @@ export const DeepChatSubagentMetaSchema = z
   })
   .nullable()
 
-export const SessionGenerationSettingsSchema = z
-  .object({
-    systemPrompt: z.string(),
-    temperature: z.number(),
-    contextLength: z.number().int(),
-    maxTokens: z.number().int(),
-    thinkingBudget: z.number().int().optional(),
-    reasoningEffort: ReasoningEffortSchema.optional(),
-    reasoningVisibility: ReasoningVisibilitySchema.optional(),
-    verbosity: VerbositySchema.optional(),
-    forceInterleavedThinkingCompat: z.boolean().optional()
-  })
-  .partial()
+export const SessionGenerationSettingsSchema = z.object({
+  systemPrompt: z.string(),
+  temperature: z.number(),
+  contextLength: z.number().int(),
+  maxTokens: z.number().int(),
+  thinkingBudget: z.number().int().optional(),
+  reasoningEffort: ReasoningEffortSchema.optional(),
+  reasoningVisibility: ReasoningVisibilitySchema.optional(),
+  verbosity: VerbositySchema.optional(),
+  forceInterleavedThinkingCompat: z.boolean().optional()
+})
+
+export const SessionGenerationSettingsPatchSchema = SessionGenerationSettingsSchema.partial()
 
 export const MessageFileSchema = z.object({
   name: z.string(),

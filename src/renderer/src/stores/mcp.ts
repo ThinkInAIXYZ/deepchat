@@ -1,15 +1,13 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { useLegacyMcpPresenter } from '@api/legacy/presenters'
-import { onLegacyIpcChannel } from '@api/legacy/runtime'
+import { McpClient } from '@api/McpClient'
 import { ConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
 import type {
-  McpClient,
+  McpClient as McpRuntimeClient,
   MCPConfig,
   MCPServerConfig,
   MCPToolDefinition,
@@ -19,17 +17,12 @@ import type {
   Prompt
 } from '@shared/presenter'
 
-interface MCPToolCallEventResult {
-  function_name?: string
-  content: string | { type: string; text: string }[]
-}
-
 const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 
 export const useMcpStore = defineStore('mcp', () => {
   const { t } = useI18n()
   // 获取MCP相关的presenter
-  const mcpPresenter = useLegacyMcpPresenter()
+  const mcpClient = new McpClient()
   // 获取配置相关的client
   const configClient = new ConfigClient()
 
@@ -125,8 +118,8 @@ export const useMcpStore = defineStore('mcp', () => {
     gcTime: 300_000,
     query: async () => {
       const [servers, enabled] = await Promise.all([
-        mcpPresenter.getMcpServers(),
-        mcpPresenter.getMcpEnabled()
+        mcpClient.getMcpServers(),
+        mcpClient.getMcpEnabled()
       ])
 
       return {
@@ -138,28 +131,28 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const toolsQuery = useIpcQuery({
     key: () => ['mcp', 'tools'],
-    query: () => mcpPresenter.getAllToolDefinitions(),
+    query: () => mcpClient.getAllToolDefinitions(),
     enabled: () => config.value.ready && config.value.mcpEnabled,
     staleTime: 30_000
   }) as UseQueryReturn<MCPToolDefinition[]>
 
   const clientsQuery = useIpcQuery({
     key: () => ['mcp', 'clients'],
-    query: () => mcpPresenter.getMcpClients(),
+    query: () => mcpClient.getMcpClients(),
     enabled: () => config.value.ready && config.value.mcpEnabled,
     staleTime: 30_000
-  }) as UseQueryReturn<McpClient[]>
+  }) as UseQueryReturn<McpRuntimeClient[]>
 
   const resourcesQuery = useIpcQuery({
     key: () => ['mcp', 'resources'],
-    query: () => mcpPresenter.getAllResources(),
+    query: () => mcpClient.getAllResources(),
     enabled: () => config.value.ready && config.value.mcpEnabled,
     staleTime: 30_000
   }) as UseQueryReturn<ResourceListEntry[]>
 
   const loadMcpPrompts = async (): Promise<PromptListEntry[]> => {
     try {
-      return await mcpPresenter.getAllPrompts()
+      return await mcpClient.getAllPrompts()
     } catch (error) {
       console.warn('Failed to load MCP prompts:', error)
       return []
@@ -210,13 +203,12 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const prompts = computed(() => promptsQuery.data.value ?? [])
 
-  type CallToolRequest = Parameters<(typeof mcpPresenter)['callTool']>[0]
-  type CallToolResult = Awaited<ReturnType<(typeof mcpPresenter)['callTool']>>
-  type CallToolMutationVars = Parameters<(typeof mcpPresenter)['callTool']>
+  type CallToolRequest = Parameters<(typeof mcpClient)['callTool']>[0]
+  type CallToolResult = Awaited<ReturnType<(typeof mcpClient)['callTool']>>
+  type CallToolMutationVars = [request: CallToolRequest]
 
-  const callToolMutation = useIpcMutation({
-    mutation: (request: CallToolRequest, options?: CallToolMutationVars[1]) =>
-      mcpPresenter.callTool(request, options),
+  const callToolMutation = useIpcMutation<CallToolMutationVars, CallToolResult>({
+    mutation: (request: CallToolRequest) => mcpClient.callTool(request),
     onSuccess(result, variables) {
       const request = variables?.[0]
       const toolName = request?.function?.name
@@ -413,7 +405,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // Mutations for write operations with automatic cache invalidation
   const addServerMutation = useIpcMutation({
     mutation: (serverName: string, serverConfig: MCPServerConfig) =>
-      mcpPresenter.addMcpServer(serverName, serverConfig),
+      mcpClient.addMcpServer(serverName, serverConfig),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -424,7 +416,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const updateServerMutation = useIpcMutation({
     mutation: (serverName: string, serverConfig: Partial<MCPServerConfig>) =>
-      mcpPresenter.updateMcpServer(serverName, serverConfig),
+      mcpClient.updateMcpServer(serverName, serverConfig),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -434,7 +426,7 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const removeServerMutation = useIpcMutation({
-    mutation: (serverName: string) => mcpPresenter.removeMcpServer(serverName),
+    mutation: (serverName: string) => mcpClient.removeMcpServer(serverName),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -445,12 +437,12 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const setMcpServerEnabledMutation = useIpcMutation({
     mutation: (serverName: string, enabled: boolean) =>
-      mcpPresenter.setMcpServerEnabled(serverName, enabled),
+      mcpClient.setMcpServerEnabled(serverName, enabled),
     invalidateQueries: () => [['mcp', 'config']]
   })
 
   const setMcpEnabledMutation = useIpcMutation({
-    mutation: (enabled: boolean) => mcpPresenter.setMcpEnabled(enabled),
+    mutation: (enabled: boolean) => mcpClient.setMcpEnabled(enabled),
     invalidateQueries: () => [['mcp', 'config']]
   })
 
@@ -478,9 +470,9 @@ export const useMcpStore = defineStore('mcp', () => {
         continue
       }
       try {
-        const running = await mcpPresenter.isServerRunning(serverName)
+        const running = await mcpClient.isServerRunning(serverName)
         if (!running) {
-          await mcpPresenter.startServer(serverName)
+          await mcpClient.startServer(serverName)
         }
       } catch (error) {
         console.error('Failed to auto-start MCP server', serverName, error)
@@ -522,9 +514,7 @@ export const useMcpStore = defineStore('mcp', () => {
         }, 1000)
       } else {
         await Promise.allSettled(
-          Object.keys(config.value.mcpServers).map((serverName) =>
-            mcpPresenter.stopServer(serverName)
-          )
+          Object.keys(config.value.mcpServers).map((serverName) => mcpClient.stopServer(serverName))
         )
         // clearing server/tool state when disabling
         serverStatuses.value = {}
@@ -571,7 +561,7 @@ export const useMcpStore = defineStore('mcp', () => {
         return
       }
 
-      serverStatuses.value[serverName] = await mcpPresenter.isServerRunning(serverName)
+      serverStatuses.value[serverName] = await mcpClient.isServerRunning(serverName)
       if (!noRefresh) {
         // Refresh tools and clients when server status changes
         await Promise.all([loadTools({ force: true }), loadClients({ force: true })])
@@ -874,8 +864,8 @@ export const useMcpStore = defineStore('mcp', () => {
         throw new Error(t('mcp.errors.mcpDisabled'))
       }
 
-      // 传递完整对象给mcpPresenter
-      return await mcpPresenter.getPrompt(prompt, args)
+      // Keep the full prompt descriptor so the route can resolve the source correctly.
+      return await mcpClient.getPrompt(prompt, args)
     } catch (error) {
       console.error(t('mcp.errors.getPromptFailed'), error)
       throw error
@@ -889,8 +879,8 @@ export const useMcpStore = defineStore('mcp', () => {
     }
 
     try {
-      // 传递完整对象给mcpPresenter
-      return await mcpPresenter.readResource(resource)
+      // Keep the full resource descriptor so the route can resolve the source correctly.
+      return await mcpClient.readResource(resource)
     } catch (error) {
       console.error(t('mcp.errors.readResourceFailed'), error)
       throw error
@@ -900,7 +890,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // ==================== 事件监听 ====================
   // 初始化事件监听
   const initEvents = () => {
-    onLegacyIpcChannel(MCP_EVENTS.SERVER_STARTED, (_event, serverName: string) => {
+    mcpClient.onServerStarted(({ serverName }) => {
       console.log(`MCP server started: ${serverName}`)
       updateServerStatus(serverName).then(() => {
         // Force refresh tools after server starts to ensure tool count is updated
@@ -912,7 +902,7 @@ export const useMcpStore = defineStore('mcp', () => {
       })
     })
 
-    onLegacyIpcChannel(MCP_EVENTS.SERVER_STOPPED, (_event, serverName: string) => {
+    mcpClient.onServerStopped(({ serverName }) => {
       console.log(`MCP server stopped: ${serverName}`)
       updateServerStatus(serverName).then(() => {
         // Force refresh tools after server stops to ensure tool count is updated
@@ -924,33 +914,23 @@ export const useMcpStore = defineStore('mcp', () => {
       })
     })
 
-    onLegacyIpcChannel(MCP_EVENTS.CONFIG_CHANGED, (_event, payload?: ConfigQueryResult) => {
+    mcpClient.onConfigChanged((payload) => {
       console.log('MCP config changed', payload)
-      if (payload) {
-        // Directly sync from event payload to avoid unnecessary query
-        syncConfigFromQuery(payload)
-        // Update server statuses after config sync
-        updateAllServerStatuses().catch((error) => {
-          console.error('Failed to update server statuses after config change:', error)
-        })
-      } else {
-        // Fallback to query if payload is missing
-        loadConfig()
-      }
+      syncConfigFromQuery(payload)
+      updateAllServerStatuses().catch((error) => {
+        console.error('Failed to update server statuses after config change:', error)
+      })
     })
 
-    onLegacyIpcChannel(
-      MCP_EVENTS.SERVER_STATUS_CHANGED,
-      (_event, serverName: string, isRunning: boolean) => {
-        console.log(`MCP server ${serverName} status changed: ${isRunning}`)
-        serverStatuses.value[serverName] = isRunning
-      }
-    )
+    mcpClient.onServerStatusChanged(({ serverName, isRunning }) => {
+      console.log(`MCP server ${serverName} status changed: ${isRunning}`)
+      serverStatuses.value[serverName] = isRunning
+    })
 
-    onLegacyIpcChannel(MCP_EVENTS.TOOL_CALL_RESULT, (_event, result: MCPToolCallEventResult) => {
-      console.log(`MCP tool call result:`, result.function_name)
-      if (result && result.function_name) {
-        toolResults.value[result.function_name] = result.content
+    mcpClient.onToolCallResult((result) => {
+      console.log(`MCP tool call result:`, result.functionName)
+      if (result && result.functionName) {
+        toolResults.value[result.functionName] = result.content
       }
     })
 
@@ -983,42 +963,27 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 获取NPM Registry状态
   const getNpmRegistryStatus = async () => {
-    if (!mcpPresenter.getNpmRegistryStatus) {
-      throw new Error('NPM Registry status method not available')
-    }
-    return await mcpPresenter.getNpmRegistryStatus()
+    return await mcpClient.getNpmRegistryStatus()
   }
 
   // 手动刷新NPM Registry
   const refreshNpmRegistry = async (): Promise<string> => {
-    if (!mcpPresenter.refreshNpmRegistry) {
-      throw new Error('NPM Registry refresh method not available')
-    }
-    return await mcpPresenter.refreshNpmRegistry()
+    return await mcpClient.refreshNpmRegistry()
   }
 
   // 设置自定义NPM Registry
   const setCustomNpmRegistry = async (registry: string | undefined): Promise<void> => {
-    if (!mcpPresenter.setCustomNpmRegistry) {
-      throw new Error('Set custom NPM Registry method not available')
-    }
-    await mcpPresenter.setCustomNpmRegistry(registry)
+    await mcpClient.setCustomNpmRegistry(registry)
   }
 
   // 设置自动检测NPM Registry
   const setAutoDetectNpmRegistry = async (enabled: boolean): Promise<void> => {
-    if (!mcpPresenter.setAutoDetectNpmRegistry) {
-      throw new Error('Set auto detect NPM Registry method not available')
-    }
-    await mcpPresenter.setAutoDetectNpmRegistry(enabled)
+    await mcpClient.setAutoDetectNpmRegistry(enabled)
   }
 
   // 清除NPM Registry缓存
   const clearNpmRegistryCache = async (): Promise<void> => {
-    if (!mcpPresenter.clearNpmRegistryCache) {
-      throw new Error('Clear NPM Registry cache method not available')
-    }
-    await mcpPresenter.clearNpmRegistryCache()
+    await mcpClient.clearNpmRegistryCache()
   }
 
   // MCP 安装缓存管理（用于 deeplink）

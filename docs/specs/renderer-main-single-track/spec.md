@@ -151,6 +151,7 @@ legacy transport 只允许存在于显式 quarantine 区域。
 
 `2026-04-20` 进度更新：P3 已完成。window / device / workspace / project / file / browser / tab family 已完成 typed contract、typed event、typed client cutover；业务层 P3 presenter hits 已清零，window/window-tab raw IPC 业务直连已清零，相关定向测试与 `format/i18n/lint/typecheck` 已通过。
 `2026-04-20` 审计备注：`WelcomePage.vue` 与 `NewThreadPage.vue` 已在 P3 范围内完成复核，前者无需变更，后者仅保留 `agentSessionPresenter` 的 P4 residual 调用，不再阻塞 P3 gate。
+`2026-04-20` 进度更新：P4 已完成。session residual / skill / mcp / sync / upgrade / dialog / tool family 已完成 typed contract、typed event、typed client cutover；业务层 P4 presenter hits 已清零，相关 raw listeners 已切换到 typed event subscription，且定向 main/renderer 自动回归与 `format/i18n/lint/typecheck` 已通过。
 
 ## Success Metrics
 

@@ -95,14 +95,14 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { DeviceClient } from '@api/DeviceClient'
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
+import { SessionClient } from '@api/SessionClient'
 import { useMonaco } from 'stream-monaco'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
 
 const { t } = useI18n()
 const deviceClient = new DeviceClient()
-const agentSessionPresenter = useLegacyAgentSessionPresenter()
+const sessionClient = new SessionClient()
 const uiSettingsStore = useUiSettingsStore()
 
 const jsonEditor = ref<HTMLElement | null>(null)
@@ -276,7 +276,7 @@ const loadTraces = async (messageId: string) => {
   selectedTraceId.value = null
 
   try {
-    const result = await agentSessionPresenter.listMessageTraces(messageId)
+    const result = await sessionClient.listMessageTraces(messageId)
     if (currentRequestId !== requestId.value) {
       return
     }

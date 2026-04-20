@@ -126,7 +126,7 @@ import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
+import { SessionClient } from '@api/SessionClient'
 import {
   applyChatSearchHighlights,
   clearChatSearchHighlights,
@@ -151,7 +151,7 @@ const pendingInputStore = usePendingInputStore()
 const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
 const chatClient = new ChatClient()
-const agentSessionPresenter = useLegacyAgentSessionPresenter()
+const sessionClient = new SessionClient()
 const { t } = useI18n()
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))
@@ -884,7 +884,7 @@ async function onMessageRetry(messageId: string) {
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   try {
     messageStore.clearStreamingState()
-    await agentSessionPresenter.retryMessage(props.sessionId, messageId)
+    await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] retry message failed:', error)
     await messageStore.loadMessages(props.sessionId)
@@ -896,7 +896,7 @@ async function onMessageDelete(messageId: string) {
   if (!messageId) return
   try {
     messageStore.clearStreamingState()
-    await agentSessionPresenter.deleteMessage(props.sessionId, messageId)
+    await sessionClient.deleteMessage(props.sessionId, messageId)
     await messageStore.loadMessages(props.sessionId)
   } catch (error) {
     console.error('[ChatPage] delete message failed:', error)
@@ -910,7 +910,7 @@ async function onMessageEditSave(payload: { messageId: string; text: string }) {
   if (!messageId || !text) return
 
   try {
-    await agentSessionPresenter.editUserMessage(props.sessionId, messageId, text)
+    await sessionClient.editUserMessage(props.sessionId, messageId, text)
     await onMessageRetry(messageId)
   } catch (error) {
     console.error('[ChatPage] edit message failed:', error)
@@ -921,7 +921,7 @@ async function onMessageFork(messageId: string) {
   if (isReadOnlySession.value) return
   if (!messageId) return
   try {
-    const forked = await agentSessionPresenter.forkSession(props.sessionId, messageId)
+    const forked = await sessionClient.forkSession(props.sessionId, messageId)
     await sessionStore.fetchSessions()
     await sessionStore.selectSession(forked.id)
   } catch (error) {
@@ -934,7 +934,7 @@ async function onMessageContinue(_conversationId: string, messageId: string) {
   if (!messageId) return
   try {
     messageStore.clearStreamingState()
-    await agentSessionPresenter.retryMessage(props.sessionId, messageId)
+    await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] continue message failed:', error)
     await messageStore.loadMessages(props.sessionId)

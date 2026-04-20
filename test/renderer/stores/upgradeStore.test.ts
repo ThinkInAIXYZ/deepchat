@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-const statusChangedHandlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => void>())
+const upgradeEventHandlers = vi.hoisted(() => ({
+  statusChanged: undefined as ((payload: Record<string, unknown>) => void) | undefined,
+  progress: undefined as ((payload: Record<string, unknown>) => void) | undefined,
+  willRestart: undefined as ((payload: Record<string, unknown>) => void) | undefined,
+  error: undefined as ((payload: Record<string, unknown>) => void) | undefined
+}))
 
 const upgradePresenterMock = vi.hoisted(() => ({
   checkUpdate: vi.fn().mockResolvedValue(undefined),
@@ -30,18 +35,38 @@ vi.mock('vue', async () => {
   }
 })
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: (name: string) =>
-    name === 'upgradePresenter' ? upgradePresenterMock : devicePresenterMock
+vi.mock('@api/UpgradeClient', () => ({
+  UpgradeClient: vi.fn(() => ({
+    checkUpdate: upgradePresenterMock.checkUpdate,
+    getUpdateStatus: upgradePresenterMock.getUpdateStatus,
+    goDownloadUpgrade: upgradePresenterMock.goDownloadUpgrade,
+    mockDownloadedUpdate: upgradePresenterMock.mockDownloadedUpdate,
+    clearMockUpdate: upgradePresenterMock.clearMockUpdate,
+    startDownloadUpdate: upgradePresenterMock.startDownloadUpdate,
+    restartToUpdate: upgradePresenterMock.restartToUpdate,
+    onStatusChanged: vi.fn((listener: (payload: Record<string, unknown>) => void) => {
+      upgradeEventHandlers.statusChanged = listener
+      return () => undefined
+    }),
+    onProgress: vi.fn((listener: (payload: Record<string, unknown>) => void) => {
+      upgradeEventHandlers.progress = listener
+      return () => undefined
+    }),
+    onWillRestart: vi.fn((listener: (payload: Record<string, unknown>) => void) => {
+      upgradeEventHandlers.willRestart = listener
+      return () => undefined
+    }),
+    onError: vi.fn((listener: (payload: Record<string, unknown>) => void) => {
+      upgradeEventHandlers.error = listener
+      return () => undefined
+    })
+  }))
 }))
 
-vi.mock('@/events', () => ({
-  UPDATE_EVENTS: {
-    STATUS_CHANGED: 'update:status-changed',
-    PROGRESS: 'update:progress',
-    WILL_RESTART: 'update:will-restart',
-    ERROR: 'update:error'
-  }
+vi.mock('@api/DeviceClient', () => ({
+  DeviceClient: vi.fn(() => ({
+    getDeviceInfo: devicePresenterMock.getDeviceInfo
+  }))
 }))
 
 import { useUpgradeStore } from '@/stores/upgrade'
@@ -59,23 +84,16 @@ describe('useUpgradeStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
-    statusChangedHandlers.clear()
+    upgradeEventHandlers.statusChanged = undefined
+    upgradeEventHandlers.progress = undefined
+    upgradeEventHandlers.willRestart = undefined
+    upgradeEventHandlers.error = undefined
 
     upgradePresenterMock.getUpdateStatus.mockResolvedValue({
       status: 'not-available',
       progress: null,
       error: null,
       updateInfo: null
-    })
-
-    Object.assign(window, {
-      electron: {
-        ipcRenderer: {
-          on: vi.fn((channel: string, handler: (...args: unknown[]) => void) => {
-            statusChangedHandlers.set(channel, handler)
-          })
-        }
-      }
     })
   })
 
@@ -118,23 +136,21 @@ describe('useUpgradeStore', () => {
 
   it('tracks mock downloaded updates and can clear them', async () => {
     const store = useUpgradeStore()
-    const statusHandler = statusChangedHandlers.get('update:status-changed')
+    const statusHandler = upgradeEventHandlers.statusChanged
 
     await store.mockDownloadedUpdate()
 
     expect(upgradePresenterMock.mockDownloadedUpdate).toHaveBeenCalledTimes(1)
 
-    statusHandler?.(
-      {},
-      {
-        status: 'downloaded',
-        info: {
-          ...createUpdateInfo(),
-          version: '9.9.9-mock',
-          isMock: true
-        }
-      }
-    )
+    statusHandler?.({
+      status: 'downloaded',
+      info: {
+        ...createUpdateInfo(),
+        version: '9.9.9-mock',
+        isMock: true
+      },
+      version: Date.now()
+    })
 
     expect(store.isMockUpdate).toBe(true)
     expect(store.isReadyToInstall).toBe(true)
@@ -147,7 +163,7 @@ describe('useUpgradeStore', () => {
     })
 
     await store.clearMockUpdate()
-    statusHandler?.({}, { status: 'not-available' })
+    statusHandler?.({ status: 'not-available', version: Date.now() })
 
     expect(store.isMockUpdate).toBe(false)
     expect(store.hasUpdate).toBe(false)
@@ -211,8 +227,8 @@ describe('useUpgradeStore', () => {
 
   it('does not let stale sync snapshots overwrite newer progress events', async () => {
     const store = useUpgradeStore()
-    const statusHandler = statusChangedHandlers.get('update:status-changed')
-    const progressHandler = statusChangedHandlers.get('update:progress')
+    const statusHandler = upgradeEventHandlers.statusChanged
+    const progressHandler = upgradeEventHandlers.progress
     let resolveSnapshot:
       | ((value: {
           status: 'downloading'
@@ -227,7 +243,11 @@ describe('useUpgradeStore', () => {
         }) => void)
       | null = null
 
-    statusHandler?.({}, { status: 'downloading', info: createUpdateInfo() })
+    statusHandler?.({
+      status: 'downloading',
+      info: createUpdateInfo(),
+      version: Date.now()
+    })
     upgradePresenterMock.getUpdateStatus.mockReturnValueOnce(
       new Promise<{
         status: 'downloading'
@@ -246,7 +266,13 @@ describe('useUpgradeStore', () => {
 
     const refreshPromise = store.refreshStatus()
 
-    progressHandler?.({}, { percent: 75, bytesPerSecond: 2048, transferred: 750, total: 1000 })
+    progressHandler?.({
+      percent: 75,
+      bytesPerSecond: 2048,
+      transferred: 750,
+      total: 1000,
+      version: Date.now()
+    })
 
     resolveSnapshot?.({
       status: 'downloading',
@@ -274,10 +300,14 @@ describe('useUpgradeStore', () => {
 
   it('returns the current state when syncing presenter status fails', async () => {
     const store = useUpgradeStore()
-    const statusHandler = statusChangedHandlers.get('update:status-changed')
+    const statusHandler = upgradeEventHandlers.statusChanged
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    statusHandler?.({}, { status: 'downloaded', info: createUpdateInfo() })
+    statusHandler?.({
+      status: 'downloaded',
+      info: createUpdateInfo(),
+      version: Date.now()
+    })
     upgradePresenterMock.getUpdateStatus.mockRejectedValueOnce(new Error('sync failed'))
 
     const result = await store.refreshStatus()
@@ -291,9 +321,13 @@ describe('useUpgradeStore', () => {
 
   it('keeps the current state when presenter status snapshot is empty', async () => {
     const store = useUpgradeStore()
-    const handler = statusChangedHandlers.get('update:status-changed')
+    const handler = upgradeEventHandlers.statusChanged
 
-    handler?.({}, { status: 'downloaded', info: createUpdateInfo() })
+    handler?.({
+      status: 'downloaded',
+      info: createUpdateInfo(),
+      version: Date.now()
+    })
     upgradePresenterMock.getUpdateStatus.mockResolvedValue(null)
 
     const result = await store.refreshStatus()
@@ -305,9 +339,14 @@ describe('useUpgradeStore', () => {
 
   it('exposes manual download fallback when update download fails', () => {
     const store = useUpgradeStore()
-    const handler = statusChangedHandlers.get('update:status-changed')
+    const handler = upgradeEventHandlers.statusChanged
 
-    handler?.({}, { status: 'error', info: createUpdateInfo(), error: 'network failed' })
+    handler?.({
+      status: 'error',
+      info: createUpdateInfo(),
+      error: 'network failed',
+      version: Date.now()
+    })
 
     expect(store.updateState).toBe('error')
     expect(store.showManualDownloadOptions).toBe(true)

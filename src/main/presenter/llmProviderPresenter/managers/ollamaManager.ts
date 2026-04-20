@@ -1,5 +1,6 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { OLLAMA_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { OllamaModel } from '@shared/presenter'
 import { ShowResponse } from 'ollama'
 import { OllamaProvider } from '../providers/ollamaProvider'
@@ -66,11 +67,16 @@ export class OllamaManager {
       throw new Error('Ollama provider not found')
     }
     return provider.pullModel(modelName, (progress) => {
-      eventBus.sendToRenderer(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, SendTarget.ALL_WINDOWS, {
+      const payload = {
         eventId: 'pullOllamaModels',
         providerId,
         modelName,
         ...progress
+      }
+      eventBus.sendToRenderer(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, SendTarget.ALL_WINDOWS, payload)
+      publishDeepchatEvent('providers.ollama.pull.progress', {
+        ...payload,
+        version: Date.now()
       })
     })
   }

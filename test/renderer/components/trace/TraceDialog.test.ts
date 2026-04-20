@@ -5,10 +5,16 @@ const { listMessageTracesMock } = vi.hoisted(() => ({
   listMessageTracesMock: vi.fn()
 }))
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: () => ({
+vi.mock('@api/SessionClient', () => ({
+  SessionClient: vi.fn(() => ({
     listMessageTraces: listMessageTracesMock
-  })
+  }))
+}))
+
+vi.mock('@api/DeviceClient', () => ({
+  DeviceClient: vi.fn(() => ({
+    copyText: vi.fn()
+  }))
 }))
 
 vi.mock('@/stores/uiSettingsStore', () => ({

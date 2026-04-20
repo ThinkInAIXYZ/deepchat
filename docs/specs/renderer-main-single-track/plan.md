@@ -347,6 +347,15 @@ P0 Rules & Guard Hardening
 - 收掉剩余 presenter family
 - 把“已经有 typed session/chat 主路径，但残余动作还走 presenter”这种半迁移状态补齐
 
+当前状态（`2026-04-20`）：
+
+- 已完成
+- 已扩展 `SessionClient` 覆盖 rename / delete / export / pending-input / search / translate / session setting / ACP session config 等 residual 动作，并补齐 `SkillClient`、`McpClient`、`SyncClient`、`UpgradeClient`、`DialogClient`、`ToolClient`
+- 已补齐 skill / mcp / sync / upgrade / dialog / session residual family 的 typed route、typed event、main dispatcher/runtime 接线，以及 direct `sendToRenderer` 源的 typed event publish
+- `stores/ui/session.ts`、`stores/ui/pendingInput.ts`、`stores/skillsStore.ts`、`stores/mcp.ts`、`stores/mcpSampling.ts`、`stores/sync.ts`、`stores/upgrade.ts`、`stores/dialog.ts`、`stores/ollamaStore.ts` 与相关 pages/components/composables 已完成 cutover
+- 业务层 `agentSessionPresenter`、`skillPresenter`、`mcpPresenter`、`syncPresenter`、`upgradePresenter`、`dialogPresenter`、`toolPresenter` 命中已清零，P4 family raw listeners 已改为 typed event subscription
+- `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 与 P4 定向 main/renderer 自动回归已通过
+
 交付物：
 
 - 扩展 `SessionClient` 覆盖 rename / delete / export / session settings / pending input 等残余动作

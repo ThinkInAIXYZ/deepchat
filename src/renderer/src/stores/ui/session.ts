@@ -6,7 +6,6 @@ import { SessionClient } from '../../../api/SessionClient'
 import { TabClient } from '@api/TabClient'
 import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
 import type {
   DeepChatSubagentMeta,
   SessionWithState,
@@ -195,7 +194,6 @@ export const useSessionStore = defineStore('session', () => {
   const chatClient = new ChatClient()
   const configClient = new ConfigClient()
   const tabClient = new TabClient()
-  const agentSessionPresenter = useLegacyAgentSessionPresenter()
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
@@ -433,7 +431,7 @@ export const useSessionStore = defineStore('session', () => {
   ): Promise<void> {
     error.value = null
     try {
-      const updated = await agentSessionPresenter.setSessionModel(sessionId, providerId, modelId)
+      const updated = await sessionClient.setSessionModel(sessionId, providerId, modelId)
       const index = sessions.value.findIndex((item) => item.id === sessionId)
       if (index >= 0) {
         sessions.value[index] = mapToUISession(updated)
@@ -447,7 +445,7 @@ export const useSessionStore = defineStore('session', () => {
   async function deleteSession(sessionId: string): Promise<void> {
     error.value = null
     try {
-      await agentSessionPresenter.deleteSession(sessionId)
+      await sessionClient.deleteSession(sessionId)
       if (activeSessionId.value === sessionId) {
         setActiveSessionId(null)
         pageRouter.goToNewThread()
@@ -461,7 +459,7 @@ export const useSessionStore = defineStore('session', () => {
   async function setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<void> {
     error.value = null
     try {
-      const updated = await agentSessionPresenter.setSessionSubagentEnabled(sessionId, enabled)
+      const updated = await sessionClient.setSessionSubagentEnabled(sessionId, enabled)
       const index = sessions.value.findIndex((item) => item.id === sessionId)
       if (index >= 0) {
         sessions.value[index] = mapToUISession(updated)
@@ -477,7 +475,7 @@ export const useSessionStore = defineStore('session', () => {
   async function setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
     error.value = null
     try {
-      const updated = await agentSessionPresenter.setSessionProjectDir(sessionId, projectDir)
+      const updated = await sessionClient.setSessionProjectDir(sessionId, projectDir)
       const index = sessions.value.findIndex((item) => item.id === sessionId)
       if (index >= 0) {
         sessions.value[index] = mapToUISession(updated)
@@ -495,7 +493,7 @@ export const useSessionStore = defineStore('session', () => {
       if (!normalized) {
         return
       }
-      await agentSessionPresenter.renameSession(sessionId, normalized)
+      await sessionClient.renameSession(sessionId, normalized)
       const target = sessions.value.find((session) => session.id === sessionId)
       if (target) {
         target.title = normalized
@@ -509,7 +507,7 @@ export const useSessionStore = defineStore('session', () => {
   async function toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
     error.value = null
     try {
-      await agentSessionPresenter.toggleSessionPinned(sessionId, pinned)
+      await sessionClient.toggleSessionPinned(sessionId, pinned)
       const target = sessions.value.find((session) => session.id === sessionId)
       if (target) {
         target.isPinned = pinned
@@ -523,7 +521,7 @@ export const useSessionStore = defineStore('session', () => {
   async function clearSessionMessages(sessionId: string): Promise<void> {
     error.value = null
     try {
-      await agentSessionPresenter.clearSessionMessages(sessionId)
+      await sessionClient.clearSessionMessages(sessionId)
       if (activeSessionId.value === sessionId) {
         messageStore.clearStreamingState()
         await messageStore.loadMessages(sessionId)
@@ -540,7 +538,7 @@ export const useSessionStore = defineStore('session', () => {
   ): Promise<{ filename: string; content: string }> {
     error.value = null
     try {
-      const result = await agentSessionPresenter.exportSession(sessionId, format)
+      const result = await sessionClient.exportSession(sessionId, format)
       const blob = new Blob([result.content], {
         type: getContentType(format)
       })

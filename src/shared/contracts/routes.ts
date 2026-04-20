@@ -63,6 +63,7 @@ import {
   configUpdateSystemPromptRoute,
   configUpdateVoiceAiConfigRoute
 } from './routes/config.routes'
+import { dialogErrorRoute, dialogRespondRoute } from './routes/dialog.routes'
 import {
   deviceGetAppVersionRoute,
   deviceGetInfoRoute,
@@ -78,6 +79,32 @@ import {
   fileReadFileRoute,
   fileWriteImageBase64Route
 } from './routes/file.routes'
+import {
+  mcpAddServerRoute,
+  mcpCallToolRoute,
+  mcpCancelSamplingRequestRoute,
+  mcpClearNpmRegistryCacheRoute,
+  mcpGetClientsRoute,
+  mcpGetEnabledRoute,
+  mcpGetNpmRegistryStatusRoute,
+  mcpGetPromptRoute,
+  mcpGetServersRoute,
+  mcpIsServerRunningRoute,
+  mcpListPromptsRoute,
+  mcpListResourcesRoute,
+  mcpListToolDefinitionsRoute,
+  mcpReadResourceRoute,
+  mcpRefreshNpmRegistryRoute,
+  mcpRemoveServerRoute,
+  mcpSetAutoDetectNpmRegistryRoute,
+  mcpSetCustomNpmRegistryRoute,
+  mcpSetEnabledRoute,
+  mcpSetServerEnabledRoute,
+  mcpStartServerRoute,
+  mcpStopServerRoute,
+  mcpSubmitSamplingDecisionRoute,
+  mcpUpdateServerRoute
+} from './routes/mcp.routes'
 import {
   modelsAddCustomRoute,
   modelsExportConfigsRoute,
@@ -125,19 +152,89 @@ import {
 } from './routes/settings.routes'
 import {
   sessionsActivateRoute,
+  sessionsClearMessagesRoute,
+  sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
+  sessionsDeleteMessageRoute,
+  sessionsDeletePendingInputRoute,
+  sessionsDeleteRoute,
   sessionsDeactivateRoute,
+  sessionsEditUserMessageRoute,
+  sessionsEnsureAcpDraftRoute,
+  sessionsExportRoute,
+  sessionsForkRoute,
+  sessionsGetAcpSessionCommandsRoute,
+  sessionsGetAcpSessionConfigOptionsRoute,
   sessionsGetActiveRoute,
+  sessionsGetAgentsRoute,
+  sessionsGetDisabledAgentToolsRoute,
+  sessionsGetGenerationSettingsRoute,
+  sessionsGetPermissionModeRoute,
+  sessionsGetSearchResultsRoute,
   sessionsListRoute,
+  sessionsListMessageTracesRoute,
+  sessionsListPendingInputsRoute,
+  sessionsMoveQueuedInputRoute,
+  sessionsQueuePendingInputRoute,
+  sessionsRenameRoute,
+  sessionsResumePendingQueueRoute,
+  sessionsRetryMessageRoute,
   sessionsRestoreRoute
 } from './routes/sessions.routes'
+import {
+  sessionsSearchHistoryRoute,
+  sessionsSetAcpSessionConfigOptionRoute,
+  sessionsSetModelRoute,
+  sessionsSetPermissionModeRoute,
+  sessionsSetProjectDirRoute,
+  sessionsSetSubagentEnabledRoute,
+  sessionsTogglePinnedRoute,
+  sessionsTranslateTextRoute,
+  sessionsUpdateDisabledAgentToolsRoute,
+  sessionsUpdateGenerationSettingsRoute,
+  sessionsUpdateQueuedInputRoute
+} from './routes/sessions.routes'
+import {
+  skillsGetActiveRoute,
+  skillsGetDirectoryRoute,
+  skillsGetExtensionRoute,
+  skillsGetFolderTreeRoute,
+  skillsInstallFromFolderRoute,
+  skillsInstallFromUrlRoute,
+  skillsInstallFromZipRoute,
+  skillsListMetadataRoute,
+  skillsListScriptsRoute,
+  skillsOpenFolderRoute,
+  skillsSaveExtensionRoute,
+  skillsSaveWithExtensionRoute,
+  skillsSetActiveRoute,
+  skillsUninstallRoute,
+  skillsUpdateFileRoute
+} from './routes/skills.routes'
+import {
+  syncGetBackupStatusRoute,
+  syncImportRoute,
+  syncListBackupsRoute,
+  syncOpenFolderRoute,
+  syncStartBackupRoute
+} from './routes/sync.routes'
 import { systemOpenSettingsRoute } from './routes/system.routes'
+import { toolsListDefinitionsRoute } from './routes/tools.routes'
 import {
   tabCaptureCurrentAreaRoute,
   tabNotifyRendererActivatedRoute,
   tabNotifyRendererReadyRoute,
   tabStitchImagesWithWatermarkRoute
 } from './routes/tab.routes'
+import {
+  upgradeCheckRoute,
+  upgradeClearMockRoute,
+  upgradeGetStatusRoute,
+  upgradeMockDownloadedRoute,
+  upgradeOpenDownloadRoute,
+  upgradeRestartToUpdateRoute,
+  upgradeStartDownloadRoute
+} from './routes/upgrade.routes'
 import {
   windowCloseCurrentRoute,
   windowCloseFloatingCurrentRoute,
@@ -165,15 +262,21 @@ import {
 export * from './routes/browser.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
+export * from './routes/dialog.routes'
 export * from './routes/device.routes'
 export * from './routes/file.routes'
+export * from './routes/mcp.routes'
 export * from './routes/models.routes'
 export * from './routes/providers.routes'
 export * from './routes/project.routes'
 export * from './routes/settings.routes'
 export * from './routes/sessions.routes'
+export * from './routes/skills.routes'
+export * from './routes/sync.routes'
 export * from './routes/system.routes'
 export * from './routes/tab.routes'
+export * from './routes/tools.routes'
+export * from './routes/upgrade.routes'
 export * from './routes/window.routes'
 export * from './routes/workspace.routes'
 
@@ -279,6 +382,40 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [sessionsActivateRoute.name]: sessionsActivateRoute,
   [sessionsDeactivateRoute.name]: sessionsDeactivateRoute,
   [sessionsGetActiveRoute.name]: sessionsGetActiveRoute,
+  [sessionsEnsureAcpDraftRoute.name]: sessionsEnsureAcpDraftRoute,
+  [sessionsListPendingInputsRoute.name]: sessionsListPendingInputsRoute,
+  [sessionsQueuePendingInputRoute.name]: sessionsQueuePendingInputRoute,
+  [sessionsUpdateQueuedInputRoute.name]: sessionsUpdateQueuedInputRoute,
+  [sessionsMoveQueuedInputRoute.name]: sessionsMoveQueuedInputRoute,
+  [sessionsConvertPendingInputToSteerRoute.name]: sessionsConvertPendingInputToSteerRoute,
+  [sessionsDeletePendingInputRoute.name]: sessionsDeletePendingInputRoute,
+  [sessionsResumePendingQueueRoute.name]: sessionsResumePendingQueueRoute,
+  [sessionsRetryMessageRoute.name]: sessionsRetryMessageRoute,
+  [sessionsDeleteMessageRoute.name]: sessionsDeleteMessageRoute,
+  [sessionsEditUserMessageRoute.name]: sessionsEditUserMessageRoute,
+  [sessionsForkRoute.name]: sessionsForkRoute,
+  [sessionsSearchHistoryRoute.name]: sessionsSearchHistoryRoute,
+  [sessionsGetSearchResultsRoute.name]: sessionsGetSearchResultsRoute,
+  [sessionsListMessageTracesRoute.name]: sessionsListMessageTracesRoute,
+  [sessionsTranslateTextRoute.name]: sessionsTranslateTextRoute,
+  [sessionsGetAgentsRoute.name]: sessionsGetAgentsRoute,
+  [sessionsRenameRoute.name]: sessionsRenameRoute,
+  [sessionsTogglePinnedRoute.name]: sessionsTogglePinnedRoute,
+  [sessionsClearMessagesRoute.name]: sessionsClearMessagesRoute,
+  [sessionsExportRoute.name]: sessionsExportRoute,
+  [sessionsDeleteRoute.name]: sessionsDeleteRoute,
+  [sessionsGetAcpSessionCommandsRoute.name]: sessionsGetAcpSessionCommandsRoute,
+  [sessionsGetAcpSessionConfigOptionsRoute.name]: sessionsGetAcpSessionConfigOptionsRoute,
+  [sessionsSetAcpSessionConfigOptionRoute.name]: sessionsSetAcpSessionConfigOptionRoute,
+  [sessionsGetPermissionModeRoute.name]: sessionsGetPermissionModeRoute,
+  [sessionsSetPermissionModeRoute.name]: sessionsSetPermissionModeRoute,
+  [sessionsSetSubagentEnabledRoute.name]: sessionsSetSubagentEnabledRoute,
+  [sessionsSetModelRoute.name]: sessionsSetModelRoute,
+  [sessionsSetProjectDirRoute.name]: sessionsSetProjectDirRoute,
+  [sessionsGetGenerationSettingsRoute.name]: sessionsGetGenerationSettingsRoute,
+  [sessionsGetDisabledAgentToolsRoute.name]: sessionsGetDisabledAgentToolsRoute,
+  [sessionsUpdateDisabledAgentToolsRoute.name]: sessionsUpdateDisabledAgentToolsRoute,
+  [sessionsUpdateGenerationSettingsRoute.name]: sessionsUpdateGenerationSettingsRoute,
   [providersListRoute.name]: providersListRoute,
   [providersListDefaultsRoute.name]: providersListDefaultsRoute,
   [providersSetByIdRoute.name]: providersSetByIdRoute,
@@ -312,6 +449,60 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [chatSendMessageRoute.name]: chatSendMessageRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,
   [chatRespondToolInteractionRoute.name]: chatRespondToolInteractionRoute,
+  [skillsListMetadataRoute.name]: skillsListMetadataRoute,
+  [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,
+  [skillsInstallFromFolderRoute.name]: skillsInstallFromFolderRoute,
+  [skillsInstallFromZipRoute.name]: skillsInstallFromZipRoute,
+  [skillsInstallFromUrlRoute.name]: skillsInstallFromUrlRoute,
+  [skillsUninstallRoute.name]: skillsUninstallRoute,
+  [skillsUpdateFileRoute.name]: skillsUpdateFileRoute,
+  [skillsSaveWithExtensionRoute.name]: skillsSaveWithExtensionRoute,
+  [skillsGetFolderTreeRoute.name]: skillsGetFolderTreeRoute,
+  [skillsOpenFolderRoute.name]: skillsOpenFolderRoute,
+  [skillsGetExtensionRoute.name]: skillsGetExtensionRoute,
+  [skillsSaveExtensionRoute.name]: skillsSaveExtensionRoute,
+  [skillsListScriptsRoute.name]: skillsListScriptsRoute,
+  [skillsGetActiveRoute.name]: skillsGetActiveRoute,
+  [skillsSetActiveRoute.name]: skillsSetActiveRoute,
+  [mcpGetServersRoute.name]: mcpGetServersRoute,
+  [mcpGetEnabledRoute.name]: mcpGetEnabledRoute,
+  [mcpGetClientsRoute.name]: mcpGetClientsRoute,
+  [mcpListToolDefinitionsRoute.name]: mcpListToolDefinitionsRoute,
+  [mcpListPromptsRoute.name]: mcpListPromptsRoute,
+  [mcpListResourcesRoute.name]: mcpListResourcesRoute,
+  [mcpCallToolRoute.name]: mcpCallToolRoute,
+  [mcpAddServerRoute.name]: mcpAddServerRoute,
+  [mcpUpdateServerRoute.name]: mcpUpdateServerRoute,
+  [mcpRemoveServerRoute.name]: mcpRemoveServerRoute,
+  [mcpSetServerEnabledRoute.name]: mcpSetServerEnabledRoute,
+  [mcpSetEnabledRoute.name]: mcpSetEnabledRoute,
+  [mcpIsServerRunningRoute.name]: mcpIsServerRunningRoute,
+  [mcpStartServerRoute.name]: mcpStartServerRoute,
+  [mcpStopServerRoute.name]: mcpStopServerRoute,
+  [mcpGetPromptRoute.name]: mcpGetPromptRoute,
+  [mcpReadResourceRoute.name]: mcpReadResourceRoute,
+  [mcpSubmitSamplingDecisionRoute.name]: mcpSubmitSamplingDecisionRoute,
+  [mcpCancelSamplingRequestRoute.name]: mcpCancelSamplingRequestRoute,
+  [mcpGetNpmRegistryStatusRoute.name]: mcpGetNpmRegistryStatusRoute,
+  [mcpRefreshNpmRegistryRoute.name]: mcpRefreshNpmRegistryRoute,
+  [mcpSetCustomNpmRegistryRoute.name]: mcpSetCustomNpmRegistryRoute,
+  [mcpSetAutoDetectNpmRegistryRoute.name]: mcpSetAutoDetectNpmRegistryRoute,
+  [mcpClearNpmRegistryCacheRoute.name]: mcpClearNpmRegistryCacheRoute,
+  [syncGetBackupStatusRoute.name]: syncGetBackupStatusRoute,
+  [syncListBackupsRoute.name]: syncListBackupsRoute,
+  [syncStartBackupRoute.name]: syncStartBackupRoute,
+  [syncImportRoute.name]: syncImportRoute,
+  [syncOpenFolderRoute.name]: syncOpenFolderRoute,
+  [upgradeGetStatusRoute.name]: upgradeGetStatusRoute,
+  [upgradeCheckRoute.name]: upgradeCheckRoute,
+  [upgradeOpenDownloadRoute.name]: upgradeOpenDownloadRoute,
+  [upgradeStartDownloadRoute.name]: upgradeStartDownloadRoute,
+  [upgradeMockDownloadedRoute.name]: upgradeMockDownloadedRoute,
+  [upgradeClearMockRoute.name]: upgradeClearMockRoute,
+  [upgradeRestartToUpdateRoute.name]: upgradeRestartToUpdateRoute,
+  [dialogRespondRoute.name]: dialogRespondRoute,
+  [dialogErrorRoute.name]: dialogErrorRoute,
+  [toolsListDefinitionsRoute.name]: toolsListDefinitionsRoute,
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute
 } satisfies Record<string, RouteContract>
 

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useLegacySkillPresenter } from '@api/legacy/presenters'
+import { SkillClient } from '@api/SkillClient'
 import type {
   SkillMetadata,
   SkillInstallResult,
@@ -21,8 +21,8 @@ function createDefaultSkillExtension(): SkillExtensionConfig {
 }
 
 export const useSkillsStore = defineStore('skills', () => {
-  const skillPresenter = useLegacySkillPresenter()
-  const skillPresenterStrict = useLegacySkillPresenter({ safeCall: false })
+  const skillClient = new SkillClient()
+  let catalogListenerRegistered = false
 
   const skills = ref<SkillMetadata[]>([])
   const skillExtensions = ref<Record<string, SkillExtensionConfig>>({})
@@ -35,8 +35,8 @@ export const useSkillsStore = defineStore('skills', () => {
   const loadSkillRuntime = async (name: string) => {
     try {
       const [extension, scripts] = await Promise.all([
-        skillPresenter.getSkillExtension(name),
-        skillPresenter.listSkillScripts(name)
+        skillClient.getSkillExtension(name),
+        skillClient.listSkillScripts(name)
       ])
 
       skillExtensions.value = {
@@ -68,8 +68,8 @@ export const useSkillsStore = defineStore('skills', () => {
       items.map(async (skill) => {
         try {
           const [extension, scripts] = await Promise.all([
-            skillPresenter.getSkillExtension(skill.name),
-            skillPresenter.listSkillScripts(skill.name)
+            skillClient.getSkillExtension(skill.name),
+            skillClient.listSkillScripts(skill.name)
           ])
           nextExtensions[skill.name] = extension ?? createDefaultSkillExtension()
           nextScripts[skill.name] = scripts ?? []
@@ -89,7 +89,7 @@ export const useSkillsStore = defineStore('skills', () => {
     loading.value = true
     error.value = null
     try {
-      const nextSkills = await skillPresenter.getMetadataList()
+      const nextSkills = await skillClient.getMetadataList()
       skills.value = nextSkills
       await loadSkillRuntimeData(nextSkills)
     } catch (e) {
@@ -105,7 +105,7 @@ export const useSkillsStore = defineStore('skills', () => {
     options?: { overwrite?: boolean }
   ): Promise<SkillInstallResult> => {
     try {
-      const result = await skillPresenter.installFromFolder(folderPath, options)
+      const result = await skillClient.installFromFolder(folderPath, options)
       if (result.success) {
         await loadSkills()
       }
@@ -121,7 +121,7 @@ export const useSkillsStore = defineStore('skills', () => {
     options?: { overwrite?: boolean }
   ): Promise<SkillInstallResult> => {
     try {
-      const result = await skillPresenter.installFromZip(zipPath, options)
+      const result = await skillClient.installFromZip(zipPath, options)
       if (result.success) {
         await loadSkills()
       }
@@ -137,7 +137,7 @@ export const useSkillsStore = defineStore('skills', () => {
     options?: { overwrite?: boolean }
   ): Promise<SkillInstallResult> => {
     try {
-      const result = await skillPresenter.installFromUrl(url, options)
+      const result = await skillClient.installFromUrl(url, options)
       if (result.success) {
         await loadSkills()
       }
@@ -150,7 +150,7 @@ export const useSkillsStore = defineStore('skills', () => {
 
   const uninstallSkill = async (name: string): Promise<SkillInstallResult> => {
     try {
-      const result = await skillPresenter.uninstallSkill(name)
+      const result = await skillClient.uninstallSkill(name)
       if (result.success) {
         await loadSkills()
       }
@@ -162,16 +162,16 @@ export const useSkillsStore = defineStore('skills', () => {
   }
 
   const getSkillsDir = async (): Promise<string> => {
-    return await skillPresenter.getSkillsDir()
+    return await skillClient.getSkillsDir()
   }
 
   const openSkillsFolder = async (): Promise<void> => {
-    await skillPresenter.openSkillsFolder()
+    await skillClient.openSkillsFolder()
   }
 
   const updateSkillFile = async (name: string, content: string): Promise<SkillInstallResult> => {
     try {
-      const result = await skillPresenter.updateSkillFile(name, content)
+      const result = await skillClient.updateSkillFile(name, content)
       if (result.success) {
         await loadSkills()
       }
@@ -183,7 +183,7 @@ export const useSkillsStore = defineStore('skills', () => {
   }
 
   const saveSkillExtension = async (name: string, config: SkillExtensionConfig): Promise<void> => {
-    await skillPresenterStrict.saveSkillExtension(name, config)
+    await skillClient.saveSkillExtension(name, config)
     await loadSkillRuntime(name)
   }
 
@@ -193,7 +193,7 @@ export const useSkillsStore = defineStore('skills', () => {
     config: SkillExtensionConfig
   ): Promise<SkillInstallResult> => {
     try {
-      const result = await skillPresenterStrict.saveSkillWithExtension(name, content, config)
+      const result = await skillClient.saveSkillWithExtension(name, content, config)
       if (result.success) {
         await loadSkills()
       }
@@ -205,7 +205,14 @@ export const useSkillsStore = defineStore('skills', () => {
   }
 
   const getSkillFolderTree = async (name: string) => {
-    return await skillPresenter.getSkillFolderTree(name)
+    return await skillClient.getSkillFolderTree(name)
+  }
+
+  if (!catalogListenerRegistered) {
+    catalogListenerRegistered = true
+    skillClient.onCatalogChanged(() => {
+      void loadSkills()
+    })
   }
 
   return {

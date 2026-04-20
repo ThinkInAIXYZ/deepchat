@@ -4192,6 +4192,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       sessionId,
       status
     })
+    publishDeepchatEvent('sessions.status.changed', {
+      sessionId,
+      status,
+      version: Date.now()
+    })
     publishDeepchatEvent('sessions.updated', {
       sessionIds: [sessionId],
       reason: 'updated'

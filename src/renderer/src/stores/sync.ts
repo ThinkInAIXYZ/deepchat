@@ -1,12 +1,10 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { DeviceClient } from '@api/DeviceClient'
-import { useLegacySyncPresenter } from '@api/legacy/presenters'
-import { onLegacyIpcChannel } from '@api/legacy/runtime'
+import { SyncClient } from '@api/SyncClient'
 import { ConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { SYNC_EVENTS } from '@/events'
 import type { EntryKey, UseQueryReturn } from '@pinia/colada'
 import type { SyncBackupInfo } from '@shared/presenter'
 
@@ -25,7 +23,7 @@ export const useSyncStore = defineStore('sync', () => {
   } | null>(null)
 
   const configClient = new ConfigClient()
-  const syncPresenter = useLegacySyncPresenter()
+  const syncClient = new SyncClient()
   const deviceClient = new DeviceClient()
   let syncEventsRegistered = false
   let syncSettingsListenerRegistered = false
@@ -34,7 +32,7 @@ export const useSyncStore = defineStore('sync', () => {
 
   const backupsQuery = useIpcQuery({
     key: backupQueryKey,
-    query: () => syncPresenter.listBackups(),
+    query: () => syncClient.listBackups(),
     staleTime: 60_000,
     gcTime: 300_000
   }) as UseQueryReturn<SyncBackupInfo[]>
@@ -53,7 +51,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const startBackupMutation = useIpcMutation({
-    mutation: () => syncPresenter.startBackup(),
+    mutation: () => syncClient.startBackup(),
     invalidateQueries: () => [backupQueryKey()]
   })
 
@@ -77,7 +75,7 @@ export const useSyncStore = defineStore('sync', () => {
 
   const importBackupMutation = useIpcMutation({
     mutation: (backupFile: string, mode: 'increment' | 'overwrite') =>
-      syncPresenter.importFromSync(backupFile, mode),
+      syncClient.importFromSync(backupFile, mode),
     invalidateQueries: () => [backupQueryKey()]
   })
 
@@ -121,7 +119,7 @@ export const useSyncStore = defineStore('sync', () => {
     syncEnabled.value = await configClient.getSyncEnabled()
     syncFolderPath.value = await configClient.getSyncFolderPath()
 
-    const status = await syncPresenter.getBackupStatus()
+    const status = await syncClient.getBackupStatus()
     lastSyncTime.value = status.lastBackupTime
     isBackingUp.value = status.isBackingUp
 
@@ -137,28 +135,28 @@ export const useSyncStore = defineStore('sync', () => {
 
     syncEventsRegistered = true
 
-    onLegacyIpcChannel(SYNC_EVENTS.BACKUP_STARTED, () => {
+    syncClient.onBackupStarted(() => {
       isBackingUp.value = true
     })
 
-    onLegacyIpcChannel(SYNC_EVENTS.BACKUP_COMPLETED, (_event, time) => {
+    syncClient.onBackupCompleted(({ timestamp }) => {
       isBackingUp.value = false
-      lastSyncTime.value = time
+      lastSyncTime.value = timestamp
     })
 
-    onLegacyIpcChannel(SYNC_EVENTS.BACKUP_ERROR, () => {
+    syncClient.onBackupError(() => {
       isBackingUp.value = false
     })
 
-    onLegacyIpcChannel(SYNC_EVENTS.IMPORT_STARTED, () => {
+    syncClient.onImportStarted(() => {
       isImporting.value = true
     })
 
-    onLegacyIpcChannel(SYNC_EVENTS.IMPORT_COMPLETED, () => {
+    syncClient.onImportCompleted(() => {
       isImporting.value = false
     })
 
-    onLegacyIpcChannel(SYNC_EVENTS.IMPORT_ERROR, () => {
+    syncClient.onImportError(() => {
       isImporting.value = false
     })
   }
@@ -183,7 +181,7 @@ export const useSyncStore = defineStore('sync', () => {
 
   const openSyncFolder = async () => {
     if (!syncEnabled.value) return
-    await syncPresenter.openSyncFolder()
+    await syncClient.openSyncFolder()
   }
 
   const restartApp = async () => {

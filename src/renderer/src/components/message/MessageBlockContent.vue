@@ -33,13 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from 'vue'
-
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
-import type { SearchResult } from '@shared/types/core/search'
-
-const agentSessionPresenter = useLegacyAgentSessionPresenter()
-const searchResults = ref<SearchResult[]>([])
+import { nextTick, watch } from 'vue'
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
 import ArtifactPreview from '../artifacts/ArtifactPreview.vue'
@@ -104,11 +98,4 @@ watch(
   },
   { immediate: true }
 )
-
-onMounted(async () => {
-  if (props.isSearchResult) {
-    // TODO: remove this temporary fallback after search result loading is fully unified.
-    searchResults.value = await agentSessionPresenter.getSearchResults(props.messageId)
-  }
-})
 </script>

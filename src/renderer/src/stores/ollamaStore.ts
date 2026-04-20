@@ -1,8 +1,6 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { OLLAMA_EVENTS } from '@/events'
 import { ProviderClient } from '../../api/ProviderClient'
-import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
 import type { OllamaModel } from '@shared/presenter'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
@@ -11,7 +9,7 @@ export const useOllamaStore = defineStore('ollama', () => {
   const providerClient = new ProviderClient()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
-  const ollamaEventScope = createLegacyIpcSubscriptionScope()
+  let unsubscribeOllamaPullProgress: (() => void) | null = null
 
   const runningModels = ref<Record<string, OllamaModel[]>>({})
   const localModels = ref<Record<string, OllamaModel[]>>({})
@@ -112,14 +110,18 @@ export const useOllamaStore = defineStore('ollama', () => {
   }
 
   const setupOllamaEventListeners = () => {
-    ollamaEventScope.on(
-      OLLAMA_EVENTS.PULL_MODEL_PROGRESS,
-      (_event: unknown, data: Record<string, unknown>) => handleOllamaModelPullEvent(data)
+    if (unsubscribeOllamaPullProgress) {
+      return
+    }
+
+    unsubscribeOllamaPullProgress = providerClient.onOllamaPullProgress((data) =>
+      handleOllamaModelPullEvent(data)
     )
   }
 
   const removeOllamaEventListeners = () => {
-    ollamaEventScope.cleanup()
+    unsubscribeOllamaPullProgress?.()
+    unsubscribeOllamaPullProgress = null
   }
 
   const clearOllamaProviderData = (providerId: string) => {

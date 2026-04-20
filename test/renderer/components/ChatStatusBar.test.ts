@@ -426,6 +426,15 @@ const setup = async (options: SetupOptions = {}) => {
 
   const sessionSettingsResult =
     options.sessionSettings === null ? null : ({ ...baseSessionSettings } as TestGenerationSettings)
+  let acpConfigOptionsReadyHandler:
+    | ((payload: {
+        conversationId?: string
+        agentId: string
+        workdir: string
+        configState: AcpConfigState
+        version: number
+      }) => void)
+    | undefined
 
   const agentSessionPresenter = {
     getPermissionMode: vi.fn().mockResolvedValue('full_access'),
@@ -447,7 +456,25 @@ const setup = async (options: SetupOptions = {}) => {
       .fn()
       .mockImplementation((_: string, patch: any) =>
         Promise.resolve({ ...baseSessionSettings, ...patch })
-      )
+      ),
+    onAcpConfigOptionsReady: vi.fn(
+      (
+        listener: (payload: {
+          conversationId?: string
+          agentId: string
+          workdir: string
+          configState: AcpConfigState
+          version: number
+        }) => void
+      ) => {
+        acpConfigOptionsReadyHandler = listener
+        return () => {
+          if (acpConfigOptionsReadyHandler === listener) {
+            acpConfigOptionsReadyHandler = undefined
+          }
+        }
+      }
+    )
   }
 
   const llmproviderPresenter = {
@@ -455,31 +482,18 @@ const setup = async (options: SetupOptions = {}) => {
     getAcpProcessConfigOptions: vi.fn().mockResolvedValue(options.acpProcessConfig ?? null)
   }
 
-  const ipcListeners = new Map<string, Set<(event: unknown, payload?: unknown) => void>>()
-  ;(
-    window as typeof window & {
-      electron?: {
-        ipcRenderer?: {
-          on: ReturnType<typeof vi.fn>
-          removeListener: ReturnType<typeof vi.fn>
-          emit: (channel: string, payload?: unknown) => void
-        }
-      }
-    }
-  ).electron = {
-    ipcRenderer: {
-      on: vi.fn((channel: string, handler: (event: unknown, payload?: unknown) => void) => {
-        const handlers = ipcListeners.get(channel) ?? new Set()
-        handlers.add(handler)
-        ipcListeners.set(channel, handlers)
-      }),
-      removeListener: vi.fn(
-        (channel: string, handler: (event: unknown, payload?: unknown) => void) => {
-          ipcListeners.get(channel)?.delete(handler)
-        }
-      ),
-      emit: (channel: string, payload?: unknown) => {
-        ipcListeners.get(channel)?.forEach((handler) => handler({}, payload))
+  const ipcRenderer = {
+    emit: (channel: string, payload?: unknown) => {
+      if (channel === ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY && payload) {
+        acpConfigOptionsReadyHandler?.({
+          ...(payload as {
+            conversationId?: string
+            agentId: string
+            workdir: string
+            configState: AcpConfigState
+          }),
+          version: Date.now()
+        })
       }
     }
   }
@@ -514,8 +528,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/ProviderClient', () => ({
     ProviderClient: vi.fn(() => llmproviderPresenter)
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyAgentSessionPresenter: () => agentSessionPresenter
+  vi.doMock('@api/SessionClient', () => ({
+    SessionClient: vi.fn(() => agentSessionPresenter)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -591,7 +605,7 @@ const setup = async (options: SetupOptions = {}) => {
     draftStore,
     configPresenter,
     projectStore,
-    ipcRenderer: window.electron?.ipcRenderer
+    ipcRenderer
   }
 }
 

@@ -73,20 +73,24 @@
 
 ## P4: Session Residual / MCP / Skill / Misc Family
 
-- [ ] 扩展 `SessionClient` 覆盖 rename / delete / export / pending input / session setting 类动作
-- [ ] 为 skill / mcp / sync / upgrade / dialog 等能力补 typed contracts
-- [ ] 为 skill / mcp / sync / upgrade / dialog 等 family 补 typed event contracts
-- [ ] 为 skill / mcp / sync / upgrade / dialog 等能力补 typed clients
-- [ ] 迁移 `stores/ui/session.ts` 的 residual presenter calls
-- [ ] 迁移 `stores/ui/pendingInput.ts`
-- [ ] 迁移 `stores/skillsStore.ts`
-- [ ] 迁移 `stores/mcp.ts`
-- [ ] 迁移 `stores/mcpSampling.ts`
-- [ ] 迁移 `stores/sync.ts`
-- [ ] 迁移 `stores/upgrade.ts`
-- [ ] 迁移 `stores/dialog.ts`
-- [ ] 迁移 `stores/ollamaStore.ts`
-- [ ] 清理 residual family 的 raw event listeners
+- [x] 扩展 `SessionClient` 覆盖 rename / delete / export / pending input / session setting 类动作
+- [x] 为 skill / mcp / sync / upgrade / dialog 等能力补 typed contracts
+- [x] 为 skill / mcp / sync / upgrade / dialog 等 family 补 typed event contracts
+- [x] 为 skill / mcp / sync / upgrade / dialog 等能力补 typed clients
+- [x] 迁移 `stores/ui/session.ts` 的 residual presenter calls
+- [x] 迁移 `stores/ui/pendingInput.ts`
+- [x] 迁移 `stores/skillsStore.ts`
+- [x] 迁移 `stores/mcp.ts`
+- [x] 迁移 `stores/mcpSampling.ts`
+- [x] 迁移 `stores/sync.ts`
+- [x] 迁移 `stores/upgrade.ts`
+- [x] 迁移 `stores/dialog.ts`
+- [x] 迁移 `stores/ollamaStore.ts`
+- [x] 清理 residual family 的 raw event listeners
+
+`2026-04-20` 进度更新：P4 已完成。已补齐 session residual / skill / mcp / sync / upgrade / dialog / tool family 的 typed route 与 typed event contracts、typed clients，以及 main route dispatcher/runtime 接线。
+`2026-04-20` 迁移结果：`src/renderer/src/**` 内 `agentSessionPresenter` / `skillPresenter` / `mcpPresenter` / `syncPresenter` / `upgradePresenter` / `dialogPresenter` / `toolPresenter` 的 P4 业务命中已清零，相关 raw event listeners 已切到 typed subscriptions。
+`2026-04-20` 自动回归：`pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 已通过；`pnpm exec vitest --config vitest.config.ts test/main/routes/contracts.test.ts test/main/routes/dispatcher.test.ts test/main/presenter/upgradePresenter.test.ts test/main/presenter/mcpPresenter.test.ts test/main/presenter/mcpPresenter/toolManager.test.ts test/main/presenter/agentRuntimePresenter/pendingInputStore.test.ts test/main/routes/sessionService.test.ts` 与 `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/api/clients.test.ts test/renderer/stores/mcpStore.test.ts test/renderer/stores/mcpSampling.test.ts test/renderer/stores/upgradeStore.test.ts test/renderer/stores/pendingInputStore.test.ts test/renderer/stores/sessionStore.test.ts test/renderer/stores/ollamaStore.test.ts test/renderer/pages/NewThreadPage.test.ts test/renderer/components/ChatStatusBar.test.ts test/renderer/components/message/MessageBlockContent.test.ts test/renderer/components/MarkdownRenderer.test.ts test/renderer/components/TranslatePopup.test.ts test/renderer/components/trace/TraceDialog.test.ts test/renderer/components/McpIndicator.test.ts test/renderer/components/ChatPage.test.ts` 已通过。
 
 ## P5: Retirement & Merge Gate
 

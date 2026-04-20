@@ -1,5 +1,5 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { providersChangedEvent } from '@shared/contracts/events'
+import { providersChangedEvent, providersOllamaPullProgressEvent } from '@shared/contracts/events'
 import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
@@ -130,5 +130,19 @@ export class ProviderClient {
     }) => void
   ) {
     return this.bridge.on(providersChangedEvent.name, listener)
+  }
+
+  onOllamaPullProgress(
+    listener: (payload: {
+      eventId: string
+      providerId: string
+      modelName: string
+      completed?: number
+      total?: number
+      status?: string
+      version: number
+    }) => void
+  ) {
+    return this.bridge.on(providersOllamaPullProgressEvent.name, listener)
   }
 }

@@ -40,13 +40,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useLegacyAgentSessionPresenter } from '@api/legacy/presenters'
+import { SessionClient } from '@api/SessionClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 
 const { t, locale } = useI18n()
-const agentSessionPresenter = useLegacyAgentSessionPresenter()
+const sessionClient = new SessionClient()
 const agentStore = useAgentStore()
 
 const isOpen = ref(false)
@@ -217,7 +217,7 @@ const handleTranslateRequest = async (event: Event) => {
   )
 
   try {
-    const result = await agentSessionPresenter.translateText(
+    const result = await sessionClient.translateText(
       newText,
       locale.value,
       agentStore.selectedAgentId ?? 'deepchat'
