@@ -35,17 +35,6 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   const sessionListeners: Array<(payload: any) => void> = []
   const sessionStatusListeners: Array<(payload: any) => void> = []
 
-  const agentSessionPresenter = {
-    createSession: vi.fn(),
-    activateSession: vi.fn(),
-    deactivateSession: vi.fn(),
-    sendMessage: vi.fn(),
-    renameSession: vi.fn(),
-    toggleSessionPinned: vi.fn(),
-    clearSessionMessages: vi.fn(),
-    exportSession: vi.fn(),
-    deleteSession: vi.fn()
-  }
   const sessionClient = {
     list: vi.fn().mockResolvedValue({ sessions: [] }),
     getActive: vi.fn().mockResolvedValue({ session: null }),
@@ -70,9 +59,9 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       messageId: null
     })
   }
-  const tabPresenter = {
-    onRendererTabReady: vi.fn(),
-    onRendererTabActivated: vi.fn()
+  const tabClient = {
+    notifyRendererReady: vi.fn().mockResolvedValue(undefined),
+    notifyRendererActivated: vi.fn().mockResolvedValue(undefined)
   }
   const pageRouter = {
     goToChat: vi.fn(),
@@ -114,10 +103,6 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     }
   })
 
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyAgentSessionPresenter: () => agentSessionPresenter,
-    useLegacyTabPresenter: () => tabPresenter
-  }))
   vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
     ConfigClient: vi.fn(() => configClient)
   }))
@@ -126,6 +111,9 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   }))
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
     ChatClient: vi.fn(() => chatClient)
+  }))
+  vi.doMock('@api/TabClient', () => ({
+    TabClient: vi.fn(() => tabClient)
   }))
 
   vi.doMock('@/stores/ui/pageRouter', () => ({
@@ -165,7 +153,6 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     configClient,
     clearStreamingState,
     setCurrentSessionId,
-    agentSessionPresenter,
     sessionClient,
     chatClient,
     agentStore,
@@ -488,7 +475,7 @@ describe('sessionStore streaming cleanup', () => {
     expect(setCurrentSessionId).toHaveBeenCalledWith('session-b')
   })
 
-  it('syncs active session and selected agent from presenter when fetching sessions', async () => {
+  it('syncs active session and selected agent from SessionClient when fetching sessions', async () => {
     const { store, sessionClient, setCurrentSessionId, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
     })
@@ -586,7 +573,7 @@ describe('sessionStore streaming cleanup', () => {
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
   })
 
-  it('updates the local session status immediately from the legacy status event', async () => {
+  it('updates the local session status immediately from the session status event', async () => {
     const { store, emitSessionStatusChange } = await setupStore()
     store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
     store.activeSessionId.value = 'session-status'

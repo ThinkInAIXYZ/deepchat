@@ -7,9 +7,9 @@ Phase 0 establishes the comparison baseline. Later phases should update this rep
 
 | Metric | Value | Status |
 | --- | --- | --- |
-| `renderer.usePresenter.count` | 17 | baseline |
+| `renderer.usePresenter.count` | 1 | baseline |
 | `renderer.business.usePresenter.count` | 0 | baseline |
-| `renderer.quarantine.usePresenter.count` | 17 | baseline |
+| `renderer.quarantine.usePresenter.count` | 1 | baseline |
 | `renderer.windowElectron.count` | 2 | baseline |
 | `renderer.business.windowElectron.count` | 0 | baseline |
 | `renderer.quarantine.windowElectron.count` | 2 | baseline |

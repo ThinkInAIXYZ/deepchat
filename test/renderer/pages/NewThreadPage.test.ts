@@ -88,7 +88,7 @@ const setup = async (pendingModelId: string) => {
       disabledAgentTools: []
     })
   }
-  const agentSessionPresenter = {
+  const sessionClient = {
     ensureAcpDraftSession: vi.fn()
   }
 
@@ -110,8 +110,8 @@ const setup = async (pendingModelId: string) => {
   vi.doMock('@api/ConfigClient', () => ({
     ConfigClient: vi.fn(() => configClient)
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyAgentSessionPresenter: () => agentSessionPresenter
+  vi.doMock('@api/SessionClient', () => ({
+    SessionClient: vi.fn(() => sessionClient)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

@@ -155,7 +155,7 @@ legacy transport 只允许存在于显式 quarantine 区域。
 `2026-04-20` 进度更新：P3 已完成。window / device / workspace / project / file / browser / tab family 已完成 typed contract、typed event、typed client cutover；业务层 P3 presenter hits 已清零，window/window-tab raw IPC 业务直连已清零，相关定向测试与 `format/i18n/lint/typecheck` 已通过。
 `2026-04-20` 审计备注：`WelcomePage.vue` 与 `NewThreadPage.vue` 已在 P3 范围内完成复核，前者无需变更，后者仅保留 `agentSessionPresenter` 的 P4 residual 调用，不再阻塞 P3 gate。
 `2026-04-20` 进度更新：P4 已完成。session residual / skill / mcp / sync / upgrade / dialog / tool family 已完成 typed contract、typed event、typed client cutover；业务层 P4 presenter hits 已清零，相关 raw listeners 已切换到 typed event subscription，且定向 main/renderer 自动回归与 `format/i18n/lint/typecheck` 已通过。
-`2026-04-20` 进度更新：P5 已完成。旧的通用 `usePresenter()` naming 已退役；remaining legacy presenter entry 仅保留在 `src/renderer/api/legacy/presenters.ts`，并通过明确命名的 quarantine helper / runtime wrapper 暴露给兼容路径。baseline 现显示 `renderer.business.usePresenter/windowElectron/windowApi = 0/0/0`，且 quarantine source files 满足 `3/3` 退出标准，`P5` gate 已转为 `ready`。
+`2026-04-20` 进度更新：P5 已完成。旧的通用 `usePresenter()` naming 已退役；remaining legacy presenter entry 仅保留在 `src/renderer/api/legacy/presenters.ts`，并通过明确命名的 quarantine helper / runtime wrapper 暴露给兼容路径。`2026-04-20` 补充清理后，未使用的 convenience exports 已从该入口移除，baseline 现显示 `renderer.business.usePresenter/windowElectron/windowApi = 0/0/0`、`renderer.usePresenter = renderer.quarantine.usePresenter = 1`，且 quarantine source files 满足 `3/3` 退出标准，`P5` gate 已转为 `ready`。
 
 ## Success Metrics
 

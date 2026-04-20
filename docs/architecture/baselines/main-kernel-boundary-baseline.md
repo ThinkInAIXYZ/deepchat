@@ -7,9 +7,9 @@ Current phase: P5.
 
 | Metric | Value |
 | --- | --- |
-| `renderer.usePresenter.count` | 17 |
+| `renderer.usePresenter.count` | 1 |
 | `renderer.business.usePresenter.count` | 0 |
-| `renderer.quarantine.usePresenter.count` | 17 |
+| `renderer.quarantine.usePresenter.count` | 1 |
 | `renderer.windowElectron.count` | 2 |
 | `renderer.business.windowElectron.count` | 0 |
 | `renderer.quarantine.windowElectron.count` | 2 |
@@ -30,7 +30,7 @@ Current phase: P5.
 
 | Legacy surface | Business layer | Quarantine layer | Total |
 | --- | --- | --- | --- |
-| legacy presenter helper | 0 | 17 | 17 |
+| legacy presenter helper | 0 | 1 | 1 |
 | `window.electron` | 0 | 2 | 2 |
 | `window.api` | 0 | 2 | 2 |
 
@@ -72,9 +72,9 @@ Current phase: P5.
 
 ## Renderer legacy presenter helpers
 
-- Total count: 17
+- Total count: 1
 
-- `src/renderer/api/legacy/presenters.ts`: 17
+- `src/renderer/api/legacy/presenters.ts`: 1
 
 ## Renderer window.electron
 

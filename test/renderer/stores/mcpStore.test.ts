@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const setMcpServerEnabledMutate = vi.hoisted(() => vi.fn())
 
-const mcpPresenterMock = vi.hoisted(() => ({
+const mcpClientMock = vi.hoisted(() => ({
   getMcpServers: vi.fn().mockResolvedValue({}),
   getMcpEnabled: vi.fn().mockResolvedValue(true),
   getAllPrompts: vi.fn().mockResolvedValue([]),
@@ -39,12 +39,8 @@ vi.mock('vue', async () => {
   }
 })
 
-vi.mock('@api/legacy/presenters', () => ({
-  useLegacyMcpPresenter: () => mcpPresenterMock
-}))
-
-vi.mock('@api/legacy/runtime', () => ({
-  onLegacyIpcChannel: vi.fn(() => () => {})
+vi.mock('@api/McpClient', () => ({
+  McpClient: vi.fn(() => mcpClientMock)
 }))
 
 vi.mock('../../../src/renderer/api/ConfigClient', () => ({
@@ -96,8 +92,8 @@ describe('useMcpStore toggleServer rollback', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     setMcpServerEnabledMutate.mockReset()
-    mcpPresenterMock.startServer.mockClear()
-    mcpPresenterMock.stopServer.mockClear()
+    mcpClientMock.startServer.mockClear()
+    mcpClientMock.stopServer.mockClear()
   })
 
   it('restores local state and persisted config when runtime sync fails', async () => {
@@ -131,8 +127,8 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(store.serverLoadingStates.demo).toBe(false)
     expect(setMcpServerEnabledMutate).toHaveBeenNthCalledWith(1, ['demo', true])
     expect(setMcpServerEnabledMutate).toHaveBeenNthCalledWith(2, ['demo', false])
-    expect(mcpPresenterMock.startServer).not.toHaveBeenCalled()
-    expect(mcpPresenterMock.stopServer).not.toHaveBeenCalled()
+    expect(mcpClientMock.startServer).not.toHaveBeenCalled()
+    expect(mcpClientMock.stopServer).not.toHaveBeenCalled()
   })
 
   it('hides enabled servers when MCP is globally disabled', async () => {

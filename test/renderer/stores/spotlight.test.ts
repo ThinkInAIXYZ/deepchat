@@ -8,7 +8,7 @@ const setupStore = async (options?: {
 }) => {
   vi.resetModules()
 
-  const agentSessionPresenter = {
+  const sessionClient = {
     searchHistory: vi.fn().mockResolvedValue(options?.historyHits ?? [])
   }
   const settingsClient = {
@@ -57,8 +57,8 @@ const setupStore = async (options?: {
     useDebounceFn: (fn: (...args: unknown[]) => unknown) => fn
   }))
 
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyAgentSessionPresenter: () => agentSessionPresenter
+  vi.doMock('@api/SessionClient', () => ({
+    SessionClient: vi.fn(() => sessionClient)
   }))
   vi.doMock('@api/SettingsClient', () => ({
     SettingsClient: vi.fn(() => settingsClient)

@@ -387,6 +387,7 @@ P0 Rules & Guard Hardening
 - 旧的通用 `usePresenter()` naming 已退役；remaining legacy presenter entry 仅保留在 `src/renderer/api/legacy/presenters.ts`
 - settings compatibility surfaces 继续从 quarantine adapter import；`src/renderer/src/**` 业务层已改为通过明确命名的 runtime wrapper 使用 residual legacy capability，不再直接 import `@api/legacy/presenters`
 - `scripts/architecture-guard.mjs` 已补 `renderer-retired-legacy-entry` 与 quarantine `<= 3` source files gate，稳定阻止 shim 回流和 quarantine 膨胀
+- 未使用的 convenience exports 已从 `src/renderer/api/legacy/presenters.ts` 删除，剩余 legacy presenter helper metric 已降到 `renderer.usePresenter = renderer.quarantine.usePresenter = 1`
 - architecture baseline / scoreboard 已刷新，`P5` gate 现为 `ready`：business legacy signal `0/0/0`，quarantine source files `3/3`
 - active docs 已补充 `P5` 最终状态与 quarantine 导航入口；剩余 quarantine 仅保留 `presenters.ts`、`presenterTransport.ts`、`runtime.ts`
 

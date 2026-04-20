@@ -3,9 +3,9 @@
   "generatedOn": "2026-04-20",
   "currentPhase": "P5",
   "metrics": {
-    "renderer.usePresenter.count": 17,
+    "renderer.usePresenter.count": 1,
     "renderer.business.usePresenter.count": 0,
-    "renderer.quarantine.usePresenter.count": 17,
+    "renderer.quarantine.usePresenter.count": 1,
     "renderer.windowElectron.count": 2,
     "renderer.business.windowElectron.count": 0,
     "renderer.quarantine.windowElectron.count": 2,
