@@ -163,9 +163,13 @@ export const useMessageStore = defineStore('message', () => {
     return entry.parsedMetadata
   }
 
+  function setCurrentSessionId(sessionId: string | null): void {
+    currentSessionId.value = sessionId
+  }
+
   async function loadMessages(sessionId: string): Promise<void> {
     const requestId = ++latestLoadRequestId
-    currentSessionId.value = sessionId
+    setCurrentSessionId(sessionId)
     try {
       const restored = await sessionClient.restore(sessionId)
       const result = restored.messages
@@ -224,7 +228,7 @@ export const useMessageStore = defineStore('message', () => {
 
   function clear(): void {
     latestLoadRequestId += 1
-    currentSessionId.value = null
+    setCurrentSessionId(null)
     messageIds.value = []
     messageCache.value.clear()
     parsedMessageCache.clear()
@@ -303,6 +307,7 @@ export const useMessageStore = defineStore('message', () => {
     getAssistantMessageBlocks,
     getUserMessageContent,
     getMessageMetadata,
+    setCurrentSessionId,
     loadMessages,
     getMessage,
     addOptimisticUserMessage,

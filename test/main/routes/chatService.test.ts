@@ -146,4 +146,66 @@ describe('ChatService', () => {
       }
     )
   })
+
+  it('rejects a new send while another stream is still active for the session', async () => {
+    const scheduler = createScheduler()
+    const sessionRepository = {
+      get: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        agentId: 'deepchat'
+      })
+    }
+    const messageRepository = {
+      listBySession: vi.fn().mockResolvedValue([
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          orderSeq: 2
+        }
+      ]),
+      get: vi.fn()
+    }
+    let resolveFirstSend!: () => void
+    const providerExecutionPort = {
+      sendMessage: vi
+        .fn()
+        .mockImplementationOnce(
+          async () =>
+            await new Promise<void>((resolve) => {
+              resolveFirstSend = resolve
+            })
+        )
+        .mockResolvedValue(undefined),
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn()
+    }
+    const providerCatalogPort = {
+      getAgentType: vi.fn().mockResolvedValue('deepchat')
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn()
+    }
+
+    const service = new ChatService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: messageRepository as any,
+      providerExecutionPort,
+      providerCatalogPort,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    const firstSend = service.sendMessage('session-1', 'hello')
+
+    await expect(service.sendMessage('session-1', 'again')).rejects.toThrow(
+      'A stream is already active for session session-1'
+    )
+
+    resolveFirstSend()
+    await expect(firstSend).resolves.toEqual({
+      accepted: true,
+      requestId: 'assistant-1',
+      messageId: 'assistant-1'
+    })
+  })
 })

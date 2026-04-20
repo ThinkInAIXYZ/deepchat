@@ -1,5 +1,6 @@
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import type { SettingsSnapshotValues } from '@shared/contracts/routes'
 
 describe('uiSettingsStore', () => {
   let invoke: ReturnType<typeof vi.fn>
@@ -135,6 +136,65 @@ describe('uiSettingsStore', () => {
       changes: [{ key: 'fontSizeLevel', value: 4 }]
     })
     expect(store.systemFonts).toEqual(['Inter', 'JetBrains Mono'])
+    expect(store.fontSizeLevel).toBe(4)
+  })
+
+  it('waits for the initial snapshot before applying an update result', async () => {
+    let resolveSnapshot!: (value: {
+      version: number
+      values: Partial<SettingsSnapshotValues>
+    }) => void
+
+    invoke = vi.fn((routeName: string, input: any) => {
+      if (routeName === 'settings.getSnapshot') {
+        return new Promise((resolve) => {
+          resolveSnapshot = resolve
+        })
+      }
+
+      if (routeName === 'settings.listSystemFonts') {
+        return Promise.resolve({
+          fonts: ['Inter', 'JetBrains Mono']
+        })
+      }
+
+      if (routeName === 'settings.update') {
+        return Promise.resolve({
+          version: 2,
+          changedKeys: input.changes.map((change: { key: string }) => change.key),
+          values: {
+            fontSizeLevel: 4
+          }
+        })
+      }
+
+      throw new Error(`Unexpected route in test: ${routeName}`)
+    })
+    window.deepchat.invoke = invoke
+
+    const { store } = await mountStoreHost()
+    const loadPromise = store.loadSettings()
+
+    const updatePromise = store.updateFontSizeLevel(10)
+    await Promise.resolve()
+
+    expect(invoke.mock.calls.some(([routeName]) => routeName === 'settings.update')).toBeFalsy()
+
+    resolveSnapshot({
+      version: 1,
+      values: {
+        fontSizeLevel: 0
+      }
+    })
+
+    await updatePromise
+    await loadPromise
+    await flushPromises()
+
+    expect(invoke.mock.calls.map(([routeName]) => routeName)).toEqual([
+      'settings.getSnapshot',
+      'settings.update'
+    ])
     expect(store.fontSizeLevel).toBe(4)
   })
 })

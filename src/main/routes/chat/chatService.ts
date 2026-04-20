@@ -35,6 +35,10 @@ export class ChatService {
     requestId: string | null
     messageId: string | null
   }> {
+    if (this.activeControllers.has(sessionId)) {
+      throw new Error(`A stream is already active for session ${sessionId}`)
+    }
+
     const session = await this.deps.scheduler.timeout({
       task: this.deps.sessionRepository.get(sessionId),
       ms: CHAT_LOOKUP_TIMEOUT_MS,
@@ -53,6 +57,10 @@ export class ChatService {
 
     if (!agentType) {
       throw new Error(`Agent type not found: ${session.agentId}`)
+    }
+
+    if (this.activeControllers.has(sessionId)) {
+      throw new Error(`A stream is already active for session ${sessionId}`)
     }
 
     const controller = new AbortController()

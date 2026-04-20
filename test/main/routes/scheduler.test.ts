@@ -34,4 +34,27 @@ describe('createNodeScheduler', () => {
 
     expect(task).toHaveBeenCalledTimes(2)
   })
+
+  it('does not start a retry attempt when the signal is already aborted', async () => {
+    const scheduler = createNodeScheduler()
+    const controller = new AbortController()
+    const task = vi.fn<[], Promise<string>>().mockResolvedValue('ok')
+
+    controller.abort()
+
+    await expect(
+      scheduler.retry({
+        task,
+        maxAttempts: 2,
+        initialDelayMs: 1,
+        backoff: 1,
+        reason: 'scheduler-retry-aborted',
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+
+    expect(task).not.toHaveBeenCalled()
+  })
 })

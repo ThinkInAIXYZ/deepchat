@@ -1,3 +1,5 @@
+import type { DeepchatEventPayload } from '@shared/contracts/events'
+import { AssistantMessageBlockSchema } from '@shared/contracts/common'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { StreamState, IoParams } from './types'
 import { createThrottle } from '@shared/utils/throttle'
@@ -7,6 +9,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const RENDERER_FLUSH_INTERVAL = 120
 const DB_FLUSH_INTERVAL = 600
+const RenderedAssistantBlocksSchema = AssistantMessageBlockSchema.array()
 
 export interface EchoHandle {
   schedule(): void
@@ -15,18 +18,10 @@ export interface EchoHandle {
   stop(): void
 }
 
-export function cloneBlocksForRenderer(blocks: AssistantMessageBlock[]): AssistantMessageBlock[] {
-  const clone = (
-    globalThis as typeof globalThis & {
-      structuredClone?: <T>(value: T) => T
-    }
-  ).structuredClone
-
-  if (typeof clone === 'function') {
-    return clone(blocks)
-  }
-
-  return JSON.parse(JSON.stringify(blocks)) as AssistantMessageBlock[]
+export function cloneBlocksForRenderer(
+  blocks: AssistantMessageBlock[]
+): DeepchatEventPayload<'chat.stream.updated'>['blocks'] {
+  return RenderedAssistantBlocksSchema.parse(JSON.parse(JSON.stringify(blocks)))
 }
 
 export function startEcho(state: StreamState, io: IoParams): EchoHandle {
@@ -40,7 +35,7 @@ export function startEcho(state: StreamState, io: IoParams): EchoHandle {
     })
     publishDeepchatEvent('chat.stream.updated', {
       kind: 'snapshot',
-      requestId: io.messageId,
+      requestId: io.requestId,
       sessionId: io.sessionId,
       messageId: io.messageId,
       updatedAt: Date.now(),

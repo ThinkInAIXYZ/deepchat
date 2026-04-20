@@ -250,9 +250,44 @@ const toTrackedSettingsChangePayload = (
         changedKey: 'fontSizeLevel',
         value: typeof value === 'number' ? value : 1
       }
+    case 'fontFamily':
+      return {
+        changedKey: 'fontFamily',
+        value: typeof value === 'string' ? value : ''
+      }
+    case 'codeFontFamily':
+      return {
+        changedKey: 'codeFontFamily',
+        value: typeof value === 'string' ? value : ''
+      }
     case 'artifactsEffectEnabled':
       return {
         changedKey: 'artifactsEffectEnabled',
+        value: Boolean(value)
+      }
+    case 'autoScrollEnabled':
+      return {
+        changedKey: 'autoScrollEnabled',
+        value: Boolean(value)
+      }
+    case 'contentProtectionEnabled':
+      return {
+        changedKey: 'contentProtectionEnabled',
+        value: Boolean(value)
+      }
+    case 'notificationsEnabled':
+      return {
+        changedKey: 'notificationsEnabled',
+        value: Boolean(value)
+      }
+    case 'traceDebugEnabled':
+      return {
+        changedKey: 'traceDebugEnabled',
+        value: Boolean(value)
+      }
+    case 'copyWithCotEnabled':
+      return {
+        changedKey: 'copyWithCotEnabled',
         value: Boolean(value)
       }
     default:

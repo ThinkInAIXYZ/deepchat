@@ -104,6 +104,10 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   }
 
   const updateSettings = async (changes: SettingsChange[]) => {
+    if (settingsLoadPromise) {
+      await settingsLoadPromise
+    }
+
     const result = await settingsClient.update(changes)
     applySettingsValues(result.values)
   }

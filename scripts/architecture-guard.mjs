@@ -318,6 +318,7 @@ async function loadBridgeRegister() {
     throw new Error('bridge register must include a bridges array')
   }
 
+  const currentPhaseOrder = PHASE_ORDER.get(parsed.currentPhase)
   const seenIds = new Set()
   for (const bridge of parsed.bridges) {
     if (!bridge || typeof bridge !== 'object') {
@@ -347,6 +348,18 @@ async function loadBridgeRegister() {
 
     if (bridge.status !== 'active' && bridge.status !== 'removed') {
       throw new Error(`bridge ${bridge.id} has unsupported status ${bridge.status}`)
+    }
+
+    const deleteByPhaseOrder = PHASE_ORDER.get(bridge.deleteByPhase)
+    if (
+      bridge.status === 'active' &&
+      currentPhaseOrder !== undefined &&
+      deleteByPhaseOrder !== undefined &&
+      deleteByPhaseOrder <= currentPhaseOrder
+    ) {
+      throw new Error(
+        `bridge ${bridge.id} is active but deleteByPhase ${bridge.deleteByPhase} is at or before currentPhase ${parsed.currentPhase}`
+      )
     }
 
     if (seenIds.has(bridge.id)) {

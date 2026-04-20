@@ -56,7 +56,7 @@ export type DeepchatRouteOutput<T extends DeepchatRouteName> = z.output<
 >
 
 export function hasDeepchatRouteContract(name: string): name is DeepchatRouteName {
-  return name in DEEPCHAT_ROUTE_CATALOG
+  return Object.prototype.hasOwnProperty.call(DEEPCHAT_ROUTE_CATALOG, name)
 }
 
 export function getDeepchatRouteContract<T extends DeepchatRouteName>(

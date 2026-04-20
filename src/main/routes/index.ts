@@ -49,7 +49,7 @@ export function createMainKernelRouteRuntime(deps: {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
     agentSessionPresenter: deps.agentSessionPresenter as IAgentSessionPresenter & {
-      clearSessionPermissions?: (sessionId: string) => void | Promise<void>
+      clearSessionPermissions: (sessionId: string) => void | Promise<void>
     },
     configPresenter: deps.configPresenter,
     llmProviderPresenter: deps.llmProviderPresenter

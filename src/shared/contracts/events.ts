@@ -33,7 +33,7 @@ export type DeepchatEventEnvelope<T extends DeepchatEventName = DeepchatEventNam
 }
 
 export function hasDeepchatEventContract(name: string): name is DeepchatEventName {
-  return name in DEEPCHAT_EVENT_CATALOG
+  return Object.prototype.hasOwnProperty.call(DEEPCHAT_EVENT_CATALOG, name)
 }
 
 export function getDeepchatEventContract<T extends DeepchatEventName>(

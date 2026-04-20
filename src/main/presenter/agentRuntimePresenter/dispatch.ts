@@ -635,7 +635,7 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
   })
   publishDeepchatEvent('chat.stream.updated', {
     kind: 'snapshot',
-    requestId: io.messageId,
+    requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
     updatedAt: Date.now(),
@@ -1054,7 +1054,7 @@ export function finalize(state: StreamState, io: IoParams): void {
     messageId: io.messageId
   })
   publishDeepchatEvent('chat.stream.completed', {
-    requestId: io.messageId,
+    requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
     completedAt: Date.now()
@@ -1085,7 +1085,7 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
     error: errorMessage
   })
   publishDeepchatEvent('chat.stream.failed', {
-    requestId: io.messageId,
+    requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
     failedAt: Date.now(),

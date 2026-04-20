@@ -189,7 +189,7 @@ export const AssistantMessageBlockSchema = z.object({
       server_description: z.string().optional()
     })
     .optional(),
-  extra: z.record(z.unknown()).optional(),
+  extra: z.record(JsonValueSchema).optional(),
   action_type: z.enum(['tool_call_permission', 'question_request', 'rate_limit']).optional()
 })
 

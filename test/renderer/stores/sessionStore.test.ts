@@ -130,10 +130,12 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     useAgentStore: () => agentStore
   }))
   const clearStreamingState = vi.fn()
+  const setCurrentSessionId = vi.fn()
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => ({
       clearStreamingState,
-      loadMessages: vi.fn()
+      loadMessages: vi.fn(),
+      setCurrentSessionId
     })
   }))
   ;(window as any).api = {
@@ -152,6 +154,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     settings,
     configPresenter,
     clearStreamingState,
+    setCurrentSessionId,
     agentSessionPresenter,
     sessionClient,
     chatClient,
@@ -459,9 +462,10 @@ describe('sessionStore.startNewConversation', () => {
 
 describe('sessionStore streaming cleanup', () => {
   it('clears streaming state when switching active session', async () => {
-    const { store, clearStreamingState, sessionClient, agentStore } = await setupStore({
-      selectedAgentId: 'deepchat'
-    })
+    const { store, clearStreamingState, setCurrentSessionId, sessionClient, agentStore } =
+      await setupStore({
+        selectedAgentId: 'deepchat'
+      })
     store.activeSessionId.value = 'session-a'
     store.sessions.value = [createSession({ id: 'session-b', agentId: 'acp-a' })]
 
@@ -470,10 +474,11 @@ describe('sessionStore streaming cleanup', () => {
     expect(sessionClient.activate).toHaveBeenCalledWith('session-b')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
+    expect(setCurrentSessionId).toHaveBeenCalledWith('session-b')
   })
 
   it('syncs active session and selected agent from presenter when fetching sessions', async () => {
-    const { store, sessionClient, agentStore } = await setupStore({
+    const { store, sessionClient, setCurrentSessionId, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
     })
     sessionClient.list.mockResolvedValueOnce({
@@ -503,6 +508,7 @@ describe('sessionStore streaming cleanup', () => {
 
     expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBe('session-sync-1')
+    expect(setCurrentSessionId).toHaveBeenCalledWith('session-sync-1')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-sync')
   })
 
@@ -522,7 +528,8 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('returns to new thread when active session becomes unavailable', async () => {
-    const { store, clearStreamingState, sessionClient, pageRouter } = await setupStore()
+    const { store, clearStreamingState, setCurrentSessionId, sessionClient, pageRouter } =
+      await setupStore()
     store.activeSessionId.value = 'session-a'
     pageRouter.currentRoute = 'chat'
     sessionClient.getActive.mockResolvedValueOnce({
@@ -533,6 +540,7 @@ describe('sessionStore streaming cleanup', () => {
 
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBeNull()
+    expect(setCurrentSessionId).toHaveBeenCalledWith(null)
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
   })
 

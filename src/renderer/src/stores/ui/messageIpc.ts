@@ -1,7 +1,5 @@
 import { ChatClient } from '../../../api/ChatClient'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import { STREAM_EVENTS } from '@/events'
-import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 
 interface BindMessageStoreIpcOptions {
   getActiveSessionId: () => string | null
@@ -22,7 +20,6 @@ interface BindMessageStoreIpcOptions {
 
 export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => void {
   const chatClient = new ChatClient()
-  const scope = createIpcSubscriptionScope()
   const reloadPersistedMessages = (sessionId: string) => {
     options.clearStreamingState()
     void options.loadMessages(sessionId)
@@ -61,26 +58,9 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
     })
   ]
 
-  scope.on(STREAM_EVENTS.END, (_event, payload: { conversationId?: string | null }) => {
-    if (!payload?.conversationId || payload.conversationId !== options.getActiveSessionId()) {
-      return
-    }
-
-    reloadPersistedMessages(payload.conversationId)
-  })
-
-  scope.on(STREAM_EVENTS.ERROR, (_event, payload: { conversationId?: string | null }) => {
-    if (!payload?.conversationId || payload.conversationId !== options.getActiveSessionId()) {
-      return
-    }
-
-    reloadPersistedMessages(payload.conversationId)
-  })
-
   return () => {
     for (const cleanup of cleanups) {
       cleanup()
     }
-    scope.cleanup()
   }
 }

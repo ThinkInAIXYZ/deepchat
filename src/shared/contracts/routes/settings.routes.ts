@@ -38,7 +38,7 @@ export const SettingsSnapshotValuesSchema = z.object({
 export const SettingsChangeSchema = z.discriminatedUnion('key', [
   z.object({
     key: z.literal('fontSizeLevel'),
-    value: z.number().int()
+    value: z.number().int().min(0).max(4)
   }),
   z.object({
     key: z.literal('fontFamily'),
@@ -62,11 +62,11 @@ export const SettingsChangeSchema = z.discriminatedUnion('key', [
   }),
   z.object({
     key: z.literal('autoCompactionTriggerThreshold'),
-    value: z.number().int()
+    value: z.number().int().min(5).max(95)
   }),
   z.object({
     key: z.literal('autoCompactionRetainRecentPairs'),
-    value: z.number().int()
+    value: z.number().int().min(1).max(10)
   }),
   z.object({
     key: z.literal('contentProtectionEnabled'),

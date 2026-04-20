@@ -83,7 +83,7 @@ export function createPresenterHotPathPorts(deps: {
     | 'cancelGeneration'
     | 'respondToolInteraction'
   > & {
-    clearSessionPermissions?: (sessionId: string) => void | Promise<void>
+    clearSessionPermissions: (sessionId: string) => void | Promise<void>
   }
   configPresenter: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels' | 'getAgentType'>
   llmProviderPresenter: Pick<ILlmProviderPresenter, 'check'>
@@ -134,7 +134,7 @@ export function createPresenterHotPathPorts(deps: {
     },
     sessionPermissionPort: {
       clearSessionPermissions: (sessionId) =>
-        deps.agentSessionPresenter.clearSessionPermissions?.(sessionId)
+        deps.agentSessionPresenter.clearSessionPermissions(sessionId)
     },
     windowEventPort: {
       publish: (name, payload) => {

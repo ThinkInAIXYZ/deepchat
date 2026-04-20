@@ -55,6 +55,7 @@ import { eventBus } from '@/eventbus'
 function createIo(overrides?: Partial<IoParams>): IoParams {
   return {
     sessionId: 's1',
+    requestId: 'req-1',
     messageId: 'm1',
     messageStore: {
       addSearchResult: vi.fn(),

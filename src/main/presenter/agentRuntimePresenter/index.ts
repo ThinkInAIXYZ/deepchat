@@ -62,6 +62,7 @@ import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
 import { PendingInputCoordinator } from './pendingInputCoordinator'
 import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
+import { cloneBlocksForRenderer } from './echo'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { InterleavedReasoningConfig, PendingToolInteraction, ProcessResult } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
@@ -788,7 +789,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               error: execution.terminalError
             })
             publishDeepchatEvent('chat.stream.failed', {
-              requestId: messageId,
+              requestId: this.resolveStreamRequestId(sessionId, messageId),
               sessionId,
               messageId,
               failedAt: Date.now(),
@@ -1598,11 +1599,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               signal: abortController.signal,
               onQueued: (snapshot) => {
                 queuedForRateLimit = true
-                emitRateLimitWaitingMessage(sessionId, rateLimitMessageId, snapshot)
+                emitRateLimitWaitingMessage(
+                  sessionId,
+                  rateLimitMessageId,
+                  activeGeneration.runId,
+                  snapshot
+                )
               }
             })
             if (queuedForRateLimit) {
-              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId)
+              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
               queuedForRateLimit = false
             }
             if (abortController.signal.aborted) {
@@ -1629,7 +1635,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             }
           } catch (error) {
             if (queuedForRateLimit) {
-              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId)
+              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
             }
             if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
               pendingInputCoordinator.releaseClaimedInputs(sessionId)
@@ -1732,6 +1738,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         },
         io: {
           sessionId,
+          requestId: activeGeneration.runId,
           messageId,
           messageStore: this.messageStore,
           abortSignal: abortController.signal
@@ -1905,6 +1912,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private emitRateLimitWaitingMessage(
     sessionId: string,
     messageId: string,
+    requestId: string,
     snapshot: RateLimitQueueSnapshot
   ): void {
     const block: AssistantMessageBlock = {
@@ -1921,24 +1929,29 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         estimatedWaitTime: snapshot.estimatedWaitTime
       }
     }
+    const renderedBlocks = cloneBlocksForRenderer([block])
 
     eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
       conversationId: sessionId,
       eventId: messageId,
       messageId,
-      blocks: [block]
+      blocks: renderedBlocks
     })
     publishDeepchatEvent('chat.stream.updated', {
       kind: 'snapshot',
-      requestId: messageId,
+      requestId,
       sessionId,
       messageId,
       updatedAt: Date.now(),
-      blocks: [block]
+      blocks: renderedBlocks
     })
   }
 
-  private clearRateLimitWaitingMessage(sessionId: string, messageId: string): void {
+  private clearRateLimitWaitingMessage(
+    sessionId: string,
+    messageId: string,
+    requestId: string
+  ): void {
     eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
       conversationId: sessionId,
       eventId: messageId,
@@ -1947,12 +1960,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     })
     publishDeepchatEvent('chat.stream.updated', {
       kind: 'snapshot',
-      requestId: messageId,
+      requestId,
       sessionId,
       messageId,
       updatedAt: Date.now(),
       blocks: []
     })
+  }
+
+  private resolveStreamRequestId(sessionId: string, messageId: string): string {
+    const activeGeneration = this.activeGenerations.get(sessionId)
+    if (activeGeneration?.messageId === messageId) {
+      return activeGeneration.runId
+    }
+
+    return messageId
   }
 
   private applyProcessResultStatus(
@@ -2086,7 +2108,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             error: resumeBudget.message
           })
           publishDeepchatEvent('chat.stream.failed', {
-            requestId: messageId,
+            requestId: this.resolveStreamRequestId(sessionId, messageId),
             sessionId,
             messageId,
             failedAt: Date.now(),

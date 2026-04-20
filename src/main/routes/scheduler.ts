@@ -44,24 +44,42 @@ function createTimeoutError(reason: string, ms: number): Error {
   return error
 }
 
-function toAbortPromise(signal: AbortSignal | undefined, reason: string): Promise<never> {
+function toAbortPromise(
+  signal: AbortSignal | undefined,
+  reason: string
+): {
+  promise: Promise<never>
+  cleanup: () => void
+} {
   if (!signal) {
-    return new Promise<never>(() => {})
+    return {
+      promise: new Promise<never>(() => {}),
+      cleanup: () => {}
+    }
   }
 
   if (signal.aborted) {
-    return Promise.reject(createAbortError(reason))
+    return {
+      promise: Promise.reject(createAbortError(reason)),
+      cleanup: () => {}
+    }
   }
 
-  return new Promise<never>((_, reject) => {
-    signal.addEventListener(
-      'abort',
-      () => {
-        reject(createAbortError(reason))
-      },
-      { once: true }
-    )
+  let rejectAbort!: (reason?: unknown) => void
+  const onAbort = () => {
+    rejectAbort(createAbortError(reason))
+  }
+  const promise = new Promise<never>((_, reject) => {
+    rejectAbort = reject
+    signal.addEventListener('abort', onAbort, { once: true })
   })
+
+  return {
+    promise,
+    cleanup: () => {
+      signal.removeEventListener('abort', onAbort)
+    }
+  }
 }
 
 export function createNodeScheduler(): Scheduler {
@@ -71,11 +89,18 @@ export function createNodeScheduler(): Scheduler {
     },
 
     async timeout<T>({ task, ms, reason, signal }: TimeoutInput<T>): Promise<T> {
-      const timeoutTask = delay(ms).then(() => {
+      const timeoutController = new AbortController()
+      const { promise: abortPromise, cleanup } = toAbortPromise(signal, reason)
+      const timeoutTask = delay(ms, undefined, { signal: timeoutController.signal }).then(() => {
         throw createTimeoutError(reason, ms)
       })
 
-      return await Promise.race([task, timeoutTask, toAbortPromise(signal, reason)])
+      try {
+        return await Promise.race([task, timeoutTask, abortPromise])
+      } finally {
+        timeoutController.abort()
+        cleanup()
+      }
     },
 
     async retry<T>({
@@ -91,8 +116,13 @@ export function createNodeScheduler(): Scheduler {
       let delayMs = initialDelayMs
 
       while (attempt < maxAttempts) {
+        if (signal?.aborted) {
+          return await toAbortPromise(signal, reason).promise
+        }
+
+        const { promise: abortPromise, cleanup } = toAbortPromise(signal, reason)
         try {
-          return await Promise.race([task(), toAbortPromise(signal, reason)])
+          return await Promise.race([task(), abortPromise])
         } catch (error) {
           lastError = error
           attempt += 1
@@ -108,6 +138,8 @@ export function createNodeScheduler(): Scheduler {
           })
 
           delayMs = Math.max(0, Math.round(delayMs * backoff))
+        } finally {
+          cleanup()
         }
       }
 

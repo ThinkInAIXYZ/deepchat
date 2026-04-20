@@ -26,6 +26,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 function createIo(): IoParams {
   return {
     sessionId: 's1',
+    requestId: 'req-1',
     messageId: 'm1',
     messageStore: {
       updateAssistantContent: vi.fn()
@@ -73,7 +74,7 @@ describe('echo', () => {
       'chat.stream.updated',
       expect.objectContaining({
         kind: 'snapshot',
-        requestId: 'm1',
+        requestId: 'req-1',
         sessionId: 's1',
         messageId: 'm1',
         blocks: expect.any(Array)
@@ -131,7 +132,7 @@ describe('echo', () => {
       'chat.stream.updated',
       expect.objectContaining({
         kind: 'snapshot',
-        requestId: 'm1',
+        requestId: 'req-1',
         sessionId: 's1',
         messageId: 'm1',
         blocks: expect.any(Array)

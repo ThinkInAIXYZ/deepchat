@@ -78,7 +78,6 @@ export class UiSettingsHelper {
     const boolValue = Boolean(enabled)
     this.setSetting('autoScrollEnabled', boolValue)
     eventBus.send(CONFIG_EVENTS.AUTO_SCROLL_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
-    emitSettingsChanged('autoScrollEnabled', boolValue)
   }
 
   getAutoCompactionEnabled(): boolean {
@@ -125,7 +124,6 @@ export class UiSettingsHelper {
   setContentProtectionEnabled(enabled: boolean): void {
     this.setSetting('contentProtectionEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, SendTarget.ALL_WINDOWS, enabled)
-    emitSettingsChanged('contentProtectionEnabled', enabled)
   }
 
   getCopyWithCotEnabled(): boolean {
@@ -136,13 +134,11 @@ export class UiSettingsHelper {
   setCopyWithCotEnabled(enabled: boolean): void {
     this.setSetting('copyWithCotEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, SendTarget.ALL_WINDOWS, enabled)
-    emitSettingsChanged('copyWithCotEnabled', enabled)
   }
 
   setTraceDebugEnabled(enabled: boolean): void {
     this.setSetting('traceDebugEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.TRACE_DEBUG_CHANGED, SendTarget.ALL_WINDOWS, enabled)
-    emitSettingsChanged('traceDebugEnabled', enabled)
   }
 
   getNotificationsEnabled(): boolean {
@@ -157,7 +153,6 @@ export class UiSettingsHelper {
     const boolValue = Boolean(enabled)
     this.setSetting('notificationsEnabled', boolValue)
     eventBus.send(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
-    emitSettingsChanged('notificationsEnabled', boolValue)
   }
 
   getFontFamily(): string {
@@ -168,7 +163,6 @@ export class UiSettingsHelper {
     const normalized = this.normalizeStoredFont(fontFamily)
     this.setSetting('fontFamily', normalized)
     eventBus.send(CONFIG_EVENTS.FONT_FAMILY_CHANGED, SendTarget.ALL_WINDOWS, normalized)
-    emitSettingsChanged('fontFamily', normalized)
   }
 
   getCodeFontFamily(): string {
@@ -179,7 +173,6 @@ export class UiSettingsHelper {
     const normalized = this.normalizeStoredFont(fontFamily)
     this.setSetting('codeFontFamily', normalized)
     eventBus.send(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED, SendTarget.ALL_WINDOWS, normalized)
-    emitSettingsChanged('codeFontFamily', normalized)
   }
 
   resetFontSettings(): void {

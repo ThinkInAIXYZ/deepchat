@@ -76,6 +76,34 @@ const setupStore = async () => {
 }
 
 describe('messageStore', () => {
+  it('accepts stream updates after active-session sync and before persisted hydration', async () => {
+    const { store, streamListeners } = await setupStore()
+    store.setCurrentSessionId('s1')
+
+    const responseHandler = streamListeners.updated[0]
+    expect(typeof responseHandler).toBe('function')
+
+    responseHandler({
+      sessionId: 's1',
+      requestId: 'm1',
+      messageId: 'm1',
+      updatedAt: 1,
+      blocks: [
+        {
+          type: 'content',
+          content: 'hello',
+          status: 'pending',
+          timestamp: 1
+        }
+      ]
+    })
+
+    expect(store.isStreaming.value).toBe(true)
+    expect(store.currentStreamMessageId.value).toBe('m1')
+    expect(store.messages.value).toHaveLength(1)
+    expect(store.messages.value[0]?.id).toBe('m1')
+  })
+
   it('loadMessages only hydrates persisted messages', async () => {
     const { store, sessionClient } = await setupStore()
     sessionClient.restore.mockResolvedValueOnce({
@@ -282,8 +310,8 @@ describe('messageStore', () => {
     expect(store.streamingBlocks.value).toHaveLength(1)
   })
 
-  it('reloads persisted messages when a legacy stream refresh arrives for the active session', async () => {
-    const { store, sessionClient, ipcListeners } = await setupStore()
+  it('reloads persisted messages once when a typed stream completion arrives', async () => {
+    const { store, sessionClient, streamListeners, ipcListeners } = await setupStore()
     sessionClient.restore
       .mockResolvedValueOnce({
         session: { id: 's1' },
@@ -310,10 +338,18 @@ describe('messageStore', () => {
 
     await store.loadMessages('s1')
 
-    const legacyRefresh = ipcListeners.end[0]
-    expect(typeof legacyRefresh).toBe('function')
+    expect(ipcListeners.end).toHaveLength(0)
+    expect(ipcListeners.error).toHaveLength(0)
 
-    legacyRefresh({}, { conversationId: 's1', messageId: 'user-1' })
+    const completionHandler = streamListeners.completed[0]
+    expect(typeof completionHandler).toBe('function')
+
+    completionHandler({
+      sessionId: 's1',
+      requestId: 'user-1',
+      messageId: 'user-1',
+      completedAt: 2
+    })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(sessionClient.restore).toHaveBeenCalledTimes(2)

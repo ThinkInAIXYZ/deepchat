@@ -51,6 +51,7 @@ export interface StreamState {
 
 export interface IoParams {
   sessionId: string
+  requestId: string
   messageId: string
   messageStore: DeepChatMessageStore
   abortSignal: AbortSignal

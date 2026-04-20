@@ -1016,6 +1016,7 @@ describe('AgentRuntimePresenter', () => {
         blocks: []
       })
       expect(typedRateLimitShow).toMatchObject({
+        requestId: expect.stringMatching(/^s1:\d+$/),
         sessionId: 's1',
         blocks: [
           expect.objectContaining({
@@ -1026,6 +1027,7 @@ describe('AgentRuntimePresenter', () => {
         ]
       })
       expect(typedRateLimitClear).toMatchObject({
+        requestId: expect.stringMatching(/^s1:\d+$/),
         sessionId: 's1',
         blocks: []
       })

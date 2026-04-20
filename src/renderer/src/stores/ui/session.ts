@@ -211,6 +211,11 @@ export const useSessionStore = defineStore('session', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  const setActiveSessionId = (sessionId: string | null): void => {
+    activeSessionId.value = sessionId
+    messageStore.setCurrentSessionId(sessionId)
+  }
+
   const notifyRendererReady = (): void => {
     if (rendererReadyNotified) return
     rendererReadyNotified = true
@@ -318,8 +323,8 @@ export const useSessionStore = defineStore('session', () => {
         if (previousActiveSessionId && previousActiveSessionId !== nextActiveSessionId) {
           messageStore.clearStreamingState()
         }
-        activeSessionId.value = nextActiveSessionId
       }
+      setActiveSessionId(nextActiveSessionId)
       syncSelectedAgentToSession(nextActiveSessionId, sessions.value)
       if (previousActiveSessionId && !nextActiveSessionId && pageRouter.currentRoute === 'chat') {
         pageRouter.goToNewThread()
@@ -336,7 +341,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const result = await sessionClient.create(input)
       const session = result.session
-      activeSessionId.value = session.id
+      setActiveSessionId(session.id)
 
       await fetchSessions()
       pageRouter.goToChat(session.id)
@@ -353,7 +358,7 @@ export const useSessionStore = defineStore('session', () => {
       }
       await sessionClient.activate(sessionId)
       syncSelectedAgentToSession(sessionId)
-      activeSessionId.value = sessionId
+      setActiveSessionId(sessionId)
       pageRouter.goToChat(sessionId)
     } catch (e) {
       error.value = `Failed to select session: ${e}`
@@ -365,7 +370,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       messageStore.clearStreamingState()
       await sessionClient.deactivate()
-      activeSessionId.value = null
+      setActiveSessionId(null)
       pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
     } catch (e) {
       error.value = `Failed to close session: ${e}`
@@ -424,7 +429,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       await agentSessionPresenter.deleteSession(sessionId)
       if (activeSessionId.value === sessionId) {
-        activeSessionId.value = null
+        setActiveSessionId(null)
         pageRouter.goToNewThread()
       }
       await fetchSessions()
@@ -586,13 +591,13 @@ export const useSessionStore = defineStore('session', () => {
         messageStore.clearStreamingState()
       }
       syncSelectedAgentToSession(sessionId)
-      activeSessionId.value = sessionId
+      setActiveSessionId(sessionId)
       pageRouter.goToChat(sessionId)
       void tabPresenter.onRendererTabActivated(sessionId)
     },
     onDeactivated: () => {
       messageStore.clearStreamingState()
-      activeSessionId.value = null
+      setActiveSessionId(null)
       pageRouter.goToNewThread()
     }
   })
