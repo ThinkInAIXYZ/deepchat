@@ -123,7 +123,8 @@ Compatibility note:
 
 - 新 renderer-main 能力优先定义 `shared/contracts/*` 和 `renderer/api/*Client`
 - `usePresenter()` 不再是推荐模式
-- 如果必须临时保留 legacy transport，应先收口到 quarantine adapter，而不是直接进入业务模块
+- 如果必须临时保留 legacy transport，应先收口到 `src/renderer/api/legacy/**`，而不是直接进入业务模块
+- 不允许再创建第二个 quarantine 目录来承接 renderer-main legacy transport
 
 ## Quick Reference
 

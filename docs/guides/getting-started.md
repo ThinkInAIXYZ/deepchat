@@ -50,7 +50,8 @@ Renderer
 
 如果你在现有代码里看到 `usePresenter()`、`window.electron`、`window.api`，请先把它理解为兼容层，
 而不是新功能默认入口。`phase5` 之后的默认规则见
-`docs/specs/renderer-main-single-track/`。
+`docs/specs/renderer-main-single-track/`。如果迁移期间必须临时保留 legacy transport，唯一允许的
+quarantine 路径是 `src/renderer/api/legacy/**`。
 
 ## 项目目录速览
 

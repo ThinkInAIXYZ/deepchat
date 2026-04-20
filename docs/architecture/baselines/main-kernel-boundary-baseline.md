@@ -33,6 +33,17 @@ Current phase: P5.
 | `window.electron` | 95 | 0 | 95 |
 | `window.api` | 33 | 0 | 33 |
 
+## Phase Gates
+
+| Phase | Gate indicator | Current signal | Status |
+| --- | --- | --- | --- |
+| `P0` | Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics | `src/renderer/api/legacy/**` exists; split metrics emitted | ready |
+| `P1` | Business layer direct `usePresenter` / `window.electron` / `window.api` counts must reach `0` | usePresenter=86, window.electron=95, window.api=33 | pending |
+| `P2` | Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0` | configPresenter=26, llmproviderPresenter=4 | pending |
+| `P3` | Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0` | window=9, device=8, workspace=5, project=2, file=2, browser=2, tab=2 | pending |
+| `P4` | Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0` | agentSession=13, skill=4, mcp=2, sync=1, upgrade=1, dialog=1, tool=1 | pending |
+| `P5` | Business layer direct legacy access must be `0`, and quarantine source files must be empty or satisfy the exit standard | businessLegacy=86/95/33, quarantineSourceFiles=0 | pending |
+
 ## Hot Path Direct Dependencies
 
 - Direct edge count: 10

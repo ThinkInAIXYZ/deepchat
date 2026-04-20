@@ -18,6 +18,44 @@
     "bridge.active.count": 0,
     "bridge.expired.count": 0
   },
+  "phaseGates": [
+    {
+      "phase": "P0",
+      "indicator": "Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics",
+      "current": "`src/renderer/api/legacy/**` exists; split metrics emitted",
+      "status": "ready"
+    },
+    {
+      "phase": "P1",
+      "indicator": "Business layer direct `usePresenter` / `window.electron` / `window.api` counts must reach `0`",
+      "current": "usePresenter=86, window.electron=95, window.api=33",
+      "status": "pending"
+    },
+    {
+      "phase": "P2",
+      "indicator": "Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0`",
+      "current": "configPresenter=26, llmproviderPresenter=4",
+      "status": "pending"
+    },
+    {
+      "phase": "P3",
+      "indicator": "Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0`",
+      "current": "window=9, device=8, workspace=5, project=2, file=2, browser=2, tab=2",
+      "status": "pending"
+    },
+    {
+      "phase": "P4",
+      "indicator": "Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0`",
+      "current": "agentSession=13, skill=4, mcp=2, sync=1, upgrade=1, dialog=1, tool=1",
+      "status": "pending"
+    },
+    {
+      "phase": "P5",
+      "indicator": "Business layer direct legacy access must be `0`, and quarantine source files must be empty or satisfy the exit standard",
+      "current": "businessLegacy=86/95/33, quarantineSourceFiles=0",
+      "status": "pending"
+    }
+  ],
   "hotPathEdges": [
     "src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts",
     "src/main/presenter/agentSessionPresenter/index.ts -> src/main/eventbus.ts",

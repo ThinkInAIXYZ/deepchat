@@ -28,7 +28,8 @@ const ANALYSIS_TARGETS = [
 
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
-const RENDERER_QUARANTINE_ROOTS = [path.join(ROOT, 'src/renderer/api/legacy')]
+const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
+const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
 const BRIDGE_REGISTER_PATH = path.join(
   ROOT,
   'docs/architecture/baselines/main-kernel-bridge-register.json'
@@ -75,6 +76,27 @@ const INLINE_IPC_CHANNEL_PATTERN =
   /(?:window\.electron(?:\?\.|\.)ipcRenderer|ipcRenderer|ipcMain)(?:\?\.|\.)(?:invoke|send|on|once|handle|handleOnce|removeListener|removeAllListeners|addListener)\s*\(\s*['"`][^'"`]+['"`]/g
 const INLINE_EVENTBUS_CHANNEL_PATTERN =
   /(?:sendToRenderer|publish|publishToWindow|publishToWebContents)\s*\(\s*['"`][^'"`]+['"`]/g
+const PRESENTER_PHASE_GATES = {
+  P2: ['configPresenter', 'llmproviderPresenter'],
+  P3: [
+    'windowPresenter',
+    'devicePresenter',
+    'workspacePresenter',
+    'projectPresenter',
+    'filePresenter',
+    'yoBrowserPresenter',
+    'tabPresenter'
+  ],
+  P4: [
+    'agentSessionPresenter',
+    'skillPresenter',
+    'mcpPresenter',
+    'syncPresenter',
+    'upgradePresenter',
+    'dialogPresenter',
+    'toolPresenter'
+  ]
+}
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
@@ -95,6 +117,15 @@ function isUnder(targetPath, parentPath) {
 
 async function ensureDir(dirPath) {
   await fs.mkdir(dirPath, { recursive: true })
+}
+
+async function pathExists(targetPath) {
+  try {
+    await fs.stat(targetPath)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function walk(dirPath, output = []) {
@@ -151,6 +182,17 @@ function countMatches(source, pattern) {
 
   pattern.lastIndex = 0
   return count
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function createUsePresenterNamePattern(presenterName) {
+  return new RegExp(
+    `\\busePresenter\\s*\\(\\s*['"\`]${escapeRegExp(presenterName)}['"\`]`,
+    'g'
+  )
 }
 
 function extractSpecifiers(source) {
@@ -362,6 +404,23 @@ async function collectPatternCounts(files, pattern) {
     const count = countMatches(source, pattern)
     if (count > 0) {
       counts.set(relativePath(file), count)
+    }
+  }
+
+  return counts
+}
+
+async function collectPresenterFamilyCounts(files, presenterNames) {
+  const patterns = presenterNames.map((presenterName) => [
+    presenterName,
+    createUsePresenterNamePattern(presenterName)
+  ])
+  const counts = Object.fromEntries(presenterNames.map((presenterName) => [presenterName, 0]))
+
+  for (const file of files) {
+    const source = await fs.readFile(file, 'utf8')
+    for (const [presenterName, pattern] of patterns) {
+      counts[presenterName] += countMatches(source, pattern)
     }
   }
 
@@ -637,6 +696,7 @@ function renderBoundaryBaselineReport({
   currentPhase,
   metrics,
   rendererLegacySplit,
+  phaseGates,
   usePresenterSummary,
   windowElectronSummary,
   windowApiSummary,
@@ -689,6 +749,15 @@ function renderBoundaryBaselineReport({
   )
   lines.push('')
 
+  lines.push('## Phase Gates')
+  lines.push('')
+  lines.push('| Phase | Gate indicator | Current signal | Status |')
+  lines.push('| --- | --- | --- | --- |')
+  for (const gate of phaseGates) {
+    lines.push(`| \`${gate.phase}\` | ${gate.indicator} | ${gate.current} | ${gate.status} |`)
+  }
+  lines.push('')
+
   lines.push('## Hot Path Direct Dependencies')
   lines.push('')
   lines.push(`- Direct edge count: ${hotPathEdges.length}`)
@@ -713,7 +782,7 @@ function renderBoundaryBaselineReport({
   return lines.join('\n')
 }
 
-function renderMigrationScoreboardReport({ currentPhase, metrics }) {
+function renderMigrationScoreboardReport({ currentPhase, metrics, phaseGates }) {
   const lines = [
     '# Main Kernel Migration Scoreboard',
     '',
@@ -730,6 +799,14 @@ function renderMigrationScoreboardReport({ currentPhase, metrics }) {
     lines.push(`| \`${metric}\` | ${value} | baseline |`)
   }
 
+  lines.push('')
+  lines.push('## Phase Gate Status')
+  lines.push('')
+  lines.push('| Phase | Status | Current signal |')
+  lines.push('| --- | --- | --- |')
+  for (const gate of phaseGates) {
+    lines.push(`| \`${gate.phase}\` | ${gate.status} | ${gate.current} |`)
+  }
   lines.push('')
   return lines.join('\n')
 }
@@ -779,6 +856,9 @@ async function main() {
 
   const archiveReferences = await collectArchiveReferences()
   const mainAndRendererFiles = await collectFilesFromTargets([MAIN_SOURCE_ROOT, RENDERER_SOURCE_ROOT])
+  const rendererBusinessFiles = await walk(RENDERER_SOURCE_ROOT)
+  const quarantineExists = await pathExists(RENDERER_QUARANTINE_ROOT)
+  const quarantineSourceFiles = await collectFilesFromTargets(RENDERER_QUARANTINE_ROOTS)
   const usePresenterCountsByLayer = await collectRendererPatternCountsByLayer(USE_PRESENTER_CALL_PATTERN)
   const windowElectronCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_ELECTRON_PATTERN)
   const windowApiCountsByLayer = await collectRendererPatternCountsByLayer(WINDOW_API_PATTERN)
@@ -787,6 +867,18 @@ async function main() {
   const hotPathEdges = await collectHotPathDirectEdges()
   const bridgeRegister = await loadBridgeRegister()
   const bridgeSummary = summarizeBridges(bridgeRegister)
+  const p2PresenterCounts = await collectPresenterFamilyCounts(
+    rendererBusinessFiles,
+    PRESENTER_PHASE_GATES.P2
+  )
+  const p3PresenterCounts = await collectPresenterFamilyCounts(
+    rendererBusinessFiles,
+    PRESENTER_PHASE_GATES.P3
+  )
+  const p4PresenterCounts = await collectPresenterFamilyCounts(
+    rendererBusinessFiles,
+    PRESENTER_PHASE_GATES.P4
+  )
 
   const rendererLegacySplit = {
     usePresenter: {
@@ -828,12 +920,89 @@ async function main() {
   const windowApiSummary = rendererLegacySplit.windowApi.total
   const rawTimerSummary = summarizeCounts(rawTimerCounts)
   const migratedRawChannelSummary = summarizeCounts(migratedRawChannelCounts)
+  const p1Ready =
+    metrics['renderer.business.usePresenter.count'] === 0 &&
+    metrics['renderer.business.windowElectron.count'] === 0 &&
+    metrics['renderer.business.windowApi.count'] === 0
+  const p2Ready = Object.values(p2PresenterCounts).every((count) => count === 0)
+  const p3Ready = Object.values(p3PresenterCounts).every((count) => count === 0)
+  const p4Ready = Object.values(p4PresenterCounts).every((count) => count === 0)
+  const p5Ready = p1Ready && quarantineSourceFiles.length === 0
+  const phaseGates = [
+    {
+      phase: 'P0',
+      indicator:
+        'Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics',
+      current: quarantineExists
+        ? '`src/renderer/api/legacy/**` exists; split metrics emitted'
+        : '`src/renderer/api/legacy/**` missing',
+      status: quarantineExists ? 'ready' : 'blocked'
+    },
+    {
+      phase: 'P1',
+      indicator:
+        'Business layer direct `usePresenter` / `window.electron` / `window.api` counts must reach `0`',
+      current:
+        `usePresenter=${metrics['renderer.business.usePresenter.count']}, ` +
+        `window.electron=${metrics['renderer.business.windowElectron.count']}, ` +
+        `window.api=${metrics['renderer.business.windowApi.count']}`,
+      status: p1Ready ? 'ready' : 'pending'
+    },
+    {
+      phase: 'P2',
+      indicator: 'Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0`',
+      current:
+        `configPresenter=${p2PresenterCounts.configPresenter}, ` +
+        `llmproviderPresenter=${p2PresenterCounts.llmproviderPresenter}`,
+      status: p2Ready ? 'ready' : 'pending'
+    },
+    {
+      phase: 'P3',
+      indicator:
+        'Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0`',
+      current:
+        `window=${p3PresenterCounts.windowPresenter}, ` +
+        `device=${p3PresenterCounts.devicePresenter}, ` +
+        `workspace=${p3PresenterCounts.workspacePresenter}, ` +
+        `project=${p3PresenterCounts.projectPresenter}, ` +
+        `file=${p3PresenterCounts.filePresenter}, ` +
+        `browser=${p3PresenterCounts.yoBrowserPresenter}, ` +
+        `tab=${p3PresenterCounts.tabPresenter}`,
+      status: p3Ready ? 'ready' : 'pending'
+    },
+    {
+      phase: 'P4',
+      indicator:
+        'Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0`',
+      current:
+        `agentSession=${p4PresenterCounts.agentSessionPresenter}, ` +
+        `skill=${p4PresenterCounts.skillPresenter}, ` +
+        `mcp=${p4PresenterCounts.mcpPresenter}, ` +
+        `sync=${p4PresenterCounts.syncPresenter}, ` +
+        `upgrade=${p4PresenterCounts.upgradePresenter}, ` +
+        `dialog=${p4PresenterCounts.dialogPresenter}, ` +
+        `tool=${p4PresenterCounts.toolPresenter}`,
+      status: p4Ready ? 'ready' : 'pending'
+    },
+    {
+      phase: 'P5',
+      indicator:
+        'Business layer direct legacy access must be `0`, and quarantine source files must be empty or satisfy the exit standard',
+      current:
+        `businessLegacy=${metrics['renderer.business.usePresenter.count']}/` +
+        `${metrics['renderer.business.windowElectron.count']}/` +
+        `${metrics['renderer.business.windowApi.count']}, ` +
+        `quarantineSourceFiles=${quarantineSourceFiles.length}`,
+      status: p5Ready ? 'ready' : 'pending'
+    }
+  ]
 
   const scoreboardPayload = {
     program: 'main-kernel-refactor',
     generatedOn: new Date().toISOString().slice(0, 10),
     currentPhase: bridgeRegister.currentPhase,
     metrics,
+    phaseGates,
     hotPathEdges: hotPathEdges.map((edge) => `${edge.source} -> ${edge.target}`),
     migratedRawChannels: Object.fromEntries(migratedRawChannelCounts)
   }
@@ -857,6 +1026,7 @@ async function main() {
         currentPhase: bridgeRegister.currentPhase,
         metrics,
         rendererLegacySplit,
+        phaseGates,
         usePresenterSummary,
         windowElectronSummary,
         windowApiSummary,
@@ -869,7 +1039,8 @@ async function main() {
       path.join(REPORT_DIR, 'main-kernel-migration-scoreboard.md'),
       `${renderMigrationScoreboardReport({
         currentPhase: bridgeRegister.currentPhase,
-        metrics
+        metrics,
+        phaseGates
       })}\n`
     ),
     fs.writeFile(

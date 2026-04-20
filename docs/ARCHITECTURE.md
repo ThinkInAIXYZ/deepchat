@@ -97,6 +97,7 @@ flowchart LR
 - renderer 新功能优先走 `renderer/api/*Client` + `window.deepchat` + shared contracts
 - `usePresenter()`、`window.electron`、`window.api` 只视为兼容路径，不再作为业务层默认入口
 - renderer 业务模块不应再混用 typed client 与 legacy transport
+- renderer legacy quarantine 目录固定为 `src/renderer/api/legacy/**`，不再允许创建第二个 quarantine 路径
 
 单轨化的目标、阶段和 merge gate 见：
 
@@ -109,6 +110,7 @@ flowchart LR
 - 历史架构文档见 [archives/legacy-agentpresenter-architecture.md](./archives/legacy-agentpresenter-architecture.md)
 - 历史流程文档见 [archives/legacy-agentpresenter-flows.md](./archives/legacy-agentpresenter-flows.md)
 - main kernel 边界回归由 `scripts/architecture-guard.mjs` 和 `docs/architecture/baselines/main-kernel-*.{md,json}` 追踪
+- `scripts/architecture-guard.mjs` 负责固定 `src/renderer/api/legacy/**`、禁止业务层新增 direct legacy transport，并把 typed boundary 外的 legacy access 视为违规
 - legacy agent cleanup 回归由 `scripts/agent-cleanup-guard.mjs` 追踪
 - renderer-main 单轨化后续治理由 `docs/specs/renderer-main-single-track/` 追踪
 

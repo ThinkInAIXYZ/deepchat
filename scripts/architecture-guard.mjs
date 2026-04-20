@@ -23,7 +23,8 @@ const MAIN_GUARD_PATHS = [
 
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
 const RENDERER_TYPED_BOUNDARY_ROOT = path.join(ROOT, 'src/renderer/api')
-const RENDERER_QUARANTINE_ROOTS = [path.join(ROOT, 'src/renderer/api/legacy')]
+const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
+const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const PHASE_ORDER = new Map([
   ['P0', 0],
@@ -263,6 +264,15 @@ function isRendererQuarantineFile(filePath) {
   return RENDERER_QUARANTINE_ROOTS.some((quarantineRoot) => isUnder(filePath, quarantineRoot))
 }
 
+async function pathExists(targetPath) {
+  try {
+    await fs.stat(targetPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function collectFiles(entryPath) {
   const stats = await fs.stat(entryPath)
   if (stats.isFile()) {
@@ -491,6 +501,12 @@ async function main() {
     await loadBridgeRegister()
   } catch (error) {
     violations.push(`[bridge-register-invalid] ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  if (!(await pathExists(RENDERER_QUARANTINE_ROOT))) {
+    violations.push(
+      `[renderer-quarantine-missing] ${relativePath(RENDERER_QUARANTINE_ROOT)} must exist as the only allowed renderer legacy quarantine directory`
+    )
   }
 
   for (const filePath of [...fileSet].sort()) {

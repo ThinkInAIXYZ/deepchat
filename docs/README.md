@@ -5,6 +5,7 @@
 当前仓库的后续治理重点不是再发起一次新的 `main kernel` 全量重写，而是把 renderer-main 边界继续收成
 single-track。换句话说，typed client / typed event 现在已经是默认方向，`usePresenter()`、
 `window.electron`、`window.api` 只应被视为兼容路径，而不是新功能入口。
+唯一允许的 quarantine 目录固定为 `src/renderer/api/legacy/**`。
 
 当前 migrated 聊天热路径已经收敛为：
 
@@ -84,6 +85,7 @@ Renderer
 
 以下文档描述的是 `phase5` 收口之后的新执行规则：不再接受 renderer 业务层双轨并存，而是继续把
 `renderer/api + window.deepchat + shared contracts` 固化成唯一默认路径。
+`src/renderer/api/legacy/**` 是唯一允许暂存 legacy transport 的 quarantine 路径。
 
 | 位置 | 内容 |
 | --- | --- |

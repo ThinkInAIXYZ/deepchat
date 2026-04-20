@@ -13,14 +13,14 @@
 ## P0: Rules & Guard Hardening
 
 - [x] 定义业务层 / typed boundary / quarantine 三层目录规则
-- [ ] 固定唯一 quarantine 目录为 `src/renderer/api/legacy/**`
-- [ ] 在仓库中实际创建 `src/renderer/api/legacy/` 目录与说明文件或首个 adapter
-- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `usePresenter` 禁止规则
-- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.electron` 禁止规则
-- [ ] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.api` 禁止规则
-- [ ] 为 `scripts/generate-architecture-baseline.mjs` 增加 business-layer / quarantine-layer 分维度统计
+- [x] 固定唯一 quarantine 目录为 `src/renderer/api/legacy/**`
+- [x] 在仓库中实际创建 `src/renderer/api/legacy/` 目录与说明文件或首个 adapter
+- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `usePresenter` 禁止规则
+- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.electron` 禁止规则
+- [x] 为 `scripts/architecture-guard.mjs` 增加 business-layer direct `window.api` 禁止规则
+- [x] 为 `scripts/generate-architecture-baseline.mjs` 增加 business-layer / quarantine-layer 分维度统计
 - [x] 定义 single-track merge gate
-- [ ] 定义阶段性 phase gate 指标并写入 baseline / guard 说明
+- [x] 定义阶段性 phase gate 指标并写入 baseline / guard 说明
 
 ## P1: Transport Consolidation
 
