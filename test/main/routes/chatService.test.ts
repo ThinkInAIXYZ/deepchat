@@ -21,7 +21,10 @@ describe('ChatService', () => {
     }
     const providerExecutionPort = {
       sendMessage: vi.fn().mockResolvedValue(undefined),
-      cancelGeneration: vi.fn().mockResolvedValue(undefined)
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn().mockResolvedValue({
+        resumed: true
+      })
     }
     const providerCatalogPort = {
       getAgentType: vi.fn().mockResolvedValue('deepchat')
@@ -61,7 +64,8 @@ describe('ChatService', () => {
     }
     const providerExecutionPort = {
       sendMessage: vi.fn(),
-      cancelGeneration: vi.fn().mockResolvedValue(undefined)
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn()
     }
     const providerCatalogPort = {
       getAgentType: vi.fn()
@@ -85,5 +89,61 @@ describe('ChatService', () => {
     expect(messageRepository.get).toHaveBeenCalledWith('message-1')
     expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
     expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledWith('session-1')
+  })
+
+  it('responds to tool interactions through the provider execution port', async () => {
+    const scheduler = createScheduler()
+    const providerExecutionPort = {
+      sendMessage: vi.fn(),
+      cancelGeneration: vi.fn(),
+      respondToolInteraction: vi.fn().mockResolvedValue({
+        resumed: true,
+        waitingForUserMessage: false
+      })
+    }
+
+    const service = new ChatService({
+      sessionRepository: {
+        get: vi.fn()
+      } as any,
+      messageRepository: {
+        listBySession: vi.fn(),
+        get: vi.fn()
+      } as any,
+      providerExecutionPort,
+      providerCatalogPort: {
+        getAgentType: vi.fn()
+      } as any,
+      sessionPermissionPort: {
+        clearSessionPermissions: vi.fn()
+      },
+      scheduler
+    })
+
+    await expect(
+      service.respondToolInteraction({
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        toolCallId: 'tool-1',
+        response: {
+          kind: 'permission',
+          granted: true
+        }
+      })
+    ).resolves.toEqual({
+      accepted: true,
+      resumed: true,
+      waitingForUserMessage: false
+    })
+
+    expect(providerExecutionPort.respondToolInteraction).toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
+      'tool-1',
+      {
+        kind: 'permission',
+        granted: true
+      }
+    )
   })
 })

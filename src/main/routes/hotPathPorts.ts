@@ -1,11 +1,21 @@
-import type { IAgentSessionPresenter } from '@shared/presenter'
+import type {
+  IAgentSessionPresenter,
+  IConfigPresenter,
+  ILlmProviderPresenter
+} from '@shared/presenter'
 import type { DeepchatEventName, DeepchatEventPayload } from '@shared/contracts/events'
 import type {
   ChatMessageRecord,
   CreateSessionInput,
   SendMessageInput,
-  SessionWithState
+  SessionWithState,
+  ToolInteractionResponse,
+  ToolInteractionResult
 } from '@shared/types/agent-interface'
+import type {
+  ProviderCatalogPort as PresenterProviderCatalogPort,
+  SessionPermissionPort as PresenterSessionPermissionPort
+} from '../presenter/runtimePorts'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 
 export type SessionListFilters = {
@@ -32,21 +42,33 @@ export interface MessageRepository {
 export interface ProviderExecutionPort {
   sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void>
   cancelGeneration(sessionId: string): Promise<void>
+  respondToolInteraction(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    response: ToolInteractionResponse
+  ): Promise<ToolInteractionResult>
+  testConnection(
+    providerId: string,
+    modelId?: string
+  ): Promise<{
+    isOk: boolean
+    errorMsg: string | null
+  }>
 }
 
-export interface ProviderCatalogPort {
-  getAgentType(agentId: string): Promise<'deepchat' | 'acp' | null>
-}
+export type ProviderCatalogPort = Pick<
+  PresenterProviderCatalogPort,
+  'getAgentType' | 'getProviderModels' | 'getCustomModels'
+>
 
-export interface SessionPermissionPort {
-  clearSessionPermissions(sessionId: string): void | Promise<void>
-}
+export type SessionPermissionPort = Pick<PresenterSessionPermissionPort, 'clearSessionPermissions'>
 
 export interface WindowEventPort {
   publish<T extends DeepchatEventName>(name: T, payload: DeepchatEventPayload<T>): void
 }
 
-export function createPresenterHotPathPorts(
+export function createPresenterHotPathPorts(deps: {
   agentSessionPresenter: Pick<
     IAgentSessionPresenter,
     | 'createSession'
@@ -59,9 +81,13 @@ export function createPresenterHotPathPorts(
     | 'getMessage'
     | 'sendMessage'
     | 'cancelGeneration'
-    | 'getAgents'
-  >
-): {
+    | 'respondToolInteraction'
+  > & {
+    clearSessionPermissions?: (sessionId: string) => void | Promise<void>
+  }
+  configPresenter: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels' | 'getAgentType'>
+  llmProviderPresenter: Pick<ILlmProviderPresenter, 'check'>
+}): {
   sessionRepository: SessionRepository
   messageRepository: MessageRepository
   providerExecutionPort: ProviderExecutionPort
@@ -72,45 +98,43 @@ export function createPresenterHotPathPorts(
   return {
     sessionRepository: {
       create: async (input, webContentsId) =>
-        await agentSessionPresenter.createSession(input, webContentsId),
-      get: async (sessionId) => await agentSessionPresenter.getSession(sessionId),
-      list: async (filters) => await agentSessionPresenter.getSessionList(filters),
+        await deps.agentSessionPresenter.createSession(input, webContentsId),
+      get: async (sessionId) => await deps.agentSessionPresenter.getSession(sessionId),
+      list: async (filters) => await deps.agentSessionPresenter.getSessionList(filters),
       activate: async (webContentsId, sessionId) =>
-        await agentSessionPresenter.activateSession(webContentsId, sessionId),
+        await deps.agentSessionPresenter.activateSession(webContentsId, sessionId),
       deactivate: async (webContentsId) =>
-        await agentSessionPresenter.deactivateSession(webContentsId),
+        await deps.agentSessionPresenter.deactivateSession(webContentsId),
       getActive: async (webContentsId) =>
-        await agentSessionPresenter.getActiveSession(webContentsId)
+        await deps.agentSessionPresenter.getActiveSession(webContentsId)
     },
     messageRepository: {
-      listBySession: async (sessionId) => await agentSessionPresenter.getMessages(sessionId),
-      get: async (messageId) => await agentSessionPresenter.getMessage(messageId)
+      listBySession: async (sessionId) => await deps.agentSessionPresenter.getMessages(sessionId),
+      get: async (messageId) => await deps.agentSessionPresenter.getMessage(messageId)
     },
     providerExecutionPort: {
       sendMessage: async (sessionId, content) =>
-        await agentSessionPresenter.sendMessage(sessionId, content),
-      cancelGeneration: async (sessionId) => await agentSessionPresenter.cancelGeneration(sessionId)
+        await deps.agentSessionPresenter.sendMessage(sessionId, content),
+      cancelGeneration: async (sessionId) =>
+        await deps.agentSessionPresenter.cancelGeneration(sessionId),
+      respondToolInteraction: async (sessionId, messageId, toolCallId, response) =>
+        await deps.agentSessionPresenter.respondToolInteraction(
+          sessionId,
+          messageId,
+          toolCallId,
+          response
+        ),
+      testConnection: async (providerId, modelId) =>
+        await deps.llmProviderPresenter.check(providerId, modelId)
     },
     providerCatalogPort: {
-      getAgentType: async (agentId) => {
-        if (agentId === 'deepchat') {
-          return 'deepchat'
-        }
-
-        const agents = await agentSessionPresenter.getAgents()
-        const matched = agents.find((agent) => agent.id === agentId)
-        if (!matched) {
-          return null
-        }
-
-        const agentType = matched.agentType ?? matched.type
-        return agentType === 'deepchat' || agentType === 'acp' ? agentType : null
-      }
+      getProviderModels: (providerId) => deps.configPresenter.getProviderModels(providerId) ?? [],
+      getCustomModels: (providerId) => deps.configPresenter.getCustomModels(providerId) ?? [],
+      getAgentType: async (agentId) => await deps.configPresenter.getAgentType(agentId)
     },
     sessionPermissionPort: {
-      clearSessionPermissions: () => {
-        // Legacy presenter-backed runtime already clears permission state on cancel.
-      }
+      clearSessionPermissions: (sessionId) =>
+        deps.agentSessionPresenter.clearSessionPermissions?.(sessionId)
     },
     windowEventPort: {
       publish: (name, payload) => {

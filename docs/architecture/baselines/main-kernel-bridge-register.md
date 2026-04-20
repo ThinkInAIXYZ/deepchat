@@ -1,7 +1,7 @@
 # Main Kernel Bridge Register
 
-Updated on 2026-04-19.
-Current phase: P3.
+Updated on 2026-04-20.
+Current phase: P4.
 
 - Active bridges: 0
 - Expired bridges: 0

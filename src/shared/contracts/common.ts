@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import {
   ReasoningEffortSchema,
   ReasoningVisibilitySchema,
@@ -77,6 +78,48 @@ export const MessageFileSchema = z.object({
 export const SendMessageInputSchema = z.object({
   text: z.string(),
   files: z.array(MessageFileSchema).optional()
+})
+
+export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('permission'),
+    granted: z.boolean()
+  }),
+  z.object({
+    kind: z.literal('question_option'),
+    optionLabel: z.string()
+  }),
+  z.object({
+    kind: z.literal('question_custom'),
+    answerText: z.string()
+  }),
+  z.object({
+    kind: z.literal('question_other')
+  })
+])
+
+export const ToolInteractionResultSchema = z.object({
+  resumed: z.boolean().optional(),
+  waitingForUserMessage: z.boolean().optional()
+})
+
+export const ProviderModelSummarySchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  group: z.string(),
+  providerId: z.string(),
+  enabled: z.boolean().optional(),
+  isCustom: z.boolean().optional(),
+  vision: z.boolean().optional(),
+  functionCall: z.boolean().optional(),
+  reasoning: z.boolean().optional(),
+  enableSearch: z.boolean().optional(),
+  type: z.nativeEnum(ModelType).optional(),
+  contextLength: z.number().int().optional(),
+  maxTokens: z.number().int().optional(),
+  description: z.string().optional(),
+  supportedEndpointTypes: z.array(z.enum(NEW_API_ENDPOINT_TYPES)).optional(),
+  endpointType: z.enum(NEW_API_ENDPOINT_TYPES).optional()
 })
 
 export const SessionWithStateSchema = z.object({

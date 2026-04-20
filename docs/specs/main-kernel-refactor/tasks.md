@@ -58,12 +58,12 @@
 
 ## Phase 4: Provider / Tool Boundary
 
-- [ ] 明确 provider query / execution / session 配置的边界
-- [ ] 将 migrated path 上 presenter 对 provider 的直接调用改为 port / adapter
-- [ ] 收口 permission response、tool response 的 contract
-- [ ] 如确有需要，再补 `ProviderSessionPort`
-- [ ] 为 provider / permission / tool 关键交互补测试
-- [ ] 删除本阶段引入的临时兼容桥
+- [x] 明确 provider query / execution / session 配置的边界
+- [x] 将 migrated path 上 presenter 对 provider 的直接调用改为 port / adapter
+- [x] 收口 permission response、tool response 的 contract
+- [x] 如确有需要，再补 `ProviderSessionPort`
+- [x] 为 provider / permission / tool 关键交互补测试
+- [x] 删除本阶段引入的临时兼容桥
 
 ## Phase 5: Consolidation & Re-evaluation
 

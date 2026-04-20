@@ -1,5 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import { ChatClient } from '../../../src/renderer/api/ChatClient'
+import { ProviderClient } from '../../../src/renderer/api/ProviderClient'
 import { SessionClient } from '../../../src/renderer/api/SessionClient'
 import { SettingsClient } from '../../../src/renderer/api/SettingsClient'
 
@@ -39,6 +40,7 @@ describe('renderer api clients', () => {
     const bridge = createBridge()
     const sessionClient = new SessionClient(bridge)
     const chatClient = new ChatClient(bridge)
+    const providerClient = new ProviderClient(bridge)
 
     await sessionClient.create({
       agentId: 'deepchat',
@@ -52,6 +54,20 @@ describe('renderer api clients', () => {
     sessionClient.onUpdated(vi.fn())
     await chatClient.sendMessage('session-1', 'follow up')
     await chatClient.stopStream({ requestId: 'message-1' })
+    await chatClient.respondToolInteraction({
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      toolCallId: 'tool-1',
+      response: {
+        kind: 'permission',
+        granted: true
+      }
+    })
+    await providerClient.listModels('openai')
+    await providerClient.testConnection({
+      providerId: 'openai',
+      modelId: 'gpt-5.4'
+    })
     chatClient.onStreamUpdated(vi.fn())
     chatClient.onStreamCompleted(vi.fn())
     chatClient.onStreamFailed(vi.fn())
@@ -77,6 +93,22 @@ describe('renderer api clients', () => {
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'chat.stopStream', {
       requestId: 'message-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'chat.respondToolInteraction', {
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      toolCallId: 'tool-1',
+      response: {
+        kind: 'permission',
+        granted: true
+      }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'providers.listModels', {
+      providerId: 'openai'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'providers.testConnection', {
+      providerId: 'openai',
+      modelId: 'gpt-5.4'
     })
     expect(bridge.on).toHaveBeenNthCalledWith(1, 'sessions.updated', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(2, 'chat.stream.updated', expect.any(Function))

@@ -73,7 +73,12 @@ import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
-import type { ConfigQueryPort, SessionRuntimePort } from './runtimePorts'
+import type {
+  ProviderCatalogPort,
+  ProviderSessionPort,
+  SessionPermissionPort,
+  SessionUiPort
+} from './runtimePorts'
 import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
 
@@ -416,19 +421,21 @@ export class Presenter implements IPresenter {
       getMessage: async () => null
     })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
-    const configQueryPort: ConfigQueryPort = {
+    const providerCatalogPort: ProviderCatalogPort = {
       getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
       getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? [],
       getAgentType: async (agentId) => await this.configPresenter.getAgentType(agentId)
     }
-    const sessionRuntimePort: SessionRuntimePort = {
+    const sessionUiPort: SessionUiPort = {
       refreshSessionUi: () => {
         try {
           void this.floatingButtonPresenter.refreshWidgetState()
         } catch (error) {
           console.warn('[Presenter] Failed to refresh floating widget state:', error)
         }
-      },
+      }
+    }
+    const sessionPermissionPort: SessionPermissionPort = {
       clearSessionPermissions: (sessionId) => {
         this.commandPermissionService.clearConversation(sessionId)
         this.filePermissionService.clearConversation(sessionId)
@@ -473,6 +480,20 @@ export class Presenter implements IPresenter {
         }
       }
     }
+    const providerSessionPort: ProviderSessionPort = {
+      setAcpWorkdir: async (conversationId, agentId, workdir) =>
+        await this.llmproviderPresenter.setAcpWorkdir(conversationId, agentId, workdir),
+      prepareAcpSession: async (conversationId, agentId, workdir) =>
+        await this.llmproviderPresenter.prepareAcpSession(conversationId, agentId, workdir),
+      getAcpSessionConfigOptions: async (conversationId) =>
+        await this.llmproviderPresenter.getAcpSessionConfigOptions(conversationId),
+      setAcpSessionConfigOption: async (conversationId, configId, value) =>
+        await this.llmproviderPresenter.setAcpSessionConfigOption(conversationId, configId, value),
+      getAcpSessionCommands: async (conversationId) =>
+        await this.llmproviderPresenter.getAcpSessionCommands(conversationId),
+      clearAcpSession: async (conversationId) =>
+        await this.llmproviderPresenter.clearAcpSession(conversationId)
+    }
 
     // Initialize new agent architecture presenters
     const agentRuntimePresenter = new AgentRuntimePresenter(
@@ -482,8 +503,9 @@ export class Presenter implements IPresenter {
       this.toolPresenter,
       newSessionHooksBridge,
       {
-        configQueryPort,
-        sessionRuntimePort,
+        providerCatalogPort,
+        sessionPermissionPort,
+        sessionUiPort,
         skillPresenter: this.skillPresenter
       }
     )
@@ -493,7 +515,12 @@ export class Presenter implements IPresenter {
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.skillPresenter,
-      sessionRuntimePort
+      undefined,
+      {
+        providerSessionPort,
+        sessionPermissionPort,
+        sessionUiPort
+      }
     )
     this.projectPresenter = new ProjectPresenter(
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
@@ -732,6 +759,7 @@ registerMainKernelRoutes(ipcMain, () =>
   presenter
     ? (cachedMainKernelRouteRuntime ??= createMainKernelRouteRuntime({
         configPresenter: presenter.configPresenter,
+        llmProviderPresenter: presenter.llmproviderPresenter,
         agentSessionPresenter: presenter.agentSessionPresenter,
         windowPresenter: presenter.windowPresenter
       }))

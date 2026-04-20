@@ -141,9 +141,9 @@ export const AppErrorSchema = z.object({
 
 | Route | Input summary | Output summary | Notes |
 | --- | --- | --- | --- |
-| `providers.listModels` | `{ providerId }` | model summaries | provider 查询边界 |
-| `providers.testConnection` | provider draft config | test result | 仅在配置页需要时开放 |
-| `chat.respondPermission` | session / request / decision | `{ accepted: boolean }` | 统一权限响应入口 |
+| `providers.listModels` | `{ providerId }` | provider + custom model summaries | provider 查询边界 |
+| `providers.testConnection` | `{ providerId, modelId? }` | `{ isOk, errorMsg }` | 当前配置页验证入口 |
+| `chat.respondToolInteraction` | session / message / tool / typed response | `{ accepted, resumed?, waitingForUserMessage? }` | 统一权限/问题响应入口 |
 
 ## Initial Typed Event Catalog
 

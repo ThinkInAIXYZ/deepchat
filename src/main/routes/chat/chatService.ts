@@ -11,6 +11,7 @@ import type { Scheduler } from '../scheduler'
 const CHAT_LOOKUP_TIMEOUT_MS = 5_000
 const CHAT_SEND_TIMEOUT_MS = 30 * 60 * 1_000
 const CHAT_STOP_TIMEOUT_MS = 5_000
+const CHAT_INTERACTION_TIMEOUT_MS = 5_000
 
 export class ChatService {
   private readonly activeControllers = new Map<string, AbortController>()
@@ -127,5 +128,32 @@ export class ChatService {
     })
 
     return { stopped: true }
+  }
+
+  async respondToolInteraction(input: {
+    sessionId: string
+    messageId: string
+    toolCallId: string
+    response: Parameters<ProviderExecutionPort['respondToolInteraction']>[3]
+  }): Promise<{
+    accepted: true
+    resumed?: boolean
+    waitingForUserMessage?: boolean
+  }> {
+    const result = await this.deps.scheduler.timeout({
+      task: this.deps.providerExecutionPort.respondToolInteraction(
+        input.sessionId,
+        input.messageId,
+        input.toolCallId,
+        input.response
+      ),
+      ms: CHAT_INTERACTION_TIMEOUT_MS,
+      reason: `chat.respondToolInteraction:${input.sessionId}:${input.toolCallId}`
+    })
+
+    return {
+      accepted: true,
+      ...result
+    }
   }
 }

@@ -1,13 +1,13 @@
 # Main Kernel Boundary Baseline
 
-Generated on 2026-04-19.
-Current phase: P3.
+Generated on 2026-04-20.
+Current phase: P4.
 
 ## Metric Snapshot
 
 | Metric | Value |
 | --- | --- |
-| `renderer.usePresenter.count` | 87 |
+| `renderer.usePresenter.count` | 86 |
 | `renderer.windowElectron.count` | 95 |
 | `renderer.windowApi.count` | 33 |
 | `hotpath.presenterEdge.count` | 10 |
@@ -33,7 +33,7 @@ Current phase: P3.
 
 ## Renderer usePresenter
 
-- Total count: 87
+- Total count: 86
 
 - `src/renderer/src/components/chat-input/McpIndicator.vue`: 3
 - `src/renderer/src/components/chat/ChatStatusBar.vue`: 3

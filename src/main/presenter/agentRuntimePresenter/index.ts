@@ -69,7 +69,7 @@ import type { ProviderRequestTracePayload } from '../llmProviderPresenter/reques
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
-import type { ConfigQueryPort, SessionRuntimePort } from '../runtimePorts'
+import type { ProviderCatalogPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildAssistantPreviewMarkdown,
@@ -174,8 +174,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
-  private readonly configQueryPort: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
-  private readonly sessionRuntimePort?: SessionRuntimePort
+  private readonly providerCatalogPort: Pick<
+    ProviderCatalogPort,
+    'getProviderModels' | 'getCustomModels'
+  >
+  private readonly sessionPermissionPort?: SessionPermissionPort
+  private readonly sessionUiPort?: SessionUiPort
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
     'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
@@ -189,8 +193,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     toolPresenter?: IToolPresenter,
     hooksBridge?: NewSessionHooksBridge,
     runtimePorts?: {
-      configQueryPort?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
-      sessionRuntimePort?: SessionRuntimePort
+      providerCatalogPort?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
+      sessionPermissionPort?: SessionPermissionPort
+      sessionUiPort?: SessionUiPort
       skillPresenter?: Pick<
         ISkillPresenter,
         'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
@@ -221,11 +226,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     )
     this.toolOutputGuard = new ToolOutputGuard()
     this.hooksBridge = hooksBridge
-    this.configQueryPort = runtimePorts?.configQueryPort ?? {
+    this.providerCatalogPort = runtimePorts?.providerCatalogPort ?? {
       getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
       getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? []
     }
-    this.sessionRuntimePort = runtimePorts?.sessionRuntimePort
+    this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
+    this.sessionUiPort = runtimePorts?.sessionUiPort
     this.skillPresenter = runtimePorts?.skillPresenter
 
     const recovered = this.messageStore.recoverPendingMessages()
@@ -1711,7 +1717,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             })
           },
           autoGrantPermission: async (permission) => {
-            await this.sessionRuntimePort?.approvePermission(sessionId, permission)
+            await this.sessionPermissionPort?.approvePermission(sessionId, permission)
           },
           normalizeToolResult: async (tool) =>
             await this.normalizeToolResultContent({
@@ -2280,7 +2286,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         modelId,
         workdir,
         now,
-        modelLookup: this.configQueryPort
+        modelLookup: this.providerCatalogPort
       })
     } catch (error) {
       console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
@@ -3481,7 +3487,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const command = payload.command || payload.commandInfo?.command || ''
       const signature = payload.commandSignature || payload.commandInfo?.signature || command
       if (signature) {
-        await this.sessionRuntimePort?.approvePermission(sessionId, {
+        await this.sessionPermissionPort?.approvePermission(sessionId, {
           permissionType: 'command',
           command,
           commandSignature: signature,
@@ -3492,7 +3498,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     if (serverName === 'agent-filesystem' && Array.isArray(payload.paths) && payload.paths.length) {
-      await this.sessionRuntimePort?.approvePermission(sessionId, {
+      await this.sessionPermissionPort?.approvePermission(sessionId, {
         permissionType: 'write',
         serverName,
         toolName,
@@ -3502,7 +3508,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     if (serverName === 'deepchat-settings' && toolName) {
-      await this.sessionRuntimePort?.approvePermission(sessionId, {
+      await this.sessionPermissionPort?.approvePermission(sessionId, {
         permissionType: 'write',
         serverName,
         toolName
@@ -3514,7 +3520,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       serverName &&
       (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
     ) {
-      await this.sessionRuntimePort?.approvePermission(sessionId, {
+      await this.sessionPermissionPort?.approvePermission(sessionId, {
         permissionType,
         serverName,
         toolName
@@ -4166,7 +4172,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       status
     })
 
-    this.sessionRuntimePort?.refreshSessionUi()
+    this.sessionUiPort?.refreshSessionUi()
   }
 
   private emitMessageRefresh(sessionId: string, messageId: string): void {

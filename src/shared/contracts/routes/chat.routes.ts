@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { EntityIdSchema, SendMessageInputSchema, defineRouteContract } from '../common'
+import {
+  EntityIdSchema,
+  SendMessageInputSchema,
+  ToolInteractionResponseSchema,
+  ToolInteractionResultSchema,
+  defineRouteContract
+} from '../common'
 
 export const chatSendMessageRoute = defineRouteContract({
   name: 'chat.sendMessage',
@@ -27,4 +33,19 @@ export const chatStopStreamRoute = defineRouteContract({
   output: z.object({
     stopped: z.boolean()
   })
+})
+
+export const chatRespondToolInteractionRoute = defineRouteContract({
+  name: 'chat.respondToolInteraction',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    messageId: EntityIdSchema,
+    toolCallId: EntityIdSchema,
+    response: ToolInteractionResponseSchema
+  }),
+  output: z
+    .object({
+      accepted: z.literal(true)
+    })
+    .merge(ToolInteractionResultSchema)
 })

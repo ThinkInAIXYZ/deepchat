@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 import logger from '@shared/logger'
-import type { ConfigQueryPort } from '@/presenter/runtimePorts'
+import type { ProviderCatalogPort } from '@/presenter/runtimePorts'
 
 export interface BuildSystemEnvPromptOptions {
   providerId?: string
@@ -10,7 +10,7 @@ export interface BuildSystemEnvPromptOptions {
   platform?: NodeJS.Platform
   now?: Date
   agentsFilePath?: string
-  modelLookup?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
+  modelLookup?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
 }
 
 export interface RuntimeCapabilitiesPromptOptions {
@@ -22,7 +22,7 @@ export interface RuntimeCapabilitiesPromptOptions {
 function resolveModelDisplayName(
   providerId: string,
   modelId: string,
-  modelLookup?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
+  modelLookup?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
 ): string | undefined {
   try {
     const models = modelLookup?.getProviderModels(providerId) || []
@@ -49,7 +49,7 @@ function resolveModelDisplayName(
 function resolveModelIdentity(
   providerId?: string,
   modelId?: string,
-  modelLookup?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
+  modelLookup?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
 ): {
   modelName: string
   exactModelId: string

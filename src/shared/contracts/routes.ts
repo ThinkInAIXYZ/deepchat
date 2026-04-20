@@ -1,6 +1,11 @@
 import type { z } from 'zod'
 import type { RouteContract } from './common'
-import { chatSendMessageRoute, chatStopStreamRoute } from './routes/chat.routes'
+import {
+  chatRespondToolInteractionRoute,
+  chatSendMessageRoute,
+  chatStopStreamRoute
+} from './routes/chat.routes'
+import { providersListModelsRoute, providersTestConnectionRoute } from './routes/providers.routes'
 import {
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
@@ -17,6 +22,7 @@ import {
 import { systemOpenSettingsRoute } from './routes/system.routes'
 
 export * from './routes/chat.routes'
+export * from './routes/providers.routes'
 export * from './routes/settings.routes'
 export * from './routes/sessions.routes'
 export * from './routes/system.routes'
@@ -31,8 +37,11 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [sessionsActivateRoute.name]: sessionsActivateRoute,
   [sessionsDeactivateRoute.name]: sessionsDeactivateRoute,
   [sessionsGetActiveRoute.name]: sessionsGetActiveRoute,
+  [providersListModelsRoute.name]: providersListModelsRoute,
+  [providersTestConnectionRoute.name]: providersTestConnectionRoute,
   [chatSendMessageRoute.name]: chatSendMessageRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,
+  [chatRespondToolInteractionRoute.name]: chatRespondToolInteractionRoute,
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute
 } satisfies Record<string, RouteContract>
 

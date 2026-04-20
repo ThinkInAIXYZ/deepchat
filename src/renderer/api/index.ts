@@ -1,4 +1,5 @@
 export * from './ChatClient'
+export * from './ProviderClient'
 export * from './SessionClient'
 export * from './SettingsClient'
 export * from './core'

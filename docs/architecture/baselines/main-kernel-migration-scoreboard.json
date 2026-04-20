@@ -1,9 +1,9 @@
 {
   "program": "main-kernel-refactor",
-  "generatedOn": "2026-04-19",
-  "currentPhase": "P3",
+  "generatedOn": "2026-04-20",
+  "currentPhase": "P4",
   "metrics": {
-    "renderer.usePresenter.count": 87,
+    "renderer.usePresenter.count": 86,
     "renderer.windowElectron.count": 95,
     "renderer.windowApi.count": 33,
     "hotpath.presenterEdge.count": 10,

@@ -1,4 +1,9 @@
-import type { IAgentSessionPresenter, IConfigPresenter, IWindowPresenter } from '@shared/presenter'
+import type {
+  IAgentSessionPresenter,
+  IConfigPresenter,
+  ILlmProviderPresenter,
+  IWindowPresenter
+} from '@shared/presenter'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
 
 function createRuntime() {
@@ -56,6 +61,16 @@ function createRuntime() {
       settings.notificationsEnabled = value
     }),
     getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono']),
+    getProviderModels: vi.fn(() => [
+      {
+        id: 'gpt-5.4',
+        name: 'GPT-5.4',
+        group: 'default',
+        providerId: 'openai'
+      }
+    ]),
+    getCustomModels: vi.fn(() => []),
+    getAgentType: vi.fn(async (agentId: string) => (agentId === 'deepchat' ? 'deepchat' : null)),
     getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
     setCopyWithCotEnabled: vi.fn((value: boolean) => {
       settings.copyWithCotEnabled = value
@@ -128,16 +143,18 @@ function createRuntime() {
       id: 'message-1',
       sessionId: 'session-1'
     }),
-    getAgents: vi.fn().mockResolvedValue([
-      {
-        id: 'deepchat',
-        type: 'deepchat',
-        agentType: 'deepchat',
-        enabled: true,
-        name: 'DeepChat'
-      }
-    ])
+    respondToolInteraction: vi.fn().mockResolvedValue({
+      resumed: true
+    }),
+    clearSessionPermissions: vi.fn()
   } as unknown as IAgentSessionPresenter
+
+  const llmProviderPresenter = {
+    check: vi.fn().mockResolvedValue({
+      isOk: true,
+      errorMsg: null
+    })
+  } as unknown as ILlmProviderPresenter
 
   const windowPresenter = {
     createSettingsWindow: vi.fn().mockResolvedValue(9)
@@ -147,10 +164,12 @@ function createRuntime() {
     settings,
     runtime: createMainKernelRouteRuntime({
       configPresenter,
+      llmProviderPresenter,
       agentSessionPresenter,
       windowPresenter
     }),
     configPresenter,
+    llmProviderPresenter,
     agentSessionPresenter,
     windowPresenter
   }
@@ -275,6 +294,85 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
+  })
+
+  it('dispatches provider query and tool interaction routes through typed services', async () => {
+    const { runtime, configPresenter, llmProviderPresenter, agentSessionPresenter } =
+      createRuntime()
+
+    const modelsResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.listModels',
+      {
+        providerId: 'openai'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const checkResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.testConnection',
+      {
+        providerId: 'openai',
+        modelId: 'gpt-5.4'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const interactionResult = await dispatchDeepchatRoute(
+      runtime,
+      'chat.respondToolInteraction',
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        toolCallId: 'tool-1',
+        response: {
+          kind: 'permission',
+          granted: true
+        }
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    expect(configPresenter.getProviderModels).toHaveBeenCalledWith('openai')
+    expect(llmProviderPresenter.check).toHaveBeenCalledWith('openai', 'gpt-5.4')
+    expect(agentSessionPresenter.respondToolInteraction).toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
+      'tool-1',
+      {
+        kind: 'permission',
+        granted: true
+      }
+    )
+    expect(modelsResult).toEqual({
+      providerModels: [
+        {
+          id: 'gpt-5.4',
+          name: 'GPT-5.4',
+          group: 'default',
+          providerId: 'openai'
+        }
+      ],
+      customModels: []
+    })
+    expect(checkResult).toEqual({
+      isOk: true,
+      errorMsg: null
+    })
+    expect(interactionResult).toEqual({
+      accepted: true,
+      resumed: true
+    })
   })
 
   it('activates, deactivates, and reads the active session through typed routes', async () => {

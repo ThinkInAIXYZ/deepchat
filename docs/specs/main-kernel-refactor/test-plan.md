@@ -157,6 +157,16 @@
 - Automated verification for Phase 3 uses `pnpm run architecture:baseline`
 - Repro smoke for Phase 3 is: cold start the app, create a regular session, send one message, confirm incremental stream updates arrive before completion, send a second message and confirm user/assistant ordering stays correct, stop the stream before completion, reopen the session, and confirm the active session is restored after switching away and back
 - Phase 3 artifacts are `src/main/routes/chat/`, `src/main/routes/sessions/`, `src/main/routes/hotPathPorts.ts`, `src/main/routes/scheduler.ts`, `src/renderer/api/ChatClient.ts`, `src/renderer/api/SessionClient.ts`, `src/renderer/src/stores/ui/session.ts`, `src/renderer/src/stores/ui/message.ts`, and `src/renderer/src/stores/ui/pageRouter.ts`
+- Phase 4 implementation and automated verification completed on `2026-04-20`
+- Automated verification for Phase 4 uses `pnpm exec vitest --config vitest.config.ts test/main/routes/contracts.test.ts test/main/routes/dispatcher.test.ts test/main/routes/chatService.test.ts test/main/routes/providerService.test.ts`
+- Automated verification for Phase 4 uses `pnpm exec vitest --config vitest.config.renderer.ts test/renderer/api/clients.test.ts test/renderer/components/ChatPage.test.ts`
+- Automated verification for Phase 4 uses `pnpm exec vitest --config vitest.config.ts test/main/presenter/agentRuntimePresenter/agentRuntimePresenter.test.ts test/main/presenter/agentSessionPresenter/agentSessionPresenter.test.ts`
+- Automated verification for Phase 4 uses `pnpm exec vitest --config vitest.config.ts test/main/presenter/agentSessionPresenter/integration.test.ts test/main/presenter/agentSessionPresenter/usageDashboard.test.ts`
+- Automated verification for Phase 4 uses `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`
+- Automated verification for Phase 4 uses `node scripts/architecture-guard.mjs`
+- Automated verification for Phase 4 uses `pnpm run architecture:baseline`
+- Repro smoke for Phase 4 is: cold start the app, open provider settings and run one provider verification, create or open a session that triggers a permission/question overlay, approve or answer it through the overlay, confirm the overlay disappears and the message list refreshes, then stop any in-flight stream and confirm the session remains usable
+- Phase 4 artifacts are `src/main/presenter/runtimePorts.ts`, `src/main/presenter/index.ts`, `src/main/presenter/agentRuntimePresenter/index.ts`, `src/main/presenter/agentSessionPresenter/index.ts`, `src/main/routes/providers/providerService.ts`, `src/main/routes/hotPathPorts.ts`, `src/main/routes/index.ts`, `src/shared/contracts/routes/providers.routes.ts`, `src/shared/contracts/routes/chat.routes.ts`, `src/renderer/api/ProviderClient.ts`, `src/renderer/api/ChatClient.ts`, `src/renderer/src/stores/providerStore.ts`, and `src/renderer/src/pages/ChatPage.vue`
 
 ## Standard Verification Commands
 

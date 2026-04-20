@@ -115,6 +115,25 @@
 - Phase 3 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P3`
 - Phase 3 legacy metrics confirm net reduction versus the Phase 0 checkpoint: `renderer.usePresenter.count` `89 -> 87`, `renderer.windowApi.count` `34 -> 33`, `hotpath.presenterEdge.count` `11 -> 10`, and `bridge.active.count` remains `0`
 - Phase 3 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
+- [x] Phase 4 completed on `2026-04-20`
+- Phase 4 evidence lives in `src/main/presenter/runtimePorts.ts`, `src/main/presenter/index.ts`, `src/main/presenter/agentRuntimePresenter/index.ts`, `src/main/presenter/agentSessionPresenter/index.ts`, `src/main/routes/providers/providerService.ts`, `src/main/routes/hotPathPorts.ts`, `src/main/routes/index.ts`, `src/shared/contracts/routes/providers.routes.ts`, `src/shared/contracts/routes/chat.routes.ts`, `src/renderer/api/ProviderClient.ts`, `src/renderer/api/ChatClient.ts`, `src/renderer/src/stores/providerStore.ts`, and `src/renderer/src/pages/ChatPage.vue`
+- Phase 4 migrated renderer boundary now uses `ChatClient.respondToolInteraction` for permission/question responses and `ProviderClient.testConnection` for provider verification
+- Phase 4 automated verification covers `test/main/routes/contracts.test.ts`
+- Phase 4 automated verification covers `test/main/routes/dispatcher.test.ts`
+- Phase 4 automated verification covers `test/main/routes/chatService.test.ts`
+- Phase 4 automated verification covers `test/main/routes/providerService.test.ts`
+- Phase 4 automated verification covers `test/main/presenter/agentRuntimePresenter/agentRuntimePresenter.test.ts`
+- Phase 4 automated verification covers `test/main/presenter/agentSessionPresenter/agentSessionPresenter.test.ts`
+- Phase 4 automated verification covers `test/main/presenter/agentSessionPresenter/integration.test.ts`
+- Phase 4 automated verification covers `test/main/presenter/agentSessionPresenter/usageDashboard.test.ts`
+- Phase 4 automated verification covers `test/renderer/api/clients.test.ts`
+- Phase 4 automated verification covers `test/renderer/components/ChatPage.test.ts`
+- Phase 4 automated verification covers `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`
+- Phase 4 automated verification covers `node scripts/architecture-guard.mjs`
+- Phase 4 automated verification covers `pnpm run architecture:baseline`
+- Phase 4 artifacts are the refreshed `docs/architecture/baselines/main-kernel-*.{md,json}` reports at current phase `P4`
+- Phase 4 legacy metrics confirm no rebound versus the Phase 3 checkpoint while continuing the renderer boundary reduction: `renderer.usePresenter.count` `87 -> 86`, `renderer.windowElectron.count` `95 -> 95`, `renderer.windowApi.count` `33 -> 33`, `hotpath.presenterEdge.count` `10 -> 10`, and `bridge.active.count` remains `0`
+- Phase 4 manual smoke handoff is documented in `docs/specs/main-kernel-refactor/test-plan.md`
 
 ## Final Acceptance Checklist
 

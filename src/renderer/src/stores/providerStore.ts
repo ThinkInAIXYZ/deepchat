@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { ProviderClient } from '../../api/ProviderClient'
 import { usePresenter } from '@/composables/usePresenter'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
@@ -19,7 +20,7 @@ const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
 
 export const useProviderStore = defineStore('provider', () => {
   const configP = usePresenter('configPresenter')
-  const llmP = usePresenter('llmproviderPresenter')
+  const providerClient = new ProviderClient()
 
   const providersQuery = useIpcQuery({
     presenter: 'configPresenter',
@@ -301,7 +302,7 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const checkProvider = async (providerId: string, modelId?: string) => {
-    return llmP.check(providerId, modelId)
+    return await providerClient.testConnection({ providerId, modelId })
   }
 
   const setAzureApiVersion = async (version: string) => {

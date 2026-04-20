@@ -1,11 +1,11 @@
 # Dependency Baseline
 
-Generated on 2026-04-19.
+Generated on 2026-04-20.
 
 ## main
 
-- Total files: 354
-- Internal dependency edges: 886
+- Total files: 355
+- Internal dependency edges: 891
 - Cycles detected: 30
 
 ### Top outgoing dependencies
@@ -70,8 +70,8 @@ Generated on 2026-04-19.
 ## renderer
 
 - Total files: 222
-- Internal dependency edges: 469
-- Cycles detected: 4
+- Internal dependency edges: 468
+- Cycles detected: 3
 
 ### Top outgoing dependencies
 
@@ -95,8 +95,8 @@ Generated on 2026-04-19.
 
 - `composables\usePresenter.ts`: 62
 - `events.ts`: 30
-- `stores\ui\session.ts`: 17
 - `components\chat\messageListItems.ts`: 16
+- `stores\ui\session.ts`: 16
 - `stores\artifact.ts`: 13
 - `stores\providerStore.ts`: 13
 - `stores\theme.ts`: 12
@@ -111,7 +111,6 @@ Generated on 2026-04-19.
 
 ### Cycle samples
 
-- `stores\ui\session.ts -> stores\ui\message.ts -> stores\ui\session.ts`
 - `components\json-viewer\JsonValue.ts -> components\json-viewer\JsonObject.ts -> components\json-viewer\JsonValue.ts`
 - `components\json-viewer\JsonValue.ts -> components\json-viewer\JsonArray.ts -> components\json-viewer\JsonValue.ts`
 - `composables\usePageCapture.example.ts -> composables\usePageCapture.example.ts`

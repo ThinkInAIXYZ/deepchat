@@ -6,8 +6,12 @@ import {
   type DeepchatEventPayload
 } from '@shared/contracts/events'
 import type { DeepchatRouteInput } from '@shared/contracts/routes'
-import { chatSendMessageRoute, chatStopStreamRoute } from '@shared/contracts/routes'
-import type { SendMessageInput } from '@shared/types/agent-interface'
+import {
+  chatSendMessageRoute,
+  chatStopStreamRoute,
+  chatRespondToolInteractionRoute
+} from '@shared/contracts/routes'
+import type { SendMessageInput, ToolInteractionResponse } from '@shared/types/agent-interface'
 import { getDeepchatBridge } from './core'
 
 export class ChatClient {
@@ -24,6 +28,18 @@ export class ChatClient {
 
   async stopStream(input: { sessionId?: string; requestId?: string }) {
     return await this.bridge.invoke(chatStopStreamRoute.name, input)
+  }
+
+  async respondToolInteraction(input: {
+    sessionId: string
+    messageId: string
+    toolCallId: string
+    response: ToolInteractionResponse
+  }) {
+    return await this.bridge.invoke(
+      chatRespondToolInteractionRoute.name,
+      input as DeepchatRouteInput<typeof chatRespondToolInteractionRoute.name>
+    )
   }
 
   onStreamUpdated(listener: (payload: DeepchatEventPayload<'chat.stream.updated'>) => void) {

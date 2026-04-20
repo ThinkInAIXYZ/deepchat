@@ -1,9 +1,17 @@
 import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
-import type { IAgentSessionPresenter, IConfigPresenter, IWindowPresenter } from '@shared/presenter'
+import type {
+  IAgentSessionPresenter,
+  IConfigPresenter,
+  ILlmProviderPresenter,
+  IWindowPresenter
+} from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import {
+  chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatStopStreamRoute,
+  providersListModelsRoute,
+  providersTestConnectionRoute,
   sessionsActivateRoute,
   sessionsCreateRoute,
   sessionsDeactivateRoute,
@@ -19,6 +27,7 @@ import {
 import { ChatService } from './chat/chatService'
 import { createPresenterHotPathPorts } from './hotPathPorts'
 import { createNodeScheduler } from './scheduler'
+import { ProviderService } from './providers/providerService'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
@@ -27,16 +36,24 @@ export type MainKernelRouteRuntime = {
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sessionService: SessionService
   chatService: ChatService
+  providerService: ProviderService
   windowPresenter: IWindowPresenter
 }
 
 export function createMainKernelRouteRuntime(deps: {
   configPresenter: IConfigPresenter
+  llmProviderPresenter: ILlmProviderPresenter
   agentSessionPresenter: IAgentSessionPresenter
   windowPresenter: IWindowPresenter
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
-  const hotPathPorts = createPresenterHotPathPorts(deps.agentSessionPresenter)
+  const hotPathPorts = createPresenterHotPathPorts({
+    agentSessionPresenter: deps.agentSessionPresenter as IAgentSessionPresenter & {
+      clearSessionPermissions?: (sessionId: string) => void | Promise<void>
+    },
+    configPresenter: deps.configPresenter,
+    llmProviderPresenter: deps.llmProviderPresenter
+  })
 
   return {
     settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
@@ -51,6 +68,11 @@ export function createMainKernelRouteRuntime(deps: {
       providerExecutionPort: hotPathPorts.providerExecutionPort,
       providerCatalogPort: hotPathPorts.providerCatalogPort,
       sessionPermissionPort: hotPathPorts.sessionPermissionPort,
+      scheduler
+    }),
+    providerService: new ProviderService({
+      providerCatalogPort: hotPathPorts.providerCatalogPort,
+      providerExecutionPort: hotPathPorts.providerExecutionPort,
       scheduler
     }),
     windowPresenter: deps.windowPresenter
@@ -121,6 +143,20 @@ export async function dispatchDeepchatRoute(
       return sessionsGetActiveRoute.output.parse({ session })
     }
 
+    case providersListModelsRoute.name: {
+      const input = providersListModelsRoute.input.parse(rawInput)
+      return providersListModelsRoute.output.parse(
+        await runtime.providerService.listModels(input.providerId)
+      )
+    }
+
+    case providersTestConnectionRoute.name: {
+      const input = providersTestConnectionRoute.input.parse(rawInput)
+      return providersTestConnectionRoute.output.parse(
+        await runtime.providerService.testConnection(input)
+      )
+    }
+
     case chatSendMessageRoute.name: {
       const input = chatSendMessageRoute.input.parse(rawInput)
       return chatSendMessageRoute.output.parse(
@@ -131,6 +167,13 @@ export async function dispatchDeepchatRoute(
     case chatStopStreamRoute.name: {
       const input = chatStopStreamRoute.input.parse(rawInput)
       return chatStopStreamRoute.output.parse(await runtime.chatService.stopStream(input))
+    }
+
+    case chatRespondToolInteractionRoute.name: {
+      const input = chatRespondToolInteractionRoute.input.parse(rawInput)
+      return chatRespondToolInteractionRoute.output.parse(
+        await runtime.chatService.respondToolInteraction(input)
+      )
     }
 
     case systemOpenSettingsRoute.name: {

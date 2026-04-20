@@ -62,7 +62,7 @@ import {
 } from '../usageStats'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
-import type { SessionRuntimePort } from '../runtimePorts'
+import type { ProviderSessionPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
 
 type SearchableSessionRow = {
   id: string
@@ -88,6 +88,9 @@ const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
   yo_browser_window_open: 'load_url',
   yo_browser_window_list: 'get_browser_status'
 }
+
+type LegacySessionRuntimePort = SessionUiPort &
+  Pick<SessionPermissionPort, 'clearSessionPermissions' | 'approvePermission'>
 
 const clampHistorySearchLimit = (value: number | undefined): number => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
@@ -223,7 +226,9 @@ export class AgentSessionPresenter {
   private configPresenter: IConfigPresenter
   private legacyImportService: LegacyChatImportService
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
-  private sessionRuntimePort?: SessionRuntimePort
+  private providerSessionPort?: ProviderSessionPort
+  private sessionPermissionPort?: SessionPermissionPort
+  private sessionUiPort?: SessionUiPort
   private usageStatsBackfillPromise: Promise<void> | null = null
 
   constructor(
@@ -232,7 +237,12 @@ export class AgentSessionPresenter {
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
     skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>,
-    sessionRuntimePort?: SessionRuntimePort
+    sessionRuntimePort?: LegacySessionRuntimePort,
+    runtimePorts?: {
+      providerSessionPort?: ProviderSessionPort
+      sessionPermissionPort?: SessionPermissionPort
+      sessionUiPort?: SessionUiPort
+    }
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.llmProviderPresenter = llmProviderPresenter
@@ -242,7 +252,9 @@ export class AgentSessionPresenter {
     this.sessionManager = new NewSessionManager(sqlitePresenter)
     this.messageManager = new NewMessageManager(this.agentRegistry)
     this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
-    this.sessionRuntimePort = sessionRuntimePort
+    this.providerSessionPort = runtimePorts?.providerSessionPort
+    this.sessionPermissionPort = runtimePorts?.sessionPermissionPort ?? sessionRuntimePort
+    this.sessionUiPort = runtimePorts?.sessionUiPort ?? sessionRuntimePort
 
     // Register the built-in deepchat agent
     this.agentRegistry.register(
@@ -653,7 +665,8 @@ export class AgentSessionPresenter {
       })
     }
 
-    await this.llmProviderPresenter.prepareAcpSession(record.id, agentId, projectDir)
+    await (this.providerSessionPort?.prepareAcpSession?.(record.id, agentId, projectDir) ??
+      this.llmProviderPresenter.prepareAcpSession(record.id, agentId, projectDir))
     this.emitSessionListUpdated()
 
     const state = await agent.getSessionState(record.id)
@@ -1423,6 +1436,10 @@ export class AgentSessionPresenter {
     await agent.cancelGeneration(sessionId)
   }
 
+  clearSessionPermissions(sessionId: string): void {
+    this.sessionPermissionPort?.clearSessionPermissions(sessionId)
+  }
+
   async respondToolInteraction(
     sessionId: string,
     messageId: string,
@@ -1452,7 +1469,8 @@ export class AgentSessionPresenter {
     if (!(await this.isAcpBackedSession(sessionId, session.agentId))) {
       return []
     }
-    return await this.llmProviderPresenter.getAcpSessionCommands(sessionId)
+    return await (this.providerSessionPort?.getAcpSessionCommands?.(sessionId) ??
+      this.llmProviderPresenter.getAcpSessionCommands(sessionId))
   }
 
   async getAcpSessionConfigOptions(sessionId: string): Promise<AcpConfigState | null> {
@@ -1463,7 +1481,8 @@ export class AgentSessionPresenter {
     if (!(await this.isAcpBackedSession(sessionId, session.agentId))) {
       return null
     }
-    return await this.llmProviderPresenter.getAcpSessionConfigOptions(sessionId)
+    return await (this.providerSessionPort?.getAcpSessionConfigOptions?.(sessionId) ??
+      this.llmProviderPresenter.getAcpSessionConfigOptions(sessionId))
   }
 
   async setAcpSessionConfigOption(
@@ -1478,7 +1497,11 @@ export class AgentSessionPresenter {
     if (!(await this.isAcpBackedSession(sessionId, session.agentId))) {
       throw new Error('ACP session config options are only available for ACP sessions.')
     }
-    return await this.llmProviderPresenter.setAcpSessionConfigOption(sessionId, configId, value)
+    return await (this.providerSessionPort?.setAcpSessionConfigOption?.(
+      sessionId,
+      configId,
+      value
+    ) ?? this.llmProviderPresenter.setAcpSessionConfigOption(sessionId, configId, value))
   }
 
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
@@ -1723,7 +1746,7 @@ export class AgentSessionPresenter {
       sessionIds: [],
       reason: 'list-refreshed'
     })
-    this.sessionRuntimePort?.refreshSessionUi()
+    this.sessionUiPort?.refreshSessionUi()
   }
 
   private async waitForSessionIdle(sessionId: string): Promise<boolean> {
@@ -1961,10 +1984,11 @@ export class AgentSessionPresenter {
       providerId = 'acp'
     }
     if (providerId === 'acp') {
-      await this.llmProviderPresenter.clearAcpSession(sessionId)
+      await (this.providerSessionPort?.clearAcpSession?.(sessionId) ??
+        this.llmProviderPresenter.clearAcpSession(sessionId))
     }
     await agent.destroySession(sessionId)
-    this.sessionRuntimePort?.clearSessionPermissions(sessionId)
+    this.sessionPermissionPort?.clearSessionPermissions(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
   }
@@ -2084,11 +2108,16 @@ export class AgentSessionPresenter {
     }
 
     try {
-      await this.llmProviderPresenter.setAcpWorkdir(
+      await (this.providerSessionPort?.setAcpWorkdir?.(
         conversationId,
         resolveAcpAgentAlias(agentId),
         normalizedProjectDir
-      )
+      ) ??
+        this.llmProviderPresenter.setAcpWorkdir(
+          conversationId,
+          resolveAcpAgentAlias(agentId),
+          normalizedProjectDir
+        ))
     } catch (error) {
       console.warn('[AgentSessionPresenter] Failed to sync ACP workdir for session:', {
         conversationId,
@@ -2107,7 +2136,8 @@ export class AgentSessionPresenter {
   ): Promise<void> {
     if (providerId === 'acp') {
       try {
-        await this.llmProviderPresenter.clearAcpSession(sessionId)
+        await (this.providerSessionPort?.clearAcpSession?.(sessionId) ??
+          this.llmProviderPresenter.clearAcpSession(sessionId))
       } catch (error) {
         console.warn(
           `[AgentSessionPresenter] Failed to clear ACP session after initialization error ${sessionId}:`,

@@ -854,12 +854,12 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
 
   isHandlingInteraction.value = true
   try {
-    await agentSessionPresenter.respondToolInteraction(
-      interaction.sessionId,
-      interaction.messageId,
-      interaction.toolCallId,
+    await chatClient.respondToolInteraction({
+      sessionId: interaction.sessionId,
+      messageId: interaction.messageId,
+      toolCallId: interaction.toolCallId,
       response
-    )
+    })
     await messageStore.loadMessages(props.sessionId)
   } catch (error) {
     console.error('[ChatPage] respond tool interaction failed:', error)
