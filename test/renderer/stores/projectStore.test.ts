@@ -124,7 +124,7 @@ describe('projectStore default project handling', () => {
   })
 
   it('keeps an explicit clear selection instead of reapplying the default directory', async () => {
-    const { store, emitIpc, CONFIG_EVENTS } = await setupStore({
+    const { store, emitDefaultProjectPathChanged } = await setupStore({
       recentProjects: [{ path: '/work/recent', name: 'recent', icon: null }],
       defaultProjectPath: '/work/default'
     })
@@ -135,9 +135,7 @@ describe('projectStore default project handling', () => {
     expect(store.selectedProjectPath.value).toBeNull()
     expect(store.selectedProject.value).toBeUndefined()
 
-    emitIpc(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, {
-      path: '/work/changed-default'
-    })
+    emitDefaultProjectPathChanged('/work/changed-default')
 
     expect(store.defaultProjectPath.value).toBe('/work/changed-default')
     expect(store.selectedProjectPath.value).toBeNull()

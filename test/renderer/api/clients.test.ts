@@ -1,4 +1,5 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import { BrowserClient } from '../../../src/renderer/api/BrowserClient'
 import { ChatClient } from '../../../src/renderer/api/ChatClient'
 import { ConfigClient } from '../../../src/renderer/api/ConfigClient'
 import { ModelClient } from '../../../src/renderer/api/ModelClient'
@@ -74,6 +75,8 @@ describe('renderer api clients', () => {
                   temperatureCapability: true
                 }
               }
+            case 'browser.updateCurrentWindowBounds':
+              return { updated: true }
             default:
               return {}
           }
@@ -276,5 +279,35 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenNthCalledWith(4, 'models.changed', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(5, 'models.status.changed', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(6, 'models.config.changed', expect.any(Function))
+  })
+
+  it('serializes browser bounds updates before invoking the bridge', async () => {
+    const bridge = createBridge()
+    const browserClient = new BrowserClient(bridge)
+    const reactiveBounds = new Proxy(
+      {
+        x: 12,
+        y: 34,
+        width: 320,
+        height: 180
+      },
+      {}
+    )
+
+    await browserClient.updateCurrentWindowBounds('session-1', reactiveBounds, false)
+
+    expect(bridge.invoke).toHaveBeenCalledWith('browser.updateCurrentWindowBounds', {
+      sessionId: 'session-1',
+      bounds: {
+        x: 12,
+        y: 34,
+        width: 320,
+        height: 180
+      },
+      visible: false
+    })
+    expect((bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[0][1].bounds).not.toBe(
+      reactiveBounds
+    )
   })
 })

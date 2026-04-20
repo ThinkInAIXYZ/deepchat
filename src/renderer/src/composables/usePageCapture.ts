@@ -209,13 +209,19 @@ export function usePageCapture() {
       // 记录容器原始滚动位置
       const containerOriginalScrollTop = getScrollTop(scrollContainer, isHTMLIframe)
       const containerRect = scrollContainer.getBoundingClientRect()
+      const contentViewportTop = containerRect.top + containerHeaderOffset
 
       // 计算可见截图窗口
       const captureWindowVisibleHeight = containerRect.height - containerHeaderOffset
+      const captureWindowVisibleWidth = Math.max(0, containerRect.width - scrollbarOffset)
+      if (captureWindowVisibleHeight <= 0 || captureWindowVisibleWidth <= 0) {
+        return { success: false, error: '截图窗口尺寸无效' }
+      }
+
       const fixedCaptureWindow = {
         x: containerRect.left,
-        y: containerRect.top,
-        width: containerRect.width - scrollbarOffset,
+        y: contentViewportTop,
+        width: captureWindowVisibleWidth,
         height: captureWindowVisibleHeight
       }
 
@@ -223,39 +229,49 @@ export function usePageCapture() {
       const imageDataList: string[] = []
       let totalCapturedContentHeight = 0
       let iteration = 0
-      const targetTopInContent = containerOriginalScrollTop + (initialRect.y - containerRect.top)
-      const targetBottomInContent = targetTopInContent + targetContentHeight
+      const targetTopInContent = containerOriginalScrollTop + (initialRect.y - contentViewportTop)
+      const maxCapturableBottomInContent = maxScrollTop + fixedCaptureWindow.height
+      const targetBottomInContent = Math.min(
+        targetTopInContent + targetContentHeight,
+        maxCapturableBottomInContent
+      )
+      const effectiveTargetContentHeight = Math.max(0, targetBottomInContent - targetTopInContent)
+
+      if (effectiveTargetContentHeight <= 0) {
+        return { success: false, error: '目标区域超出可捕获范围' }
+      }
 
       // 分段截图循环
-      while (totalCapturedContentHeight < targetContentHeight && iteration < maxIterations) {
+      while (
+        totalCapturedContentHeight < effectiveTargetContentHeight &&
+        iteration < maxIterations
+      ) {
         iteration++
 
-        const segmentTopInContent = targetTopInContent + totalCapturedContentHeight
-        const scrollTopTarget = Math.max(0, Math.min(segmentTopInContent, maxScrollTop))
+        const remainingTopInContent = targetTopInContent + totalCapturedContentHeight
+        const scrollTopTarget = Math.max(0, Math.min(remainingTopInContent, maxScrollTop))
 
         // 执行滚动
         performScroll(scrollContainer, scrollTopTarget, isHTMLIframe)
         await new Promise((resolve) => setTimeout(resolve, captureDelay))
 
         const actualScrollTop = getScrollTop(scrollContainer, isHTMLIframe)
-        const segmentTopInViewport = containerRect.top + (segmentTopInContent - actualScrollTop)
-        const captureStartYInWindow = Math.max(0, segmentTopInViewport - containerRect.top)
-        let heightToCaptureFromSegment = Math.min(
-          targetBottomInContent - segmentTopInContent,
-          fixedCaptureWindow.height - captureStartYInWindow
-        )
+        const visibleTopInContent = actualScrollTop
+        const visibleBottomInContent = actualScrollTop + fixedCaptureWindow.height
+        const captureTopInContent = Math.max(remainingTopInContent, visibleTopInContent)
+        const captureBottomInContent = Math.min(targetBottomInContent, visibleBottomInContent)
+        const heightToCaptureFromSegment = Math.max(0, captureBottomInContent - captureTopInContent)
 
-        heightToCaptureFromSegment = Math.max(0, heightToCaptureFromSegment)
-
-        if (heightToCaptureFromSegment < 1 && targetContentHeight > totalCapturedContentHeight) {
-          console.error(`[CAPTURE_DEBUG] Iteration ${iteration}: 可捕获高度无效`)
+        if (heightToCaptureFromSegment < 1) {
           break
         }
+
+        const captureStartYInWindow = Math.max(0, Math.round(captureTopInContent - actualScrollTop))
 
         // 构建截图区域
         const captureRect: CaptureRect = {
           x: fixedCaptureWindow.x,
-          y: Math.round(containerRect.top + captureStartYInWindow),
+          y: Math.round(fixedCaptureWindow.y + captureStartYInWindow),
           width: fixedCaptureWindow.width,
           height: Math.round(heightToCaptureFromSegment)
         }

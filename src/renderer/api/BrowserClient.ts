@@ -18,6 +18,15 @@ import { getRuntimeWindowId, openRuntimeExternal } from './runtime'
 export class BrowserClient {
   constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
 
+  private toSerializableBounds(bounds: { x: number; y: number; width: number; height: number }) {
+    return {
+      x: Number(bounds.x),
+      y: Number(bounds.y),
+      width: Number(bounds.width),
+      height: Number(bounds.height)
+    }
+  }
+
   async getStatus(sessionId: string) {
     const result = await this.bridge.invoke(browserGetStatusRoute.name, { sessionId })
     return result.status
@@ -49,7 +58,7 @@ export class BrowserClient {
   ) {
     const result = await this.bridge.invoke(browserUpdateCurrentWindowBoundsRoute.name, {
       sessionId,
-      bounds,
+      bounds: this.toSerializableBounds(bounds),
       visible
     })
     return result.updated
