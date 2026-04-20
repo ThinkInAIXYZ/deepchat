@@ -145,6 +145,53 @@ describe('ChatService', () => {
         granted: true
       }
     )
+    expect(scheduler.timeout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ms: 30 * 60 * 1_000,
+        reason: 'chat.respondToolInteraction:session-1:tool-1'
+      })
+    )
+  })
+
+  it('attempts both timeout cleanups even if clearing permissions fails', async () => {
+    const scheduler = createScheduler()
+    const timeoutError = new Error('timed out')
+    timeoutError.name = 'TimeoutError'
+    const sessionRepository = {
+      get: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        agentId: 'deepchat'
+      })
+    }
+    const messageRepository = {
+      listBySession: vi.fn(),
+      get: vi.fn()
+    }
+    const providerExecutionPort = {
+      sendMessage: vi.fn().mockRejectedValue(timeoutError),
+      cancelGeneration: vi.fn().mockResolvedValue(undefined),
+      respondToolInteraction: vi.fn()
+    }
+    const providerCatalogPort = {
+      getAgentType: vi.fn().mockResolvedValue('deepchat')
+    }
+    const sessionPermissionPort = {
+      clearSessionPermissions: vi.fn().mockRejectedValue(new Error('permission cleanup failed'))
+    }
+
+    const service = new ChatService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: messageRepository as any,
+      providerExecutionPort,
+      providerCatalogPort,
+      sessionPermissionPort,
+      scheduler
+    })
+
+    await expect(service.sendMessage('session-1', 'hello')).rejects.toBe(timeoutError)
+
+    expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
+    expect(providerExecutionPort.cancelGeneration).toHaveBeenCalledWith('session-1')
   })
 
   it('rejects a new send while another stream is still active for the session', async () => {

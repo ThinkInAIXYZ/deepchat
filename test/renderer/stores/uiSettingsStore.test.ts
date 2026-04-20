@@ -6,6 +6,7 @@ describe('uiSettingsStore', () => {
   let invoke: ReturnType<typeof vi.fn>
   let on: ReturnType<typeof vi.fn>
   let unsubscribe: ReturnType<typeof vi.fn>
+  let mountedWrappers: Array<{ unmount: () => void }>
 
   const mountStoreHost = async () => {
     const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')
@@ -26,6 +27,7 @@ describe('uiSettingsStore', () => {
         plugins: [pinia]
       }
     })
+    mountedWrappers.push(wrapper)
 
     if (!store) {
       throw new Error('Failed to initialize uiSettingsStore in test host')
@@ -37,6 +39,7 @@ describe('uiSettingsStore', () => {
   beforeEach(() => {
     vi.doUnmock('pinia')
     vi.resetModules()
+    mountedWrappers = []
 
     unsubscribe = vi.fn()
     invoke = vi.fn(async (routeName: string, input: any) => {
@@ -85,8 +88,14 @@ describe('uiSettingsStore', () => {
     })
   })
 
+  afterEach(() => {
+    for (const wrapper of mountedWrappers.splice(0)) {
+      wrapper.unmount()
+    }
+  })
+
   it('hydrates from the typed settings snapshot and reacts to typed settings.changed events', async () => {
-    const { wrapper, store } = await mountStoreHost()
+    const { store, wrapper } = await mountStoreHost()
 
     await flushPromises()
 
@@ -117,7 +126,7 @@ describe('uiSettingsStore', () => {
 
     expect(store.fontSizeLevel).toBe(4)
     expect(store.notificationsEnabled).toBe(true)
-
+    mountedWrappers = mountedWrappers.filter((candidate) => candidate !== wrapper)
     wrapper.unmount()
 
     expect(unsubscribe).toHaveBeenCalledTimes(1)

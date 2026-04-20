@@ -11,7 +11,7 @@ import type { Scheduler } from '../scheduler'
 const CHAT_LOOKUP_TIMEOUT_MS = 5_000
 const CHAT_SEND_TIMEOUT_MS = 30 * 60 * 1_000
 const CHAT_STOP_TIMEOUT_MS = 5_000
-const CHAT_INTERACTION_TIMEOUT_MS = 5_000
+const CHAT_INTERACTION_TIMEOUT_MS = CHAT_SEND_TIMEOUT_MS
 
 export class ChatService {
   private readonly activeControllers = new Map<string, AbortController>()
@@ -91,8 +91,24 @@ export class ChatService {
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'TimeoutError') {
-        await Promise.resolve(this.deps.sessionPermissionPort.clearSessionPermissions(sessionId))
-        await this.deps.providerExecutionPort.cancelGeneration(sessionId).catch(() => undefined)
+        const cleanupResults = await Promise.allSettled([
+          Promise.resolve(this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)),
+          this.deps.providerExecutionPort.cancelGeneration(sessionId)
+        ])
+        const clearPermissionsResult = cleanupResults[0]
+        if (clearPermissionsResult?.status === 'rejected') {
+          console.warn(
+            `[ChatService] Failed to clear session permissions after send timeout for ${sessionId}:`,
+            clearPermissionsResult.reason
+          )
+        }
+        const cancelGenerationResult = cleanupResults[1]
+        if (cancelGenerationResult?.status === 'rejected') {
+          console.warn(
+            `[ChatService] Failed to cancel generation after send timeout for ${sessionId}:`,
+            cancelGenerationResult.reason
+          )
+        }
       }
       throw error
     } finally {

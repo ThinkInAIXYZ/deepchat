@@ -342,6 +342,10 @@ async function loadBridgeRegister() {
       }
     }
 
+    if (!PHASE_ORDER.has(bridge.introducedIn)) {
+      throw new Error(`bridge ${bridge.id} has unsupported introducedIn ${bridge.introducedIn}`)
+    }
+
     if (!PHASE_ORDER.has(bridge.deleteByPhase)) {
       throw new Error(`bridge ${bridge.id} has unsupported deleteByPhase ${bridge.deleteByPhase}`)
     }

@@ -269,6 +269,10 @@ describe('AgentRuntimePresenter', () => {
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let toolPresenter: ReturnType<typeof createMockToolPresenter>
+  let sessionPermissionPort: {
+    clearSessionPermissions: ReturnType<typeof vi.fn>
+    approvePermission: ReturnType<typeof vi.fn>
+  }
   let agent: AgentRuntimePresenter
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
@@ -284,6 +288,10 @@ describe('AgentRuntimePresenter', () => {
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
     toolPresenter = createMockToolPresenter()
+    sessionPermissionPort = {
+      clearSessionPermissions: vi.fn(),
+      approvePermission: vi.fn().mockResolvedValue(undefined)
+    }
     hookDispatcher = { dispatchEvent: vi.fn() }
     agent = new AgentRuntimePresenter(
       llmProvider,
@@ -292,7 +300,8 @@ describe('AgentRuntimePresenter', () => {
       toolPresenter,
       new NewSessionHooksBridge(hookDispatcher),
       {
-        skillPresenter
+        skillPresenter,
+        sessionPermissionPort
       }
     )
   })
@@ -658,6 +667,34 @@ describe('AgentRuntimePresenter', () => {
           tool: expect.objectContaining({ error: 'permission denied' })
         })
       )
+    })
+
+    it('fails loudly when auto-grant is requested without a session permission port', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const agentWithoutPermissionPort = new AgentRuntimePresenter(
+        llmProvider,
+        configPresenter,
+        sqlitePresenter,
+        toolPresenter,
+        new NewSessionHooksBridge(hookDispatcher),
+        {
+          skillPresenter
+        }
+      )
+
+      ;(processStream as ReturnType<typeof vi.fn>).mockClear()
+      await agentWithoutPermissionPort.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agentWithoutPermissionPort.processMessage('s1', 'Hello')
+
+      const params = (processStream as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+      await expect(
+        params.hooks?.autoGrantPermission?.({
+          permissionType: 'write',
+          description: 'Need permission',
+          toolName: 'write_file',
+          serverName: 'agent-filesystem'
+        })
+      ).rejects.toThrow('Session permission port is not available.')
     })
 
     it('includes conversation history in LLM call', async () => {
@@ -3336,6 +3373,58 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[0].status).toBe('success')
       expect(updatedBlocks[1].status).toBe('granted')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
+    })
+
+    it('fails loudly when a confirmed permission grant has no session permission port', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      const agentWithoutPermissionPort = new AgentRuntimePresenter(
+        llmProvider,
+        configPresenter,
+        sqlitePresenter,
+        toolPresenter,
+        new NewSessionHooksBridge(hookDispatcher),
+        {
+          skillPresenter
+        }
+      )
+
+      await agentWithoutPermissionPort.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                paths: ['a.txt']
+              })
+            }
+          }
+        ]
+      })
+
+      await expect(
+        agentWithoutPermissionPort.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+      ).rejects.toThrow('Session permission port is not available.')
     })
 
     it('normalizes deferred screenshot tool results before resume', async () => {

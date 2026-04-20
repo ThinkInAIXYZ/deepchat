@@ -248,6 +248,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
+  private requireSessionPermissionPort(): SessionPermissionPort {
+    if (this.sessionPermissionPort) {
+      return this.sessionPermissionPort
+    }
+
+    throw new Error('Session permission port is not available.')
+  }
+
   async initSession(
     sessionId: string,
     config: {
@@ -1723,7 +1731,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             })
           },
           autoGrantPermission: async (permission) => {
-            await this.sessionPermissionPort?.approvePermission(sessionId, permission)
+            await this.requireSessionPermissionPort().approvePermission(sessionId, permission)
           },
           normalizeToolResult: async (tool) =>
             await this.normalizeToolResultContent({
@@ -3501,6 +3509,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   ): Promise<void> {
     if (!payload) return
 
+    const sessionPermissionPort = this.requireSessionPermissionPort()
     const permissionType = payload.permissionType
     const serverName = payload.serverName || toolCall.server_name || ''
     const toolName = payload.toolName || toolCall.name || ''
@@ -3509,7 +3518,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const command = payload.command || payload.commandInfo?.command || ''
       const signature = payload.commandSignature || payload.commandInfo?.signature || command
       if (signature) {
-        await this.sessionPermissionPort?.approvePermission(sessionId, {
+        await sessionPermissionPort.approvePermission(sessionId, {
           permissionType: 'command',
           command,
           commandSignature: signature,
@@ -3520,7 +3529,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     if (serverName === 'agent-filesystem' && Array.isArray(payload.paths) && payload.paths.length) {
-      await this.sessionPermissionPort?.approvePermission(sessionId, {
+      await sessionPermissionPort.approvePermission(sessionId, {
         permissionType: 'write',
         serverName,
         toolName,
@@ -3530,7 +3539,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     if (serverName === 'deepchat-settings' && toolName) {
-      await this.sessionPermissionPort?.approvePermission(sessionId, {
+      await sessionPermissionPort.approvePermission(sessionId, {
         permissionType: 'write',
         serverName,
         toolName
@@ -3542,7 +3551,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       serverName &&
       (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
     ) {
-      await this.sessionPermissionPort?.approvePermission(sessionId, {
+      await sessionPermissionPort.approvePermission(sessionId, {
         permissionType,
         serverName,
         toolName
