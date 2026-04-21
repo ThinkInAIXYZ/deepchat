@@ -170,6 +170,18 @@ const isAcpWorkdirMissing = computed(() => {
   return !activeSession.projectDir?.trim()
 })
 
+const applyRestoredSessionSummary = (session: unknown) => {
+  const applyRestoredSession = (
+    sessionStore as typeof sessionStore & {
+      applyRestoredSession?: (session: unknown) => void
+    }
+  ).applyRestoredSession
+
+  if (typeof applyRestoredSession === 'function') {
+    applyRestoredSession(session)
+  }
+}
+
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
@@ -319,11 +331,16 @@ watch(
         }
 
         console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
-        await Promise.all([messageStore.loadMessages(id), pendingInputStore.loadPendingInputs(id)])
+        const [restoredSession] = await Promise.all([
+          messageStore.loadMessages(id),
+          pendingInputStore.loadPendingInputs(id)
+        ])
 
         if (requestId !== sessionRestoreRequestId) {
           return
         }
+
+        applyRestoredSessionSummary(restoredSession)
 
         await nextTick()
         syncScrollPosition()
@@ -880,7 +897,7 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
       toolCallId: interaction.toolCallId,
       response
     })
-    await messageStore.loadMessages(props.sessionId)
+    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
   } catch (error) {
     console.error('[ChatPage] respond tool interaction failed:', error)
   } finally {
@@ -907,7 +924,7 @@ async function onMessageRetry(messageId: string) {
     await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] retry message failed:', error)
-    await messageStore.loadMessages(props.sessionId)
+    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
   }
 }
 
@@ -917,7 +934,7 @@ async function onMessageDelete(messageId: string) {
   try {
     messageStore.clearStreamingState()
     await sessionClient.deleteMessage(props.sessionId, messageId)
-    await messageStore.loadMessages(props.sessionId)
+    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
   } catch (error) {
     console.error('[ChatPage] delete message failed:', error)
   }
@@ -957,7 +974,7 @@ async function onMessageContinue(_conversationId: string, messageId: string) {
     await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] continue message failed:', error)
-    await messageStore.loadMessages(props.sessionId)
+    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
   }
 }
 

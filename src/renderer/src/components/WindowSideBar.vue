@@ -194,9 +194,25 @@
           </div>
         </div>
 
+        <div
+          v-if="!sessionStore.hasLoadedInitialPage && sessionStore.loading"
+          class="flex flex-col gap-2 px-3 pb-3"
+          data-testid="window-sidebar-loading-first-page"
+        >
+          <div
+            v-for="row in 6"
+            :key="`session-skeleton-${row}`"
+            class="h-10 rounded-lg bg-muted/50 animate-pulse"
+          ></div>
+        </div>
+
         <!-- Empty state -->
         <div
-          v-if="pinnedSessions.length === 0 && filteredGroups.length === 0"
+          v-if="
+            sessionStore.hasLoadedInitialPage &&
+            pinnedSessions.length === 0 &&
+            filteredGroups.length === 0
+          "
           class="flex flex-col items-center justify-center h-full px-4 text-center"
         >
           <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
@@ -215,7 +231,11 @@
         </div>
 
         <!-- Session list -->
-        <div ref="sessionListRef" class="session-list flex-1 overflow-y-auto px-1.5">
+        <div
+          ref="sessionListRef"
+          class="session-list flex-1 overflow-y-auto px-1.5"
+          @scroll="handleSessionListScroll"
+        >
           <div v-if="pinnedSessions.length > 0" class="pt-2">
             <button
               type="button"
@@ -292,6 +312,13 @@
               </div>
             </Transition>
           </template>
+
+          <div
+            v-if="sessionStore.loadingMore"
+            class="px-2 py-3 text-center text-xs text-muted-foreground/70"
+          >
+            {{ t('common.loading') }}
+          </div>
         </div>
       </div>
     </div>
@@ -780,6 +807,20 @@ const restoreSessionListScroll = (scrollTop: number | null) => {
   }
 
   sessionListRef.value.scrollTop = scrollTop
+}
+
+const handleSessionListScroll = () => {
+  const listElement = sessionListRef.value
+  if (!listElement || sessionStore.loadingMore || !sessionStore.hasMore) {
+    return
+  }
+
+  const distanceToBottom =
+    listElement.scrollHeight - listElement.scrollTop - listElement.clientHeight
+
+  if (distanceToBottom <= 96) {
+    void sessionStore.loadNextPage()
+  }
 }
 
 const getSessionItemElement = (sessionId: string, region: 'pinned' | 'grouped') =>

@@ -8,6 +8,8 @@ import type {
 } from '@shared/types/agent-interface'
 import type { HistorySearchHit } from '@shared/types/presenters/agent-session.presenter'
 import {
+  SessionListItemSchema,
+  SessionPageCursorSchema,
   ChatMessageRecordSchema,
   EntityIdSchema,
   MessageFileSchema,
@@ -83,6 +85,32 @@ export const sessionsListRoute = defineRouteContract({
   input: SessionListFiltersSchema,
   output: z.object({
     sessions: z.array(SessionWithStateSchema)
+  })
+})
+
+export const sessionsListLightweightRoute = defineRouteContract({
+  name: 'sessions.listLightweight',
+  input: z.object({
+    limit: z.number().int().positive().max(100).optional(),
+    cursor: SessionPageCursorSchema.nullable().optional(),
+    includeSubagents: z.boolean().optional(),
+    agentId: EntityIdSchema.optional(),
+    prioritizeSessionId: EntityIdSchema.optional()
+  }),
+  output: z.object({
+    items: z.array(SessionListItemSchema),
+    nextCursor: SessionPageCursorSchema.nullable(),
+    hasMore: z.boolean()
+  })
+})
+
+export const sessionsGetLightweightByIdsRoute = defineRouteContract({
+  name: 'sessions.getLightweightByIds',
+  input: z.object({
+    sessionIds: z.array(EntityIdSchema)
+  }),
+  output: z.object({
+    items: z.array(SessionListItemSchema)
   })
 })
 

@@ -228,6 +228,8 @@ watch(
 const initProviderSettings = async () => {
   console.log('initData for provider:', props.provider.id)
 
+  await modelStore.ensureProviderModelsReady(props.provider.id)
+
   // Fetch Azure API Version if applicable
   if (props.provider.id === 'azure-openai') {
     try {

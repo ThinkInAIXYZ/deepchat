@@ -210,7 +210,7 @@ import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -379,16 +379,23 @@ const handleProviderAdded = (provider: LLM_PROVIDER) => {
 }
 
 onMounted(async () => {
-  if (!providerStore.providers.length) {
-    await providerStore.refreshProviders()
-  }
-  if (!modelStore.allProviderModels.length) {
-    await modelStore.refreshAllModels()
-  }
+  await providerStore.ensureInitialized()
   if (!route.params.providerId && visibleProviders.value.length > 0) {
     setActiveProvider(visibleProviders.value[0].id)
   }
 })
+
+watch(
+  () => route.params.providerId,
+  async (providerId) => {
+    if (typeof providerId !== 'string' || providerId.length === 0) {
+      return
+    }
+
+    await modelStore.ensureProviderModelsReady(providerId)
+  },
+  { immediate: true }
+)
 
 // 处理拖拽结束事件
 const handleDragEnd = () => {

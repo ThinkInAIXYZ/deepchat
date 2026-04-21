@@ -25,9 +25,11 @@ import {
   sessionsGetActiveRoute,
   sessionsGetAgentsRoute,
   sessionsGetDisabledAgentToolsRoute,
+  sessionsGetLightweightByIdsRoute,
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsListLightweightRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
@@ -85,6 +87,21 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     parentSessionId?: string
   }) {
     return await bridge.invoke(sessionsListRoute.name, filters ?? {})
+  }
+
+  async function listLightweight(input?: {
+    limit?: number
+    cursor?: { updatedAt: number; id: string } | null
+    includeSubagents?: boolean
+    agentId?: string
+    prioritizeSessionId?: string
+  }) {
+    return await bridge.invoke(sessionsListLightweightRoute.name, input ?? {})
+  }
+
+  async function getLightweightByIds(sessionIds: string[]) {
+    const result = await bridge.invoke(sessionsGetLightweightByIdsRoute.name, { sessionIds })
+    return result.items
   }
 
   async function ensureAcpDraftSession(input: {
@@ -403,6 +420,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     deactivate,
     getActive,
     list,
+    listLightweight,
+    getLightweightByIds,
     ensureAcpDraftSession,
     listPendingInputs,
     queuePendingInput,

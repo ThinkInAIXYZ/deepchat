@@ -3,6 +3,8 @@ import { createSessionClient } from '../../../api/SessionClient'
 interface BindSessionStoreIpcOptions {
   webContentsId: number | null
   fetchSessions: () => void | Promise<void>
+  refreshSessionsByIds: (sessionIds: string[]) => void | Promise<void>
+  removeSessions: (sessionIds: string[]) => void
   onActivated: (sessionId: string) => void
   onDeactivated: () => void
   onStatusChanged: (sessionId: string, status: string) => void
@@ -29,10 +31,22 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): () => 
       if (
         payload.reason === 'created' ||
         payload.reason === 'list-refreshed' ||
-        payload.reason === 'updated' ||
-        payload.reason === 'deleted'
+        payload.reason === 'updated'
       ) {
+        if (payload.sessionIds.length > 0) {
+          void options.refreshSessionsByIds(payload.sessionIds)
+          return
+        }
+
         void options.fetchSessions()
+        return
+      }
+
+      if (payload.reason === 'deleted') {
+        options.removeSessions(payload.sessionIds)
+        if (payload.sessionIds.length === 0) {
+          void options.fetchSessions()
+        }
       }
     }),
     sessionClient.onStatusChanged((payload) => {

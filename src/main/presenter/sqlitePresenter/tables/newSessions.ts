@@ -18,6 +18,16 @@ export interface NewSessionRow {
   updated_at: number
 }
 
+export type SessionListPageCursor = {
+  updatedAt: number
+  id: string
+}
+
+export type SessionListPageResult = {
+  rows: NewSessionRow[]
+  hasMore: boolean
+}
+
 export class NewSessionsTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'new_sessions')
@@ -162,6 +172,17 @@ export class NewSessionsTable extends BaseTable {
       | undefined
   }
 
+  getMany(ids: string[]): NewSessionRow[] {
+    if (ids.length === 0) {
+      return []
+    }
+
+    const placeholders = ids.map(() => '?').join(', ')
+    return this.db
+      .prepare(`SELECT * FROM new_sessions WHERE id IN (${placeholders})`)
+      .all(...ids) as NewSessionRow[]
+  }
+
   list(filters?: {
     agentId?: string
     projectDir?: string
@@ -194,6 +215,53 @@ export class NewSessionsTable extends BaseTable {
     sql += ' ORDER BY updated_at DESC'
 
     return this.db.prepare(sql).all(...params) as NewSessionRow[]
+  }
+
+  listPage(options?: {
+    limit?: number
+    cursor?: SessionListPageCursor | null
+    agentId?: string
+    includeSubagents?: boolean
+    parentSessionId?: string
+  }): SessionListPageResult {
+    const requestedLimit = Math.max(1, Math.min(options?.limit ?? 30, 100))
+    let sql = 'SELECT * FROM new_sessions'
+    const conditions: string[] = []
+    const params: unknown[] = []
+
+    if (options?.agentId) {
+      conditions.push('agent_id = ?')
+      params.push(options.agentId)
+    }
+
+    if (options?.includeSubagents !== true && options?.parentSessionId === undefined) {
+      conditions.push("session_kind = 'regular'")
+    }
+
+    if (options?.parentSessionId !== undefined) {
+      conditions.push('parent_session_id = ?')
+      params.push(options.parentSessionId)
+    }
+
+    if (options?.cursor) {
+      conditions.push('(updated_at < ? OR (updated_at = ? AND id < ?))')
+      params.push(options.cursor.updatedAt, options.cursor.updatedAt, options.cursor.id)
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ')
+    }
+
+    sql += ' ORDER BY updated_at DESC, id DESC LIMIT ?'
+    params.push(requestedLimit + 1)
+
+    const rows = this.db.prepare(sql).all(...params) as NewSessionRow[]
+    const hasMore = rows.length > requestedLimit
+
+    return {
+      rows: hasMore ? rows.slice(0, requestedLimit) : rows,
+      hasMore
+    }
   }
 
   update(

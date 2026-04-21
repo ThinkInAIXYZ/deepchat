@@ -845,6 +845,12 @@ export const useModelStore = defineStore('model', () => {
     }
   }
 
+  const ensureProviderModelsReady = async (providerId: string) => {
+    ensureModelRuntime()
+    await refreshProviderModels(providerId)
+    initialized.value = true
+  }
+
   const addCustomModelMutation = useIpcMutation({
     mutation: (
       providerId: string,
@@ -884,6 +890,7 @@ export const useModelStore = defineStore('model', () => {
     refreshCustomModels,
     refreshStandardModels,
     refreshProviderModels,
+    ensureProviderModelsReady,
     refreshAllModels,
     updateModelStatus,
     updateLocalModelStatus,

@@ -103,7 +103,10 @@ describe('Settings App', () => {
     vi.doMock('../../../src/renderer/src/stores/providerStore', () => ({
       useProviderStore: () => ({
         providers: [],
-        initialize: vi.fn().mockResolvedValue(undefined)
+        initialized: ref(false),
+        initialize: vi.fn().mockResolvedValue(undefined),
+        ensureInitialized: vi.fn().mockResolvedValue(undefined),
+        primeProviders: vi.fn().mockResolvedValue(undefined)
       })
     }))
     vi.doMock('../../../src/renderer/src/stores/providerDeeplinkImport', () => ({
@@ -116,12 +119,14 @@ describe('Settings App', () => {
     }))
     vi.doMock('../../../src/renderer/src/stores/modelStore', () => ({
       useModelStore: () => ({
-        initialize: vi.fn().mockResolvedValue(undefined)
+        initialize: vi.fn().mockResolvedValue(undefined),
+        ensureProviderModelsReady: vi.fn().mockResolvedValue(undefined)
       })
     }))
     vi.doMock('../../../src/renderer/src/stores/ollamaStore', () => ({
       useOllamaStore: () => ({
-        initialize: vi.fn().mockResolvedValue(undefined)
+        initialize: vi.fn().mockResolvedValue(undefined),
+        ensureProviderReady: vi.fn().mockResolvedValue(undefined)
       })
     }))
     vi.doMock('../../../src/renderer/src/stores/mcp', () => ({
@@ -681,8 +686,14 @@ describe('Settings App', () => {
       resolveProviderInitialize = resolve
     })
     const providerStore = {
+      initialized: false,
       providers: [],
-      initialize: vi.fn().mockReturnValue(providerInitializePromise)
+      initialize: vi.fn().mockReturnValue(providerInitializePromise),
+      ensureInitialized: vi.fn().mockImplementation(async () => {
+        await providerInitializePromise
+        providerStore.initialized = true
+      }),
+      primeProviders: vi.fn().mockResolvedValue(undefined)
     }
     const providerDeeplinkImportStore = {
       preview: null,
@@ -791,12 +802,14 @@ describe('Settings App', () => {
     }))
     vi.doMock('../../../src/renderer/src/stores/modelStore', () => ({
       useModelStore: () => ({
-        initialize: vi.fn().mockResolvedValue(undefined)
+        initialize: vi.fn().mockResolvedValue(undefined),
+        ensureProviderModelsReady: vi.fn().mockResolvedValue(undefined)
       })
     }))
     vi.doMock('../../../src/renderer/src/stores/ollamaStore', () => ({
       useOllamaStore: () => ({
-        initialize: vi.fn().mockResolvedValue(undefined)
+        initialize: vi.fn().mockResolvedValue(undefined),
+        ensureProviderReady: vi.fn().mockResolvedValue(undefined)
       })
     }))
     vi.doMock('../../../src/renderer/src/stores/mcp', () => ({
@@ -875,7 +888,7 @@ describe('Settings App', () => {
 
     await flushPromises()
 
-    expect(providerStore.initialize).toHaveBeenCalledTimes(1)
+    expect(providerStore.ensureInitialized).not.toHaveBeenCalled()
 
     const installHandler = ipcOn.mock.calls.find(
       ([eventName]: [string]) => eventName === SETTINGS_EVENTS.PROVIDER_INSTALL
@@ -895,11 +908,11 @@ describe('Settings App', () => {
     consumePendingSettingsProviderInstall.mockResolvedValueOnce(payload)
     const installPromise = installHandler?.({})
 
-    expect(providerStore.initialize).toHaveBeenCalledTimes(1)
-
     resolveProviderInitialize?.()
     await installPromise
     await flushPromises()
+
+    expect(providerStore.ensureInitialized).toHaveBeenCalledTimes(1)
 
     expect(push).toHaveBeenCalledWith({
       name: 'settings-provider',

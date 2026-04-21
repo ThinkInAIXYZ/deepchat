@@ -6,6 +6,7 @@ import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { DEEPLINK_EVENTS } from '@/events'
 import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 export const initAppStores = async () => {
   const uiSettingsStore = useUiSettingsStore()
@@ -20,8 +21,9 @@ export const initAppStores = async () => {
   await providerStore.initialize()
   console.info('[Startup][Renderer] initAppStores critical stores ready')
 
-  console.info('[Startup][Renderer] initAppStores deferred store warmups begin')
-  void Promise.allSettled([modelStore.initialize(), ollamaStore.initialize()]).then(() => {
+  scheduleStartupDeferredTask(async () => {
+    console.info('[Startup][Renderer] initAppStores deferred store warmups begin')
+    await Promise.allSettled([modelStore.initialize(), ollamaStore.initialize()])
     console.info('[Startup][Renderer] initAppStores deferred store warmups complete')
   })
 }

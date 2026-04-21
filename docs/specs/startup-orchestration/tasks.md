@@ -1,72 +1,85 @@
 # Startup Orchestration 任务拆分
 
-## T0 文档与基线
+## T0 文档同步
 
-- [x] 创建 `docs/specs/startup-orchestration/spec.md`
-- [x] 创建 `docs/specs/startup-orchestration/plan.md`
-- [x] 创建 `docs/specs/startup-orchestration/tasks.md`
-- [x] 创建 `docs/specs/startup-orchestration/acceptance.md`
-- [x] 记录当前启动基线日志与主路径耗时样本
+- [x] 更新 `spec.md` 为 `agent first, session staged`
+- [x] 更新 `plan.md` 为 bootstrap shell + staged session flow
+- [x] 更新 `acceptance.md` 为 staged loading 验收口径
+- [x] 更新 `tasks.md`，拆分已完成项与 follow-up
 
-## T1 启动编排器与 Splash 接管
+## T1 Bootstrap Shell
 
-- [ ] 引入统一 `StartupOrchestrator`
-- [ ] 为 startup run 定义 phase、task、去重 key、超时策略
-- [ ] 将关键启动任务迁移到 orchestrator 管理
-- [ ] 保持现有 splash 延迟显示策略
-- [ ] splash 展示关键 phase/progress/error 状态
-- [ ] 主窗口显示时机切换到 `critical-startup ready`
+- [x] 新增 `startup.getBootstrap` route
+- [x] 新增 `StartupBootstrapShell` 共享类型
+- [x] 返回 `activeSessionId`
+- [x] 返回 `activeSession?`
+- [x] 返回 bootstrap agents
+- [x] 返回 `defaultProjectPath`
+- [x] 返回 `startupRunId`
 
-## T2 启动事件语义收口
+## T2 Renderer Critical Path
 
-- [ ] 重新梳理 startup/window/tab 相关事件语义
-- [ ] 区分“首个 tab 建立完成”和“真实 BrowserWindow ready-to-show”
-- [ ] 移除 `Presenter.init()` 的重复触发入口
-- [ ] 为 startup 关键事件补统一命名和日志
+- [x] `ChatTabView` critical path 改为 bootstrap shell -> page router
+- [x] `agentStore` 支持 `applyBootstrapAgents(...)`
+- [x] `sessionStore` 支持 `applyBootstrapShell(...)`
+- [x] `projectStore` 支持 `applyBootstrapDefaultProjectPath(...)`
+- [x] `pageRouter.initialize()` 优先消费 `activeSessionId`
+- [x] `sessionStore.fetchSessions()` 退出 critical path
 
-## T3 Provider 启动治理
+## T3 Session Lightweight Paging
 
-- [ ] 拆分 `provider summary snapshot` 与 `provider full warmup`
-- [ ] 移除 provider constructor 内的 startup 关键路径副作用
-- [ ] 收敛 `LLMProviderPresenter` 启动入口
-- [ ] 为 provider warmup 增加单次去重与并发限制
-- [ ] 把 provider full model refresh 移出首屏关键路径
+- [x] `new_sessions` 增加 cursor pagination
+- [x] 排序固定为 `updated_at DESC, id DESC`
+- [x] 默认 page size 设为 `30`
+- [x] 新增 `sessions.listLightweight`
+- [x] 新增 `sessions.getLightweightByIds`
+- [x] 支持 `prioritizeSessionId`
+- [x] `WindowSideBar` 增加首批 skeleton
+- [x] `WindowSideBar` 增加滚动翻页
+- [x] 翻页只 append
 
-## T4 Session / Agent 轻量快照
+## T4 Active Session Overlay
 
-- [ ] 为 `sessions list` 定义 lightweight snapshot 读取路径
-- [ ] 让冷启动历史 session 默认使用持久化快照态
-- [ ] 让活动 runtime 状态覆盖持久化 snapshot
-- [ ] 为 `agent list` 定义 lightweight snapshot 读取路径
-- [ ] 为 snapshot 增加版本号或时间戳
-- [ ] 明确 snapshot 与后台刷新结果的 merge 规则
+- [x] 新增 `SessionListItem`
+- [x] 新增 `ActiveSessionSummary`
+- [x] `sessionStore.activeSession` 由 list item + overlay 组合
+- [x] `messageStore.loadMessages()` 返回 restore session
+- [x] `ChatPage` 用 restore session 回填 active summary
 
-## T5 Renderer 首屏瘦身
+## T5 Deferred Warmups
 
-- [ ] 新增 bootstrap snapshot 读取与应用流程
-- [ ] `pageRouter`、`sessionStore`、`agentStore` 支持先应用 snapshot
-- [x] 收敛 `ChatTabView` ready 关键路径
-- [x] 把 `projectStore.fetchProjects()` 移到后台
-- [x] 为 renderer 增加 post-interactive deferred task gate
-- [x] 把 active thread restore 移到 post-interactive deferred queue
-- [x] 把 `ACP` draft/bootstrap 与 config warmup 移到 post-interactive deferred queue
-- [ ] 把 `providerStore/modelStore` 全量初始化移到后台或按需
-- [ ] 去掉重复的 `getActive()` 首屏读取
+- [x] 新增 startup deferred queue
+- [x] `modelStore.initialize()` 延后
+- [x] `ollamaStore.initialize()` 延后
+- [x] active thread restore 延后
+- [x] `ACP` draft/bootstrap 延后
+- [x] `ACP` config warmup 延后
+- [x] provider warmup 增加 `startup.provider.warmup.deferred` 日志
 
-## T6 Background Warmups
+## T6 增量事件回流
 
-- [ ] 明确 deferred 任务清单
-- [ ] 把 `MCP` auto-start、skill scan、remote control、usage backfill、legacy import、ACP env warmup 放入 deferred queue
-- [ ] 为 deferred queue 增加并发上限和失败隔离
-- [ ] 保证 deferred 任务不会阻塞关键 IPC 热路径
+- [x] `sessionStore` 支持 `refreshSessionsByIds(...)`
+- [x] `sessionStore` 支持 `removeSessions(...)`
+- [x] `created/updated/list-refreshed` 优先走定向 upsert
+- [x] `deleted` 走本地 remove
+- [x] `activated/deactivated` 只更新 active session
+- [x] main 侧 `sessions.updated` 携带具体 `sessionIds`
+- [x] merge 规则固定为 `id` 去重 + `updatedAt DESC, id DESC`
 
-## T7 观测与验收
+## T7 观测与校验
 
-- [ ] 新增 startup run / phase / task 日志
-- [ ] 新增关键时间点 trace
-- [ ] 补 main / integration 测试
-- [x] 补 renderer 启动 defer 测试
+- [x] 新增 `startup.bootstrap.ready`
+- [x] 新增 `startup.session.first-page.ready`
+- [x] 新增 `startup.session.page.appended`
+- [x] 新增 `startup.provider.warmup.deferred`
 - [x] 运行 `pnpm run format`
 - [x] 运行 `pnpm run i18n`
 - [x] 运行 `pnpm run lint`
 - [x] 运行 `pnpm run typecheck`
+
+## T8 Follow-up
+
+- [ ] 继续收敛 `providerStore.initialize()` 的启动优先级
+- [ ] 增加 session list virtualization
+- [ ] 为 sidebar 搜索补全量搜索接口
+- [ ] 增加更完整的 main/splash startup trace

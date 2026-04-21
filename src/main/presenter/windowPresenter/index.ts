@@ -1230,6 +1230,8 @@ export class WindowPresenter implements IWindowPresenter {
   public async createSettingsWindow(
     navigation?: SettingsNavigationPayload
   ): Promise<number | null> {
+    const settingsStartupStart = Date.now()
+    console.info('[Startup][Settings][Main] createSettingsWindow start')
     // If settings window already exists, just show and focus it
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       console.log('Settings window already exists, showing and focusing.')
@@ -1333,7 +1335,9 @@ export class WindowPresenter implements IWindowPresenter {
 
     // Window event listeners
     settingsWindow.on('ready-to-show', () => {
-      console.log(`Settings window ${windowId} is ready to show.`)
+      console.info(
+        `[Startup][Settings][Main] ready-to-show windowId=${windowId} elapsed=${Date.now() - settingsStartupStart}ms`
+      )
       if (!settingsWindow.isDestroyed()) {
         settingsWindow.show()
       }
@@ -1366,6 +1370,7 @@ export class WindowPresenter implements IWindowPresenter {
         settingsUrl.hash = initialNavigationPath
       }
       console.log(`Loading settings renderer URL in dev mode: ${settingsUrl.toString()}`)
+      console.info('[Startup][Settings][Main] loadURL start', settingsUrl.toString())
       await settingsWindow.loadURL(settingsUrl.toString())
     } else {
       const packagedSettingsUrl = pathToFileURL(
@@ -1375,8 +1380,13 @@ export class WindowPresenter implements IWindowPresenter {
         ? `${packagedSettingsUrl}#${initialNavigationPath}`
         : packagedSettingsUrl
       console.log(`Loading packaged settings renderer URL: ${targetUrl}`)
+      console.info('[Startup][Settings][Main] loadURL start', targetUrl)
       await settingsWindow.loadURL(targetUrl)
     }
+
+    console.info(
+      `[Startup][Settings][Main] loadURL end windowId=${windowId} elapsed=${Date.now() - settingsStartupStart}ms`
+    )
 
     // Open DevTools in development mode
     if (is.dev) {
@@ -1451,6 +1461,9 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     this.settingsWindowReady = true
+    console.info(
+      `[Startup][Settings][Main] SETTINGS_EVENTS.READY windowId=${this.settingsWindow.id}`
+    )
     this.flushPendingSettingsMessages()
   }
 

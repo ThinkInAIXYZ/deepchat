@@ -1,5 +1,8 @@
 import type {
   Agent,
+  SessionListItem,
+  SessionLightweightListResult,
+  SessionPageCursor,
   CreateSessionInput,
   CreateDetachedSessionInput,
   SessionWithState,
@@ -98,7 +101,16 @@ export interface IAgentSessionPresenter {
   activateSession(webContentsId: number, sessionId: string): Promise<void>
   deactivateSession(webContentsId: number): Promise<void>
   getActiveSession(webContentsId: number): Promise<SessionWithState | null>
+  getActiveSessionId(webContentsId: number): string | null
   getAgents(): Promise<Agent[]>
+  getLightweightSessionList(options?: {
+    limit?: number
+    cursor?: SessionPageCursor | null
+    includeSubagents?: boolean
+    agentId?: string
+    prioritizeSessionId?: string
+  }): Promise<SessionLightweightListResult>
+  getLightweightSessionsByIds(sessionIds: string[]): Promise<SessionListItem[]>
   renameSession(sessionId: string, title: string): Promise<void>
   toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void>
   clearSessionMessages(sessionId: string): Promise<void>

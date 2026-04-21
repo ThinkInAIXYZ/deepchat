@@ -47,6 +47,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
 import { createConfigClient } from '@api/ConfigClient'
+import { createStartupClient } from '@api/StartupClient'
 import ChatSidePanel from '@/components/sidepanel/ChatSidePanel.vue'
 import NewThreadPage from '@/pages/NewThreadPage.vue'
 import ChatPage from '@/pages/ChatPage.vue'
@@ -110,36 +111,67 @@ const warmStartupModelProvider = async () => {
       return
     }
 
-    console.info(`[Startup][Renderer] ChatTabView warming provider ${providerId}`)
+    console.info(`[Startup][Renderer] startup.provider.warmup.deferred provider=${providerId}`)
     await modelStore.refreshProviderModels(providerId)
   } catch (error) {
     console.warn('[Startup][Renderer] ChatTabView model warmup failed:', error)
   }
 }
 
+const initializeRouteFromFallbackState = async () => {
+  const fallbackActiveSessionId = sessionStore.error ? null : (sessionStore.activeSessionId ?? null)
+  if (fallbackActiveSessionId) {
+    await pageRouter.initialize({
+      activeSessionId: fallbackActiveSessionId
+    })
+    return
+  }
+
+  await pageRouter.initialize()
+}
+
 onMounted(async () => {
   console.info('[Startup][Renderer] ChatTabView critical hydration begin')
+  let shouldRefreshAgentsInDeferred = true
 
   try {
-    await Promise.all([sessionStore.fetchSessions(), projectStore.loadDefaultProjectPath()])
-    if (sessionStore.error || sessionStore.activeSessionId === null) {
-      await pageRouter.initialize()
-    } else {
-      await pageRouter.initialize({
-        activeSessionId: sessionStore.activeSessionId
-      })
-    }
-    console.info('[Startup][Renderer] ChatTabView interactive ready')
+    const startupClient = createStartupClient()
+    const bootstrap = await startupClient.getBootstrap()
+    console.info(
+      `[Startup][Renderer] startup.bootstrap.ready run=${bootstrap.startupRunId} agents=${bootstrap.agents.length} activeSession=${bootstrap.activeSessionId ?? 'none'}`
+    )
+
+    await sessionStore.applyBootstrapShell({
+      activeSessionId: bootstrap.activeSessionId,
+      activeSession: bootstrap.activeSession ?? null
+    })
+    agentStore.applyBootstrapAgents(bootstrap.agents)
+    projectStore.applyBootstrapDefaultProjectPath(bootstrap.defaultProjectPath)
+
+    await pageRouter.initialize({
+      activeSessionId: bootstrap.activeSessionId
+    })
   } catch (error) {
     console.warn('[Startup][Renderer] ChatTabView critical hydration failed:', error)
-    await pageRouter.initialize()
+    await Promise.allSettled([agentStore.fetchAgents(), projectStore.loadDefaultProjectPath()])
+    shouldRefreshAgentsInDeferred = false
+    await initializeRouteFromFallbackState()
   } finally {
     isReady.value = true
+    console.info('[Startup][Renderer] ChatTabView interactive ready')
+
+    console.info('[Startup][Renderer] startup.session.first-page.begin')
+    await sessionStore.fetchSessions()
+    const sessionCount = Array.isArray((sessionStore as { sessions?: unknown[] }).sessions)
+      ? sessionStore.sessions.length
+      : 0
+    console.info(`[Startup][Renderer] startup.session.first-page.ready count=${sessionCount}`)
+
     markStartupInteractive()
     cancelDeferredHydration = scheduleStartupDeferredTask(async () => {
       console.info('[Startup][Renderer] ChatTabView deferred hydration begin')
       await Promise.allSettled([
-        agentStore.fetchAgents(),
+        shouldRefreshAgentsInDeferred ? agentStore.fetchAgents() : Promise.resolve(),
         projectStore.fetchProjects(),
         warmStartupModelProvider()
       ])

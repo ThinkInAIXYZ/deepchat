@@ -92,9 +92,11 @@ import {
   sessionsGetActiveRoute,
   sessionsGetAgentsRoute,
   sessionsGetDisabledAgentToolsRoute,
+  sessionsGetLightweightByIdsRoute,
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsListLightweightRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
@@ -118,6 +120,7 @@ import {
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
+  startupGetBootstrapRoute,
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
   skillsGetExtensionRoute,
@@ -730,6 +733,45 @@ export async function dispatchDeepchatRoute(
       return runtime.settingsHandler.update(rawInput)
     }
 
+    case startupGetBootstrapRoute.name: {
+      startupGetBootstrapRoute.input.parse(rawInput)
+      const activeSessionId = runtime.agentSessionPresenter.getActiveSessionId(
+        context.webContentsId
+      )
+      const activeSession = activeSessionId
+        ? ((
+            await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
+          )[0] ?? null)
+        : null
+      const [agents, acpEnabled] = await Promise.all([
+        runtime.configPresenter.listAgents(),
+        runtime.configPresenter.getAcpEnabled()
+      ])
+
+      const bootstrap = {
+        startupRunId: `startup:${context.webContentsId}:${Date.now()}`,
+        activeSessionId,
+        activeSession,
+        agents: agents
+          .filter((agent) => agent.type === 'deepchat' || acpEnabled)
+          .map((agent) => ({
+            id: agent.id,
+            name: agent.name,
+            type: agent.type,
+            agentType: agent.agentType,
+            enabled: agent.enabled,
+            protected: agent.protected,
+            icon: agent.icon,
+            description: agent.description,
+            source: agent.source,
+            avatar: agent.avatar
+          })),
+        defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+      }
+
+      return startupGetBootstrapRoute.output.parse({ bootstrap })
+    }
+
     case sessionsCreateRoute.name: {
       const input = sessionsCreateRoute.input.parse(rawInput)
       const session = await runtime.sessionService.createSession(input, context)
@@ -746,6 +788,20 @@ export async function dispatchDeepchatRoute(
       const input = sessionsListRoute.input.parse(rawInput)
       const sessions = await runtime.sessionService.listSessions(input)
       return sessionsListRoute.output.parse({ sessions })
+    }
+
+    case sessionsListLightweightRoute.name: {
+      const input = sessionsListLightweightRoute.input.parse(rawInput)
+      const page = await runtime.agentSessionPresenter.getLightweightSessionList(input)
+      return sessionsListLightweightRoute.output.parse(page)
+    }
+
+    case sessionsGetLightweightByIdsRoute.name: {
+      const input = sessionsGetLightweightByIdsRoute.input.parse(rawInput)
+      const items = await runtime.agentSessionPresenter.getLightweightSessionsByIds(
+        input.sessionIds
+      )
+      return sessionsGetLightweightByIdsRoute.output.parse({ items })
     }
 
     case sessionsActivateRoute.name: {

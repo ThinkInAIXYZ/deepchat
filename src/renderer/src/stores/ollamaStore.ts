@@ -10,6 +10,7 @@ export const useOllamaStore = defineStore('ollama', () => {
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
   let unsubscribeOllamaPullProgress: (() => void) | null = null
+  const initializedProviderIds = ref<Set<string>>(new Set())
 
   const runningModels = ref<Record<string, OllamaModel[]>>({})
   const localModels = ref<Record<string, OllamaModel[]>>({})
@@ -164,8 +165,17 @@ export const useOllamaStore = defineStore('ollama', () => {
       (p) => p.apiType === 'ollama' && p.enable
     )
     for (const provider of ollamaProviders) {
-      await refreshOllamaModels(provider.id)
+      await ensureProviderReady(provider.id)
     }
+  }
+
+  const ensureProviderReady = async (providerId: string) => {
+    if (initializedProviderIds.value.has(providerId)) {
+      return
+    }
+
+    await refreshOllamaModels(providerId)
+    initializedProviderIds.value = new Set(initializedProviderIds.value).add(providerId)
   }
 
   return {
@@ -186,6 +196,7 @@ export const useOllamaStore = defineStore('ollama', () => {
     clearOllamaProviderData,
     isOllamaModelRunning,
     isOllamaModelLocal,
-    initialize
+    initialize,
+    ensureProviderReady
   }
 })

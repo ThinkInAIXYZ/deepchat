@@ -9,7 +9,8 @@ import type {
   ChatMessageRecord,
   AssistantMessageBlock,
   MessageFile,
-  MessageMetadata
+  MessageMetadata,
+  SessionWithState
 } from '@shared/types/agent-interface'
 import { useStreamStateStore } from './stream'
 import { bindMessageStoreIpc } from './messageIpc'
@@ -167,14 +168,14 @@ export const useMessageStore = defineStore('message', () => {
     currentSessionId.value = sessionId
   }
 
-  async function loadMessages(sessionId: string): Promise<void> {
+  async function loadMessages(sessionId: string): Promise<SessionWithState | null> {
     const requestId = ++latestLoadRequestId
     setCurrentSessionId(sessionId)
     try {
       const restored = await sessionClient.restore(sessionId)
       const result = restored.messages
       if (requestId !== latestLoadRequestId) {
-        return
+        return null
       }
 
       messageCache.value.clear()
@@ -185,8 +186,10 @@ export const useMessageStore = defineStore('message', () => {
         messageIds.value.push(msg.id)
       }
       lastPersistedRevision.value += 1
+      return restored.session
     } catch (e) {
       console.error('Failed to load messages:', e)
+      return null
     }
   }
 

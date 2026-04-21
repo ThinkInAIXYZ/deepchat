@@ -38,6 +38,8 @@ export const useProviderStore = defineStore('provider', () => {
   const providerTimestamps = ref<Record<string, number>>({})
   const listenersRegistered = ref(false)
   const voiceAIConfig = ref<VoiceAIConfig | null>(null)
+  const initialized = ref(false)
+  const initializationPromise = ref<Promise<void> | null>(null)
 
   const providers = computed<LLM_PROVIDER[]>(() => {
     const data = providersQuery.data.value as LLM_PROVIDER[] | undefined
@@ -334,11 +336,42 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const initialize = async () => {
-    await loadProviderTimestamps()
-    await loadProviderOrder()
+    if (initialized.value) {
+      return
+    }
+
+    if (initializationPromise.value) {
+      await initializationPromise.value
+      return
+    }
+
+    initializationPromise.value = (async () => {
+      await loadProviderTimestamps()
+      await loadProviderOrder()
+      setupProviderListeners()
+      await refreshProviders()
+      await defaultProvidersQuery.refetch()
+      initialized.value = true
+    })()
+
+    try {
+      await initializationPromise.value
+    } finally {
+      if (!initialized.value) {
+        initializationPromise.value = null
+      }
+    }
+  }
+
+  const ensureInitialized = async () => {
+    await initialize()
+  }
+
+  const primeProviders = async () => {
     setupProviderListeners()
-    await refreshProviders()
-    await defaultProvidersQuery.refetch()
+    await providersQuery.refetch()
+    await loadProviderOrder()
+    await loadProviderTimestamps()
   }
 
   let providerOrderSyncTimer: ReturnType<typeof setTimeout> | null = null
@@ -380,7 +413,10 @@ export const useProviderStore = defineStore('provider', () => {
     sortedProviders,
     providerOrder,
     providerTimestamps,
+    initialized,
     initialize,
+    ensureInitialized,
+    primeProviders,
     refreshProviders,
     updateProvider,
     updateProviderConfig,

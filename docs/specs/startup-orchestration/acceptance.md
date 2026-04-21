@@ -2,164 +2,132 @@
 
 ## 验收目标
 
-验收关注四个维度：
+本轮验收聚焦五件事：
 
-1. `splash` 是否正确承接关键初始化。
-2. main 进程是否从“重复、并发、阻塞”转为“线性、去重、后台化”。
-3. renderer 首屏是否从“回拉全量数据”转为“应用快照 + 后台增量”。
-4. 轻量快照是否保持数据一致性。
+1. 主窗口首个可交互是否以 `agent ready` 为准
+2. session sidebar 是否按 `skeleton -> first page -> append pages` 渐进出现
+3. active chat 恢复后的 `providerId/modelId/projectDir` 是否完整
+4. provider/model warmup 是否退出首屏主路径
+5. `sessions.updated` 是否按实体增量 merge
 
 ## 必备观测点
 
-验收前必须具备以下日志或 trace：
+验收前日志中必须出现：
 
-1. `startupRunId`
-2. `startup.phase.begin/end`
-3. `startup.task.begin/end`
-4. `startup.window.load-requested`
-5. `startup.window.ready-to-show`
-6. `startup.renderer.snapshot-applied`
-7. `startup.renderer.interactive-ready`
-8. `startup.deferred.begin/end`
+1. `startup.bootstrap.ready`
+2. `startup.session.first-page.ready`
+3. `startup.session.page.appended`
+4. `startup.provider.warmup.deferred`
+5. `ChatTabView interactive ready`
 
-## 2026-04-21 阶段性验收记录
+## 通过条件
 
-本轮已经完成的验证：
+### P0 首屏可交互
 
-1. `pnpm run format`
-2. `pnpm run i18n`
-3. `pnpm run lint`
-4. `pnpm run typecheck`
-5. `pnpm exec vitest run test/renderer/components/ChatPage.test.ts test/renderer/components/NewThreadPage.test.ts test/renderer/components/ChatStatusBar.test.ts test/renderer/components/ChatTabView.test.ts test/renderer/pages/NewThreadPage.test.ts`
+- 冷启动时主窗口内容区在 session 首批返回前已经可交互
+- agent icons / new-thread agent cards 在首屏即可见
+- `ChatTabView interactive ready` 早于 `startup.session.first-page.ready`
 
-本轮采样证据：
+### P0 Session Staged Loading
 
-1. `Window 2 is ready to show.` 出现在 `16:36:26.669`。
-2. 首个 provider model store 创建日志延后到 `16:36:29.915`，说明 provider 相关重活已退出窗口首个可交互前路径。
-3. renderer 日志按顺序出现 `ChatTabView interactive ready` -> `releasing deferred startup tasks` -> `ChatTabView deferred hydration begin`。
-4. `ChatPage`、`NewThreadPage`、`ChatStatusBar` 的新增测试覆盖了 deferred release 前不执行、release 后执行的行为。
+- session sidebar 在首批返回前展示 skeleton
+- 首批返回后显示真实列表或 empty state
+- 下一页只在滚动接近底部时触发
+- 翻页过程中列表只 append，不清空、不闪烁
 
-当前阶段结论：
+### P0 Active Session Restore
 
-1. renderer 首个可交互前路径已经收窄。
-2. active thread restore、`ACP` draft bootstrap、`ACP` config warmup 已移到 post-interactive deferred queue。
-3. main 侧 provider 去重、splash 接管和统一 startup trace 仍在后续范围内。
+- 有 active session 时，首屏路由直接进入 chat
+- active session row 存在于首批 sidebar 数据中
+- `sessions.restore()` 返回后，`providerId/modelId/projectDir` 正确回填到 active summary
 
-## 核心通过条件
+### P0 Deferred Warmup Priority
 
-### P0 启动时序
+- `modelStore.initialize()` / `ollamaStore.initialize()` 在 startup deferred queue 中执行
+- provider/model warmup 日志出现在 `startup.session.first-page.ready` 之后
+- session 首批与滚动翻页期间没有重新引入全量 `sessions.list`
 
-- 主窗口可见事件发生在 `critical-startup` 完成之后。
-- `splash` 在关键初始化期间承接长启动。
-- `critical-startup` 的任务链可以从日志完整重建。
+### P1 增量一致性
 
-### P0 去重
-
-- 单次启动中同一 startup task key 只出现一次成功执行。
-- 单次启动中同一 provider 的关键 bootstrap 只出现一次。
-- 启动期无重复 listener 注册导致的 `MaxListenersExceededWarning`。
-
-### P0 主线程压力
-
-- pre-show 关键路径不存在对全量 session 的逐条 runtime hydration。
-- pre-show 关键路径不存在对全量 enabled provider 的 full warmup。
-- deferred 阶段的重量级任务不会阻塞首屏交互。
-
-### P0 Renderer 首屏
-
-- `ChatTabView` ready 不等待 `projectStore.fetchProjects()`。
-- `ChatTabView` ready 不等待全量 `modelStore.initialize()`。
-- `ChatTabView` ready 不等待 active thread restore、`ACP` draft bootstrap 和 `ACP` config warmup。
-- `sessions list` 与 `agent list` 在首屏使用 snapshot 直接渲染。
-
-### P1 数据一致性
-
-- 快照应用后后台刷新不会清空已有列表。
-- 后台刷新不会导致 active session、selected agent、route 发生错误回退。
-- 会话和 agent 列表不存在重复项、丢项和顺序抖动。
+- `created/updated/deleted/activated/deactivated` 不触发整表 reload
+- 事件回流后列表无重复项、无丢项、无顺序抖动
+- active session、selected agent、scroll position 保持稳定
 
 ## 场景矩阵
 
 | 场景 | 数据条件 | 预期结果 | 证据 |
 | --- | --- | --- | --- |
-| 冷启动，无 active session | 默认配置 | splash 承接关键初始化，主窗口进入 new thread，session/agent snapshot 已就绪 | startup logs + screen recording |
-| 冷启动，有 active session | 最近一次窗口绑定有效 | splash 完成后直接恢复 chat route，active session 正确 | startup logs + route state |
-| 大量历史 session | `>= 500` sessions | 首屏使用 session snapshot，侧边栏快速可见，pre-show 无逐条 runtime hydration | logs + profiler |
-| 多 enabled providers | `>= 10` enabled providers | pre-show 只读 provider summary，full warmup 在 deferred 执行 | logs |
-| 离线网络 | provider endpoint 不可达 | critical-startup 仍完成，main 可见，失败任务进入 deferred error path | logs + UI behavior |
-| ACP enabled + registry agents | ACP 打开且 registry 存在数据 | agent snapshot 可用，ACP registry/network refresh 不阻塞主窗口可见 | logs |
-| 后台刷新回流 | 启动后持续 deferred tasks | 列表稳定，active selection 稳定，局部增量更新正确 | screen recording + logs |
+| 冷启动，无 active session | 默认配置 | 主窗口直接进入 new thread；agent 先可用；sidebar 先 skeleton 后首批 | renderer logs + 录屏 |
+| 冷启动，有 active session | 最近一次绑定有效 | 首屏直接进入 chat；active row 在首批页内；active summary 完整 | logs + route state |
+| 大量历史 session | `>= 500` sessions | 首批只请求一页 lightweight data；滚动后再补下一页 | main logs + renderer logs |
+| 多 provider | `>= 10` enabled providers | agent ready 先于 provider warmup；provider warmup 记录在 deferred 阶段 | logs |
+| session 事件回流 | 启动后发生 create/update/delete | 列表局部 upsert/remove，界面稳定 | logs + 录屏 |
 
-## 详细检查项
+## 手工验收步骤
 
-### 1. Splash 接管检查
+### 1. 冷启动，无 active session
 
-检查点：
+1. 清空当前窗口活跃绑定
+2. 启动应用
+3. 观察顺序：
+   - 主内容区出现
+   - agent icons 可点
+   - session sidebar 展示 skeleton
+   - skeleton 被首批列表替换
 
-1. 冷启动超过 splash 延迟阈值后出现 splash。
-2. splash 展示当前 phase 或 task 名称。
-3. critical 完成后 splash 关闭，主窗口进入显示流程。
-4. critical task 失败时 splash 能展示错误与重试。
+### 2. 冷启动，有 active session
 
-### 2. Provider 去重检查
+1. 保留一个最近活跃的 regular session
+2. 启动应用
+3. 检查：
+   - 路由直接进入 `chat`
+   - sidebar 首批包含 active session
+   - `ChatStatusBar` 显示正确 provider/model
 
-检查点：
+### 3. 大量 session 翻页
 
-1. 启动日志中每个 enabled provider 只出现一次关键 bootstrap 记录。
-2. provider summary 读取与 provider full warmup 记录分离。
-3. renderer 首屏不触发新的 provider bootstrap 风暴。
+1. 准备 `>= 500` sessions
+2. 启动应用，确认首批只出现约 `30` 条
+3. 滚动到底部
+4. 检查：
+   - 出现 `startup.session.page.appended`
+   - 新数据 append 到现有列表尾部
+   - 已有条目不清空
 
-### 3. Session / Agent 快照检查
+### 4. Deferred Warmup 优先级
 
-检查点：
+1. 启用多个 provider
+2. 启动应用
+3. 检查日志先后顺序：
+   - `startup.bootstrap.ready`
+   - `ChatTabView interactive ready`
+   - `startup.session.first-page.ready`
+   - `startup.provider.warmup.deferred`
 
-1. `sessions list` 返回的是 lightweight snapshot。
-2. `agent list` 返回的是 lightweight snapshot。
-3. 活动 session 状态正确覆盖 snapshot 默认态。
-4. 后台刷新完成后列表维持相同 entity identity。
+### 5. 增量事件回流
 
-### 4. Renderer 关键路径检查
+1. 启动后创建 session
+2. 重命名 / pin / 删除 session
+3. 检查：
+   - `sessions.updated` 携带具体 `sessionIds`
+   - renderer 走 `refreshSessionsByIds` 或 `removeSessions`
+   - 列表保持稳定排序
 
-检查点：
+## 自动化校验
 
-1. renderer 首屏先应用 bootstrap snapshot。
-2. `pageRouter` 与 `sessionStore` 不重复读取 active session。
-3. `projectStore`、`modelStore`、完整 provider refresh 在后台执行。
-4. `ChatPage` 的 active thread restore 在 `renderer interactive-ready` 之后执行。
-5. `NewThreadPage` 的 `ACP` draft bootstrap 与 `ChatStatusBar` 的 `ACP` config warmup 在 deferred release 后执行。
+每轮收口至少执行：
 
-## 建议采样数据
+1. `pnpm run format`
+2. `pnpm run i18n`
+3. `pnpm run lint`
+4. `pnpm run typecheck`
 
-每轮验收至少保留：
-
-1. 一次冷启动完整日志
-2. 一次大数据量 profile trace
-3. 一段包含 splash -> main window 的录屏
-4. 一次 deferred tasks 回流期间的列表一致性录屏
-
-## 结果判定
-
-### 通过
-
-以下条件同时满足时判定通过：
-
-1. 所有 P0 条件通过
-2. 场景矩阵全部通过
-3. 无新的启动期 warning/error 噪音
-
-### 有条件通过
-
-以下情况可以进入下一轮优化而不阻塞主改动：
-
-1. P0 全部通过
-2. 个别 P1 一致性问题仍有边缘 case
-3. 已有明确修复 follow-up 和复现方法
-
-### 不通过
+## 不通过条件
 
 以下任一条件触发即判定不通过：
 
-1. 主窗口早于 critical-startup 完成进入可见态
-2. provider 关键 bootstrap 仍重复
-3. renderer 首屏仍依赖全量 model/project 初始化
-4. 轻量快照引入明显数据不一致
+1. agent icons 需要等待 session 首批后才可见
+2. sidebar 首批返回前出现误导性的 empty state
+3. `sessions.restore()` 后 active summary 缺少 `providerId/modelId/projectDir`
+4. 滚动翻页时列表发生清空或重排闪烁
+5. `created/updated/deleted` 事件回流重新触发整表重载

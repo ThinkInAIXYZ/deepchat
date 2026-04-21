@@ -3,8 +3,10 @@ import type { SQLitePresenter } from '../sqlitePresenter'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
+  SessionPageCursor,
   SessionRecord
 } from '@shared/types/agent-interface'
+import type { SessionListPageCursor } from '../sqlitePresenter/tables/newSessions'
 
 const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta | null => {
   if (!raw) {
@@ -68,19 +70,39 @@ export class NewSessionManager {
   get(id: string): SessionRecord | null {
     const row = this.sqlitePresenter.newSessionsTable.get(id)
     if (!row) return null
+    return this.mapRowToRecord(row)
+  }
+
+  getMany(ids: string[]): SessionRecord[] {
+    return this.sqlitePresenter.newSessionsTable.getMany(ids).map((row) => this.mapRowToRecord(row))
+  }
+
+  listPage(options?: {
+    limit?: number
+    cursor?: SessionPageCursor | null
+    agentId?: string
+    includeSubagents?: boolean
+    parentSessionId?: string
+  }): {
+    records: SessionRecord[]
+    nextCursor: SessionPageCursor | null
+    hasMore: boolean
+  } {
+    const page = this.sqlitePresenter.newSessionsTable.listPage({
+      limit: options?.limit,
+      cursor: options?.cursor as SessionListPageCursor | null | undefined,
+      agentId: options?.agentId,
+      includeSubagents: options?.includeSubagents,
+      parentSessionId: options?.parentSessionId
+    })
+    const records = page.rows.map((row) => this.mapRowToRecord(row))
+    const lastRecord = records.at(-1)
+
     return {
-      id: row.id,
-      agentId: row.agent_id,
-      title: row.title,
-      projectDir: row.project_dir,
-      isPinned: row.is_pinned === 1,
-      isDraft: row.is_draft === 1,
-      sessionKind: row.session_kind === 'subagent' ? 'subagent' : 'regular',
-      parentSessionId: row.parent_session_id ?? null,
-      subagentEnabled: row.subagent_enabled === 1,
-      subagentMeta: parseSubagentMeta(row.subagent_meta_json),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
+      records,
+      nextCursor:
+        page.hasMore && lastRecord ? { updatedAt: lastRecord.updatedAt, id: lastRecord.id } : null,
+      hasMore: page.hasMore
     }
   }
 
@@ -91,20 +113,7 @@ export class NewSessionManager {
     parentSessionId?: string
   }): SessionRecord[] {
     const rows = this.sqlitePresenter.newSessionsTable.list(filters)
-    return rows.map((row) => ({
-      id: row.id,
-      agentId: row.agent_id,
-      title: row.title,
-      projectDir: row.project_dir,
-      isPinned: row.is_pinned === 1,
-      isDraft: row.is_draft === 1,
-      sessionKind: row.session_kind === 'subagent' ? 'subagent' : 'regular',
-      parentSessionId: row.parent_session_id ?? null,
-      subagentEnabled: row.subagent_enabled === 1,
-      subagentMeta: parseSubagentMeta(row.subagent_meta_json),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    }))
+    return rows.map((row) => this.mapRowToRecord(row))
   }
 
   update(
@@ -193,5 +202,35 @@ export class NewSessionManager {
 
   getActiveSessionId(webContentsId: number): string | null {
     return this.windowBindings.get(webContentsId) ?? null
+  }
+
+  private mapRowToRecord(row: {
+    id: string
+    agent_id: string
+    title: string
+    project_dir: string | null
+    is_pinned: number
+    is_draft: number
+    session_kind: string
+    parent_session_id: string | null
+    subagent_enabled: number
+    subagent_meta_json: string | null
+    created_at: number
+    updated_at: number
+  }): SessionRecord {
+    return {
+      id: row.id,
+      agentId: row.agent_id,
+      title: row.title,
+      projectDir: row.project_dir,
+      isPinned: row.is_pinned === 1,
+      isDraft: row.is_draft === 1,
+      sessionKind: row.session_kind === 'subagent' ? 'subagent' : 'regular',
+      parentSessionId: row.parent_session_id ?? null,
+      subagentEnabled: row.subagent_enabled === 1,
+      subagentMeta: parseSubagentMeta(row.subagent_meta_json),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }
   }
 }
