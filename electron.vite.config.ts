@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import svgLoader from 'vite-svg-loader'
@@ -13,11 +13,6 @@ const isVueDevToolsOverlayEnabled = process.env.DEEPCHAT_VUE_DEVTOOLS_OVERLAY !=
 
 export default defineConfig({
   main: {
-    plugins: [
-      externalizeDepsPlugin({
-        exclude: ['mermaid']
-      }),
-    ],
     resolve: {
       alias: {
         '@': resolve('src/main/'),
@@ -25,6 +20,9 @@ export default defineConfig({
       }
     },
     build: {
+      externalizeDeps: {
+        exclude: ['mermaid']
+      },
       rollupOptions: {
         external: ['sharp', '@duckdb/node-api'],
         output: {
@@ -35,7 +33,6 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')

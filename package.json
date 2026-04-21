@@ -159,7 +159,7 @@
     "dayjs": "^1.11.19",
     "electron": "^39.8.5",
     "electron-builder": "26.0.12",
-    "electron-vite": "^4.0.1",
+    "electron-vite": "5.0.0",
     "jsdom": "^26.1.0",
     "katex": "^0.16.27",
     "lint-staged": "^16.4.0",
