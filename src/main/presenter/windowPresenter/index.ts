@@ -664,6 +664,8 @@ export class WindowPresenter implements IWindowPresenter {
       hasShadow: true, // macOS 阴影
       trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined, // macOS 红绿灯按钮位置
       webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
         preload: join(__dirname, '../preload/index.mjs'), // Preload 脚本路径
         sandbox: false, // 禁用沙箱，允许 preload 访问 Node.js API
         devTools: is.dev // 开发模式下启用 DevTools
@@ -1274,6 +1276,8 @@ export class WindowPresenter implements IWindowPresenter {
       hasShadow: true,
       trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined,
       webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
         preload: join(__dirname, '../preload/index.mjs'),
         sandbox: false,
         devTools: is.dev

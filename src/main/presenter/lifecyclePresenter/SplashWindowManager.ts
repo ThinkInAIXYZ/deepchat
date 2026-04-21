@@ -136,6 +136,8 @@ export class SplashWindowManager implements ISplashWindowManager {
         skipTaskbar: true,
         backgroundColor: '#020817',
         webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
           preload: path.join(__dirname, '../preload/index.mjs'),
           sandbox: false,
           devTools: is.dev
