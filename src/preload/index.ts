@@ -30,7 +30,7 @@ let cachedWindowId: number | undefined = undefined
 let cachedWebContentsId: number | undefined = undefined
 
 // Custom APIs for renderer
-const api = {
+const api = Object.freeze({
   copyText: (text: string) => {
     clipboard.writeText(text)
   },
@@ -104,7 +104,7 @@ const api = {
     // Fallback: no spaces but contains single quotes
     return `'${filePath.replace(/'/g, `'\\''`)}'`
   }
-}
+})
 
 const setDevWelcomeOverride = (enabled: boolean) => {
   try {
@@ -119,7 +119,7 @@ const setDevWelcomeOverride = (enabled: boolean) => {
 }
 
 const deepchatDevApi = isDevHiddenApiEnabled
-  ? {
+  ? Object.freeze({
       goToWelcome: () => {
         setDevWelcomeOverride(true)
         window.location.hash = '/welcome'
@@ -129,9 +129,9 @@ const deepchatDevApi = isDevHiddenApiEnabled
         setDevWelcomeOverride(false)
         return true
       }
-    }
+    })
   : undefined
-const deepchatBridge = createBridge(ipcRenderer)
+const deepchatBridge = Object.freeze(createBridge(ipcRenderer))
 
 exposeElectronAPI()
 
