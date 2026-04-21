@@ -197,9 +197,7 @@
             <!-- Model Status Messages -->
             <div v-if="!store.hasEligibleModel" class="text-sm text-destructive">
               {{
-                store.requiresVision
-                  ? t('mcp.sampling.noVisionModels')
-                  : t('mcp.sampling.noModels')
+                store.requiresVision ? t('mcp.sampling.noVisionModels') : t('mcp.sampling.noModels')
               }}
             </div>
             <div

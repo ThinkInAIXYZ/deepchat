@@ -502,3 +502,104 @@ describe('modelStore.refreshProviderModels', () => {
     expect(modelClient.updateModelStatus).toHaveBeenCalledWith('ollama', 'deepseek-r1:1.5b', false)
   })
 })
+
+describe('modelStore.initialize', () => {
+  it('marks the store initialized only after full initialization succeeds', async () => {
+    const { store } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'openai', enable: true }]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            providerId: 'openai',
+            isCustom: false
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+      }
+    })
+
+    await store.initialize()
+
+    expect(store.initialized.value).toBe(true)
+    expect(store.initializationError.value).toBeNull()
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+
+  it('does not mark the store initialized when only one provider is materialized', async () => {
+    const { store } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            providerId: 'openai',
+            isCustom: false
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+      }
+    })
+
+    await store.ensureProviderModelsReady('openai')
+
+    expect(store.initialized.value).toBe(false)
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+
+  it('keeps initialization failed until a later retry fully succeeds', async () => {
+    let shouldFail = true
+    const { store } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'openai', enable: true }]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => {
+          if (shouldFail) {
+            throw new Error('catalog stale')
+          }
+          return []
+        }),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            providerId: 'openai',
+            isCustom: false
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+      }
+    })
+
+    await expect(store.initialize()).rejects.toThrow('Failed to fully initialize enabled models')
+    expect(store.initialized.value).toBe(false)
+    expect(store.initializationError.value?.message).toBe(
+      'Failed to fully initialize enabled models'
+    )
+
+    shouldFail = false
+    await store.initialize()
+
+    expect(store.initialized.value).toBe(true)
+    expect(store.initializationError.value).toBeNull()
+  })
+})

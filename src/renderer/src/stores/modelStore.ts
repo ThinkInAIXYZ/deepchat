@@ -1,4 +1,4 @@
-import { computed, type ComputedRef, ref } from 'vue'
+import { computed, type ComputedRef, readonly, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
@@ -914,9 +914,9 @@ export const useModelStore = defineStore('model', () => {
     enabledModels,
     allProviderModels,
     customModels,
-    initialized,
-    isInitializing,
-    initializationError,
+    initialized: readonly(initialized),
+    isInitializing: readonly(isInitializing),
+    initializationError: readonly(initializationError),
     getProviderModelsQuery,
     getCustomModelsQuery,
     getEnabledModelsQuery,

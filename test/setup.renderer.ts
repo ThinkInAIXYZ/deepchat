@@ -403,19 +403,21 @@ vi.mock('pinia', () => ({
   storeToRefs: vi.fn((store) => store)
 }))
 
-const startupWorkloadStoreMock = () => ({
-  useStartupWorkloadStore: vi.fn(() => ({
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    connected: false,
-    runIds: { main: null, settings: null },
-    mainTasks: [],
-    settingsTasks: [],
-    getTask: vi.fn(() => null),
-    isTaskRunning: vi.fn(() => false),
-    isSectionReady: vi.fn(() => false)
-  }))
-})
+function startupWorkloadStoreMock() {
+  return {
+    useStartupWorkloadStore: vi.fn(() => ({
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      connected: false,
+      runIds: { main: null, settings: null },
+      mainTasks: [],
+      settingsTasks: [],
+      getTask: vi.fn(() => null),
+      isTaskRunning: vi.fn(() => false),
+      isSectionReady: vi.fn(() => false)
+    }))
+  }
+}
 
 vi.mock('@/stores/startupWorkloadStore', startupWorkloadStoreMock)
 vi.mock('../src/renderer/src/stores/startupWorkloadStore', startupWorkloadStoreMock)
