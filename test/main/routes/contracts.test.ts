@@ -120,13 +120,13 @@ describe('main kernel contracts', () => {
       settingsUpdateRoute.input.parse({
         changes: [
           { key: 'fontSizeLevel', value: 3 },
-          { key: 'notificationsEnabled', value: true }
+          { key: 'privacyModeEnabled', value: true }
         ]
       })
     ).toEqual({
       changes: [
         { key: 'fontSizeLevel', value: 3 },
-        { key: 'notificationsEnabled', value: true }
+        { key: 'privacyModeEnabled', value: true }
       ]
     })
   })

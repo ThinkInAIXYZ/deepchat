@@ -57,6 +57,12 @@ describe('AcpRegistryService', () => {
     fs.writeFileSync(path.join(iconDir, `${agentId}.svg`), markup, 'utf-8')
   }
 
+  const writeBuiltInManifest = (manifest: RegistryManifestFixture) => {
+    const registryDir = path.join(appRoot, 'resources', 'acp-registry')
+    fs.mkdirSync(registryDir, { recursive: true })
+    fs.writeFileSync(path.join(registryDir, 'registry.json'), JSON.stringify(manifest), 'utf-8')
+  }
+
   const createManifest = (agentId = 'claude-acp'): RegistryManifestFixture => ({
     version: '1',
     agents: [
@@ -117,6 +123,24 @@ describe('AcpRegistryService', () => {
     expect(mockNetFetch).not.toHaveBeenCalled()
   })
 
+  it('skips the automatic registry refresh when privacy mode is enabled', async () => {
+    const manifest = createManifest()
+    writeBuiltInManifest(manifest)
+
+    const globalFetch = vi.fn()
+    vi.stubGlobal('fetch', globalFetch)
+
+    const AcpRegistryService = await importService()
+    const service = new AcpRegistryService({
+      isPrivacyModeEnabled: () => true
+    })
+
+    await service.initialize()
+
+    expect(globalFetch).not.toHaveBeenCalled()
+    expect(service.listAgents()).toHaveLength(1)
+  })
+
   it('writes refreshed icon cache and prunes stale cached icons', async () => {
     const manifest = createManifest()
     const globalFetch = vi.fn().mockResolvedValue({
@@ -148,6 +172,36 @@ describe('AcpRegistryService', () => {
 
     const markup = await service.getIconMarkup('claude-acp', manifest.agents[0].icon)
     expect(markup).toContain('currentColor')
+    expect(mockNetFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps manual refresh available while privacy mode is enabled', async () => {
+    const manifest = createManifest()
+    writeBuiltInManifest(manifest)
+
+    const globalFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue(JSON.stringify(manifest))
+    })
+    vi.stubGlobal('fetch', globalFetch)
+
+    mockNetFetch.mockResolvedValue({
+      ok: true,
+      text: vi
+        .fn()
+        .mockResolvedValue(
+          '<svg viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h16v16H0z" /></svg>'
+        )
+    })
+
+    const AcpRegistryService = await importService()
+    const service = new AcpRegistryService({
+      isPrivacyModeEnabled: () => true
+    })
+
+    await service.refresh(true)
+
+    expect(globalFetch).toHaveBeenCalledTimes(1)
     expect(mockNetFetch).toHaveBeenCalledTimes(1)
   })
 

@@ -84,3 +84,15 @@ describe('UiSettingsHelper auto compaction settings', () => {
     expect(setSetting).toHaveBeenNthCalledWith(3, 'autoCompactionRetainRecentPairs', 1)
   })
 })
+
+describe('UiSettingsHelper privacy mode settings', () => {
+  it('returns false by default and persists normalized values', () => {
+    const { helper, setSetting } = createHelper()
+
+    expect(helper.getPrivacyModeEnabled()).toBe(false)
+
+    helper.setPrivacyModeEnabled(true)
+
+    expect(setSetting).toHaveBeenCalledWith('privacyModeEnabled', true)
+  })
+})

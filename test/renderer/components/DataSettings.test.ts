@@ -43,6 +43,13 @@ const setup = async () => {
     setSyncEnabled: vi.fn(),
     setSyncFolderPath: vi.fn()
   })
+  const uiSettingsStore = reactive({
+    privacyModeEnabled: false,
+    setPrivacyModeEnabled: vi.fn((value: boolean) => {
+      uiSettingsStore.privacyModeEnabled = value
+      return Promise.resolve()
+    })
+  })
 
   const presenterMocks = {
     configPresenter: {
@@ -87,6 +94,9 @@ const setup = async () => {
   vi.doMock('@/stores/sync', () => ({
     useSyncStore: () => syncStore
   }))
+  vi.doMock('@/stores/uiSettingsStore', () => ({
+    useUiSettingsStore: () => uiSettingsStore
+  }))
   vi.doMock('@/stores/language', () => ({
     useLanguageStore: () => ({
       dir: 'ltr'
@@ -108,6 +118,17 @@ const setup = async () => {
       t: (key: string) =>
         (
           ({
+            'settings.common.privacyMode': 'Privacy Mode',
+            'settings.common.privacyModeDescription':
+              'Stop automatic outbound requests owned by DeepChat:',
+            'settings.common.privacyModeAutoUpdate': 'App update checks',
+            'settings.common.privacyModeProviderDb': 'Provider and model metadata refresh',
+            'settings.common.privacyModeAcpRegistry': 'ACP Registry refresh and icon sync',
+            'settings.common.privacyModeNpmRegistry': 'MCP npm registry auto-detect',
+            'settings.common.privacyModeManualActions':
+              'Manual checks and manual refresh actions stay available.',
+            'settings.common.privacyModeIntegrations':
+              'Configured third-party integrations stay available.',
             'settings.data.modelConfigUpdate.linkLabel': 'ThinkInAIXYZ/PublicProviderConf'
           }) as Record<string, string>
         )[key] ?? key
@@ -150,7 +171,19 @@ const setup = async () => {
         AlertDialogTrigger: passthroughStub('AlertDialogTrigger'),
         Button: buttonStub,
         Input: defineComponent({ name: 'Input', template: '<input />' }),
-        Switch: defineComponent({ name: 'Switch', template: '<input type="checkbox" />' }),
+        Switch: defineComponent({
+          name: 'Switch',
+          inheritAttrs: false,
+          props: {
+            modelValue: {
+              type: Boolean,
+              default: false
+            }
+          },
+          emits: ['update:modelValue'],
+          template:
+            '<button v-bind="$attrs" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>'
+        }),
         RadioGroup: passthroughStub('RadioGroup'),
         RadioGroupItem: passthroughStub('RadioGroupItem'),
         Label: passthroughStub('Label'),
@@ -171,6 +204,7 @@ const setup = async () => {
     wrapper,
     toast,
     syncStore,
+    uiSettingsStore,
     presenterMocks
   }
 }
@@ -211,10 +245,20 @@ describe('DataSettings', () => {
       'settings.data.syncSectionTitle',
       'settings.data.operationsSectionTitle'
     ])
+    expect(wrapper.text()).toContain('Privacy Mode')
+    expect(wrapper.text()).toContain('App update checks')
     expect(wrapper.text()).toContain('settings.data.databaseRepair.title')
     expect(wrapper.text()).toContain('settings.data.modelConfigUpdate.title')
     expect(wrapper.text()).toContain('settings.data.resetData')
     expect(wrapper.text()).toContain('settings.data.yoBrowser.title')
+  })
+
+  it('updates privacy mode from the data settings page', async () => {
+    const { wrapper, uiSettingsStore } = await setup()
+
+    await wrapper.get('[data-testid="privacy-mode-switch"]').trigger('click')
+
+    expect(uiSettingsStore.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
   })
 
   it('does not render a repair result summary before any repair run', async () => {

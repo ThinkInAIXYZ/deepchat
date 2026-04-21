@@ -51,6 +51,7 @@ describe('uiSettingsStore', () => {
             fontFamily: 'Inter',
             codeFontFamily: 'JetBrains Mono',
             autoScrollEnabled: false,
+            privacyModeEnabled: true,
             notificationsEnabled: false
           }
         }
@@ -105,6 +106,7 @@ describe('uiSettingsStore', () => {
     expect(store.fontFamily).toBe('Inter')
     expect(store.codeFontFamily).toBe('JetBrains Mono')
     expect(store.autoScrollEnabled).toBe(false)
+    expect(store.privacyModeEnabled).toBe(true)
     expect(store.notificationsEnabled).toBe(false)
 
     const listener = on.mock.calls[0]?.[1] as
@@ -116,16 +118,18 @@ describe('uiSettingsStore', () => {
       | undefined
 
     listener?.({
-      changedKeys: ['fontSizeLevel', 'notificationsEnabled'],
+      changedKeys: ['fontSizeLevel', 'notificationsEnabled', 'privacyModeEnabled'],
       version: 3,
       values: {
         fontSizeLevel: 4,
-        notificationsEnabled: true
+        notificationsEnabled: true,
+        privacyModeEnabled: false
       }
     })
 
     expect(store.fontSizeLevel).toBe(4)
     expect(store.notificationsEnabled).toBe(true)
+    expect(store.privacyModeEnabled).toBe(false)
     mountedWrappers = mountedWrappers.filter((candidate) => candidate !== wrapper)
     wrapper.unmount()
 
@@ -139,13 +143,18 @@ describe('uiSettingsStore', () => {
 
     await store.fetchSystemFonts()
     await store.updateFontSizeLevel(10)
+    await store.setPrivacyModeEnabled(true)
 
     expect(invoke).toHaveBeenNthCalledWith(2, 'settings.listSystemFonts', {})
     expect(invoke).toHaveBeenNthCalledWith(3, 'settings.update', {
       changes: [{ key: 'fontSizeLevel', value: 4 }]
     })
+    expect(invoke).toHaveBeenNthCalledWith(4, 'settings.update', {
+      changes: [{ key: 'privacyModeEnabled', value: true }]
+    })
     expect(store.systemFonts).toEqual(['Inter', 'JetBrains Mono'])
     expect(store.fontSizeLevel).toBe(4)
+    expect(store.privacyModeEnabled).toBe(true)
   })
 
   it('waits for the initial snapshot before applying an update result', async () => {

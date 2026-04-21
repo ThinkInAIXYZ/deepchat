@@ -23,6 +23,11 @@ export class ServerManager {
     this.configPresenter = configPresenter
     this.loadRegistryFromCache()
   }
+
+  private isPrivacyModeEnabled(): boolean {
+    return Boolean(this.configPresenter.getPrivacyModeEnabled?.())
+  }
+
   loadRegistryFromCache(): void {
     const effectiveRegistry = this.configPresenter.getEffectiveNpmRegistry?.()
     if (effectiveRegistry) {
@@ -158,6 +163,11 @@ export class ServerManager {
 
   async updateNpmRegistryInBackground(): Promise<void> {
     try {
+      if (this.isPrivacyModeEnabled()) {
+        console.log('[NPM Registry] Privacy mode enabled, skipping background update')
+        return
+      }
+
       // Check if update is needed
       if (this.configPresenter.isNpmRegistryCacheValid?.()) {
         console.log('[NPM Registry] Cache is still valid, skipping background update')

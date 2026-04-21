@@ -327,6 +327,10 @@ export class UpgradePresenter implements IUpgradePresenter {
 
   // 处理应用获得焦点事件
   private handleAppFocus(): void {
+    if (this._configPresenter.getPrivacyModeEnabled?.()) {
+      return
+    }
+
     const now = Date.now()
     const twelveHoursInMs = 12 * 60 * 60 * 1000 // 12小时的毫秒数
     // 如果距离上次检查更新超过12小时，则重新检查

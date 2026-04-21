@@ -28,6 +28,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const artifactsEffectEnabled = ref(false)
   const autoScrollEnabled = ref(true)
   const contentProtectionEnabled = ref(false)
+  const privacyModeEnabled = ref(false)
   const copyWithCotEnabled = ref(true)
   const autoCompactionEnabled = ref(true)
   const autoCompactionTriggerThreshold = ref(AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT)
@@ -84,6 +85,10 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
 
     if (typeof values.contentProtectionEnabled === 'boolean') {
       contentProtectionEnabled.value = values.contentProtectionEnabled
+    }
+
+    if (typeof values.privacyModeEnabled === 'boolean') {
+      privacyModeEnabled.value = values.privacyModeEnabled
     }
 
     if (typeof values.notificationsEnabled === 'boolean') {
@@ -279,6 +284,18 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     ])
   }
 
+  const setPrivacyModeEnabled = async (enabled: boolean) => {
+    const nextValue = Boolean(enabled)
+    privacyModeEnabled.value = nextValue
+
+    await updateSettings([
+      {
+        key: 'privacyModeEnabled',
+        value: nextValue
+      }
+    ])
+  }
+
   const setCopyWithCotEnabled = async (enabled: boolean) => {
     const nextValue = Boolean(enabled)
     copyWithCotEnabled.value = nextValue
@@ -362,6 +379,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     autoCompactionTriggerThreshold,
     autoCompactionRetainRecentPairs,
     contentProtectionEnabled,
+    privacyModeEnabled,
     copyWithCotEnabled,
     traceDebugEnabled,
     notificationsEnabled,
@@ -377,6 +395,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     setAutoCompactionRetainRecentPairs,
     setArtifactsEffectEnabled,
     setContentProtectionEnabled,
+    setPrivacyModeEnabled,
     setCopyWithCotEnabled,
     setTraceDebugEnabled,
     setNotificationsEnabled,

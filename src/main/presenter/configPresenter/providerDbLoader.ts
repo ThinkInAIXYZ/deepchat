@@ -36,6 +36,7 @@ export class ProviderDbLoader {
   private cacheFilePath: string
   private metaFilePath: string
   private refreshPromise: Promise<ProviderDbRefreshResult> | null = null
+  private privacyModeResolver: () => boolean = () => false
 
   constructor() {
     this.userDataDir = app.getPath('userData')
@@ -46,6 +47,10 @@ export class ProviderDbLoader {
     try {
       if (!fs.existsSync(this.cacheDir)) fs.mkdirSync(this.cacheDir, { recursive: true })
     } catch {}
+  }
+
+  setPrivacyModeResolver(resolver?: () => boolean): void {
+    this.privacyModeResolver = resolver ?? (() => false)
   }
 
   // Public: initialize on app start (non-blocking refresh)
@@ -61,8 +66,12 @@ export class ProviderDbLoader {
       } catch {}
     }
 
+    if (this.isAutomaticRefreshBlocked()) {
+      return
+    }
+
     // Always refresh once in the background on startup to pick up upstream updates.
-    void this.refreshIfNeeded(true)
+    void this.refreshIfNeeded(true, { automatic: true })
       .then((result) => {
         if (result.status === 'error') {
           console.warn('[ProviderDbLoader] Startup refresh failed:', result.message)
@@ -165,10 +174,19 @@ export class ProviderDbLoader {
     return DEFAULT_PROVIDER_DB_URL
   }
 
-  async refreshIfNeeded(force = false): Promise<ProviderDbRefreshResult> {
+  async refreshIfNeeded(
+    force = false,
+    options: {
+      automatic?: boolean
+    } = {}
+  ): Promise<ProviderDbRefreshResult> {
+    const meta = this.readMeta()
+    if (options.automatic && this.isAutomaticRefreshBlocked()) {
+      return this.createResult('skipped', meta)
+    }
+
     if (this.refreshPromise) return this.refreshPromise
 
-    const meta = this.readMeta()
     const ttlHours = this.getTtlHours()
     const url = this.getProviderDbUrl()
 
@@ -185,6 +203,14 @@ export class ProviderDbLoader {
     })
 
     return this.refreshPromise
+  }
+
+  private isAutomaticRefreshBlocked(): boolean {
+    try {
+      return Boolean(this.privacyModeResolver())
+    } catch {
+      return false
+    }
   }
 
   private createResult(
