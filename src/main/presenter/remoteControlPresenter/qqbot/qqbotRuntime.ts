@@ -2,7 +2,6 @@ import {
   FEISHU_CONVERSATION_POLL_TIMEOUT_MS,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   buildQQBotEndpointKey,
-  type RemoteDeliverySegment,
   type QQBotInboundMessage,
   type QQBotRuntimeStatusSnapshot,
   type QQBotTransportTarget
@@ -11,7 +10,6 @@ import { RemoteBindingStore } from '../services/remoteBindingStore'
 import type { QQBotCommandRouteResult } from '../services/qqbotCommandRouter'
 import { QQBotCommandRouter } from '../services/qqbotCommandRouter'
 import type { RemoteConversationExecution } from '../services/remoteConversationRunner'
-import { REMOTE_NO_RESPONSE_TEXT } from '../services/remoteBlockRenderer'
 import { buildFeishuPendingInteractionText } from '../feishu/feishuInteractionPrompt'
 import { QQBotClient } from './qqbotClient'
 import { QQBotGatewaySession, type QQBotGatewayBotUser } from './qqbotGatewaySession'
@@ -40,16 +38,6 @@ type QQBotRuntimeDeps = {
 
 type QQBotProcessedInboundEntry = {
   receivedAt: number
-}
-
-type QQBotRemoteDeliveryState = {
-  sourceMessageId: string
-  segments: Array<{
-    key: string
-    kind: 'process' | 'answer' | 'terminal'
-    messageIds: Array<string | null>
-    lastText: string
-  }>
 }
 
 type QQBotSendContext = {
@@ -310,6 +298,7 @@ export class QQBotRuntime {
   ): Promise<void> {
     const startedAt = Date.now()
     const endpointKey = buildQQBotEndpointKey(message.chatType, message.chatId)
+    this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
 
     while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
@@ -317,30 +306,8 @@ export class QQBotRuntime {
         return
       }
 
-      const sourceMessageId = snapshot.messageId ?? execution.eventId ?? null
-      let deliveryState = this.getStoredDeliveryState(endpointKey)
-      deliveryState = await this.prepareDeliveryStateForSource(
-        endpointKey,
-        sourceMessageId,
-        deliveryState
-      )
-      let deliverySegments = this.getSnapshotDeliverySegments(snapshot, sourceMessageId)
-
-      if (sourceMessageId) {
-        deliveryState = deliveryState ?? this.createDeliveryState(sourceMessageId)
-      }
-
       if (snapshot.completed) {
         if (snapshot.pendingInteraction) {
-          if (deliveryState && deliverySegments.length > 0) {
-            deliveryState = await this.syncDeliverySegments(
-              deliveryState,
-              endpointKey,
-              sendContext,
-              deliverySegments
-            )
-          }
-
           await this.sendText(
             sendContext,
             buildFeishuPendingInteractionText(snapshot.pendingInteraction)
@@ -350,25 +317,11 @@ export class QQBotRuntime {
         }
 
         const finalText = this.getFinalDeliveryText(snapshot)
-        deliverySegments = this.appendTerminalDeliverySegment(
-          deliverySegments,
-          sourceMessageId,
-          finalText
-        )
 
-        if (deliveryState) {
-          if (deliverySegments.length > 0) {
-            deliveryState = await this.syncDeliverySegments(
-              deliveryState,
-              endpointKey,
-              sendContext,
-              deliverySegments
-            )
-          }
-          this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
-        } else if (finalText) {
+        if (finalText) {
           await this.sendText(sendContext, finalText)
         }
+        this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
 
         return
       }
@@ -382,233 +335,14 @@ export class QQBotRuntime {
         return
       }
 
-      if (deliveryState && deliverySegments.length > 0) {
-        deliveryState = await this.syncDeliverySegments(
-          deliveryState,
-          endpointKey,
-          sendContext,
-          deliverySegments
-        )
-      }
-
-      if (sendContext.sentCount >= QQBOT_MAX_PASSIVE_REPLIES) {
-        this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
-        return
-      }
-
       await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
     }
-  }
-
-  private getStoredDeliveryState(endpointKey: string): QQBotRemoteDeliveryState | null {
-    const state = this.deps.bindingStore.getRemoteDeliveryState(endpointKey)
-    if (!state) {
-      return null
-    }
-
-    return {
-      sourceMessageId: state.sourceMessageId,
-      segments: state.segments.map((segment) => ({
-        key: segment.key,
-        kind: segment.kind,
-        messageIds: segment.messageIds.filter(
-          (messageId): messageId is string | null =>
-            typeof messageId === 'string' || messageId === null
-        ),
-        lastText: segment.lastText
-      }))
-    }
-  }
-
-  private rememberDeliveryState(
-    endpointKey: string,
-    state: QQBotRemoteDeliveryState
-  ): QQBotRemoteDeliveryState {
-    this.deps.bindingStore.rememberRemoteDeliveryState(endpointKey, state)
-    return state
-  }
-
-  private createDeliveryState(sourceMessageId: string): QQBotRemoteDeliveryState {
-    return {
-      sourceMessageId,
-      segments: []
-    }
-  }
-
-  private async prepareDeliveryStateForSource(
-    endpointKey: string,
-    sourceMessageId: string | null,
-    state: QQBotRemoteDeliveryState | null
-  ): Promise<QQBotRemoteDeliveryState | null> {
-    if (!state) {
-      return sourceMessageId ? this.createDeliveryState(sourceMessageId) : null
-    }
-
-    if (sourceMessageId && state.sourceMessageId === sourceMessageId) {
-      return state
-    }
-
-    this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
-
-    if (!sourceMessageId) {
-      return null
-    }
-
-    return this.createDeliveryState(sourceMessageId)
-  }
-
-  private getSnapshotDeliverySegments(
-    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>,
-    sourceMessageId: string | null
-  ): RemoteDeliverySegment[] {
-    if (snapshot.deliverySegments !== undefined) {
-      return snapshot.deliverySegments.filter((segment) => segment.text.trim().length > 0)
-    }
-
-    if (!sourceMessageId) {
-      return []
-    }
-
-    const segments: RemoteDeliverySegment[] = []
-    const traceText = snapshot.traceText?.trim() || ''
-    const answerText = snapshot.text?.trim() || ''
-
-    if (traceText) {
-      segments.push({
-        key: `${sourceMessageId}:legacy:process`,
-        kind: 'process',
-        text: traceText,
-        sourceMessageId
-      })
-    }
-
-    if (answerText) {
-      segments.push({
-        key: `${sourceMessageId}:legacy:answer`,
-        kind: 'answer',
-        text: answerText,
-        sourceMessageId
-      })
-    }
-
-    return segments
   }
 
   private getFinalDeliveryText(
     snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
   ): string {
     return (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
-  }
-
-  private appendTerminalDeliverySegment(
-    segments: RemoteDeliverySegment[],
-    sourceMessageId: string | null,
-    finalText: string
-  ): RemoteDeliverySegment[] {
-    const normalized = finalText.trim()
-    if (!sourceMessageId || !normalized) {
-      return segments
-    }
-
-    const lastAnswerSegment = [...segments].reverse().find((segment) => segment.kind === 'answer')
-    if (lastAnswerSegment?.text === normalized) {
-      return segments
-    }
-
-    if (normalized === REMOTE_NO_RESPONSE_TEXT && segments.length > 0) {
-      return segments
-    }
-
-    return [
-      ...segments,
-      {
-        key: `${sourceMessageId}:terminal`,
-        kind: 'terminal',
-        text: normalized,
-        sourceMessageId
-      }
-    ]
-  }
-
-  private isDeliveryStateCompatible(
-    state: QQBotRemoteDeliveryState,
-    segments: RemoteDeliverySegment[]
-  ): boolean {
-    if (segments.length < state.segments.length) {
-      return false
-    }
-
-    return state.segments.every((segment, index) => segments[index]?.key === segment.key)
-  }
-
-  private async syncDeliverySegments(
-    state: QQBotRemoteDeliveryState,
-    endpointKey: string,
-    sendContext: QQBotSendContext,
-    segments: RemoteDeliverySegment[]
-  ): Promise<QQBotRemoteDeliveryState> {
-    if (segments.length === 0) {
-      return state
-    }
-
-    if (!this.isDeliveryStateCompatible(state, segments)) {
-      return state
-    }
-
-    const syncedSegments = [...state.segments]
-    let reachedPassiveReplyLimit = false
-    for (let index = 0; index < state.segments.length; index += 1) {
-      const segment = segments[index]
-      const existingSegment = syncedSegments[index]
-      if (!segment || !existingSegment) {
-        continue
-      }
-
-      const normalizedText = segment.text.trim()
-      if (normalizedText === existingSegment.lastText) {
-        continue
-      }
-
-      const messageId = await this.sendText(sendContext, segment.text)
-      syncedSegments[index] = {
-        key: segment.key,
-        kind: segment.kind,
-        messageIds: [...existingSegment.messageIds, messageId],
-        lastText: normalizedText
-      }
-
-      if (!messageId && sendContext.sentCount >= QQBOT_MAX_PASSIVE_REPLIES) {
-        reachedPassiveReplyLimit = true
-        break
-      }
-    }
-
-    if (reachedPassiveReplyLimit) {
-      return this.rememberDeliveryState(endpointKey, {
-        sourceMessageId: state.sourceMessageId,
-        segments: syncedSegments
-      })
-    }
-
-    for (let index = state.segments.length; index < segments.length; index += 1) {
-      const segment = segments[index]
-      const messageId = await this.sendText(sendContext, segment.text)
-      syncedSegments.push({
-        key: segment.key,
-        kind: segment.kind,
-        messageIds: [messageId],
-        lastText: segment.text.trim()
-      })
-
-      if (!messageId && sendContext.sentCount >= QQBOT_MAX_PASSIVE_REPLIES) {
-        break
-      }
-    }
-
-    return this.rememberDeliveryState(endpointKey, {
-      sourceMessageId: state.sourceMessageId,
-      segments: syncedSegments
-    })
   }
 
   private createSendContext(target: QQBotTransportTarget, nextMsgSeq: number): QQBotSendContext {
