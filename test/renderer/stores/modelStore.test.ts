@@ -79,7 +79,7 @@ const setupStore = async (overrides?: {
   }))
 
   vi.doMock('../../../src/renderer/api/ModelClient', () => ({
-    ModelClient: vi.fn(() => modelClient)
+    createModelClient: vi.fn(() => modelClient)
   }))
 
   vi.doMock('@/composables/useIpcMutation', () => ({

@@ -7,23 +7,21 @@ import {
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 
-export class TabClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async notifyRendererReady() {
-    return await this.bridge.invoke(tabNotifyRendererReadyRoute.name, {})
+export function createTabClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function notifyRendererReady() {
+    return await bridge.invoke(tabNotifyRendererReadyRoute.name, {})
   }
 
-  async notifyRendererActivated(sessionId: string) {
-    return await this.bridge.invoke(tabNotifyRendererActivatedRoute.name, { sessionId })
+  async function notifyRendererActivated(sessionId: string) {
+    return await bridge.invoke(tabNotifyRendererActivatedRoute.name, { sessionId })
   }
 
-  async captureCurrentArea(rect: { x: number; y: number; width: number; height: number }) {
-    const result = await this.bridge.invoke(tabCaptureCurrentAreaRoute.name, { rect })
+  async function captureCurrentArea(rect: { x: number; y: number; width: number; height: number }) {
+    const result = await bridge.invoke(tabCaptureCurrentAreaRoute.name, { rect })
     return result.imageData
   }
 
-  async stitchImagesWithWatermark(
+  async function stitchImagesWithWatermark(
     images: string[],
     watermark?: {
       isDark?: boolean
@@ -37,10 +35,19 @@ export class TabClient {
       }
     }
   ) {
-    const result = await this.bridge.invoke(tabStitchImagesWithWatermarkRoute.name, {
+    const result = await bridge.invoke(tabStitchImagesWithWatermarkRoute.name, {
       images,
       watermark
     })
     return result.imageData
   }
+
+  return {
+    notifyRendererReady,
+    notifyRendererActivated,
+    captureCurrentArea,
+    stitchImagesWithWatermark
+  }
 }
+
+export type TabClient = ReturnType<typeof createTabClient>

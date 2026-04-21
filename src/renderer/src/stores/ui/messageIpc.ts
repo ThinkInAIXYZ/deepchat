@@ -1,4 +1,4 @@
-import { ChatClient } from '../../../api/ChatClient'
+import { createChatClient } from '../../../api/ChatClient'
 import { onLegacyIpcChannel } from '@api/legacy/runtime'
 import { STREAM_EVENTS } from '@/events'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
@@ -21,7 +21,7 @@ interface BindMessageStoreIpcOptions {
 }
 
 export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => void {
-  const chatClient = new ChatClient()
+  const chatClient = createChatClient()
   const reloadPersistedMessages = (sessionId: string) => {
     options.clearStreamingState()
     void options.loadMessages(sessionId)

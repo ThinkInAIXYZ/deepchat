@@ -22,7 +22,7 @@ describe('WelcomePage', () => {
     }
     const openSettings = vi.fn().mockResolvedValue(undefined)
     vi.doMock('@api/ConfigClient', () => ({
-      ConfigClient: vi.fn(() => ({
+      createConfigClient: vi.fn(() => ({
         setSetting: configPresenter.setSetting,
         openSettings
       }))
@@ -103,7 +103,7 @@ describe('WelcomePage', () => {
     }
     const openSettings = vi.fn().mockResolvedValue(undefined)
     vi.doMock('@api/ConfigClient', () => ({
-      ConfigClient: vi.fn(() => ({
+      createConfigClient: vi.fn(() => ({
         setSetting: configPresenter.setSetting,
         openSettings
       }))
@@ -184,7 +184,7 @@ describe('WelcomePage', () => {
     const openSettings = vi.fn().mockResolvedValue(undefined)
 
     vi.doMock('@api/ConfigClient', () => ({
-      ConfigClient: vi.fn(() => ({
+      createConfigClient: vi.fn(() => ({
         setSetting: configPresenter.setSetting,
         openSettings
       }))

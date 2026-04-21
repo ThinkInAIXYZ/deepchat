@@ -9,10 +9,10 @@
 // import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { onMounted, ref, watch } from 'vue'
-import { ConfigClient } from '@api/ConfigClient'
+import { createConfigClient } from '@api/ConfigClient'
 
 // const { t } = useI18n()
-const configClient = new ConfigClient()
+const configClient = createConfigClient()
 const collapse = ref(false)
 
 watch(

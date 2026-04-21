@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import { ConfigClient } from '@api/ConfigClient'
+import { createConfigClient } from '@api/ConfigClient'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useSessionStore } from '@/stores/ui/session'
@@ -31,13 +31,13 @@ import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
 import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
-import { WindowClient } from '@api/WindowClient'
+import { createWindowClient } from '@api/WindowClient'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
 const route = useRoute()
-const configClient = new ConfigClient()
-const windowClient = new WindowClient()
+const configClient = createConfigClient()
+const windowClient = createWindowClient()
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()

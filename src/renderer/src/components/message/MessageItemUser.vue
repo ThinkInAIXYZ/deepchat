@@ -110,8 +110,8 @@ import ChatAttachmentItem from '../chat/ChatAttachmentItem.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
-import { DeviceClient } from '@api/DeviceClient'
-import { WindowClient } from '@api/WindowClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createWindowClient } from '@api/WindowClient'
 import { computed, ref, watch, nextTick } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
@@ -147,8 +147,8 @@ const getVisibleMessageText = (message: DisplayUserMessage) => {
   return message.content.text || ''
 }
 
-const deviceClient = new DeviceClient()
-const windowClient = new WindowClient()
+const deviceClient = createDeviceClient()
+const windowClient = createWindowClient()
 const { t } = useI18n()
 
 const props = defineProps<{

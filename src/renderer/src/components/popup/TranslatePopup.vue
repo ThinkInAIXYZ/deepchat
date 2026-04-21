@@ -40,13 +40,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { SessionClient } from '@api/SessionClient'
+import { createSessionClient } from '@api/SessionClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 
 const { t, locale } = useI18n()
-const sessionClient = new SessionClient()
+const sessionClient = createSessionClient()
 const agentStore = useAgentStore()
 
 const isOpen = ref(false)

@@ -1,10 +1,10 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { ModelConfig, IModelConfig } from '@shared/presenter'
-import { ModelClient } from '../../api/ModelClient'
+import { createModelClient } from '../../api/ModelClient'
 
 export const useModelConfigStore = defineStore('modelConfig', () => {
-  const modelClient = new ModelClient()
+  const modelClient = createModelClient()
 
   const cache = ref<Record<string, ModelConfig>>({})
 

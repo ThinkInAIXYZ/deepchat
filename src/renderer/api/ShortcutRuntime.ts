@@ -3,14 +3,19 @@ import { useLegacyShortcutPresenter } from './legacy/presenters'
 
 const defaultShortcutPresenter = useLegacyShortcutPresenter()
 
-export class ShortcutRuntime {
-  constructor(private readonly presenter: IShortcutPresenter = defaultShortcutPresenter) {}
-
-  registerShortcuts() {
-    this.presenter.registerShortcuts()
+export function createShortcutRuntime(presenter: IShortcutPresenter = defaultShortcutPresenter) {
+  function registerShortcuts() {
+    presenter.registerShortcuts()
   }
 
-  destroy() {
-    this.presenter.destroy()
+  function destroy() {
+    presenter.destroy()
+  }
+
+  return {
+    registerShortcuts,
+    destroy
   }
 }
+
+export type ShortcutRuntime = ReturnType<typeof createShortcutRuntime>

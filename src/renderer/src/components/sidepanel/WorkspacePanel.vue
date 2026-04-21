@@ -145,9 +145,9 @@ import { computed, ref, toRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
-import { FileClient } from '@api/FileClient'
-import { ProjectClient } from '@api/ProjectClient'
-import { WorkspaceClient } from '@api/WorkspaceClient'
+import { createFileClient } from '@api/FileClient'
+import { createProjectClient } from '@api/ProjectClient'
+import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { extractArtifactsFromContent } from '@/composables/useArtifacts'
 import WorkspaceFileNode from '@/components/workspace/WorkspaceFileNode.vue'
 import WorkspaceViewer from './WorkspaceViewer.vue'
@@ -183,9 +183,9 @@ const artifactStore = useArtifactStore()
 const messageStore = useMessageStore()
 const sidepanelStore = useSidepanelStore()
 const sessionStore = useSessionStore()
-const workspaceClient = new WorkspaceClient()
-const projectClient = new ProjectClient()
-const fileClient = new FileClient()
+const workspaceClient = createWorkspaceClient()
+const projectClient = createProjectClient()
+const fileClient = createFileClient()
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
 const {

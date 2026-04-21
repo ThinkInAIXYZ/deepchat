@@ -1,6 +1,6 @@
 // usePageCapture 使用示例
 
-import { DeviceClient } from '@api/DeviceClient'
+import { createDeviceClient } from '@api/DeviceClient'
 import { usePageCapture, createCapturePresets } from '@/composables/usePageCapture'
 import { useI18n } from 'vue-i18n'
 import { ref } from 'vue'
@@ -9,7 +9,7 @@ import { ref } from 'vue'
 export function useMessageCapture() {
   const { t } = useI18n()
   const { isCapturing, captureAndCopy } = usePageCapture()
-  const deviceClient = new DeviceClient()
+  const deviceClient = createDeviceClient()
   const appVersion = ref('')
 
   // 初始化应用版本

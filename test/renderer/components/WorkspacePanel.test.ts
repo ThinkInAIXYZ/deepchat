@@ -179,7 +179,7 @@ vi.mock('@/stores/ui/sidepanel', () => ({
 }))
 
 vi.mock('@api/WorkspaceClient', () => ({
-  WorkspaceClient: vi.fn(() => ({
+  createWorkspaceClient: vi.fn(() => ({
     registerWorkspace: registerWorkspaceMock,
     watchWorkspace: watchWorkspaceMock,
     unwatchWorkspace: unwatchWorkspaceMock,
@@ -197,13 +197,13 @@ vi.mock('@api/WorkspaceClient', () => ({
 }))
 
 vi.mock('@api/ProjectClient', () => ({
-  ProjectClient: vi.fn(() => ({
+  createProjectClient: vi.fn(() => ({
     selectDirectory: selectDirectoryMock
   }))
 }))
 
 vi.mock('@api/FileClient', () => ({
-  FileClient: vi.fn(() => ({
+  createFileClient: vi.fn(() => ({
     isDirectory: isDirectoryMock,
     getPathForFile: getPathForFileMock
   }))

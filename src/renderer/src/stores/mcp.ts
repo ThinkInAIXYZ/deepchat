@@ -1,7 +1,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { McpClient } from '@api/McpClient'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createMcpClient } from '@api/McpClient'
+import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useI18n } from 'vue-i18n'
@@ -22,9 +22,9 @@ const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 export const useMcpStore = defineStore('mcp', () => {
   const { t } = useI18n()
   // 获取MCP相关的presenter
-  const mcpClient = new McpClient()
+  const mcpClient = createMcpClient()
   // 获取配置相关的client
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
 
   // ==================== 状态定义 ====================
   // MCP配置

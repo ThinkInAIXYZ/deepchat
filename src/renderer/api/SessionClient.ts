@@ -54,65 +54,67 @@ import {
 import type { CreateSessionInput, SendMessageInput } from '@shared/types/agent-interface'
 import { getDeepchatBridge } from './core'
 
-export class SessionClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async create(input: CreateSessionInput) {
-    return await this.bridge.invoke(
+export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function create(input: CreateSessionInput) {
+    return await bridge.invoke(
       sessionsCreateRoute.name,
       input as DeepchatRouteInput<typeof sessionsCreateRoute.name>
     )
   }
 
-  async restore(sessionId: string) {
-    return await this.bridge.invoke(sessionsRestoreRoute.name, { sessionId })
+  async function restore(sessionId: string) {
+    return await bridge.invoke(sessionsRestoreRoute.name, { sessionId })
   }
 
-  async activate(sessionId: string) {
-    return await this.bridge.invoke(sessionsActivateRoute.name, { sessionId })
+  async function activate(sessionId: string) {
+    return await bridge.invoke(sessionsActivateRoute.name, { sessionId })
   }
 
-  async deactivate() {
-    return await this.bridge.invoke(sessionsDeactivateRoute.name, {})
+  async function deactivate() {
+    return await bridge.invoke(sessionsDeactivateRoute.name, {})
   }
 
-  async getActive() {
-    return await this.bridge.invoke(sessionsGetActiveRoute.name, {})
+  async function getActive() {
+    return await bridge.invoke(sessionsGetActiveRoute.name, {})
   }
 
-  async list(filters?: {
+  async function list(filters?: {
     agentId?: string
     projectDir?: string
     includeSubagents?: boolean
     parentSessionId?: string
   }) {
-    return await this.bridge.invoke(sessionsListRoute.name, filters ?? {})
+    return await bridge.invoke(sessionsListRoute.name, filters ?? {})
   }
 
-  async ensureAcpDraftSession(input: {
+  async function ensureAcpDraftSession(input: {
     agentId: string
     projectDir: string
     permissionMode?: 'default' | 'full_access'
   }) {
-    const result = await this.bridge.invoke(sessionsEnsureAcpDraftRoute.name, input)
+    const result = await bridge.invoke(sessionsEnsureAcpDraftRoute.name, input)
     return result.session
   }
 
-  async listPendingInputs(sessionId: string) {
-    const result = await this.bridge.invoke(sessionsListPendingInputsRoute.name, { sessionId })
+  async function listPendingInputs(sessionId: string) {
+    const result = await bridge.invoke(sessionsListPendingInputsRoute.name, { sessionId })
     return result.items
   }
 
-  async queuePendingInput(sessionId: string, content: string | SendMessageInput) {
-    const result = await this.bridge.invoke(sessionsQueuePendingInputRoute.name, {
+  async function queuePendingInput(sessionId: string, content: string | SendMessageInput) {
+    const result = await bridge.invoke(sessionsQueuePendingInputRoute.name, {
       sessionId,
       content
     })
     return result.item
   }
 
-  async updateQueuedInput(sessionId: string, itemId: string, content: string | SendMessageInput) {
-    const result = await this.bridge.invoke(sessionsUpdateQueuedInputRoute.name, {
+  async function updateQueuedInput(
+    sessionId: string,
+    itemId: string,
+    content: string | SendMessageInput
+  ) {
+    const result = await bridge.invoke(sessionsUpdateQueuedInputRoute.name, {
       sessionId,
       itemId,
       content
@@ -120,8 +122,8 @@ export class SessionClient {
     return result.item
   }
 
-  async moveQueuedInput(sessionId: string, itemId: string, toIndex: number) {
-    const result = await this.bridge.invoke(sessionsMoveQueuedInputRoute.name, {
+  async function moveQueuedInput(sessionId: string, itemId: string, toIndex: number) {
+    const result = await bridge.invoke(sessionsMoveQueuedInputRoute.name, {
       sessionId,
       itemId,
       toIndex
@@ -129,35 +131,35 @@ export class SessionClient {
     return result.items
   }
 
-  async convertPendingInputToSteer(sessionId: string, itemId: string) {
-    const result = await this.bridge.invoke(sessionsConvertPendingInputToSteerRoute.name, {
+  async function convertPendingInputToSteer(sessionId: string, itemId: string) {
+    const result = await bridge.invoke(sessionsConvertPendingInputToSteerRoute.name, {
       sessionId,
       itemId
     })
     return result.item
   }
 
-  async deletePendingInput(sessionId: string, itemId: string) {
-    await this.bridge.invoke(sessionsDeletePendingInputRoute.name, {
+  async function deletePendingInput(sessionId: string, itemId: string) {
+    await bridge.invoke(sessionsDeletePendingInputRoute.name, {
       sessionId,
       itemId
     })
   }
 
-  async resumePendingQueue(sessionId: string) {
-    await this.bridge.invoke(sessionsResumePendingQueueRoute.name, { sessionId })
+  async function resumePendingQueue(sessionId: string) {
+    await bridge.invoke(sessionsResumePendingQueueRoute.name, { sessionId })
   }
 
-  async retryMessage(sessionId: string, messageId: string) {
-    await this.bridge.invoke(sessionsRetryMessageRoute.name, { sessionId, messageId })
+  async function retryMessage(sessionId: string, messageId: string) {
+    await bridge.invoke(sessionsRetryMessageRoute.name, { sessionId, messageId })
   }
 
-  async deleteMessage(sessionId: string, messageId: string) {
-    await this.bridge.invoke(sessionsDeleteMessageRoute.name, { sessionId, messageId })
+  async function deleteMessage(sessionId: string, messageId: string) {
+    await bridge.invoke(sessionsDeleteMessageRoute.name, { sessionId, messageId })
   }
 
-  async editUserMessage(sessionId: string, messageId: string, text: string) {
-    const result = await this.bridge.invoke(sessionsEditUserMessageRoute.name, {
+  async function editUserMessage(sessionId: string, messageId: string, text: string) {
+    const result = await bridge.invoke(sessionsEditUserMessageRoute.name, {
       sessionId,
       messageId,
       text
@@ -165,8 +167,8 @@ export class SessionClient {
     return result.message
   }
 
-  async forkSession(sourceSessionId: string, targetMessageId: string, newTitle?: string) {
-    const result = await this.bridge.invoke(sessionsForkRoute.name, {
+  async function forkSession(sourceSessionId: string, targetMessageId: string, newTitle?: string) {
+    const result = await bridge.invoke(sessionsForkRoute.name, {
       sourceSessionId,
       targetMessageId,
       newTitle
@@ -174,29 +176,29 @@ export class SessionClient {
     return result.session
   }
 
-  async searchHistory(query: string, options?: { limit?: number }) {
-    const result = await this.bridge.invoke(sessionsSearchHistoryRoute.name, {
+  async function searchHistory(query: string, options?: { limit?: number }) {
+    const result = await bridge.invoke(sessionsSearchHistoryRoute.name, {
       query,
       options
     })
     return result.hits
   }
 
-  async getSearchResults(messageId: string, searchId?: string) {
-    const result = await this.bridge.invoke(sessionsGetSearchResultsRoute.name, {
+  async function getSearchResults(messageId: string, searchId?: string) {
+    const result = await bridge.invoke(sessionsGetSearchResultsRoute.name, {
       messageId,
       searchId
     })
     return result.results
   }
 
-  async listMessageTraces(messageId: string) {
-    const result = await this.bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
+  async function listMessageTraces(messageId: string) {
+    const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
     return result.traces
   }
 
-  async translateText(text: string, locale?: string, agentId?: string) {
-    const result = await this.bridge.invoke(sessionsTranslateTextRoute.name, {
+  async function translateText(text: string, locale?: string, agentId?: string) {
+    const result = await bridge.invoke(sessionsTranslateTextRoute.name, {
       text,
       locale,
       agentId
@@ -204,48 +206,55 @@ export class SessionClient {
     return result.text
   }
 
-  async getAgents() {
-    const result = await this.bridge.invoke(sessionsGetAgentsRoute.name, {})
+  async function getAgents() {
+    const result = await bridge.invoke(sessionsGetAgentsRoute.name, {})
     return result.agents
   }
 
-  async renameSession(sessionId: string, title: string) {
-    await this.bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
+  async function renameSession(sessionId: string, title: string) {
+    await bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
   }
 
-  async toggleSessionPinned(sessionId: string, pinned: boolean) {
-    await this.bridge.invoke(sessionsTogglePinnedRoute.name, { sessionId, pinned })
+  async function toggleSessionPinned(sessionId: string, pinned: boolean) {
+    await bridge.invoke(sessionsTogglePinnedRoute.name, { sessionId, pinned })
   }
 
-  async clearSessionMessages(sessionId: string) {
-    await this.bridge.invoke(sessionsClearMessagesRoute.name, { sessionId })
+  async function clearSessionMessages(sessionId: string) {
+    await bridge.invoke(sessionsClearMessagesRoute.name, { sessionId })
   }
 
-  async exportSession(sessionId: string, format: 'markdown' | 'html' | 'txt' | 'nowledge-mem') {
-    return await this.bridge.invoke(sessionsExportRoute.name, {
+  async function exportSession(
+    sessionId: string,
+    format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
+  ) {
+    return await bridge.invoke(sessionsExportRoute.name, {
       sessionId,
       format
     })
   }
 
-  async deleteSession(sessionId: string) {
-    await this.bridge.invoke(sessionsDeleteRoute.name, { sessionId })
+  async function deleteSession(sessionId: string) {
+    await bridge.invoke(sessionsDeleteRoute.name, { sessionId })
   }
 
-  async getAcpSessionCommands(sessionId: string) {
-    const result = await this.bridge.invoke(sessionsGetAcpSessionCommandsRoute.name, { sessionId })
+  async function getAcpSessionCommands(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetAcpSessionCommandsRoute.name, { sessionId })
     return result.commands
   }
 
-  async getAcpSessionConfigOptions(sessionId: string) {
-    const result = await this.bridge.invoke(sessionsGetAcpSessionConfigOptionsRoute.name, {
+  async function getAcpSessionConfigOptions(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetAcpSessionConfigOptionsRoute.name, {
       sessionId
     })
     return result.state
   }
 
-  async setAcpSessionConfigOption(sessionId: string, configId: string, value: string | boolean) {
-    const result = await this.bridge.invoke(sessionsSetAcpSessionConfigOptionRoute.name, {
+  async function setAcpSessionConfigOption(
+    sessionId: string,
+    configId: string,
+    value: string | boolean
+  ) {
+    const result = await bridge.invoke(sessionsSetAcpSessionConfigOptionRoute.name, {
       sessionId,
       configId,
       value
@@ -253,25 +262,25 @@ export class SessionClient {
     return result.state
   }
 
-  async getPermissionMode(sessionId: string) {
-    const result = await this.bridge.invoke(sessionsGetPermissionModeRoute.name, { sessionId })
+  async function getPermissionMode(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetPermissionModeRoute.name, { sessionId })
     return result.mode
   }
 
-  async setPermissionMode(sessionId: string, mode: 'default' | 'full_access') {
-    await this.bridge.invoke(sessionsSetPermissionModeRoute.name, { sessionId, mode })
+  async function setPermissionMode(sessionId: string, mode: 'default' | 'full_access') {
+    await bridge.invoke(sessionsSetPermissionModeRoute.name, { sessionId, mode })
   }
 
-  async setSessionSubagentEnabled(sessionId: string, enabled: boolean) {
-    const result = await this.bridge.invoke(sessionsSetSubagentEnabledRoute.name, {
+  async function setSessionSubagentEnabled(sessionId: string, enabled: boolean) {
+    const result = await bridge.invoke(sessionsSetSubagentEnabledRoute.name, {
       sessionId,
       enabled
     })
     return result.session
   }
 
-  async setSessionModel(sessionId: string, providerId: string, modelId: string) {
-    const result = await this.bridge.invoke(sessionsSetModelRoute.name, {
+  async function setSessionModel(sessionId: string, providerId: string, modelId: string) {
+    const result = await bridge.invoke(sessionsSetModelRoute.name, {
       sessionId,
       providerId,
       modelId
@@ -279,44 +288,44 @@ export class SessionClient {
     return result.session
   }
 
-  async setSessionProjectDir(sessionId: string, projectDir: string | null) {
-    const result = await this.bridge.invoke(sessionsSetProjectDirRoute.name, {
+  async function setSessionProjectDir(sessionId: string, projectDir: string | null) {
+    const result = await bridge.invoke(sessionsSetProjectDirRoute.name, {
       sessionId,
       projectDir
     })
     return result.session
   }
 
-  async getSessionGenerationSettings(sessionId: string) {
-    const result = await this.bridge.invoke(sessionsGetGenerationSettingsRoute.name, { sessionId })
+  async function getSessionGenerationSettings(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetGenerationSettingsRoute.name, { sessionId })
     return result.settings
   }
 
-  async getSessionDisabledAgentTools(sessionId: string) {
-    const result = await this.bridge.invoke(sessionsGetDisabledAgentToolsRoute.name, { sessionId })
+  async function getSessionDisabledAgentTools(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetDisabledAgentToolsRoute.name, { sessionId })
     return result.disabledAgentTools
   }
 
-  async updateSessionDisabledAgentTools(sessionId: string, disabledAgentTools: string[]) {
-    const result = await this.bridge.invoke(sessionsUpdateDisabledAgentToolsRoute.name, {
+  async function updateSessionDisabledAgentTools(sessionId: string, disabledAgentTools: string[]) {
+    const result = await bridge.invoke(sessionsUpdateDisabledAgentToolsRoute.name, {
       sessionId,
       disabledAgentTools
     })
     return result.disabledAgentTools
   }
 
-  async updateSessionGenerationSettings(
+  async function updateSessionGenerationSettings(
     sessionId: string,
     settings: DeepchatRouteInput<typeof sessionsUpdateGenerationSettingsRoute.name>['settings']
   ) {
-    const result = await this.bridge.invoke(sessionsUpdateGenerationSettingsRoute.name, {
+    const result = await bridge.invoke(sessionsUpdateGenerationSettingsRoute.name, {
       sessionId,
       settings
     })
     return result.settings
   }
 
-  onUpdated(
+  function onUpdated(
     listener: (payload: {
       sessionIds: string[]
       reason: 'created' | 'activated' | 'deactivated' | 'list-refreshed' | 'updated' | 'deleted'
@@ -324,24 +333,26 @@ export class SessionClient {
       webContentsId?: number
     }) => void
   ) {
-    return this.bridge.on(sessionsUpdatedEvent.name, listener)
+    return bridge.on(sessionsUpdatedEvent.name, listener)
   }
 
-  onStatusChanged(
+  function onStatusChanged(
     listener: (payload: {
       sessionId: string
       status: 'idle' | 'generating' | 'error'
       version: number
     }) => void
   ) {
-    return this.bridge.on(sessionsStatusChangedEvent.name, listener)
+    return bridge.on(sessionsStatusChangedEvent.name, listener)
   }
 
-  onPendingInputsChanged(listener: (payload: { sessionId: string; version: number }) => void) {
-    return this.bridge.on(sessionsPendingInputsChangedEvent.name, listener)
+  function onPendingInputsChanged(
+    listener: (payload: { sessionId: string; version: number }) => void
+  ) {
+    return bridge.on(sessionsPendingInputsChangedEvent.name, listener)
   }
 
-  onAcpCommandsReady(
+  function onAcpCommandsReady(
     listener: (payload: {
       conversationId: string
       agentId: string
@@ -353,10 +364,10 @@ export class SessionClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(sessionsAcpCommandsReadyEvent.name, listener)
+    return bridge.on(sessionsAcpCommandsReadyEvent.name, listener)
   }
 
-  onAcpConfigOptionsReady(
+  function onAcpConfigOptionsReady(
     listener: (payload: {
       conversationId?: string
       agentId: string
@@ -382,6 +393,56 @@ export class SessionClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(sessionsAcpConfigOptionsReadyEvent.name, listener)
+    return bridge.on(sessionsAcpConfigOptionsReadyEvent.name, listener)
+  }
+
+  return {
+    create,
+    restore,
+    activate,
+    deactivate,
+    getActive,
+    list,
+    ensureAcpDraftSession,
+    listPendingInputs,
+    queuePendingInput,
+    updateQueuedInput,
+    moveQueuedInput,
+    convertPendingInputToSteer,
+    deletePendingInput,
+    resumePendingQueue,
+    retryMessage,
+    deleteMessage,
+    editUserMessage,
+    forkSession,
+    searchHistory,
+    getSearchResults,
+    listMessageTraces,
+    translateText,
+    getAgents,
+    renameSession,
+    toggleSessionPinned,
+    clearSessionMessages,
+    exportSession,
+    deleteSession,
+    getAcpSessionCommands,
+    getAcpSessionConfigOptions,
+    setAcpSessionConfigOption,
+    getPermissionMode,
+    setPermissionMode,
+    setSessionSubagentEnabled,
+    setSessionModel,
+    setSessionProjectDir,
+    getSessionGenerationSettings,
+    getSessionDisabledAgentTools,
+    updateSessionDisabledAgentTools,
+    updateSessionGenerationSettings,
+    onUpdated,
+    onStatusChanged,
+    onPendingInputsChanged,
+    onAcpCommandsReady,
+    onAcpConfigOptionsReady
   }
 }
+
+export type SessionClient = ReturnType<typeof createSessionClient>

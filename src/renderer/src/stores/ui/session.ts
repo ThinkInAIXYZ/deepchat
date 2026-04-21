@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
-import { ChatClient } from '../../../api/ChatClient'
-import { ConfigClient } from '../../../api/ConfigClient'
-import { SessionClient } from '../../../api/SessionClient'
-import { TabClient } from '@api/TabClient'
+import { createChatClient } from '../../../api/ChatClient'
+import { createConfigClient } from '../../../api/ConfigClient'
+import { createSessionClient } from '../../../api/SessionClient'
+import { createTabClient } from '@api/TabClient'
 import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
 import type {
@@ -190,10 +190,10 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
 // --- Store ---
 
 export const useSessionStore = defineStore('session', () => {
-  const sessionClient = new SessionClient()
-  const chatClient = new ChatClient()
-  const configClient = new ConfigClient()
-  const tabClient = new TabClient()
+  const sessionClient = createSessionClient()
+  const chatClient = createChatClient()
+  const configClient = createConfigClient()
+  const tabClient = createTabClient()
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()

@@ -9,7 +9,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('@api/DeviceClient', () => ({
-  DeviceClient: vi.fn(() => ({
+  createDeviceClient: vi.fn(() => ({
     sanitizeSvgContent: vi.fn(async (content: string) => content)
   }))
 }))

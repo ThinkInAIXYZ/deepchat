@@ -2,14 +2,14 @@
 import { ref, onMounted } from 'vue'
 
 // === Composables ===
-import { ConfigClient } from '@api/ConfigClient'
+import { createConfigClient } from '@api/ConfigClient'
 
 /**
  * Manages input-specific settings (deep thinking)
  */
 export function useInputSettings() {
   // === Clients ===
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
 
   // === Local State ===
   const settings = ref({

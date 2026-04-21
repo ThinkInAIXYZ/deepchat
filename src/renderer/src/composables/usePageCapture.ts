@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import { DeviceClient } from '@api/DeviceClient'
-import { TabClient } from '@api/TabClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createTabClient } from '@api/TabClient'
 
 export interface CaptureRect {
   x: number
@@ -73,8 +73,8 @@ export interface CaptureResult {
 
 export function usePageCapture() {
   const isCapturing = ref(false)
-  const tabClient = new TabClient()
-  const deviceClient = new DeviceClient()
+  const tabClient = createTabClient()
+  const deviceClient = createDeviceClient()
 
   /**
    * 获取滚动容器元素

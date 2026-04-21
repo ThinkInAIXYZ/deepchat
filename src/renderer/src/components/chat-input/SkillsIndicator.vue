@@ -51,7 +51,7 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Button } from '@shadcn/components/ui/button'
-import { SettingsClient } from '@api/SettingsClient'
+import { createSettingsClient } from '@api/SettingsClient'
 import { useSkillsData } from './composables/useSkillsData'
 import SkillsPanel from './SkillsPanel.vue'
 
@@ -60,7 +60,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const settingsClient = new SettingsClient()
+const settingsClient = createSettingsClient()
 
 // Panel open state
 const panelOpen = ref(false)

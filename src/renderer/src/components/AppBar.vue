@@ -56,8 +56,8 @@ import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
-import { DeviceClient } from '@api/DeviceClient'
-import { WindowClient } from '@api/WindowClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createWindowClient } from '@api/WindowClient'
 import { Button } from '@shadcn/components/ui/button'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
@@ -65,8 +65,8 @@ import { useUpgradeStore } from '@/stores/upgrade'
 import { useRoute } from 'vue-router'
 
 const langStore = useLanguageStore()
-const windowClient = new WindowClient()
-const deviceClient = new DeviceClient()
+const windowClient = createWindowClient()
+const deviceClient = createDeviceClient()
 const upgrade = useUpgradeStore()
 const route = useRoute()
 

@@ -1,14 +1,14 @@
 import { useDark, useToggle } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createConfigClient } from '../../api/ConfigClient'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
 
 export const useThemeStore = defineStore('theme', () => {
   const isDark = useDark()
   const toggleDark = useToggle(isDark)
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
   let listenersRegistered = false
 
   // 存储当前主题模式

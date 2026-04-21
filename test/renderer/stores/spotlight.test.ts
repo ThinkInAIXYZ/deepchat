@@ -58,10 +58,10 @@ const setupStore = async (options?: {
   }))
 
   vi.doMock('@api/SessionClient', () => ({
-    SessionClient: vi.fn(() => sessionClient)
+    createSessionClient: vi.fn(() => sessionClient)
   }))
   vi.doMock('@api/SettingsClient', () => ({
-    SettingsClient: vi.fn(() => settingsClient)
+    createSettingsClient: vi.fn(() => settingsClient)
   }))
 
   vi.doMock('@/stores/ui/session', () => ({

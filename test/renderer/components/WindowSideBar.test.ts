@@ -197,10 +197,10 @@ const setup = async (options: SetupOptions = {}) => {
     useSpotlightStore: () => spotlightStore
   }))
   vi.doMock('@api/SettingsClient', () => ({
-    SettingsClient: vi.fn(() => settingsClient)
+    createSettingsClient: vi.fn(() => settingsClient)
   }))
   vi.doMock('@api/RemoteControlRuntime', () => ({
-    RemoteControlRuntime: vi.fn(() => remoteControlRuntime)
+    createRemoteControlRuntime: vi.fn(() => remoteControlRuntime)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

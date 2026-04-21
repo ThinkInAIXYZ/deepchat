@@ -94,15 +94,15 @@ import { Button } from '@shadcn/components/ui/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { DeviceClient } from '@api/DeviceClient'
-import { SessionClient } from '@api/SessionClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createSessionClient } from '@api/SessionClient'
 import { useMonaco } from 'stream-monaco'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
 
 const { t } = useI18n()
-const deviceClient = new DeviceClient()
-const sessionClient = new SessionClient()
+const deviceClient = createDeviceClient()
+const sessionClient = createSessionClient()
 const uiSettingsStore = useUiSettingsStore()
 
 const jsonEditor = ref<HTMLElement | null>(null)

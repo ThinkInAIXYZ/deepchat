@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
-import { WorkspaceClient } from '@api/WorkspaceClient'
+import { createWorkspaceClient } from '@api/WorkspaceClient'
 import type {
   WorkspaceFileNode,
   WorkspaceFilePreview,
@@ -15,7 +15,7 @@ interface UseWorkspaceSyncOptions {
   active: ComputedRef<boolean>
   sessionState: ComputedRef<WorkspaceSessionState>
   workspaceClient: Pick<
-    WorkspaceClient,
+    ReturnType<typeof createWorkspaceClient>,
     | 'registerWorkspace'
     | 'watchWorkspace'
     | 'unwatchWorkspace'

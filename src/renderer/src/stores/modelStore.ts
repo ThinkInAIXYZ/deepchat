@@ -15,7 +15,7 @@ import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { ModelClient } from '../../api/ModelClient'
+import { createModelClient } from '../../api/ModelClient'
 
 const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
@@ -29,7 +29,7 @@ type ModelQueryHandle<TData> = {
 }
 
 export const useModelStore = defineStore('model', () => {
-  const modelClient = new ModelClient()
+  const modelClient = createModelClient()
   const providerStore = useProviderStore()
   const modelConfigStore = useModelConfigStore()
   const agentModelStore = useAgentModelStore()

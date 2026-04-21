@@ -54,7 +54,7 @@ const setup = async (props: Record<string, unknown> = {}) => {
   }))
 
   vi.doMock('@api/SessionClient', () => ({
-    SessionClient: vi.fn(() => ({
+    createSessionClient: vi.fn(() => ({
       getSearchResults: getSearchResultsMock
     }))
   }))

@@ -43,7 +43,7 @@ import { useI18n } from 'vue-i18n'
 import { useThrottleFn } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { MermaidBlockNode } from 'markstream-vue'
-import { DeviceClient } from '@api/DeviceClient'
+import { createDeviceClient } from '@api/DeviceClient'
 import { useArtifactStore } from '@/stores/artifact'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { getLanguageIcon } from 'markstream-vue'
@@ -65,7 +65,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const deviceClient = new DeviceClient()
+const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { createEditor, updateCode, getEditorView } = useMonaco({
   wordWrap: 'on',

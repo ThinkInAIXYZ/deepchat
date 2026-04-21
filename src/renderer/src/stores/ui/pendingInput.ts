@@ -1,12 +1,12 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { SessionClient } from '@api/SessionClient'
+import { createSessionClient } from '@api/SessionClient'
 import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/agent-interface'
 
 const MAX_PENDING_INPUTS = 5
 
 export const usePendingInputStore = defineStore('pendingInput', () => {
-  const sessionClient = new SessionClient()
+  const sessionClient = createSessionClient()
 
   const currentSessionId = ref<string | null>(null)
   const items = ref<PendingSessionInputRecord[]>([])

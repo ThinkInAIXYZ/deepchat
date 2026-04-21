@@ -18,7 +18,7 @@ const configClient = {
 }
 
 vi.mock('@api/ConfigClient', () => ({
-  ConfigClient: vi.fn(() => configClient)
+  createConfigClient: vi.fn(() => configClient)
 }))
 
 vi.mock('@/components/think-content', () => ({

@@ -9,41 +9,52 @@ import {
 import { getDeepchatBridge } from './core'
 import { copyRuntimeImage, copyRuntimeText, readRuntimeClipboardText } from './runtime'
 
-export class DeviceClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async getAppVersion() {
-    const result = await this.bridge.invoke(deviceGetAppVersionRoute.name, {})
+export function createDeviceClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getAppVersion() {
+    const result = await bridge.invoke(deviceGetAppVersionRoute.name, {})
     return result.version
   }
 
-  async getDeviceInfo() {
-    const result = await this.bridge.invoke(deviceGetInfoRoute.name, {})
+  async function getDeviceInfo() {
+    const result = await bridge.invoke(deviceGetInfoRoute.name, {})
     return result.info
   }
 
-  async selectDirectory() {
-    return await this.bridge.invoke(deviceSelectDirectoryRoute.name, {})
+  async function selectDirectory() {
+    return await bridge.invoke(deviceSelectDirectoryRoute.name, {})
   }
 
-  async restartApp() {
-    return await this.bridge.invoke(deviceRestartAppRoute.name, {})
+  async function restartApp() {
+    return await bridge.invoke(deviceRestartAppRoute.name, {})
   }
 
-  async sanitizeSvgContent(svgContent: string) {
-    const result = await this.bridge.invoke(deviceSanitizeSvgRoute.name, { svgContent })
+  async function sanitizeSvgContent(svgContent: string) {
+    const result = await bridge.invoke(deviceSanitizeSvgRoute.name, { svgContent })
     return result.content
   }
 
-  copyText(text: string): void {
+  function copyText(text: string): void {
     copyRuntimeText(text)
   }
 
-  copyImage(image: string): void {
+  function copyImage(image: string): void {
     copyRuntimeImage(image)
   }
 
-  readClipboardText(): string {
+  function readClipboardText(): string {
     return readRuntimeClipboardText()
   }
+
+  return {
+    getAppVersion,
+    getDeviceInfo,
+    selectDirectory,
+    restartApp,
+    sanitizeSvgContent,
+    copyText,
+    copyImage,
+    readClipboardText
+  }
 }
+
+export type DeviceClient = ReturnType<typeof createDeviceClient>

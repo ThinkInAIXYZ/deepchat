@@ -133,7 +133,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
-import { WorkspaceClient } from '@api/WorkspaceClient'
+import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import type { ArtifactState } from '@/stores/artifact'
 import type { WorkspaceFilePreview, WorkspaceGitDiff } from '@shared/presenter'
@@ -153,7 +153,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
-const workspaceClient = new WorkspaceClient()
+const workspaceClient = createWorkspaceClient()
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
 const { activeSource, effectiveViewMode, paneKind, previewKind, shouldShowTabs } =

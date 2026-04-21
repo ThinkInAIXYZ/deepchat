@@ -491,7 +491,7 @@ import {
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { ModelClient } from '@api/ModelClient'
+import { createModelClient } from '@api/ModelClient'
 import {
   Dialog,
   DialogContent,
@@ -545,7 +545,7 @@ const modelConfigStore = useModelConfigStore()
 const modelStore = useModelStore()
 const providerStore = useProviderStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
-const modelClient = new ModelClient()
+const modelClient = createModelClient()
 const providerIdLower = computed(() => props.providerId?.toLowerCase() || '')
 const capabilityProviderId = ref(props.providerId)
 const currentProvider = computed(() =>

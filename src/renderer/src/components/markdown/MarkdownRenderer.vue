@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { SessionClient } from '@api/SessionClient'
+import { createSessionClient } from '@api/SessionClient'
 import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
@@ -47,7 +47,7 @@ const artifactStore = useArtifactStore()
 const fallbackMessageId = `artifact-msg-${nanoid()}`
 const fallbackThreadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
-const sessionClient = new SessionClient()
+const sessionClient = createSessionClient()
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)

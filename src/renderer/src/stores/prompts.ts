@@ -4,10 +4,10 @@ import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { type EntryKey, type UseQueryReturn } from '@pinia/colada'
 import type { Prompt } from '@shared/presenter'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createConfigClient } from '../../api/ConfigClient'
 
 export const usePromptsStore = defineStore('prompts', () => {
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
   const customPromptsKey: EntryKey = ['config', 'customPrompts'] as const
 
   const promptsQuery = useIpcQuery({

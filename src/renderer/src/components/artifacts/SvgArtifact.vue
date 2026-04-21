@@ -42,12 +42,12 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { DeviceClient } from '@api/DeviceClient'
+import { createDeviceClient } from '@api/DeviceClient'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
-const deviceClient = new DeviceClient()
+const deviceClient = createDeviceClient()
 
 const props = defineProps<{
   block: {

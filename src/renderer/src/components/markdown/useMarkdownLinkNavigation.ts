@@ -1,6 +1,6 @@
 import { toValue, type MaybeRefOrGetter } from 'vue'
-import { BrowserClient } from '@api/BrowserClient'
-import { WorkspaceClient } from '@api/WorkspaceClient'
+import { createBrowserClient } from '@api/BrowserClient'
+import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { classifyMarkdownLink, type MarkdownLinkContext } from './linkTypes'
@@ -22,8 +22,8 @@ function buildSafeAttributeSelector(value: string): string {
 export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOptions = {}) {
   const sessionStore = useSessionStore()
   const sidepanelStore = useSidepanelStore()
-  const browserClient = new BrowserClient()
-  const workspaceClient = new WorkspaceClient()
+  const browserClient = createBrowserClient()
+  const workspaceClient = createWorkspaceClient()
 
   const getSessionContext = (): SessionContext => {
     const linkContext = toValue(options.linkContext)

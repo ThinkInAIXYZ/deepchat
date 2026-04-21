@@ -8,7 +8,7 @@ const modelClient = vi.hoisted(() => ({
 }))
 
 vi.mock('@api/ModelClient', () => ({
-  ModelClient: vi.fn(() => modelClient)
+  createModelClient: vi.fn(() => modelClient)
 }))
 
 import { useModelCapabilities } from '@/composables/useModelCapabilities'

@@ -2,14 +2,14 @@ import { defineStore } from 'pinia'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { ConfigClient } from '../../api/ConfigClient'
+import { createConfigClient } from '../../api/ConfigClient'
 
 const RTL_LIST = ['fa-IR', 'he-IL']
 let languageListenerRegistered = false
 export const useLanguageStore = defineStore('language', () => {
   const { locale } = useI18n({ useScope: 'global' })
   const language = ref<string>('system')
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
   const dir = ref('auto' as 'auto' | 'rtl' | 'ltr')
   // 初始化设置
   const initLanguage = async () => {

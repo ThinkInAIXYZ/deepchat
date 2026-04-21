@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope, isRef, toRef, type Ref } from 'vue'
-import { SessionClient } from '../../../api/SessionClient'
+import { createSessionClient } from '../../../api/SessionClient'
 import type {
   DisplayAssistantMessageBlock,
   DisplayUserMessageContent
@@ -33,7 +33,7 @@ type ParsedMessageCacheEntry = {
 // --- Store ---
 
 export const useMessageStore = defineStore('message', () => {
-  const sessionClient = new SessionClient()
+  const sessionClient = createSessionClient()
   const streamStateStore = useStreamStateStore()
   const isStreaming = toStoreStateRef(streamStateStore, 'isStreaming')
   const streamingBlocks = toStoreStateRef(streamStateStore, 'streamingBlocks')

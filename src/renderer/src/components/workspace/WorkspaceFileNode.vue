@@ -63,7 +63,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { WorkspaceClient } from '@api/WorkspaceClient'
+import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { setChatInputWorkspaceItemDragData } from '@/lib/chatInputWorkspaceReference'
 import {
   ContextMenu,
@@ -85,7 +85,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const workspaceClient = new WorkspaceClient()
+const workspaceClient = createWorkspaceClient()
 
 const extensionIconMap: Record<string, string> = {
   pdf: 'lucide:file-text',

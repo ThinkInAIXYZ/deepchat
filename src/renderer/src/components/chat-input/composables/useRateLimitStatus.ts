@@ -5,7 +5,7 @@ import { ref, computed, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import type { CONVERSATION_SETTINGS } from '@shared/presenter'
 
 // === Composables ===
-import { ProviderClient } from '@api/ProviderClient'
+import { createProviderClient } from '@api/ProviderClient'
 
 // === Stores ===
 import { useProviderStore } from '@/stores/providerStore'
@@ -32,7 +32,7 @@ export function useRateLimitStatus(
   t: (key: string, params?: any) => string
 ) {
   // === Clients ===
-  const providerClient = new ProviderClient()
+  const providerClient = createProviderClient()
 
   // === Stores ===
   const providerStore = useProviderStore()

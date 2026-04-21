@@ -166,7 +166,7 @@ const setup = async (options: SetupOptions = {}) => {
     useLegacyPresenter: () => agentSessionPresenter
   }))
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
-    ChatClient: vi.fn(() => chatClient)
+    createChatClient: vi.fn(() => chatClient)
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore

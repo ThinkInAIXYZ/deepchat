@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { SkillClient } from '@api/SkillClient'
+import { createSkillClient } from '@api/SkillClient'
 import type {
   SkillMetadata,
   SkillInstallResult,
@@ -21,7 +21,7 @@ function createDefaultSkillExtension(): SkillExtensionConfig {
 }
 
 export const useSkillsStore = defineStore('skills', () => {
-  const skillClient = new SkillClient()
+  const skillClient = createSkillClient()
   let catalogListenerRegistered = false
 
   const skills = ref<SkillMetadata[]>([])

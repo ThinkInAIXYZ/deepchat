@@ -16,43 +16,41 @@ import {
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 
-export class UpgradeClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async getUpdateStatus() {
-    const result = await this.bridge.invoke(upgradeGetStatusRoute.name, {})
+export function createUpgradeClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getUpdateStatus() {
+    const result = await bridge.invoke(upgradeGetStatusRoute.name, {})
     return result.snapshot
   }
 
-  async checkUpdate(type?: string) {
-    await this.bridge.invoke(upgradeCheckRoute.name, { type })
+  async function checkUpdate(type?: string) {
+    await bridge.invoke(upgradeCheckRoute.name, { type })
   }
 
-  async goDownloadUpgrade(type: 'github' | 'official') {
-    await this.bridge.invoke(upgradeOpenDownloadRoute.name, { type })
+  async function goDownloadUpgrade(type: 'github' | 'official') {
+    await bridge.invoke(upgradeOpenDownloadRoute.name, { type })
   }
 
-  async startDownloadUpdate() {
-    const result = await this.bridge.invoke(upgradeStartDownloadRoute.name, {})
+  async function startDownloadUpdate() {
+    const result = await bridge.invoke(upgradeStartDownloadRoute.name, {})
     return result.started
   }
 
-  async mockDownloadedUpdate() {
-    const result = await this.bridge.invoke(upgradeMockDownloadedRoute.name, {})
+  async function mockDownloadedUpdate() {
+    const result = await bridge.invoke(upgradeMockDownloadedRoute.name, {})
     return result.updated
   }
 
-  async clearMockUpdate() {
-    const result = await this.bridge.invoke(upgradeClearMockRoute.name, {})
+  async function clearMockUpdate() {
+    const result = await bridge.invoke(upgradeClearMockRoute.name, {})
     return result.updated
   }
 
-  async restartToUpdate() {
-    const result = await this.bridge.invoke(upgradeRestartToUpdateRoute.name, {})
+  async function restartToUpdate() {
+    const result = await bridge.invoke(upgradeRestartToUpdateRoute.name, {})
     return result.restarted
   }
 
-  onStatusChanged(
+  function onStatusChanged(
     listener: (payload: {
       status:
         | 'checking'
@@ -75,10 +73,10 @@ export class UpgradeClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(upgradeStatusChangedEvent.name, listener)
+    return bridge.on(upgradeStatusChangedEvent.name, listener)
   }
 
-  onProgress(
+  function onProgress(
     listener: (payload: {
       bytesPerSecond: number
       percent: number
@@ -87,14 +85,30 @@ export class UpgradeClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(upgradeProgressEvent.name, listener)
+    return bridge.on(upgradeProgressEvent.name, listener)
   }
 
-  onWillRestart(listener: (payload: { version: number }) => void) {
-    return this.bridge.on(upgradeWillRestartEvent.name, listener)
+  function onWillRestart(listener: (payload: { version: number }) => void) {
+    return bridge.on(upgradeWillRestartEvent.name, listener)
   }
 
-  onError(listener: (payload: { error: string; version: number }) => void) {
-    return this.bridge.on(upgradeErrorEvent.name, listener)
+  function onError(listener: (payload: { error: string; version: number }) => void) {
+    return bridge.on(upgradeErrorEvent.name, listener)
+  }
+
+  return {
+    getUpdateStatus,
+    checkUpdate,
+    goDownloadUpgrade,
+    startDownloadUpdate,
+    mockDownloadedUpdate,
+    clearMockUpdate,
+    restartToUpdate,
+    onStatusChanged,
+    onProgress,
+    onWillRestart,
+    onError
   }
 }
+
+export type UpgradeClient = ReturnType<typeof createUpgradeClient>

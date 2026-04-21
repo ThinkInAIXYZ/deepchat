@@ -17,7 +17,7 @@ const setupStore = async (options?: { activeAgentSession?: { id: string } | null
   })
 
   vi.doMock('../../../src/renderer/api/SessionClient', () => ({
-    SessionClient: vi.fn(() => sessionClient)
+    createSessionClient: vi.fn(() => sessionClient)
   }))
 
   const { usePageRouterStore } = await import('@/stores/ui/pageRouter')
@@ -91,7 +91,7 @@ describe('pageRouter.initialize', () => {
     })
 
     vi.doMock('../../../src/renderer/api/SessionClient', () => ({
-      SessionClient: vi.fn(() => sessionClient)
+      createSessionClient: vi.fn(() => sessionClient)
     }))
 
     const { usePageRouterStore } = await import('@/stores/ui/pageRouter')

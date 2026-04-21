@@ -15,10 +15,8 @@ import type { YoBrowserStatus } from '@shared/types/browser'
 import { getDeepchatBridge } from './core'
 import { getRuntimeWindowId, openRuntimeExternal } from './runtime'
 
-export class BrowserClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  private toSerializableBounds(bounds: { x: number; y: number; width: number; height: number }) {
+export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  function toSerializableBounds(bounds: { x: number; y: number; width: number; height: number }) {
     return {
       x: Number(bounds.x),
       y: Number(bounds.y),
@@ -27,13 +25,13 @@ export class BrowserClient {
     }
   }
 
-  async getStatus(sessionId: string) {
-    const result = await this.bridge.invoke(browserGetStatusRoute.name, { sessionId })
+  async function getStatus(sessionId: string) {
+    const result = await bridge.invoke(browserGetStatusRoute.name, { sessionId })
     return result.status
   }
 
-  async loadUrl(sessionId: string, url: string, timeoutMs?: number) {
-    const result = await this.bridge.invoke(browserLoadUrlRoute.name, {
+  async function loadUrl(sessionId: string, url: string, timeoutMs?: number) {
+    const result = await bridge.invoke(browserLoadUrlRoute.name, {
       sessionId,
       url,
       timeoutMs
@@ -41,12 +39,12 @@ export class BrowserClient {
     return result.status
   }
 
-  async attachCurrentWindow(sessionId: string) {
-    const result = await this.bridge.invoke(browserAttachCurrentWindowRoute.name, { sessionId })
+  async function attachCurrentWindow(sessionId: string) {
+    const result = await bridge.invoke(browserAttachCurrentWindowRoute.name, { sessionId })
     return result.attached
   }
 
-  async updateCurrentWindowBounds(
+  async function updateCurrentWindowBounds(
     sessionId: string,
     bounds: {
       x: number
@@ -56,44 +54,44 @@ export class BrowserClient {
     },
     visible: boolean
   ) {
-    const result = await this.bridge.invoke(browserUpdateCurrentWindowBoundsRoute.name, {
+    const result = await bridge.invoke(browserUpdateCurrentWindowBoundsRoute.name, {
       sessionId,
-      bounds: this.toSerializableBounds(bounds),
+      bounds: toSerializableBounds(bounds),
       visible
     })
     return result.updated
   }
 
-  async detach(sessionId: string) {
-    const result = await this.bridge.invoke(browserDetachRoute.name, { sessionId })
+  async function detach(sessionId: string) {
+    const result = await bridge.invoke(browserDetachRoute.name, { sessionId })
     return result.detached
   }
 
-  async destroy(sessionId: string) {
-    const result = await this.bridge.invoke(browserDestroyRoute.name, { sessionId })
+  async function destroy(sessionId: string) {
+    const result = await bridge.invoke(browserDestroyRoute.name, { sessionId })
     return result.destroyed
   }
 
-  async goBack(sessionId: string) {
-    const result = await this.bridge.invoke(browserGoBackRoute.name, { sessionId })
+  async function goBack(sessionId: string) {
+    const result = await bridge.invoke(browserGoBackRoute.name, { sessionId })
     return result.status
   }
 
-  async goForward(sessionId: string) {
-    const result = await this.bridge.invoke(browserGoForwardRoute.name, { sessionId })
+  async function goForward(sessionId: string) {
+    const result = await bridge.invoke(browserGoForwardRoute.name, { sessionId })
     return result.status
   }
 
-  async reload(sessionId: string) {
-    const result = await this.bridge.invoke(browserReloadRoute.name, { sessionId })
+  async function reload(sessionId: string) {
+    const result = await bridge.invoke(browserReloadRoute.name, { sessionId })
     return result.status
   }
 
-  async openExternal(url: string) {
+  async function openExternal(url: string) {
     await openRuntimeExternal(url)
   }
 
-  onOpenRequested(
+  function onOpenRequested(
     listener: (payload: {
       sessionId: string
       windowId: number
@@ -101,10 +99,10 @@ export class BrowserClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(browserOpenRequestedEvent.name, listener)
+    return bridge.on(browserOpenRequestedEvent.name, listener)
   }
 
-  onOpenRequestedForCurrentWindow(
+  function onOpenRequestedForCurrentWindow(
     listener: (payload: {
       sessionId: string
       windowId: number
@@ -114,7 +112,7 @@ export class BrowserClient {
   ) {
     const currentWindowId = getRuntimeWindowId()
 
-    return this.onOpenRequested((payload) => {
+    return onOpenRequested((payload) => {
       if (currentWindowId != null && payload.windowId !== currentWindowId) {
         return
       }
@@ -123,7 +121,7 @@ export class BrowserClient {
     })
   }
 
-  onStatusChanged(
+  function onStatusChanged(
     listener: (payload: {
       sessionId: string
       reason: 'created' | 'updated' | 'closed' | 'focused' | 'visibility'
@@ -133,6 +131,24 @@ export class BrowserClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(browserStatusChangedEvent.name, listener)
+    return bridge.on(browserStatusChangedEvent.name, listener)
+  }
+
+  return {
+    getStatus,
+    loadUrl,
+    attachCurrentWindow,
+    updateCurrentWindowBounds,
+    detach,
+    destroy,
+    goBack,
+    goForward,
+    reload,
+    openExternal,
+    onOpenRequested,
+    onOpenRequestedForCurrentWindow,
+    onStatusChanged
   }
 }
+
+export type BrowserClient = ReturnType<typeof createBrowserClient>

@@ -113,8 +113,8 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
-import { ConfigClient } from '@api/ConfigClient'
-import { SessionClient } from '@api/SessionClient'
+import { createConfigClient } from '@api/ConfigClient'
+import { createSessionClient } from '@api/SessionClient'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -128,8 +128,8 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
-const configClient = new ConfigClient()
-const sessionClient = new SessionClient()
+const configClient = createConfigClient()
+const sessionClient = createSessionClient()
 const { t } = useI18n()
 
 const message = ref('')

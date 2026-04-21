@@ -1,14 +1,14 @@
 import { computed, ref, watch } from 'vue'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
-import { ConfigClient } from '@api/ConfigClient'
+import { createConfigClient } from '@api/ConfigClient'
 
 const CUSTOM_PROMPTS_CLIENT = 'deepchat/custom-prompts-server'
 
 export function useAgentMcpData() {
   const sessionStore = useSessionStore()
   const mcpStore = useMcpStore()
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
   const activeSelections = ref<string[] | null>(null)
   let requestSeq = 0
 

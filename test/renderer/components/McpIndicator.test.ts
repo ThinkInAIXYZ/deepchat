@@ -160,18 +160,18 @@ const setup = async (options?: {
     useProjectStore: () => projectStore
   }))
   vi.doMock('@api/ToolClient', () => ({
-    ToolClient: vi.fn(() => ({
+    createToolClient: vi.fn(() => ({
       getAllToolDefinitions: toolPresenter.getAllToolDefinitions
     }))
   }))
   vi.doMock('@api/SessionClient', () => ({
-    SessionClient: vi.fn(() => ({
+    createSessionClient: vi.fn(() => ({
       getSessionDisabledAgentTools: agentSessionPresenter.getSessionDisabledAgentTools,
       updateSessionDisabledAgentTools: agentSessionPresenter.updateSessionDisabledAgentTools
     }))
   }))
   vi.doMock('@api/SkillClient', () => ({
-    SkillClient: vi.fn(() => ({
+    createSkillClient: vi.fn(() => ({
       onSessionChanged: vi.fn(
         (
           listener: (payload: {
@@ -191,7 +191,7 @@ const setup = async (options?: {
     }))
   }))
   vi.doMock('@api/SettingsClient', () => ({
-    SettingsClient: vi.fn(() => ({
+    createSettingsClient: vi.fn(() => ({
       openSettings: windowPresenter.createSettingsWindow
     }))
   }))

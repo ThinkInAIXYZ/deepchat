@@ -183,13 +183,13 @@ import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
-import { DeviceClient } from '@api/DeviceClient'
+import { createDeviceClient } from '@api/DeviceClient'
 
 const { t } = useI18n()
 
 const themeStore = useThemeStore()
 const sessionStore = useSessionStore()
-const deviceClient = new DeviceClient()
+const deviceClient = createDeviceClient()
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock

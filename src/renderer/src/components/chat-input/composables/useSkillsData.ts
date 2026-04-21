@@ -5,7 +5,7 @@ import { ref, computed, watch, onMounted, onUnmounted, type Ref, type ComputedRe
 import type { SkillMetadata } from '@shared/types/skill'
 
 // === Composables ===
-import { SkillClient } from '@api/SkillClient'
+import { createSkillClient } from '@api/SkillClient'
 
 // === Stores ===
 import { useSkillsStore } from '@/stores/skillsStore'
@@ -21,7 +21,7 @@ import { useSkillsStore } from '@/stores/skillsStore'
  * - Event listeners for real-time updates
  */
 export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<string | null>) {
-  const skillClient = new SkillClient()
+  const skillClient = createSkillClient()
   const skillsStore = useSkillsStore()
   let unsubscribeSkillSessionChanged: (() => void) | null = null
 

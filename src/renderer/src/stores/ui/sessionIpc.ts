@@ -1,4 +1,4 @@
-import { SessionClient } from '../../../api/SessionClient'
+import { createSessionClient } from '../../../api/SessionClient'
 
 interface BindSessionStoreIpcOptions {
   webContentsId: number | null
@@ -9,7 +9,7 @@ interface BindSessionStoreIpcOptions {
 }
 
 export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): () => void {
-  const sessionClient = new SessionClient()
+  const sessionClient = createSessionClient()
   const cleanups = [
     sessionClient.onUpdated((payload) => {
       if (

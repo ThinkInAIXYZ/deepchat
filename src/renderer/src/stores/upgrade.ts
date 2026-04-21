@@ -1,5 +1,5 @@
-import { DeviceClient } from '@api/DeviceClient'
-import { UpgradeClient } from '@api/UpgradeClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createUpgradeClient } from '@api/UpgradeClient'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -64,8 +64,8 @@ const toProgressInfo = (progress: ProgressInfo | null | undefined): ProgressInfo
 }
 
 export const useUpgradeStore = defineStore('upgrade', () => {
-  const upgradeClient = new UpgradeClient()
-  const deviceClient = new DeviceClient()
+  const upgradeClient = createUpgradeClient()
+  const deviceClient = createDeviceClient()
 
   const rawStatus = ref<PresenterUpdateStatus>(null)
   const updateInfo = ref<UpdateInfo | null>(null)

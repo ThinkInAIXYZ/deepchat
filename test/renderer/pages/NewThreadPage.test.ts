@@ -108,10 +108,10 @@ const setup = async (pendingModelId: string) => {
     useDraftStore: () => draftStore
   }))
   vi.doMock('@api/ConfigClient', () => ({
-    ConfigClient: vi.fn(() => configClient)
+    createConfigClient: vi.fn(() => configClient)
   }))
   vi.doMock('@api/SessionClient', () => ({
-    SessionClient: vi.fn(() => sessionClient)
+    createSessionClient: vi.fn(() => sessionClient)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

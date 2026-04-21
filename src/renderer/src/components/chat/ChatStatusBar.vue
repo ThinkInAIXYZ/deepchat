@@ -866,10 +866,10 @@ import {
 import { DEFAULT_MODEL_TIMEOUT } from '@shared/modelConfigDefaults'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { ConfigClient } from '@api/ConfigClient'
-import { ModelClient } from '@api/ModelClient'
-import { ProviderClient } from '@api/ProviderClient'
-import { SessionClient } from '@api/SessionClient'
+import { createConfigClient } from '@api/ConfigClient'
+import { createModelClient } from '@api/ModelClient'
+import { createProviderClient } from '@api/ProviderClient'
+import { createSessionClient } from '@api/SessionClient'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useThemeStore } from '@/stores/theme'
@@ -928,10 +928,10 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const projectStore = useProjectStore()
-const configClient = new ConfigClient()
-const modelClient = new ModelClient()
-const providerClient = new ProviderClient()
-const sessionClient = new SessionClient()
+const configClient = createConfigClient()
+const modelClient = createModelClient()
+const providerClient = createProviderClient()
+const sessionClient = createSessionClient()
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)

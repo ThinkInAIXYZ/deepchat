@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { SystemPrompt } from '@shared/presenter'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createConfigClient } from '../../api/ConfigClient'
 
 export const useSystemPromptStore = defineStore('systemPrompt', () => {
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
 
   const prompts = ref<SystemPrompt[]>([])
   const defaultPromptId = ref<string>('default')

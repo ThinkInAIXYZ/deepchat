@@ -55,7 +55,7 @@ const setupStore = async () => {
   })
 
   vi.doMock('../../../src/renderer/api/ProviderClient', () => ({
-    ProviderClient: vi.fn(() => providerClient)
+    createProviderClient: vi.fn(() => providerClient)
   }))
 
   vi.doMock('@api/legacy/runtime', () => ({

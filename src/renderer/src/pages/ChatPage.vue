@@ -120,13 +120,13 @@ import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
-import { ChatClient } from '../../api/ChatClient'
+import { createChatClient } from '../../api/ChatClient'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
-import { SessionClient } from '@api/SessionClient'
+import { createSessionClient } from '@api/SessionClient'
 import {
   applyChatSearchHighlights,
   clearChatSearchHighlights,
@@ -150,8 +150,8 @@ const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
 const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
-const chatClient = new ChatClient()
-const sessionClient = new SessionClient()
+const chatClient = createChatClient()
+const sessionClient = createSessionClient()
 const { t } = useI18n()
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))

@@ -57,7 +57,7 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
-import { BrowserClient } from '@api/BrowserClient'
+import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPlaceholder from './BrowserPlaceholder.vue'
 import type { YoBrowserStatus } from '@shared/types/browser'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
@@ -70,7 +70,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
 const sessionStore = useSessionStore()
-const browserClient = new BrowserClient()
+const browserClient = createBrowserClient()
 
 const containerRef = ref<HTMLElement | null>(null)
 const browserStatus = ref<YoBrowserStatus>({

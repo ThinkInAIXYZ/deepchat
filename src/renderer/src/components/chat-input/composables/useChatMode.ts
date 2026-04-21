@@ -3,8 +3,8 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 // === Composables ===
-import { ConfigClient } from '@api/ConfigClient'
-import { ModelClient } from '@api/ModelClient'
+import { createConfigClient } from '@api/ConfigClient'
+import { createModelClient } from '@api/ModelClient'
 
 export type ChatMode = 'agent' | 'acp agent'
 
@@ -20,8 +20,8 @@ let hasLoaded = false
 let loadPromise: Promise<void> | null = null
 let modeUpdateVersion = 0
 let hasAcpListener = false
-const configClient = new ConfigClient()
-const modelClient = new ModelClient()
+const configClient = createConfigClient()
+const modelClient = createModelClient()
 
 /**
  * Manages chat mode selection (agent, acp agent)

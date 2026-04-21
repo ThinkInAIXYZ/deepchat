@@ -6,13 +6,13 @@ const { listMessageTracesMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@api/SessionClient', () => ({
-  SessionClient: vi.fn(() => ({
+  createSessionClient: vi.fn(() => ({
     listMessageTraces: listMessageTracesMock
   }))
 }))
 
 vi.mock('@api/DeviceClient', () => ({
-  DeviceClient: vi.fn(() => ({
+  createDeviceClient: vi.fn(() => ({
     copyText: vi.fn()
   }))
 }))
