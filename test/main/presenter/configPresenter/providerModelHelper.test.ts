@@ -205,6 +205,21 @@ describe('ProviderModelHelper cache', () => {
 
     expect(storeState.get).toHaveBeenCalledTimes(1)
   })
+
+  it('encodes invalid provider id characters before creating store files', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    helper.getProviderModelStore(':providerId')
+
+    expect(storeStates.has('models_%3AproviderId')).toBe(true)
+  })
 })
 
 describe('ConfigPresenter provider model cache invalidation', () => {

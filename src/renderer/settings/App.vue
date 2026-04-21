@@ -91,7 +91,10 @@ import type {
 } from '@shared/presenter'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
-import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
+import {
+  resolveSettingsNavigationPath,
+  SETTINGS_NAVIGATION_ITEMS
+} from '@shared/settingsNavigation'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 
 const DATABASE_REPAIR_SECTION = 'database-repair'
@@ -451,7 +454,7 @@ const settings: Ref<
     title: item.titleKey,
     name: item.routeName,
     icon: item.icon,
-    path: item.path
+    path: resolveSettingsNavigationPath(item.routeName)
   }))
 )
 
