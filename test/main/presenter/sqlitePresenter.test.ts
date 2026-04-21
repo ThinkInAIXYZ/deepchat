@@ -718,6 +718,84 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     checkDb.close()
   })
 
+  it('repairs missing timeout_ms in deepchat_sessions when schema version is already 24', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (24, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS deepchat_sessions (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        permission_mode TEXT NOT NULL DEFAULT 'full_access',
+        system_prompt TEXT,
+        temperature REAL,
+        context_length INTEGER,
+        max_tokens INTEGER,
+        thinking_budget INTEGER,
+        reasoning_effort TEXT,
+        verbosity TEXT,
+        summary_text TEXT,
+        summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1,
+        summary_updated_at INTEGER,
+        force_interleaved_thinking_compat INTEGER,
+        reasoning_visibility TEXT
+      );
+      INSERT INTO deepchat_sessions (
+        id,
+        provider_id,
+        model_id,
+        permission_mode,
+        reasoning_visibility
+      ) VALUES (
+        'session-1',
+        'anthropic',
+        'claude-sonnet-4',
+        'full_access',
+        'auto'
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(diagnosis.issues.some((issue) => issue.name === 'timeout_ms')).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const deepchatColumns = checkDb.prepare('PRAGMA table_info(deepchat_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(deepchatColumns.map((column) => column.name))
+
+    expect(columnNames.has('timeout_ms')).toBe(true)
+
+    const row = checkDb
+      .prepare('SELECT reasoning_visibility, timeout_ms FROM deepchat_sessions WHERE id = ?')
+      .get('session-1') as
+      | {
+          reasoning_visibility: string | null
+          timeout_ms: number | null
+        }
+      | undefined
+
+    expect(row).toEqual({
+      reasoning_visibility: 'auto',
+      timeout_ms: null
+    })
+    checkDb.close()
+  })
+
   it('runs the v23 and v24 recovery migrations for deepchat_sessions when schema version is 22', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)

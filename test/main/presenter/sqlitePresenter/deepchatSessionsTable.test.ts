@@ -110,6 +110,7 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
 
     expect(table.getMigrationSQL(23)).toBe(
       [
+        'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;',
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
         'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;'
       ].join('\n')

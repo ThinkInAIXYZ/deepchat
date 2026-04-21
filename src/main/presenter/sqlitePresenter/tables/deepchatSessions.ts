@@ -161,6 +161,9 @@ export class DeepChatSessionsTable extends BaseTable {
     if (!this.hasColumn('summary_updated_at')) {
       statements.push('ALTER TABLE deepchat_sessions ADD COLUMN summary_updated_at INTEGER;')
     }
+    if (!this.hasColumn('timeout_ms')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;')
+    }
     if (!this.hasColumn('force_interleaved_thinking_compat')) {
       statements.push(
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;'

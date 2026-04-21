@@ -112,6 +112,7 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       summary_cursor_order_seq:
         'ALTER TABLE deepchat_sessions ADD COLUMN summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1;',
       summary_updated_at: 'ALTER TABLE deepchat_sessions ADD COLUMN summary_updated_at INTEGER;',
+      timeout_ms: 'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;',
       force_interleaved_thinking_compat:
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
       reasoning_visibility: 'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;'

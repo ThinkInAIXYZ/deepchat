@@ -8,10 +8,10 @@ import {
   type QQBotTransportTarget
 } from '../types'
 import { RemoteBindingStore } from '../services/remoteBindingStore'
+import { REMOTE_NO_RESPONSE_TEXT } from '../services/remoteBlockRenderer'
 import type { QQBotCommandRouteResult } from '../services/qqbotCommandRouter'
 import { QQBotCommandRouter } from '../services/qqbotCommandRouter'
 import type { RemoteConversationExecution } from '../services/remoteConversationRunner'
-import { REMOTE_NO_RESPONSE_TEXT } from '../services/remoteBlockRenderer'
 import { buildFeishuPendingInteractionText } from '../feishu/feishuInteractionPrompt'
 import { QQBotClient } from './qqbotClient'
 import { QQBotGatewaySession, type QQBotGatewayBotUser } from './qqbotGatewaySession'
@@ -21,6 +21,7 @@ const QQBOT_INBOUND_DEDUP_LIMIT = 500
 const QQBOT_INBOUND_DEDUP_TTL_MS = 10 * 60 * 1000
 const QQBOT_MAX_PASSIVE_REPLIES = 5
 const QQBOT_INTERNAL_ERROR_REPLY = 'An internal error occurred while processing your request.'
+const QQBOT_TIMEOUT_REPLY = 'The current conversation timed out before finishing. Please try again.'
 
 const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
@@ -42,14 +43,16 @@ type QQBotProcessedInboundEntry = {
   receivedAt: number
 }
 
-type QQBotRemoteDeliveryState = {
-  sourceMessageId: string
-  segments: Array<{
-    key: string
-    kind: 'process' | 'answer' | 'terminal'
-    messageIds: Array<string | null>
-    lastText: string
-  }>
+type QQBotPendingProcessBatch = {
+  keys: string[]
+  ready: boolean
+}
+
+type QQBotToolBufferState = {
+  sourceMessageId: string | null
+  pendingProcessSegments: QQBotPendingProcessBatch[]
+  lastProcessTextByKey: Map<string, string>
+  flushedProcessKeys: Set<string>
 }
 
 type QQBotSendContext = {
@@ -71,6 +74,7 @@ export class QQBotRuntime {
   }
   private readonly processedInboundByMessage = new Map<string, QQBotProcessedInboundEntry>()
   private readonly endpointOperations = new Map<string, Promise<void>>()
+  private readonly endpointToolBuffers = new Map<string, QQBotToolBufferState>()
 
   constructor(private readonly deps: QQBotRuntimeDeps) {
     this.gateway = new QQBotGatewaySession({
@@ -136,6 +140,7 @@ export class QQBotRuntime {
     this.runId += 1
     await this.gateway.stop()
     this.endpointOperations.clear()
+    this.endpointToolBuffers.clear()
     this.processedInboundByMessage.clear()
     this.setStatus({
       state: 'stopped'
@@ -274,6 +279,13 @@ export class QQBotRuntime {
         return
       }
 
+      const endpointKey = buildQQBotEndpointKey(parsed.chatType, parsed.chatId)
+      this.markBufferedProcessBatchesReady(endpointKey)
+      await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+        reserveTerminalSlot: true
+      }).catch(() => undefined)
+      this.clearToolBuffer(endpointKey)
+      this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
       await this.sendText(sendContext, QQBOT_INTERNAL_ERROR_REPLY).catch(() => undefined)
     }
   }
@@ -310,6 +322,8 @@ export class QQBotRuntime {
   ): Promise<void> {
     const startedAt = Date.now()
     const endpointKey = buildQQBotEndpointKey(message.chatType, message.chatId)
+    this.clearToolBuffer(endpointKey)
+    this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
 
     while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
@@ -317,144 +331,75 @@ export class QQBotRuntime {
         return
       }
 
-      const sourceMessageId = snapshot.messageId ?? execution.eventId ?? null
-      let deliveryState = this.getStoredDeliveryState(endpointKey)
-      deliveryState = await this.prepareDeliveryStateForSource(
-        endpointKey,
-        sourceMessageId,
-        deliveryState
-      )
-      let deliverySegments = this.getSnapshotDeliverySegments(snapshot, sourceMessageId)
-
-      if (sourceMessageId) {
-        deliveryState = deliveryState ?? this.createDeliveryState(sourceMessageId)
-      }
+      const sourceMessageId = this.getConversationSourceMessageId(message, execution, snapshot)
+      const deliverySegments = this.getSnapshotDeliverySegments(snapshot, sourceMessageId)
+      const timedOut = Date.now() - startedAt >= FEISHU_CONVERSATION_POLL_TIMEOUT_MS
+      this.syncToolBuffer(endpointKey, sourceMessageId, deliverySegments, {
+        flushTrailingBatch: snapshot.completed || timedOut
+      })
 
       if (snapshot.completed) {
         if (snapshot.pendingInteraction) {
-          if (deliveryState && deliverySegments.length > 0) {
-            deliveryState = await this.syncDeliverySegments(
-              deliveryState,
-              endpointKey,
-              sendContext,
-              deliverySegments
-            )
-          }
-
+          await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+            reserveTerminalSlot: true
+          })
           await this.sendText(
             sendContext,
             buildFeishuPendingInteractionText(snapshot.pendingInteraction)
           )
+          this.clearToolBuffer(endpointKey)
           this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
           return
         }
 
         const finalText = this.getFinalDeliveryText(snapshot)
-        deliverySegments = this.appendTerminalDeliverySegment(
-          deliverySegments,
-          sourceMessageId,
-          finalText
-        )
-
-        if (deliveryState) {
-          if (deliverySegments.length > 0) {
-            deliveryState = await this.syncDeliverySegments(
-              deliveryState,
-              endpointKey,
-              sendContext,
-              deliverySegments
-            )
-          }
-          this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
-        } else if (finalText) {
-          await this.sendText(sendContext, finalText)
-        }
-
-        return
-      }
-
-      if (Date.now() - startedAt >= FEISHU_CONVERSATION_POLL_TIMEOUT_MS) {
-        await this.sendText(
-          sendContext,
-          'The current conversation timed out before finishing. Please try again.'
-        )
-        this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
-        return
-      }
-
-      if (deliveryState && deliverySegments.length > 0) {
-        deliveryState = await this.syncDeliverySegments(
-          deliveryState,
+        const skipNoResponseTerminal = this.shouldSkipNoResponseTerminal(endpointKey, finalText)
+        const didFlushProcessOutput = await this.flushBufferedProcessMessages(
           endpointKey,
           sendContext,
-          deliverySegments
+          {
+            reserveTerminalSlot: Boolean(finalText) && !skipNoResponseTerminal
+          }
         )
+
+        if (finalText && (!skipNoResponseTerminal || !didFlushProcessOutput)) {
+          await this.sendText(sendContext, finalText)
+        }
+        this.clearToolBuffer(endpointKey)
+        this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+
+        return
       }
 
-      if (sendContext.sentCount >= QQBOT_MAX_PASSIVE_REPLIES) {
+      if (timedOut) {
+        await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+          reserveTerminalSlot: true
+        })
+        await this.sendText(sendContext, QQBOT_TIMEOUT_REPLY)
+        this.clearToolBuffer(endpointKey)
         this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
         return
       }
 
+      await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+        reserveTerminalSlot: true
+      })
       await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
     }
   }
 
-  private getStoredDeliveryState(endpointKey: string): QQBotRemoteDeliveryState | null {
-    const state = this.deps.bindingStore.getRemoteDeliveryState(endpointKey)
-    if (!state) {
-      return null
-    }
-
-    return {
-      sourceMessageId: state.sourceMessageId,
-      segments: state.segments.map((segment) => ({
-        key: segment.key,
-        kind: segment.kind,
-        messageIds: segment.messageIds.filter(
-          (messageId): messageId is string | null =>
-            typeof messageId === 'string' || messageId === null
-        ),
-        lastText: segment.lastText
-      }))
-    }
-  }
-
-  private rememberDeliveryState(
-    endpointKey: string,
-    state: QQBotRemoteDeliveryState
-  ): QQBotRemoteDeliveryState {
-    this.deps.bindingStore.rememberRemoteDeliveryState(endpointKey, state)
-    return state
-  }
-
-  private createDeliveryState(sourceMessageId: string): QQBotRemoteDeliveryState {
-    return {
-      sourceMessageId,
-      segments: []
-    }
-  }
-
-  private async prepareDeliveryStateForSource(
-    endpointKey: string,
-    sourceMessageId: string | null,
-    state: QQBotRemoteDeliveryState | null
-  ): Promise<QQBotRemoteDeliveryState | null> {
-    if (!state) {
-      return sourceMessageId ? this.createDeliveryState(sourceMessageId) : null
-    }
-
-    if (sourceMessageId && state.sourceMessageId === sourceMessageId) {
-      return state
-    }
-
-    this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
-
-    if (!sourceMessageId) {
-      return null
-    }
-
-    return this.createDeliveryState(sourceMessageId)
+  private getConversationSourceMessageId(
+    message: QQBotInboundMessage,
+    execution: RemoteConversationExecution,
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): string | null {
+    return (
+      snapshot.messageId?.trim() ||
+      execution.eventId?.trim() ||
+      message.eventId?.trim() ||
+      message.messageId?.trim() ||
+      null
+    )
   }
 
   private getSnapshotDeliverySegments(
@@ -494,121 +439,270 @@ export class QQBotRuntime {
     return segments
   }
 
+  private syncToolBuffer(
+    endpointKey: string,
+    sourceMessageId: string | null,
+    segments: RemoteDeliverySegment[],
+    options: {
+      flushTrailingBatch: boolean
+    }
+  ): QQBotToolBufferState | null {
+    const state = this.getOrCreateToolBuffer(endpointKey, sourceMessageId)
+    if (!state) {
+      return null
+    }
+
+    const pendingProcessSegments: QQBotPendingProcessBatch[] = []
+    let currentBatchKeys: string[] = []
+
+    for (const segment of segments) {
+      if (segment.sourceMessageId !== state.sourceMessageId) {
+        continue
+      }
+
+      const normalizedKey = segment.key.trim()
+      const normalizedText = segment.text.trim()
+      if (!normalizedKey || !normalizedText) {
+        continue
+      }
+
+      if (segment.kind === 'process') {
+        if (state.flushedProcessKeys.has(normalizedKey)) {
+          continue
+        }
+
+        state.lastProcessTextByKey.set(normalizedKey, normalizedText)
+        if (!currentBatchKeys.includes(normalizedKey)) {
+          currentBatchKeys.push(normalizedKey)
+        }
+        continue
+      }
+
+      if (currentBatchKeys.length > 0) {
+        pendingProcessSegments.push({
+          keys: currentBatchKeys,
+          ready: true
+        })
+        currentBatchKeys = []
+      }
+    }
+
+    if (currentBatchKeys.length > 0) {
+      pendingProcessSegments.push({
+        keys: currentBatchKeys,
+        ready: options.flushTrailingBatch
+      })
+    }
+
+    state.pendingProcessSegments = pendingProcessSegments
+    return state
+  }
+
+  private getOrCreateToolBuffer(
+    endpointKey: string,
+    sourceMessageId: string | null
+  ): QQBotToolBufferState | null {
+    const current = this.endpointToolBuffers.get(endpointKey)
+    if (current) {
+      if (!sourceMessageId || current.sourceMessageId === sourceMessageId) {
+        return current
+      }
+
+      this.migrateToolBufferSourceMessageId(current, sourceMessageId)
+      return current
+    }
+
+    if (!sourceMessageId) {
+      return null
+    }
+
+    const nextState: QQBotToolBufferState = {
+      sourceMessageId,
+      pendingProcessSegments: [],
+      lastProcessTextByKey: new Map(),
+      flushedProcessKeys: new Set()
+    }
+    this.endpointToolBuffers.set(endpointKey, nextState)
+    return nextState
+  }
+
+  private clearToolBuffer(endpointKey: string): void {
+    this.endpointToolBuffers.delete(endpointKey)
+  }
+
+  private migrateToolBufferSourceMessageId(
+    state: QQBotToolBufferState,
+    nextSourceMessageId: string
+  ): void {
+    const previousSourceMessageId = state.sourceMessageId
+    if (!previousSourceMessageId || previousSourceMessageId === nextSourceMessageId) {
+      state.sourceMessageId = nextSourceMessageId
+      return
+    }
+
+    const migratedLastProcessTextByKey = new Map<string, string>()
+    for (const [key, text] of state.lastProcessTextByKey.entries()) {
+      migratedLastProcessTextByKey.set(
+        this.rewriteToolBufferKey(key, previousSourceMessageId, nextSourceMessageId),
+        text
+      )
+    }
+
+    state.lastProcessTextByKey = migratedLastProcessTextByKey
+    state.flushedProcessKeys = new Set(
+      [...state.flushedProcessKeys].map((key) =>
+        this.rewriteToolBufferKey(key, previousSourceMessageId, nextSourceMessageId)
+      )
+    )
+    state.pendingProcessSegments = state.pendingProcessSegments.map((batch) => ({
+      ...batch,
+      keys: this.dedupeKeysInOrder(
+        batch.keys.map((key) =>
+          this.rewriteToolBufferKey(key, previousSourceMessageId, nextSourceMessageId)
+        )
+      )
+    }))
+    state.sourceMessageId = nextSourceMessageId
+  }
+
+  private rewriteToolBufferKey(
+    key: string,
+    previousSourceMessageId: string,
+    nextSourceMessageId: string
+  ): string {
+    const previousPrefix = `${previousSourceMessageId}:`
+    if (!key.startsWith(previousPrefix)) {
+      return key
+    }
+
+    return `${nextSourceMessageId}:${key.slice(previousPrefix.length)}`
+  }
+
+  private dedupeKeysInOrder(keys: string[]): string[] {
+    const seenKeys = new Set<string>()
+    const dedupedKeys: string[] = []
+
+    for (const key of keys) {
+      if (seenKeys.has(key)) {
+        continue
+      }
+
+      seenKeys.add(key)
+      dedupedKeys.push(key)
+    }
+
+    return dedupedKeys
+  }
+
+  private markBufferedProcessBatchesReady(endpointKey: string): void {
+    const state = this.endpointToolBuffers.get(endpointKey)
+    if (!state) {
+      return
+    }
+
+    state.pendingProcessSegments = state.pendingProcessSegments.map((batch) => ({
+      keys: [...batch.keys],
+      ready: true
+    }))
+  }
+
+  private async flushBufferedProcessMessages(
+    endpointKey: string,
+    sendContext: QQBotSendContext,
+    options: {
+      reserveTerminalSlot: boolean
+    }
+  ): Promise<boolean> {
+    const state = this.endpointToolBuffers.get(endpointKey)
+    if (!state || state.pendingProcessSegments.length === 0) {
+      return false
+    }
+
+    const retainedBatches: QQBotPendingProcessBatch[] = []
+    let didFlushProcessOutput = false
+
+    for (let index = 0; index < state.pendingProcessSegments.length; index += 1) {
+      const batch = state.pendingProcessSegments[index]
+      if (!batch.ready) {
+        retainedBatches.push(batch)
+        continue
+      }
+
+      const reservedSlots = options.reserveTerminalSlot ? 1 : 0
+      if (sendContext.sentCount + reservedSlots >= QQBOT_MAX_PASSIVE_REPLIES) {
+        retainedBatches.push(batch, ...state.pendingProcessSegments.slice(index + 1))
+        state.pendingProcessSegments = retainedBatches
+        return didFlushProcessOutput
+      }
+
+      const processText = this.buildBufferedProcessText(state, batch)
+      if (!processText) {
+        this.markProcessBatchFlushed(state, batch)
+        continue
+      }
+
+      const sent = await this.sendText(sendContext, processText)
+      if (!sent) {
+        retainedBatches.push(batch, ...state.pendingProcessSegments.slice(index + 1))
+        state.pendingProcessSegments = retainedBatches
+        return didFlushProcessOutput
+      }
+
+      didFlushProcessOutput = true
+      this.markProcessBatchFlushed(state, batch)
+    }
+
+    state.pendingProcessSegments = retainedBatches
+    return didFlushProcessOutput
+  }
+
+  private buildBufferedProcessText(
+    state: QQBotToolBufferState,
+    batch: QQBotPendingProcessBatch
+  ): string {
+    return batch.keys
+      .map((key) => state.lastProcessTextByKey.get(key)?.trim() || '')
+      .filter((text) => text.length > 0)
+      .join('\n')
+      .trim()
+  }
+
+  private markProcessBatchFlushed(
+    state: QQBotToolBufferState,
+    batch: QQBotPendingProcessBatch
+  ): void {
+    for (const key of batch.keys) {
+      state.flushedProcessKeys.add(key)
+      state.lastProcessTextByKey.delete(key)
+    }
+  }
+
+  private shouldSkipNoResponseTerminal(endpointKey: string, finalText: string): boolean {
+    if (finalText !== REMOTE_NO_RESPONSE_TEXT) {
+      return false
+    }
+
+    const state = this.endpointToolBuffers.get(endpointKey)
+    if (!state) {
+      return false
+    }
+
+    return state.pendingProcessSegments.some((batch) => {
+      if (!batch.ready) {
+        return false
+      }
+
+      return batch.keys.some((key) => {
+        const processText = state.lastProcessTextByKey.get(key)?.trim() || ''
+        return processText.length > 0
+      })
+    })
+  }
+
   private getFinalDeliveryText(
     snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
   ): string {
     return (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
-  }
-
-  private appendTerminalDeliverySegment(
-    segments: RemoteDeliverySegment[],
-    sourceMessageId: string | null,
-    finalText: string
-  ): RemoteDeliverySegment[] {
-    const normalized = finalText.trim()
-    if (!sourceMessageId || !normalized) {
-      return segments
-    }
-
-    const lastAnswerSegment = [...segments].reverse().find((segment) => segment.kind === 'answer')
-    if (lastAnswerSegment?.text === normalized) {
-      return segments
-    }
-
-    if (normalized === REMOTE_NO_RESPONSE_TEXT && segments.length > 0) {
-      return segments
-    }
-
-    return [
-      ...segments,
-      {
-        key: `${sourceMessageId}:terminal`,
-        kind: 'terminal',
-        text: normalized,
-        sourceMessageId
-      }
-    ]
-  }
-
-  private isDeliveryStateCompatible(
-    state: QQBotRemoteDeliveryState,
-    segments: RemoteDeliverySegment[]
-  ): boolean {
-    if (segments.length < state.segments.length) {
-      return false
-    }
-
-    return state.segments.every((segment, index) => segments[index]?.key === segment.key)
-  }
-
-  private async syncDeliverySegments(
-    state: QQBotRemoteDeliveryState,
-    endpointKey: string,
-    sendContext: QQBotSendContext,
-    segments: RemoteDeliverySegment[]
-  ): Promise<QQBotRemoteDeliveryState> {
-    if (segments.length === 0) {
-      return state
-    }
-
-    if (!this.isDeliveryStateCompatible(state, segments)) {
-      return state
-    }
-
-    const syncedSegments = [...state.segments]
-    let reachedPassiveReplyLimit = false
-    for (let index = 0; index < state.segments.length; index += 1) {
-      const segment = segments[index]
-      const existingSegment = syncedSegments[index]
-      if (!segment || !existingSegment) {
-        continue
-      }
-
-      const normalizedText = segment.text.trim()
-      if (normalizedText === existingSegment.lastText) {
-        continue
-      }
-
-      const messageId = await this.sendText(sendContext, segment.text)
-      syncedSegments[index] = {
-        key: segment.key,
-        kind: segment.kind,
-        messageIds: [...existingSegment.messageIds, messageId],
-        lastText: normalizedText
-      }
-
-      if (!messageId && sendContext.sentCount >= QQBOT_MAX_PASSIVE_REPLIES) {
-        reachedPassiveReplyLimit = true
-        break
-      }
-    }
-
-    if (reachedPassiveReplyLimit) {
-      return this.rememberDeliveryState(endpointKey, {
-        sourceMessageId: state.sourceMessageId,
-        segments: syncedSegments
-      })
-    }
-
-    for (let index = state.segments.length; index < segments.length; index += 1) {
-      const segment = segments[index]
-      const messageId = await this.sendText(sendContext, segment.text)
-      syncedSegments.push({
-        key: segment.key,
-        kind: segment.kind,
-        messageIds: [messageId],
-        lastText: segment.text.trim()
-      })
-
-      if (!messageId && sendContext.sentCount >= QQBOT_MAX_PASSIVE_REPLIES) {
-        break
-      }
-    }
-
-    return this.rememberDeliveryState(endpointKey, {
-      sourceMessageId: state.sourceMessageId,
-      segments: syncedSegments
-    })
   }
 
   private createSendContext(target: QQBotTransportTarget, nextMsgSeq: number): QQBotSendContext {
