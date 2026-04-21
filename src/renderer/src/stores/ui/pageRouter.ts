@@ -22,6 +22,8 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
 
   async function initialize(options: InitializePageRouterOptions = {}): Promise<void> {
     try {
+      error.value = null
+
       if (options.activeSessionId !== undefined) {
         route.value = options.activeSessionId
           ? { name: 'chat', sessionId: options.activeSessionId }

@@ -69,6 +69,12 @@ export class VoiceAIProvider extends BaseLLMProvider {
     this.proxyUrl = undefined
   }
 
+  public override updateConfig(provider: LLM_PROVIDER): void {
+    super.updateConfig(provider)
+    this.proxyAgent = undefined
+    this.proxyUrl = undefined
+  }
+
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     if (!this.provider.apiKey) {
       return { isOk: false, errorMsg: 'API key is required' }

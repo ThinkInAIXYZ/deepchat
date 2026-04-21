@@ -65,7 +65,11 @@ function getBridgeEventRuntime(ipcRenderer: IpcRendererLike): BridgeEventRuntime
       const contract = getDeepchatEventContract(envelope.name)
       const payload = contract.payload.parse(envelope.payload)
       listeners.forEach((listener) => {
-        listener(payload)
+        try {
+          listener(payload)
+        } catch (error) {
+          console.error(`[DeepchatBridge] Event listener failed for ${envelope.name}:`, error)
+        }
       })
     }
   }

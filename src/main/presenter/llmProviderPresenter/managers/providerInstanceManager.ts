@@ -178,9 +178,9 @@ export class ProviderInstanceManager {
         }
       } else {
         const instance = this.providerInstances.get(change.providerId)
-        if (instance && 'updateConfig' in instance) {
+        if (instance) {
           try {
-            ;(instance as any).updateConfig(updatedProvider)
+            instance.updateConfig(updatedProvider)
           } catch (error) {
             console.error(`Failed to update provider config ${change.providerId}:`, error)
           }
@@ -252,9 +252,9 @@ export class ProviderInstanceManager {
 
     for (const provider of providers) {
       const instance = this.providerInstances.get(provider.id)
-      if (instance && 'updateConfig' in instance) {
+      if (instance) {
         try {
-          ;(instance as any).updateConfig(provider)
+          instance.updateConfig(provider)
         } catch (error) {
           console.error(`Failed to update provider config ${provider.id}:`, error)
         }

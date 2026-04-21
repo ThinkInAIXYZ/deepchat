@@ -103,6 +103,11 @@ export abstract class BaseLLMProvider {
     return this.createRequestAbortError(`Request timed out after ${timeoutMs}ms`)
   }
 
+  public updateConfig(provider: LLM_PROVIDER): void {
+    this.provider = { ...provider }
+    this.loadCachedModels()
+  }
+
   protected createModelRequestSignal(modelConfig?: Pick<ModelConfig, 'timeout'> | null): {
     signal?: AbortSignal
     timeoutMs?: number

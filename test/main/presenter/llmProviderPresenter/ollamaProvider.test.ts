@@ -170,4 +170,31 @@ describe('OllamaProvider.fetchModels', () => {
     expect(configPresenter.ensureModelStatus).toHaveBeenCalledWith('ollama', 'qwen3:8b', true)
     expect(configPresenter.setProviderModels).toHaveBeenCalledWith('ollama', models)
   })
+
+  it('recreates the Ollama client when provider config changes', () => {
+    const ollamaProvider = Object.create(OllamaProvider.prototype) as OllamaProvider & {
+      provider: LLM_PROVIDER
+      configPresenter: IConfigPresenter
+      models: MODEL_META[]
+      customModels: MODEL_META[]
+      ollama: unknown
+      createOllamaClient: ReturnType<typeof vi.fn>
+    }
+
+    ollamaProvider.provider = provider
+    ollamaProvider.configPresenter = configPresenter
+    ollamaProvider.models = []
+    ollamaProvider.customModels = []
+    ollamaProvider.ollama = { id: 'old-client' }
+    ollamaProvider.createOllamaClient = vi.fn(() => ({ id: 'new-client' }))
+
+    ollamaProvider.updateConfig({
+      ...provider,
+      baseUrl: 'http://127.0.0.1:22434'
+    })
+
+    expect(ollamaProvider.createOllamaClient).toHaveBeenCalledTimes(1)
+    expect(ollamaProvider.ollama).toEqual({ id: 'new-client' })
+    expect(ollamaProvider.provider.baseUrl).toBe('http://127.0.0.1:22434')
+  })
 })

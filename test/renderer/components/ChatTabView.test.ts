@@ -8,6 +8,8 @@ type SetupOptions = {
   selectedAgentId?: string | null
   chatSessionId?: string | null
   newConversationTargetAgentId?: string | null
+  sessionError?: string | null
+  activeSessionId?: string | null
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -28,7 +30,10 @@ const setup = async (options: SetupOptions = {}) => {
           }
         : null,
     activeSessionId:
-      options.chatSessionId ?? (options.currentRoute === 'chat' ? 'session-1' : null),
+      options.activeSessionId ??
+      options.chatSessionId ??
+      (options.currentRoute === 'chat' ? 'session-1' : null),
+    error: options.sessionError ?? null,
     newConversationTargetAgentId: options.newConversationTargetAgentId ?? 'deepchat',
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     startNewConversation: vi.fn().mockResolvedValue(undefined)
@@ -192,6 +197,21 @@ describe('ChatTabView collapsed new chat button', () => {
     expect(agentStore.fetchAgents).toHaveBeenCalledTimes(1)
     expect(projectStore.fetchProjects).toHaveBeenCalledTimes(1)
     expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')
+  })
+
+  it('falls back to route recovery when the session snapshot is unusable', async () => {
+    const { pageRouter, sessionStore } = await setup({
+      collapsed: false,
+      currentRoute: 'newThread',
+      activeSessionId: null,
+      sessionError: 'Failed to load sessions'
+    })
+
+    expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
+    expect(pageRouter.initialize).toHaveBeenCalledWith()
+    expect(pageRouter.initialize).not.toHaveBeenCalledWith({
+      activeSessionId: null
+    })
   })
 
   it('hides the collapsed new chat button when the sidebar is expanded', async () => {

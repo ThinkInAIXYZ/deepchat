@@ -156,6 +156,11 @@ export class OllamaProvider extends BaseLLMProvider {
 
   public onProxyResolved(): void {}
 
+  public override updateConfig(provider: LLM_PROVIDER): void {
+    super.updateConfig(provider)
+    this.ollama = this.createOllamaClient()
+  }
+
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
       const [localModels, runningModels] = await Promise.all([

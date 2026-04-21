@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GithubCopilotProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/githubCopilotProvider'
+import type { IConfigPresenter } from '../../../../src/shared/presenter'
+import { getGlobalGitHubCopilotDeviceFlow } from '../../../../src/main/presenter/githubCopilotDeviceFlow'
 
 vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
@@ -104,5 +106,43 @@ describe('GithubCopilotProvider request timeout', () => {
         signal: expect.any(AbortSignal)
       })
     )
+  })
+
+  it('refreshes cached auth state when provider config changes', () => {
+    const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
+      provider: Record<string, unknown>
+      configPresenter: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels'>
+      models: unknown[]
+      customModels: unknown[]
+      copilotToken: string | null
+      tokenExpiresAt: number
+      deviceFlow: unknown
+    }
+
+    provider.provider = {
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      copilotClientId: 'old-client'
+    }
+    provider.configPresenter = {
+      getProviderModels: vi.fn(() => []),
+      getCustomModels: vi.fn(() => [])
+    }
+    provider.models = []
+    provider.customModels = []
+    provider.copilotToken = 'cached-token'
+    provider.tokenExpiresAt = 123
+    provider.deviceFlow = { id: 'old-flow' }
+
+    provider.updateConfig({
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      copilotClientId: 'new-client',
+      enable: true
+    } as any)
+
+    expect(provider.copilotToken).toBeNull()
+    expect(provider.tokenExpiresAt).toBe(0)
+    expect(getGlobalGitHubCopilotDeviceFlow).toHaveBeenCalledWith('new-client')
   })
 })

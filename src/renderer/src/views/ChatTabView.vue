@@ -122,9 +122,13 @@ onMounted(async () => {
 
   try {
     await Promise.all([sessionStore.fetchSessions(), projectStore.loadDefaultProjectPath()])
-    await pageRouter.initialize({
-      activeSessionId: sessionStore.activeSessionId
-    })
+    if (sessionStore.error || sessionStore.activeSessionId === null) {
+      await pageRouter.initialize()
+    } else {
+      await pageRouter.initialize({
+        activeSessionId: sessionStore.activeSessionId
+      })
+    }
     console.info('[Startup][Renderer] ChatTabView interactive ready')
   } catch (error) {
     console.warn('[Startup][Renderer] ChatTabView critical hydration failed:', error)
