@@ -54,6 +54,7 @@ export const SessionGenerationSettingsSchema = z.object({
   temperature: z.number(),
   contextLength: z.number().int(),
   maxTokens: z.number().int(),
+  timeout: z.number().int(),
   thinkingBudget: z.number().int().optional(),
   reasoningEffort: ReasoningEffortSchema.optional(),
   reasoningVisibility: ReasoningVisibilitySchema.optional(),
