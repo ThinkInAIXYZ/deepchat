@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 
 describe('initAppStores', () => {
-  it('restores model and ollama store initialization after critical stores are ready', async () => {
+  it('only initializes cheap startup stores and connects workload tracking', async () => {
     vi.resetModules()
 
-    const pendingWarmup = () => new Promise<never>(() => {})
-    const scheduleStartupDeferredTask = vi.fn((task: () => void | Promise<void>) => {
-      void task()
-      return () => {}
-    })
     const callOrder: string[] = []
+    const startupWorkloadStore = {
+      connect: vi.fn(() => {
+        callOrder.push('workloadConnect')
+      })
+    }
     const uiSettingsStore = {
       loadSettings: vi.fn(async () => {
         callOrder.push('loadSettings')
@@ -20,30 +20,20 @@ describe('initAppStores', () => {
         callOrder.push('providerInitialize')
       })
     }
-    const modelStore = {
-      initialize: vi.fn(() => {
-        callOrder.push('modelInitialize')
-        return pendingWarmup()
-      })
-    }
-    const ollamaStore = {
-      initialize: vi.fn(() => {
-        callOrder.push('ollamaInitialize')
-        return pendingWarmup()
-      })
-    }
-
     vi.doMock('@/stores/uiSettingsStore', () => ({
       useUiSettingsStore: () => uiSettingsStore
     }))
     vi.doMock('@/stores/providerStore', () => ({
       useProviderStore: () => providerStore
     }))
+    vi.doMock('@/stores/startupWorkloadStore', () => ({
+      useStartupWorkloadStore: () => startupWorkloadStore
+    }))
     vi.doMock('@/stores/modelStore', () => ({
-      useModelStore: () => modelStore
+      useModelStore: () => ({})
     }))
     vi.doMock('@/stores/ollamaStore', () => ({
-      useOllamaStore: () => ollamaStore
+      useOllamaStore: () => ({})
     }))
     vi.doMock('@/stores/mcp', () => ({
       useMcpStore: () => ({})
@@ -62,22 +52,12 @@ describe('initAppStores', () => {
         MCP_INSTALL: 'mcp-install'
       }
     }))
-    vi.doMock('@/lib/startupDeferred', () => ({
-      scheduleStartupDeferredTask
-    }))
 
     const { initAppStores } = await import('@/lib/storeInitializer')
 
     await initAppStores()
 
-    expect(callOrder).toEqual([
-      'loadSettings',
-      'providerInitialize',
-      'modelInitialize',
-      'ollamaInitialize'
-    ])
-    expect(modelStore.initialize).toHaveBeenCalledTimes(1)
-    expect(ollamaStore.initialize).toHaveBeenCalledTimes(1)
-    expect(scheduleStartupDeferredTask).toHaveBeenCalledTimes(1)
+    expect(callOrder).toEqual(['workloadConnect', 'loadSettings', 'providerInitialize'])
+    expect(startupWorkloadStore.connect).toHaveBeenCalledTimes(1)
   })
 })

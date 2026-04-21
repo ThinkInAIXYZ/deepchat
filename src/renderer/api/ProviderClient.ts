@@ -9,6 +9,7 @@ import {
   providersListOllamaModelsRoute,
   providersListOllamaRunningModelsRoute,
   providersListRoute,
+  providersListSummariesRoute,
   providersPullOllamaModelRoute,
   providersRefreshModelsRoute,
   providersRemoveRoute,
@@ -24,6 +25,11 @@ import { getDeepchatBridge } from './core'
 export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function getProviders() {
     const result = await bridge.invoke(providersListRoute.name, {})
+    return result.providers
+  }
+
+  async function getProviderSummaries() {
+    const result = await bridge.invoke(providersListSummariesRoute.name, {})
     return result.providers
   }
 
@@ -146,6 +152,7 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
 
   return {
     getProviders,
+    getProviderSummaries,
     getDefaultProviders,
     setProviderById,
     updateProviderAtomic,

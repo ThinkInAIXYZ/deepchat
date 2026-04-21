@@ -37,8 +37,14 @@
           <Separator class="mb-4" />
 
           <!-- Skills grid -->
-          <div v-if="loading" class="flex items-center justify-center py-8">
-            <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-muted-foreground" />
+          <div v-if="loading" class="space-y-3 pb-4 animate-pulse">
+            <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
+              <div class="space-y-3">
+                <div class="h-4 w-40 rounded bg-muted/60"></div>
+                <div class="h-3 w-full rounded bg-muted/40"></div>
+                <div class="h-3 w-3/4 rounded bg-muted/30"></div>
+              </div>
+            </div>
           </div>
 
           <div

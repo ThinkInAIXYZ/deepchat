@@ -93,6 +93,13 @@ export const LlmProviderSchema = z
   })
   .passthrough()
 
+export const LlmProviderSummarySchema = LlmProviderSchema.omit({
+  models: true,
+  customModels: true,
+  enabledModels: true,
+  disabledModels: true
+})
+
 export const FileItemSchema = z
   .object({
     id: z.string().min(1),

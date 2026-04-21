@@ -177,6 +177,44 @@ export const StartupBootstrapShellSchema = z.object({
   defaultProjectPath: z.string().nullable()
 })
 
+export const StartupWorkloadTargetSchema = z.enum(['main', 'settings'])
+export const StartupWorkloadPhaseSchema = z.enum(['interactive', 'deferred', 'background'])
+export const StartupWorkloadStateSchema = z.enum([
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled'
+])
+export const StartupWorkloadTaskIdSchema = z.enum([
+  'main.bootstrap',
+  'main.session.firstPage',
+  'main.provider.warmup',
+  'settings.providers.summary',
+  'settings.provider.models',
+  'settings.ollama',
+  'settings.skills.catalog',
+  'settings.skills.syncScan',
+  'settings.mcp.runtime',
+  'settings.remote.runtime'
+])
+
+export const StartupWorkloadTaskSchema = z.object({
+  id: StartupWorkloadTaskIdSchema,
+  phase: StartupWorkloadPhaseSchema,
+  state: StartupWorkloadStateSchema,
+  labelKey: z.string().min(1),
+  progress: z.number().min(0).max(1).optional(),
+  startedAt: TimestampMsSchema.optional(),
+  updatedAt: TimestampMsSchema.optional()
+})
+
+export const StartupWorkloadChangedPayloadSchema = z.object({
+  startupRunId: z.string(),
+  target: StartupWorkloadTargetSchema,
+  tasks: z.array(StartupWorkloadTaskSchema)
+})
+
 export const ChatMessageRecordSchema = z.object({
   id: EntityIdSchema,
   sessionId: EntityIdSchema,

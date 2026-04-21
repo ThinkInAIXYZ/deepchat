@@ -15,6 +15,7 @@ export class ModelStatusHelper {
   private readonly store: ElectronStore<any>
   private readonly setSetting: SetSetting
   private readonly cache: Map<string, boolean> = new Map()
+  private statusSnapshot: Map<string, boolean> | null = null
 
   constructor(options: ModelStatusHelperOptions) {
     this.store = options.store
@@ -26,10 +27,52 @@ export class ModelStatusHelper {
     return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
   }
 
+  private buildStatusSnapshot(): Map<string, boolean> | null {
+    const candidate = this.store as ElectronStore<any> & {
+      store?: Record<string, unknown>
+    }
+    const rawStore = candidate.store
+    if (!rawStore || typeof rawStore !== 'object') {
+      return null
+    }
+
+    const snapshot = new Map<string, boolean>()
+    for (const [key, value] of Object.entries(rawStore)) {
+      if (!key.startsWith(MODEL_STATUS_KEY_PREFIX)) {
+        continue
+      }
+
+      if (typeof value !== 'boolean') {
+        continue
+      }
+
+      snapshot.set(key, value)
+      this.cache.set(key, value)
+    }
+
+    return snapshot
+  }
+
+  private getStatusSnapshot(): Map<string, boolean> | null {
+    if (this.statusSnapshot) {
+      return this.statusSnapshot
+    }
+
+    this.statusSnapshot = this.buildStatusSnapshot()
+    return this.statusSnapshot
+  }
+
   getModelStatus(providerId: string, modelId: string): boolean {
     const statusKey = this.getStatusKey(providerId, modelId)
     if (this.cache.has(statusKey)) {
       return this.cache.get(statusKey)!
+    }
+
+    const statusSnapshot = this.getStatusSnapshot()
+    if (statusSnapshot) {
+      const status = statusSnapshot.get(statusKey) ?? false
+      this.cache.set(statusKey, status)
+      return status
     }
 
     const status = this.store.get(statusKey) as boolean | undefined
@@ -40,6 +83,19 @@ export class ModelStatusHelper {
 
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean> {
     const result: Record<string, boolean> = {}
+    const statusSnapshot = this.getStatusSnapshot()
+
+    if (statusSnapshot) {
+      for (const modelId of modelIds) {
+        const statusKey = this.getStatusKey(providerId, modelId)
+        const status = statusSnapshot.get(statusKey) ?? false
+        this.cache.set(statusKey, status)
+        result[modelId] = status
+      }
+
+      return result
+    }
+
     const uncachedKeys: string[] = []
     const uncachedModelIds: string[] = []
 
@@ -66,6 +122,11 @@ export class ModelStatusHelper {
   }
 
   private hasStoredStatus(statusKey: string): boolean {
+    const statusSnapshot = this.getStatusSnapshot()
+    if (statusSnapshot) {
+      return statusSnapshot.has(statusKey)
+    }
+
     const candidate = this.store as ElectronStore<any> & { has?: (key: string) => boolean }
     if (typeof candidate.has === 'function') {
       return candidate.has(statusKey)
@@ -77,6 +138,7 @@ export class ModelStatusHelper {
     const statusKey = this.getStatusKey(providerId, modelId)
     this.setSetting(statusKey, enabled)
     this.cache.set(statusKey, enabled)
+    this.statusSnapshot?.set(statusKey, enabled)
     eventBus.send(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
       providerId,
       modelId,
@@ -97,18 +159,25 @@ export class ModelStatusHelper {
 
     if (this.cache.has(statusKey) || this.hasStoredStatus(statusKey)) {
       if (!this.cache.has(statusKey)) {
-        const status = this.store.get(statusKey) as boolean | undefined
-        this.cache.set(statusKey, typeof status === 'boolean' ? status : false)
+        const statusSnapshot = this.getStatusSnapshot()
+        if (statusSnapshot) {
+          this.cache.set(statusKey, statusSnapshot.get(statusKey) ?? false)
+        } else {
+          const status = this.store.get(statusKey) as boolean | undefined
+          this.cache.set(statusKey, typeof status === 'boolean' ? status : false)
+        }
       }
       return
     }
 
     this.store.set(statusKey, enabled)
     this.cache.set(statusKey, enabled)
+    this.statusSnapshot?.set(statusKey, enabled)
   }
 
   clearModelStatusCache(): void {
     this.cache.clear()
+    this.statusSnapshot = null
   }
 
   clearProviderModelStatusCache(providerId: string): void {
@@ -120,6 +189,7 @@ export class ModelStatusHelper {
       }
     }
     keysToDelete.forEach((key) => this.cache.delete(key))
+    this.statusSnapshot = null
   }
 
   batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void {
@@ -132,5 +202,6 @@ export class ModelStatusHelper {
     const statusKey = this.getStatusKey(providerId, modelId)
     this.store.delete(statusKey)
     this.cache.delete(statusKey)
+    this.statusSnapshot?.delete(statusKey)
   }
 }

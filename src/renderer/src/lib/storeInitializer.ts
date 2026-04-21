@@ -2,30 +2,28 @@ import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useMcpStore } from '@/stores/mcp'
-import { useModelStore } from '@/stores/modelStore'
-import { useOllamaStore } from '@/stores/ollamaStore'
+import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 import { DEEPLINK_EVENTS } from '@/events'
 import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
-import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 export const initAppStores = async () => {
   const uiSettingsStore = useUiSettingsStore()
   const providerStore = useProviderStore()
-  const modelStore = useModelStore()
-  const ollamaStore = useOllamaStore()
+  let startupWorkloadStore: ReturnType<typeof useStartupWorkloadStore> | null = null
+
+  try {
+    startupWorkloadStore = useStartupWorkloadStore()
+  } catch (error) {
+    console.warn('[Startup][Renderer] startupWorkloadStore unavailable during initAppStores', error)
+  }
 
   console.info('[Startup][Renderer] initAppStores begin')
+  startupWorkloadStore?.connect()
 
   await uiSettingsStore.loadSettings()
 
   await providerStore.initialize()
   console.info('[Startup][Renderer] initAppStores critical stores ready')
-
-  scheduleStartupDeferredTask(async () => {
-    console.info('[Startup][Renderer] initAppStores deferred store warmups begin')
-    await Promise.allSettled([modelStore.initialize(), ollamaStore.initialize()])
-    console.info('[Startup][Renderer] initAppStores deferred store warmups complete')
-  })
 }
 
 export const useMcpInstallDeeplinkHandler = () => {

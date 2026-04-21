@@ -50,8 +50,10 @@ const setup = async (options: SetupOptions = {}) => {
     fetchProjects: vi.fn().mockResolvedValue(undefined)
   }
   const modelStore = {
-    initialize: vi.fn().mockResolvedValue(undefined),
-    refreshProviderModels: vi.fn().mockResolvedValue(undefined)
+    initialize: vi.fn().mockResolvedValue(undefined)
+  }
+  const ollamaStore = {
+    initialize: vi.fn().mockResolvedValue(undefined)
   }
 
   vi.doMock('@/stores/ui/pageRouter', () => ({
@@ -71,6 +73,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
+  }))
+  vi.doMock('@/stores/ollamaStore', () => ({
+    useOllamaStore: () => ollamaStore
   }))
   vi.doMock('@/lib/startupDeferred', () => ({
     markStartupInteractive,
@@ -148,6 +153,7 @@ const setup = async (options: SetupOptions = {}) => {
     pageRouter,
     agentStore,
     modelStore,
+    ollamaStore,
     projectStore,
     sessionStore,
     markStartupInteractive
@@ -163,30 +169,26 @@ describe('ChatTabView collapsed new chat button', () => {
     vi.useRealTimers()
   })
 
-  it('does not initialize modelStore on mount', async () => {
-    const { modelStore } = await setup({
+  it('runs full model compensation in deferred hydration after the first screen becomes interactive', async () => {
+    const { modelStore, ollamaStore, markStartupInteractive } = await setup({
       collapsed: false,
       currentRoute: 'newThread',
       selectedAgentId: 'deepchat'
     })
 
-    expect(modelStore.initialize).not.toHaveBeenCalled()
+    expect(markStartupInteractive).toHaveBeenCalledTimes(1)
+    expect(modelStore.initialize).toHaveBeenCalledTimes(1)
+    expect(ollamaStore.initialize).toHaveBeenCalledTimes(1)
   })
 
-  it('hydrates the route from the session store state and defers non-critical fetches', async () => {
-    const {
-      pageRouter,
-      agentStore,
-      modelStore,
-      projectStore,
-      sessionStore,
-      markStartupInteractive
-    } = await setup({
-      collapsed: false,
-      currentRoute: 'chat',
-      chatSessionId: 'session-42',
-      selectedAgentId: 'acp-a'
-    })
+  it('hydrates the route from the session store state and keeps provider warmup on demand', async () => {
+    const { pageRouter, agentStore, projectStore, sessionStore, markStartupInteractive } =
+      await setup({
+        collapsed: false,
+        currentRoute: 'chat',
+        chatSessionId: 'session-42',
+        selectedAgentId: 'acp-a'
+      })
 
     expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
     expect(projectStore.loadDefaultProjectPath).toHaveBeenCalledTimes(1)
@@ -196,7 +198,6 @@ describe('ChatTabView collapsed new chat button', () => {
     expect(markStartupInteractive).toHaveBeenCalledTimes(1)
     expect(agentStore.fetchAgents).toHaveBeenCalledTimes(1)
     expect(projectStore.fetchProjects).toHaveBeenCalledTimes(1)
-    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')
   })
 
   it('falls back to route recovery when the session snapshot is unusable', async () => {

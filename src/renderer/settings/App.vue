@@ -83,7 +83,7 @@ import { useOllamaStore } from '@/stores/ollamaStore'
 import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
-import { markStartupInteractive, scheduleStartupDeferredTask } from '../src/lib/startupDeferred'
+import { markStartupInteractive } from '../src/lib/startupDeferred'
 import type {
   DatabaseRepairSuggestedPayload,
   LLM_PROVIDER,
@@ -96,6 +96,7 @@ import {
   SETTINGS_NAVIGATION_ITEMS
 } from '@shared/settingsNavigation'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
+import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
@@ -121,6 +122,13 @@ const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
+let startupWorkloadStore: ReturnType<typeof useStartupWorkloadStore> | null = null
+
+try {
+  startupWorkloadStore = useStartupWorkloadStore()
+} catch (error) {
+  console.warn('[Startup][Settings][Renderer] startupWorkloadStore unavailable', error)
+}
 const providerDeeplinkImportStore = useProviderDeeplinkImportStore()
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
@@ -145,7 +153,6 @@ const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.pr
 const isProcessingProviderPreview = ref(false)
 const startupTimeOrigin = typeof performance !== 'undefined' ? performance.now() : Date.now()
 const hasLoggedFirstRouteResolved = ref(false)
-let cancelDeferredWarmup: (() => void) | null = null
 
 const logSettingsStartup = (phase: string) => {
   const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
@@ -277,23 +284,6 @@ const ensureProviderStoreReady = async () => {
   }
 
   await providerStoreInitializePromise
-}
-
-const warmupSettingsStores = async () => {
-  try {
-    if (!isProviderStoreInitialized()) {
-      await (providerStore.primeProviders?.() ?? providerStore.refreshProviders?.())
-      logSettingsStartup('providerStore primed')
-    }
-
-    await modelStore.initialize()
-    logSettingsStartup('modelStore initialized')
-
-    await ollamaStore.initialize?.()
-    logSettingsStartup('ollamaStore initialized')
-  } catch (error) {
-    console.error('Failed to warm up settings stores', error)
-  }
 }
 
 const ensureProviderRouteReady = async (providerId?: string) => {
@@ -571,6 +561,8 @@ const handleWindowFocus = () => {
 }
 
 onMounted(async () => {
+  startupWorkloadStore?.connect()
+
   // Listen for window maximize/unmaximize events
   devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
@@ -586,12 +578,33 @@ onMounted(async () => {
     }
   )
 
-  await uiSettingsStore.loadSettings()
+  const [settingsLoadResult, routerReadyResult] = await Promise.allSettled([
+    uiSettingsStore.loadSettings(),
+    router.isReady()
+  ])
 
-  // Wait for router to be ready
-  await router.isReady()
+  if (settingsLoadResult.status === 'rejected') {
+    console.error(
+      `${SETTINGS_STARTUP_LOG_PREFIX} failed to load UI settings during startup:`,
+      settingsLoadResult.reason
+    )
+  }
+
+  if (routerReadyResult.status === 'rejected') {
+    console.error(
+      `${SETTINGS_STARTUP_LOG_PREFIX} router ready failed during startup:`,
+      routerReadyResult.reason
+    )
+  }
+
+  try {
+    await providerStore.initialize()
+    logSettingsStartup('provider summaries ready')
+  } catch (error) {
+    console.error(`${SETTINGS_STARTUP_LOG_PREFIX} provider summaries failed:`, error)
+  }
+
   markStartupInteractive()
-  cancelDeferredWarmup = scheduleStartupDeferredTask(() => warmupSettingsStores())
   window.addEventListener('focus', handleWindowFocus)
   await syncPendingProviderInstall()
   notifySettingsReady()
@@ -607,9 +620,6 @@ onBeforeUnmount(() => {
     clearTimeout(errorDisplayTimer.value)
     errorDisplayTimer.value = null
   }
-
-  cancelDeferredWarmup?.()
-  cancelDeferredWarmup = null
 
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED)

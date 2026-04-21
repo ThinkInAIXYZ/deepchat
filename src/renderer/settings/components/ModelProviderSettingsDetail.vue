@@ -228,6 +228,7 @@ watch(
 const initProviderSettings = async () => {
   console.log('initData for provider:', props.provider.id)
 
+  await providerStore.ensureDefaultProvidersReady()
   await modelStore.ensureProviderModelsReady(props.provider.id)
 
   // Fetch Azure API Version if applicable

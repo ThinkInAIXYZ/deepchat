@@ -213,6 +213,7 @@ const getDefaultDeepchatInvokeResult = (
         value: payload.credential ?? null
       }
     case 'providers.list':
+    case 'providers.listSummaries':
     case 'providers.listDefaults':
       return {
         providers: []
@@ -401,6 +402,23 @@ vi.mock('pinia', () => ({
   defineStore: vi.fn(() => vi.fn(() => ({}))),
   storeToRefs: vi.fn((store) => store)
 }))
+
+const startupWorkloadStoreMock = () => ({
+  useStartupWorkloadStore: vi.fn(() => ({
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    connected: false,
+    runIds: { main: null, settings: null },
+    mainTasks: [],
+    settingsTasks: [],
+    getTask: vi.fn(() => null),
+    isTaskRunning: vi.fn(() => false),
+    isSectionReady: vi.fn(() => false)
+  }))
+})
+
+vi.mock('@/stores/startupWorkloadStore', startupWorkloadStoreMock)
+vi.mock('../src/renderer/src/stores/startupWorkloadStore', startupWorkloadStoreMock)
 
 // Mock @iconify/vue
 vi.mock('@iconify/vue', () => ({

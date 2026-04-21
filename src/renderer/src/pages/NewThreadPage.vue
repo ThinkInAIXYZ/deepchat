@@ -213,7 +213,26 @@ const getEnabledModel = (
   return matched ? { providerId, modelId } : null
 }
 
+const ensureEnabledModelsReady = async (): Promise<boolean> => {
+  if (modelStore.initialized) {
+    return true
+  }
+
+  try {
+    await modelStore.initialize()
+    return true
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to initialize enabled models:', error)
+    return false
+  }
+}
+
 async function resolveModel(): Promise<{ providerId: string; modelId: string } | null> {
+  const ready = await ensureEnabledModelsReady()
+  if (!ready) {
+    return null
+  }
+
   // 0. model manually selected in current NewThread page
   const draftModel = getEnabledModel(draftStore.providerId, draftStore.modelId)
   if (draftModel) {
@@ -301,7 +320,8 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
   message.value = buildStartMessage(payload)
   draftStore.systemPrompt = payload.systemPrompt
 
-  const matchedModel = resolveStartModelSelection(payload.modelId)
+  const modelsReady = await ensureEnabledModelsReady()
+  const matchedModel = modelsReady ? resolveStartModelSelection(payload.modelId) : null
   if (matchedModel) {
     draftStore.providerId = matchedModel.providerId
     draftStore.modelId = matchedModel.modelId

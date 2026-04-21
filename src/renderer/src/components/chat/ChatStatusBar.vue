@@ -88,7 +88,11 @@
             <Button
               variant="ghost"
               size="sm"
-              class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+              :class="[
+                'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg',
+                !isModelOptionsReady ? 'opacity-70' : ''
+              ]"
+              :aria-busy="!isModelOptionsReady"
             >
               <ModelIcon
                 :model-id="displayIconId"
@@ -96,7 +100,12 @@
                 :is-dark="themeStore.isDark"
               />
               <span>{{ displayModelText }}</span>
-              <Icon icon="lucide:chevron-down" class="w-3 h-3" />
+              <Icon
+                v-if="showModelOptionsLoading"
+                icon="lucide:loader-2"
+                class="h-3 w-3 animate-spin"
+              />
+              <Icon v-else icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </PopoverTrigger>
 
@@ -114,7 +123,7 @@
                   isModelSettingsExpanded ? 'w-[18rem] border-r' : 'w-full'
                 ]"
               >
-                <div class="border-b px-2.5 py-2">
+                <div v-if="isModelOptionsReady" class="border-b px-2.5 py-2">
                   <Input
                     data-model-search-input="true"
                     v-model="modelSearchKeyword"
@@ -125,7 +134,35 @@
 
                 <div class="max-h-[24rem] overflow-y-auto px-2 py-2">
                   <div
-                    v-if="filteredModelGroups.length === 0"
+                    v-if="showModelOptionsLoading"
+                    data-model-picker-state="loading"
+                    class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
+                  >
+                    <div class="flex items-center justify-center gap-2">
+                      <Icon icon="lucide:loader-2" class="h-3.5 w-3.5 animate-spin" />
+                      <span>{{ t('common.loading') }}</span>
+                    </div>
+                  </div>
+
+                  <div
+                    v-else-if="hasModelOptionsError"
+                    data-model-picker-state="error"
+                    class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
+                  >
+                    <div>{{ t('model.error.loadFailed') }}</div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="mt-3 h-7 px-3 text-xs"
+                      @click="retryModelOptionsInitialization"
+                    >
+                      {{ t('settings.dashboard.rtk.actions.retry') }}
+                    </Button>
+                  </div>
+
+                  <div
+                    v-else-if="filteredModelGroups.length === 0"
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     {{ t('chat.modelPicker.empty') }}
@@ -1120,6 +1157,13 @@ const providerNameMap = computed(() => {
   })
   return map
 })
+const isModelOptionsReady = computed(() => isAcpAgent.value || modelStore.initialized)
+const hasModelOptionsError = computed(
+  () => !isAcpAgent.value && !modelStore.initialized && Boolean(modelStore.initializationError)
+)
+const showModelOptionsLoading = computed(
+  () => !isAcpAgent.value && !modelStore.initialized && !hasModelOptionsError.value
+)
 
 const resolveProviderApiType = (providerId: string): string | undefined =>
   providerStore.sortedProviders.find((provider) => provider.id === providerId)?.apiType
@@ -1128,6 +1172,10 @@ const getChatSelectableModels = (models: RENDERER_MODEL_META[]): RENDERER_MODEL_
   models.filter((model) => isChatSelectableModelType(model.type))
 
 const modelGroups = computed<GroupedModelList[]>(() => {
+  if (!isModelOptionsReady.value) {
+    return []
+  }
+
   const groupsById = new Map(
     modelStore.enabledModels
       .filter((group) => group.providerId !== 'acp')
@@ -1916,6 +1964,9 @@ const displayIconId = computed(() => {
 })
 
 const displayModelText = computed(() => {
+  if (!isModelOptionsReady.value) {
+    return hasModelOptionsError.value ? t('model.error.loadFailed') : t('common.loading')
+  }
   if (isAcpAgent.value) {
     return acpAgentLabel.value
   }
@@ -1933,6 +1984,20 @@ const displayModelText = computed(() => {
   return t('common.selectModel')
 })
 
+const ensureCompleteModelOptionsReady = async (): Promise<boolean> => {
+  if (isAcpAgent.value || modelStore.initialized) {
+    return true
+  }
+
+  try {
+    await modelStore.initialize()
+    return true
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to initialize enabled models:', error)
+    return false
+  }
+}
+
 const syncDraftModelSelection = async () => {
   const token = ++draftModelSyncToken
   if (hasActiveSession.value) return
@@ -1948,6 +2013,11 @@ const syncDraftModelSelection = async () => {
     applyDraftSelection(
       selectedAgentType.value === 'acp' && agentId ? { providerId: 'acp', modelId: agentId } : null
     )
+    return
+  }
+
+  if (!modelStore.initialized) {
+    applyDraftSelection(null)
     return
   }
 
@@ -2451,7 +2521,13 @@ const handleAcpConfigOptionsReady = (payload?: Record<string, unknown>) => {
 }
 
 watch(
-  [hasActiveSession, isAcpAgent, () => agentStore.selectedAgentId, () => modelStore.enabledModels],
+  [
+    hasActiveSession,
+    isAcpAgent,
+    () => agentStore.selectedAgentId,
+    () => modelStore.initialized,
+    () => modelStore.enabledModels
+  ],
   () => {
     if (hasActiveSession.value) return
     void syncDraftModelSelection()
@@ -2567,10 +2643,15 @@ watch(isModelPanelOpen, (open) => {
       return
     }
 
-    void nextTick(() => {
+    void (async () => {
+      const ready = await ensureCompleteModelOptionsReady()
+      if (!ready || !isModelPanelOpen.value) {
+        return
+      }
+      await nextTick()
       const input = document.querySelector<HTMLInputElement>('[data-model-search-input="true"]')
       input?.focus()
-    })
+    })()
     return
   }
 
@@ -2602,6 +2683,11 @@ function isModelSelected(providerId: string, modelId: string) {
 }
 
 async function changeModelSelection(providerId: string, modelId: string): Promise<boolean> {
+  const ready = await ensureCompleteModelOptionsReady()
+  if (!ready) {
+    return false
+  }
+
   if (isModelSelectionLocked.value) {
     return false
   }
@@ -2697,6 +2783,10 @@ async function openModelSettings(providerId: string, modelId: string) {
 
 function collapseModelSettings() {
   isModelSettingsExpanded.value = false
+}
+
+async function retryModelOptionsInitialization() {
+  await ensureCompleteModelOptionsReady()
 }
 
 function handleSessionPanelOpenChange(open: boolean) {

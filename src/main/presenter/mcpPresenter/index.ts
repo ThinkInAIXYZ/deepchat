@@ -47,18 +47,17 @@ export class McpPresenter implements IMCPPresenter {
     } catch (e) {
       console.warn('[MCP] McpRouterManager init failed:', e)
     }
-
-    // Delayed initialization to ensure other components are ready
-    setTimeout(() => {
-      this.initialize()
-    }, 1000)
   }
 
   private isPrivacyModeEnabled(): boolean {
     return Boolean(this.configPresenter.getPrivacyModeEnabled())
   }
 
-  private async initialize() {
+  async initialize() {
+    if (this.isInitialized) {
+      return
+    }
+
     try {
       // If no configPresenter is provided, get it from presenter
       if (!this.configPresenter.getLanguage) {

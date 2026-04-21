@@ -82,6 +82,8 @@ import type {
 import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
 import { setupLegacyTypedEventBridge } from '@/routes/legacyTypedEventBridge'
+import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
+import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -188,6 +190,7 @@ export class Presenter implements IPresenter {
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
+  startupWorkloadCoordinator: StartupWorkloadCoordinator
   private sessionMessageManager: MessageManager
   private sessionPresenterInternal?: SessionPresenter
   private hasInitialized = false
@@ -207,9 +210,13 @@ export class Presenter implements IPresenter {
         setAgentRepository?: (repository: AgentRepository) => void
       }
     ).setAgentRepository?.(agentRepository)
+    this.startupWorkloadCoordinator = new StartupWorkloadCoordinator()
 
     // 初始化各个 Presenter 实例及其依赖
-    this.windowPresenter = new WindowPresenter(this.configPresenter)
+    this.windowPresenter = new WindowPresenter(
+      this.configPresenter,
+      this.startupWorkloadCoordinator
+    )
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(
       this.configPresenter,
@@ -625,18 +632,102 @@ export class Presenter implements IPresenter {
     const providers = this.configPresenter.getProviders()
     console.info(`[Startup][Main] Presenter.init begin providers=${providers.length}`)
     this.llmproviderPresenter.setProviders(providers)
+    const mainRunId = this.startupWorkloadCoordinator.createRun('main')
 
-    // 初始化悬浮按钮
-    void this.initializeFloatingButton()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:floating-button',
+      target: 'main',
+      phase: 'deferred',
+      resource: 'io',
+      labelKey: 'startup.main.floatingButton',
+      runId: mainRunId,
+      run: async () => {
+        await this.initializeFloatingButton()
+      }
+    })
 
-    // 初始化 Yo Browser
-    void this.initializeYoBrowser()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:yo-browser',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.main.yoBrowser',
+      runId: mainRunId,
+      run: async () => {
+        await this.initializeYoBrowser()
+      }
+    })
 
-    // 初始化 Skills 系统
-    void this.initializeSkills()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:skills-init',
+      target: 'main',
+      phase: 'background',
+      resource: 'cpu',
+      labelKey: 'startup.main.skillsInit',
+      runId: mainRunId,
+      run: async () => {
+        await this.initializeSkills()
+      }
+    })
 
-    // Initialize remote control runtime
-    void this.initializeRemoteControl()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:skills-sync-scan',
+      target: 'main',
+      phase: 'background',
+      resource: 'cpu',
+      labelKey: 'startup.main.skillsSyncScan',
+      runId: mainRunId,
+      run: async (taskContext) => {
+        await taskContext.yield()
+        await this.initializeSkillSyncScan()
+      }
+    })
+
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:mcp-init',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.main.mcpInit',
+      runId: mainRunId,
+      run: async (taskContext) => {
+        await taskContext.yield()
+        await this.initializeMcp()
+      }
+    })
+
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:remote-runtime',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.main.remoteRuntime',
+      runId: mainRunId,
+      run: async (taskContext) => {
+        await taskContext.yield()
+        await this.initializeRemoteControl()
+      }
+    })
+
+    void this.startupWorkloadCoordinator
+      .whenIdle('main', async () => {
+        await this.startupWorkloadCoordinator.scheduleTask({
+          id: 'main:provider-warmup-idle',
+          target: 'main',
+          phase: 'background',
+          resource: 'io',
+          labelKey: 'startup.main.provider.warmup',
+          visibleId: 'main.provider.warmup',
+          dedupeKey: 'main.provider.warmup:idle',
+          runId: mainRunId,
+          run: async (taskContext) => {
+            await this.initializeIdleProviderWarmup(taskContext)
+          }
+        })
+      })
+      .catch((error) => {
+        console.error('Failed to schedule idle provider warmup:', error)
+      })
   }
 
   // 初始化悬浮按钮
@@ -667,12 +758,31 @@ export class Presenter implements IPresenter {
       }
       await (this.skillPresenter as SkillPresenter).initialize()
       console.log('SkillPresenter initialized')
-
-      // Initialize SkillSyncPresenter for background scanning
       await this.skillSyncPresenter.initialize()
-      console.log('SkillSyncPresenter initialized')
     } catch (error) {
       console.error('Failed to initialize SkillPresenter:', error)
+    }
+  }
+
+  private async initializeSkillSyncScan() {
+    try {
+      const { enableSkills } = this.configPresenter.getSkillSettings()
+      if (!enableSkills) {
+        return
+      }
+      await this.skillSyncPresenter.initialize()
+      await this.skillSyncPresenter.scanAndDetectNewDiscoveries()
+      console.log('SkillSyncPresenter background scan completed')
+    } catch (error) {
+      console.error('Failed to run SkillSyncPresenter background scan:', error)
+    }
+  }
+
+  private async initializeMcp() {
+    try {
+      await this.mcpPresenter.initialize()
+    } catch (error) {
+      console.error('Failed to initialize McpPresenter:', error)
     }
   }
 
@@ -682,6 +792,45 @@ export class Presenter implements IPresenter {
     } catch (error) {
       console.error('RemoteControlPresenter.initialize failed:', error)
     }
+  }
+
+  private async initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
+    const enabledProviders = this.configPresenter
+      .getEnabledProviders()
+      .map((provider) => provider.id)
+      .filter((providerId, index, ids) => ids.indexOf(providerId) === index)
+
+    if (enabledProviders.length === 0) {
+      taskContext.reportProgress(1)
+      return
+    }
+
+    console.info(
+      `[Startup][Main] startup.provider.warmup.deferred begin providers=${enabledProviders.length}`
+    )
+
+    for (const [index, providerId] of enabledProviders.entries()) {
+      if (taskContext.signal.aborted) {
+        const error = new Error(`Provider warmup aborted for ${providerId}`)
+        error.name = 'AbortError'
+        throw error
+      }
+
+      const providerModels = this.configPresenter.getProviderModels(providerId)
+      const customModels = this.configPresenter.getCustomModels(providerId)
+      this.configPresenter.getDbProviderModels(providerId)
+      this.configPresenter.getBatchModelStatus(providerId, [
+        ...providerModels.map((model) => model.id),
+        ...customModels.map((model) => model.id)
+      ])
+
+      taskContext.reportProgress((index + 1) / enabledProviders.length)
+      await taskContext.yield()
+    }
+
+    console.info(
+      `[Startup][Main] startup.provider.warmup.deferred done providers=${enabledProviders.length}`
+    )
   }
 
   async callRemoteControl(
@@ -694,6 +843,10 @@ export class Presenter implements IPresenter {
 
     const handler = this.#remoteControlBridge[method] as (...args: unknown[]) => unknown
     return await Reflect.apply(handler, this.#remoteControlBridge, payloads)
+  }
+
+  getStartupWorkloadCoordinator(): StartupWorkloadCoordinator {
+    return this.startupWorkloadCoordinator
   }
 
   // 在应用退出时进行清理，关闭数据库连接
@@ -755,7 +908,8 @@ registerMainKernelRoutes(ipcMain, () =>
         filePresenter: presenter.filePresenter,
         workspacePresenter: presenter.workspacePresenter,
         yoBrowserPresenter: presenter.yoBrowserPresenter,
-        tabPresenter: presenter.tabPresenter
+        tabPresenter: presenter.tabPresenter,
+        startupWorkloadCoordinator: presenter.startupWorkloadCoordinator
       }))
     : undefined
 )
@@ -858,7 +1012,40 @@ ipcMain.handle(
         return { error: `Method "${method}" is not allowed on "remoteControlPresenter"` }
       }
 
-      return await presenter.callRemoteControl(method as keyof IRemoteControlPresenter, ...payloads)
+      const isSettingsWindow =
+        windowId != null && presenter.windowPresenter.getSettingsWindowId() === windowId
+      const shouldTrackRemoteRuntime =
+        isSettingsWindow &&
+        (method === 'listRemoteChannels' ||
+          method.startsWith('getChannel') ||
+          method.startsWith('getTelegram') ||
+          method.startsWith('getFeishu') ||
+          method.startsWith('getQQBot') ||
+          method.startsWith('getDiscord') ||
+          method.startsWith('getWeixinIlink'))
+
+      if (!shouldTrackRemoteRuntime) {
+        return await presenter.callRemoteControl(
+          method as keyof IRemoteControlPresenter,
+          ...payloads
+        )
+      }
+
+      return await presenter.startupWorkloadCoordinator.scheduleTask({
+        id: `settings.remote.runtime:${method}`,
+        target: 'settings',
+        phase: 'deferred',
+        resource: 'io',
+        labelKey: 'startup.settings.remote.runtime',
+        visibleId: 'settings.remote.runtime',
+        runId: presenter.startupWorkloadCoordinator.getRunId('settings'),
+        run: async () => {
+          return await presenter.callRemoteControl(
+            method as keyof IRemoteControlPresenter,
+            ...payloads
+          )
+        }
+      })
     } catch (
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       e: any

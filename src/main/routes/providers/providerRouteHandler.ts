@@ -7,6 +7,7 @@ import {
   providersListOllamaModelsRoute,
   providersListOllamaRunningModelsRoute,
   providersListRoute,
+  providersListSummariesRoute,
   providersPullOllamaModelRoute,
   providersRefreshModelsRoute,
   providersRemoveRoute,
@@ -25,12 +26,29 @@ export async function dispatchProviderRoute(
   rawInput: unknown
 ): Promise<unknown> {
   const { configPresenter, llmProviderPresenter } = deps
+  const toProviderSummary = (provider: ReturnType<typeof configPresenter.getProviders>[number]) => {
+    const {
+      models: _models,
+      customModels: _customModels,
+      enabledModels: _enabledModels,
+      disabledModels: _disabledModels,
+      ...summary
+    } = provider
+    return summary
+  }
 
   switch (routeName) {
     case providersListRoute.name: {
       providersListRoute.input.parse(rawInput)
       return providersListRoute.output.parse({
         providers: configPresenter.getProviders()
+      })
+    }
+
+    case providersListSummariesRoute.name: {
+      providersListSummariesRoute.input.parse(rawInput)
+      return providersListSummariesRoute.output.parse({
+        providers: configPresenter.getProviders().map(toProviderSummary)
       })
     }
 

@@ -1,85 +1,98 @@
 # Startup Orchestration 任务拆分
 
-## T0 文档同步
+## Phase 1
 
-- [x] 更新 `spec.md` 为 `agent first, session staged`
-- [x] 更新 `plan.md` 为 bootstrap shell + staged session flow
-- [x] 更新 `acceptance.md` 为 staged loading 验收口径
-- [x] 更新 `tasks.md`，拆分已完成项与 follow-up
+### T1 Coordinator / Contract
 
-## T1 Bootstrap Shell
+- [x] 新增 `StartupWorkloadCoordinator`
+- [x] 固定 phase 优先级为 `interactive / deferred / background`
+- [x] 固定资源并发为 `cpu = 1 / io = 2`
+- [x] 支持 target run 创建、复用、取消、replay
+- [x] 新增 typed event `startup.workload.changed`
+- [x] 固定 shared startup task ids
 
-- [x] 新增 `startup.getBootstrap` route
-- [x] 新增 `StartupBootstrapShell` 共享类型
-- [x] 返回 `activeSessionId`
-- [x] 返回 `activeSession?`
-- [x] 返回 bootstrap agents
-- [x] 返回 `defaultProjectPath`
-- [x] 返回 `startupRunId`
+### T2 Presenter / Window Wiring
 
-## T2 Renderer Critical Path
+- [x] `Presenter.init()` 改成 coordinator 注册 startup task
+- [x] floating button 接入 coordinator
+- [x] skills init 接入 coordinator
+- [x] skill sync background scan 接入 coordinator
+- [x] MCP init 接入 coordinator
+- [x] remote runtime init 接入 coordinator
+- [x] settings window create / ready / close 接入 run create / replay / cancel
 
-- [x] `ChatTabView` critical path 改为 bootstrap shell -> page router
-- [x] `agentStore` 支持 `applyBootstrapAgents(...)`
-- [x] `sessionStore` 支持 `applyBootstrapShell(...)`
-- [x] `projectStore` 支持 `applyBootstrapDefaultProjectPath(...)`
-- [x] `pageRouter.initialize()` 优先消费 `activeSessionId`
-- [x] `sessionStore.fetchSessions()` 退出 critical path
+### T3 Main Window Hydration
 
-## T3 Session Lightweight Paging
+- [x] 保持 `startup.getBootstrap` + staged session path
+- [x] 去掉 interactive 后立刻无条件 provider/model warmup
+- [x] `ChatStatusBar` 改为 likely-provider on-demand warmup
+- [x] `NewThreadPage` 改为 likely-provider on-demand warmup
+- [x] coordinator idle 后增加低优先级 provider snapshot backfill
 
-- [x] `new_sessions` 增加 cursor pagination
-- [x] 排序固定为 `updated_at DESC, id DESC`
-- [x] 默认 page size 设为 `30`
-- [x] 新增 `sessions.listLightweight`
-- [x] 新增 `sessions.getLightweightByIds`
-- [x] 支持 `prioritizeSessionId`
-- [x] `WindowSideBar` 增加首批 skeleton
-- [x] `WindowSideBar` 增加滚动翻页
-- [x] 翻页只 append
+### T4 Settings Hydration
 
-## T4 Active Session Overlay
+- [x] settings `onMounted` 只做 cheap init + router ready + `providers.listSummaries`
+- [x] 移除 settings open 时的 eager `modelStore.initialize()`
+- [x] 移除 settings open 时的 eager `ollamaStore.initialize()`
+- [x] `settings-provider` 路由进入后再 `ensureProviderModelsReady(providerId)`
+- [x] Ollama 仅在命中对应 provider detail 时加载
+- [x] skills / MCP / remote 页面进入后再各自 hydration
+- [x] heavy settings section 增加 skeleton
 
-- [x] 新增 `SessionListItem`
-- [x] 新增 `ActiveSessionSummary`
-- [x] `sessionStore.activeSession` 由 list item + overlay 组合
-- [x] `messageStore.loadMessages()` 返回 restore session
-- [x] `ChatPage` 用 restore session 回填 active summary
+### T5 Summary Route / Memory Snapshot
 
-## T5 Deferred Warmups
+- [x] 新增 `providers.listSummaries`
+- [x] settings 首屏改走 provider summaries
+- [x] `models.getProviderCatalog` 改成 memory-snapshot-first
+- [x] `ModelStatusHelper` 改为 snapshot-first
+- [x] `setModelStatus/deleteModelStatus` 同步更新 snapshot + persistent store
 
-- [x] 新增 startup deferred queue
-- [x] `modelStore.initialize()` 延后
-- [x] `ollamaStore.initialize()` 延后
-- [x] active thread restore 延后
-- [x] `ACP` draft/bootstrap 延后
-- [x] `ACP` config warmup 延后
-- [x] provider warmup 增加 `startup.provider.warmup.deferred` 日志
+### T6 Route-level Tracking / Tests
 
-## T6 增量事件回流
+- [x] route runtime 接入 workload task tracking
+- [x] coordinator 优先级 / 并发 / 取消单测
+- [x] `providers.listSummaries` route 单测
+- [x] `ModelStatusHelper` snapshot 单测
+- [x] renderer 侧去 eager warmup 的测试更新
 
-- [x] `sessionStore` 支持 `refreshSessionsByIds(...)`
-- [x] `sessionStore` 支持 `removeSessions(...)`
-- [x] `created/updated/list-refreshed` 优先走定向 upsert
-- [x] `deleted` 走本地 remove
-- [x] `activated/deactivated` 只更新 active session
-- [x] main 侧 `sessions.updated` 携带具体 `sessionIds`
-- [x] merge 规则固定为 `id` 去重 + `updatedAt DESC, id DESC`
+## Phase 2
 
-## T7 观测与校验
+### T7 Worker: Skill Discovery
 
-- [x] 新增 `startup.bootstrap.ready`
-- [x] 新增 `startup.session.first-page.ready`
-- [x] 新增 `startup.session.page.appended`
-- [x] 新增 `startup.provider.warmup.deferred`
-- [x] 运行 `pnpm run format`
-- [x] 运行 `pnpm run i18n`
-- [x] 运行 `pnpm run lint`
-- [x] 运行 `pnpm run typecheck`
+- [x] 新增 inline JSON worker runner
+- [x] `SkillPresenter` discover / parse 迁到 worker
+- [x] worker warning logging
+- [x] worker failure fallback 到主线程路径
+- [x] direct worker 单测
+- [x] presenter fallback 单测
 
-## T8 Follow-up
+### T8 Worker: Skill Sync
 
-- [ ] 继续收敛 `providerStore.initialize()` 的启动优先级
-- [ ] 增加 session list virtualization
-- [ ] 为 sidebar 搜索补全量搜索接口
-- [ ] 增加更完整的 main/splash startup trace
+- [x] `SkillSyncPresenter` scan / compare 迁到 worker
+- [x] worker failure fallback 到主线程路径
+- [x] direct worker 单测
+- [x] presenter fallback 单测
+- [x] worker dependency resolution 固定锚到 bundle path，而不是 `process.cwd()`
+
+## 文档同步
+
+- [x] 更新 `spec.md`
+- [x] 更新 `plan.md`
+- [x] 更新 `tasks.md`
+- [x] 更新 `acceptance.md`
+
+## 最终校验
+
+- [x] `pnpm run format`
+- [x] `pnpm run i18n`
+- [x] `pnpm run lint`
+- [x] `pnpm run typecheck`
+- [x] 处理与本轮无关的自动拉新资源变更
+
+## 后续 Follow-up
+
+以下不算本轮 blocker，但保留给下一轮：
+
+- [ ] main / splash 统一 startup trace
+- [ ] `utilityProcess` 在 long-lived runtime 上的替换评估
+- [ ] 更完整的 heavy settings route skeleton 自动化测试

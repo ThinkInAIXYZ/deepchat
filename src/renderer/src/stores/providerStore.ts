@@ -23,7 +23,7 @@ export const useProviderStore = defineStore('provider', () => {
 
   const providersQuery = useIpcQuery({
     key: () => ['providers'],
-    query: () => providerClient.getProviders(),
+    query: () => providerClient.getProviderSummaries(),
     staleTime: 30_000
   })
 
@@ -150,6 +150,13 @@ export const useProviderStore = defineStore('provider', () => {
     // Load order first to ensure we have the latest saved order before processing provider list updates
     await loadProviderOrder()
     await providersQuery.refetch()
+  }
+
+  const ensureDefaultProvidersReady = async () => {
+    if (defaultProvidersQuery.data.value) {
+      return
+    }
+
     await defaultProvidersQuery.refetch()
   }
 
@@ -350,7 +357,6 @@ export const useProviderStore = defineStore('provider', () => {
       await loadProviderOrder()
       setupProviderListeners()
       await refreshProviders()
-      await defaultProvidersQuery.refetch()
       initialized.value = true
     })()
 
@@ -418,6 +424,7 @@ export const useProviderStore = defineStore('provider', () => {
     ensureInitialized,
     primeProviders,
     refreshProviders,
+    ensureDefaultProvidersReady,
     updateProvider,
     updateProviderConfig,
     updateProviderApi,

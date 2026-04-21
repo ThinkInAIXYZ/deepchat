@@ -365,7 +365,7 @@ export interface NewDiscovery {
 export interface ISkillSyncPresenter {
   // Initialization
   /**
-   * Initialize the sync presenter (starts background scan)
+   * Initialize the sync presenter runtime and caches.
    */
   initialize(): Promise<void>
 
@@ -385,6 +385,11 @@ export interface ISkillSyncPresenter {
    * Get cached scan results
    */
   getScanCache(): Promise<ScanCache | null>
+
+  /**
+   * Run a full discovery scan and return newly discovered skills.
+   */
+  scanAndDetectNewDiscoveries(): Promise<NewDiscovery[]>
 
   /**
    * Get new discoveries (skills not in cache and not in DeepChat)

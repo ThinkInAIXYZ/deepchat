@@ -46,18 +46,19 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
-import { createConfigClient } from '@api/ConfigClient'
 import { createStartupClient } from '@api/StartupClient'
 import ChatSidePanel from '@/components/sidepanel/ChatSidePanel.vue'
 import NewThreadPage from '@/pages/NewThreadPage.vue'
 import ChatPage from '@/pages/ChatPage.vue'
 import AgentWelcomePage from '@/pages/AgentWelcomePage.vue'
-import { useModelStore } from '@/stores/modelStore'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useProjectStore } from '@/stores/ui/project'
+import { useModelStore } from '@/stores/modelStore'
+import { useOllamaStore } from '@/stores/ollamaStore'
+import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 import { markStartupInteractive, scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 const { t } = useI18n()
@@ -67,7 +68,14 @@ const agentStore = useAgentStore()
 const sidebarStore = useSidebarStore()
 const projectStore = useProjectStore()
 const modelStore = useModelStore()
-const configClient = createConfigClient()
+const ollamaStore = useOllamaStore()
+let startupWorkloadStore: ReturnType<typeof useStartupWorkloadStore> | null = null
+
+try {
+  startupWorkloadStore = useStartupWorkloadStore()
+} catch (error) {
+  console.warn('[Startup][Renderer] startupWorkloadStore unavailable in ChatTabView', error)
+}
 const isReady = ref(false)
 let cancelDeferredHydration: (() => void) | null = null
 const showCollapsedNewChatButton = computed(
@@ -77,45 +85,6 @@ const showCollapsedNewChatButton = computed(
 
 const handleCollapsedNewChat = () => {
   void sessionStore.startNewConversation({ refresh: true })
-}
-
-const resolveWarmupProviderId = async (): Promise<string | null> => {
-  const activeSessionProviderId = sessionStore.activeSession?.providerId?.trim()
-  if (activeSessionProviderId) {
-    return activeSessionProviderId
-  }
-
-  const preferredModel = (await configClient.getSetting('preferredModel')) as
-    | { providerId?: string | null }
-    | undefined
-  const preferredProviderId = preferredModel?.providerId?.trim()
-  if (preferredProviderId) {
-    return preferredProviderId
-  }
-
-  const defaultModel = (await configClient.getSetting('defaultModel')) as
-    | { providerId?: string | null }
-    | undefined
-  const defaultProviderId = defaultModel?.providerId?.trim()
-  if (defaultProviderId) {
-    return defaultProviderId
-  }
-
-  return null
-}
-
-const warmStartupModelProvider = async () => {
-  try {
-    const providerId = await resolveWarmupProviderId()
-    if (!providerId) {
-      return
-    }
-
-    console.info(`[Startup][Renderer] startup.provider.warmup.deferred provider=${providerId}`)
-    await modelStore.refreshProviderModels(providerId)
-  } catch (error) {
-    console.warn('[Startup][Renderer] ChatTabView model warmup failed:', error)
-  }
 }
 
 const initializeRouteFromFallbackState = async () => {
@@ -130,6 +99,7 @@ const initializeRouteFromFallbackState = async () => {
 }
 
 onMounted(async () => {
+  startupWorkloadStore?.connect()
   console.info('[Startup][Renderer] ChatTabView critical hydration begin')
   let shouldRefreshAgentsInDeferred = true
 
@@ -172,7 +142,8 @@ onMounted(async () => {
       await Promise.allSettled([
         shouldRefreshAgentsInDeferred ? agentStore.fetchAgents() : Promise.resolve(),
         projectStore.fetchProjects(),
-        warmStartupModelProvider()
+        modelStore.initialize(),
+        ollamaStore.initialize()
       ])
       console.info('[Startup][Renderer] ChatTabView deferred hydration complete')
     })

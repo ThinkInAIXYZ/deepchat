@@ -65,6 +65,10 @@ const setup = async (pendingModelId: string) => {
     agents: [{ id: 'deepchat', type: 'deepchat' }]
   })
   const modelStore = reactive({
+    initialized: true,
+    initialize: vi.fn().mockImplementation(async () => {
+      modelStore.initialized = true
+    }),
     enabledModels: [
       {
         providerId: 'openai',

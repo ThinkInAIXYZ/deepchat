@@ -37,6 +37,7 @@ describe('renderer api clients', () => {
             case 'config.getDefaultProjectPath':
               return { path: null }
             case 'providers.list':
+            case 'providers.listSummaries':
               return { providers: [] }
             case 'providers.getRateLimitStatus':
               return {
@@ -205,7 +206,7 @@ describe('renderer api clients', () => {
     configClient.onLanguageChanged(vi.fn())
     configClient.onCustomPromptsChanged(vi.fn())
 
-    await providerClient.getProviders()
+    await providerClient.getProviderSummaries()
     await providerClient.getProviderRateLimitStatus('openai')
     await providerClient.refreshModels('openai')
     providerClient.onProvidersChanged(vi.fn())
@@ -241,7 +242,7 @@ describe('renderer api clients', () => {
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'config.getSystemPrompts', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'config.getDefaultProjectPath', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'providers.list', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'providers.listSummaries', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'providers.getRateLimitStatus', {
       providerId: 'openai'
     })

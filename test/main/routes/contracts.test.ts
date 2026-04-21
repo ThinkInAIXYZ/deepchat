@@ -12,6 +12,7 @@ import {
   chatSendMessageRoute,
   chatStopStreamRoute,
   providersListModelsRoute,
+  providersListSummariesRoute,
   providersTestConnectionRoute,
   sessionsActivateRoute,
   sessionsGetGenerationSettingsRoute,
@@ -49,6 +50,7 @@ describe('main kernel contracts', () => {
         'mcp.submitSamplingDecision',
         'mcp.updateServer',
         'providers.getAcpProcessConfigOptions',
+        'providers.listSummaries',
         'providers.pullOllamaModel',
         'sessions.activate',
         'sessions.clearMessages',
@@ -250,6 +252,32 @@ describe('main kernel contracts', () => {
         modelId: 'gpt-5.4'
       })
     ).toThrow()
+
+    expect(
+      providersListSummariesRoute.output.parse({
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI',
+            apiType: 'openai',
+            apiKey: 'sk-test',
+            baseUrl: 'https://api.openai.com/v1',
+            enable: true
+          }
+        ]
+      })
+    ).toEqual({
+      providers: [
+        {
+          id: 'openai',
+          name: 'OpenAI',
+          apiType: 'openai',
+          apiKey: 'sk-test',
+          baseUrl: 'https://api.openai.com/v1',
+          enable: true
+        }
+      ]
+    })
   })
 
   it('validates phase2 config/provider/model contracts', () => {
@@ -386,6 +414,7 @@ describe('main kernel contracts', () => {
         'sessions.status.changed',
         'sessions.updated',
         'settings.changed',
+        'startup.workload.changed',
         'skills.catalog.changed',
         'skills.session.changed',
         'sync.backup.completed',

@@ -109,6 +109,8 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const isSubmitting = ref(false)
   const selectedProviderId = ref<string | null>(null)
   const selectedModel = ref<RENDERER_MODEL_META | null>(null)
+  const isPreparingModels = ref(false)
+  const modelPreparationError = ref<Error | null>(null)
   const eventCleanups: Array<() => void> = []
 
   // Session tracking for auto-approval
@@ -128,7 +130,39 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     return provider?.name ?? selectedProviderId.value
   })
 
+  const isModelSelectionReady = computed(
+    () => modelStore.initialized && !isPreparingModels.value && !modelPreparationError.value
+  )
+
+  const ensureModelsReady = async (): Promise<boolean> => {
+    if (modelStore.initialized) {
+      modelPreparationError.value = null
+      isPreparingModels.value = false
+      return true
+    }
+
+    isPreparingModels.value = true
+    modelPreparationError.value = null
+
+    try {
+      await modelStore.initialize()
+      return true
+    } catch (error) {
+      modelPreparationError.value =
+        error instanceof Error ? error : new Error('Failed to initialize enabled models')
+      return false
+    } finally {
+      isPreparingModels.value = false
+    }
+  }
+
   const resetSelection = () => {
+    if (!modelStore.initialized) {
+      selectedProviderId.value = null
+      selectedModel.value = null
+      return
+    }
+
     const providerOrder = providerStore.sortedProviders
       .filter((provider) => provider.enable)
       .map((provider) => provider.id)
@@ -155,7 +189,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   }
 
   const hasEligibleModel = computed(() => {
-    if (!request.value) {
+    if (!request.value || !isModelSelectionReady.value) {
       return false
     }
 
@@ -207,7 +241,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   }
 
   const applySessionSelection = (): boolean => {
-    if (!request.value) {
+    if (!request.value || !modelStore.initialized) {
       return false
     }
 
@@ -265,22 +299,56 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   }
 
   const openRequest = (payload: McpSamplingRequestPayload) => {
+    void (async () => {
+      cleanExpiredSessions()
+      request.value = payload
+      isOpen.value = true
+      isSubmitting.value = false
+      selectedProviderId.value = null
+      selectedModel.value = null
+
+      const ready = await ensureModelsReady()
+      if (!request.value || request.value.requestId !== payload.requestId) {
+        return
+      }
+
+      if (!ready) {
+        return
+      }
+
+      if (isActiveSession.value) {
+        const success = await autoApproveRequest()
+        if (!success && request.value?.requestId === payload.requestId) {
+          resetSelection()
+        }
+        return
+      }
+
+      resetSelection()
+    })()
+  }
+
+  const retryPrepareModels = async () => {
     cleanExpiredSessions()
-    request.value = payload
-    isSubmitting.value = false
+    if (!request.value) {
+      return
+    }
+
+    const currentRequestId = request.value.requestId
+    const ready = await ensureModelsReady()
+    if (!request.value || request.value.requestId !== currentRequestId || !ready) {
+      return
+    }
 
     if (isActiveSession.value) {
-      void autoApproveRequest().then((success) => {
-        if (!success) {
-          resetSelection()
-          isOpen.value = true
-        }
-      })
+      const success = await autoApproveRequest()
+      if (!success && request.value?.requestId === currentRequestId) {
+        resetSelection()
+      }
       return
     }
 
     resetSelection()
-    isOpen.value = true
   }
 
   const clearRequest = () => {
@@ -289,10 +357,12 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     request.value = null
     selectedProviderId.value = null
     selectedModel.value = null
+    isPreparingModels.value = false
+    modelPreparationError.value = null
   }
 
   const selectModel = (model: RENDERER_MODEL_META, providerId: string) => {
-    if (requiresVision.value && !model.vision) {
+    if (!isModelSelectionReady.value || (requiresVision.value && !model.vision)) {
       return
     }
 
@@ -328,7 +398,12 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   }
 
   const confirmApproval = async () => {
-    if (!request.value || !selectedProviderId.value || !selectedModel.value) {
+    if (
+      !request.value ||
+      !selectedProviderId.value ||
+      !selectedModel.value ||
+      !isModelSelectionReady.value
+    ) {
       return
     }
 
@@ -410,10 +485,14 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     selectedProviderLabel,
     selectedProviderId,
     selectedModel,
+    isPreparingModels,
+    modelPreparationError,
+    isModelSelectionReady,
     hasEligibleModel,
     selectModel,
     confirmApproval,
     rejectRequest,
-    dismissRequest
+    dismissRequest,
+    retryPrepareModels
   }
 })

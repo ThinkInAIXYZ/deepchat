@@ -33,6 +33,7 @@ import windowStateManager from 'electron-window-state' // Window state manager
 import { TabPresenter } from '../tabPresenter' // TabPresenter type
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
+import { StartupWorkloadCoordinator } from '../startupWorkloadCoordinator'
 
 type PendingSettingsMessage = {
   channel: string
@@ -59,10 +60,15 @@ export class WindowPresenter implements IWindowPresenter {
   private pendingSettingsMessages: PendingSettingsMessage[] = []
   private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
   private readonly blockedWindowOpenProtocols = new Set(['about:', 'blob:', 'data:', 'javascript:'])
+  private readonly startupWorkloadCoordinator?: StartupWorkloadCoordinator
 
-  constructor(configPresenter: IConfigPresenter) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    startupWorkloadCoordinator?: StartupWorkloadCoordinator
+  ) {
     this.windows = new Map()
     this.configPresenter = configPresenter
+    this.startupWorkloadCoordinator = startupWorkloadCoordinator
 
     // Register IPC handlers for Renderer to call to get window and WebContents IDs
     ipcMain.on('get-window-id', (event) => {
@@ -1294,6 +1300,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     this.settingsWindow = settingsWindow
     this.resetSettingsWindowState()
+    this.startupWorkloadCoordinator?.createRun('settings')
     const windowId = settingsWindow.id
     const settingsWebContentsId = settingsWindow.webContents.id
 
@@ -1355,6 +1362,7 @@ export class WindowPresenter implements IWindowPresenter {
       console.log(`Settings window ${windowId} closed.`)
       // Unmanage window state when window is closed
       settingsWindowState.unmanage()
+      this.startupWorkloadCoordinator?.cancelTarget('settings')
       this.settingsWindow = null
       this.resetSettingsWindowState(true)
     })
@@ -1464,6 +1472,7 @@ export class WindowPresenter implements IWindowPresenter {
     console.info(
       `[Startup][Settings][Main] SETTINGS_EVENTS.READY windowId=${this.settingsWindow.id}`
     )
+    this.startupWorkloadCoordinator?.replayTarget('settings')
     this.flushPendingSettingsMessages()
   }
 
