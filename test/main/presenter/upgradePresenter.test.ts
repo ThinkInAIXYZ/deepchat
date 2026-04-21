@@ -98,6 +98,9 @@ describe('UpgradePresenter', () => {
     destroyFloatingChatWindowMock.mockReset()
     setApplicationQuittingMock.mockReset()
     appQuitMock.mockReset()
+    appRelaunchMock.mockReset()
+    appExitMock.mockReset()
+    vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockReset()
   })
 
   afterEach(async () => {
@@ -147,5 +150,35 @@ describe('UpgradePresenter', () => {
     expect(appRelaunchMock).toHaveBeenCalledTimes(1)
     expect(appExitMock).toHaveBeenCalledTimes(1)
     expect(electronUpdater.autoUpdater.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('skips app-focus auto check when privacy mode is enabled', () => {
+    const configPresenter = {
+      getUpdateChannel: vi.fn(() => 'stable'),
+      getPrivacyModeEnabled: vi.fn(() => true)
+    } as any
+
+    const presenter = new UpgradePresenter(configPresenter)
+    const checkSpy = vi.spyOn(presenter, 'checkUpdate').mockResolvedValue(undefined)
+
+    ;(presenter as any).handleAppFocus()
+
+    expect(checkSpy).not.toHaveBeenCalled()
+    expect(electronUpdater.autoUpdater.checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it('keeps manual update checks available while privacy mode is enabled', async () => {
+    const configPresenter = {
+      getUpdateChannel: vi.fn(() => 'stable'),
+      getPrivacyModeEnabled: vi.fn(() => true)
+    } as any
+
+    vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockResolvedValue(undefined as never)
+
+    const presenter = new UpgradePresenter(configPresenter)
+
+    await presenter.checkUpdate()
+
+    expect(electronUpdater.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
   })
 })

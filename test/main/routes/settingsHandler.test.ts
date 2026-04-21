@@ -13,6 +13,7 @@ describe('SettingsRouteHandler', () => {
       autoCompactionTriggerThreshold: 80,
       autoCompactionRetainRecentPairs: 2,
       contentProtectionEnabled: false,
+      privacyModeEnabled: false,
       notificationsEnabled: true,
       traceDebugEnabled: false,
       copyWithCotEnabled: true,
@@ -33,14 +34,15 @@ describe('SettingsRouteHandler', () => {
     const handler = new SettingsRouteHandler(adapter)
 
     const result = handler.getSnapshot({
-      keys: ['fontSizeLevel', 'fontFamily']
+      keys: ['fontSizeLevel', 'fontFamily', 'privacyModeEnabled']
     })
 
     expect(result).toEqual({
       version: expect.any(Number),
       values: {
         fontSizeLevel: 2,
-        fontFamily: 'Inter'
+        fontFamily: 'Inter',
+        privacyModeEnabled: false
       }
     })
   })
@@ -52,7 +54,7 @@ describe('SettingsRouteHandler', () => {
     const result = handler.update({
       changes: [
         { key: 'fontSizeLevel', value: 4 },
-        { key: 'notificationsEnabled', value: false }
+        { key: 'privacyModeEnabled', value: true }
       ]
     })
 
@@ -61,15 +63,15 @@ describe('SettingsRouteHandler', () => {
       value: 4
     })
     expect(adapter.applyChange).toHaveBeenNthCalledWith(2, {
-      key: 'notificationsEnabled',
-      value: false
+      key: 'privacyModeEnabled',
+      value: true
     })
     expect(result).toEqual({
       version: expect.any(Number),
-      changedKeys: ['fontSizeLevel', 'notificationsEnabled'],
+      changedKeys: ['fontSizeLevel', 'privacyModeEnabled'],
       values: {
         fontSizeLevel: 4,
-        notificationsEnabled: false
+        privacyModeEnabled: true
       }
     })
   })

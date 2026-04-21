@@ -88,6 +88,7 @@ function createRuntime() {
     autoCompactionTriggerThreshold: 80,
     autoCompactionRetainRecentPairs: 2,
     contentProtectionEnabled: false,
+    privacyModeEnabled: false,
     notificationsEnabled: true,
     traceDebugEnabled: false,
     copyWithCotEnabled: true,
@@ -166,6 +167,10 @@ function createRuntime() {
     getContentProtectionEnabled: vi.fn(() => settings.contentProtectionEnabled),
     setContentProtectionEnabled: vi.fn((value: boolean) => {
       settings.contentProtectionEnabled = value
+    }),
+    getPrivacyModeEnabled: vi.fn(() => settings.privacyModeEnabled),
+    setPrivacyModeEnabled: vi.fn((value: boolean) => {
+      settings.privacyModeEnabled = value
     }),
     getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
     setNotificationsEnabled: vi.fn((value: boolean) => {
@@ -538,7 +543,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         changes: [
           { key: 'fontSizeLevel', value: 4 },
-          { key: 'notificationsEnabled', value: false }
+          { key: 'privacyModeEnabled', value: true }
         ]
       },
       {
@@ -548,15 +553,15 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(configPresenter.setSetting).toHaveBeenCalledWith('fontSizeLevel', 4)
-    expect(configPresenter.setNotificationsEnabled).toHaveBeenCalledWith(false)
+    expect(configPresenter.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
     expect(settings.fontSizeLevel).toBe(4)
-    expect(settings.notificationsEnabled).toBe(false)
+    expect(settings.privacyModeEnabled).toBe(true)
     expect(result).toEqual({
       version: expect.any(Number),
-      changedKeys: ['fontSizeLevel', 'notificationsEnabled'],
+      changedKeys: ['fontSizeLevel', 'privacyModeEnabled'],
       values: {
         fontSizeLevel: 4,
-        notificationsEnabled: false
+        privacyModeEnabled: true
       }
     })
   })

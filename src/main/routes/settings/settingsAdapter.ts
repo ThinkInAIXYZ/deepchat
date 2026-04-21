@@ -26,6 +26,7 @@ export const readSettingsSnapshot = (
   autoCompactionTriggerThreshold: configPresenter.getAutoCompactionTriggerThreshold(),
   autoCompactionRetainRecentPairs: configPresenter.getAutoCompactionRetainRecentPairs(),
   contentProtectionEnabled: configPresenter.getContentProtectionEnabled(),
+  privacyModeEnabled: configPresenter.getPrivacyModeEnabled(),
   notificationsEnabled: configPresenter.getNotificationsEnabled(),
   traceDebugEnabled: configPresenter.getSetting<boolean>('traceDebugEnabled') ?? false,
   copyWithCotEnabled: configPresenter.getCopyWithCotEnabled(),
@@ -78,6 +79,9 @@ export const applySettingChange = (
       return
     case 'contentProtectionEnabled':
       configPresenter.setContentProtectionEnabled(change.value)
+      return
+    case 'privacyModeEnabled':
+      configPresenter.setPrivacyModeEnabled(change.value)
       return
     case 'notificationsEnabled':
       configPresenter.setNotificationsEnabled(change.value)

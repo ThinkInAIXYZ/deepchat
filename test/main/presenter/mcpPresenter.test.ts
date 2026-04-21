@@ -80,6 +80,9 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     serverManagerMocks.startServer.mockResolvedValue(undefined)
     serverManagerMocks.stopServer.mockResolvedValue(undefined)
     serverManagerMocks.isServerRunning.mockReturnValue(false)
+    serverManagerMocks.testNpmRegistrySpeed.mockResolvedValue('https://registry.npmjs.org/')
+    serverManagerMocks.updateNpmRegistryInBackground.mockResolvedValue(undefined)
+    serverManagerMocks.refreshNpmRegistry.mockResolvedValue('https://registry.npmjs.org/')
   })
 
   afterEach(() => {
@@ -87,13 +90,14 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     vi.useRealTimers()
   })
 
-  const createConfigPresenter = (mcpEnabled: boolean) =>
+  const createConfigPresenter = (mcpEnabled: boolean, privacyModeEnabled = false) =>
     ({
       setMcpServerEnabled: vi.fn().mockResolvedValue(undefined),
       getMcpEnabled: vi.fn().mockResolvedValue(mcpEnabled),
       getMcpServers: vi.fn().mockResolvedValue({}),
       getEnabledMcpServers: vi.fn().mockResolvedValue([]),
-      getLanguage: vi.fn().mockReturnValue('en-US')
+      getLanguage: vi.fn().mockReturnValue('en-US'),
+      getPrivacyModeEnabled: vi.fn(() => privacyModeEnabled)
     }) as any
 
   it('starts a server immediately after enabling it when MCP is active', async () => {
@@ -149,5 +153,22 @@ describe('McpPresenter#setMcpServerEnabled', () => {
       'runtime failed'
     )
     expect(configPresenter.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
+  })
+
+  it('skips automatic npm registry probing in privacy mode and keeps manual refresh available', async () => {
+    const configPresenter = createConfigPresenter(true, true)
+    const presenter = new McpPresenter(configPresenter)
+    ;(presenter as any).serverManager.refreshNpmRegistry = serverManagerMocks.refreshNpmRegistry
+
+    await vi.advanceTimersByTimeAsync(1000)
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(serverManagerMocks.testNpmRegistrySpeed).not.toHaveBeenCalled()
+    expect(serverManagerMocks.updateNpmRegistryInBackground).not.toHaveBeenCalled()
+
+    await presenter.refreshNpmRegistry()
+
+    expect(serverManagerMocks.refreshNpmRegistry).toHaveBeenCalledTimes(1)
   })
 })
