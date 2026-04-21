@@ -81,7 +81,10 @@ const createExecution = (
     fullText?: string
     finalText?: string
     pendingInteraction?: RemotePendingInteraction | null
-  }>
+  }>,
+  options?: {
+    eventId?: string | null
+  }
 ) => {
   let index = 0
   const normalizedSnapshots = snapshots.map((snapshot) => ({
@@ -104,7 +107,7 @@ const createExecution = (
     getSnapshot,
     execution: {
       sessionId: 'session-1',
-      eventId: 'assistant-msg-1',
+      eventId: options?.eventId ?? 'assistant-msg-1',
       getSnapshot
     }
   }
@@ -403,6 +406,79 @@ describe('QQBotRuntime', () => {
     )
   })
 
+  it('keeps flushed process state when the source message id changes mid-conversation', async () => {
+    vi.useFakeTimers()
+
+    const { runtime, client } = createRuntime()
+    activateRuntime(runtime)
+    client.sendC2CMessage.mockResolvedValue({ id: 'c2c-msg-1' })
+
+    const initialSourceMessageId = 'assistant-event-1'
+    const finalSourceMessageId = 'assistant-msg-1'
+    const { execution, getSnapshot } = createExecution(
+      [
+        {
+          messageId: null,
+          completed: false,
+          text: 'Draft answer',
+          deliverySegments: [
+            createProcessSegment(initialSourceMessageId, 0, '💻 shell_command: "pwd"'),
+            createAnswerSegment(initialSourceMessageId, 1, 'Draft answer')
+          ]
+        },
+        {
+          messageId: finalSourceMessageId,
+          completed: false,
+          text: 'Draft answer expanded',
+          deliverySegments: [
+            createProcessSegment(finalSourceMessageId, 0, '💻 shell_command: "pwd"'),
+            createAnswerSegment(finalSourceMessageId, 1, 'Draft answer expanded')
+          ]
+        },
+        {
+          messageId: finalSourceMessageId,
+          completed: true,
+          text: 'Final answer',
+          finalText: 'Final answer',
+          fullText: 'Final answer',
+          deliverySegments: [
+            createProcessSegment(finalSourceMessageId, 0, '💻 shell_command: "pwd"'),
+            createAnswerSegment(finalSourceMessageId, 1, 'Final answer')
+          ]
+        }
+      ],
+      {
+        eventId: initialSourceMessageId
+      }
+    )
+
+    const message = createInboundMessage(C2C_TARGET, 8)
+    const sendContext = (runtime as any).createSendContext(C2C_TARGET, message.messageSeq)
+    const deliveryPromise = (runtime as any).deliverConversation(message, sendContext, execution, 1)
+
+    await flushMicrotasks()
+    expect(getSnapshot).toHaveBeenCalledTimes(1)
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      1,
+      createExpectedPayload(C2C_TARGET, 8, '💻 shell_command: "pwd"')
+    )
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    expect(getSnapshot).toHaveBeenCalledTimes(2)
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    await deliveryPromise
+
+    expect(getSnapshot).toHaveBeenCalledTimes(3)
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(2)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      2,
+      createExpectedPayload(C2C_TARGET, 9, 'Final answer')
+    )
+  })
+
   it('flushes the buffered tool batch before the pending interaction prompt', async () => {
     vi.useFakeTimers()
 
@@ -508,7 +584,7 @@ describe('QQBotRuntime', () => {
     )
   })
 
-  it('flushes the buffered tool batch before the no-response terminal text', async () => {
+  it('omits the no-response terminal text when buffered tool output was sent', async () => {
     const { runtime, client, bindingStore } = createRuntime()
     activateRuntime(runtime)
     client.sendC2CMessage.mockResolvedValue({ id: 'no-response-msg-1' })
@@ -529,14 +605,9 @@ describe('QQBotRuntime', () => {
 
     await (runtime as any).deliverConversation(message, sendContext, execution, 1)
 
-    expect(client.sendC2CMessage).toHaveBeenCalledTimes(2)
-    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
-      1,
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
+    expect(client.sendC2CMessage).toHaveBeenCalledWith(
       createExpectedPayload(C2C_TARGET, 5, '📖 read_file: "/tmp/empty.md"')
-    )
-    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
-      2,
-      createExpectedPayload(C2C_TARGET, 6, 'No assistant response was produced.')
     )
     expect(bindingStore.getRemoteDeliveryState).not.toHaveBeenCalled()
     expect(bindingStore.rememberRemoteDeliveryState).not.toHaveBeenCalled()

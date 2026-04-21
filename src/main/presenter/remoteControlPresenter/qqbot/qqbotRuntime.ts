@@ -8,6 +8,7 @@ import {
   type QQBotTransportTarget
 } from '../types'
 import { RemoteBindingStore } from '../services/remoteBindingStore'
+import { REMOTE_NO_RESPONSE_TEXT } from '../services/remoteBlockRenderer'
 import type { QQBotCommandRouteResult } from '../services/qqbotCommandRouter'
 import { QQBotCommandRouter } from '../services/qqbotCommandRouter'
 import type { RemoteConversationExecution } from '../services/remoteConversationRunner'
@@ -352,11 +353,16 @@ export class QQBotRuntime {
         }
 
         const finalText = this.getFinalDeliveryText(snapshot)
-        await this.flushBufferedProcessMessages(endpointKey, sendContext, {
-          reserveTerminalSlot: Boolean(finalText)
-        })
+        const skipNoResponseTerminal = this.shouldSkipNoResponseTerminal(endpointKey, finalText)
+        const didFlushProcessOutput = await this.flushBufferedProcessMessages(
+          endpointKey,
+          sendContext,
+          {
+            reserveTerminalSlot: Boolean(finalText) && !skipNoResponseTerminal
+          }
+        )
 
-        if (finalText) {
+        if (finalText && (!skipNoResponseTerminal || !didFlushProcessOutput)) {
           await this.sendText(sendContext, finalText)
         }
         this.clearToolBuffer(endpointKey)
@@ -497,11 +503,15 @@ export class QQBotRuntime {
     sourceMessageId: string | null
   ): QQBotToolBufferState | null {
     const current = this.endpointToolBuffers.get(endpointKey)
-    if (current && current.sourceMessageId === sourceMessageId) {
+    if (current) {
+      if (!sourceMessageId || current.sourceMessageId === sourceMessageId) {
+        return current
+      }
+
+      this.migrateToolBufferSourceMessageId(current, sourceMessageId)
       return current
     }
 
-    this.clearToolBuffer(endpointKey)
     if (!sourceMessageId) {
       return null
     }
@@ -518,6 +528,70 @@ export class QQBotRuntime {
 
   private clearToolBuffer(endpointKey: string): void {
     this.endpointToolBuffers.delete(endpointKey)
+  }
+
+  private migrateToolBufferSourceMessageId(
+    state: QQBotToolBufferState,
+    nextSourceMessageId: string
+  ): void {
+    const previousSourceMessageId = state.sourceMessageId
+    if (!previousSourceMessageId || previousSourceMessageId === nextSourceMessageId) {
+      state.sourceMessageId = nextSourceMessageId
+      return
+    }
+
+    const migratedLastProcessTextByKey = new Map<string, string>()
+    for (const [key, text] of state.lastProcessTextByKey.entries()) {
+      migratedLastProcessTextByKey.set(
+        this.rewriteToolBufferKey(key, previousSourceMessageId, nextSourceMessageId),
+        text
+      )
+    }
+
+    state.lastProcessTextByKey = migratedLastProcessTextByKey
+    state.flushedProcessKeys = new Set(
+      [...state.flushedProcessKeys].map((key) =>
+        this.rewriteToolBufferKey(key, previousSourceMessageId, nextSourceMessageId)
+      )
+    )
+    state.pendingProcessSegments = state.pendingProcessSegments.map((batch) => ({
+      ...batch,
+      keys: this.dedupeKeysInOrder(
+        batch.keys.map((key) =>
+          this.rewriteToolBufferKey(key, previousSourceMessageId, nextSourceMessageId)
+        )
+      )
+    }))
+    state.sourceMessageId = nextSourceMessageId
+  }
+
+  private rewriteToolBufferKey(
+    key: string,
+    previousSourceMessageId: string,
+    nextSourceMessageId: string
+  ): string {
+    const previousPrefix = `${previousSourceMessageId}:`
+    if (!key.startsWith(previousPrefix)) {
+      return key
+    }
+
+    return `${nextSourceMessageId}:${key.slice(previousPrefix.length)}`
+  }
+
+  private dedupeKeysInOrder(keys: string[]): string[] {
+    const seenKeys = new Set<string>()
+    const dedupedKeys: string[] = []
+
+    for (const key of keys) {
+      if (seenKeys.has(key)) {
+        continue
+      }
+
+      seenKeys.add(key)
+      dedupedKeys.push(key)
+    }
+
+    return dedupedKeys
   }
 
   private markBufferedProcessBatchesReady(endpointKey: string): void {
@@ -538,13 +612,14 @@ export class QQBotRuntime {
     options: {
       reserveTerminalSlot: boolean
     }
-  ): Promise<void> {
+  ): Promise<boolean> {
     const state = this.endpointToolBuffers.get(endpointKey)
     if (!state || state.pendingProcessSegments.length === 0) {
-      return
+      return false
     }
 
     const retainedBatches: QQBotPendingProcessBatch[] = []
+    let didFlushProcessOutput = false
 
     for (let index = 0; index < state.pendingProcessSegments.length; index += 1) {
       const batch = state.pendingProcessSegments[index]
@@ -557,7 +632,7 @@ export class QQBotRuntime {
       if (sendContext.sentCount + reservedSlots >= QQBOT_MAX_PASSIVE_REPLIES) {
         retainedBatches.push(batch, ...state.pendingProcessSegments.slice(index + 1))
         state.pendingProcessSegments = retainedBatches
-        return
+        return didFlushProcessOutput
       }
 
       const processText = this.buildBufferedProcessText(state, batch)
@@ -570,13 +645,15 @@ export class QQBotRuntime {
       if (!sent) {
         retainedBatches.push(batch, ...state.pendingProcessSegments.slice(index + 1))
         state.pendingProcessSegments = retainedBatches
-        return
+        return didFlushProcessOutput
       }
 
+      didFlushProcessOutput = true
       this.markProcessBatchFlushed(state, batch)
     }
 
     state.pendingProcessSegments = retainedBatches
+    return didFlushProcessOutput
   }
 
   private buildBufferedProcessText(
@@ -598,6 +675,28 @@ export class QQBotRuntime {
       state.flushedProcessKeys.add(key)
       state.lastProcessTextByKey.delete(key)
     }
+  }
+
+  private shouldSkipNoResponseTerminal(endpointKey: string, finalText: string): boolean {
+    if (finalText !== REMOTE_NO_RESPONSE_TEXT) {
+      return false
+    }
+
+    const state = this.endpointToolBuffers.get(endpointKey)
+    if (!state) {
+      return false
+    }
+
+    return state.pendingProcessSegments.some((batch) => {
+      if (!batch.ready) {
+        return false
+      }
+
+      return batch.keys.some((key) => {
+        const processText = state.lastProcessTextByKey.get(key)?.trim() || ''
+        return processText.length > 0
+      })
+    })
   }
 
   private getFinalDeliveryText(
