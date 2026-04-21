@@ -856,7 +856,7 @@ export const useModelStore = defineStore('model', () => {
       ensureModelRuntime()
       const refreshed = await _refreshAllModelsInternal()
       if (!refreshed) {
-        throw new Error('Failed to fully initialize enabled models')
+        console.warn('[ModelStore] Some enabled providers failed to refresh during initialization')
       }
       initialized.value = true
     })()

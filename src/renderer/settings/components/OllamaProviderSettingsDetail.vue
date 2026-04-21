@@ -875,12 +875,16 @@ const displayLocalModels = computed(() => {
 
 // 初始化
 onMounted(() => {
-  void refreshModels()
+  void ensureModelsReady()
 })
+
+const ensureModelsReady = async () => {
+  await ollamaStore.ensureProviderReady(props.provider.id)
+}
 
 // 刷新模型列表 - 使用 settings store
 const refreshModels = async () => {
-  await ollamaStore.ensureProviderReady(props.provider.id)
+  await ollamaStore.refreshOllamaModels(props.provider.id)
 }
 
 // 拉取模型 - 使用 settings store
@@ -994,8 +998,7 @@ watch(
   () => {
     apiHost.value = props.provider.baseUrl || ''
     apiKey.value = props.provider.apiKey || ''
-    void refreshModels()
-  },
-  { immediate: true }
+    void ensureModelsReady()
+  }
 )
 </script>

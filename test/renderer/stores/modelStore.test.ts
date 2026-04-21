@@ -564,42 +564,45 @@ describe('modelStore.initialize', () => {
     ])
   })
 
-  it('keeps initialization failed until a later retry fully succeeds', async () => {
-    let shouldFail = true
+  it('allows initialization to succeed when one enabled provider fails to refresh', async () => {
     const { store } = await setupStore({
       providerStore: {
-        providers: [{ id: 'openai', enable: true }]
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'ollama', enable: true }
+        ]
       },
       modelClient: {
-        getDbProviderModels: vi.fn(async () => {
-          if (shouldFail) {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async (providerId: string) => {
+          if (providerId === 'ollama') {
             throw new Error('catalog stale')
           }
-          return []
+          return [
+            {
+              id: 'gpt-5',
+              name: 'GPT-5',
+              providerId: 'openai',
+              isCustom: false
+            }
+          ]
         }),
-        getProviderModels: vi.fn(async () => [
-          {
-            id: 'gpt-5',
-            name: 'GPT-5',
-            providerId: 'openai',
-            isCustom: false
-          }
-        ]),
         getCustomModels: vi.fn(async () => []),
-        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+        getBatchModelStatus: vi.fn(async (providerId: string) =>
+          providerId === 'openai' ? { 'gpt-5': true } : {}
+        )
       }
     })
 
-    await expect(store.initialize()).rejects.toThrow('Failed to fully initialize enabled models')
-    expect(store.initialized.value).toBe(false)
-    expect(store.initializationError.value?.message).toBe(
-      'Failed to fully initialize enabled models'
-    )
-
-    shouldFail = false
     await store.initialize()
 
     expect(store.initialized.value).toBe(true)
     expect(store.initializationError.value).toBeNull()
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
   })
 })

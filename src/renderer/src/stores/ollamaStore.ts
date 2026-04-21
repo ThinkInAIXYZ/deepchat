@@ -57,7 +57,7 @@ export const useOllamaStore = defineStore('ollama', () => {
   const getOllamaPullingModels = (providerId: string): Record<string, number> =>
     pullingProgress.value[providerId] || {}
 
-  const refreshOllamaModels = async (providerId: string): Promise<void> => {
+  const refreshOllamaModels = async (providerId: string): Promise<boolean> => {
     setupOllamaEventListeners()
 
     try {
@@ -69,8 +69,10 @@ export const useOllamaStore = defineStore('ollama', () => {
       setLocalModels(providerId, local)
       await providerClient.refreshModels(providerId)
       await modelStore.refreshProviderModels(providerId)
+      return true
     } catch (error) {
       console.error('Failed to refresh Ollama models for', providerId, error)
+      return false
     }
   }
 
@@ -174,8 +176,10 @@ export const useOllamaStore = defineStore('ollama', () => {
       return
     }
 
-    await refreshOllamaModels(providerId)
-    initializedProviderIds.value = new Set(initializedProviderIds.value).add(providerId)
+    const refreshed = await refreshOllamaModels(providerId)
+    if (refreshed) {
+      initializedProviderIds.value = new Set(initializedProviderIds.value).add(providerId)
+    }
   }
 
   return {
