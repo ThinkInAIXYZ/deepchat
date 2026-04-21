@@ -2,6 +2,7 @@ import {
   FEISHU_CONVERSATION_POLL_TIMEOUT_MS,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   buildQQBotEndpointKey,
+  type RemoteDeliverySegment,
   type QQBotInboundMessage,
   type QQBotRuntimeStatusSnapshot,
   type QQBotTransportTarget
@@ -19,6 +20,7 @@ const QQBOT_INBOUND_DEDUP_LIMIT = 500
 const QQBOT_INBOUND_DEDUP_TTL_MS = 10 * 60 * 1000
 const QQBOT_MAX_PASSIVE_REPLIES = 5
 const QQBOT_INTERNAL_ERROR_REPLY = 'An internal error occurred while processing your request.'
+const QQBOT_TIMEOUT_REPLY = 'The current conversation timed out before finishing. Please try again.'
 
 const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
@@ -40,6 +42,18 @@ type QQBotProcessedInboundEntry = {
   receivedAt: number
 }
 
+type QQBotPendingProcessBatch = {
+  keys: string[]
+  ready: boolean
+}
+
+type QQBotToolBufferState = {
+  sourceMessageId: string | null
+  pendingProcessSegments: QQBotPendingProcessBatch[]
+  lastProcessTextByKey: Map<string, string>
+  flushedProcessKeys: Set<string>
+}
+
 type QQBotSendContext = {
   target: QQBotTransportTarget
   nextMsgSeq: number
@@ -59,6 +73,7 @@ export class QQBotRuntime {
   }
   private readonly processedInboundByMessage = new Map<string, QQBotProcessedInboundEntry>()
   private readonly endpointOperations = new Map<string, Promise<void>>()
+  private readonly endpointToolBuffers = new Map<string, QQBotToolBufferState>()
 
   constructor(private readonly deps: QQBotRuntimeDeps) {
     this.gateway = new QQBotGatewaySession({
@@ -124,6 +139,7 @@ export class QQBotRuntime {
     this.runId += 1
     await this.gateway.stop()
     this.endpointOperations.clear()
+    this.endpointToolBuffers.clear()
     this.processedInboundByMessage.clear()
     this.setStatus({
       state: 'stopped'
@@ -262,6 +278,13 @@ export class QQBotRuntime {
         return
       }
 
+      const endpointKey = buildQQBotEndpointKey(parsed.chatType, parsed.chatId)
+      this.markBufferedProcessBatchesReady(endpointKey)
+      await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+        reserveTerminalSlot: true
+      }).catch(() => undefined)
+      this.clearToolBuffer(endpointKey)
+      this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
       await this.sendText(sendContext, QQBOT_INTERNAL_ERROR_REPLY).catch(() => undefined)
     }
   }
@@ -298,6 +321,7 @@ export class QQBotRuntime {
   ): Promise<void> {
     const startedAt = Date.now()
     const endpointKey = buildQQBotEndpointKey(message.chatType, message.chatId)
+    this.clearToolBuffer(endpointKey)
     this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
 
     while (this.isCurrentRun(runId)) {
@@ -306,36 +330,273 @@ export class QQBotRuntime {
         return
       }
 
+      const sourceMessageId = this.getConversationSourceMessageId(message, execution, snapshot)
+      const deliverySegments = this.getSnapshotDeliverySegments(snapshot, sourceMessageId)
+      const timedOut = Date.now() - startedAt >= FEISHU_CONVERSATION_POLL_TIMEOUT_MS
+      this.syncToolBuffer(endpointKey, sourceMessageId, deliverySegments, {
+        flushTrailingBatch: snapshot.completed || timedOut
+      })
+
       if (snapshot.completed) {
         if (snapshot.pendingInteraction) {
+          await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+            reserveTerminalSlot: true
+          })
           await this.sendText(
             sendContext,
             buildFeishuPendingInteractionText(snapshot.pendingInteraction)
           )
+          this.clearToolBuffer(endpointKey)
           this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
           return
         }
 
         const finalText = this.getFinalDeliveryText(snapshot)
+        await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+          reserveTerminalSlot: Boolean(finalText)
+        })
 
         if (finalText) {
           await this.sendText(sendContext, finalText)
         }
+        this.clearToolBuffer(endpointKey)
         this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
 
         return
       }
 
-      if (Date.now() - startedAt >= FEISHU_CONVERSATION_POLL_TIMEOUT_MS) {
-        await this.sendText(
-          sendContext,
-          'The current conversation timed out before finishing. Please try again.'
-        )
+      if (timedOut) {
+        await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+          reserveTerminalSlot: true
+        })
+        await this.sendText(sendContext, QQBOT_TIMEOUT_REPLY)
+        this.clearToolBuffer(endpointKey)
         this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
         return
       }
 
+      await this.flushBufferedProcessMessages(endpointKey, sendContext, {
+        reserveTerminalSlot: true
+      })
       await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    }
+  }
+
+  private getConversationSourceMessageId(
+    message: QQBotInboundMessage,
+    execution: RemoteConversationExecution,
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): string | null {
+    return (
+      snapshot.messageId?.trim() ||
+      execution.eventId?.trim() ||
+      message.eventId?.trim() ||
+      message.messageId?.trim() ||
+      null
+    )
+  }
+
+  private getSnapshotDeliverySegments(
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>,
+    sourceMessageId: string | null
+  ): RemoteDeliverySegment[] {
+    if (snapshot.deliverySegments !== undefined) {
+      return snapshot.deliverySegments.filter((segment) => segment.text.trim().length > 0)
+    }
+
+    if (!sourceMessageId) {
+      return []
+    }
+
+    const segments: RemoteDeliverySegment[] = []
+    const traceText = snapshot.traceText?.trim() || ''
+    const answerText = snapshot.text?.trim() || ''
+
+    if (traceText) {
+      segments.push({
+        key: `${sourceMessageId}:legacy:process`,
+        kind: 'process',
+        text: traceText,
+        sourceMessageId
+      })
+    }
+
+    if (answerText) {
+      segments.push({
+        key: `${sourceMessageId}:legacy:answer`,
+        kind: 'answer',
+        text: answerText,
+        sourceMessageId
+      })
+    }
+
+    return segments
+  }
+
+  private syncToolBuffer(
+    endpointKey: string,
+    sourceMessageId: string | null,
+    segments: RemoteDeliverySegment[],
+    options: {
+      flushTrailingBatch: boolean
+    }
+  ): QQBotToolBufferState | null {
+    const state = this.getOrCreateToolBuffer(endpointKey, sourceMessageId)
+    if (!state) {
+      return null
+    }
+
+    const pendingProcessSegments: QQBotPendingProcessBatch[] = []
+    let currentBatchKeys: string[] = []
+
+    for (const segment of segments) {
+      if (segment.sourceMessageId !== state.sourceMessageId) {
+        continue
+      }
+
+      const normalizedKey = segment.key.trim()
+      const normalizedText = segment.text.trim()
+      if (!normalizedKey || !normalizedText) {
+        continue
+      }
+
+      if (segment.kind === 'process') {
+        if (state.flushedProcessKeys.has(normalizedKey)) {
+          continue
+        }
+
+        state.lastProcessTextByKey.set(normalizedKey, normalizedText)
+        if (!currentBatchKeys.includes(normalizedKey)) {
+          currentBatchKeys.push(normalizedKey)
+        }
+        continue
+      }
+
+      if (currentBatchKeys.length > 0) {
+        pendingProcessSegments.push({
+          keys: currentBatchKeys,
+          ready: true
+        })
+        currentBatchKeys = []
+      }
+    }
+
+    if (currentBatchKeys.length > 0) {
+      pendingProcessSegments.push({
+        keys: currentBatchKeys,
+        ready: options.flushTrailingBatch
+      })
+    }
+
+    state.pendingProcessSegments = pendingProcessSegments
+    return state
+  }
+
+  private getOrCreateToolBuffer(
+    endpointKey: string,
+    sourceMessageId: string | null
+  ): QQBotToolBufferState | null {
+    const current = this.endpointToolBuffers.get(endpointKey)
+    if (current && current.sourceMessageId === sourceMessageId) {
+      return current
+    }
+
+    this.clearToolBuffer(endpointKey)
+    if (!sourceMessageId) {
+      return null
+    }
+
+    const nextState: QQBotToolBufferState = {
+      sourceMessageId,
+      pendingProcessSegments: [],
+      lastProcessTextByKey: new Map(),
+      flushedProcessKeys: new Set()
+    }
+    this.endpointToolBuffers.set(endpointKey, nextState)
+    return nextState
+  }
+
+  private clearToolBuffer(endpointKey: string): void {
+    this.endpointToolBuffers.delete(endpointKey)
+  }
+
+  private markBufferedProcessBatchesReady(endpointKey: string): void {
+    const state = this.endpointToolBuffers.get(endpointKey)
+    if (!state) {
+      return
+    }
+
+    state.pendingProcessSegments = state.pendingProcessSegments.map((batch) => ({
+      keys: [...batch.keys],
+      ready: true
+    }))
+  }
+
+  private async flushBufferedProcessMessages(
+    endpointKey: string,
+    sendContext: QQBotSendContext,
+    options: {
+      reserveTerminalSlot: boolean
+    }
+  ): Promise<void> {
+    const state = this.endpointToolBuffers.get(endpointKey)
+    if (!state || state.pendingProcessSegments.length === 0) {
+      return
+    }
+
+    const retainedBatches: QQBotPendingProcessBatch[] = []
+
+    for (let index = 0; index < state.pendingProcessSegments.length; index += 1) {
+      const batch = state.pendingProcessSegments[index]
+      if (!batch.ready) {
+        retainedBatches.push(batch)
+        continue
+      }
+
+      const reservedSlots = options.reserveTerminalSlot ? 1 : 0
+      if (sendContext.sentCount + reservedSlots >= QQBOT_MAX_PASSIVE_REPLIES) {
+        retainedBatches.push(batch, ...state.pendingProcessSegments.slice(index + 1))
+        state.pendingProcessSegments = retainedBatches
+        return
+      }
+
+      const processText = this.buildBufferedProcessText(state, batch)
+      if (!processText) {
+        this.markProcessBatchFlushed(state, batch)
+        continue
+      }
+
+      const sent = await this.sendText(sendContext, processText)
+      if (!sent) {
+        retainedBatches.push(batch, ...state.pendingProcessSegments.slice(index + 1))
+        state.pendingProcessSegments = retainedBatches
+        return
+      }
+
+      this.markProcessBatchFlushed(state, batch)
+    }
+
+    state.pendingProcessSegments = retainedBatches
+  }
+
+  private buildBufferedProcessText(
+    state: QQBotToolBufferState,
+    batch: QQBotPendingProcessBatch
+  ): string {
+    return batch.keys
+      .map((key) => state.lastProcessTextByKey.get(key)?.trim() || '')
+      .filter((text) => text.length > 0)
+      .join('\n')
+      .trim()
+  }
+
+  private markProcessBatchFlushed(
+    state: QQBotToolBufferState,
+    batch: QQBotPendingProcessBatch
+  ): void {
+    for (const key of batch.keys) {
+      state.flushedProcessKeys.add(key)
+      state.lastProcessTextByKey.delete(key)
     }
   }
 

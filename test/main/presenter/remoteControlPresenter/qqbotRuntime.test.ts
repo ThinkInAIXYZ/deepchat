@@ -6,6 +6,7 @@ import {
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   type QQBotInboundMessage,
   type QQBotTransportTarget,
+  type RemoteDeliverySegment,
   type RemotePendingInteraction
 } from '@/presenter/remoteControlPresenter/types'
 
@@ -72,15 +73,32 @@ const createInboundMessage = (
 
 const createExecution = (
   snapshots: Array<{
+    messageId?: string | null
     completed: boolean
-    text: string
+    text?: string
+    traceText?: string
+    deliverySegments?: RemoteDeliverySegment[]
     fullText?: string
     finalText?: string
-    pendingInteraction: RemotePendingInteraction | null
+    pendingInteraction?: RemotePendingInteraction | null
   }>
 ) => {
   let index = 0
-  const getSnapshot = vi.fn(async () => snapshots[Math.min(index++, snapshots.length - 1)])
+  const normalizedSnapshots = snapshots.map((snapshot) => ({
+    messageId: 'assistant-msg-1',
+    text: '',
+    traceText: '',
+    deliverySegments: undefined as RemoteDeliverySegment[] | undefined,
+    fullText: snapshot.fullText ?? snapshot.finalText ?? snapshot.text ?? '',
+    finalText: snapshot.finalText ?? '',
+    completed: snapshot.completed,
+    pendingInteraction: snapshot.pendingInteraction ?? null,
+    ...snapshot
+  }))
+
+  const getSnapshot = vi.fn(
+    async () => normalizedSnapshots[Math.min(index++, snapshots.length - 1)]
+  )
 
   return {
     getSnapshot,
@@ -91,6 +109,28 @@ const createExecution = (
     }
   }
 }
+
+const createProcessSegment = (
+  sourceMessageId: string,
+  index: number,
+  text: string
+): RemoteDeliverySegment => ({
+  key: `${sourceMessageId}:${index}:process`,
+  kind: 'process',
+  text,
+  sourceMessageId
+})
+
+const createAnswerSegment = (
+  sourceMessageId: string,
+  index: number,
+  text: string
+): RemoteDeliverySegment => ({
+  key: `${sourceMessageId}:${index}:answer`,
+  kind: 'answer',
+  text,
+  sourceMessageId
+})
 
 const activateRuntime = (runtime: QQBotRuntime, runId: number = 1): void => {
   ;(runtime as any).runId = runId
@@ -154,22 +194,17 @@ describe('QQBotRuntime', () => {
       const { execution, getSnapshot } = createExecution([
         {
           completed: false,
-          text: 'Draft answer',
-          finalText: '',
-          pendingInteraction: null
+          text: 'Draft answer'
         },
         {
           completed: false,
-          text: 'Draft answer expanded',
-          finalText: '',
-          pendingInteraction: null
+          text: 'Draft answer expanded'
         },
         {
           completed: true,
           text: 'Draft answer expanded',
           fullText: 'Final answer',
-          finalText: 'Final answer',
-          pendingInteraction: null
+          finalText: 'Final answer'
         }
       ])
 
@@ -202,7 +237,173 @@ describe('QQBotRuntime', () => {
     }
   )
 
-  it('sends the pending interaction prompt once after completion', async () => {
+  it('flushes the latest tool batch when answer text appears and sends the final answer on completion', async () => {
+    vi.useFakeTimers()
+
+    const { runtime, client } = createRuntime()
+    activateRuntime(runtime)
+    client.sendC2CMessage.mockResolvedValue({ id: 'c2c-msg-1' })
+
+    const sourceMessageId = 'assistant-msg-1'
+    const { execution, getSnapshot } = createExecution([
+      {
+        completed: false,
+        deliverySegments: [createProcessSegment(sourceMessageId, 0, '💻 shell_command: "pwd"')]
+      },
+      {
+        completed: false,
+        text: 'Draft answer',
+        deliverySegments: [
+          createProcessSegment(
+            sourceMessageId,
+            0,
+            '💻 shell_command: "pwd"\n📖 read_file: "/tmp/report.md"'
+          ),
+          createAnswerSegment(sourceMessageId, 1, 'Draft answer')
+        ]
+      },
+      {
+        completed: true,
+        text: 'Draft answer',
+        finalText: 'Final answer',
+        fullText: 'Final answer',
+        deliverySegments: [
+          createProcessSegment(
+            sourceMessageId,
+            0,
+            '💻 shell_command: "pwd"\n📖 read_file: "/tmp/report.md"'
+          ),
+          createAnswerSegment(sourceMessageId, 1, 'Final answer')
+        ]
+      }
+    ])
+
+    const message = createInboundMessage(C2C_TARGET, 1)
+    const sendContext = (runtime as any).createSendContext(C2C_TARGET, message.messageSeq)
+    const deliveryPromise = (runtime as any).deliverConversation(message, sendContext, execution, 1)
+
+    await flushMicrotasks()
+    expect(getSnapshot).toHaveBeenCalledTimes(1)
+    expect(client.sendC2CMessage).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    expect(getSnapshot).toHaveBeenCalledTimes(2)
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      1,
+      createExpectedPayload(
+        C2C_TARGET,
+        1,
+        '💻 shell_command: "pwd"\n📖 read_file: "/tmp/report.md"'
+      )
+    )
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    await deliveryPromise
+
+    expect(getSnapshot).toHaveBeenCalledTimes(3)
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(2)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      2,
+      createExpectedPayload(C2C_TARGET, 2, 'Final answer')
+    )
+  })
+
+  it('flushes each process batch in segment order while keeping answer delivery final-only', async () => {
+    vi.useFakeTimers()
+
+    const { runtime, client } = createRuntime()
+    activateRuntime(runtime)
+    client.sendGroupMessage.mockResolvedValue({ id: 'group-msg-1' })
+
+    const sourceMessageId = 'assistant-msg-1'
+    const { execution, getSnapshot } = createExecution([
+      {
+        completed: false,
+        text: 'Opening answer',
+        deliverySegments: [createAnswerSegment(sourceMessageId, 0, 'Opening answer')]
+      },
+      {
+        completed: false,
+        text: 'Opening answer',
+        deliverySegments: [
+          createAnswerSegment(sourceMessageId, 0, 'Opening answer'),
+          createProcessSegment(sourceMessageId, 1, '📖 read_file: "/tmp/a.md"')
+        ]
+      },
+      {
+        completed: false,
+        text: 'Middle answer',
+        deliverySegments: [
+          createAnswerSegment(sourceMessageId, 0, 'Opening answer'),
+          createProcessSegment(
+            sourceMessageId,
+            1,
+            '📖 read_file: "/tmp/a.md"\n💻 shell_command: "git status"'
+          ),
+          createAnswerSegment(sourceMessageId, 2, 'Middle answer'),
+          createProcessSegment(sourceMessageId, 3, '📝 write_file: "/tmp/b.md"')
+        ]
+      },
+      {
+        completed: true,
+        text: 'Final answer',
+        finalText: 'Final answer',
+        fullText: 'Final answer',
+        deliverySegments: [
+          createAnswerSegment(sourceMessageId, 0, 'Opening answer'),
+          createProcessSegment(
+            sourceMessageId,
+            1,
+            '📖 read_file: "/tmp/a.md"\n💻 shell_command: "git status"'
+          ),
+          createAnswerSegment(sourceMessageId, 2, 'Middle answer'),
+          createProcessSegment(sourceMessageId, 3, '📝 write_file: "/tmp/b.md"'),
+          createAnswerSegment(sourceMessageId, 4, 'Final answer')
+        ]
+      }
+    ])
+
+    const message = createInboundMessage(GROUP_TARGET, 2)
+    const sendContext = (runtime as any).createSendContext(GROUP_TARGET, message.messageSeq)
+    const deliveryPromise = (runtime as any).deliverConversation(message, sendContext, execution, 1)
+
+    await flushMicrotasks()
+    expect(getSnapshot).toHaveBeenCalledTimes(1)
+    expect(client.sendGroupMessage).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    expect(getSnapshot).toHaveBeenCalledTimes(2)
+    expect(client.sendGroupMessage).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    expect(getSnapshot).toHaveBeenCalledTimes(3)
+    expect(client.sendGroupMessage).toHaveBeenCalledTimes(1)
+    expect(client.sendGroupMessage).toHaveBeenNthCalledWith(
+      1,
+      createExpectedPayload(
+        GROUP_TARGET,
+        2,
+        '📖 read_file: "/tmp/a.md"\n💻 shell_command: "git status"'
+      )
+    )
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    await deliveryPromise
+
+    expect(getSnapshot).toHaveBeenCalledTimes(4)
+    expect(client.sendGroupMessage).toHaveBeenCalledTimes(3)
+    expect(client.sendGroupMessage).toHaveBeenNthCalledWith(
+      2,
+      createExpectedPayload(GROUP_TARGET, 3, '📝 write_file: "/tmp/b.md"')
+    )
+    expect(client.sendGroupMessage).toHaveBeenNthCalledWith(
+      3,
+      createExpectedPayload(GROUP_TARGET, 4, 'Final answer')
+    )
+  })
+
+  it('flushes the buffered tool batch before the pending interaction prompt', async () => {
     vi.useFakeTimers()
 
     const { runtime, client } = createRuntime()
@@ -232,14 +433,13 @@ describe('QQBotRuntime', () => {
     const { execution } = createExecution([
       {
         completed: false,
-        text: 'Draft answer',
-        finalText: '',
-        pendingInteraction: null
+        deliverySegments: [createProcessSegment('assistant-msg-1', 0, '🔎 search: "release notes"')]
       },
       {
         completed: true,
-        text: 'Draft answer',
-        finalText: 'Final answer',
+        deliverySegments: [
+          createProcessSegment('assistant-msg-1', 0, '🔎 search: "release notes"')
+        ],
         pendingInteraction: interaction
       }
     ])
@@ -254,17 +454,18 @@ describe('QQBotRuntime', () => {
     await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
     await deliveryPromise
 
-    expect(client.sendGroupMessage).toHaveBeenCalledTimes(1)
-    expect(client.sendGroupMessage).toHaveBeenCalledWith(
-      createExpectedPayload(
-        GROUP_TARGET,
-        message.messageSeq,
-        buildFeishuPendingInteractionText(interaction)
-      )
+    expect(client.sendGroupMessage).toHaveBeenCalledTimes(2)
+    expect(client.sendGroupMessage).toHaveBeenNthCalledWith(
+      1,
+      createExpectedPayload(GROUP_TARGET, 4, '🔎 search: "release notes"')
+    )
+    expect(client.sendGroupMessage).toHaveBeenNthCalledWith(
+      2,
+      createExpectedPayload(GROUP_TARGET, 5, buildFeishuPendingInteractionText(interaction))
     )
   })
 
-  it('sends the timeout text once for stalled conversations', async () => {
+  it('flushes the buffered tool batch before timeout text', async () => {
     vi.useFakeTimers()
 
     const { runtime, client } = createRuntime()
@@ -274,9 +475,9 @@ describe('QQBotRuntime', () => {
     const { execution } = createExecution([
       {
         completed: false,
-        text: 'Still running',
-        finalText: '',
-        pendingInteraction: null
+        deliverySegments: [
+          createProcessSegment('assistant-msg-1', 0, '💻 shell_command: "sleep 1"')
+        ]
       }
     ])
 
@@ -292,17 +493,22 @@ describe('QQBotRuntime', () => {
     )
     await deliveryPromise
 
-    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
-    expect(client.sendC2CMessage).toHaveBeenCalledWith(
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(2)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      1,
+      createExpectedPayload(C2C_TARGET, 2, '💻 shell_command: "sleep 1"')
+    )
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      2,
       createExpectedPayload(
         C2C_TARGET,
-        message.messageSeq,
+        3,
         'The current conversation timed out before finishing. Please try again.'
       )
     )
   })
 
-  it('sends the no-response text once when the conversation completes empty', async () => {
+  it('flushes the buffered tool batch before the no-response terminal text', async () => {
     const { runtime, client, bindingStore } = createRuntime()
     activateRuntime(runtime)
     client.sendC2CMessage.mockResolvedValue({ id: 'no-response-msg-1' })
@@ -310,10 +516,11 @@ describe('QQBotRuntime', () => {
     const { execution } = createExecution([
       {
         completed: true,
-        text: '',
+        deliverySegments: [
+          createProcessSegment('assistant-msg-1', 0, '📖 read_file: "/tmp/empty.md"')
+        ],
         fullText: 'No assistant response was produced.',
-        finalText: 'No assistant response was produced.',
-        pendingInteraction: null
+        finalText: 'No assistant response was produced.'
       }
     ])
 
@@ -322,31 +529,160 @@ describe('QQBotRuntime', () => {
 
     await (runtime as any).deliverConversation(message, sendContext, execution, 1)
 
-    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
-    expect(client.sendC2CMessage).toHaveBeenCalledWith(
-      createExpectedPayload(C2C_TARGET, message.messageSeq, 'No assistant response was produced.')
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(2)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      1,
+      createExpectedPayload(C2C_TARGET, 5, '📖 read_file: "/tmp/empty.md"')
+    )
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      2,
+      createExpectedPayload(C2C_TARGET, 6, 'No assistant response was produced.')
     )
     expect(bindingStore.getRemoteDeliveryState).not.toHaveBeenCalled()
     expect(bindingStore.rememberRemoteDeliveryState).not.toHaveBeenCalled()
   })
 
-  it('sends the internal error reply once when routing fails', async () => {
+  it('keeps the final reply slot reserved when the passive reply limit is almost exhausted', async () => {
+    const { runtime, client } = createRuntime()
+    activateRuntime(runtime)
+    client.sendC2CMessage.mockResolvedValue({ id: 'final-msg-1' })
+
+    const { execution } = createExecution([
+      {
+        completed: true,
+        text: 'Final answer',
+        finalText: 'Final answer',
+        fullText: 'Final answer',
+        deliverySegments: [
+          createProcessSegment('assistant-msg-1', 0, '📖 read_file: "/tmp/a.md"'),
+          createAnswerSegment('assistant-msg-1', 1, 'Final answer')
+        ]
+      }
+    ])
+
+    const message = createInboundMessage(C2C_TARGET, 1)
+    const sendContext = (runtime as any).createSendContext(C2C_TARGET, 5)
+    sendContext.sentCount = 4
+
+    await (runtime as any).deliverConversation(message, sendContext, execution, 1)
+
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
+    expect(client.sendC2CMessage).toHaveBeenCalledWith(
+      createExpectedPayload(C2C_TARGET, 5, 'Final answer')
+    )
+  })
+
+  it('falls back to legacy trace text snapshots when delivery segments are unavailable', async () => {
+    vi.useFakeTimers()
+
+    const { runtime, client } = createRuntime()
+    activateRuntime(runtime)
+    client.sendC2CMessage.mockResolvedValue({ id: 'legacy-msg-1' })
+
+    const { execution } = createExecution([
+      {
+        completed: false,
+        traceText: '💻 shell_command: "git status"',
+        text: ''
+      },
+      {
+        completed: false,
+        traceText: '💻 shell_command: "git status"\n📖 read_file: "/tmp/a.md"',
+        text: 'Draft answer'
+      },
+      {
+        completed: true,
+        traceText: '💻 shell_command: "git status"\n📖 read_file: "/tmp/a.md"',
+        text: 'Final answer',
+        fullText: 'Final answer',
+        finalText: 'Final answer'
+      }
+    ])
+
+    const message = createInboundMessage(C2C_TARGET, 7)
+    const sendContext = (runtime as any).createSendContext(C2C_TARGET, message.messageSeq)
+    const deliveryPromise = (runtime as any).deliverConversation(message, sendContext, execution, 1)
+
+    await flushMicrotasks()
+    expect(client.sendC2CMessage).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      1,
+      createExpectedPayload(
+        C2C_TARGET,
+        7,
+        '💻 shell_command: "git status"\n📖 read_file: "/tmp/a.md"'
+      )
+    )
+
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    await deliveryPromise
+
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(2)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      2,
+      createExpectedPayload(C2C_TARGET, 8, 'Final answer')
+    )
+  })
+
+  it('flushes buffered tool text before sending the internal error reply', async () => {
+    vi.useFakeTimers()
+
     const { runtime, router, client } = createRuntime()
     activateRuntime(runtime)
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    router.handleMessage.mockRejectedValue(new Error('routing failed'))
     client.sendC2CMessage.mockResolvedValue({ id: 'internal-error-msg-1' })
 
-    const message = createInboundMessage(C2C_TARGET, 6)
+    let snapshotCallCount = 0
+    const execution = {
+      sessionId: 'session-1',
+      eventId: 'assistant-msg-1',
+      getSnapshot: vi.fn(async () => {
+        if (snapshotCallCount === 0) {
+          snapshotCallCount += 1
+          return {
+            messageId: 'assistant-msg-1',
+            text: '',
+            traceText: '',
+            deliverySegments: [
+              createProcessSegment('assistant-msg-1', 0, '💻 shell_command: "pwd"')
+            ],
+            fullText: '',
+            finalText: '',
+            completed: false,
+            pendingInteraction: null
+          }
+        }
 
-    await (runtime as any).processInboundMessage(message, 1)
+        throw new Error('snapshot failed')
+      })
+    }
+
+    router.handleMessage.mockResolvedValue({
+      replies: [],
+      conversation: execution
+    })
+
+    const message = createInboundMessage(C2C_TARGET, 6)
+    const deliveryPromise = (runtime as any).processInboundMessage(message, 1)
+
+    await flushMicrotasks()
+    await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    await deliveryPromise
 
     expect(router.handleMessage).toHaveBeenCalledWith(message)
-    expect(client.sendC2CMessage).toHaveBeenCalledTimes(1)
-    expect(client.sendC2CMessage).toHaveBeenCalledWith(
+    expect(client.sendC2CMessage).toHaveBeenCalledTimes(2)
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      1,
+      createExpectedPayload(C2C_TARGET, 6, '💻 shell_command: "pwd"')
+    )
+    expect(client.sendC2CMessage).toHaveBeenNthCalledWith(
+      2,
       createExpectedPayload(
         C2C_TARGET,
-        message.messageSeq,
+        7,
         'An internal error occurred while processing your request.'
       )
     )
