@@ -94,6 +94,7 @@ interface IAppSettings {
   artifactsEffectEnabled?: boolean // Whether artifacts animation effects are enabled
   searchPreviewEnabled?: boolean // Whether search preview is enabled
   contentProtectionEnabled?: boolean // Whether content protection is enabled
+  privacyModeEnabled?: boolean // Whether privacy mode is enabled
   syncEnabled?: boolean // Whether sync functionality is enabled
   syncFolderPath?: string // Sync folder path
   lastSyncTime?: number // Last sync time
@@ -275,6 +276,11 @@ const toTrackedSettingsChangePayload = (
         changedKey: 'contentProtectionEnabled',
         value: Boolean(value)
       }
+    case 'privacyModeEnabled':
+      return {
+        changedKey: 'privacyModeEnabled',
+        value: Boolean(value)
+      }
     case 'notificationsEnabled':
       return {
         changedKey: 'notificationsEnabled',
@@ -391,6 +397,7 @@ export class ConfigPresenter implements IConfigPresenter {
         artifactsEffectEnabled: true,
         searchPreviewEnabled: true,
         contentProtectionEnabled: false,
+        privacyModeEnabled: false,
         syncEnabled: false,
         syncFolderPath: path.join(this.userDataPath, 'sync'),
         lastSyncTime: 0,
@@ -464,7 +471,9 @@ export class ConfigPresenter implements IConfigPresenter {
     this.mcpConfHelper = new McpConfHelper()
 
     this.acpConfHelper = new AcpConfHelper({ mcpConfHelper: this.mcpConfHelper })
-    this.acpRegistryService = new AcpRegistryService()
+    this.acpRegistryService = new AcpRegistryService({
+      isPrivacyModeEnabled: () => this.getPrivacyModeEnabled()
+    })
     this.acpLaunchSpecService = new AcpLaunchSpecService(
       path.join(this.userDataPath, 'acp-registry')
     )
@@ -498,6 +507,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.initProviderModelsDir()
 
     // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
+    providerDbLoader.setPrivacyModeResolver(() => this.getPrivacyModeEnabled())
     providerDbLoader.initialize().catch((error) => {
       console.warn('[ConfigPresenter] Failed to initialize provider DB:', error)
     })
@@ -1708,6 +1718,14 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setContentProtectionEnabled(enabled: boolean): void {
     this.uiSettingsHelper.setContentProtectionEnabled(enabled)
+  }
+
+  getPrivacyModeEnabled(): boolean {
+    return this.uiSettingsHelper.getPrivacyModeEnabled()
+  }
+
+  setPrivacyModeEnabled(enabled: boolean): void {
+    this.uiSettingsHelper.setPrivacyModeEnabled(enabled)
   }
 
   getLoggingEnabled(): boolean {

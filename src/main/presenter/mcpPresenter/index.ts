@@ -54,6 +54,10 @@ export class McpPresenter implements IMCPPresenter {
     }, 1000)
   }
 
+  private isPrivacyModeEnabled(): boolean {
+    return Boolean(this.configPresenter.getPrivacyModeEnabled())
+  }
+
   private async initialize() {
     try {
       // If no configPresenter is provided, get it from presenter
@@ -70,12 +74,16 @@ export class McpPresenter implements IMCPPresenter {
       ])
 
       // Initialize npm registry (prefer cache if available)
-      console.log('[MCP] Initializing npm registry...')
-      try {
-        await this.serverManager.testNpmRegistrySpeed(true)
-        console.log(`[MCP] npm registry initialized: ${this.serverManager.getNpmRegistry()}`)
-      } catch (error) {
-        console.error('[MCP] npm registry initialization failed:', error)
+      if (this.isPrivacyModeEnabled()) {
+        console.log('[MCP] Privacy mode enabled, skipping automatic npm registry detection')
+      } else {
+        console.log('[MCP] Initializing npm registry...')
+        try {
+          await this.serverManager.testNpmRegistrySpeed(true)
+          console.log(`[MCP] npm registry initialized: ${this.serverManager.getNpmRegistry()}`)
+        } catch (error) {
+          console.error('[MCP] npm registry initialization failed:', error)
+        }
       }
 
       // Check and start deepchat-inmemory/custom-prompts-server
@@ -202,7 +210,15 @@ export class McpPresenter implements IMCPPresenter {
   }
 
   private scheduleBackgroundRegistryUpdate(): void {
+    if (this.isPrivacyModeEnabled()) {
+      return
+    }
+
     setTimeout(async () => {
+      if (this.isPrivacyModeEnabled()) {
+        return
+      }
+
       try {
         await this.serverManager.updateNpmRegistryInBackground()
       } catch (error) {

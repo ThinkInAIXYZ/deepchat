@@ -146,6 +146,23 @@ describe('ProviderDbLoader', () => {
     })
   })
 
+  it('skips the automatic startup refresh when privacy mode is enabled', async () => {
+    writeBuiltInDb(createAggregate(['builtin']))
+    writeCachedDb(createAggregate(['openai']))
+
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ProviderDbLoader = await importLoader()
+    const loader = new ProviderDbLoader()
+    loader.setPrivacyModeResolver(() => true)
+
+    await loader.initialize()
+
+    expect(loader.getDb()?.providers).toHaveProperty('openai')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('skips non-forced refreshes within the default 4-hour TTL', async () => {
     writeCachedDb(createAggregate(['openai']))
     const now = Date.now()
@@ -232,6 +249,31 @@ describe('ProviderDbLoader', () => {
       providersCount: 2,
       lastUpdated: expect.any(Number)
     })
+  })
+
+  it('keeps manual refresh available while privacy mode is enabled', async () => {
+    writeCachedDb(createAggregate(['openai']))
+
+    const refreshedAggregate = createAggregate(['openai', 'anthropic'])
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      headers: {
+        get: vi.fn().mockReturnValue('"etag-privacy"')
+      },
+      text: vi.fn().mockResolvedValue(JSON.stringify(refreshedAggregate))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ProviderDbLoader = await importLoader()
+    const loader = new ProviderDbLoader()
+    loader.setPrivacyModeResolver(() => true)
+
+    const result = await loader.refreshIfNeeded(true)
+
+    expect(result.status).toBe('updated')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(loader.getDb()?.providers).toHaveProperty('anthropic')
   })
 
   it('returns an error result and preserves the existing cache when refresh fails', async () => {

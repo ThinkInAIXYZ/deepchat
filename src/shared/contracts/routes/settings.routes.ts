@@ -11,6 +11,7 @@ export const SETTINGS_KEYS = [
   'autoCompactionTriggerThreshold',
   'autoCompactionRetainRecentPairs',
   'contentProtectionEnabled',
+  'privacyModeEnabled',
   'notificationsEnabled',
   'traceDebugEnabled',
   'copyWithCotEnabled',
@@ -29,6 +30,7 @@ export const SettingsSnapshotValuesSchema = z.object({
   autoCompactionTriggerThreshold: z.number().int(),
   autoCompactionRetainRecentPairs: z.number().int(),
   contentProtectionEnabled: z.boolean(),
+  privacyModeEnabled: z.boolean(),
   notificationsEnabled: z.boolean(),
   traceDebugEnabled: z.boolean(),
   copyWithCotEnabled: z.boolean(),
@@ -70,6 +72,10 @@ export const SettingsChangeSchema = z.discriminatedUnion('key', [
   }),
   z.object({
     key: z.literal('contentProtectionEnabled'),
+    value: z.boolean()
+  }),
+  z.object({
+    key: z.literal('privacyModeEnabled'),
     value: z.boolean()
   }),
   z.object({

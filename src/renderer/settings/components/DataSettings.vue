@@ -168,6 +168,8 @@
         </div>
       </div>
 
+      <PrivacySettingsSection />
+
       <div class="rounded-xl border border-border bg-card/30 p-4">
         <div class="mb-4 flex items-center gap-2" :dir="languageStore.dir">
           <Icon icon="lucide:wrench" class="h-4 w-4 text-muted-foreground" />
@@ -511,6 +513,7 @@ import { useLanguageStore } from '@/stores/language'
 import { useLegacyPresenter } from '@api/legacy/presenters'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/use-toast'
+import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
 
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'

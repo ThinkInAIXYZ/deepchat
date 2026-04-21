@@ -610,6 +610,8 @@ export interface IConfigPresenter {
   // Screen sharing protection settings
   getContentProtectionEnabled(): boolean
   setContentProtectionEnabled(enabled: boolean): void
+  getPrivacyModeEnabled(): boolean
+  setPrivacyModeEnabled(enabled: boolean): void
   // Sync settings
   getSyncEnabled(): boolean
   setSyncEnabled(enabled: boolean): void

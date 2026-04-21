@@ -4,7 +4,25 @@
     class="sticky top-0 z-10 flex h-12 items-center justify-between bg-background/60 px-4 backdrop-blur-lg window-drag-region transition-[padding] duration-200 ease-out"
     :class="{ 'pl-12': showCollapsedNewChatSpacer }"
   >
-    <div class="flex items-center gap-2 min-w-0">
+    <div class="flex min-w-0 flex-1 items-center gap-2">
+      <Transition name="collapsed-new-chat-button">
+        <div
+          v-if="showCollapsedNewChatButton"
+          class="pointer-events-none absolute inset-x-0 top-0 z-30 h-12"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            data-testid="collapsed-new-chat-button"
+            class="collapsed-new-chat-button pointer-events-auto absolute left-4 top-2.5 h-7 w-7 text-muted-foreground hover:text-foreground"
+            :title="t('common.newChat')"
+            :aria-label="t('common.newChat')"
+            @click="handleCollapsedNewChat"
+          >
+            <Icon icon="lucide:plus" class="h-4 w-4" />
+          </Button>
+        </div>
+      </Transition>
       <Button
         v-if="parentSessionId"
         variant="ghost"
@@ -21,7 +39,68 @@
         <span class="text-xs truncate">{{ projectName }}</span>
         <Icon icon="lucide:chevron-right" class="w-3 h-3 shrink-0" />
       </div>
-      <h2 class="text-sm font-medium truncate">{{ title }}</h2>
+      <div v-if="isReadOnly" class="min-w-0 flex-1">
+        <h2 class="text-sm font-medium truncate">{{ currentTitle }}</h2>
+      </div>
+      <div
+        v-else
+        class="title-inline-shell no-drag min-w-0 flex-1"
+        :class="{ 'title-inline-shell--editing': isRenaming }"
+      >
+        <button
+          v-if="!isRenaming"
+          type="button"
+          data-testid="chat-topbar-title-trigger"
+          class="title-inline-trigger flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
+          :title="t('thread.actions.rename')"
+          :aria-label="t('thread.actions.rename')"
+          @click="openRenameDialog"
+        >
+          <span class="truncate text-sm font-medium">{{ currentTitle }}</span>
+          <Icon icon="lucide:pencil" class="title-inline-icon h-3.5 w-3.5 shrink-0" />
+        </button>
+
+        <div
+          v-else
+          class="title-inline-editor flex w-full min-w-0 items-center gap-1 rounded-md px-1 py-0.5"
+        >
+          <input
+            ref="renameInputRef"
+            v-model="renameValue"
+            data-testid="chat-topbar-title-input"
+            class="title-inline-input h-7 w-full min-w-0 flex-1 bg-transparent px-1 text-sm font-medium text-foreground outline-none"
+            :aria-label="t('thread.actions.rename')"
+            @click.stop
+            @keydown="handleRenameInputKeydown"
+          />
+
+          <div class="flex shrink-0 items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              data-testid="chat-topbar-title-cancel"
+              class="title-inline-action h-7 w-7 text-muted-foreground hover:text-foreground"
+              :title="t('dialog.cancel')"
+              :aria-label="t('dialog.cancel')"
+              @click="handleRenameCancel"
+            >
+              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              data-testid="chat-topbar-title-save"
+              class="title-inline-action h-7 w-7 text-primary hover:text-primary disabled:text-muted-foreground"
+              :title="t('dialog.confirm')"
+              :aria-label="t('dialog.confirm')"
+              :disabled="!canSubmitRename"
+              @click="handleRenameConfirm"
+            >
+              <Icon icon="lucide:check" class="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="flex items-center gap-1 no-drag">
@@ -84,10 +163,6 @@
             <Icon :icon="isPinned ? 'lucide:pin-off' : 'lucide:pin'" class="mr-2 h-4 w-4" />
             <span>{{ isPinned ? t('thread.actions.unpin') : t('thread.actions.pin') }}</span>
           </DropdownMenuItem>
-          <DropdownMenuItem @select="openRenameDialog">
-            <Icon icon="lucide:pencil" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.rename') }}</span>
-          </DropdownMenuItem>
           <DropdownMenuItem @select="openClearDialog">
             <Icon icon="lucide:eraser" class="mr-2 h-4 w-4" />
             <span>{{ t('thread.actions.cleanMessages') }}</span>
@@ -101,22 +176,6 @@
       </DropdownMenu>
     </div>
   </div>
-
-  <Dialog v-model:open="renameDialogOpen">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('dialog.rename.title') }}</DialogTitle>
-        <DialogDescription>{{ t('dialog.rename.description') }}</DialogDescription>
-      </DialogHeader>
-      <Input v-model="renameValue" />
-      <DialogFooter>
-        <Button variant="outline" @click="renameDialogOpen = false">{{
-          t('dialog.cancel')
-        }}</Button>
-        <Button variant="default" @click="handleRenameConfirm">{{ t('dialog.confirm') }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 
   <Dialog v-model:open="clearDialogOpen">
     <DialogContent>
@@ -152,11 +211,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useAttrs } from 'vue'
+import { computed, nextTick, ref, useAttrs, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@shadcn/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -195,28 +253,73 @@ const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
 const { toast } = useToast()
 
-const renameDialogOpen = ref(false)
+const isRenaming = ref(false)
 const clearDialogOpen = ref(false)
 const deleteDialogOpen = ref(false)
 const renameValue = ref('')
+const renameInputRef = ref<HTMLInputElement | null>(null)
+
+const showCollapsedNewChatButton = computed(
+  () => sidebarStore.collapsed && Boolean(sessionStore.newConversationTargetAgentId)
+)
 
 const projectName = computed(() => props.project.split('/').pop() ?? props.project)
 const currentSession = computed(
   () => sessionStore.sessions.find((session) => session.id === props.sessionId) ?? null
 )
+const currentTitle = computed(() => currentSession.value?.title ?? props.title)
 const showCollapsedNewChatSpacer = computed(
   () => sidebarStore.collapsed && Boolean(sessionStore.newConversationTargetAgentId)
 )
 const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))
 const isReadOnly = computed(() => props.isReadOnly === true)
+const normalizedRenameValue = computed(() => renameValue.value.trim())
+const canSubmitRename = computed(
+  () =>
+    normalizedRenameValue.value.length > 0 &&
+    normalizedRenameValue.value !== currentTitle.value.trim()
+)
 
-const openRenameDialog = () => {
+const handleCollapsedNewChat = () => {
+  void sessionStore.startNewConversation({ refresh: true })
+}
+
+const openRenameDialog = async () => {
   if (isReadOnly.value) {
     return
   }
-  renameValue.value = currentSession.value?.title ?? props.title
-  renameDialogOpen.value = true
+  renameValue.value = currentTitle.value
+  isRenaming.value = true
+  await nextTick()
+  renameInputRef.value?.focus()
+  renameInputRef.value?.select()
+}
+
+const resetRenameState = () => {
+  renameValue.value = currentTitle.value
+  isRenaming.value = false
+}
+
+const handleRenameCancel = () => {
+  resetRenameState()
+}
+
+const handleRenameInputKeydown = (event: KeyboardEvent) => {
+  if (event.isComposing) {
+    return
+  }
+
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    void handleRenameConfirm()
+    return
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    handleRenameCancel()
+  }
 }
 
 const openClearDialog = () => {
@@ -248,14 +351,41 @@ const handleRenameConfirm = async () => {
   if (isReadOnly.value) {
     return
   }
+
+  const normalized = normalizedRenameValue.value
+  if (!normalized) {
+    resetRenameState()
+    return
+  }
+
+  if (normalized === currentTitle.value.trim()) {
+    resetRenameState()
+    return
+  }
+
   try {
-    await sessionStore.renameSession(props.sessionId, renameValue.value)
+    await sessionStore.renameSession(props.sessionId, normalized)
+    isRenaming.value = false
   } catch (error) {
     console.error(t('common.error.renameChatFailed'), error)
   }
-
-  renameDialogOpen.value = false
 }
+
+watch(
+  () => props.sessionId,
+  () => {
+    resetRenameState()
+  }
+)
+
+watch(
+  () => props.isReadOnly,
+  (readOnly) => {
+    if (readOnly) {
+      resetRenameState()
+    }
+  }
+)
 
 const handleClearConfirm = async () => {
   if (isReadOnly.value) {
@@ -319,12 +449,88 @@ const handleBackToParent = async () => {
 </script>
 
 <style scoped>
+.collapsed-new-chat-button-enter-active,
+.collapsed-new-chat-button-leave-active {
+  transition:
+    opacity 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+.collapsed-new-chat-button-enter-from,
+.collapsed-new-chat-button-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.collapsed-new-chat-button-enter-to,
+.collapsed-new-chat-button-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.collapsed-new-chat-button {
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+}
+
 .window-drag-region {
   -webkit-app-region: drag;
 }
 
 .no-drag {
   -webkit-app-region: no-drag;
+}
+
+.title-inline-shell {
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
+  overflow: hidden;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.title-inline-shell:hover,
+.title-inline-shell:focus-within {
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  background-color: color-mix(in srgb, var(--muted) 34%, transparent);
+}
+
+.title-inline-shell--editing {
+  border-color: color-mix(in srgb, var(--border) 88%, transparent);
+  background-color: color-mix(in srgb, var(--background) 90%, var(--muted) 10%);
+  box-shadow: 0 14px 28px -24px rgb(15 23 42 / 0.65);
+}
+
+.title-inline-trigger {
+  -webkit-app-region: no-drag;
+}
+
+.title-inline-icon {
+  color: hsl(var(--muted-foreground));
+  opacity: 0;
+  transform: translateX(-2px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    color 160ms ease;
+}
+
+.title-inline-shell:hover .title-inline-icon,
+.title-inline-shell:focus-within .title-inline-icon {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.title-inline-editor,
+.title-inline-input,
+.title-inline-action {
+  -webkit-app-region: no-drag;
+}
+
+.title-inline-input::placeholder {
+  color: hsl(var(--muted-foreground));
 }
 
 button {
