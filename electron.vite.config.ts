@@ -74,7 +74,29 @@ export default defineConfig({
     plugins: [
       tailwindcss(),
       monacoEditorPlugin({
-        languageWorkers: ['editorWorkerService', 'typescript', 'css', 'html', 'json'],
+        languageWorkers: [],
+        customWorkers: [
+          {
+            label: 'editorWorkerService',
+            entry: 'monaco-editor/esm/vs/editor/editor.worker.js',
+          },
+          {
+            label: 'typescript',
+            entry: 'monaco-editor/esm/vs/language/typescript/ts.worker.js',
+          },
+          {
+            label: 'css',
+            entry: 'monaco-editor/esm/vs/language/css/css.worker.js',
+          },
+          {
+            label: 'html',
+            entry: 'monaco-editor/esm/vs/language/html/html.worker.js',
+          },
+          {
+            label: 'json',
+            entry: 'monaco-editor/esm/vs/language/json/json.worker.js',
+          },
+        ],
         customDistPath(_root, buildOutDir, _base) {
           return path.resolve(buildOutDir, 'monacoeditorwork')
         },
