@@ -493,8 +493,8 @@
         "temperatureMax": "온도는 2보다 작거나 동일해야합니다.",
         "temperatureMin": "온도는 0보다 크거나 같아야합니다.",
         "temperatureRequired": "온도는 비어있을 수 없습니다",
-        "timeoutMin": "Request timeout must be at least 1000ms",
-        "timeoutMax": "Request timeout cannot exceed 600000ms"
+        "timeoutMin": "요청 시간 초과는 최소 1000ms여야 합니다",
+        "timeoutMax": "요청 시간 초과는 600000ms를 초과할 수 없습니다"
       },
       "vision": {
         "description": "모델이 시각적 능력을 지원합니까?",

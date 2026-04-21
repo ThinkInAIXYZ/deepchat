@@ -493,8 +493,8 @@
         "temperatureMax": "הטמפרטורה חייבת להיות קטנה או שווה ל-2",
         "temperatureMin": "הטמפרטורה חייבת להיות גדולה או שווה ל-0",
         "temperatureRequired": "הטמפרטורה אינה יכולה להיות ריקה",
-        "timeoutMin": "Request timeout must be at least 1000ms",
-        "timeoutMax": "Request timeout cannot exceed 600000ms"
+        "timeoutMin": "הטיימאוט חייב להיות לפחות 1000ms",
+        "timeoutMax": "הטיימאוט אינו יכול לעלות על 600000ms"
       },
       "vision": {
         "description": "האם המודל תומך ביכולת חזותית?",

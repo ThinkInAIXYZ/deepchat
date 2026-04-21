@@ -493,8 +493,8 @@
         "temperatureMax": "A temperatura deve ser menor ou igual a 2",
         "temperatureMin": "A temperatura deve ser maior ou igual a 0",
         "temperatureRequired": "A temperatura não pode estar vazia",
-        "timeoutMin": "Request timeout must be at least 1000ms",
-        "timeoutMax": "Request timeout cannot exceed 600000ms"
+        "timeoutMin": "O tempo limite da solicitação deve ser de pelo menos 1000ms",
+        "timeoutMax": "O tempo limite da solicitação não pode exceder 600000ms"
       },
       "vision": {
         "description": "O modelo suporta capacidade visual?",

@@ -426,8 +426,8 @@
         "temperatureMax": "Temperaturen skal være mindre end eller lig 2",
         "temperatureMin": "Temperaturen skal være større end eller lig 0",
         "temperatureRequired": "Temperaturen må ikke være tom",
-        "timeoutMin": "Request timeout must be at least 1000ms",
-        "timeoutMax": "Request timeout cannot exceed 600000ms"
+        "timeoutMin": "Tidsgrænsen for anmodning skal være mindst 1000ms",
+        "timeoutMax": "Tidsgrænsen for anmodning må ikke overstige 600000ms"
       },
       "vision": {
         "description": "Understøtter modellen visuelle funktioner?",
@@ -464,8 +464,8 @@
         }
       },
       "timeout": {
-        "label": "Request Timeout (ms)",
-        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+        "label": "Tidsgrænse for anmodning (ms)",
+        "description": "Indstil tidsgrænsen for en enkelt modelanmodning. Hvis den overskrides, afbrydes anmodningen."
       }
     }
   },
