@@ -5,6 +5,24 @@
     :class="{ 'pl-12': showCollapsedNewChatSpacer }"
   >
     <div class="flex items-center gap-2 min-w-0">
+      <Transition name="collapsed-new-chat-button">
+        <div
+          v-if="showCollapsedNewChatButton"
+          class="pointer-events-none absolute inset-x-0 top-0 z-30 h-12"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            data-testid="collapsed-new-chat-button"
+            class="collapsed-new-chat-button pointer-events-auto absolute left-4 top-2.5 h-7 w-7 text-muted-foreground hover:text-foreground"
+            :title="t('common.newChat')"
+            :aria-label="t('common.newChat')"
+            @click="handleCollapsedNewChat"
+          >
+            <Icon icon="lucide:plus" class="h-4 w-4" />
+          </Button>
+        </div>
+      </Transition>
       <Button
         v-if="parentSessionId"
         variant="ghost"
@@ -200,6 +218,10 @@ const clearDialogOpen = ref(false)
 const deleteDialogOpen = ref(false)
 const renameValue = ref('')
 
+const showCollapsedNewChatButton = computed(
+  () => sidebarStore.collapsed && Boolean(sessionStore.newConversationTargetAgentId)
+)
+
 const projectName = computed(() => props.project.split('/').pop() ?? props.project)
 const currentSession = computed(
   () => sessionStore.sessions.find((session) => session.id === props.sessionId) ?? null
@@ -210,6 +232,10 @@ const showCollapsedNewChatSpacer = computed(
 const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))
 const isReadOnly = computed(() => props.isReadOnly === true)
+
+const handleCollapsedNewChat = () => {
+  void sessionStore.startNewConversation({ refresh: true })
+}
 
 const openRenameDialog = () => {
   if (isReadOnly.value) {
@@ -319,6 +345,30 @@ const handleBackToParent = async () => {
 </script>
 
 <style scoped>
+.collapsed-new-chat-button-enter-active,
+.collapsed-new-chat-button-leave-active {
+  transition:
+    opacity 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+.collapsed-new-chat-button-enter-from,
+.collapsed-new-chat-button-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.collapsed-new-chat-button-enter-to,
+.collapsed-new-chat-button-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.collapsed-new-chat-button {
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+}
+
 .window-drag-region {
   -webkit-app-region: drag;
 }
