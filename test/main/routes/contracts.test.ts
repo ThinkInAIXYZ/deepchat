@@ -14,6 +14,7 @@ import {
   providersListModelsRoute,
   providersTestConnectionRoute,
   sessionsActivateRoute,
+  sessionsGetGenerationSettingsRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
@@ -22,8 +23,10 @@ import {
   sessionsGetActiveRoute,
   sessionsListRoute,
   sessionsRestoreRoute,
+  sessionsUpdateGenerationSettingsRoute,
   systemOpenSettingsRoute
 } from '@shared/contracts/routes'
+import { SessionGenerationSettingsPatchSchema } from '@shared/contracts/common'
 
 describe('main kernel contracts', () => {
   it('registers typed route catalog entries through phase4', () => {
@@ -137,6 +140,62 @@ describe('main kernel contracts', () => {
       })
     ).toEqual({
       fonts: ['Inter', 'JetBrains Mono']
+    })
+  })
+
+  it('preserves timeout in session generation settings contracts', () => {
+    expect(SessionGenerationSettingsPatchSchema.parse({ timeout: 5000 })).toEqual({
+      timeout: 5000
+    })
+
+    expect(
+      sessionsUpdateGenerationSettingsRoute.input.parse({
+        sessionId: 'session-1',
+        settings: {
+          timeout: 5000
+        }
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      settings: {
+        timeout: 5000
+      }
+    })
+
+    expect(
+      sessionsGetGenerationSettingsRoute.output.parse({
+        settings: {
+          systemPrompt: '',
+          temperature: 0.7,
+          contextLength: 32000,
+          maxTokens: 4096,
+          timeout: 5000
+        }
+      })
+    ).toEqual({
+      settings: {
+        systemPrompt: '',
+        temperature: 0.7,
+        contextLength: 32000,
+        maxTokens: 4096,
+        timeout: 5000
+      }
+    })
+
+    expect(
+      sessionsCreateRoute.input.parse({
+        agentId: 'deepchat',
+        message: 'hello',
+        generationSettings: {
+          timeout: 5000
+        }
+      })
+    ).toEqual({
+      agentId: 'deepchat',
+      message: 'hello',
+      generationSettings: {
+        timeout: 5000
+      }
     })
   })
 

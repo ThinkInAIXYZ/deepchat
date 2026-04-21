@@ -248,6 +248,22 @@ function createRuntime() {
     getActiveSession: vi.fn().mockResolvedValue(null),
     activateSession: vi.fn().mockResolvedValue(undefined),
     deactivateSession: vi.fn().mockResolvedValue(undefined),
+    getSessionGenerationSettings: vi.fn().mockResolvedValue({
+      systemPrompt: '',
+      temperature: 0.7,
+      contextLength: 32000,
+      maxTokens: 4096,
+      timeout: 5000
+    }),
+    updateSessionGenerationSettings: vi
+      .fn()
+      .mockImplementation(async (_sessionId: string, settings: { timeout?: number }) => ({
+        systemPrompt: '',
+        temperature: 0.7,
+        contextLength: 32000,
+        maxTokens: 4096,
+        timeout: settings.timeout ?? 5000
+      })),
     sendMessage: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     getMessage: vi.fn().mockResolvedValue({
@@ -588,6 +604,63 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
+  })
+
+  it('dispatches session generation settings routes without dropping timeout', async () => {
+    const { runtime, agentSessionPresenter } = createRuntime()
+
+    const updateResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.updateGenerationSettings',
+      {
+        sessionId: 'session-1',
+        settings: {
+          timeout: 5000
+        }
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const getResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getGenerationSettings',
+      {
+        sessionId: 'session-1'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+      'session-1',
+      {
+        timeout: 5000
+      }
+    )
+    expect(updateResult).toEqual({
+      settings: {
+        systemPrompt: '',
+        temperature: 0.7,
+        contextLength: 32000,
+        maxTokens: 4096,
+        timeout: 5000
+      }
+    })
+    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('session-1')
+    expect(getResult).toEqual({
+      settings: {
+        systemPrompt: '',
+        temperature: 0.7,
+        contextLength: 32000,
+        maxTokens: 4096,
+        timeout: 5000
+      }
+    })
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {
