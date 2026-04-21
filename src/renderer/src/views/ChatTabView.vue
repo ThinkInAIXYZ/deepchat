@@ -57,6 +57,7 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useProjectStore } from '@/stores/ui/project'
+import { markStartupInteractive, scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 const { t } = useI18n()
 const pageRouter = usePageRouterStore()
@@ -67,7 +68,7 @@ const projectStore = useProjectStore()
 const modelStore = useModelStore()
 const configClient = createConfigClient()
 const isReady = ref(false)
-let deferredWarmupTimer: number | null = null
+let cancelDeferredHydration: (() => void) | null = null
 const showCollapsedNewChatButton = computed(
   () =>
     isReady.value && sidebarStore.collapsed && Boolean(sessionStore.newConversationTargetAgentId)
@@ -130,24 +131,23 @@ onMounted(async () => {
     await pageRouter.initialize()
   } finally {
     isReady.value = true
-    deferredWarmupTimer = window.setTimeout(() => {
-      deferredWarmupTimer = null
+    markStartupInteractive()
+    cancelDeferredHydration = scheduleStartupDeferredTask(async () => {
       console.info('[Startup][Renderer] ChatTabView deferred hydration begin')
-      void Promise.allSettled([
+      await Promise.allSettled([
         agentStore.fetchAgents(),
         projectStore.fetchProjects(),
         warmStartupModelProvider()
-      ]).then(() => {
-        console.info('[Startup][Renderer] ChatTabView deferred hydration complete')
-      })
-    }, 0)
+      ])
+      console.info('[Startup][Renderer] ChatTabView deferred hydration complete')
+    })
   }
 })
 
 onBeforeUnmount(() => {
-  if (deferredWarmupTimer !== null) {
-    clearTimeout(deferredWarmupTimer)
-    deferredWarmupTimer = null
+  if (cancelDeferredHydration) {
+    cancelDeferredHydration()
+    cancelDeferredHydration = null
   }
 })
 </script>

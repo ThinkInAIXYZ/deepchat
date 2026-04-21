@@ -92,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
@@ -122,6 +122,7 @@ import type {
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { isChatSelectableModelType, type ModelType } from '@shared/model'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -143,6 +144,7 @@ const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
 let currentDraftDefaultsTask: Promise<void> | null = null
+let cancelEnsureDraftTask: (() => void) | null = null
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
 const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
   if (!agentId) {
@@ -530,12 +532,16 @@ watch(
   () => [agentStore.selectedAgentId, projectStore.selectedProject?.path] as const,
   ([selectedAgentId, projectPath]) => {
     acpDraftRequestSeq.value += 1
+    cancelEnsureDraftTask?.()
+    cancelEnsureDraftTask = null
     if (!selectedAgentId || selectedAgent.value.type === 'deepchat' || !projectPath?.trim()) {
       acpDraftSessionId.value = null
       lastAcpDraftKey.value = null
       return
     }
-    void ensureAcpDraftSession(selectedAgentId, projectPath)
+    cancelEnsureDraftTask = scheduleStartupDeferredTask(async () => {
+      await ensureAcpDraftSession(selectedAgentId, projectPath)
+    })
   },
   { immediate: true }
 )
@@ -575,5 +581,10 @@ watch(
 
 onMounted(() => {
   draftStore.projectDir = projectStore.selectedProject?.path
+})
+
+onUnmounted(() => {
+  cancelEnsureDraftTask?.()
+  cancelEnsureDraftTask = null
 })
 </script>

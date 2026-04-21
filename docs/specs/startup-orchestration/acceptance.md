@@ -22,6 +22,29 @@
 7. `startup.renderer.interactive-ready`
 8. `startup.deferred.begin/end`
 
+## 2026-04-21 阶段性验收记录
+
+本轮已经完成的验证：
+
+1. `pnpm run format`
+2. `pnpm run i18n`
+3. `pnpm run lint`
+4. `pnpm run typecheck`
+5. `pnpm exec vitest run test/renderer/components/ChatPage.test.ts test/renderer/components/NewThreadPage.test.ts test/renderer/components/ChatStatusBar.test.ts test/renderer/components/ChatTabView.test.ts test/renderer/pages/NewThreadPage.test.ts`
+
+本轮采样证据：
+
+1. `Window 2 is ready to show.` 出现在 `16:36:26.669`。
+2. 首个 provider model store 创建日志延后到 `16:36:29.915`，说明 provider 相关重活已退出窗口首个可交互前路径。
+3. renderer 日志按顺序出现 `ChatTabView interactive ready` -> `releasing deferred startup tasks` -> `ChatTabView deferred hydration begin`。
+4. `ChatPage`、`NewThreadPage`、`ChatStatusBar` 的新增测试覆盖了 deferred release 前不执行、release 后执行的行为。
+
+当前阶段结论：
+
+1. renderer 首个可交互前路径已经收窄。
+2. active thread restore、`ACP` draft bootstrap、`ACP` config warmup 已移到 post-interactive deferred queue。
+3. main 侧 provider 去重、splash 接管和统一 startup trace 仍在后续范围内。
+
 ## 核心通过条件
 
 ### P0 启动时序
@@ -46,6 +69,7 @@
 
 - `ChatTabView` ready 不等待 `projectStore.fetchProjects()`。
 - `ChatTabView` ready 不等待全量 `modelStore.initialize()`。
+- `ChatTabView` ready 不等待 active thread restore、`ACP` draft bootstrap 和 `ACP` config warmup。
 - `sessions list` 与 `agent list` 在首屏使用 snapshot 直接渲染。
 
 ### P1 数据一致性
@@ -101,6 +125,8 @@
 1. renderer 首屏先应用 bootstrap snapshot。
 2. `pageRouter` 与 `sessionStore` 不重复读取 active session。
 3. `projectStore`、`modelStore`、完整 provider refresh 在后台执行。
+4. `ChatPage` 的 active thread restore 在 `renderer interactive-ready` 之后执行。
+5. `NewThreadPage` 的 `ACP` draft bootstrap 与 `ChatStatusBar` 的 `ACP` config warmup 在 deferred release 后执行。
 
 ## 建议采样数据
 
@@ -137,4 +163,3 @@
 2. provider 关键 bootstrap 仍重复
 3. renderer 首屏仍依赖全量 model/project 初始化
 4. 轻量快照引入明显数据不一致
-

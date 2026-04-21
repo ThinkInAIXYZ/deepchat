@@ -35,6 +35,7 @@ type SetupOptions = {
   pendingInputStorePatch?: Record<string, unknown>
   sessionKind?: 'regular' | 'subagent'
   spotlightPendingJump?: { sessionId: string; messageId: string } | null
+  deferStartupTasks?: boolean
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -101,6 +102,7 @@ const setup = async (options: SetupOptions = {}) => {
     getUserMessageContent: vi.fn((message: { content: string }) => JSON.parse(message.content)),
     getMessageMetadata: vi.fn((message: { metadata: string }) => JSON.parse(message.metadata)),
     loadMessages: vi.fn().mockResolvedValue(undefined),
+    clear: vi.fn(),
     clearStreamingState: vi.fn(),
     addOptimisticUserMessage: vi.fn()
   })
@@ -142,6 +144,12 @@ const setup = async (options: SetupOptions = {}) => {
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
     respondToolInteraction: vi.fn().mockResolvedValue({ accepted: true })
   }
+  const sessionClient = {
+    retryMessage: vi.fn().mockResolvedValue(undefined),
+    deleteMessage: vi.fn().mockResolvedValue(undefined),
+    editUserMessage: vi.fn().mockResolvedValue(undefined),
+    forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
+  }
 
   const spotlightStore = reactive({
     pendingMessageJump: options.spotlightPendingJump ?? null,
@@ -149,6 +157,7 @@ const setup = async (options: SetupOptions = {}) => {
       spotlightStore.pendingMessageJump = null
     })
   })
+  const startupDeferredTasks: Array<() => void | Promise<void>> = []
 
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
@@ -168,8 +177,21 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
     createChatClient: vi.fn(() => chatClient)
   }))
+  vi.doMock('@api/SessionClient', () => ({
+    createSessionClient: vi.fn(() => sessionClient)
+  }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      if (options.deferStartupTasks) {
+        startupDeferredTasks.push(task)
+      } else {
+        void task()
+      }
+      return () => {}
+    })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -335,11 +357,36 @@ const setup = async (options: SetupOptions = {}) => {
     chatClient,
     messageStore,
     pendingInputStore,
-    spotlightStore
+    spotlightStore,
+    flushStartupDeferredTasks: async () => {
+      while (startupDeferredTasks.length > 0) {
+        const task = startupDeferredTasks.shift()
+        if (task) {
+          await task()
+        }
+      }
+      await flushPromises()
+    }
   }
 }
 
 describe('ChatPage', () => {
+  it('defers session restore until startup deferred tasks are released', async () => {
+    const { messageStore, pendingInputStore, flushStartupDeferredTasks } = await setup({
+      deferStartupTasks: true
+    })
+
+    expect(messageStore.clear).toHaveBeenCalledTimes(1)
+    expect(pendingInputStore.clear).toHaveBeenCalledTimes(1)
+    expect(messageStore.loadMessages).not.toHaveBeenCalled()
+    expect(pendingInputStore.loadPendingInputs).not.toHaveBeenCalled()
+
+    await flushStartupDeferredTasks()
+
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(pendingInputStore.loadPendingInputs).toHaveBeenCalledWith('s1')
+  })
+
   it('maps reasoning metadata into message usage for think duration fallback', async () => {
     const { wrapper, messageStore } = await setup()
 

@@ -134,6 +134,8 @@ deferred: models / MCP / skill scan / remote warmups
 - `agent list`、`project list`、`provider/model` 的完整刷新不进入首屏阻塞路径。
 - `modelStore.initialize()` 不在应用刚挂载时立即全量遍历 enabled providers。
 - `ChatTabView` 的 ready 条件收敛到“页面路由 + 会话/agent 关键快照已应用”。
+- `active thread` 的历史消息恢复进入 post-interactive deferred queue。
+- `ACP` draft/bootstrap 与 config warmup 进入 post-interactive deferred queue。
 
 ### G. 可观测性
 
@@ -152,6 +154,7 @@ deferred: models / MCP / skill scan / remote warmups
 - `splash` 承接长启动时，主窗口在关键快照完成后才进入可见态。
 - 单次启动中同一 provider 不再出现重复关键初始化日志。
 - renderer 首屏 ready 不再等待全量 `project list` 和全量 `modelStore.initialize()`。
+- renderer 首屏 ready 不再等待 active thread restore、`ACP` draft bootstrap 和 `ACP` config warmup。
 - `sessions list` 和 `agent list` 首屏使用轻量快照返回，空白时间显著缩短。
 - 启动日志具备 run 级别 trace，能够从日志重建完整时序。
 - 启动期无 `MaxListenersExceededWarning`，无重复 startup listener 注册。
@@ -170,4 +173,3 @@ deferred: models / MCP / skill scan / remote warmups
 2. 保持现有用户数据、session 数据和 provider 数据契约稳定。
 3. 关键路径优化优先通过链路收敛、任务分层和快照化完成。
 4. 性能优化同时保持数据一致性，不接受“先快后错”的结果。
-

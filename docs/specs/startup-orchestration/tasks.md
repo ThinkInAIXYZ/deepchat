@@ -6,7 +6,7 @@
 - [x] 创建 `docs/specs/startup-orchestration/plan.md`
 - [x] 创建 `docs/specs/startup-orchestration/tasks.md`
 - [x] 创建 `docs/specs/startup-orchestration/acceptance.md`
-- [ ] 记录当前启动基线日志与主路径耗时样本
+- [x] 记录当前启动基线日志与主路径耗时样本
 
 ## T1 启动编排器与 Splash 接管
 
@@ -45,8 +45,11 @@
 
 - [ ] 新增 bootstrap snapshot 读取与应用流程
 - [ ] `pageRouter`、`sessionStore`、`agentStore` 支持先应用 snapshot
-- [ ] 收敛 `ChatTabView` ready 关键路径
-- [ ] 把 `projectStore.fetchProjects()` 移到后台
+- [x] 收敛 `ChatTabView` ready 关键路径
+- [x] 把 `projectStore.fetchProjects()` 移到后台
+- [x] 为 renderer 增加 post-interactive deferred task gate
+- [x] 把 active thread restore 移到 post-interactive deferred queue
+- [x] 把 `ACP` draft/bootstrap 与 config warmup 移到 post-interactive deferred queue
 - [ ] 把 `providerStore/modelStore` 全量初始化移到后台或按需
 - [ ] 去掉重复的 `getActive()` 首屏读取
 
@@ -61,9 +64,9 @@
 
 - [ ] 新增 startup run / phase / task 日志
 - [ ] 新增关键时间点 trace
-- [ ] 补 main / renderer / integration 测试
-- [ ] 运行 `pnpm run format`
-- [ ] 运行 `pnpm run i18n`
-- [ ] 运行 `pnpm run lint`
-- [ ] 运行 `pnpm run typecheck`
-
+- [ ] 补 main / integration 测试
+- [x] 补 renderer 启动 defer 测试
+- [x] 运行 `pnpm run format`
+- [x] 运行 `pnpm run i18n`
+- [x] 运行 `pnpm run lint`
+- [x] 运行 `pnpm run typecheck`

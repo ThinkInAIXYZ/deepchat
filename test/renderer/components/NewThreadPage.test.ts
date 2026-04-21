@@ -53,6 +53,7 @@ const setup = async (options?: {
   defaultModel?: { providerId: string; modelId: string }
   preferredModel?: { providerId: string; modelId: string }
   resolvedAgentConfig?: Record<string, unknown>
+  deferStartupTasks?: boolean
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
@@ -135,6 +136,7 @@ const setup = async (options?: {
         })
     )
   }
+  const startupDeferredTasks: Array<() => void | Promise<void>> = []
 
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
@@ -156,6 +158,16 @@ const setup = async (options?: {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      if (options?.deferStartupTasks) {
+        startupDeferredTasks.push(task)
+      } else {
+        void task()
+      }
+      return () => {}
+    })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -205,11 +217,36 @@ const setup = async (options?: {
     agentStore,
     modelStore,
     draftStore,
-    sessionClient
+    sessionClient,
+    flushStartupDeferredTasks: async () => {
+      while (startupDeferredTasks.length > 0) {
+        const task = startupDeferredTasks.shift()
+        if (task) {
+          await task()
+        }
+      }
+      await flushPromises()
+    }
   }
 }
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
+  it('defers ACP draft session bootstrap until startup deferred tasks are released', async () => {
+    const { sessionClient, flushStartupDeferredTasks } = await setup({
+      deferStartupTasks: true
+    })
+
+    expect(sessionClient.ensureAcpDraftSession).not.toHaveBeenCalled()
+
+    await flushStartupDeferredTasks()
+
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
+      agentId: 'acp-agent',
+      projectDir: '/tmp/workspace',
+      permissionMode: 'full_access'
+    })
+  })
+
   it('uses the preselected project path when default project selection is already applied', async () => {
     const { sessionClient } = await setup({
       selectedProject: {

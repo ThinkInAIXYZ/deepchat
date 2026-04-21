@@ -54,6 +54,7 @@ type SetupOptions = {
   acpDraftSessionId?: string | null
   acpProcessConfig?: AcpConfigState | null
   acpSessionConfig?: AcpConfigState | null
+  deferStartupTasks?: boolean
 }
 
 const createDeferred = <T>() => {
@@ -497,6 +498,7 @@ const setup = async (options: SetupOptions = {}) => {
       }
     }
   }
+  const startupDeferredTasks: Array<() => void | Promise<void>> = []
 
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
@@ -530,6 +532,16 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => agentSessionPresenter)
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      if (options.deferStartupTasks) {
+        startupDeferredTasks.push(task)
+      } else {
+        void task()
+      }
+      return () => {}
+    })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -605,7 +617,16 @@ const setup = async (options: SetupOptions = {}) => {
     draftStore,
     configPresenter,
     projectStore,
-    ipcRenderer
+    ipcRenderer,
+    flushStartupDeferredTasks: async () => {
+      while (startupDeferredTasks.length > 0) {
+        const task = startupDeferredTasks.shift()
+        if (task) {
+          await task()
+        }
+      }
+      await flushPromises()
+    }
   }
 }
 
@@ -1381,6 +1402,7 @@ describe('ChatStatusBar model and session panels', () => {
       temperature: 0.7,
       contextLength: 16000,
       maxTokens: 4096,
+      timeout: 60000,
       thinkingBudget: 512,
       reasoningEffort: 'medium',
       verbosity: 'medium'
@@ -1857,6 +1879,29 @@ describe('ChatStatusBar model and session panels', () => {
     })
 
     expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
+  })
+
+  it('defers ACP process warmup until startup deferred tasks are released', async () => {
+    const { llmproviderPresenter, flushStartupDeferredTasks } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      deferStartupTasks: true
+    })
+
+    expect(llmproviderPresenter.warmupAcpProcess).not.toHaveBeenCalled()
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).not.toHaveBeenCalled()
+
+    await flushStartupDeferredTasks()
+
+    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
   })
 
   it('shows only the ACP badge and MCP when no ACP config data is available', async () => {

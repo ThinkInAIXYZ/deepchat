@@ -6,6 +6,23 @@
 
 `Splash 承接关键准备 + Main 只消费关键快照 + Deferred 任务后台执行 + 全链路单次触发`
 
+## 2026-04-21 阶段性进展
+
+这轮实现先收敛 renderer 首个可交互边界，已经落地的内容如下：
+
+1. 新增 `startupDeferred` 调度器，通过 `requestAnimationFrame x2 + requestIdleCallback/setTimeout` 把 post-interactive 任务统一延后。
+2. `ChatTabView` 只把路由初始化和关键会话读取留在 critical path，`agent/project/model` warmup 进入 deferred hydration。
+3. `ChatPage` 将 active thread 的历史消息恢复和 pending input 恢复移到 deferred queue。
+4. `NewThreadPage` 将 `ensureAcpDraftSession(...)` 移到 deferred queue。
+5. `ChatStatusBar` 将 `ACP` process warmup 和 config option sync 移到 deferred queue。
+6. renderer 侧补齐了对应单测，覆盖 deferred release 前后行为。
+
+本地一轮 `pnpm run dev` 采样结果：
+
+1. `Window 2 is ready to show.` 出现在 `16:36:26.669`。
+2. 首个 provider model store 访问延后到 `16:36:29.915`，较窗口 ready-to-show 明显后移。
+3. 首个可交互窗口内未再出现启动即打满的 `ACP` warmup 和 active thread restore 突发。
+
 ## 当前链路结论
 
 代码和一轮本地日志已经说明当前瓶颈来自三段叠加：
@@ -22,6 +39,15 @@
 4. `App.initAppStores()` 触发 `providerStore.initialize()`、`providerStore.refreshProviders()`、`modelStore.initialize()`。
 5. `ChatTabView` 把 `pageRouter.initialize()`、`sessionStore.fetchSessions()`、`agentStore.fetchAgents()`、`projectStore.fetchProjects()` 一起放进首屏 `Promise.all(...)`。
 6. `AgentSessionPresenter.getSessionList()` 仍按 session 串行构建状态。
+
+## 当前剩余热点
+
+当前窗口首个可交互前路径已经收窄，后续热点主要集中在 main 进程与 provider 链路：
+
+1. `App.initAppStores()` 仍会较早触发 `providerStore.initialize()` / `refreshProviders()`。
+2. provider model store 创建仍以串行 burst 方式持续发生，占用 main CPU 时间片。
+3. `StartupOrchestrator`、splash phase 和 startup run 级日志尚未统一接管。
+4. 启动事件语义、provider 去重、main deferred queue 仍需要主进程侧继续收敛。
 
 ## 当前链路时序
 
@@ -329,4 +355,3 @@ renderer：
 3. 大量 session
 4. 大量 enabled providers
 5. 离线/超时 provider 环境
-

@@ -13,6 +13,7 @@ type SetupOptions = {
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
+  const markStartupInteractive = vi.fn()
   const pageRouter = reactive({
     currentRoute: options.currentRoute ?? 'newThread',
     chatSessionId: options.chatSessionId ?? (options.currentRoute === 'chat' ? 'session-1' : null),
@@ -65,6 +66,13 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    markStartupInteractive,
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      void task()
+      return () => {}
+    })
   }))
   vi.doMock('@api/ConfigClient', () => ({
     createConfigClient: () => ({
@@ -136,7 +144,8 @@ const setup = async (options: SetupOptions = {}) => {
     agentStore,
     modelStore,
     projectStore,
-    sessionStore
+    sessionStore,
+    markStartupInteractive
   }
 }
 
@@ -160,7 +169,14 @@ describe('ChatTabView collapsed new chat button', () => {
   })
 
   it('hydrates the route from the session store state and defers non-critical fetches', async () => {
-    const { pageRouter, agentStore, modelStore, projectStore, sessionStore } = await setup({
+    const {
+      pageRouter,
+      agentStore,
+      modelStore,
+      projectStore,
+      sessionStore,
+      markStartupInteractive
+    } = await setup({
       collapsed: false,
       currentRoute: 'chat',
       chatSessionId: 'session-42',
@@ -172,6 +188,7 @@ describe('ChatTabView collapsed new chat button', () => {
     expect(pageRouter.initialize).toHaveBeenCalledWith({
       activeSessionId: 'session-42'
     })
+    expect(markStartupInteractive).toHaveBeenCalledTimes(1)
     expect(agentStore.fetchAgents).toHaveBeenCalledTimes(1)
     expect(projectStore.fetchProjects).toHaveBeenCalledTimes(1)
     expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')

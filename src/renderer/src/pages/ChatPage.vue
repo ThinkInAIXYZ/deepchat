@@ -133,6 +133,7 @@ import {
   setActiveChatSearchMatch,
   type ChatSearchMatch
 } from '@/lib/chatSearch'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -204,6 +205,8 @@ let scrollReadFrame: number | null = null
 let scrollWriteFrame: number | null = null
 let pendingForcedScroll = false
 let lastObservedScrollHeight = 0
+let cancelSessionRestoreTask: (() => void) | null = null
+let sessionRestoreRequestId = 0
 
 function syncScrollPosition() {
   const el = scrollContainer.value
@@ -303,18 +306,35 @@ watch(
   async (id) => {
     clearChatSearchState()
     displayMessageCache.clear()
+    sessionRestoreRequestId += 1
+    cancelSessionRestoreTask?.()
+    cancelSessionRestoreTask = null
+    messageStore.clear()
+    pendingInputStore.clear()
     if (id) {
-      await Promise.all([messageStore.loadMessages(id), pendingInputStore.loadPendingInputs(id)])
-      await nextTick()
-      syncScrollPosition()
-      if (spotlightStore.pendingMessageJump?.sessionId === id) {
-        void focusPendingSpotlightMessageJump()
-        return
-      }
-      scrollToBottom(true)
+      const requestId = sessionRestoreRequestId
+      cancelSessionRestoreTask = scheduleStartupDeferredTask(async () => {
+        if (requestId !== sessionRestoreRequestId) {
+          return
+        }
+
+        console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
+        await Promise.all([messageStore.loadMessages(id), pendingInputStore.loadPendingInputs(id)])
+
+        if (requestId !== sessionRestoreRequestId) {
+          return
+        }
+
+        await nextTick()
+        syncScrollPosition()
+        if (spotlightStore.pendingMessageJump?.sessionId === id) {
+          void focusPendingSpotlightMessageJump()
+          return
+        }
+        scrollToBottom(true)
+      })
       return
     }
-    pendingInputStore.clear()
   },
   { immediate: true }
 )
@@ -985,6 +1005,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cancelSessionRestoreTask?.()
+  cancelSessionRestoreTask = null
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.removeEventListener('keydown', handleWindowKeydown)
   clearChatSearchHighlights(messageSearchRoot.value)

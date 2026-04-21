@@ -877,6 +877,7 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore } from '@/stores/ui/draft'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 const props = withDefaults(
   defineProps<{
@@ -982,6 +983,7 @@ let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
 let generationLocalRevision = 0
 let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
+let cancelAcpConfigSyncTask: (() => void) | null = null
 const isSubagentToggleUpdating = ref(false)
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
@@ -2534,7 +2536,10 @@ watch(
     () => isAcpAgent.value
   ],
   () => {
-    void syncAcpConfigOptions()
+    cancelAcpConfigSyncTask?.()
+    cancelAcpConfigSyncTask = scheduleStartupDeferredTask(async () => {
+      await syncAcpConfigOptions()
+    })
   },
   { immediate: true }
 )
@@ -2577,6 +2582,8 @@ watch(isModelPanelOpen, (open) => {
 onBeforeUnmount(() => {
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
+  cancelAcpConfigSyncTask?.()
+  cancelAcpConfigSyncTask = null
   unsubscribeAcpConfigOptionsReady?.()
   unsubscribeAcpConfigOptionsReady = null
 })
