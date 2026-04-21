@@ -492,7 +492,9 @@
         "maxTokensRequired": "La longueur de sortie maximale ne peut pas être vide",
         "temperatureMax": "La température doit être inférieure ou égale à 2",
         "temperatureMin": "La température doit être supérieure ou égale à 0",
-        "temperatureRequired": "La température ne peut pas être vide"
+        "temperatureRequired": "La température ne peut pas être vide",
+        "timeoutMin": "Le délai d'attente doit être d'au moins 1000ms",
+        "timeoutMax": "Le délai d'attente ne peut pas dépasser 600000ms"
       },
       "vision": {
         "description": "Le modèle soutient-il la capacité visuelle?",
@@ -527,6 +529,10 @@
           "omitted": "Omitted - Cacher le contenu du raisonnement",
           "summarized": "Summarized - Afficher un résumé du raisonnement"
         }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
       }
     }
   },

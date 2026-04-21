@@ -519,10 +519,11 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('summary_cursor_order_seq')).toBe(true)
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
     expect(columnNames.has('reasoning_visibility')).toBe(true)
+    expect(columnNames.has('timeout_ms')).toBe(true)
 
     const row = checkDb
       .prepare(
-        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat, reasoning_visibility FROM deepchat_sessions WHERE id = ?'
+        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat, reasoning_visibility, timeout_ms FROM deepchat_sessions WHERE id = ?'
       )
       .get('session-1') as
       | {
@@ -531,6 +532,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
           summary_cursor_order_seq: number
           force_interleaved_thinking_compat: number | null
           reasoning_visibility: string | null
+          timeout_ms: number | null
         }
       | undefined
 
@@ -539,7 +541,8 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
       summary_text: null,
       summary_cursor_order_seq: 1,
       force_interleaved_thinking_compat: null,
-      reasoning_visibility: null
+      reasoning_visibility: null,
+      timeout_ms: null
     })
     checkDb.close()
   })
@@ -605,6 +608,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     const columnNames = new Set(deepchatColumns.map((column) => column.name))
 
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
+    expect(columnNames.has('timeout_ms')).toBe(true)
 
     const row = checkDb
       .prepare('SELECT force_interleaved_thinking_compat FROM deepchat_sessions WHERE id = ?')
@@ -622,6 +626,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
       .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
       .all() as Array<{ version: number }>
     expect(versions.map((entry) => entry.version)).toContain(20)
+    expect(versions.map((entry) => entry.version)).toContain(24)
     checkDb.close()
   })
 
@@ -691,26 +696,29 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
 
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
     expect(columnNames.has('reasoning_visibility')).toBe(true)
+    expect(columnNames.has('timeout_ms')).toBe(true)
 
     const row = checkDb
       .prepare(
-        'SELECT force_interleaved_thinking_compat, reasoning_visibility FROM deepchat_sessions WHERE id = ?'
+        'SELECT force_interleaved_thinking_compat, reasoning_visibility, timeout_ms FROM deepchat_sessions WHERE id = ?'
       )
       .get('session-1') as
       | {
           force_interleaved_thinking_compat: number | null
           reasoning_visibility: string | null
+          timeout_ms: number | null
         }
       | undefined
 
     expect(row).toEqual({
       force_interleaved_thinking_compat: null,
-      reasoning_visibility: null
+      reasoning_visibility: null,
+      timeout_ms: null
     })
     checkDb.close()
   })
 
-  it('runs the v23 recovery migration for deepchat_sessions when schema version is 22', async () => {
+  it('runs the v23 and v24 recovery migrations for deepchat_sessions when schema version is 22', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -755,7 +763,9 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
 
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
     expect(columnNames.has('reasoning_visibility')).toBe(true)
+    expect(columnNames.has('timeout_ms')).toBe(true)
     expect(versions.map((entry) => entry.version)).toContain(23)
+    expect(versions.map((entry) => entry.version)).toContain(24)
     checkDb.close()
   })
 

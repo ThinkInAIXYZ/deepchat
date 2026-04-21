@@ -78,6 +78,55 @@ export abstract class BaseLLMProvider {
     return BaseLLMProvider.DEFAULT_MODEL_FETCH_TIMEOUT
   }
 
+  protected resolveModelRequestTimeout(
+    modelConfig?: Pick<ModelConfig, 'timeout'> | null
+  ): number | undefined {
+    const timeout = modelConfig?.timeout
+    if (typeof timeout !== 'number' || !Number.isFinite(timeout) || timeout <= 0) {
+      return undefined
+    }
+
+    return Math.round(timeout)
+  }
+
+  protected createRequestAbortError(message: string): Error {
+    if (typeof DOMException !== 'undefined') {
+      return new DOMException(message, 'AbortError')
+    }
+
+    const error = new Error(message)
+    error.name = 'AbortError'
+    return error
+  }
+
+  protected createModelRequestTimeoutError(timeoutMs: number): Error {
+    return this.createRequestAbortError(`Request timed out after ${timeoutMs}ms`)
+  }
+
+  protected createModelRequestSignal(modelConfig?: Pick<ModelConfig, 'timeout'> | null): {
+    signal?: AbortSignal
+    timeoutMs?: number
+    dispose: () => void
+  } {
+    const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
+    if (!timeoutMs) {
+      return {
+        dispose: () => {}
+      }
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      controller.abort(this.createModelRequestTimeoutError(timeoutMs))
+    }, timeoutMs)
+
+    return {
+      signal: controller.signal,
+      timeoutMs,
+      dispose: () => clearTimeout(timeoutId)
+    }
+  }
+
   protected getCapabilityProviderId(): string {
     return this.provider.capabilityProviderId || this.provider.id
   }

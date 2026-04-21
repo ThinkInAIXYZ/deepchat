@@ -554,7 +554,9 @@
         "maxTokensRequired": "The maximum output length cannot be empty",
         "temperatureMax": "The temperature must be less than or equal to 2",
         "temperatureMin": "The temperature must be greater than or equal to 0",
-        "temperatureRequired": "The temperature cannot be empty"
+        "temperatureRequired": "The temperature cannot be empty",
+        "timeoutMin": "Request timeout must be at least 1000ms",
+        "timeoutMax": "Request timeout cannot exceed 600000ms"
       },
       "vision": {
         "description": "Does the model support visual ability?",
@@ -589,6 +591,10 @@
           "omitted": "Omitted - Hide reasoning content",
           "summarized": "Summarized - Show summarized reasoning"
         }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
       }
     }
   },

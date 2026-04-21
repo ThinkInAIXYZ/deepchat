@@ -142,6 +142,14 @@ function shouldUseImageGenerationRuntime(
   return modelConfig.apiEndpoint === ApiEndpointType.Image
 }
 
+function resolveRequestTimeout(modelConfig: ModelConfig): number | undefined {
+  const timeout = modelConfig.timeout
+  if (typeof timeout !== 'number' || !Number.isFinite(timeout) || timeout <= 0) {
+    return undefined
+  }
+  return Math.round(timeout)
+}
+
 async function buildPromptRuntime(
   context: AiSdkRuntimeContext,
   messages: ChatMessage[],
@@ -216,6 +224,7 @@ export async function runAiSdkGenerateText(
 ): Promise<LLMResponse> {
   const runtime = await buildPromptRuntime(context, messages, modelId, modelConfig, [])
   const supportsTemperature = supportsTemperatureControlRuntime(context, modelId)
+  const timeout = resolveRequestTimeout(modelConfig)
   const requestBody = {
     model: runtime.providerContext.resolvedModelId ?? modelId,
     maxOutputTokens: maxTokens,
@@ -232,6 +241,7 @@ export async function runAiSdkGenerateText(
     model: runtime.providerContext.model,
     messages: runtime.messages,
     providerOptions: runtime.providerOptions as any,
+    ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
     ...(supportsTemperature && temperature !== undefined ? { temperature } : {}),
     maxOutputTokens: maxTokens
   })
@@ -252,6 +262,8 @@ export async function* runAiSdkCoreStream(
   maxTokens: number,
   tools: MCPToolDefinition[]
 ): AsyncGenerator<LLMCoreStreamEvent> {
+  const timeout = resolveRequestTimeout(modelConfig)
+
   if (shouldUseImageGenerationRuntime(context, modelId, modelConfig)) {
     const prompt = extractImagePrompt(messages)
 
@@ -279,7 +291,8 @@ export async function* runAiSdkCoreStream(
 
     const result = await generateImage({
       model: providerContext.imageModel,
-      prompt
+      prompt,
+      ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {})
     })
 
     for (const image of result.images) {
@@ -321,6 +334,7 @@ export async function* runAiSdkCoreStream(
     messages: runtime.messages,
     tools: runtime.tools,
     providerOptions: runtime.providerOptions as any,
+    ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
     ...(supportsTemperature ? { temperature } : {}),
     maxOutputTokens: maxTokens
   })

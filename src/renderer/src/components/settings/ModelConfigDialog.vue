@@ -98,6 +98,26 @@
             </p>
           </div>
 
+          <div class="space-y-2">
+            <Label for="timeout">{{ t('settings.model.modelConfig.timeout.label') }}</Label>
+            <Input
+              id="timeout"
+              v-model.number="config.timeout"
+              type="number"
+              step="1000"
+              :min="1000"
+              :max="600000"
+              :placeholder="t('settings.model.modelConfig.timeout.label')"
+              :class="{ 'border-destructive': errors.timeout }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.timeout.description') }}
+            </p>
+            <p v-if="errors.timeout" class="text-xs text-destructive">
+              {{ errors.timeout }}
+            </p>
+          </div>
+
           <!-- 温度 (支持推理努力程度的模型不显示) -->
           <div v-if="showTemperatureControl" class="space-y-2">
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
@@ -465,6 +485,7 @@ import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_FUNCTION_CALL,
   DEFAULT_MODEL_MAX_TOKENS,
+  DEFAULT_MODEL_TIMEOUT,
   DEFAULT_MODEL_VISION
 } from '@shared/modelConfigDefaults'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
@@ -570,6 +591,7 @@ const showEndpointTypeSelector = computed(() => isNewApiProvider.value)
 const createDefaultConfig = (): ModelConfig => ({
   maxTokens: DEFAULT_MODEL_MAX_TOKENS,
   contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+  timeout: DEFAULT_MODEL_TIMEOUT,
   temperature: 0.7,
   vision: DEFAULT_MODEL_VISION,
   functionCall: DEFAULT_MODEL_FUNCTION_CALL,
@@ -1072,6 +1094,15 @@ const validateForm = () => {
     }
   }
 
+  if (config.value.timeout !== undefined && config.value.timeout !== null) {
+    const timeout = Number(config.value.timeout)
+    if (!Number.isFinite(timeout) || timeout < 1000) {
+      errors.value.timeout = t('settings.model.modelConfig.validation.timeoutMin')
+    } else if (timeout > 600000) {
+      errors.value.timeout = t('settings.model.modelConfig.validation.timeoutMax')
+    }
+  }
+
   if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
     errors.value.endpointType = t('settings.model.modelConfig.endpointType.required')
   }
@@ -1089,6 +1120,13 @@ const handleSave = async () => {
 
   const trimmedName = modelNameField.value.trim()
   const trimmedId = modelIdField.value.trim()
+  const timeout = Number(config.value.timeout)
+  const normalizedTimeout =
+    Number.isFinite(timeout) && timeout > 0 ? Math.round(timeout) : undefined
+  const configToSave: ModelConfig = {
+    ...config.value,
+    ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {})
+  }
 
   try {
     if (isCreateMode.value) {
@@ -1096,7 +1134,7 @@ const handleSave = async () => {
         props.providerId,
         buildCustomModelPayload(trimmedId, trimmedName, true)
       )
-      await modelConfigStore.setModelConfig(trimmedId, props.providerId, config.value)
+      await modelConfigStore.setModelConfig(trimmedId, props.providerId, configToSave)
     } else if (props.isCustomModel) {
       if (!props.modelId) return
       const previousId = originalModelId.value
@@ -1131,10 +1169,10 @@ const handleSave = async () => {
         })
       }
 
-      await modelConfigStore.setModelConfig(trimmedId, props.providerId, config.value)
+      await modelConfigStore.setModelConfig(trimmedId, props.providerId, configToSave)
     } else {
       if (!props.modelId) return
-      await modelConfigStore.setModelConfig(props.modelId, props.providerId, config.value)
+      await modelConfigStore.setModelConfig(props.modelId, props.providerId, configToSave)
     }
 
     emit('saved')

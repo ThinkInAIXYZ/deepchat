@@ -408,6 +408,75 @@
                       </p>
                     </div>
 
+                    <div class="space-y-1.5">
+                      <label class="text-xs font-medium">{{
+                        t('settings.model.modelConfig.timeout.label')
+                      }}</label>
+                      <div class="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="timeout"
+                          data-setting-action="decrement"
+                          :aria-label="
+                            t('chat.advancedSettings.decreaseValue', {
+                              label: t('settings.model.modelConfig.timeout.label')
+                            })
+                          "
+                          :disabled="
+                            hasNumericInputError('timeout') ||
+                            (localSettings.timeout ?? 0) <= TIMEOUT_MIN
+                          "
+                          @click="stepTimeout(-1)"
+                        >
+                          <Icon icon="lucide:minus" class="h-3 w-3" />
+                        </Button>
+                        <Input
+                          :class="[
+                            'h-8 flex-1 text-xs tabular-nums',
+                            hasNumericInputError('timeout') ? 'border-destructive' : ''
+                          ]"
+                          data-setting-control="timeout"
+                          type="number"
+                          :step="TIMEOUT_STEP"
+                          :min="TIMEOUT_MIN"
+                          :max="TIMEOUT_MAX"
+                          :aria-invalid="hasNumericInputError('timeout')"
+                          :model-value="timeoutInputValue"
+                          @focus="startNumericInputEdit('timeout')"
+                          @update:model-value="onTimeoutInput"
+                          @blur="commitTimeoutInput"
+                          @keydown.enter.prevent="commitTimeoutInput"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="timeout"
+                          data-setting-action="increment"
+                          :aria-label="
+                            t('chat.advancedSettings.increaseValue', {
+                              label: t('settings.model.modelConfig.timeout.label')
+                            })
+                          "
+                          :disabled="
+                            hasNumericInputError('timeout') ||
+                            (localSettings.timeout ?? 0) >= TIMEOUT_MAX
+                          "
+                          @click="stepTimeout(1)"
+                        >
+                          <Icon icon="lucide:plus" class="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p
+                        v-if="getNumericInputErrorMessage('timeout')"
+                        class="text-[11px] text-destructive"
+                      >
+                        {{ getNumericInputErrorMessage('timeout') }}
+                      </p>
+                    </div>
+
                     <div v-if="showReasoningEffort" class="space-y-1.5">
                       <label class="text-xs font-medium">{{
                         t('settings.model.modelConfig.reasoningEffort.label')
@@ -794,6 +863,7 @@ import {
   type GenerationNumericValidationCode,
   validateGenerationNumericField
 } from '@shared/utils/generationSettingsValidation'
+import { DEFAULT_MODEL_TIMEOUT } from '@shared/modelConfigDefaults'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { ConfigClient } from '@api/ConfigClient'
@@ -840,6 +910,9 @@ type GroupedModelList = {
 const TEMPERATURE_STEP = 0.1
 const CONTEXT_LENGTH_STEP = 1024
 const MAX_TOKENS_STEP = 128
+const TIMEOUT_STEP = 1000
+const TIMEOUT_MIN = 1000
+const TIMEOUT_MAX = 600000
 const THINKING_BUDGET_STEP = 128
 const ACP_INLINE_OPTION_LIMIT = 3
 const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [
@@ -882,6 +955,7 @@ const numericInputDrafts = ref<Record<GenerationNumericField, string>>({
   temperature: '',
   contextLength: '',
   maxTokens: '',
+  timeout: '',
   thinkingBudget: ''
 })
 const numericInputErrors = ref<
@@ -890,6 +964,7 @@ const numericInputErrors = ref<
   temperature: null,
   contextLength: null,
   maxTokens: null,
+  timeout: null,
   thinkingBudget: null
 })
 
@@ -1274,6 +1349,8 @@ const getCommittedNumericInputValue = (field: GenerationNumericField): string =>
       return String(localSettings.value.contextLength)
     case 'maxTokens':
       return String(localSettings.value.maxTokens)
+    case 'timeout':
+      return String(localSettings.value.timeout)
     case 'thinkingBudget': {
       const value = localSettings.value.thinkingBudget
       return value === undefined ? '' : String(value)
@@ -1306,6 +1383,7 @@ const resetNumericInputState = (): void => {
   resetNumericInputFieldState('temperature')
   resetNumericInputFieldState('contextLength')
   resetNumericInputFieldState('maxTokens')
+  resetNumericInputFieldState('timeout')
   resetNumericInputFieldState('thinkingBudget')
 }
 
@@ -1359,6 +1437,10 @@ const getNumericInputErrorMessage = (field: GenerationNumericField): string => {
       return t('chat.advancedSettings.validation.contextLengthAtLeastMaxTokens')
     case 'max_tokens_exceed_context_length':
       return t('chat.advancedSettings.validation.maxTokensWithinContextLength')
+    case 'timeout_too_small':
+      return t('settings.model.modelConfig.validation.timeoutMin')
+    case 'timeout_too_large':
+      return t('settings.model.modelConfig.validation.timeoutMax')
   }
 }
 
@@ -1638,6 +1720,7 @@ const invalidateGenerationPersistResponses = () => {
 const temperatureInputValue = computed(() => getNumericInputValue('temperature'))
 const contextLengthInputValue = computed(() => getNumericInputValue('contextLength'))
 const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
+const timeoutInputValue = computed(() => getNumericInputValue('timeout'))
 const thinkingBudgetInputValue = computed(() => getNumericInputValue('thinkingBudget'))
 const isThinkingBudgetEnabled = computed(() => localSettings.value?.thinkingBudget !== undefined)
 const isInterleavedThinkingEnabled = computed(
@@ -1931,11 +2014,16 @@ const resolveDefaultGenerationSettings = async (
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
     toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
+  const timeoutDefault = toValidNonNegativeInteger(modelConfig.timeout) ?? DEFAULT_MODEL_TIMEOUT
 
   const defaults: SessionGenerationSettings = {
     systemPrompt: agentConfig.systemPrompt ?? '',
     temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
     contextLength: contextLengthDefault,
+    timeout:
+      timeoutDefault >= TIMEOUT_MIN && timeoutDefault <= TIMEOUT_MAX
+        ? timeoutDefault
+        : DEFAULT_MODEL_TIMEOUT,
     maxTokens:
       maxTokensDefault <= contextLengthDefault
         ? maxTokensDefault
@@ -2102,6 +2190,9 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'maxTokens')) {
     normalizedPatch.maxTokens = next.maxTokens
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'timeout')) {
+    normalizedPatch.timeout = next.timeout
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
     normalizedPatch.thinkingBudget = next.thinkingBudget
@@ -2537,6 +2628,7 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     temperature: draftStore.temperature,
     contextLength: draftStore.contextLength,
     maxTokens: draftStore.maxTokens,
+    timeout: draftStore.timeout,
     thinkingBudget: draftStore.thinkingBudget,
     reasoningEffort: draftStore.reasoningEffort,
     reasoningVisibility: draftStore.reasoningVisibility,
@@ -2547,6 +2639,7 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     temperature: undefined,
     contextLength: undefined,
     maxTokens: undefined,
+    timeout: undefined,
     thinkingBudget: undefined,
     reasoningEffort: undefined,
     reasoningVisibility: undefined,
@@ -2746,6 +2839,39 @@ function commitMaxTokensInput() {
   resetNumericInputFieldState('maxTokens')
 }
 
+function stepTimeout(direction: -1 | 1) {
+  if (!localSettings.value) {
+    return
+  }
+  if (hasNumericInputError('timeout')) {
+    return
+  }
+
+  const next = Math.max(
+    TIMEOUT_MIN,
+    Math.min(TIMEOUT_MAX, localSettings.value.timeout + direction * TIMEOUT_STEP)
+  )
+  const committed = commitNumericField('timeout', next)
+  if (committed === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ timeout: committed })
+  resetNumericInputFieldState('timeout')
+}
+
+function onTimeoutInput(value: string | number) {
+  setNumericInputDraft('timeout', value)
+}
+
+function commitTimeoutInput() {
+  const next = commitNumericField('timeout', numericInputDrafts.value.timeout)
+  if (next === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ timeout: next })
+  resetNumericInputFieldState('timeout')
+}
+
 function onThinkingBudgetToggle(enabled: boolean) {
   if (!localSettings.value) {
     return
@@ -2915,12 +3041,15 @@ defineExpose({
   commitContextLengthInput,
   onMaxTokensInput,
   commitMaxTokensInput,
+  onTimeoutInput,
+  commitTimeoutInput,
   onThinkingBudgetInput,
   commitThinkingBudgetInput,
   onThinkingBudgetToggle,
   stepTemperature,
   stepContextLength,
   stepMaxTokens,
+  stepTimeout,
   stepThinkingBudget,
   selectModel: changeModelSelection,
   openModelSettings,

@@ -42,6 +42,7 @@ import {
   toValidNonNegativeInteger,
   validateGenerationNumericField
 } from '@shared/utils/generationSettingsValidation'
+import { DEFAULT_MODEL_TIMEOUT } from '@shared/modelConfigDefaults'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -119,6 +120,7 @@ type PersistedSessionGenerationRow = {
   temperature: number | null
   context_length: number | null
   max_tokens: number | null
+  timeout_ms: number | null
   thinking_budget: number | null
   reasoning_effort: SessionGenerationSettings['reasoningEffort'] | null
   reasoning_visibility: SessionGenerationSettings['reasoningVisibility'] | null
@@ -139,6 +141,8 @@ type ActiveGeneration = {
 }
 
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
+const SESSION_TIMEOUT_MIN_MS = 1000
+const SESSION_TIMEOUT_MAX_MS = 600000
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -1518,6 +1522,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       temperature: generationSettings.temperature,
       contextLength: generationSettings.contextLength,
       maxTokens: generationSettings.maxTokens,
+      timeout: generationSettings.timeout,
       thinkingBudget: generationSettings.thinkingBudget,
       reasoningEffort: generationSettings.reasoningEffort,
       reasoningVisibility: generationSettings.reasoningVisibility,
@@ -2611,6 +2616,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (sessionRow.max_tokens !== null) {
       patch.maxTokens = sessionRow.max_tokens
     }
+    if (sessionRow.timeout_ms !== null) {
+      patch.timeout = sessionRow.timeout_ms
+    }
     if (sessionRow.thinking_budget !== null) {
       patch.thinkingBudget = normalizeLegacyThinkingBudgetValue(sessionRow.thinking_budget)
     }
@@ -2655,6 +2663,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (Object.prototype.hasOwnProperty.call(requestedPatch, 'maxTokens')) {
       patch.maxTokens = sanitized.maxTokens
     }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'timeout')) {
+      patch.timeout = sanitized.timeout
+    }
     if (Object.prototype.hasOwnProperty.call(requestedPatch, 'thinkingBudget')) {
       patch.thinkingBudget = sanitized.thinkingBudget
     }
@@ -2682,6 +2693,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       temperature: settings.temperature,
       contextLength: settings.contextLength,
       maxTokens: settings.maxTokens,
+      timeout: settings.timeout,
       thinkingBudget: settings.thinkingBudget,
       reasoningEffort: settings.reasoningEffort,
       reasoningVisibility: settings.reasoningVisibility,
@@ -2708,11 +2720,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
     const maxTokensDefault =
       toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
+    const timeoutDefault = toValidNonNegativeInteger(modelConfig.timeout) ?? DEFAULT_MODEL_TIMEOUT
 
     const defaults: SessionGenerationSettings = {
       systemPrompt: defaultSystemPrompt ?? '',
       temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
       contextLength: contextLengthDefault,
+      timeout:
+        timeoutDefault >= SESSION_TIMEOUT_MIN_MS && timeoutDefault <= SESSION_TIMEOUT_MAX_MS
+          ? timeoutDefault
+          : DEFAULT_MODEL_TIMEOUT,
       maxTokens:
         maxTokensDefault <= contextLengthDefault
           ? maxTokensDefault
@@ -2809,6 +2826,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const numeric = parseFiniteNumericValue(patch.temperature)
       if (numeric !== undefined) {
         next.temperature = numeric
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'timeout')) {
+      const error = validateGenerationNumericField('timeout', patch.timeout)
+      const numeric = toValidNonNegativeInteger(parseFiniteNumericValue(patch.timeout))
+      if (!error && numeric !== undefined) {
+        next.timeout = numeric
       }
     }
 

@@ -879,6 +879,9 @@ export class AcpProvider extends BaseLLMProvider {
     queue: EventQueue,
     modelConfig: ModelConfig
   ): Promise<void> {
+    const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
+    let timeoutId: NodeJS.Timeout | null = null
+
     try {
       const requestBody = {
         sessionId: session.sessionId,
@@ -890,17 +893,38 @@ export class AcpProvider extends BaseLLMProvider {
         body: requestBody
       })
 
-      const response = await session.connection.prompt({
+      const promptRequest = session.connection.prompt({
         sessionId: requestBody.sessionId,
         prompt: requestBody.prompt
       })
+      const response = await (timeoutMs
+        ? Promise.race([
+            promptRequest,
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(() => {
+                reject(this.createModelRequestTimeoutError(timeoutMs))
+              }, timeoutMs)
+            })
+          ])
+        : promptRequest)
       console.log('[ACP] runPrompt: response:', response)
       queue.push(createStreamEvent.stop(this.mapStopReason(response.stopReason)))
     } catch (error) {
+      if (timeoutMs && error instanceof Error && error.name === 'AbortError') {
+        try {
+          await session.connection.cancel({ sessionId: session.sessionId })
+        } catch (cancelError) {
+          console.warn('[ACP] cancel after timeout failed:', cancelError)
+        }
+      }
+
       const message =
         error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
       queue.push(createStreamEvent.error(`ACP: ${message}`))
     } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
       queue.done()
     }
   }

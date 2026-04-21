@@ -15,6 +15,7 @@ type DeepChatSessionGenerationSettings = Pick<
   | 'temperature'
   | 'contextLength'
   | 'maxTokens'
+  | 'timeout'
   | 'thinkingBudget'
   | 'reasoningEffort'
   | 'reasoningVisibility'
@@ -31,6 +32,7 @@ export interface DeepChatSessionRow {
   temperature: number | null
   context_length: number | null
   max_tokens: number | null
+  timeout_ms: number | null
   thinking_budget: number | null
   reasoning_effort: ReasoningEffort | null
   reasoning_visibility: ReasoningVisibility | null
@@ -91,6 +93,10 @@ export class DeepChatSessionsTable extends BaseTable {
         'reasoning_effort TEXT',
         'verbosity TEXT'
       )
+    }
+
+    if (version >= 24) {
+      columns.push('timeout_ms INTEGER')
     }
 
     if (version >= 14) {
@@ -200,11 +206,14 @@ export class DeepChatSessionsTable extends BaseTable {
       const statements = this.getRecoveryMigrationStatements()
       return statements.length > 0 ? statements.join('\n') : null
     }
+    if (version === 24) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 23
+    return 24
   }
 
   create(
@@ -225,6 +234,7 @@ export class DeepChatSessionsTable extends BaseTable {
            temperature,
            context_length,
            max_tokens,
+           timeout_ms,
            thinking_budget,
            reasoning_effort,
            reasoning_visibility,
@@ -234,7 +244,7 @@ export class DeepChatSessionsTable extends BaseTable {
            summary_cursor_order_seq,
            summary_updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -245,6 +255,7 @@ export class DeepChatSessionsTable extends BaseTable {
         generationSettings?.temperature ?? null,
         generationSettings?.contextLength ?? null,
         generationSettings?.maxTokens ?? null,
+        generationSettings?.timeout ?? null,
         generationSettings?.thinkingBudget ?? null,
         generationSettings?.reasoningEffort ?? null,
         generationSettings?.reasoningVisibility ?? null,
@@ -285,6 +296,9 @@ export class DeepChatSessionsTable extends BaseTable {
     }
     if (row.max_tokens !== null) {
       settings.maxTokens = row.max_tokens
+    }
+    if (row.timeout_ms !== null) {
+      settings.timeout = row.timeout_ms
     }
     if (row.thinking_budget !== null) {
       settings.thinkingBudget = row.thinking_budget
@@ -334,6 +348,10 @@ export class DeepChatSessionsTable extends BaseTable {
     if (Object.prototype.hasOwnProperty.call(settings, 'maxTokens')) {
       updates.push('max_tokens = ?')
       params.push(settings.maxTokens ?? null)
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'timeout')) {
+      updates.push('timeout_ms = ?')
+      params.push(settings.timeout ?? null)
     }
     if (Object.prototype.hasOwnProperty.call(settings, 'thinkingBudget')) {
       updates.push('thinking_budget = ?')

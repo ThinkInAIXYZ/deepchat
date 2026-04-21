@@ -4,6 +4,7 @@ export type GenerationNumericField =
   | 'temperature'
   | 'contextLength'
   | 'maxTokens'
+  | 'timeout'
   | 'thinkingBudget'
 
 export type GenerationNumericValidationCode =
@@ -11,6 +12,11 @@ export type GenerationNumericValidationCode =
   | 'non_negative_integer'
   | 'context_length_below_max_tokens'
   | 'max_tokens_exceed_context_length'
+  | 'timeout_too_small'
+  | 'timeout_too_large'
+
+const TIMEOUT_MIN = 1000
+const TIMEOUT_MAX = 600000
 
 type GenerationRelationContext = Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'>
 
@@ -69,6 +75,15 @@ export const validateGenerationNumericField = (
     const contextLength = context.contextLength
     if (isNonNegativeInteger(contextLength) && numeric > contextLength) {
       return 'max_tokens_exceed_context_length'
+    }
+  }
+
+  if (field === 'timeout') {
+    if (numeric < TIMEOUT_MIN) {
+      return 'timeout_too_small'
+    }
+    if (numeric > TIMEOUT_MAX) {
+      return 'timeout_too_large'
     }
   }
 

@@ -27,6 +27,7 @@ export const useDraftStore = defineStore('draft', () => {
   const temperature = ref<number | undefined>(undefined)
   const contextLength = ref<number | undefined>(undefined)
   const maxTokens = ref<number | undefined>(undefined)
+  const timeout = ref<number | undefined>(undefined)
   const thinkingBudget = ref<number | undefined>(undefined)
   const reasoningEffort = ref<SessionGenerationSettings['reasoningEffort'] | undefined>(undefined)
   const reasoningVisibility = ref<SessionGenerationSettings['reasoningVisibility'] | undefined>(
@@ -49,6 +50,7 @@ export const useDraftStore = defineStore('draft', () => {
     if (temperature.value !== undefined) settings.temperature = temperature.value
     if (contextLength.value !== undefined) settings.contextLength = contextLength.value
     if (maxTokens.value !== undefined) settings.maxTokens = maxTokens.value
+    if (timeout.value !== undefined) settings.timeout = timeout.value
     if (thinkingBudget.value !== undefined) settings.thinkingBudget = thinkingBudget.value
     if (reasoningEffort.value !== undefined) settings.reasoningEffort = reasoningEffort.value
     if (reasoningVisibility.value !== undefined) {
@@ -89,6 +91,9 @@ export const useDraftStore = defineStore('draft', () => {
     if (Object.prototype.hasOwnProperty.call(settings, 'maxTokens')) {
       maxTokens.value = settings.maxTokens
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'timeout')) {
+      timeout.value = settings.timeout
+    }
     if (Object.prototype.hasOwnProperty.call(settings, 'thinkingBudget')) {
       thinkingBudget.value = settings.thinkingBudget
     }
@@ -111,6 +116,7 @@ export const useDraftStore = defineStore('draft', () => {
     temperature.value = undefined
     contextLength.value = undefined
     maxTokens.value = undefined
+    timeout.value = undefined
     thinkingBudget.value = undefined
     reasoningEffort.value = undefined
     reasoningVisibility.value = undefined
@@ -153,6 +159,7 @@ export const useDraftStore = defineStore('draft', () => {
     temperature,
     contextLength,
     maxTokens,
+    timeout,
     thinkingBudget,
     reasoningEffort,
     reasoningVisibility,

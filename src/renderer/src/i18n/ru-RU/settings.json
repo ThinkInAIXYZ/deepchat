@@ -492,7 +492,9 @@
         "maxTokensRequired": "Максимальная длина выходной подачи не может быть пустой",
         "temperatureMax": "Температура должна быть меньше или равна 2",
         "temperatureMin": "Температура должна быть больше или равна 0",
-        "temperatureRequired": "Температура не может быть пустой"
+        "temperatureRequired": "Температура не может быть пустой",
+        "timeoutMin": "Тайм-аут запроса должен быть не менее 1000ms",
+        "timeoutMax": "Тайм-аут запроса не может превышать 600000ms"
       },
       "vision": {
         "description": "Поддерживает ли модель визуальные способности?",
@@ -527,6 +529,10 @@
           "omitted": "Omitted - Не показывать содержимое рассуждений",
           "summarized": "Summarized - Показывать краткое резюме рассуждений"
         }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
       }
     }
   },

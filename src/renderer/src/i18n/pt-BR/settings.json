@@ -492,7 +492,9 @@
         "maxTokensRequired": "O comprimento máximo de saída não pode estar vazio",
         "temperatureMax": "A temperatura deve ser menor ou igual a 2",
         "temperatureMin": "A temperatura deve ser maior ou igual a 0",
-        "temperatureRequired": "A temperatura não pode estar vazia"
+        "temperatureRequired": "A temperatura não pode estar vazia",
+        "timeoutMin": "O tempo limite da solicitação deve ser de pelo menos 1000ms",
+        "timeoutMax": "O tempo limite da solicitação não pode exceder 600000ms"
       },
       "vision": {
         "description": "O modelo suporta capacidade visual?",
@@ -527,6 +529,10 @@
           "omitted": "Omitted - Esconder o conteúdo do raciocínio",
           "summarized": "Summarized - Exibir um resumo do raciocínio"
         }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
       }
     }
   },

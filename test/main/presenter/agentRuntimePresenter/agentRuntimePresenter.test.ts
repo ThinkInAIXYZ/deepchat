@@ -1980,6 +1980,7 @@ describe('AgentRuntimePresenter', () => {
         temperature: null,
         context_length: null,
         max_tokens: null,
+        timeout_ms: null,
         thinking_budget: null,
         reasoning_effort: null,
         verbosity: null,
@@ -2000,6 +2001,7 @@ describe('AgentRuntimePresenter', () => {
         temperature: 0.7,
         context_length: 128000,
         max_tokens: 4096,
+        timeout_ms: 60000,
         thinking_budget: -1,
         reasoning_effort: 'medium',
         verbosity: 'medium',
@@ -2316,6 +2318,7 @@ describe('AgentRuntimePresenter', () => {
         temperature: null,
         context_length: null,
         max_tokens: null,
+        timeout_ms: null,
         thinking_budget: null,
         reasoning_effort: null,
         verbosity: null,
@@ -2328,6 +2331,7 @@ describe('AgentRuntimePresenter', () => {
         temperature: 0.7,
         contextLength: 128000,
         maxTokens: 4096,
+        timeout: 60000,
         thinkingBudget: 512,
         reasoningEffort: 'medium',
         verbosity: 'medium'
@@ -2405,6 +2409,7 @@ describe('AgentRuntimePresenter', () => {
         temperature: 0.2,
         contextLength: 32000,
         maxTokens: 2048,
+        timeout: 60000,
         thinkingBudget: 256,
         reasoningEffort: 'low',
         reasoningVisibility: 'omitted',
@@ -2458,7 +2463,8 @@ describe('AgentRuntimePresenter', () => {
         systemPrompt: 'Keep this prompt',
         temperature: 0.4,
         contextLength: 8192,
-        maxTokens: 1024
+        maxTokens: 1024,
+        timeout: 60000
       })
     })
 
