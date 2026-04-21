@@ -1,8 +1,6 @@
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { useModelStore } from '@/stores/modelStore'
-import { useOllamaStore } from '@/stores/ollamaStore'
 import { useMcpStore } from '@/stores/mcp'
 import { DEEPLINK_EVENTS } from '@/events'
 import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
@@ -10,17 +8,13 @@ import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 export const initAppStores = async () => {
   const uiSettingsStore = useUiSettingsStore()
   const providerStore = useProviderStore()
-  const modelStore = useModelStore()
-  const ollamaStore = useOllamaStore()
+
+  console.info('[Startup][Renderer] initAppStores begin')
 
   await uiSettingsStore.loadSettings()
 
   await providerStore.initialize()
-  await providerStore.refreshProviders()
-
-  await modelStore.initialize()
-
-  await ollamaStore.initialize()
+  console.info('[Startup][Renderer] initAppStores critical stores ready')
 }
 
 export const useMcpInstallDeeplinkHandler = () => {

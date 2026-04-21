@@ -120,6 +120,56 @@ describe('modelStore.refreshProviderModels', () => {
     expect(modelClient.onModelStatusChanged).toHaveBeenCalledTimes(1)
   })
 
+  it('limits provider-db refreshes to materialized providers', async () => {
+    let modelsChangedListener:
+      | ((payload: { reason: string; providerId?: string }) => Promise<void> | void)
+      | undefined
+
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'ollama', enable: true },
+          { id: 'acp', enable: true }
+        ]
+      },
+      modelClient: {
+        onModelsChanged: vi.fn((listener) => {
+          modelsChangedListener = listener
+          return vi.fn()
+        }),
+        getDbProviderModels: vi.fn().mockImplementation(async (providerId: string) =>
+          providerId === 'openai'
+            ? [
+                {
+                  id: 'gpt-5',
+                  name: 'GPT-5',
+                  providerId: 'openai',
+                  maxTokens: 8192,
+                  contextLength: 128000,
+                  isCustom: false
+                }
+              ]
+            : []
+        ),
+        getProviderModels: vi.fn(async () => []),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({}))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledTimes(1)
+
+    await modelsChangedListener?.({
+      reason: 'provider-db-updated'
+    })
+
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledTimes(2)
+    expect(modelClient.getDbProviderModels).toHaveBeenNthCalledWith(1, 'openai')
+    expect(modelClient.getDbProviderModels).toHaveBeenNthCalledWith(2, 'openai')
+  })
+
   it('uses ACP refresh path for acp provider', async () => {
     const { store, agentModelStore, modelClient } = await setupStore()
     agentModelStore.refreshAgentModels.mockResolvedValue({

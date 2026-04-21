@@ -119,7 +119,7 @@ export const useProviderStore = defineStore('provider', () => {
   const saveProviderOrder = async () => {
     try {
       if (providerOrder.value.length > 0) {
-        await configClient.setSetting(PROVIDER_ORDER_KEY, providerOrder.value)
+        await configClient.setSetting(PROVIDER_ORDER_KEY, [...providerOrder.value])
       }
     } catch (error) {
       console.error('Failed to save provider order:', error)
@@ -138,7 +138,7 @@ export const useProviderStore = defineStore('provider', () => {
 
   const saveProviderTimestamps = async () => {
     try {
-      await configClient.setSetting(PROVIDER_TIMESTAMP_KEY, providerTimestamps.value)
+      await configClient.setSetting(PROVIDER_TIMESTAMP_KEY, { ...providerTimestamps.value })
     } catch (error) {
       console.error('Failed to save provider timestamps:', error)
     }

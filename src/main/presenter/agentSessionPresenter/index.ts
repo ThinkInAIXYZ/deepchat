@@ -952,7 +952,7 @@ export class AgentSessionPresenter {
     const enriched: SessionWithState[] = []
 
     for (const record of records) {
-      const session = await this.tryBuildSessionWithState(record)
+      const session = await this.tryBuildSessionWithState(record, 'list')
       if (session) {
         enriched.push(session)
       }
@@ -1771,9 +1771,15 @@ export class AgentSessionPresenter {
     return false
   }
 
-  private async buildSessionWithState(record: SessionRecord): Promise<SessionWithState> {
+  private async buildSessionWithState(
+    record: SessionRecord,
+    mode: 'full' | 'list' = 'full'
+  ): Promise<SessionWithState> {
     const agent = await this.resolveAgentImplementation(record.agentId)
-    const state = await agent.getSessionState(record.id)
+    const state =
+      mode === 'list' && agent.getSessionListState
+        ? await agent.getSessionListState(record.id)
+        : await agent.getSessionState(record.id)
     return {
       ...record,
       status: state?.status ?? 'idle',
@@ -1782,9 +1788,12 @@ export class AgentSessionPresenter {
     }
   }
 
-  private async tryBuildSessionWithState(record: SessionRecord): Promise<SessionWithState> {
+  private async tryBuildSessionWithState(
+    record: SessionRecord,
+    mode: 'full' | 'list' = 'full'
+  ): Promise<SessionWithState> {
     try {
-      return await this.buildSessionWithState(record)
+      return await this.buildSessionWithState(record, mode)
     } catch (error) {
       console.warn(
         `[AgentSessionPresenter] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,

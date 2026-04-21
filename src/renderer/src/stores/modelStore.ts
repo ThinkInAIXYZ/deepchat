@@ -50,6 +50,27 @@ export const useModelStore = defineStore('model', () => {
   const rerunRequested = new Set<string>()
   const pendingRefreshStarts = new Set<string>()
 
+  const ensureModelRuntime = () => {
+    setupModelListeners()
+  }
+
+  const getMaterializedProviderIds = () => {
+    return Array.from(
+      new Set([
+        ...allProviderModels.value.map((entry) => entry.providerId),
+        ...customModels.value.map((entry) => entry.providerId),
+        ...enabledModels.value.map((entry) => entry.providerId)
+      ])
+    ).filter((providerId): providerId is string => Boolean(providerId))
+  }
+
+  const refreshMaterializedProviders = async () => {
+    const providerIds = getMaterializedProviderIds()
+    for (const providerId of providerIds) {
+      await refreshProviderModels(providerId)
+    }
+  }
+
   const matchesProviderModelsEntry = (
     entry: { key: readonly unknown[] },
     targetProviderId?: string
@@ -472,6 +493,8 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const refreshProviderModels = (providerId: string): Promise<void> => {
+    ensureModelRuntime()
+
     const existingRefresh = inFlightRefreshes.get(providerId)
     if (existingRefresh) {
       if (!pendingRefreshStarts.has(providerId)) {
@@ -756,13 +779,23 @@ export const useModelStore = defineStore('model', () => {
     if (listenersRegistered.value) return
     listenersRegistered.value = true
 
-    const unsubscribeModelListChanged = modelClient.onModelsChanged(async ({ providerId }) => {
-      if (providerId) {
-        await refreshProviderModels(providerId)
-      } else {
-        await refreshAllModels()
+    const unsubscribeModelListChanged = modelClient.onModelsChanged(
+      async ({ providerId, reason }) => {
+        if (providerId) {
+          await refreshProviderModels(providerId)
+          return
+        }
+
+        if (reason === 'provider-db-loaded' || reason === 'provider-db-updated') {
+          await refreshMaterializedProviders()
+          return
+        }
+
+        if (initialized.value) {
+          await refreshAllModels()
+        }
       }
-    })
+    )
 
     const unsubscribeModelStatusChanged = modelClient.onModelStatusChanged(
       async (msg: { providerId: string; modelId: string; enabled: boolean }) => {
@@ -798,8 +831,8 @@ export const useModelStore = defineStore('model', () => {
     }
 
     initializationPromise.value = (async () => {
-      setupModelListeners()
-      await refreshAllModels()
+      ensureModelRuntime()
+      await _refreshAllModelsInternal()
       initialized.value = true
     })()
 

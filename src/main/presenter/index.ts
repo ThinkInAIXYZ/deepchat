@@ -47,7 +47,7 @@ import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { YoBrowserPresenter } from './browser/YoBrowserPresenter'
-import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
+import { CONFIG_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
@@ -190,6 +190,7 @@ export class Presenter implements IPresenter {
   settingsPermissionService: SettingsPermissionService
   private sessionMessageManager: MessageManager
   private sessionPresenterInternal?: SessionPresenter
+  private hasInitialized = false
   #remoteControlPresenter: RemoteControlPresenterLike
   readonly #remoteControlBridge: IRemoteControlPresenter
 
@@ -593,15 +594,6 @@ export class Presenter implements IPresenter {
 
     // 设置特殊事件的处理逻辑
     this.setupSpecialEventHandlers()
-
-    // 应用主窗口准备就绪时触发初始化（只执行一次）
-    let initCalled = false
-    eventBus.on(WINDOW_EVENTS.READY_TO_SHOW, () => {
-      if (!initCalled) {
-        initCalled = true
-        this.init()
-      }
-    })
   }
 
   // 设置需要特殊处理的事件
@@ -622,21 +614,26 @@ export class Presenter implements IPresenter {
 
   // 应用初始化逻辑 (主窗口准备就绪后调用)
   init() {
+    if (this.hasInitialized) {
+      console.info('[Startup][Main] Presenter.init skipped because startup already ran')
+      return
+    }
+
+    this.hasInitialized = true
+
     // 持久化 LLMProviderPresenter 的 Providers 数据
     const providers = this.configPresenter.getProviders()
+    console.info(`[Startup][Main] Presenter.init begin providers=${providers.length}`)
     this.llmproviderPresenter.setProviders(providers)
 
-    // 同步所有 provider 的自定义模型
-    this.syncCustomModels()
-
     // 初始化悬浮按钮
-    this.initializeFloatingButton()
+    void this.initializeFloatingButton()
 
     // 初始化 Yo Browser
-    this.initializeYoBrowser()
+    void this.initializeYoBrowser()
 
     // 初始化 Skills 系统
-    this.initializeSkills()
+    void this.initializeSkills()
 
     // Initialize remote control runtime
     void this.initializeRemoteControl()
@@ -697,26 +694,6 @@ export class Presenter implements IPresenter {
 
     const handler = this.#remoteControlBridge[method] as (...args: unknown[]) => unknown
     return await Reflect.apply(handler, this.#remoteControlBridge, payloads)
-  }
-
-  // 从配置中同步自定义模型到 LLMProviderPresenter
-  private async syncCustomModels() {
-    const providers = this.configPresenter.getProviders()
-    for (const provider of providers) {
-      if (provider.enable) {
-        const customModels = this.configPresenter.getCustomModels(provider.id)
-        console.log('syncCustomModels', provider.id, customModels)
-        for (const model of customModels) {
-          await this.llmproviderPresenter.addCustomModel(provider.id, {
-            id: model.id,
-            name: model.name,
-            contextLength: model.contextLength,
-            maxTokens: model.maxTokens,
-            type: model.type
-          })
-        }
-      }
-    }
   }
 
   // 在应用退出时进行清理，关闭数据库连接

@@ -63,6 +63,9 @@ export interface IAgentImplementation {
   /** Get runtime state for a session */
   getSessionState(sessionId: string): Promise<DeepChatSessionState | null>
 
+  /** Get lightweight runtime state for session list hydration */
+  getSessionListState?(sessionId: string): Promise<DeepChatSessionState | null>
+
   /** Process a user message: persist, call LLM, stream response */
   processMessage(
     sessionId: string,

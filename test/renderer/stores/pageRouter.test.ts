@@ -30,6 +30,17 @@ const setupStore = async (options?: { activeAgentSession?: { id: string } | null
 }
 
 describe('pageRouter.initialize', () => {
+  it('uses a seeded active session id without performing an IPC lookup', async () => {
+    const { store, sessionClient } = await setupStore({
+      activeAgentSession: { id: 'new-session-1' }
+    })
+
+    await store.initialize({ activeSessionId: 'seeded-session' })
+
+    expect(sessionClient.getActive).not.toHaveBeenCalled()
+    expect(store.route.value).toEqual({ name: 'chat', sessionId: 'seeded-session' })
+  })
+
   it('uses the active agent session when it exists', async () => {
     const { store, sessionClient } = await setupStore({
       activeAgentSession: { id: 'new-session-1' }

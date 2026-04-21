@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, reactive } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type SetupOptions = {
   collapsed?: boolean
@@ -22,9 +22,12 @@ const setup = async (options: SetupOptions = {}) => {
     activeSession:
       options.currentRoute === 'chat'
         ? {
-            projectDir: 'C:/repo'
+            projectDir: 'C:/repo',
+            providerId: 'openai'
           }
         : null,
+    activeSessionId:
+      options.chatSessionId ?? (options.currentRoute === 'chat' ? 'session-1' : null),
     newConversationTargetAgentId: options.newConversationTargetAgentId ?? 'deepchat',
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     startNewConversation: vi.fn().mockResolvedValue(undefined)
@@ -37,10 +40,12 @@ const setup = async (options: SetupOptions = {}) => {
     collapsed: options.collapsed ?? false
   })
   const projectStore = {
+    loadDefaultProjectPath: vi.fn().mockResolvedValue(undefined),
     fetchProjects: vi.fn().mockResolvedValue(undefined)
   }
   const modelStore = {
-    initialize: vi.fn().mockResolvedValue(undefined)
+    initialize: vi.fn().mockResolvedValue(undefined),
+    refreshProviderModels: vi.fn().mockResolvedValue(undefined)
   }
 
   vi.doMock('@/stores/ui/pageRouter', () => ({
@@ -60,6 +65,11 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
+  }))
+  vi.doMock('@api/ConfigClient', () => ({
+    createConfigClient: () => ({
+      getSetting: vi.fn().mockResolvedValue(undefined)
+    })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -117,15 +127,28 @@ const setup = async (options: SetupOptions = {}) => {
   const wrapper = mount(ChatTabView)
 
   await flushPromises()
+  await vi.runAllTimersAsync()
+  await flushPromises()
 
   return {
     wrapper,
+    pageRouter,
+    agentStore,
     modelStore,
+    projectStore,
     sessionStore
   }
 }
 
 describe('ChatTabView collapsed new chat button', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('does not initialize modelStore on mount', async () => {
     const { modelStore } = await setup({
       collapsed: false,
@@ -134,6 +157,24 @@ describe('ChatTabView collapsed new chat button', () => {
     })
 
     expect(modelStore.initialize).not.toHaveBeenCalled()
+  })
+
+  it('hydrates the route from the session store state and defers non-critical fetches', async () => {
+    const { pageRouter, agentStore, modelStore, projectStore, sessionStore } = await setup({
+      collapsed: false,
+      currentRoute: 'chat',
+      chatSessionId: 'session-42',
+      selectedAgentId: 'acp-a'
+    })
+
+    expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
+    expect(projectStore.loadDefaultProjectPath).toHaveBeenCalledTimes(1)
+    expect(pageRouter.initialize).toHaveBeenCalledWith({
+      activeSessionId: 'session-42'
+    })
+    expect(agentStore.fetchAgents).toHaveBeenCalledTimes(1)
+    expect(projectStore.fetchProjects).toHaveBeenCalledTimes(1)
+    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')
   })
 
   it('hides the collapsed new chat button when the sidebar is expanded', async () => {

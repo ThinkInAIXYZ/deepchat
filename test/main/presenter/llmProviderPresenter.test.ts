@@ -249,6 +249,27 @@ describe('LLMProviderPresenter Integration Tests', () => {
       expect(currentProvider?.id).toBe('mock-openai-api')
     })
 
+    it('defers provider bootstrap until a provider instance is requested', async () => {
+      const fetchSpy = vi.spyOn(AiSdkProvider.prototype, 'fetchModels').mockResolvedValue([])
+
+      const presenter = new LLMProviderPresenter(
+        mockConfigPresenter,
+        mockSqlitePresenter,
+        presenterRuntimeMock.mcpPresenter as any
+      )
+
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(fetchSpy).not.toHaveBeenCalled()
+
+      presenter.getProviderInstance('mock-openai-api')
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+    })
+
     it('should resolve novita via apiType fallback without an id-specific provider mapping', () => {
       const novitaProvider: LLM_PROVIDER = {
         id: 'novita',

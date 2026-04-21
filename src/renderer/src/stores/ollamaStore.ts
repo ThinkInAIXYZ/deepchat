@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createProviderClient } from '../../api/ProviderClient'
 import type { OllamaModel } from '@shared/presenter'
@@ -57,6 +57,8 @@ export const useOllamaStore = defineStore('ollama', () => {
     pullingProgress.value[providerId] || {}
 
   const refreshOllamaModels = async (providerId: string): Promise<void> => {
+    setupOllamaEventListeners()
+
     try {
       const [running, local] = await Promise.all([
         providerClient.listOllamaRunningModels(providerId),
@@ -72,6 +74,8 @@ export const useOllamaStore = defineStore('ollama', () => {
   }
 
   const pullOllamaModel = async (providerId: string, modelName: string) => {
+    setupOllamaEventListeners()
+
     try {
       updatePullingProgress(providerId, modelName, 0)
       const success = await providerClient.pullOllamaModels(providerId, modelName)
@@ -114,6 +118,10 @@ export const useOllamaStore = defineStore('ollama', () => {
       return
     }
 
+    if (typeof providerClient.onOllamaPullProgress !== 'function') {
+      return
+    }
+
     unsubscribeOllamaPullProgress = providerClient.onOllamaPullProgress((data) =>
       handleOllamaModelPullEvent(data)
     )
@@ -150,10 +158,6 @@ export const useOllamaStore = defineStore('ollama', () => {
     return getOllamaLocalModels(providerId).some((m) => m.name === modelName)
   }
 
-  onMounted(() => {
-    setupOllamaEventListeners()
-  })
-
   const initialize = async () => {
     setupOllamaEventListeners()
     const ollamaProviders = providerStore.providers.filter(
@@ -163,10 +167,6 @@ export const useOllamaStore = defineStore('ollama', () => {
       await refreshOllamaModels(provider.id)
     }
   }
-
-  onBeforeUnmount(() => {
-    removeOllamaEventListeners()
-  })
 
   return {
     runningModels,

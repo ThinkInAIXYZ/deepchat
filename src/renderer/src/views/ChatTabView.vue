@@ -42,14 +42,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
+import { createConfigClient } from '@api/ConfigClient'
 import ChatSidePanel from '@/components/sidepanel/ChatSidePanel.vue'
 import NewThreadPage from '@/pages/NewThreadPage.vue'
 import ChatPage from '@/pages/ChatPage.vue'
 import AgentWelcomePage from '@/pages/AgentWelcomePage.vue'
+import { useModelStore } from '@/stores/modelStore'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
@@ -62,7 +64,10 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const sidebarStore = useSidebarStore()
 const projectStore = useProjectStore()
+const modelStore = useModelStore()
+const configClient = createConfigClient()
 const isReady = ref(false)
+let deferredWarmupTimer: number | null = null
 const showCollapsedNewChatButton = computed(
   () =>
     isReady.value && sidebarStore.collapsed && Boolean(sessionStore.newConversationTargetAgentId)
@@ -72,16 +77,77 @@ const handleCollapsedNewChat = () => {
   void sessionStore.startNewConversation({ refresh: true })
 }
 
-onMounted(async () => {
+const resolveWarmupProviderId = async (): Promise<string | null> => {
+  const activeSessionProviderId = sessionStore.activeSession?.providerId?.trim()
+  if (activeSessionProviderId) {
+    return activeSessionProviderId
+  }
+
+  const preferredModel = (await configClient.getSetting('preferredModel')) as
+    | { providerId?: string | null }
+    | undefined
+  const preferredProviderId = preferredModel?.providerId?.trim()
+  if (preferredProviderId) {
+    return preferredProviderId
+  }
+
+  const defaultModel = (await configClient.getSetting('defaultModel')) as
+    | { providerId?: string | null }
+    | undefined
+  const defaultProviderId = defaultModel?.providerId?.trim()
+  if (defaultProviderId) {
+    return defaultProviderId
+  }
+
+  return null
+}
+
+const warmStartupModelProvider = async () => {
   try {
-    await Promise.all([
-      pageRouter.initialize(),
-      sessionStore.fetchSessions(),
-      agentStore.fetchAgents(),
-      projectStore.fetchProjects()
-    ])
+    const providerId = await resolveWarmupProviderId()
+    if (!providerId) {
+      return
+    }
+
+    console.info(`[Startup][Renderer] ChatTabView warming provider ${providerId}`)
+    await modelStore.refreshProviderModels(providerId)
+  } catch (error) {
+    console.warn('[Startup][Renderer] ChatTabView model warmup failed:', error)
+  }
+}
+
+onMounted(async () => {
+  console.info('[Startup][Renderer] ChatTabView critical hydration begin')
+
+  try {
+    await Promise.all([sessionStore.fetchSessions(), projectStore.loadDefaultProjectPath()])
+    await pageRouter.initialize({
+      activeSessionId: sessionStore.activeSessionId
+    })
+    console.info('[Startup][Renderer] ChatTabView interactive ready')
+  } catch (error) {
+    console.warn('[Startup][Renderer] ChatTabView critical hydration failed:', error)
+    await pageRouter.initialize()
   } finally {
     isReady.value = true
+    deferredWarmupTimer = window.setTimeout(() => {
+      deferredWarmupTimer = null
+      console.info('[Startup][Renderer] ChatTabView deferred hydration begin')
+      void Promise.allSettled([
+        agentStore.fetchAgents(),
+        projectStore.fetchProjects(),
+        warmStartupModelProvider()
+      ]).then(() => {
+        console.info('[Startup][Renderer] ChatTabView deferred hydration complete')
+      })
+    }, 0)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (deferredWarmupTimer !== null) {
+    clearTimeout(deferredWarmupTimer)
+    deferredWarmupTimer = null
   }
 })
 </script>

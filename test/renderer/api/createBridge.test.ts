@@ -81,6 +81,54 @@ describe('createBridge', () => {
     )
   })
 
+  it('shares a single IPC listener across multiple typed event subscriptions', () => {
+    let registeredListener: ((event: unknown, payload: unknown) => void) | undefined
+
+    const ipcRenderer = {
+      invoke: vi.fn(),
+      on: vi.fn((_channel: string, listener: (event: unknown, payload: unknown) => void) => {
+        registeredListener = listener
+      }),
+      removeListener: vi.fn()
+    }
+
+    const bridge = createBridge(ipcRenderer)
+    const firstListener = vi.fn()
+    const secondListener = vi.fn()
+
+    const unsubscribeFirst = bridge.on('settings.changed', firstListener)
+    const unsubscribeSecond = bridge.on('settings.changed', secondListener)
+
+    expect(ipcRenderer.on).toHaveBeenCalledTimes(1)
+
+    registeredListener?.(
+      {},
+      {
+        name: 'settings.changed',
+        payload: {
+          changedKeys: ['fontSizeLevel'],
+          version: 1,
+          values: {
+            fontSizeLevel: 3
+          }
+        }
+      }
+    )
+
+    expect(firstListener).toHaveBeenCalledTimes(1)
+    expect(secondListener).toHaveBeenCalledTimes(1)
+
+    unsubscribeFirst()
+    expect(ipcRenderer.removeListener).not.toHaveBeenCalled()
+
+    unsubscribeSecond()
+    expect(ipcRenderer.removeListener).toHaveBeenCalledTimes(1)
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
+      DEEPCHAT_EVENT_CHANNEL,
+      expect.any(Function)
+    )
+  })
+
   it('rejects invalid route responses', async () => {
     const ipcRenderer = {
       invoke: vi.fn().mockResolvedValue({
