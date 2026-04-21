@@ -4,6 +4,11 @@ describe('initAppStores', () => {
   it('restores model and ollama store initialization after critical stores are ready', async () => {
     vi.resetModules()
 
+    const pendingWarmup = () => new Promise<never>(() => {})
+    const scheduleStartupDeferredTask = vi.fn((task: () => void | Promise<void>) => {
+      void task()
+      return () => {}
+    })
     const callOrder: string[] = []
     const uiSettingsStore = {
       loadSettings: vi.fn(async () => {
@@ -16,13 +21,15 @@ describe('initAppStores', () => {
       })
     }
     const modelStore = {
-      initialize: vi.fn(async () => {
+      initialize: vi.fn(() => {
         callOrder.push('modelInitialize')
+        return pendingWarmup()
       })
     }
     const ollamaStore = {
-      initialize: vi.fn(async () => {
+      initialize: vi.fn(() => {
         callOrder.push('ollamaInitialize')
+        return pendingWarmup()
       })
     }
 
@@ -55,6 +62,9 @@ describe('initAppStores', () => {
         MCP_INSTALL: 'mcp-install'
       }
     }))
+    vi.doMock('@/lib/startupDeferred', () => ({
+      scheduleStartupDeferredTask
+    }))
 
     const { initAppStores } = await import('@/lib/storeInitializer')
 
@@ -68,5 +78,6 @@ describe('initAppStores', () => {
     ])
     expect(modelStore.initialize).toHaveBeenCalledTimes(1)
     expect(ollamaStore.initialize).toHaveBeenCalledTimes(1)
+    expect(scheduleStartupDeferredTask).toHaveBeenCalledTimes(1)
   })
 })

@@ -140,13 +140,14 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   public override updateConfig(provider: LLM_PROVIDER): void {
-    super.updateConfig(provider)
     const definition = resolveAiSdkProviderDefinition(provider)
     if (!definition) {
       throw new Error(
         `No AI SDK definition found for provider ${provider.id} (${provider.apiType})`
       )
     }
+
+    super.updateConfig(provider)
     this.definition = definition
   }
 

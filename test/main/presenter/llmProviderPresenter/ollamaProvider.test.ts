@@ -171,13 +171,17 @@ describe('OllamaProvider.fetchModels', () => {
     expect(configPresenter.setProviderModels).toHaveBeenCalledWith('ollama', models)
   })
 
-  it('recreates the Ollama client when provider config changes', () => {
+  it('recreates the Ollama client when provider config changes after active streams drain', async () => {
     const ollamaProvider = Object.create(OllamaProvider.prototype) as OllamaProvider & {
       provider: LLM_PROVIDER
       configPresenter: IConfigPresenter
       models: MODEL_META[]
       customModels: MODEL_META[]
       ollama: unknown
+      activeStreams: number
+      activeStreamResolvers: Array<() => void>
+      isDraining: boolean
+      configUpdateChain: Promise<void>
       createOllamaClient: ReturnType<typeof vi.fn>
     }
 
@@ -185,12 +189,20 @@ describe('OllamaProvider.fetchModels', () => {
     ollamaProvider.configPresenter = configPresenter
     ollamaProvider.models = []
     ollamaProvider.customModels = []
-    ollamaProvider.ollama = { id: 'old-client' }
+    ollamaProvider.ollama = { id: 'old-client', abort: vi.fn() }
+    ollamaProvider.activeStreams = 0
+    ollamaProvider.activeStreamResolvers = []
+    ollamaProvider.isDraining = false
+    ollamaProvider.configUpdateChain = Promise.resolve()
     ollamaProvider.createOllamaClient = vi.fn(() => ({ id: 'new-client' }))
 
     ollamaProvider.updateConfig({
       ...provider,
       baseUrl: 'http://127.0.0.1:22434'
+    })
+
+    await vi.waitFor(() => {
+      expect(ollamaProvider.createOllamaClient).toHaveBeenCalledTimes(1)
     })
 
     expect(ollamaProvider.createOllamaClient).toHaveBeenCalledTimes(1)

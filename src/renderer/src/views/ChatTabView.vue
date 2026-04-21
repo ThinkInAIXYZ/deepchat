@@ -119,15 +119,14 @@ const warmStartupModelProvider = async () => {
 }
 
 const initializeRouteFromFallbackState = async () => {
-  const fallbackActiveSessionId = sessionStore.error ? null : (sessionStore.activeSessionId ?? null)
-  if (fallbackActiveSessionId) {
-    await pageRouter.initialize({
-      activeSessionId: fallbackActiveSessionId
-    })
+  if (sessionStore.error) {
+    await pageRouter.initialize()
     return
   }
 
-  await pageRouter.initialize()
+  await pageRouter.initialize({
+    activeSessionId: sessionStore.activeSessionId ?? null
+  })
 }
 
 onMounted(async () => {

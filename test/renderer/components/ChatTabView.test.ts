@@ -214,6 +214,20 @@ describe('ChatTabView collapsed new chat button', () => {
     })
   })
 
+  it('passes a null session id through fallback recovery when the snapshot is still usable', async () => {
+    const { pageRouter, sessionStore } = await setup({
+      collapsed: false,
+      currentRoute: 'newThread',
+      activeSessionId: null,
+      sessionError: null
+    })
+
+    expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
+    expect(pageRouter.initialize).toHaveBeenCalledWith({
+      activeSessionId: null
+    })
+  })
+
   it('hides the collapsed new chat button when the sidebar is expanded', async () => {
     const { wrapper } = await setup({
       collapsed: false,
