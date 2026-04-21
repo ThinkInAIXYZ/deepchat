@@ -55,7 +55,7 @@ export class McpPresenter implements IMCPPresenter {
   }
 
   private isPrivacyModeEnabled(): boolean {
-    return Boolean(this.configPresenter.getPrivacyModeEnabled?.())
+    return Boolean(this.configPresenter.getPrivacyModeEnabled())
   }
 
   private async initialize() {

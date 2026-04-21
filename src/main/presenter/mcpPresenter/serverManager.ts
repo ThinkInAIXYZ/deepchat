@@ -25,7 +25,7 @@ export class ServerManager {
   }
 
   private isPrivacyModeEnabled(): boolean {
-    return Boolean(this.configPresenter.getPrivacyModeEnabled?.())
+    return Boolean(this.configPresenter.getPrivacyModeEnabled())
   }
 
   loadRegistryFromCache(): void {

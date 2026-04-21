@@ -157,6 +157,39 @@ describe('uiSettingsStore', () => {
     expect(store.privacyModeEnabled).toBe(true)
   })
 
+  it('keeps privacy mode unchanged when the typed settings update fails', async () => {
+    invoke = vi.fn(async (routeName: string, input: any) => {
+      if (routeName === 'settings.getSnapshot') {
+        return {
+          version: 1,
+          values: {
+            privacyModeEnabled: false
+          }
+        }
+      }
+
+      if (routeName === 'settings.listSystemFonts') {
+        return {
+          fonts: ['Inter', 'JetBrains Mono']
+        }
+      }
+
+      if (routeName === 'settings.update') {
+        throw new Error('IPC failed')
+      }
+
+      throw new Error(`Unexpected route in test: ${routeName}`)
+    })
+    window.deepchat.invoke = invoke
+
+    const { store } = await mountStoreHost()
+
+    await flushPromises()
+
+    await expect(store.setPrivacyModeEnabled(true)).rejects.toThrow('IPC failed')
+    expect(store.privacyModeEnabled).toBe(false)
+  })
+
   it('waits for the initial snapshot before applying an update result', async () => {
     let resolveSnapshot!: (value: {
       version: number

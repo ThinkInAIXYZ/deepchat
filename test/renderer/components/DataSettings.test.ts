@@ -118,6 +118,8 @@ const setup = async () => {
       t: (key: string) =>
         (
           ({
+            'common.error.operationFailed': 'Operation failed',
+            'common.unknownError': 'Unknown error',
             'settings.common.privacyMode': 'Privacy Mode',
             'settings.common.privacyModeDescription':
               'Stop automatic outbound requests owned by DeepChat:',
@@ -259,6 +261,34 @@ describe('DataSettings', () => {
     await wrapper.get('[data-testid="privacy-mode-switch"]').trigger('click')
 
     expect(uiSettingsStore.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it('wires the privacy switch to its visible label and description', async () => {
+    const { wrapper } = await setup()
+
+    const privacySwitch = wrapper.get('[data-testid="privacy-mode-switch"]')
+
+    expect(privacySwitch.attributes('aria-labelledby')).toBe('privacy-mode-label')
+    expect(privacySwitch.attributes('aria-describedby')).toBe('privacy-mode-desc')
+    expect(wrapper.get('#privacy-mode-label').text()).toContain('Privacy Mode')
+    expect(wrapper.get('#privacy-mode-desc').text()).toContain(
+      'Stop automatic outbound requests owned by DeepChat:'
+    )
+  })
+
+  it('shows an error toast when updating privacy mode fails', async () => {
+    const { wrapper, toast, uiSettingsStore } = await setup()
+
+    uiSettingsStore.setPrivacyModeEnabled = vi.fn().mockRejectedValue(new Error('IPC failed'))
+
+    await wrapper.get('[data-testid="privacy-mode-switch"]').trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'Operation failed',
+      description: 'IPC failed',
+      variant: 'destructive'
+    })
   })
 
   it('does not render a repair result summary before any repair run', async () => {

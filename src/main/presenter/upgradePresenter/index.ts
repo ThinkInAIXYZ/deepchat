@@ -327,7 +327,7 @@ export class UpgradePresenter implements IUpgradePresenter {
 
   // 处理应用获得焦点事件
   private handleAppFocus(): void {
-    if (this._configPresenter.getPrivacyModeEnabled?.()) {
+    if (this._configPresenter.getPrivacyModeEnabled()) {
       return
     }
 

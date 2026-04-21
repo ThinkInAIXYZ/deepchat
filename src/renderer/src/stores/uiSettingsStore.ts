@@ -286,7 +286,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
 
   const setPrivacyModeEnabled = async (enabled: boolean) => {
     const nextValue = Boolean(enabled)
-    privacyModeEnabled.value = nextValue
 
     await updateSettings([
       {
