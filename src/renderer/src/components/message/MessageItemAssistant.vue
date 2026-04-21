@@ -202,7 +202,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@shadcn/components/ui/context-menu'
-import { DeviceClient } from '@api/DeviceClient'
+import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
   message: DisplayAssistantMessage
@@ -214,7 +214,7 @@ const props = defineProps<{
 }>()
 
 const themeStore = useThemeStore()
-const deviceClient = new DeviceClient()
+const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
 

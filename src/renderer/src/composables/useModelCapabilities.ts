@@ -1,7 +1,7 @@
 // === Vue Core ===
 import { ref, watch, type Ref } from 'vue'
 
-import { ModelClient } from '@api/ModelClient'
+import { createModelClient } from '@api/ModelClient'
 
 // === Interfaces ===
 export interface ModelCapabilities {
@@ -30,7 +30,7 @@ export interface UseModelCapabilitiesOptions {
  */
 export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
   const { providerId, modelId } = options
-  const modelClient = new ModelClient()
+  const modelClient = createModelClient()
 
   // === Local State ===
   const capabilitySupportsReasoning = ref<boolean | null>(null)

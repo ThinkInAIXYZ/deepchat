@@ -11,37 +11,35 @@ import {
 import { getDeepchatBridge } from './core'
 import { getRuntimeWindowId } from './runtime'
 
-export class WindowClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async getCurrentState() {
-    const result = await this.bridge.invoke(windowGetCurrentStateRoute.name, {})
+export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getCurrentState() {
+    const result = await bridge.invoke(windowGetCurrentStateRoute.name, {})
     return result.state
   }
 
-  async minimizeCurrent() {
-    const result = await this.bridge.invoke(windowMinimizeCurrentRoute.name, {})
+  async function minimizeCurrent() {
+    const result = await bridge.invoke(windowMinimizeCurrentRoute.name, {})
     return result.state
   }
 
-  async toggleMaximizeCurrent() {
-    const result = await this.bridge.invoke(windowToggleMaximizeCurrentRoute.name, {})
+  async function toggleMaximizeCurrent() {
+    const result = await bridge.invoke(windowToggleMaximizeCurrentRoute.name, {})
     return result.state
   }
 
-  async closeCurrent() {
-    return await this.bridge.invoke(windowCloseCurrentRoute.name, {})
+  async function closeCurrent() {
+    return await bridge.invoke(windowCloseCurrentRoute.name, {})
   }
 
-  async closeFloatingCurrent() {
-    return await this.bridge.invoke(windowCloseFloatingCurrentRoute.name, {})
+  async function closeFloatingCurrent() {
+    return await bridge.invoke(windowCloseFloatingCurrentRoute.name, {})
   }
 
-  async previewFile(filePath: string) {
-    return await this.bridge.invoke(windowPreviewFileRoute.name, { filePath })
+  async function previewFile(filePath: string) {
+    return await bridge.invoke(windowPreviewFileRoute.name, { filePath })
   }
 
-  onStateChanged(
+  function onStateChanged(
     listener: (payload: {
       windowId: number | null
       exists: boolean
@@ -51,10 +49,10 @@ export class WindowClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(windowStateChangedEvent.name, listener)
+    return bridge.on(windowStateChangedEvent.name, listener)
   }
 
-  onCurrentStateChanged(
+  function onCurrentStateChanged(
     listener: (payload: {
       windowId: number | null
       exists: boolean
@@ -66,7 +64,7 @@ export class WindowClient {
   ) {
     const currentWindowId = getRuntimeWindowId()
 
-    return this.onStateChanged((payload) => {
+    return onStateChanged((payload) => {
       if (currentWindowId != null && payload.windowId !== currentWindowId) {
         return
       }
@@ -74,4 +72,17 @@ export class WindowClient {
       listener(payload)
     })
   }
+
+  return {
+    getCurrentState,
+    minimizeCurrent,
+    toggleMaximizeCurrent,
+    closeCurrent,
+    closeFloatingCurrent,
+    previewFile,
+    onStateChanged,
+    onCurrentStateChanged
+  }
 }
+
+export type WindowClient = ReturnType<typeof createWindowClient>

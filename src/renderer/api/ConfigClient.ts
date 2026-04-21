@@ -59,8 +59,8 @@ import {
   type ConfigEntryValues
 } from '@shared/contracts/routes'
 import type { Prompt, ShortcutKeySetting, SystemPrompt } from '@shared/presenter'
-import { SettingsClient } from './SettingsClient'
 import { getDeepchatBridge } from './core'
+import { createSettingsClient } from './SettingsClient'
 
 type VoiceAIConfig = {
   audioFormat: string
@@ -78,279 +78,281 @@ type GeminiSafetyValue =
   | 'BLOCK_LOW_AND_ABOVE'
   | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
 
-export class ConfigClient extends SettingsClient {
-  constructor(bridge: DeepchatBridge = getDeepchatBridge()) {
-    super(bridge)
+export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  const settingsClient = createSettingsClient(bridge)
+
+  async function getSetting<K extends ConfigEntryKey>(
+    key: K
+  ): Promise<ConfigEntryValues[K] | undefined> {
+    return await settingsClient.getConfigEntry(key)
   }
 
-  async getSetting<K extends ConfigEntryKey>(key: K): Promise<ConfigEntryValues[K] | undefined> {
-    return await this.getConfigEntry(key)
+  async function setSetting<K extends ConfigEntryKey>(key: K, value: ConfigEntryValues[K]) {
+    return await settingsClient.setConfigEntry(key, value)
   }
 
-  async setSetting<K extends ConfigEntryKey>(key: K, value: ConfigEntryValues[K]) {
-    return await this.setConfigEntry(key, value)
-  }
-
-  async getLanguage() {
-    const result = await this.bridge.invoke(configGetLanguageRoute.name, {})
+  async function getLanguage() {
+    const result = await bridge.invoke(configGetLanguageRoute.name, {})
     return result.locale
   }
 
-  async getRequestedLanguage() {
-    const result = await this.bridge.invoke(configGetLanguageRoute.name, {})
+  async function getRequestedLanguage() {
+    const result = await bridge.invoke(configGetLanguageRoute.name, {})
     return result.requestedLanguage
   }
 
-  async getLanguageState() {
-    return await this.bridge.invoke(configGetLanguageRoute.name, {})
+  async function getLanguageState() {
+    return await bridge.invoke(configGetLanguageRoute.name, {})
   }
 
-  async setLanguage(language: string) {
-    return await this.bridge.invoke(configSetLanguageRoute.name, { language })
+  async function setLanguage(language: string) {
+    return await bridge.invoke(configSetLanguageRoute.name, { language })
   }
 
-  async getTheme() {
-    const result = await this.bridge.invoke(configGetThemeRoute.name, {})
+  async function getTheme() {
+    const result = await bridge.invoke(configGetThemeRoute.name, {})
     return result.theme
   }
 
-  async getCurrentThemeIsDark() {
-    const result = await this.bridge.invoke(configGetThemeRoute.name, {})
+  async function getCurrentThemeIsDark() {
+    const result = await bridge.invoke(configGetThemeRoute.name, {})
     return result.isDark
   }
 
-  async getThemeState() {
-    return await this.bridge.invoke(configGetThemeRoute.name, {})
+  async function getThemeState() {
+    return await bridge.invoke(configGetThemeRoute.name, {})
   }
 
-  async setTheme(theme: 'dark' | 'light' | 'system') {
-    const result = await this.bridge.invoke(configSetThemeRoute.name, { theme })
+  async function setTheme(theme: 'dark' | 'light' | 'system') {
+    const result = await bridge.invoke(configSetThemeRoute.name, { theme })
     return result.isDark
   }
 
-  async getFloatingButtonEnabled() {
-    const result = await this.bridge.invoke(configGetFloatingButtonRoute.name, {})
+  async function getFloatingButtonEnabled() {
+    const result = await bridge.invoke(configGetFloatingButtonRoute.name, {})
     return result.enabled
   }
 
-  async setFloatingButtonEnabled(enabled: boolean) {
-    return await this.bridge.invoke(configSetFloatingButtonRoute.name, { enabled })
+  async function setFloatingButtonEnabled(enabled: boolean) {
+    return await bridge.invoke(configSetFloatingButtonRoute.name, { enabled })
   }
 
-  async getSyncEnabled() {
-    const result = await this.bridge.invoke(configGetSyncSettingsRoute.name, {})
+  async function getSyncEnabled() {
+    const result = await bridge.invoke(configGetSyncSettingsRoute.name, {})
     return result.enabled
   }
 
-  async setSyncEnabled(enabled: boolean) {
-    return await this.bridge.invoke(configUpdateSyncSettingsRoute.name, { enabled })
+  async function setSyncEnabled(enabled: boolean) {
+    return await bridge.invoke(configUpdateSyncSettingsRoute.name, { enabled })
   }
 
-  async getSyncFolderPath() {
-    const result = await this.bridge.invoke(configGetSyncSettingsRoute.name, {})
+  async function getSyncFolderPath() {
+    const result = await bridge.invoke(configGetSyncSettingsRoute.name, {})
     return result.folderPath
   }
 
-  async setSyncFolderPath(folderPath: string) {
-    return await this.bridge.invoke(configUpdateSyncSettingsRoute.name, { folderPath })
+  async function setSyncFolderPath(folderPath: string) {
+    return await bridge.invoke(configUpdateSyncSettingsRoute.name, { folderPath })
   }
 
-  async getDefaultProjectPath() {
-    const result = await this.bridge.invoke(configGetDefaultProjectPathRoute.name, {})
+  async function getDefaultProjectPath() {
+    const result = await bridge.invoke(configGetDefaultProjectPathRoute.name, {})
     return result.path
   }
 
-  async setDefaultProjectPath(path: string | null) {
-    return await this.bridge.invoke(configSetDefaultProjectPathRoute.name, { path })
+  async function setDefaultProjectPath(path: string | null) {
+    return await bridge.invoke(configSetDefaultProjectPathRoute.name, { path })
   }
 
-  async getShortcutKey(): Promise<ShortcutKeySetting> {
-    const result = await this.bridge.invoke(configGetShortcutKeysRoute.name, {})
+  async function getShortcutKey(): Promise<ShortcutKeySetting> {
+    const result = await bridge.invoke(configGetShortcutKeysRoute.name, {})
     return result.shortcuts
   }
 
-  async setShortcutKey(shortcuts: ShortcutKeySetting) {
-    return await this.bridge.invoke(configSetShortcutKeysRoute.name, { shortcuts })
+  async function setShortcutKey(shortcuts: ShortcutKeySetting) {
+    return await bridge.invoke(configSetShortcutKeysRoute.name, { shortcuts })
   }
 
-  async resetShortcutKeys() {
-    return await this.bridge.invoke(configResetShortcutKeysRoute.name, {})
+  async function resetShortcutKeys() {
+    return await bridge.invoke(configResetShortcutKeysRoute.name, {})
   }
 
-  async getCustomPrompts(): Promise<Prompt[]> {
-    const result = await this.bridge.invoke(configListCustomPromptsRoute.name, {})
+  async function getCustomPrompts(): Promise<Prompt[]> {
+    const result = await bridge.invoke(configListCustomPromptsRoute.name, {})
     return result.prompts as unknown as Prompt[]
   }
 
-  async setCustomPrompts(prompts: Prompt[]) {
-    return await this.bridge.invoke(configSetCustomPromptsRoute.name, {
+  async function setCustomPrompts(prompts: Prompt[]) {
+    return await bridge.invoke(configSetCustomPromptsRoute.name, {
       prompts: prompts as any
     })
   }
 
-  async addCustomPrompt(prompt: Prompt) {
-    return await this.bridge.invoke(configAddCustomPromptRoute.name, {
+  async function addCustomPrompt(prompt: Prompt) {
+    return await bridge.invoke(configAddCustomPromptRoute.name, {
       prompt: prompt as any
     })
   }
 
-  async updateCustomPrompt(promptId: string, updates: Partial<Prompt>) {
-    return await this.bridge.invoke(configUpdateCustomPromptRoute.name, {
+  async function updateCustomPrompt(promptId: string, updates: Partial<Prompt>) {
+    return await bridge.invoke(configUpdateCustomPromptRoute.name, {
       promptId,
       updates: updates as any
     })
   }
 
-  async deleteCustomPrompt(promptId: string) {
-    return await this.bridge.invoke(configDeleteCustomPromptRoute.name, { promptId })
+  async function deleteCustomPrompt(promptId: string) {
+    return await bridge.invoke(configDeleteCustomPromptRoute.name, { promptId })
   }
 
-  async getSystemPrompts(): Promise<SystemPrompt[]> {
-    const result = await this.bridge.invoke(configGetSystemPromptsRoute.name, {})
+  async function getSystemPrompts(): Promise<SystemPrompt[]> {
+    const result = await bridge.invoke(configGetSystemPromptsRoute.name, {})
     return result.prompts as unknown as SystemPrompt[]
   }
 
-  async getDefaultSystemPromptId() {
-    const result = await this.bridge.invoke(configGetDefaultSystemPromptRoute.name, {})
+  async function getDefaultSystemPromptId() {
+    const result = await bridge.invoke(configGetDefaultSystemPromptRoute.name, {})
     return result.defaultPromptId
   }
 
-  async getDefaultSystemPrompt() {
-    const result = await this.bridge.invoke(configGetDefaultSystemPromptRoute.name, {})
+  async function getDefaultSystemPrompt() {
+    const result = await bridge.invoke(configGetDefaultSystemPromptRoute.name, {})
     return result.prompt
   }
 
-  async setDefaultSystemPrompt(prompt: string) {
-    return await this.bridge.invoke(configSetDefaultSystemPromptRoute.name, { prompt })
+  async function setDefaultSystemPrompt(prompt: string) {
+    return await bridge.invoke(configSetDefaultSystemPromptRoute.name, { prompt })
   }
 
-  async resetToDefaultPrompt() {
-    return await this.bridge.invoke(configResetDefaultSystemPromptRoute.name, {})
+  async function resetToDefaultPrompt() {
+    return await bridge.invoke(configResetDefaultSystemPromptRoute.name, {})
   }
 
-  async clearSystemPrompt() {
-    return await this.bridge.invoke(configClearDefaultSystemPromptRoute.name, {})
+  async function clearSystemPrompt() {
+    return await bridge.invoke(configClearDefaultSystemPromptRoute.name, {})
   }
 
-  async setSystemPrompts(prompts: SystemPrompt[]) {
-    return await this.bridge.invoke(configSetSystemPromptsRoute.name, {
+  async function setSystemPrompts(prompts: SystemPrompt[]) {
+    return await bridge.invoke(configSetSystemPromptsRoute.name, {
       prompts: prompts as any
     })
   }
 
-  async addSystemPrompt(prompt: SystemPrompt) {
-    return await this.bridge.invoke(configAddSystemPromptRoute.name, {
+  async function addSystemPrompt(prompt: SystemPrompt) {
+    return await bridge.invoke(configAddSystemPromptRoute.name, {
       prompt: prompt as any
     })
   }
 
-  async updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>) {
-    return await this.bridge.invoke(configUpdateSystemPromptRoute.name, {
+  async function updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>) {
+    return await bridge.invoke(configUpdateSystemPromptRoute.name, {
       promptId,
       updates: updates as any
     })
   }
 
-  async deleteSystemPrompt(promptId: string) {
-    return await this.bridge.invoke(configDeleteSystemPromptRoute.name, { promptId })
+  async function deleteSystemPrompt(promptId: string) {
+    return await bridge.invoke(configDeleteSystemPromptRoute.name, { promptId })
   }
 
-  async setDefaultSystemPromptId(promptId: string) {
-    return await this.bridge.invoke(configSetDefaultSystemPromptIdRoute.name, { promptId })
+  async function setDefaultSystemPromptId(promptId: string) {
+    return await bridge.invoke(configSetDefaultSystemPromptIdRoute.name, { promptId })
   }
 
-  async getAcpEnabled() {
-    const result = await this.bridge.invoke(configGetAcpStateRoute.name, {})
+  async function getAcpEnabled() {
+    const result = await bridge.invoke(configGetAcpStateRoute.name, {})
     return result.enabled
   }
 
-  async getAcpAgents() {
-    const result = await this.bridge.invoke(configGetAcpStateRoute.name, {})
+  async function getAcpAgents() {
+    const result = await bridge.invoke(configGetAcpStateRoute.name, {})
     return result.agents
   }
 
-  async resolveDeepChatAgentConfig(agentId: string) {
-    const result = await this.bridge.invoke(configResolveDeepChatAgentConfigRoute.name, {
+  type AcpAgents = Awaited<ReturnType<typeof getAcpAgents>>
+
+  async function resolveDeepChatAgentConfig(agentId: string) {
+    const result = await bridge.invoke(configResolveDeepChatAgentConfigRoute.name, {
       agentId
     })
     return result.config
   }
 
-  async getAgentMcpSelections(agentId: string) {
-    const result = await this.bridge.invoke(configGetAgentMcpSelectionsRoute.name, {
+  async function getAgentMcpSelections(agentId: string) {
+    const result = await bridge.invoke(configGetAgentMcpSelectionsRoute.name, {
       agentId
     })
     return result.selections
   }
 
-  async getAcpSharedMcpSelections() {
-    const result = await this.bridge.invoke(configGetAcpSharedMcpSelectionsRoute.name, {})
+  async function getAcpSharedMcpSelections() {
+    const result = await bridge.invoke(configGetAcpSharedMcpSelectionsRoute.name, {})
     return result.selections
   }
 
-  async setAcpSharedMcpSelections(selections: string[]) {
-    return await this.bridge.invoke(configSetAcpSharedMcpSelectionsRoute.name, {
+  async function setAcpSharedMcpSelections(selections: string[]) {
+    return await bridge.invoke(configSetAcpSharedMcpSelectionsRoute.name, {
       selections
     })
   }
 
-  async getMcpServers() {
-    const result = await this.bridge.invoke(configGetMcpServersRoute.name, {})
+  async function getMcpServers() {
+    const result = await bridge.invoke(configGetMcpServersRoute.name, {})
     return result.servers
   }
 
-  async getAcpRegistryIconMarkup(agentId: string, iconUrl: string) {
-    const result = await this.bridge.invoke(configGetAcpRegistryIconMarkupRoute.name, {
+  async function getAcpRegistryIconMarkup(agentId: string, iconUrl: string) {
+    const result = await bridge.invoke(configGetAcpRegistryIconMarkupRoute.name, {
       agentId,
       iconUrl
     })
     return result.markup
   }
 
-  async getVoiceAIConfig(): Promise<VoiceAIConfig> {
-    const result = await this.bridge.invoke(configGetVoiceAiConfigRoute.name, {})
+  async function getVoiceAIConfig(): Promise<VoiceAIConfig> {
+    const result = await bridge.invoke(configGetVoiceAiConfigRoute.name, {})
     return result.config
   }
 
-  async updateVoiceAIConfig(updates: Partial<VoiceAIConfig>) {
-    const result = await this.bridge.invoke(configUpdateVoiceAiConfigRoute.name, {
+  async function updateVoiceAIConfig(updates: Partial<VoiceAIConfig>) {
+    const result = await bridge.invoke(configUpdateVoiceAiConfigRoute.name, {
       updates
     })
     return result.config
   }
 
-  async getAzureApiVersion() {
-    const result = await this.bridge.invoke(configGetAzureApiVersionRoute.name, {})
+  async function getAzureApiVersion() {
+    const result = await bridge.invoke(configGetAzureApiVersionRoute.name, {})
     return result.version
   }
 
-  async setAzureApiVersion(version: string) {
-    return await this.bridge.invoke(configSetAzureApiVersionRoute.name, { version })
+  async function setAzureApiVersion(version: string) {
+    return await bridge.invoke(configSetAzureApiVersionRoute.name, { version })
   }
 
-  async getGeminiSafety(key: string) {
-    const result = await this.bridge.invoke(configGetGeminiSafetyRoute.name, { key })
+  async function getGeminiSafety(key: string) {
+    const result = await bridge.invoke(configGetGeminiSafetyRoute.name, { key })
     return result.value
   }
 
-  async setGeminiSafety(key: string, value: GeminiSafetyValue) {
-    const result = await this.bridge.invoke(configSetGeminiSafetyRoute.name, { key, value })
+  async function setGeminiSafety(key: string, value: GeminiSafetyValue) {
+    const result = await bridge.invoke(configSetGeminiSafetyRoute.name, { key, value })
     return result.value
   }
 
-  async getAwsBedrockCredential() {
-    const result = await this.bridge.invoke(configGetAwsBedrockCredentialRoute.name, {})
+  async function getAwsBedrockCredential() {
+    const result = await bridge.invoke(configGetAwsBedrockCredentialRoute.name, {})
     return result.value
   }
 
-  async setAwsBedrockCredential(credential: any) {
-    const result = await this.bridge.invoke(configSetAwsBedrockCredentialRoute.name, {
+  async function setAwsBedrockCredential(credential: any) {
+    const result = await bridge.invoke(configSetAwsBedrockCredentialRoute.name, {
       credential
     })
     return result.value
   }
 
-  onLanguageChanged(
+  function onLanguageChanged(
     listener: (payload: {
       requestedLanguage: string
       locale: string
@@ -358,56 +360,54 @@ export class ConfigClient extends SettingsClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(configLanguageChangedEvent.name, listener)
+    return bridge.on(configLanguageChangedEvent.name, listener)
   }
 
-  onThemeChanged(
+  function onThemeChanged(
     listener: (payload: {
       theme: 'dark' | 'light' | 'system'
       isDark: boolean
       version: number
     }) => void
   ) {
-    return this.bridge.on(configThemeChangedEvent.name, listener)
+    return bridge.on(configThemeChangedEvent.name, listener)
   }
 
-  onSystemThemeChanged(listener: (payload: { isDark: boolean; version: number }) => void) {
-    return this.bridge.on(configSystemThemeChangedEvent.name, listener)
+  function onSystemThemeChanged(listener: (payload: { isDark: boolean; version: number }) => void) {
+    return bridge.on(configSystemThemeChangedEvent.name, listener)
   }
 
-  onFloatingButtonChanged(listener: (payload: { enabled: boolean; version: number }) => void) {
-    return this.bridge.on(configFloatingButtonChangedEvent.name, listener)
+  function onFloatingButtonChanged(
+    listener: (payload: { enabled: boolean; version: number }) => void
+  ) {
+    return bridge.on(configFloatingButtonChangedEvent.name, listener)
   }
 
-  onSyncSettingsChanged(
+  function onSyncSettingsChanged(
     listener: (payload: { enabled: boolean; folderPath: string; version: number }) => void
   ) {
-    return this.bridge.on(configSyncSettingsChangedEvent.name, listener)
+    return bridge.on(configSyncSettingsChangedEvent.name, listener)
   }
 
-  onDefaultProjectPathChanged(
+  function onDefaultProjectPathChanged(
     listener: (payload: { path: string | null; version: number }) => void
   ) {
-    return this.bridge.on(configDefaultProjectPathChangedEvent.name, listener)
+    return bridge.on(configDefaultProjectPathChangedEvent.name, listener)
   }
 
-  onAgentsChanged(
-    listener: (payload: {
-      enabled: boolean
-      agents: Awaited<ReturnType<ConfigClient['getAcpAgents']>>
-      version: number
-    }) => void
+  function onAgentsChanged(
+    listener: (payload: { enabled: boolean; agents: AcpAgents; version: number }) => void
   ) {
-    return this.bridge.on(configAgentsChangedEvent.name, listener)
+    return bridge.on(configAgentsChangedEvent.name, listener)
   }
 
-  onShortcutKeysChanged(
+  function onShortcutKeysChanged(
     listener: (payload: { shortcuts: ShortcutKeySetting; version: number }) => void
   ) {
-    return this.bridge.on(configShortcutKeysChangedEvent.name, listener)
+    return bridge.on(configShortcutKeysChangedEvent.name, listener)
   }
 
-  onSystemPromptsChanged(
+  function onSystemPromptsChanged(
     listener: (payload: {
       prompts: SystemPrompt[]
       defaultPromptId: string
@@ -415,15 +415,86 @@ export class ConfigClient extends SettingsClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(configSystemPromptsChangedEvent.name, listener)
+    return bridge.on(configSystemPromptsChangedEvent.name, listener)
   }
 
-  onCustomPromptsChanged(listener: (payload: { prompts: Prompt[]; version: number }) => void) {
-    return this.bridge.on(configCustomPromptsChangedEvent.name, (payload) => {
+  function onCustomPromptsChanged(
+    listener: (payload: { prompts: Prompt[]; version: number }) => void
+  ) {
+    return bridge.on(configCustomPromptsChangedEvent.name, (payload) => {
       listener({
         ...payload,
         prompts: payload.prompts as unknown as Prompt[]
       })
     })
   }
+
+  return {
+    ...settingsClient,
+    getSetting,
+    setSetting,
+    getLanguage,
+    getRequestedLanguage,
+    getLanguageState,
+    setLanguage,
+    getTheme,
+    getCurrentThemeIsDark,
+    getThemeState,
+    setTheme,
+    getFloatingButtonEnabled,
+    setFloatingButtonEnabled,
+    getSyncEnabled,
+    setSyncEnabled,
+    getSyncFolderPath,
+    setSyncFolderPath,
+    getDefaultProjectPath,
+    setDefaultProjectPath,
+    getShortcutKey,
+    setShortcutKey,
+    resetShortcutKeys,
+    getCustomPrompts,
+    setCustomPrompts,
+    addCustomPrompt,
+    updateCustomPrompt,
+    deleteCustomPrompt,
+    getSystemPrompts,
+    getDefaultSystemPromptId,
+    getDefaultSystemPrompt,
+    setDefaultSystemPrompt,
+    resetToDefaultPrompt,
+    clearSystemPrompt,
+    setSystemPrompts,
+    addSystemPrompt,
+    updateSystemPrompt,
+    deleteSystemPrompt,
+    setDefaultSystemPromptId,
+    getAcpEnabled,
+    getAcpAgents,
+    resolveDeepChatAgentConfig,
+    getAgentMcpSelections,
+    getAcpSharedMcpSelections,
+    setAcpSharedMcpSelections,
+    getMcpServers,
+    getAcpRegistryIconMarkup,
+    getVoiceAIConfig,
+    updateVoiceAIConfig,
+    getAzureApiVersion,
+    setAzureApiVersion,
+    getGeminiSafety,
+    setGeminiSafety,
+    getAwsBedrockCredential,
+    setAwsBedrockCredential,
+    onLanguageChanged,
+    onThemeChanged,
+    onSystemThemeChanged,
+    onFloatingButtonChanged,
+    onSyncSettingsChanged,
+    onDefaultProjectPathChanged,
+    onAgentsChanged,
+    onShortcutKeysChanged,
+    onSystemPromptsChanged,
+    onCustomPromptsChanged
+  }
 }
+
+export type ConfigClient = ReturnType<typeof createConfigClient>

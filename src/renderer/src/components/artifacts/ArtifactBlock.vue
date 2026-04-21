@@ -25,7 +25,7 @@
 import { computed } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
-import { DeviceClient } from '@api/DeviceClient'
+import { createDeviceClient } from '@api/DeviceClient'
 import CodeArtifact from './CodeArtifact.vue'
 import MarkdownArtifact from './MarkdownArtifact.vue'
 import HTMLArtifact from './HTMLArtifact.vue'
@@ -42,7 +42,7 @@ const props = defineProps<{
     content: string
   }
 }>()
-const deviceClient = new DeviceClient()
+const deviceClient = createDeviceClient()
 
 const artifactComponent = computed(() => {
   if (!props.block.artifact) return null

@@ -520,16 +520,16 @@ const setup = async (options: SetupOptions = {}) => {
     useProjectStore: () => projectStore
   }))
   vi.doMock('@api/ConfigClient', () => ({
-    ConfigClient: vi.fn(() => configPresenter)
+    createConfigClient: vi.fn(() => configPresenter)
   }))
   vi.doMock('@api/ModelClient', () => ({
-    ModelClient: vi.fn(() => modelClient)
+    createModelClient: vi.fn(() => modelClient)
   }))
   vi.doMock('@api/ProviderClient', () => ({
-    ProviderClient: vi.fn(() => llmproviderPresenter)
+    createProviderClient: vi.fn(() => llmproviderPresenter)
   }))
   vi.doMock('@api/SessionClient', () => ({
-    SessionClient: vi.fn(() => agentSessionPresenter)
+    createSessionClient: vi.fn(() => agentSessionPresenter)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

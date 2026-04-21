@@ -38,7 +38,7 @@ const setupStore = async (overrides?: {
     }
   })
   vi.doMock('../../../src/renderer/api/ProjectClient', () => ({
-    ProjectClient: vi.fn(() => ({
+    createProjectClient: vi.fn(() => ({
       listRecent: projectPresenter.getRecentProjects,
       listEnvironments: projectPresenter.getEnvironments,
       openDirectory: projectPresenter.openDirectory,
@@ -46,7 +46,7 @@ const setupStore = async (overrides?: {
     }))
   }))
   vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
-    ConfigClient: vi.fn(() => configClient)
+    createConfigClient: vi.fn(() => configClient)
   }))
 
   const { useProjectStore } = await import('@/stores/ui/project')

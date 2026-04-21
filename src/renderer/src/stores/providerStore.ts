@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { ProviderClient } from '../../api/ProviderClient'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createProviderClient } from '../../api/ProviderClient'
+import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/presenter'
 
@@ -18,8 +18,8 @@ const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
 
 export const useProviderStore = defineStore('provider', () => {
-  const configClient = new ConfigClient()
-  const providerClient = new ProviderClient()
+  const configClient = createConfigClient()
+  const providerClient = createProviderClient()
 
   const providersQuery = useIpcQuery({
     key: () => ['providers'],

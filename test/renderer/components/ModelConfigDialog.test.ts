@@ -100,7 +100,7 @@ const setup = async (options: SetupOptions) => {
     useProviderStore: () => providerStore
   }))
   vi.doMock('@api/ModelClient', () => ({
-    ModelClient: vi.fn(() => modelClient)
+    createModelClient: vi.fn(() => modelClient)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

@@ -20,55 +20,57 @@ import {
 import type { SkillExtensionConfig, SkillInstallOptions } from '@shared/types/skill'
 import { getDeepchatBridge } from './core'
 
-export class SkillClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async getMetadataList() {
-    const result = await this.bridge.invoke(skillsListMetadataRoute.name, {})
+export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getMetadataList() {
+    const result = await bridge.invoke(skillsListMetadataRoute.name, {})
     return result.skills
   }
 
-  async getSkillsDir() {
-    const result = await this.bridge.invoke(skillsGetDirectoryRoute.name, {})
+  async function getSkillsDir() {
+    const result = await bridge.invoke(skillsGetDirectoryRoute.name, {})
     return result.path
   }
 
-  async installFromFolder(folderPath: string, options?: SkillInstallOptions) {
-    const result = await this.bridge.invoke(skillsInstallFromFolderRoute.name, {
+  async function installFromFolder(folderPath: string, options?: SkillInstallOptions) {
+    const result = await bridge.invoke(skillsInstallFromFolderRoute.name, {
       folderPath,
       options
     })
     return result.result
   }
 
-  async installFromZip(zipPath: string, options?: SkillInstallOptions) {
-    const result = await this.bridge.invoke(skillsInstallFromZipRoute.name, {
+  async function installFromZip(zipPath: string, options?: SkillInstallOptions) {
+    const result = await bridge.invoke(skillsInstallFromZipRoute.name, {
       zipPath,
       options
     })
     return result.result
   }
 
-  async installFromUrl(url: string, options?: SkillInstallOptions) {
-    const result = await this.bridge.invoke(skillsInstallFromUrlRoute.name, {
+  async function installFromUrl(url: string, options?: SkillInstallOptions) {
+    const result = await bridge.invoke(skillsInstallFromUrlRoute.name, {
       url,
       options
     })
     return result.result
   }
 
-  async uninstallSkill(name: string) {
-    const result = await this.bridge.invoke(skillsUninstallRoute.name, { name })
+  async function uninstallSkill(name: string) {
+    const result = await bridge.invoke(skillsUninstallRoute.name, { name })
     return result.result
   }
 
-  async updateSkillFile(name: string, content: string) {
-    const result = await this.bridge.invoke(skillsUpdateFileRoute.name, { name, content })
+  async function updateSkillFile(name: string, content: string) {
+    const result = await bridge.invoke(skillsUpdateFileRoute.name, { name, content })
     return result.result
   }
 
-  async saveSkillWithExtension(name: string, content: string, config: SkillExtensionConfig) {
-    const result = await this.bridge.invoke(skillsSaveWithExtensionRoute.name, {
+  async function saveSkillWithExtension(
+    name: string,
+    content: string,
+    config: SkillExtensionConfig
+  ) {
+    const result = await bridge.invoke(skillsSaveWithExtensionRoute.name, {
       name,
       content,
       config
@@ -76,53 +78,53 @@ export class SkillClient {
     return result.result
   }
 
-  async getSkillFolderTree(name: string) {
-    const result = await this.bridge.invoke(skillsGetFolderTreeRoute.name, { name })
+  async function getSkillFolderTree(name: string) {
+    const result = await bridge.invoke(skillsGetFolderTreeRoute.name, { name })
     return result.nodes
   }
 
-  async openSkillsFolder() {
-    await this.bridge.invoke(skillsOpenFolderRoute.name, {})
+  async function openSkillsFolder() {
+    await bridge.invoke(skillsOpenFolderRoute.name, {})
   }
 
-  async getSkillExtension(name: string) {
-    const result = await this.bridge.invoke(skillsGetExtensionRoute.name, { name })
+  async function getSkillExtension(name: string) {
+    const result = await bridge.invoke(skillsGetExtensionRoute.name, { name })
     return result.config
   }
 
-  async saveSkillExtension(name: string, config: SkillExtensionConfig) {
-    await this.bridge.invoke(skillsSaveExtensionRoute.name, { name, config })
+  async function saveSkillExtension(name: string, config: SkillExtensionConfig) {
+    await bridge.invoke(skillsSaveExtensionRoute.name, { name, config })
   }
 
-  async listSkillScripts(name: string) {
-    const result = await this.bridge.invoke(skillsListScriptsRoute.name, { name })
+  async function listSkillScripts(name: string) {
+    const result = await bridge.invoke(skillsListScriptsRoute.name, { name })
     return result.scripts
   }
 
-  async getActiveSkills(conversationId: string) {
-    const result = await this.bridge.invoke(skillsGetActiveRoute.name, { conversationId })
+  async function getActiveSkills(conversationId: string) {
+    const result = await bridge.invoke(skillsGetActiveRoute.name, { conversationId })
     return result.skills
   }
 
-  async setActiveSkills(conversationId: string, skills: string[]) {
-    const result = await this.bridge.invoke(skillsSetActiveRoute.name, {
+  async function setActiveSkills(conversationId: string, skills: string[]) {
+    const result = await bridge.invoke(skillsSetActiveRoute.name, {
       conversationId,
       skills
     })
     return result.skills
   }
 
-  onCatalogChanged(
+  function onCatalogChanged(
     listener: (payload: {
       reason: 'discovered' | 'installed' | 'uninstalled' | 'metadata-updated'
       name?: string
       version: number
     }) => void
   ) {
-    return this.bridge.on(skillsCatalogChangedEvent.name, listener)
+    return bridge.on(skillsCatalogChangedEvent.name, listener)
   }
 
-  onSessionChanged(
+  function onSessionChanged(
     listener: (payload: {
       conversationId: string
       skills: string[]
@@ -130,6 +132,28 @@ export class SkillClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(skillsSessionChangedEvent.name, listener)
+    return bridge.on(skillsSessionChangedEvent.name, listener)
+  }
+
+  return {
+    getMetadataList,
+    getSkillsDir,
+    installFromFolder,
+    installFromZip,
+    installFromUrl,
+    uninstallSkill,
+    updateSkillFile,
+    saveSkillWithExtension,
+    getSkillFolderTree,
+    openSkillsFolder,
+    getSkillExtension,
+    saveSkillExtension,
+    listSkillScripts,
+    getActiveSkills,
+    setActiveSkills,
+    onCatalogChanged,
+    onSessionChanged
   }
 }
+
+export type SkillClient = ReturnType<typeof createSkillClient>

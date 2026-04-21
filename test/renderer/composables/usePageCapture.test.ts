@@ -7,14 +7,14 @@ const { captureCurrentAreaMock, stitchImagesWithWatermarkMock, copyImageMock } =
 }))
 
 vi.mock('@api/TabClient', () => ({
-  TabClient: vi.fn(() => ({
+  createTabClient: vi.fn(() => ({
     captureCurrentArea: captureCurrentAreaMock,
     stitchImagesWithWatermark: stitchImagesWithWatermarkMock
   }))
 }))
 
 vi.mock('@api/DeviceClient', () => ({
-  DeviceClient: vi.fn(() => ({
+  createDeviceClient: vi.fn(() => ({
     copyImage: copyImageMock
   }))
 }))

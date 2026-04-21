@@ -1,8 +1,8 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { DeviceClient } from '@api/DeviceClient'
-import { SyncClient } from '@api/SyncClient'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createSyncClient } from '@api/SyncClient'
+import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import type { EntryKey, UseQueryReturn } from '@pinia/colada'
@@ -22,9 +22,9 @@ export const useSyncStore = defineStore('sync', () => {
     importedSessions?: number
   } | null>(null)
 
-  const configClient = new ConfigClient()
-  const syncClient = new SyncClient()
-  const deviceClient = new DeviceClient()
+  const configClient = createConfigClient()
+  const syncClient = createSyncClient()
+  const deviceClient = createDeviceClient()
   let syncEventsRegistered = false
   let syncSettingsListenerRegistered = false
 

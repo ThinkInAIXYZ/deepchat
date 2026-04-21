@@ -8,7 +8,7 @@ const pendingRegistryIconUrl =
 const retryRegistryIconUrl = 'https://cdn.agentclientprotocol.com/registry/v1/latest/dimcode.svg'
 
 vi.mock('@api/ConfigClient', () => ({
-  ConfigClient: vi.fn(() => ({
+  createConfigClient: vi.fn(() => ({
     getAcpRegistryIconMarkup
   }))
 }))

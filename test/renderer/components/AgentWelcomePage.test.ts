@@ -25,7 +25,7 @@ describe('AgentWelcomePage', () => {
     }
 
     vi.doMock('@api/SettingsClient', () => ({
-      SettingsClient: vi.fn(() => settingsClient)
+      createSettingsClient: vi.fn(() => settingsClient)
     }))
     vi.doMock('@/stores/ui/agent', () => ({
       useAgentStore: () => agentStore

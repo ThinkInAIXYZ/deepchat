@@ -334,8 +334,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { SettingsClient } from '@api/SettingsClient'
-import { RemoteControlRuntime } from '@api/RemoteControlRuntime'
+import { createSettingsClient } from '@api/SettingsClient'
+import { createRemoteControlRuntime } from '@api/RemoteControlRuntime'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
@@ -360,8 +360,8 @@ const PIN_FLIGHT_DURATION_MS = 500
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
 
-const settingsClient = new SettingsClient()
-const remoteControlRuntime = new RemoteControlRuntime()
+const settingsClient = createSettingsClient()
+const remoteControlRuntime = createRemoteControlRuntime()
 const { t } = useI18n()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()

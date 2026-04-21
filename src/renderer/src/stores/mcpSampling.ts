@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { McpClient } from '@api/McpClient'
+import { createMcpClient } from '@api/McpClient'
 import type {
   McpSamplingDecision,
   McpSamplingRequestPayload,
@@ -98,7 +98,7 @@ export const resolveSamplingDefaultModel = (input: {
 }
 
 export const useMcpSamplingStore = defineStore('mcpSampling', () => {
-  const mcpClient = new McpClient()
+  const mcpClient = createMcpClient()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()

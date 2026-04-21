@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { SessionClient } from '../../../api/SessionClient'
+import { createSessionClient } from '../../../api/SessionClient'
 
 export type PageRoute = { name: 'newThread' } | { name: 'chat'; sessionId: string }
 type GoToNewThreadOptions = {
@@ -8,7 +8,7 @@ type GoToNewThreadOptions = {
 }
 
 export const usePageRouterStore = defineStore('pageRouter', () => {
-  const sessionClient = new SessionClient()
+  const sessionClient = createSessionClient()
 
   // --- State ---
   const route = ref<PageRoute>({ name: 'newThread' })

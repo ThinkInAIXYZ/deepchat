@@ -1,10 +1,10 @@
-import { DialogClient } from '@api/DialogClient'
+import { createDialogClient } from '@api/DialogClient'
 import { DialogRequest, DialogResponse } from '@shared/presenter'
 import { defineStore } from 'pinia'
 import { onMounted, onUnmounted, ref } from 'vue'
 
 export const useDialogStore = defineStore('dialog', () => {
-  const dialogClient = new DialogClient()
+  const dialogClient = createDialogClient()
   const dialogRequest = ref<DialogRequest | null>(null)
   const showDialog = ref(false)
   const timeoutMilliseconds = ref(0)

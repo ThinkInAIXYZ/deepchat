@@ -17,49 +17,47 @@ import {
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 
-export class SyncClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async getBackupStatus() {
-    const result = await this.bridge.invoke(syncGetBackupStatusRoute.name, {})
+export function createSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getBackupStatus() {
+    const result = await bridge.invoke(syncGetBackupStatusRoute.name, {})
     return result.status
   }
 
-  async listBackups() {
-    const result = await this.bridge.invoke(syncListBackupsRoute.name, {})
+  async function listBackups() {
+    const result = await bridge.invoke(syncListBackupsRoute.name, {})
     return result.backups
   }
 
-  async startBackup() {
-    const result = await this.bridge.invoke(syncStartBackupRoute.name, {})
+  async function startBackup() {
+    const result = await bridge.invoke(syncStartBackupRoute.name, {})
     return result.backup
   }
 
-  async importFromSync(backupFile: string, mode?: 'increment' | 'overwrite') {
-    const result = await this.bridge.invoke(syncImportRoute.name, {
+  async function importFromSync(backupFile: string, mode?: 'increment' | 'overwrite') {
+    const result = await bridge.invoke(syncImportRoute.name, {
       backupFile,
       mode
     })
     return result.result
   }
 
-  async openSyncFolder() {
-    await this.bridge.invoke(syncOpenFolderRoute.name, {})
+  async function openSyncFolder() {
+    await bridge.invoke(syncOpenFolderRoute.name, {})
   }
 
-  onBackupStarted(listener: (payload: { version: number }) => void) {
-    return this.bridge.on(syncBackupStartedEvent.name, listener)
+  function onBackupStarted(listener: (payload: { version: number }) => void) {
+    return bridge.on(syncBackupStartedEvent.name, listener)
   }
 
-  onBackupCompleted(listener: (payload: { timestamp: number; version: number }) => void) {
-    return this.bridge.on(syncBackupCompletedEvent.name, listener)
+  function onBackupCompleted(listener: (payload: { timestamp: number; version: number }) => void) {
+    return bridge.on(syncBackupCompletedEvent.name, listener)
   }
 
-  onBackupError(listener: (payload: { error?: string; version: number }) => void) {
-    return this.bridge.on(syncBackupErrorEvent.name, listener)
+  function onBackupError(listener: (payload: { error?: string; version: number }) => void) {
+    return bridge.on(syncBackupErrorEvent.name, listener)
   }
 
-  onBackupStatusChanged(
+  function onBackupStatusChanged(
     listener: (payload: {
       status: string
       previousStatus?: string
@@ -69,18 +67,35 @@ export class SyncClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(syncBackupStatusChangedEvent.name, listener)
+    return bridge.on(syncBackupStatusChangedEvent.name, listener)
   }
 
-  onImportStarted(listener: (payload: { version: number }) => void) {
-    return this.bridge.on(syncImportStartedEvent.name, listener)
+  function onImportStarted(listener: (payload: { version: number }) => void) {
+    return bridge.on(syncImportStartedEvent.name, listener)
   }
 
-  onImportCompleted(listener: (payload: { version: number }) => void) {
-    return this.bridge.on(syncImportCompletedEvent.name, listener)
+  function onImportCompleted(listener: (payload: { version: number }) => void) {
+    return bridge.on(syncImportCompletedEvent.name, listener)
   }
 
-  onImportError(listener: (payload: { error?: string; version: number }) => void) {
-    return this.bridge.on(syncImportErrorEvent.name, listener)
+  function onImportError(listener: (payload: { error?: string; version: number }) => void) {
+    return bridge.on(syncImportErrorEvent.name, listener)
+  }
+
+  return {
+    getBackupStatus,
+    listBackups,
+    startBackup,
+    importFromSync,
+    openSyncFolder,
+    onBackupStarted,
+    onBackupCompleted,
+    onBackupError,
+    onBackupStatusChanged,
+    onImportStarted,
+    onImportCompleted,
+    onImportError
   }
 }
+
+export type SyncClient = ReturnType<typeof createSyncClient>

@@ -104,16 +104,16 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   })
 
   vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
-    ConfigClient: vi.fn(() => configClient)
+    createConfigClient: vi.fn(() => configClient)
   }))
   vi.doMock('../../../src/renderer/api/SessionClient', () => ({
-    SessionClient: vi.fn(() => sessionClient)
+    createSessionClient: vi.fn(() => sessionClient)
   }))
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
-    ChatClient: vi.fn(() => chatClient)
+    createChatClient: vi.fn(() => chatClient)
   }))
   vi.doMock('@api/TabClient', () => ({
-    TabClient: vi.fn(() => tabClient)
+    createTabClient: vi.fn(() => tabClient)
   }))
 
   vi.doMock('@/stores/ui/pageRouter', () => ({

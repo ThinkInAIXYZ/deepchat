@@ -2,7 +2,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { SettingsChange, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { buildFontStack, DEFAULT_CODE_FONT_STACK, DEFAULT_TEXT_FONT_STACK } from '@/lib/fontStack'
-import { SettingsClient } from '../../api/SettingsClient'
+import { createSettingsClient } from '../../api/SettingsClient'
 
 const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
 const DEFAULT_FONT_SIZE_LEVEL = 1
@@ -18,7 +18,7 @@ const clampFontSizeLevel = (level: number) =>
   Math.max(0, Math.min(level, FONT_SIZE_CLASSES.length - 1))
 
 export const useUiSettingsStore = defineStore('uiSettings', () => {
-  const settingsClient = new SettingsClient()
+  const settingsClient = createSettingsClient()
 
   const fontSizeLevel = ref(DEFAULT_FONT_SIZE_LEVEL)
   const fontFamily = ref('')

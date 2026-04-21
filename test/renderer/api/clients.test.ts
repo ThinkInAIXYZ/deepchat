@@ -1,11 +1,11 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { BrowserClient } from '../../../src/renderer/api/BrowserClient'
-import { ChatClient } from '../../../src/renderer/api/ChatClient'
-import { ConfigClient } from '../../../src/renderer/api/ConfigClient'
-import { ModelClient } from '../../../src/renderer/api/ModelClient'
-import { ProviderClient } from '../../../src/renderer/api/ProviderClient'
-import { SessionClient } from '../../../src/renderer/api/SessionClient'
-import { SettingsClient } from '../../../src/renderer/api/SettingsClient'
+import { createBrowserClient } from '../../../src/renderer/api/BrowserClient'
+import { createChatClient } from '../../../src/renderer/api/ChatClient'
+import { createConfigClient } from '../../../src/renderer/api/ConfigClient'
+import { createModelClient } from '../../../src/renderer/api/ModelClient'
+import { createProviderClient } from '../../../src/renderer/api/ProviderClient'
+import { createSessionClient } from '../../../src/renderer/api/SessionClient'
+import { createSettingsClient } from '../../../src/renderer/api/SettingsClient'
 
 describe('renderer api clients', () => {
   function createBridge(): DeepchatBridge {
@@ -87,7 +87,7 @@ describe('renderer api clients', () => {
 
   it('routes settings calls through the shared registry names', async () => {
     const bridge = createBridge()
-    const client = new SettingsClient(bridge)
+    const client = createSettingsClient(bridge)
 
     await client.getSnapshot(['fontSizeLevel'])
     await client.getSystemFonts()
@@ -111,9 +111,9 @@ describe('renderer api clients', () => {
 
   it('routes session and chat calls through the shared registry names', async () => {
     const bridge = createBridge()
-    const sessionClient = new SessionClient(bridge)
-    const chatClient = new ChatClient(bridge)
-    const providerClient = new ProviderClient(bridge)
+    const sessionClient = createSessionClient(bridge)
+    const chatClient = createChatClient(bridge)
+    const providerClient = createProviderClient(bridge)
 
     await sessionClient.create({
       agentId: 'deepchat',
@@ -191,9 +191,9 @@ describe('renderer api clients', () => {
 
   it('routes phase2 config, provider, and model calls through the shared registry names', async () => {
     const bridge = createBridge()
-    const configClient = new ConfigClient(bridge)
-    const providerClient = new ProviderClient(bridge)
-    const modelClient = new ModelClient(bridge)
+    const configClient = createConfigClient(bridge)
+    const providerClient = createProviderClient(bridge)
+    const modelClient = createModelClient(bridge)
 
     await configClient.getSetting('input_chatMode')
     await configClient.setSetting('preferredModel', {
@@ -283,7 +283,7 @@ describe('renderer api clients', () => {
 
   it('serializes browser bounds updates before invoking the bridge', async () => {
     const bridge = createBridge()
-    const browserClient = new BrowserClient(bridge)
+    const browserClient = createBrowserClient(bridge)
     const reactiveBounds = new Proxy(
       {
         x: 12,

@@ -40,11 +40,11 @@ vi.mock('vue', async () => {
 })
 
 vi.mock('@api/McpClient', () => ({
-  McpClient: vi.fn(() => mcpClientMock)
+  createMcpClient: vi.fn(() => mcpClientMock)
 }))
 
 vi.mock('../../../src/renderer/api/ConfigClient', () => ({
-  ConfigClient: vi.fn(() => configPresenterMock)
+  createConfigClient: vi.fn(() => configPresenterMock)
 }))
 
 vi.mock('@/composables/useIpcMutation', () => ({

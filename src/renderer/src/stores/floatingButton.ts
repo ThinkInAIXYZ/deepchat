@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, onMounted } from 'vue'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createConfigClient } from '../../api/ConfigClient'
 
 export const useFloatingButtonStore = defineStore('floatingButton', () => {
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
 
   // 悬浮按钮是否启用的状态
   const enabled = ref<boolean>(false)

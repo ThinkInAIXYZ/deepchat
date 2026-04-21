@@ -1,4 +1,4 @@
-import { FileClient } from '@api/FileClient'
+import { createFileClient } from '@api/FileClient'
 
 export const CHAT_INPUT_WORKSPACE_ITEM_MIME = 'application/x-deepchat-workspace-item'
 
@@ -7,7 +7,7 @@ export interface ChatInputWorkspaceItemDragPayload {
   isDirectory: boolean
 }
 
-const fileClient = new FileClient()
+const fileClient = createFileClient()
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null

@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 
 // === Composables ===
-import { DeviceClient } from '@api/DeviceClient'
+import { createDeviceClient } from '@api/DeviceClient'
 
 /**
  * Composable for detecting device platform and OS version
@@ -31,7 +31,7 @@ export function useDeviceVersion() {
   // === Local State ===
   const isWinMacOS = ref(false)
   const isMacOS = ref(false)
-  const deviceClient = new DeviceClient()
+  const deviceClient = createDeviceClient()
 
   // === Lifecycle Hooks ===
   onMounted(() => {

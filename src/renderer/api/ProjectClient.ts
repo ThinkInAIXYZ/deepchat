@@ -7,25 +7,32 @@ import {
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 
-export class ProjectClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async listRecent(limit: number = 20) {
-    const result = await this.bridge.invoke(projectListRecentRoute.name, { limit })
+export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function listRecent(limit: number = 20) {
+    const result = await bridge.invoke(projectListRecentRoute.name, { limit })
     return result.projects
   }
 
-  async listEnvironments() {
-    const result = await this.bridge.invoke(projectListEnvironmentsRoute.name, {})
+  async function listEnvironments() {
+    const result = await bridge.invoke(projectListEnvironmentsRoute.name, {})
     return result.environments
   }
 
-  async openDirectory(path: string) {
-    return await this.bridge.invoke(projectOpenDirectoryRoute.name, { path })
+  async function openDirectory(path: string) {
+    return await bridge.invoke(projectOpenDirectoryRoute.name, { path })
   }
 
-  async selectDirectory() {
-    const result = await this.bridge.invoke(projectSelectDirectoryRoute.name, {})
+  async function selectDirectory() {
+    const result = await bridge.invoke(projectSelectDirectoryRoute.name, {})
     return result.path
   }
+
+  return {
+    listRecent,
+    listEnvironments,
+    openDirectory,
+    selectDirectory
+  }
 }
+
+export type ProjectClient = ReturnType<typeof createProjectClient>

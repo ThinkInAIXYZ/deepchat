@@ -166,7 +166,7 @@ const mountApp = async (options?: {
   }))
 
   vi.doMock('@api/ConfigClient', () => ({
-    ConfigClient: vi.fn(() => configPresenter)
+    createConfigClient: vi.fn(() => configPresenter)
   }))
   vi.doMock('@/stores/artifact', () => ({
     useArtifactStore: () => ({

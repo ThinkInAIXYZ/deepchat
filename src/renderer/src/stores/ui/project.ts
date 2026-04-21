@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { ConfigClient } from '../../../api/ConfigClient'
-import { ProjectClient } from '@api/ProjectClient'
+import { createConfigClient } from '../../../api/ConfigClient'
+import { createProjectClient } from '@api/ProjectClient'
 import type { EnvironmentSummary, Project } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -18,8 +18,8 @@ type ProjectSelectionSource = 'none' | 'manual' | 'default'
 // --- Store ---
 
 export const useProjectStore = defineStore('project', () => {
-  const configClient = new ConfigClient()
-  const projectClient = new ProjectClient()
+  const configClient = createConfigClient()
+  const projectClient = createProjectClient()
 
   // --- State ---
   const projects = ref<UIProject[]>([])

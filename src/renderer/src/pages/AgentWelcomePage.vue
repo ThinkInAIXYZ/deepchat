@@ -49,12 +49,12 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { SettingsClient } from '@api/SettingsClient'
+import { createSettingsClient } from '@api/SettingsClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 
 const { t } = useI18n()
-const settingsClient = new SettingsClient()
+const settingsClient = createSettingsClient()
 const agentStore = useAgentStore()
 const displayedAgents = computed(() => agentStore.enabledAgents.slice(0, 9))
 

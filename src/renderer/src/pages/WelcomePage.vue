@@ -64,7 +64,7 @@
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { ConfigClient } from '@api/ConfigClient'
+import { createConfigClient } from '@api/ConfigClient'
 import { useThemeStore } from '@/stores/theme'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
@@ -72,7 +72,7 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const configClient = new ConfigClient()
+const configClient = createConfigClient()
 const themeStore = useThemeStore()
 const pageRouter = usePageRouterStore()
 

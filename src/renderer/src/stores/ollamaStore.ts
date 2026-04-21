@@ -1,12 +1,12 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ProviderClient } from '../../api/ProviderClient'
+import { createProviderClient } from '../../api/ProviderClient'
 import type { OllamaModel } from '@shared/presenter'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 
 export const useOllamaStore = defineStore('ollama', () => {
-  const providerClient = new ProviderClient()
+  const providerClient = createProviderClient()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
   let unsubscribeOllamaPullProgress: (() => void) | null = null

@@ -2,9 +2,9 @@ import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
 import { VueRenderer } from '@tiptap/vue-3'
 import type { Editor, Range } from '@tiptap/core'
 import tippy from 'tippy.js'
-import { SessionClient } from '@api/SessionClient'
-import { SkillClient } from '@api/SkillClient'
-import { WorkspaceClient } from '@api/WorkspaceClient'
+import { createSessionClient } from '@api/SessionClient'
+import { createSkillClient } from '@api/SkillClient'
+import { createWorkspaceClient } from '@api/WorkspaceClient'
 import type { PromptListEntry, WorkspaceFileNode } from '@shared/presenter'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
@@ -85,9 +85,9 @@ const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
 }
 
 export function useChatInputMentions(options: UseChatInputMentionsOptions) {
-  const workspaceClient = new WorkspaceClient()
-  const sessionClient = new SessionClient()
-  const skillClient = new SkillClient()
+  const workspaceClient = createWorkspaceClient()
+  const sessionClient = createSessionClient()
+  const skillClient = createSkillClient()
   const mcpStore = useMcpStore()
   const skillsStore = useSkillsStore()
 

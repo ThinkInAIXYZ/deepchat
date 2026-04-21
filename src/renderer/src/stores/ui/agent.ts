@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { ConfigClient } from '../../../api/ConfigClient'
-import { ModelClient } from '../../../api/ModelClient'
-import { SessionClient } from '../../../api/SessionClient'
+import { createConfigClient } from '../../../api/ConfigClient'
+import { createModelClient } from '../../../api/ModelClient'
+import { createSessionClient } from '../../../api/SessionClient'
 import type { Agent } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -25,9 +25,9 @@ export interface UIAgent {
 // --- Store ---
 
 export const useAgentStore = defineStore('agent', () => {
-  const sessionClient = new SessionClient()
-  const configClient = new ConfigClient()
-  const modelClient = new ModelClient()
+  const sessionClient = createSessionClient()
+  const configClient = createConfigClient()
+  const modelClient = createModelClient()
   let listenersRegistered = false
 
   // --- State ---

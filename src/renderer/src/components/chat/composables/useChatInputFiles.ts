@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue'
 import type { MessageFile } from '@shared/types/agent-interface'
-import { FileClient } from '@api/FileClient'
+import { createFileClient } from '@api/FileClient'
 import { useToast } from '@/components/use-toast'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'
 import { approximateTokenSize } from 'tokenx'
@@ -21,7 +21,7 @@ export function useChatInputFiles(
   emit: (event: 'file-upload', files: MessageFile[]) => void,
   t: (key: string, params?: any) => string
 ) {
-  const fileClient = new FileClient()
+  const fileClient = createFileClient()
   const { toast } = useToast()
   const selectedFiles = ref<MessageFile[]>([])
 

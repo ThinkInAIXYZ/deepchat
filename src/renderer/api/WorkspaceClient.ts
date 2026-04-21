@@ -19,79 +19,83 @@ import { getDeepchatBridge } from './core'
 
 type WorkspaceRegistrationMode = 'workspace' | 'workdir'
 
-export class WorkspaceClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async registerWorkspace(workspacePath: string, mode: WorkspaceRegistrationMode = 'workspace') {
-    return await this.bridge.invoke(workspaceRegisterRoute.name, { workspacePath, mode })
+export function createWorkspaceClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function registerWorkspace(
+    workspacePath: string,
+    mode: WorkspaceRegistrationMode = 'workspace'
+  ) {
+    return await bridge.invoke(workspaceRegisterRoute.name, { workspacePath, mode })
   }
 
-  async unregisterWorkspace(workspacePath: string, mode: WorkspaceRegistrationMode = 'workspace') {
-    return await this.bridge.invoke(workspaceUnregisterRoute.name, { workspacePath, mode })
+  async function unregisterWorkspace(
+    workspacePath: string,
+    mode: WorkspaceRegistrationMode = 'workspace'
+  ) {
+    return await bridge.invoke(workspaceUnregisterRoute.name, { workspacePath, mode })
   }
 
-  async watchWorkspace(workspacePath: string) {
-    return await this.bridge.invoke(workspaceWatchRoute.name, { workspacePath })
+  async function watchWorkspace(workspacePath: string) {
+    return await bridge.invoke(workspaceWatchRoute.name, { workspacePath })
   }
 
-  async unwatchWorkspace(workspacePath: string) {
-    return await this.bridge.invoke(workspaceUnwatchRoute.name, { workspacePath })
+  async function unwatchWorkspace(workspacePath: string) {
+    return await bridge.invoke(workspaceUnwatchRoute.name, { workspacePath })
   }
 
-  async readDirectory(path: string) {
-    const result = await this.bridge.invoke(workspaceReadDirectoryRoute.name, { path })
+  async function readDirectory(path: string) {
+    const result = await bridge.invoke(workspaceReadDirectoryRoute.name, { path })
     return result.nodes
   }
 
-  async expandDirectory(path: string) {
-    const result = await this.bridge.invoke(workspaceExpandDirectoryRoute.name, { path })
+  async function expandDirectory(path: string) {
+    const result = await bridge.invoke(workspaceExpandDirectoryRoute.name, { path })
     return result.nodes
   }
 
-  async revealFileInFolder(path: string) {
-    return await this.bridge.invoke(workspaceRevealFileInFolderRoute.name, { path })
+  async function revealFileInFolder(path: string) {
+    return await bridge.invoke(workspaceRevealFileInFolderRoute.name, { path })
   }
 
-  async openFile(path: string) {
-    return await this.bridge.invoke(workspaceOpenFileRoute.name, { path })
+  async function openFile(path: string) {
+    return await bridge.invoke(workspaceOpenFileRoute.name, { path })
   }
 
-  async readFilePreview(path: string) {
-    const result = await this.bridge.invoke(workspaceReadFilePreviewRoute.name, { path })
+  async function readFilePreview(path: string) {
+    const result = await bridge.invoke(workspaceReadFilePreviewRoute.name, { path })
     return result.preview
   }
 
-  async resolveMarkdownLinkedFile(input: {
+  async function resolveMarkdownLinkedFile(input: {
     workspacePath: string | null
     href: string
     sourceFilePath?: string | null
   }) {
-    const result = await this.bridge.invoke(workspaceResolveMarkdownLinkedFileRoute.name, input)
+    const result = await bridge.invoke(workspaceResolveMarkdownLinkedFileRoute.name, input)
     return result.resolution
   }
 
-  async getGitStatus(workspacePath: string) {
-    const result = await this.bridge.invoke(workspaceGetGitStatusRoute.name, { workspacePath })
+  async function getGitStatus(workspacePath: string) {
+    const result = await bridge.invoke(workspaceGetGitStatusRoute.name, { workspacePath })
     return result.state
   }
 
-  async getGitDiff(workspacePath: string, filePath?: string) {
-    const result = await this.bridge.invoke(workspaceGetGitDiffRoute.name, {
+  async function getGitDiff(workspacePath: string, filePath?: string) {
+    const result = await bridge.invoke(workspaceGetGitDiffRoute.name, {
       workspacePath,
       filePath
     })
     return result.diff
   }
 
-  async searchFiles(workspacePath: string, query: string) {
-    const result = await this.bridge.invoke(workspaceSearchFilesRoute.name, {
+  async function searchFiles(workspacePath: string, query: string) {
+    const result = await bridge.invoke(workspaceSearchFilesRoute.name, {
       workspacePath,
       query
     })
     return result.nodes
   }
 
-  onInvalidated(
+  function onInvalidated(
     listener: (payload: {
       workspacePath: string
       kind: 'fs' | 'git' | 'full'
@@ -99,6 +103,25 @@ export class WorkspaceClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(workspaceInvalidatedEvent.name, listener)
+    return bridge.on(workspaceInvalidatedEvent.name, listener)
+  }
+
+  return {
+    registerWorkspace,
+    unregisterWorkspace,
+    watchWorkspace,
+    unwatchWorkspace,
+    readDirectory,
+    expandDirectory,
+    revealFileInFolder,
+    openFile,
+    readFilePreview,
+    resolveMarkdownLinkedFile,
+    getGitStatus,
+    getGitDiff,
+    searchFiles,
+    onInvalidated
   }
 }
+
+export type WorkspaceClient = ReturnType<typeof createWorkspaceClient>

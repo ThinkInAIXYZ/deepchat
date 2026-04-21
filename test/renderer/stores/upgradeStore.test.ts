@@ -36,7 +36,7 @@ vi.mock('vue', async () => {
 })
 
 vi.mock('@api/UpgradeClient', () => ({
-  UpgradeClient: vi.fn(() => ({
+  createUpgradeClient: vi.fn(() => ({
     checkUpdate: upgradePresenterMock.checkUpdate,
     getUpdateStatus: upgradePresenterMock.getUpdateStatus,
     goDownloadUpgrade: upgradePresenterMock.goDownloadUpgrade,
@@ -64,7 +64,7 @@ vi.mock('@api/UpgradeClient', () => ({
 }))
 
 vi.mock('@api/DeviceClient', () => ({
-  DeviceClient: vi.fn(() => ({
+  createDeviceClient: vi.fn(() => ({
     getDeviceInfo: devicePresenterMock.getDeviceInfo
   }))
 }))

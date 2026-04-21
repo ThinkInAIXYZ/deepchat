@@ -1,6 +1,6 @@
-import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import { settingsChangedEvent } from '@shared/contracts/events'
+import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import {
   configGetEntriesRoute,
   configUpdateEntriesRoute,
@@ -17,55 +17,67 @@ import {
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 
-export class SettingsClient {
-  constructor(protected readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async getSnapshot(keys?: SettingsKey[]): Promise<Partial<SettingsSnapshotValues>> {
-    const result = await this.bridge.invoke(settingsGetSnapshotRoute.name, { keys })
+export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getSnapshot(keys?: SettingsKey[]): Promise<Partial<SettingsSnapshotValues>> {
+    const result = await bridge.invoke(settingsGetSnapshotRoute.name, { keys })
     return result.values
   }
 
-  async getSystemFonts(): Promise<string[]> {
-    const result = await this.bridge.invoke(settingsListSystemFontsRoute.name, {})
+  async function getSystemFonts(): Promise<string[]> {
+    const result = await bridge.invoke(settingsListSystemFontsRoute.name, {})
     return result.fonts
   }
 
-  async getConfigEntries(keys?: ConfigEntryKey[]): Promise<Partial<ConfigEntryValues>> {
-    const result = await this.bridge.invoke(configGetEntriesRoute.name, { keys })
+  async function getConfigEntries(keys?: ConfigEntryKey[]): Promise<Partial<ConfigEntryValues>> {
+    const result = await bridge.invoke(configGetEntriesRoute.name, { keys })
     return result.values
   }
 
-  async updateConfigEntries(changes: ConfigEntryChange[]) {
-    return await this.bridge.invoke(configUpdateEntriesRoute.name, { changes })
+  async function updateConfigEntries(changes: ConfigEntryChange[]) {
+    return await bridge.invoke(configUpdateEntriesRoute.name, { changes })
   }
 
-  async getConfigEntry<K extends ConfigEntryKey>(
+  async function getConfigEntry<K extends ConfigEntryKey>(
     key: K
   ): Promise<ConfigEntryValues[K] | undefined> {
-    const values = await this.getConfigEntries([key])
+    const values = await getConfigEntries([key])
     return values[key] as ConfigEntryValues[K] | undefined
   }
 
-  async setConfigEntry<K extends ConfigEntryKey>(key: K, value: ConfigEntryValues[K]) {
-    const result = await this.updateConfigEntries([{ key, value } as ConfigEntryChange])
+  async function setConfigEntry<K extends ConfigEntryKey>(key: K, value: ConfigEntryValues[K]) {
+    const result = await updateConfigEntries([{ key, value } as ConfigEntryChange])
     return result.values[key] as ConfigEntryValues[K] | undefined
   }
 
-  async update(changes: SettingsChange[]) {
-    return await this.bridge.invoke(settingsUpdateRoute.name, { changes })
+  async function update(changes: SettingsChange[]) {
+    return await bridge.invoke(settingsUpdateRoute.name, { changes })
   }
 
-  async openSettings(navigation?: SettingsNavigationPayload) {
-    return await this.bridge.invoke(systemOpenSettingsRoute.name, navigation ?? {})
+  async function openSettings(navigation?: SettingsNavigationPayload) {
+    return await bridge.invoke(systemOpenSettingsRoute.name, navigation ?? {})
   }
 
-  onChanged(
+  function onChanged(
     listener: (payload: {
       changedKeys: SettingsKey[]
       version: number
       values: Partial<SettingsSnapshotValues>
     }) => void
   ) {
-    return this.bridge.on(settingsChangedEvent.name, listener)
+    return bridge.on(settingsChangedEvent.name, listener)
+  }
+
+  return {
+    getSnapshot,
+    getSystemFonts,
+    getConfigEntries,
+    updateConfigEntries,
+    getConfigEntry,
+    setConfigEntry,
+    update,
+    openSettings,
+    onChanged
   }
 }
+
+export type SettingsClient = ReturnType<typeof createSettingsClient>

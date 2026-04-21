@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia'
 import { onMounted, ref } from 'vue'
 import type { ShortcutKeySetting } from '@shared/presenter'
-import { ShortcutRuntime } from '@api/ShortcutRuntime'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createShortcutRuntime } from '@api/ShortcutRuntime'
+import { createConfigClient } from '../../api/ConfigClient'
 
 export const useShortcutKeyStore = defineStore('shortcutKey', () => {
-  const configClient = new ConfigClient()
-  const shortcutRuntime = new ShortcutRuntime()
+  const configClient = createConfigClient()
+  const shortcutRuntime = createShortcutRuntime()
   const shortcutKeys = ref<ShortcutKeySetting>()
 
   const loadShortcutKeys = async () => {

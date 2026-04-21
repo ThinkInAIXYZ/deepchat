@@ -67,7 +67,7 @@ import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
-import { BrowserClient } from '@api/BrowserClient'
+import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
@@ -79,7 +79,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
-const browserClient = new BrowserClient()
+const browserClient = createBrowserClient()
 let stopBrowserOpenRequestedListener: (() => void) | null = null
 
 const shouldShow = computed(() => sidepanelStore.open && Boolean(props.sessionId))

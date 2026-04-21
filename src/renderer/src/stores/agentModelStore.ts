@@ -7,7 +7,7 @@ import type {
   RENDERER_MODEL_META
 } from '@shared/presenter'
 import { ModelType } from '@shared/model'
-import { ConfigClient } from '../../api/ConfigClient'
+import { createConfigClient } from '../../api/ConfigClient'
 
 export interface AgentModelRefreshResult {
   rendererModels: RENDERER_MODEL_META[]
@@ -20,7 +20,7 @@ const buildProcessKey = (providerId: string, agentId: string) =>
   `${providerId}${PROCESS_KEY_SEPARATOR}${agentId}`
 
 export const useAgentModelStore = defineStore('agent-model', () => {
-  const configClient = new ConfigClient()
+  const configClient = createConfigClient()
 
   const agentModels = ref<Record<string, RENDERER_MODEL_META[]>>({})
   const sessionStatus = ref<Record<string, AgentSessionState>>({})

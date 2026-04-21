@@ -61,16 +61,28 @@ describe('BrowserPanel', () => {
       sessions: options?.sessions ?? [{ id: options?.sessionId ?? 'session-a', status: 'none' }]
     }
 
-    const yoBrowserPresenter = {
-      getBrowserStatus: vi.fn().mockResolvedValue(options?.browserStatus ?? defaultBrowserStatus),
-      attachSessionBrowser: vi.fn().mockResolvedValue(true),
-      updateSessionBrowserBounds: vi.fn().mockResolvedValue(undefined),
+    const browserClient = {
+      getStatus: vi.fn().mockResolvedValue(options?.browserStatus ?? defaultBrowserStatus),
+      attachCurrentWindow: vi.fn().mockResolvedValue(true),
+      updateCurrentWindowBounds: vi.fn().mockResolvedValue(true),
       loadUrl: vi.fn().mockResolvedValue(options?.browserStatus ?? defaultBrowserStatus),
-      goBack: vi.fn().mockResolvedValue(undefined),
-      goForward: vi.fn().mockResolvedValue(undefined),
-      reload: vi.fn().mockResolvedValue(undefined),
-      detachSessionBrowser: vi.fn().mockResolvedValue(undefined),
-      destroySessionBrowser: vi.fn().mockResolvedValue(undefined)
+      goBack: vi.fn().mockResolvedValue(options?.browserStatus ?? defaultBrowserStatus),
+      goForward: vi.fn().mockResolvedValue(options?.browserStatus ?? defaultBrowserStatus),
+      reload: vi.fn().mockResolvedValue(options?.browserStatus ?? defaultBrowserStatus),
+      detach: vi.fn().mockResolvedValue(true),
+      destroy: vi.fn().mockResolvedValue(true),
+      onOpenRequestedForCurrentWindow: vi.fn((listener: IpcHandler) => {
+        handlers.set('yo-browser:open-requested', listener)
+        return () => {
+          handlers.delete('yo-browser:open-requested')
+        }
+      }),
+      onStatusChanged: vi.fn((listener: IpcHandler) => {
+        handlers.set('yo-browser:status-changed', listener)
+        return () => {
+          handlers.delete('yo-browser:status-changed')
+        }
+      })
     }
 
     vi.doMock('vue-i18n', () => ({
@@ -91,23 +103,9 @@ describe('BrowserPanel', () => {
       useSessionStore: () => sessionStore
     }))
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: () => yoBrowserPresenter
+    vi.doMock('@api/BrowserClient', () => ({
+      createBrowserClient: () => browserClient
     }))
-    ;(window as any).api = {
-      ...(window as any).api,
-      getWindowId: vi.fn(() => 1)
-    }
-    ;(window as any).electron = {
-      ipcRenderer: {
-        on: vi.fn((channel: string, handler: IpcHandler) => {
-          handlers.set(channel, handler)
-        }),
-        removeListener: vi.fn((channel: string) => {
-          handlers.delete(channel)
-        })
-      }
-    }
 
     const BrowserPanel = (await import('@/components/sidepanel/BrowserPanel.vue')).default
     const wrapper = mount(BrowserPanel, {
@@ -140,7 +138,7 @@ describe('BrowserPanel', () => {
     })
 
     await flushPromises()
-    return { wrapper, yoBrowserPresenter, handlers }
+    return { wrapper, browserClient, handlers }
   }
 
   it('adds accessible labels to browser toolbar controls', async () => {
@@ -160,17 +158,16 @@ describe('BrowserPanel', () => {
       return rects.shift() ?? makeRect(24, 48, 320, 480)
     })
 
-    const { yoBrowserPresenter } = await setup()
+    const { browserClient } = await setup()
 
-    expect(yoBrowserPresenter.attachSessionBrowser).not.toHaveBeenCalled()
+    expect(browserClient.attachCurrentWindow).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(160)
     await flushPromises()
 
-    expect(yoBrowserPresenter.attachSessionBrowser).toHaveBeenCalledWith('session-a', 1)
-    expect(yoBrowserPresenter.updateSessionBrowserBounds).toHaveBeenCalledWith(
+    expect(browserClient.attachCurrentWindow).toHaveBeenCalledWith('session-a')
+    expect(browserClient.updateCurrentWindowBounds).toHaveBeenCalledWith(
       'session-a',
-      1,
       expect.objectContaining({
         x: 24,
         y: 48,
@@ -186,9 +183,9 @@ describe('BrowserPanel', () => {
       makeRect(10, 10, 300, 400)
     )
 
-    const { yoBrowserPresenter, handlers } = await setup()
-    yoBrowserPresenter.attachSessionBrowser.mockClear()
-    yoBrowserPresenter.updateSessionBrowserBounds.mockClear()
+    const { browserClient, handlers } = await setup()
+    browserClient.attachCurrentWindow.mockClear()
+    browserClient.updateCurrentWindowBounds.mockClear()
 
     const openRequestedHandler = handlers.get('yo-browser:open-requested')
     expect(openRequestedHandler).toBeTypeOf('function')
@@ -197,7 +194,7 @@ describe('BrowserPanel', () => {
     await openRequestedHandler?.({}, { sessionId: 'session-a', windowId: 2 })
     await flushPromises()
 
-    expect(yoBrowserPresenter.attachSessionBrowser).not.toHaveBeenCalled()
-    expect(yoBrowserPresenter.updateSessionBrowserBounds).not.toHaveBeenCalled()
+    expect(browserClient.attachCurrentWindow).not.toHaveBeenCalled()
+    expect(browserClient.updateCurrentWindowBounds).not.toHaveBeenCalled()
   })
 })

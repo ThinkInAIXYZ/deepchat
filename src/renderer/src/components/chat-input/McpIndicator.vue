@@ -218,10 +218,10 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
-import { SettingsClient } from '@api/SettingsClient'
-import { SessionClient } from '@api/SessionClient'
-import { SkillClient } from '@api/SkillClient'
-import { ToolClient } from '@api/ToolClient'
+import { createSettingsClient } from '@api/SettingsClient'
+import { createSessionClient } from '@api/SessionClient'
+import { createSkillClient } from '@api/SkillClient'
+import { createToolClient } from '@api/ToolClient'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
@@ -295,10 +295,10 @@ const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
-const settingsClient = new SettingsClient()
-const toolClient = new ToolClient()
-const sessionClient = new SessionClient()
-const skillClient = new SkillClient()
+const settingsClient = createSettingsClient()
+const toolClient = createToolClient()
+const sessionClient = createSessionClient()
+const skillClient = createSkillClient()
 
 const panelOpen = ref(false)
 const toolsLoading = ref(false)

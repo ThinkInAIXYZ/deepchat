@@ -45,7 +45,7 @@ const setupStore = async () => {
   }
 
   vi.doMock('../../../src/renderer/api/SessionClient', () => ({
-    SessionClient: vi.fn(() => sessionClient)
+    createSessionClient: vi.fn(() => sessionClient)
   }))
 
   const { usePendingInputStore } = await import('@/stores/ui/pendingInput')

@@ -51,10 +51,10 @@ const setupStore = async () => {
   })
 
   vi.doMock('../../../src/renderer/api/SessionClient', () => ({
-    SessionClient: vi.fn(() => sessionClient)
+    createSessionClient: vi.fn(() => sessionClient)
   }))
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
-    ChatClient: vi.fn(() => chatClient)
+    createChatClient: vi.fn(() => chatClient)
   }))
 
   ;(window as any).electron = {

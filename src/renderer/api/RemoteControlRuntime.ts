@@ -14,24 +14,31 @@ type RemoteControlPresenterCompat = IRemoteControlPresenter & {
 const defaultRemoteControlPresenter =
   useLegacyRemoteControlPresenter() as RemoteControlPresenterCompat
 
-export class RemoteControlRuntime {
-  constructor(
-    private readonly presenter: RemoteControlPresenterCompat = defaultRemoteControlPresenter
-  ) {}
-
-  async listRemoteChannels(): Promise<RemoteChannelDescriptor[] | null> {
-    return this.presenter.listRemoteChannels ? await this.presenter.listRemoteChannels() : null
+export function createRemoteControlRuntime(
+  presenter: RemoteControlPresenterCompat = defaultRemoteControlPresenter
+) {
+  async function listRemoteChannels(): Promise<RemoteChannelDescriptor[] | null> {
+    return presenter.listRemoteChannels ? await presenter.listRemoteChannels() : null
   }
 
-  async getChannelStatus(channel: RemoteChannel): Promise<RemoteChannelStatus | null> {
-    return this.presenter.getChannelStatus ? await this.presenter.getChannelStatus(channel) : null
+  async function getChannelStatus(channel: RemoteChannel): Promise<RemoteChannelStatus | null> {
+    return presenter.getChannelStatus ? await presenter.getChannelStatus(channel) : null
   }
 
-  async getTelegramStatus() {
-    return await this.presenter.getTelegramStatus()
+  async function getTelegramStatus() {
+    return await presenter.getTelegramStatus()
   }
 
-  async getWeixinIlinkStatus() {
-    return await this.presenter.getWeixinIlinkStatus()
+  async function getWeixinIlinkStatus() {
+    return await presenter.getWeixinIlinkStatus()
+  }
+
+  return {
+    listRemoteChannels,
+    getChannelStatus,
+    getTelegramStatus,
+    getWeixinIlinkStatus
   }
 }
+
+export type RemoteControlRuntime = ReturnType<typeof createRemoteControlRuntime>

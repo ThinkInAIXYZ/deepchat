@@ -1,8 +1,8 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useDebounceFn } from '@vueuse/core'
-import { SettingsClient } from '@api/SettingsClient'
-import { SessionClient } from '@api/SessionClient'
+import { createSettingsClient } from '@api/SettingsClient'
+import { createSessionClient } from '@api/SessionClient'
 import { useProviderStore } from '@/stores/providerStore'
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
@@ -127,8 +127,8 @@ const actionItems: Array<{
 ]
 
 export const useSpotlightStore = defineStore('spotlight', () => {
-  const sessionClient = new SessionClient()
-  const settingsClient = new SettingsClient()
+  const sessionClient = createSessionClient()
+  const settingsClient = createSettingsClient()
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
   const agentStore = useAgentStore()

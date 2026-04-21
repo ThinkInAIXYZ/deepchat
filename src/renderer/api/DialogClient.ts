@@ -4,18 +4,16 @@ import { dialogErrorRoute, dialogRespondRoute } from '@shared/contracts/routes'
 import type { DialogResponse } from '@shared/presenter'
 import { getDeepchatBridge } from './core'
 
-export class DialogClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async handleDialogResponse(response: DialogResponse) {
-    await this.bridge.invoke(dialogRespondRoute.name, response)
+export function createDialogClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function handleDialogResponse(response: DialogResponse) {
+    await bridge.invoke(dialogRespondRoute.name, response)
   }
 
-  async handleDialogError(id: string) {
-    await this.bridge.invoke(dialogErrorRoute.name, { id })
+  async function handleDialogError(id: string) {
+    await bridge.invoke(dialogErrorRoute.name, { id })
   }
 
-  onRequested(
+  function onRequested(
     listener: (payload: {
       id: string
       title: string
@@ -27,6 +25,14 @@ export class DialogClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(dialogRequestedEvent.name, listener)
+    return bridge.on(dialogRequestedEvent.name, listener)
+  }
+
+  return {
+    handleDialogResponse,
+    handleDialogError,
+    onRequested
   }
 }
+
+export type DialogClient = ReturnType<typeof createDialogClient>

@@ -20,7 +20,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('@api/SessionClient', () => ({
-  SessionClient: vi.fn(() => ({
+  createSessionClient: vi.fn(() => ({
     translateText
   }))
 }))

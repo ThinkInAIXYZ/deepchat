@@ -21,103 +21,101 @@ import {
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { getDeepchatBridge } from './core'
 
-export class ProviderClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async getProviders() {
-    const result = await this.bridge.invoke(providersListRoute.name, {})
+export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getProviders() {
+    const result = await bridge.invoke(providersListRoute.name, {})
     return result.providers
   }
 
-  async getDefaultProviders() {
-    const result = await this.bridge.invoke(providersListDefaultsRoute.name, {})
+  async function getDefaultProviders() {
+    const result = await bridge.invoke(providersListDefaultsRoute.name, {})
     return result.providers
   }
 
-  async setProviderById(providerId: string, provider: LLM_PROVIDER) {
-    const result = await this.bridge.invoke(providersSetByIdRoute.name, {
+  async function setProviderById(providerId: string, provider: LLM_PROVIDER) {
+    const result = await bridge.invoke(providersSetByIdRoute.name, {
       providerId,
       provider
     })
     return result.provider
   }
 
-  async updateProviderAtomic(providerId: string, updates: Partial<LLM_PROVIDER>) {
-    const result = await this.bridge.invoke(providersUpdateRoute.name, {
+  async function updateProviderAtomic(providerId: string, updates: Partial<LLM_PROVIDER>) {
+    const result = await bridge.invoke(providersUpdateRoute.name, {
       providerId,
       updates
     })
     return result.requiresRebuild
   }
 
-  async addProviderAtomic(provider: LLM_PROVIDER) {
-    const result = await this.bridge.invoke(providersAddRoute.name, { provider })
+  async function addProviderAtomic(provider: LLM_PROVIDER) {
+    const result = await bridge.invoke(providersAddRoute.name, { provider })
     return result.provider
   }
 
-  async removeProviderAtomic(providerId: string) {
-    const result = await this.bridge.invoke(providersRemoveRoute.name, { providerId })
+  async function removeProviderAtomic(providerId: string) {
+    const result = await bridge.invoke(providersRemoveRoute.name, { providerId })
     return result.removed
   }
 
-  async reorderProvidersAtomic(providers: LLM_PROVIDER[]) {
-    const result = await this.bridge.invoke(providersReorderRoute.name, { providers })
+  async function reorderProvidersAtomic(providers: LLM_PROVIDER[]) {
+    const result = await bridge.invoke(providersReorderRoute.name, { providers })
     return result.providers
   }
 
-  async listModels(providerId: string) {
-    return await this.bridge.invoke(providersListModelsRoute.name, { providerId })
+  async function listModels(providerId: string) {
+    return await bridge.invoke(providersListModelsRoute.name, { providerId })
   }
 
-  async testConnection(input: { providerId: string; modelId?: string }) {
-    return await this.bridge.invoke(providersTestConnectionRoute.name, input)
+  async function testConnection(input: { providerId: string; modelId?: string }) {
+    return await bridge.invoke(providersTestConnectionRoute.name, input)
   }
 
-  async getProviderRateLimitStatus(providerId: string) {
-    const result = await this.bridge.invoke(providersGetRateLimitStatusRoute.name, { providerId })
+  async function getProviderRateLimitStatus(providerId: string) {
+    const result = await bridge.invoke(providersGetRateLimitStatusRoute.name, { providerId })
     return result.status
   }
 
-  async refreshModels(providerId: string) {
-    return await this.bridge.invoke(providersRefreshModelsRoute.name, { providerId })
+  async function refreshModels(providerId: string) {
+    return await bridge.invoke(providersRefreshModelsRoute.name, { providerId })
   }
 
-  async listOllamaModels(providerId: string) {
-    const result = await this.bridge.invoke(providersListOllamaModelsRoute.name, { providerId })
+  async function listOllamaModels(providerId: string) {
+    const result = await bridge.invoke(providersListOllamaModelsRoute.name, { providerId })
     return result.models
   }
 
-  async listOllamaRunningModels(providerId: string) {
-    const result = await this.bridge.invoke(providersListOllamaRunningModelsRoute.name, {
+  async function listOllamaRunningModels(providerId: string) {
+    const result = await bridge.invoke(providersListOllamaRunningModelsRoute.name, {
       providerId
     })
     return result.models
   }
 
-  async pullOllamaModels(providerId: string, modelName: string) {
-    const result = await this.bridge.invoke(providersPullOllamaModelRoute.name, {
+  async function pullOllamaModels(providerId: string, modelName: string) {
+    const result = await bridge.invoke(providersPullOllamaModelRoute.name, {
       providerId,
       modelName
     })
     return result.success
   }
 
-  async warmupAcpProcess(agentId: string, workdir?: string) {
-    return await this.bridge.invoke(providersWarmupAcpProcessRoute.name, {
+  async function warmupAcpProcess(agentId: string, workdir?: string) {
+    return await bridge.invoke(providersWarmupAcpProcessRoute.name, {
       agentId,
       workdir
     })
   }
 
-  async getAcpProcessConfigOptions(agentId: string, workdir?: string) {
-    const result = await this.bridge.invoke(providersGetAcpProcessConfigOptionsRoute.name, {
+  async function getAcpProcessConfigOptions(agentId: string, workdir?: string) {
+    const result = await bridge.invoke(providersGetAcpProcessConfigOptionsRoute.name, {
       agentId,
       workdir
     })
     return result.state
   }
 
-  onProvidersChanged(
+  function onProvidersChanged(
     listener: (payload: {
       reason:
         | 'providers'
@@ -129,10 +127,10 @@ export class ProviderClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(providersChangedEvent.name, listener)
+    return bridge.on(providersChangedEvent.name, listener)
   }
 
-  onOllamaPullProgress(
+  function onOllamaPullProgress(
     listener: (payload: {
       eventId: string
       providerId: string
@@ -143,6 +141,29 @@ export class ProviderClient {
       version: number
     }) => void
   ) {
-    return this.bridge.on(providersOllamaPullProgressEvent.name, listener)
+    return bridge.on(providersOllamaPullProgressEvent.name, listener)
+  }
+
+  return {
+    getProviders,
+    getDefaultProviders,
+    setProviderById,
+    updateProviderAtomic,
+    addProviderAtomic,
+    removeProviderAtomic,
+    reorderProvidersAtomic,
+    listModels,
+    testConnection,
+    getProviderRateLimitStatus,
+    refreshModels,
+    listOllamaModels,
+    listOllamaRunningModels,
+    pullOllamaModels,
+    warmupAcpProcess,
+    getAcpProcessConfigOptions,
+    onProvidersChanged,
+    onOllamaPullProgress
   }
 }
+
+export type ProviderClient = ReturnType<typeof createProviderClient>

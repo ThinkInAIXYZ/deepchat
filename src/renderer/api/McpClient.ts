@@ -44,173 +44,208 @@ import type {
 } from '@shared/presenter'
 import { getDeepchatBridge } from './core'
 
-export class McpClient {
-  constructor(private readonly bridge: DeepchatBridge = getDeepchatBridge()) {}
-
-  async getMcpServers() {
-    const result = await this.bridge.invoke(mcpGetServersRoute.name, {})
+export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getMcpServers() {
+    const result = await bridge.invoke(mcpGetServersRoute.name, {})
     return result.servers
   }
 
-  async getMcpEnabled() {
-    const result = await this.bridge.invoke(mcpGetEnabledRoute.name, {})
+  async function getMcpEnabled() {
+    const result = await bridge.invoke(mcpGetEnabledRoute.name, {})
     return result.enabled
   }
 
-  async getMcpClients() {
-    const result = await this.bridge.invoke(mcpGetClientsRoute.name, {})
+  async function getMcpClients() {
+    const result = await bridge.invoke(mcpGetClientsRoute.name, {})
     return result.clients
   }
 
-  async getAllToolDefinitions(enabledMcpTools?: string[]) {
-    const result = await this.bridge.invoke(mcpListToolDefinitionsRoute.name, {
+  async function getAllToolDefinitions(enabledMcpTools?: string[]) {
+    const result = await bridge.invoke(mcpListToolDefinitionsRoute.name, {
       enabledMcpTools
     })
     return result.tools
   }
 
-  async getAllPrompts() {
-    const result = await this.bridge.invoke(mcpListPromptsRoute.name, {})
+  async function getAllPrompts() {
+    const result = await bridge.invoke(mcpListPromptsRoute.name, {})
     return result.prompts
   }
 
-  async getAllResources() {
-    const result = await this.bridge.invoke(mcpListResourcesRoute.name, {})
+  async function getAllResources() {
+    const result = await bridge.invoke(mcpListResourcesRoute.name, {})
     return result.resources
   }
 
-  async callTool(request: MCPToolCall) {
-    return await this.bridge.invoke(mcpCallToolRoute.name, { request })
+  async function callTool(request: MCPToolCall) {
+    return await bridge.invoke(mcpCallToolRoute.name, { request })
   }
 
-  async addMcpServer(serverName: string, config: MCPServerConfig) {
-    const result = await this.bridge.invoke(mcpAddServerRoute.name, { serverName, config })
+  async function addMcpServer(serverName: string, config: MCPServerConfig) {
+    const result = await bridge.invoke(mcpAddServerRoute.name, { serverName, config })
     return result.success
   }
 
-  async updateMcpServer(serverName: string, config: Partial<MCPServerConfig>) {
-    await this.bridge.invoke(mcpUpdateServerRoute.name, { serverName, config })
+  async function updateMcpServer(serverName: string, config: Partial<MCPServerConfig>) {
+    await bridge.invoke(mcpUpdateServerRoute.name, { serverName, config })
   }
 
-  async removeMcpServer(serverName: string) {
-    await this.bridge.invoke(mcpRemoveServerRoute.name, { serverName })
+  async function removeMcpServer(serverName: string) {
+    await bridge.invoke(mcpRemoveServerRoute.name, { serverName })
   }
 
-  async setMcpServerEnabled(serverName: string, enabled: boolean) {
-    const result = await this.bridge.invoke(mcpSetServerEnabledRoute.name, {
+  async function setMcpServerEnabled(serverName: string, enabled: boolean) {
+    const result = await bridge.invoke(mcpSetServerEnabledRoute.name, {
       serverName,
       enabled
     })
     return result.enabled
   }
 
-  async setMcpEnabled(enabled: boolean) {
-    const result = await this.bridge.invoke(mcpSetEnabledRoute.name, { enabled })
+  async function setMcpEnabled(enabled: boolean) {
+    const result = await bridge.invoke(mcpSetEnabledRoute.name, { enabled })
     return result.enabled
   }
 
-  async isServerRunning(serverName: string) {
-    const result = await this.bridge.invoke(mcpIsServerRunningRoute.name, { serverName })
+  async function isServerRunning(serverName: string) {
+    const result = await bridge.invoke(mcpIsServerRunningRoute.name, { serverName })
     return result.running
   }
 
-  async startServer(serverName: string) {
-    await this.bridge.invoke(mcpStartServerRoute.name, { serverName })
+  async function startServer(serverName: string) {
+    await bridge.invoke(mcpStartServerRoute.name, { serverName })
   }
 
-  async stopServer(serverName: string) {
-    await this.bridge.invoke(mcpStopServerRoute.name, { serverName })
+  async function stopServer(serverName: string) {
+    await bridge.invoke(mcpStopServerRoute.name, { serverName })
   }
 
-  async getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>) {
-    const result = await this.bridge.invoke(mcpGetPromptRoute.name, { prompt, args })
+  async function getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>) {
+    const result = await bridge.invoke(mcpGetPromptRoute.name, { prompt, args })
     return result.result
   }
 
-  async readResource(resource: ResourceListEntry) {
-    const result = await this.bridge.invoke(mcpReadResourceRoute.name, { resource })
+  async function readResource(resource: ResourceListEntry) {
+    const result = await bridge.invoke(mcpReadResourceRoute.name, { resource })
     return result.resource
   }
 
-  async submitSamplingDecision(decision: McpSamplingDecision) {
-    await this.bridge.invoke(mcpSubmitSamplingDecisionRoute.name, { decision })
+  async function submitSamplingDecision(decision: McpSamplingDecision) {
+    await bridge.invoke(mcpSubmitSamplingDecisionRoute.name, { decision })
   }
 
-  async cancelSamplingRequest(requestId: string, reason?: string) {
-    await this.bridge.invoke(mcpCancelSamplingRequestRoute.name, { requestId, reason })
+  async function cancelSamplingRequest(requestId: string, reason?: string) {
+    await bridge.invoke(mcpCancelSamplingRequestRoute.name, { requestId, reason })
   }
 
-  async getNpmRegistryStatus() {
-    const result = await this.bridge.invoke(mcpGetNpmRegistryStatusRoute.name, {})
+  async function getNpmRegistryStatus() {
+    const result = await bridge.invoke(mcpGetNpmRegistryStatusRoute.name, {})
     return result.status
   }
 
-  async refreshNpmRegistry() {
-    const result = await this.bridge.invoke(mcpRefreshNpmRegistryRoute.name, {})
+  async function refreshNpmRegistry() {
+    const result = await bridge.invoke(mcpRefreshNpmRegistryRoute.name, {})
     return result.registry
   }
 
-  async setCustomNpmRegistry(registry: string | undefined) {
-    await this.bridge.invoke(mcpSetCustomNpmRegistryRoute.name, { registry })
+  async function setCustomNpmRegistry(registry: string | undefined) {
+    await bridge.invoke(mcpSetCustomNpmRegistryRoute.name, { registry })
   }
 
-  async setAutoDetectNpmRegistry(enabled: boolean) {
-    await this.bridge.invoke(mcpSetAutoDetectNpmRegistryRoute.name, { enabled })
+  async function setAutoDetectNpmRegistry(enabled: boolean) {
+    await bridge.invoke(mcpSetAutoDetectNpmRegistryRoute.name, { enabled })
   }
 
-  async clearNpmRegistryCache() {
-    await this.bridge.invoke(mcpClearNpmRegistryCacheRoute.name, {})
+  async function clearNpmRegistryCache() {
+    await bridge.invoke(mcpClearNpmRegistryCacheRoute.name, {})
   }
 
-  onServerStarted(listener: (payload: { serverName: string; version: number }) => void) {
-    return this.bridge.on(mcpServerStartedEvent.name, listener)
+  function onServerStarted(listener: (payload: { serverName: string; version: number }) => void) {
+    return bridge.on(mcpServerStartedEvent.name, listener)
   }
 
-  onServerStopped(listener: (payload: { serverName: string; version: number }) => void) {
-    return this.bridge.on(mcpServerStoppedEvent.name, listener)
+  function onServerStopped(listener: (payload: { serverName: string; version: number }) => void) {
+    return bridge.on(mcpServerStoppedEvent.name, listener)
   }
 
-  onConfigChanged(
+  function onConfigChanged(
     listener: (payload: {
       mcpServers: Record<string, MCPServerConfig>
       mcpEnabled: boolean
       version: number
     }) => void
   ) {
-    return this.bridge.on(mcpConfigChangedEvent.name, listener)
+    return bridge.on(mcpConfigChangedEvent.name, listener)
   }
 
-  onServerStatusChanged(
+  function onServerStatusChanged(
     listener: (payload: { serverName: string; isRunning: boolean; version: number }) => void
   ) {
-    return this.bridge.on(mcpServerStatusChangedEvent.name, listener)
+    return bridge.on(mcpServerStatusChangedEvent.name, listener)
   }
 
-  onToolCallResult(
+  function onToolCallResult(
     listener: (payload: {
       functionName?: string
       content: string | { type: string; text: string }[]
       version: number
     }) => void
   ) {
-    return this.bridge.on(mcpToolCallResultEvent.name, listener)
+    return bridge.on(mcpToolCallResultEvent.name, listener)
   }
 
-  onSamplingRequest(listener: (payload: { request: unknown; version: number }) => void) {
-    return this.bridge.on(mcpSamplingRequestEvent.name, (payload) => {
+  function onSamplingRequest(listener: (payload: { request: unknown; version: number }) => void) {
+    return bridge.on(mcpSamplingRequestEvent.name, (payload) => {
       listener(payload as { request: unknown; version: number })
     })
   }
 
-  onSamplingDecision(listener: (payload: { decision: unknown; version: number }) => void) {
-    return this.bridge.on(mcpSamplingDecisionEvent.name, (payload) => {
+  function onSamplingDecision(listener: (payload: { decision: unknown; version: number }) => void) {
+    return bridge.on(mcpSamplingDecisionEvent.name, (payload) => {
       listener(payload as { decision: unknown; version: number })
     })
   }
 
-  onSamplingCancelled(
+  function onSamplingCancelled(
     listener: (payload: { requestId: string; reason?: string; version: number }) => void
   ) {
-    return this.bridge.on(mcpSamplingCancelledEvent.name, listener)
+    return bridge.on(mcpSamplingCancelledEvent.name, listener)
+  }
+
+  return {
+    getMcpServers,
+    getMcpEnabled,
+    getMcpClients,
+    getAllToolDefinitions,
+    getAllPrompts,
+    getAllResources,
+    callTool,
+    addMcpServer,
+    updateMcpServer,
+    removeMcpServer,
+    setMcpServerEnabled,
+    setMcpEnabled,
+    isServerRunning,
+    startServer,
+    stopServer,
+    getPrompt,
+    readResource,
+    submitSamplingDecision,
+    cancelSamplingRequest,
+    getNpmRegistryStatus,
+    refreshNpmRegistry,
+    setCustomNpmRegistry,
+    setAutoDetectNpmRegistry,
+    clearNpmRegistryCache,
+    onServerStarted,
+    onServerStopped,
+    onConfigChanged,
+    onServerStatusChanged,
+    onToolCallResult,
+    onSamplingRequest,
+    onSamplingDecision,
+    onSamplingCancelled
   }
 }
+
+export type McpClient = ReturnType<typeof createMcpClient>

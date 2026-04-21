@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ConfigClient } from '@api/ConfigClient'
+import { createConfigClient } from '@api/ConfigClient'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { useToast } from '@/components/use-toast'
 
@@ -11,7 +11,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configClient = new ConfigClient()
+const configClient = createConfigClient()
 
 const loading = ref(false)
 const saving = ref(false)
