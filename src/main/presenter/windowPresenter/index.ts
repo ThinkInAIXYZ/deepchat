@@ -483,6 +483,10 @@ export class WindowPresenter implements IWindowPresenter {
       !this.settingsWindow.isDestroyed() &&
       this.settingsWindow.id === windowId
     ) {
+      if (this.tryNavigateSettingsWindowByUrl(channel, args)) {
+        return true
+      }
+
       if (this.shouldQueueSettingsMessage(channel)) {
         this.pendingSettingsMessages.push({ channel, args })
         return true
@@ -1244,7 +1248,22 @@ export class WindowPresenter implements IWindowPresenter {
       this.settingsWindow.show()
       this.settingsWindow.focus()
       if (navigation) {
-        this.sendToWindow(this.settingsWindow.id, SETTINGS_EVENTS.NAVIGATE, navigation)
+        if (this.settingsWindowReady) {
+          this.sendToWindow(this.settingsWindow.id, SETTINGS_EVENTS.NAVIGATE, navigation)
+        } else {
+          this.pendingSettingsMessages.push({
+            channel: SETTINGS_EVENTS.NAVIGATE,
+            args: [navigation]
+          })
+
+          const targetUrl = this.getSettingsWindowTargetUrl(navigation)
+          console.log(`Settings window is not ready, reloading to target URL: ${targetUrl}`)
+          console.info('[Startup][Settings][Main] loadURL start', targetUrl)
+          await this.settingsWindow.loadURL(targetUrl)
+          console.info(
+            `[Startup][Settings][Main] loadURL end windowId=${this.settingsWindow.id} elapsed=${Date.now() - settingsStartupStart}ms`
+          )
+        }
       }
       return this.settingsWindow.id
     }
@@ -1368,29 +1387,10 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // Load settings renderer HTML
-    const initialNavigationPath = navigation
-      ? resolveSettingsNavigationPath(navigation.routeName, navigation.params)
-      : null
-
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const settingsUrl = new URL('/settings/index.html', process.env['ELECTRON_RENDERER_URL'])
-      if (initialNavigationPath) {
-        settingsUrl.hash = initialNavigationPath
-      }
-      console.log(`Loading settings renderer URL in dev mode: ${settingsUrl.toString()}`)
-      console.info('[Startup][Settings][Main] loadURL start', settingsUrl.toString())
-      await settingsWindow.loadURL(settingsUrl.toString())
-    } else {
-      const packagedSettingsUrl = pathToFileURL(
-        join(__dirname, '../renderer/settings/index.html')
-      ).toString()
-      const targetUrl = initialNavigationPath
-        ? `${packagedSettingsUrl}#${initialNavigationPath}`
-        : packagedSettingsUrl
-      console.log(`Loading packaged settings renderer URL: ${targetUrl}`)
-      console.info('[Startup][Settings][Main] loadURL start', targetUrl)
-      await settingsWindow.loadURL(targetUrl)
-    }
+    const targetUrl = this.getSettingsWindowTargetUrl(navigation)
+    console.log(`Loading settings renderer URL: ${targetUrl}`)
+    console.info('[Startup][Settings][Main] loadURL start', targetUrl)
+    await settingsWindow.loadURL(targetUrl)
 
     console.info(
       `[Startup][Settings][Main] loadURL end windowId=${windowId} elapsed=${Date.now() - settingsStartupStart}ms`
@@ -1486,6 +1486,103 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     this.settingsWindowReady = false
+  }
+
+  private tryNavigateSettingsWindowByUrl(channel: string, args: unknown[]): boolean {
+    if (
+      channel !== SETTINGS_EVENTS.NAVIGATE ||
+      !this.settingsWindow ||
+      this.settingsWindow.isDestroyed() ||
+      this.settingsWindow.webContents.isDestroyed()
+    ) {
+      return false
+    }
+
+    const navigation = this.toSettingsNavigationPayload(args[0])
+    if (!navigation || navigation.routeName !== 'settings-provider') {
+      return false
+    }
+
+    const targetUrl = this.getSettingsWindowTargetUrl(navigation)
+    const currentUrl = this.settingsWindow.webContents.getURL()
+
+    if (currentUrl === targetUrl && this.settingsWindowReady) {
+      return false
+    }
+
+    this.pendingSettingsMessages.push({ channel, args: [navigation] })
+    console.log(`Reloading settings window to target URL: ${targetUrl}`)
+    console.info('[Startup][Settings][Main] loadURL start', targetUrl)
+    void this.settingsWindow.webContents
+      .loadURL(targetUrl)
+      .then(() => {
+        if (!this.settingsWindow || this.settingsWindow.isDestroyed()) {
+          return
+        }
+
+        console.info(
+          `[Startup][Settings][Main] loadURL end windowId=${this.settingsWindow.id} target=${targetUrl}`
+        )
+      })
+      .catch((error) => {
+        console.error(`Failed to reload settings window for navigation: ${targetUrl}`, error)
+      })
+    return true
+  }
+
+  private toSettingsNavigationPayload(raw: unknown): SettingsNavigationPayload | null {
+    if (!raw || typeof raw !== 'object') {
+      return null
+    }
+
+    const candidate = raw as {
+      routeName?: unknown
+      params?: unknown
+      section?: unknown
+    }
+
+    if (typeof candidate.routeName !== 'string') {
+      return null
+    }
+
+    const params =
+      candidate.params && typeof candidate.params === 'object'
+        ? Object.entries(candidate.params as Record<string, unknown>).reduce<
+            Record<string, string>
+          >((acc, [key, value]) => {
+            if (typeof value === 'string' && value.trim().length > 0) {
+              acc[key] = value
+            }
+            return acc
+          }, {})
+        : undefined
+
+    return {
+      routeName: candidate.routeName as SettingsNavigationPayload['routeName'],
+      params: params && Object.keys(params).length > 0 ? params : undefined,
+      section: typeof candidate.section === 'string' ? candidate.section : undefined
+    }
+  }
+
+  private getSettingsWindowTargetUrl(navigation?: SettingsNavigationPayload): string {
+    const initialNavigationPath = navigation
+      ? resolveSettingsNavigationPath(navigation.routeName, navigation.params)
+      : null
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      const settingsUrl = new URL('/settings/index.html', process.env['ELECTRON_RENDERER_URL'])
+      if (initialNavigationPath) {
+        settingsUrl.hash = initialNavigationPath
+      }
+      return settingsUrl.toString()
+    }
+
+    const packagedSettingsUrl = pathToFileURL(
+      join(__dirname, '../renderer/settings/index.html')
+    ).toString()
+    return initialNavigationPath
+      ? `${packagedSettingsUrl}#${initialNavigationPath}`
+      : packagedSettingsUrl
   }
 
   private flushPendingSettingsMessages(): void {
