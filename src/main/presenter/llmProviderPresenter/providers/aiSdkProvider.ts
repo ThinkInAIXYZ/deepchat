@@ -39,7 +39,7 @@ import {
   type AiSdkRuntimeContext
 } from '../aiSdk'
 import type { AiSdkProviderKind } from '../aiSdk/providerFactory'
-import { normalizeAzureBaseUrl } from '../aiSdk/providerFactory'
+import { normalizeAzureBaseUrl, normalizeGeminiBaseUrl } from '../aiSdk/providerFactory'
 import { proxyConfig } from '../../proxyConfig'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import {
@@ -177,6 +177,10 @@ export class AiSdkProvider extends BaseLLMProvider {
     return normalizedBaseUrl.replace(/\/(v1|v1beta(?:\d+)?)$/i, '') || DEFAULT_NEW_API_BASE_URL
   }
 
+  private getNormalizedNewApiGeminiBaseUrl(): string {
+    return normalizeGeminiBaseUrl(this.provider.baseUrl || DEFAULT_NEW_API_BASE_URL)
+  }
+
   private getStoredModel(modelId: string): MODEL_META | undefined {
     return [...this.models, ...this.customModels].find((model) => model.id === modelId)
   }
@@ -270,7 +274,7 @@ export class AiSdkProvider extends BaseLLMProvider {
             endpointType,
             providerPatch: {
               apiType: 'gemini',
-              baseUrl: host,
+              baseUrl: this.getNormalizedNewApiGeminiBaseUrl(),
               capabilityProviderId: resolveProviderCapabilityProviderId(
                 this.provider.id,
                 {
@@ -441,6 +445,10 @@ export class AiSdkProvider extends BaseLLMProvider {
     return runtimeProvider.oauthToken || runtimeProvider.apiKey || 'MISSING_API_KEY'
   }
 
+  private usesGeminiApiKeyHeader(runtimeProvider: LLM_PROVIDER): boolean {
+    return runtimeProvider.apiType === 'gemini'
+  }
+
   private buildTraceHeaders(
     decision: RouteDecision,
     runtimeProvider: LLM_PROVIDER,
@@ -453,6 +461,8 @@ export class AiSdkProvider extends BaseLLMProvider {
 
     if (this.isAzureOpenAI(decision, runtimeProvider)) {
       headers['api-key'] = this.resolveTraceAuthToken(runtimeProvider)
+    } else if (this.usesGeminiApiKeyHeader(runtimeProvider)) {
+      headers['x-goog-api-key'] = this.resolveTraceAuthToken(runtimeProvider)
     } else {
       headers.Authorization = `Bearer ${this.resolveTraceAuthToken(runtimeProvider)}`
     }
@@ -476,6 +486,8 @@ export class AiSdkProvider extends BaseLLMProvider {
 
     if (this.isAzureOpenAI(decision, runtimeProvider)) {
       headers['api-key'] = runtimeProvider.apiKey
+    } else if (this.usesGeminiApiKeyHeader(runtimeProvider)) {
+      headers['x-goog-api-key'] = runtimeProvider.oauthToken || runtimeProvider.apiKey
     } else {
       headers.Authorization = `Bearer ${runtimeProvider.oauthToken || runtimeProvider.apiKey}`
     }

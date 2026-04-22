@@ -8,6 +8,18 @@ const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
   mockRunAiSdkCoreStream: vi.fn()
 }))
 
+vi.mock('@shared/logger', () => ({
+  default: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    verbose: vi.fn(),
+    silly: vi.fn(),
+    log: vi.fn()
+  }
+}))
+
 vi.mock('electron', () => ({
   app: {
     getName: vi.fn(() => 'DeepChat'),
@@ -145,6 +157,48 @@ describe('NewApiProvider capability routing', () => {
     expect(runtimeProvider.id).toBe('new-api')
     expect(runtimeProvider.capabilityProviderId).toBe('gemini')
     expect(runtimeProvider.apiType).toBe('gemini')
+  })
+
+  it('preserves a gemini-compatible v1beta base url for new api routes', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        baseUrl: 'https://api.0100.cn'
+      }),
+      createConfigPresenter({
+        'gemini-model': {
+          endpointType: 'gemini'
+        }
+      })
+    )
+    ;(provider as any).isInitialized = true
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'hello' }],
+      'gemini-model',
+      {
+        apiEndpoint: ApiEndpointType.Chat,
+        maxTokens: 512,
+        contextLength: 8192,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.Chat
+      } as ModelConfig,
+      0.2,
+      64,
+      []
+    )) {
+      continue
+    }
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
+    expect(context.providerKind).toBe('gemini')
+    expect(context.provider.baseUrl).toBe('https://api.0100.cn/v1beta')
+    expect(context.buildTraceHeaders()).toMatchObject({
+      'Content-Type': 'application/json',
+      'x-goog-api-key': 'test-key'
+    })
+    expect(context.buildTraceHeaders()).not.toHaveProperty('Authorization')
   })
 
   it('maps anthropic delegates to anthropic capability semantics', () => {
