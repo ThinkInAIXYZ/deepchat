@@ -607,6 +607,13 @@ onMounted(async () => {
     console.error(`${SETTINGS_STARTUP_LOG_PREFIX} provider summaries failed:`, error)
   }
 
+  try {
+    await modelStore.initialize()
+    logSettingsStartup('enabled models ready')
+  } catch (error) {
+    console.error(`${SETTINGS_STARTUP_LOG_PREFIX} enabled models failed:`, error)
+  }
+
   markStartupInteractive()
   window.addEventListener('focus', handleWindowFocus)
   await syncPendingProviderInstall()

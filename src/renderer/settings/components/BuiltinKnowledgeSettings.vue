@@ -204,6 +204,7 @@
                   <PopoverContent class="w-80 p-0">
                     <ModelSelect
                       :type="[ModelType.Embedding]"
+                      :respect-chat-mode="false"
                       @update:model="handleEmbeddingModelSelect"
                     />
                   </PopoverContent>
@@ -254,6 +255,7 @@
                   <PopoverContent class="w-80 p-0">
                     <ModelSelect
                       :type="[ModelType.Rerank]"
+                      :respect-chat-mode="false"
                       @update:model="handleRerankModelSelect"
                     />
                   </PopoverContent>

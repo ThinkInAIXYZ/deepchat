@@ -66,6 +66,10 @@ const props = defineProps({
     type: Array as PropType<ModelType[]>,
     default: undefined
   },
+  respectChatMode: {
+    type: Boolean,
+    default: true
+  },
   excludeProviders: {
     type: Array as PropType<string[]>,
     default: () => []
@@ -92,11 +96,13 @@ const providers = computed(() => {
   return sortedProviders
     .filter((provider) => provider.enable && !props.excludeProviders.includes(provider.id))
     .map((provider) => {
-      if (currentMode === 'acp agent' && provider.id !== 'acp') {
-        return null
-      }
-      if (currentMode !== 'acp agent' && provider.id === 'acp') {
-        return null
+      if (props.respectChatMode) {
+        if (currentMode === 'acp agent' && provider.id !== 'acp') {
+          return null
+        }
+        if (currentMode !== 'acp agent' && provider.id === 'acp') {
+          return null
+        }
       }
 
       const enabledProvider = enabledModels.find((item) => item.providerId === provider.id)
