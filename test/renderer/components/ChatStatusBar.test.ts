@@ -1493,7 +1493,7 @@ describe('ChatStatusBar model and session panels', () => {
       temperature: 0.7,
       contextLength: 16000,
       maxTokens: 4096,
-      timeout: 60000,
+      timeout: 600000,
       thinkingBudget: 512,
       reasoningEffort: 'medium',
       verbosity: 'medium'

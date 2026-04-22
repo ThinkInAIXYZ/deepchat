@@ -2417,7 +2417,7 @@ describe('AgentRuntimePresenter', () => {
         temperature: 0.7,
         contextLength: 128000,
         maxTokens: 4096,
-        timeout: 60000,
+        timeout: 600000,
         thinkingBudget: 512,
         reasoningEffort: 'medium',
         verbosity: 'medium'
@@ -2495,7 +2495,7 @@ describe('AgentRuntimePresenter', () => {
         temperature: 0.2,
         contextLength: 32000,
         maxTokens: 2048,
-        timeout: 60000,
+        timeout: 600000,
         thinkingBudget: 256,
         reasoningEffort: 'low',
         reasoningVisibility: 'omitted',
@@ -2550,7 +2550,7 @@ describe('AgentRuntimePresenter', () => {
         temperature: 0.4,
         contextLength: 8192,
         maxTokens: 1024,
-        timeout: 60000
+        timeout: 600000
       })
     })
 

@@ -43,7 +43,11 @@ import {
   validateGenerationNumericField
 } from '@shared/utils/generationSettingsValidation'
 import { resolveMoonshotKimiTemperaturePolicy } from '@shared/moonshotKimiPolicy'
-import { DEFAULT_MODEL_TIMEOUT } from '@shared/modelConfigDefaults'
+import {
+  DEFAULT_MODEL_TIMEOUT,
+  MODEL_TIMEOUT_MAX_MS,
+  MODEL_TIMEOUT_MIN_MS
+} from '@shared/modelConfigDefaults'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -143,9 +147,6 @@ type ActiveGeneration = {
 }
 
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
-const SESSION_TIMEOUT_MIN_MS = 1000
-const SESSION_TIMEOUT_MAX_MS = 600000
-
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
     return new DOMException('Aborted', 'AbortError')
@@ -2752,7 +2753,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         0.7,
       contextLength: contextLengthDefault,
       timeout:
-        timeoutDefault >= SESSION_TIMEOUT_MIN_MS && timeoutDefault <= SESSION_TIMEOUT_MAX_MS
+        timeoutDefault >= MODEL_TIMEOUT_MIN_MS && timeoutDefault <= MODEL_TIMEOUT_MAX_MS
           ? timeoutDefault
           : DEFAULT_MODEL_TIMEOUT,
       maxTokens:

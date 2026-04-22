@@ -503,7 +503,7 @@
         "temperatureMin": "La température doit être supérieure ou égale à 0",
         "temperatureRequired": "La température ne peut pas être vide",
         "timeoutMin": "Le délai d'attente doit être d'au moins 1000ms",
-        "timeoutMax": "Le délai d'attente ne peut pas dépasser 600000ms"
+        "timeoutMax": "Le délai d'attente ne peut pas dépasser 3600000ms"
       },
       "vision": {
         "description": "Le modèle soutient-il la capacité visuelle?",

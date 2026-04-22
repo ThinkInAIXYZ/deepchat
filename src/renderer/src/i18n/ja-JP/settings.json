@@ -503,7 +503,7 @@
         "temperatureMin": "温度は0以上でなければなりません",
         "temperatureRequired": "温度を空にすることはできません",
         "timeoutMin": "タイムアウトは最低1000msでなければなりません",
-        "timeoutMax": "タイムアウトは600000msを超えることはできません"
+        "timeoutMax": "タイムアウトは3600000msを超えることはできません"
       },
       "vision": {
         "description": "モデルは視覚能力をサポートしていますか？",
