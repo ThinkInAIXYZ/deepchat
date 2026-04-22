@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.3-beta.5 (2026-04-22)
+- Added privacy mode and inline chat session renaming to improve workspace discretion and session organization
+- Added request timeout controls with a higher default range, and refined Kimi fixed-temperature plus Gemini v1beta compatibility handling
+- Improved startup and runtime responsiveness through asynchronous icon loading, store initialization cleanup, and more stable navigation payload normalization
+- Hardened desktop security by enabling Electron context isolation and disabling node integration for embedded web contents
+- Fixed several workflow regressions across trackpad scrolling, new thread entry visibility, project clearing, timeout propagation, and upgraded SQLite/provider recovery
+- 新增隐私模式与会话内联重命名，提升工作区信息保护和会话整理效率
+- 新增请求超时配置并扩展默认范围，同时优化 Kimi 固定温度策略与 Gemini v1beta 兼容处理
+- 通过异步图标加载、store 初始化清理与导航载荷规范化，改善启动速度和运行时响应性
+- 强化桌面端安全基线，为内嵌 Web 内容启用 Electron context isolation 并关闭 node integration
+- 修复触控板滚动、新建会话入口显隐、项目清空选择、超时参数传递，以及升级后 SQLite/provider 恢复等多项流程问题
+
 ## v1.0.3-beta.4 (2026-04-19)
 - Recovered missing SQLite `deepchat_sessions` columns on upgraded installs to restore stable session persistence
 - 修复升级安装后 SQLite `deepchat_sessions` 缺失列的问题，恢复会话持久化稳定性
