@@ -20,9 +20,8 @@ export const initAppStores = async () => {
   console.info('[Startup][Renderer] initAppStores begin')
   startupWorkloadStore?.connect()
 
-  await uiSettingsStore.loadSettings()
-
-  await providerStore.initialize()
+  // Run both in parallel since they don't depend on each other
+  await Promise.all([uiSettingsStore.loadSettings(), providerStore.initialize()])
   console.info('[Startup][Renderer] initAppStores critical stores ready')
 }
 
