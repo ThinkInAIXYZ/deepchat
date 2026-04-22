@@ -52,6 +52,24 @@ describe('floating widget layout helpers', () => {
           modelId: 'acp-agent'
         }
       ],
+      [
+        {
+          id: 'deepchat',
+          name: 'DeepChat',
+          type: 'deepchat',
+          enabled: true,
+          icon: undefined,
+          avatar: null
+        },
+        {
+          id: 'acp-agent',
+          name: 'ACP Agent',
+          type: 'acp',
+          enabled: true,
+          icon: 'https://example.com/acp-agent.svg',
+          avatar: null
+        }
+      ],
       false
     )
 
@@ -62,6 +80,12 @@ describe('floating widget layout helpers', () => {
       'in_progress',
       'done'
     ])
+    expect(snapshot.sessions[0]?.agent).toMatchObject({
+      id: 'acp-agent',
+      name: 'ACP Agent',
+      type: 'acp',
+      icon: 'https://example.com/acp-agent.svg'
+    })
   })
 
   it('keeps the right edge fixed when resizing a right-docked widget', () => {

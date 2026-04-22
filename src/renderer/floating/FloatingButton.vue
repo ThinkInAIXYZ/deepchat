@@ -387,7 +387,11 @@ onUnmounted(() => {
                 class="session-row"
                 :style="{ '--session-index': Math.min(index, 6) }"
               >
-                <FloatingSessionItem :session="session" @select="handleOpenSession" />
+                <FloatingSessionItem
+                  :session="session"
+                  :theme="props.theme"
+                  @select="handleOpenSession"
+                />
               </div>
             </div>
           </div>

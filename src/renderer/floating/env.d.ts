@@ -17,6 +17,7 @@ declare global {
       getSnapshot: () => Promise<FloatingWidgetSnapshot>
       getLanguage: () => Promise<string>
       getTheme: () => Promise<'dark' | 'light'>
+      getAcpRegistryIconMarkup: (agentId: string, iconUrl: string) => Promise<string>
       toggleExpanded: () => void
       setExpanded: (expanded: boolean) => void
       setHovering: (hovering: boolean) => void
