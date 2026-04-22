@@ -147,7 +147,7 @@
     "systemPrompt": "시스템 프롬프트",
     "systemPromptPlaceholder": "프리셋 선택",
     "temperature": "온도",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6은 생각이 활성화되면 온도를 {enabled}로, 비활성화되면 {disabled}로 고정합니다.",
     "contextLength": "컨텍스트 길이",
     "maxTokens": "최대 토큰",
     "thinkingBudget": "사고 예산",

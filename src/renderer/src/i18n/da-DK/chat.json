@@ -147,7 +147,7 @@
     "systemPrompt": "Systemprompt",
     "systemPromptPlaceholder": "Vælg en forudindstilling",
     "temperature": "Temperatur",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 låser temperaturen til {enabled}, når tænkning er aktiveret, og til {disabled}, når den er deaktiveret.",
     "contextLength": "Kontekstlængde",
     "maxTokens": "Maks. tokens",
     "thinkingBudget": "Tænkebudget",

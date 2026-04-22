@@ -478,7 +478,7 @@
       "currentUsingModelDefault": "משתמש כעת בתצורת ברירת המחדל של המודל",
       "temperature": {
         "description": "שלוט באקראיות הפלט. רוב המודלים הם 0-1, וחלקם תומכים בין 0-2. ערכים גבוהים יותר מגבירים את האקראיות.",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 מקבע את הטמפרטורה ל-{enabled} כשהחשיבה מופעלת ול-{disabled} כשהיא כבויה.",
         "label": "טמפרטורה"
       },
       "title": "פרמטרים מותאמים למודל",

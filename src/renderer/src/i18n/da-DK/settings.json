@@ -411,7 +411,7 @@
       "currentUsingModelDefault": "Bruger i øjeblikket modellens standardkonfiguration",
       "temperature": {
         "description": "Styrer tilfældigheden i output. De fleste modeller bruger 0-1, nogle understøtter 0-2. Højere værdi øger tilfældigheden.",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 låser temperaturen til {enabled}, når tænkning er aktiveret, og til {disabled}, når den er deaktiveret.",
         "label": "Temperatur"
       },
       "title": "Brugerdefinerede modelparametre",

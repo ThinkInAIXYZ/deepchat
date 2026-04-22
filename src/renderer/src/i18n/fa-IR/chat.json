@@ -147,7 +147,7 @@
     "systemPrompt": "پرامپت سیستم",
     "systemPromptPlaceholder": "یک پیش‌تنظیم را انتخاب کنید",
     "temperature": "دما",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 وقتی تفکر فعال باشد دما را روی {enabled} و وقتی غیرفعال باشد روی {disabled} ثابت نگه می‌دارد.",
     "contextLength": "طول زمینه",
     "maxTokens": "حداکثر توکن",
     "thinkingBudget": "بودجه تفکر",

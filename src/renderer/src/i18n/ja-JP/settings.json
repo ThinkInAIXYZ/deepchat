@@ -478,7 +478,7 @@
       "currentUsingModelDefault": "現在モデルのデフォルト設定を使用中",
       "temperature": {
         "description": "出力のランダム性を制御します。値が高いほどランダム性が増します。",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 は、思考を有効にすると温度が {enabled} に固定され、無効にすると {disabled} に固定されます。",
         "label": "温度"
       },
       "title": "カスタムモデルパラメーター",

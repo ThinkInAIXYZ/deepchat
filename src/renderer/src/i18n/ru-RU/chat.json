@@ -147,7 +147,7 @@
     "systemPrompt": "Системный промпт",
     "systemPromptPlaceholder": "Выберите пресет",
     "temperature": "Температура",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 фиксирует температуру на уровне {enabled}, когда мышление включено, и на уровне {disabled}, когда оно отключено.",
     "contextLength": "Длина контекста",
     "maxTokens": "Макс. токенов",
     "thinkingBudget": "Бюджет размышления",
