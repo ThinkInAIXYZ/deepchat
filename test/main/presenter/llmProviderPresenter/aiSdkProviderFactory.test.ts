@@ -69,11 +69,13 @@ describe('AI SDK provider factory', () => {
     expect(normalizeGeminiBaseUrl(undefined)).toBe(
       'https://generativelanguage.googleapis.com/v1beta'
     )
-    expect(normalizeGeminiBaseUrl('https://api.0100.cn')).toBe('https://api.0100.cn/v1beta')
-    expect(normalizeGeminiBaseUrl('https://api.0100.cn/v1')).toBe('https://api.0100.cn/v1beta')
-    expect(normalizeGeminiBaseUrl('https://api.0100.cn/v1beta')).toBe('https://api.0100.cn/v1beta')
-    expect(normalizeGeminiBaseUrl('https://api.0100.cn/v1beta1')).toBe(
-      'https://api.0100.cn/v1beta1'
+    expect(normalizeGeminiBaseUrl('https://api.newapi.ai')).toBe('https://api.newapi.ai/v1beta')
+    expect(normalizeGeminiBaseUrl('https://api.newapi.ai/v1')).toBe('https://api.newapi.ai/v1beta')
+    expect(normalizeGeminiBaseUrl('https://api.newapi.ai/v1beta')).toBe(
+      'https://api.newapi.ai/v1beta'
+    )
+    expect(normalizeGeminiBaseUrl('https://api.newapi.ai/v1beta1')).toBe(
+      'https://api.newapi.ai/v1beta1'
     )
   })
 
@@ -258,7 +260,7 @@ describe('AI SDK provider factory', () => {
         name: 'New API',
         apiType: 'gemini',
         apiKey: 'test-key-1234',
-        baseUrl: 'https://api.0100.cn',
+        baseUrl: 'https://api.newapi.ai',
         enable: false
       } as any,
       configPresenter: {} as any,
@@ -270,7 +272,7 @@ describe('AI SDK provider factory', () => {
       cleanHeaders: true
     })
 
-    expect(context.endpoint).toBe('https://api.0100.cn/v1beta')
+    expect(context.endpoint).toBe('https://api.newapi.ai/v1beta')
 
     const result = streamText({
       model: context.model,
@@ -282,7 +284,7 @@ describe('AI SDK provider factory', () => {
     }
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.0100.cn/v1beta/models/gemini-3.1-flash-lite-preview:streamGenerateContent?alt=sse',
+      'https://api.newapi.ai/v1beta/models/gemini-3.1-flash-lite-preview:streamGenerateContent?alt=sse',
       expect.any(Object)
     )
 

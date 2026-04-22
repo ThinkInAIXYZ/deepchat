@@ -162,7 +162,7 @@ describe('NewApiProvider capability routing', () => {
   it('preserves a gemini-compatible v1beta base url for new api routes', async () => {
     const provider = new AiSdkProvider(
       createProvider({
-        baseUrl: 'https://api.0100.cn'
+        baseUrl: 'https://api.newapi.ai'
       }),
       createConfigPresenter({
         'gemini-model': {
@@ -193,7 +193,7 @@ describe('NewApiProvider capability routing', () => {
 
     const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
     expect(context.providerKind).toBe('gemini')
-    expect(context.provider.baseUrl).toBe('https://api.0100.cn/v1beta')
+    expect(context.provider.baseUrl).toBe('https://api.newapi.ai/v1beta')
     expect(context.buildTraceHeaders()).toMatchObject({
       'Content-Type': 'application/json',
       'x-goog-api-key': 'test-key'
