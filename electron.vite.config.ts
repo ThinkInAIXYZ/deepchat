@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import svgLoader from 'vite-svg-loader'
@@ -13,11 +13,6 @@ const isVueDevToolsOverlayEnabled = process.env.DEEPCHAT_VUE_DEVTOOLS_OVERLAY !=
 
 export default defineConfig({
   main: {
-    plugins: [
-      externalizeDepsPlugin({
-        exclude: ['mermaid']
-      }),
-    ],
     resolve: {
       alias: {
         '@': resolve('src/main/'),
@@ -25,6 +20,9 @@ export default defineConfig({
       }
     },
     build: {
+      externalizeDeps: {
+        exclude: ['mermaid']
+      },
       rollupOptions: {
         external: ['sharp', '@duckdb/node-api'],
         output: {
@@ -35,7 +33,6 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')
@@ -74,7 +71,29 @@ export default defineConfig({
     plugins: [
       tailwindcss(),
       monacoEditorPlugin({
-        languageWorkers: ['editorWorkerService', 'typescript', 'css', 'html', 'json'],
+        languageWorkers: [],
+        customWorkers: [
+          {
+            label: 'editorWorkerService',
+            entry: 'monaco-editor/esm/vs/editor/editor.worker.js',
+          },
+          {
+            label: 'typescript',
+            entry: 'monaco-editor/esm/vs/language/typescript/ts.worker.js',
+          },
+          {
+            label: 'css',
+            entry: 'monaco-editor/esm/vs/language/css/css.worker.js',
+          },
+          {
+            label: 'html',
+            entry: 'monaco-editor/esm/vs/language/html/html.worker.js',
+          },
+          {
+            label: 'json',
+            entry: 'monaco-editor/esm/vs/language/json/json.worker.js',
+          },
+        ],
         customDistPath(_root, buildOutDir, _base) {
           return path.resolve(buildOutDir, 'monacoeditorwork')
         },

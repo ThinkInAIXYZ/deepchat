@@ -31,6 +31,7 @@ import type { SyncContext } from './types'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SKILL_SYNC_EVENTS } from '@/events'
 import { isValidToolId, isValidConflictStrategy, checkWritePermission } from './security'
+import { scanAndDetectDiscoveriesInWorker, scanExternalToolsInWorker } from './scanWorker'
 
 // ============================================================================
 // SkillSyncPresenter Implementation
@@ -53,15 +54,6 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
   async initialize(): Promise<void> {
     if (this.initialized) return
     this.initialized = true
-
-    // Scan in background after a short delay to not block startup
-    setTimeout(async () => {
-      try {
-        await this.scanAndDetectNewDiscoveries()
-      } catch (error) {
-        console.error('[SkillSync] Background scan failed:', error)
-      }
-    }, 3000) // 3 second delay after app starts
   }
 
   /**
@@ -115,15 +107,13 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     // 1. Get cached scan results
     const cache = await this.getScanCache()
 
-    // 2. Scan all external tools
-    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
-
     // 3. Get current DeepChat skills
     const existingSkills = await this.skillPresenter.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
 
-    // 4. Compare and find new discoveries
-    const newDiscoveries = this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+    // 2/4. Scan and compare off-main when possible
+    const { scanResults, discoveries: newDiscoveries } =
+      await this.scanAndDetectDiscoveriesWithFallback(cache, existingSkillNames)
 
     // 5. Save new cache
     await this.saveScanCache(scanResults)
@@ -201,11 +191,13 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async getNewDiscoveries(): Promise<NewDiscovery[]> {
     const cache = await this.getScanCache()
-    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
     const existingSkills = await this.skillPresenter.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
-
-    return this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+    const { discoveries } = await this.scanAndDetectDiscoveriesWithFallback(
+      cache,
+      existingSkillNames
+    )
+    return discoveries
   }
 
   /**
@@ -214,11 +206,12 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async getToolsAndDiscoveries(): Promise<{ tools: ScanResult[]; discoveries: NewDiscovery[] }> {
     const cache = await this.getScanCache()
-    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
     const existingSkills = await this.skillPresenter.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
-
-    const discoveries = this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+    const { scanResults, discoveries } = await this.scanAndDetectDiscoveriesWithFallback(
+      cache,
+      existingSkillNames
+    )
     return { tools: scanResults, discoveries }
   }
 
@@ -226,7 +219,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    * Mark discoveries as acknowledged (update cache without showing them again)
    */
   async acknowledgeDiscoveries(): Promise<void> {
-    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    const scanResults = await this.scanExternalToolsWithFallback()
     await this.saveScanCache(scanResults)
   }
 
@@ -239,7 +232,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async scanExternalTools(): Promise<ScanResult[]> {
     eventBus.sendToRenderer(SKILL_SYNC_EVENTS.SCAN_STARTED, SendTarget.ALL_WINDOWS, {})
-    const results = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    const results = await this.scanExternalToolsWithFallback()
     eventBus.sendToRenderer(SKILL_SYNC_EVENTS.SCAN_COMPLETED, SendTarget.ALL_WINDOWS, { results })
     return results
   }
@@ -249,6 +242,39 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async scanTool(toolId: string): Promise<ScanResult> {
     return toolScanner.scanTool(toolId, this.syncContext.projectRoot)
+  }
+
+  private async scanExternalToolsWithFallback(): Promise<ScanResult[]> {
+    try {
+      return await scanExternalToolsInWorker({
+        tools: toolScanner.getAllTools(),
+        projectRoot: this.syncContext.projectRoot
+      })
+    } catch (error) {
+      console.warn('[SkillSync] Worker scan failed, falling back to main thread:', error)
+      return await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    }
+  }
+
+  private async scanAndDetectDiscoveriesWithFallback(
+    cache: ScanCache | null,
+    existingSkillNames: Set<string>
+  ): Promise<{ scanResults: ScanResult[]; discoveries: NewDiscovery[] }> {
+    try {
+      return await scanAndDetectDiscoveriesInWorker({
+        tools: toolScanner.getAllTools(),
+        projectRoot: this.syncContext.projectRoot,
+        cache,
+        existingSkillNames: [...existingSkillNames]
+      })
+    } catch (error) {
+      console.warn('[SkillSync] Worker discovery scan failed, falling back to main thread:', error)
+      const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+      return {
+        scanResults,
+        discoveries: this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+      }
+    }
   }
 
   // ============================================================================

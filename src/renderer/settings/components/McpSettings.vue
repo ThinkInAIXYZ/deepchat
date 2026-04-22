@@ -3,6 +3,13 @@
     <McpBuiltinMarket embedded @back="closeMarketView" />
   </div>
 
+  <div v-else-if="showMcpSkeleton" class="w-full h-full flex flex-col p-4 gap-4 animate-pulse">
+    <div class="h-16 rounded-xl bg-muted/40"></div>
+    <div class="h-24 rounded-xl bg-muted/30"></div>
+    <div class="h-10 rounded-xl bg-muted/20"></div>
+    <div class="flex-1 rounded-xl bg-muted/20"></div>
+  </div>
+
   <div v-else class="w-full h-full flex flex-col">
     <!-- MCP 总开关 - 卡片样式 -->
     <div class="shrink-0 px-4 pt-4">
@@ -187,6 +194,7 @@ const router = useRouter()
 // 计算属性
 const mcpEnabled = computed(() => mcpStore.mcpEnabled)
 const isMarketView = computed(() => route.query.view === 'market')
+const showMcpSkeleton = computed(() => mcpStore.configLoading && !mcpStore.config.ready)
 
 // NPM Registry 相关状态
 const npmRegistryStatus = ref<{

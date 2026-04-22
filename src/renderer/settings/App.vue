@@ -61,7 +61,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
-import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick } from 'vue'
+import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
 import { useLegacyPresenter } from '@api/legacy/presenters'
@@ -83,6 +83,7 @@ import { useOllamaStore } from '@/stores/ollamaStore'
 import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
+import { markStartupInteractive } from '../src/lib/startupDeferred'
 import type {
   DatabaseRepairSuggestedPayload,
   LLM_PROVIDER,
@@ -90,11 +91,16 @@ import type {
 } from '@shared/presenter'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
-import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
+import {
+  resolveSettingsNavigationPath,
+  SETTINGS_NAVIGATION_ITEMS
+} from '@shared/settingsNavigation'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
+import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
+const SETTINGS_STARTUP_LOG_PREFIX = '[Startup][Settings][Renderer]'
 
 type SettingsWindowState = Window & {
   __deepchatSettingsPendingSection?: string | null
@@ -116,6 +122,13 @@ const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
+let startupWorkloadStore: ReturnType<typeof useStartupWorkloadStore> | null = null
+
+try {
+  startupWorkloadStore = useStartupWorkloadStore()
+} catch (error) {
+  console.warn('[Startup][Settings][Renderer] startupWorkloadStore unavailable', error)
+}
 const providerDeeplinkImportStore = useProviderDeeplinkImportStore()
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
@@ -138,6 +151,17 @@ const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
 const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.previewToken)
 const isProcessingProviderPreview = ref(false)
+const startupTimeOrigin = typeof performance !== 'undefined' ? performance.now() : Date.now()
+const hasLoggedFirstRouteResolved = ref(false)
+
+const logSettingsStartup = (phase: string) => {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  const elapsed = Math.round(now - startupTimeOrigin)
+  console.info(`${SETTINGS_STARTUP_LOG_PREFIX} ${phase} elapsed=${elapsed}ms`)
+}
+
+const isProviderStoreInitialized = () => Boolean(unref(providerStore.initialized))
+
 const providerImportConfirmDisabled = computed(() => {
   const preview = pendingProviderImportPreview.value
   if (!preview) {
@@ -242,18 +266,42 @@ const handleSettingsNavigate = async (_event: unknown, payload?: SettingsNavigat
 let providerStoreInitializePromise: Promise<void> | null = null
 
 const ensureProviderStoreReady = async () => {
-  if (providerStore.providers.length > 0) {
+  if (isProviderStoreInitialized()) {
     return
   }
 
   if (!providerStoreInitializePromise) {
-    providerStoreInitializePromise = providerStore.initialize().catch((error) => {
-      providerStoreInitializePromise = null
-      throw error
-    })
+    providerStoreInitializePromise = Promise.resolve(
+      providerStore.ensureInitialized?.() ?? providerStore.initialize?.()
+    )
+      .then(() => {
+        logSettingsStartup('providerStore ready')
+      })
+      .catch((error) => {
+        providerStoreInitializePromise = null
+        throw error
+      })
   }
 
   await providerStoreInitializePromise
+}
+
+const ensureProviderRouteReady = async (providerId?: string) => {
+  await ensureProviderStoreReady()
+  if (!providerId) {
+    return
+  }
+
+  const provider = providerStore.providers.find((item) => item.id === providerId)
+  if (!provider) {
+    return
+  }
+
+  await modelStore.ensureProviderModelsReady(providerId)
+
+  if (provider.apiType === 'ollama') {
+    await ollamaStore.ensureProviderReady?.(providerId)
+  }
 }
 
 const applyProviderInstallPreview = async (preview: ProviderInstallPreview) => {
@@ -396,23 +444,13 @@ const settings: Ref<
     title: item.titleKey,
     name: item.routeName,
     icon: item.icon,
-    path: item.path
+    path: resolveSettingsNavigationPath(item.routeName)
   }))
 )
 
 onMounted(() => {
-  void initializeSettingsStores()
+  logSettingsStartup('app mounted')
 })
-
-const initializeSettingsStores = async () => {
-  try {
-    await ensureProviderStoreReady()
-    await modelStore.initialize()
-    await ollamaStore.initialize?.()
-  } catch (error) {
-    console.error('Failed to initialize settings stores', error)
-  }
-}
 
 // Update title function
 const updateTitle = () => {
@@ -427,9 +465,17 @@ const updateTitle = () => {
 
 // Watch route changes
 watch(
-  () => route.name,
-  () => {
+  () => [route.name, route.params.providerId],
+  async ([routeName, providerId]) => {
     updateTitle()
+    if (!hasLoggedFirstRouteResolved.value && routeName) {
+      hasLoggedFirstRouteResolved.value = true
+      logSettingsStartup(`first route resolved route=${String(routeName)}`)
+    }
+
+    if (routeName === 'settings-provider') {
+      await ensureProviderRouteReady(typeof providerId === 'string' ? providerId : undefined)
+    }
   },
   { immediate: true }
 )
@@ -515,6 +561,8 @@ const handleWindowFocus = () => {
 }
 
 onMounted(async () => {
+  startupWorkloadStore?.connect()
+
   // Listen for window maximize/unmaximize events
   devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
@@ -530,13 +578,37 @@ onMounted(async () => {
     }
   )
 
-  await uiSettingsStore.loadSettings()
+  const [settingsLoadResult, routerReadyResult] = await Promise.allSettled([
+    uiSettingsStore.loadSettings(),
+    router.isReady()
+  ])
 
-  // Wait for router to be ready
-  await router.isReady()
+  if (settingsLoadResult.status === 'rejected') {
+    console.error(
+      `${SETTINGS_STARTUP_LOG_PREFIX} failed to load UI settings during startup:`,
+      settingsLoadResult.reason
+    )
+  }
+
+  if (routerReadyResult.status === 'rejected') {
+    console.error(
+      `${SETTINGS_STARTUP_LOG_PREFIX} router ready failed during startup:`,
+      routerReadyResult.reason
+    )
+  }
+
+  try {
+    await providerStore.initialize()
+    logSettingsStartup('provider summaries ready')
+  } catch (error) {
+    console.error(`${SETTINGS_STARTUP_LOG_PREFIX} provider summaries failed:`, error)
+  }
+
+  markStartupInteractive()
   window.addEventListener('focus', handleWindowFocus)
   await syncPendingProviderInstall()
   notifySettingsReady()
+  logSettingsStartup('settings window ready IPC sent')
 })
 
 const closeWindow = () => {

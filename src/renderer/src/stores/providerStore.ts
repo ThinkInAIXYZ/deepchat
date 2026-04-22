@@ -23,7 +23,7 @@ export const useProviderStore = defineStore('provider', () => {
 
   const providersQuery = useIpcQuery({
     key: () => ['providers'],
-    query: () => providerClient.getProviders(),
+    query: () => providerClient.getProviderSummaries(),
     staleTime: 30_000
   })
 
@@ -38,6 +38,8 @@ export const useProviderStore = defineStore('provider', () => {
   const providerTimestamps = ref<Record<string, number>>({})
   const listenersRegistered = ref(false)
   const voiceAIConfig = ref<VoiceAIConfig | null>(null)
+  const initialized = ref(false)
+  const initializationPromise = ref<Promise<void> | null>(null)
 
   const providers = computed<LLM_PROVIDER[]>(() => {
     const data = providersQuery.data.value as LLM_PROVIDER[] | undefined
@@ -119,7 +121,7 @@ export const useProviderStore = defineStore('provider', () => {
   const saveProviderOrder = async () => {
     try {
       if (providerOrder.value.length > 0) {
-        await configClient.setSetting(PROVIDER_ORDER_KEY, providerOrder.value)
+        await configClient.setSetting(PROVIDER_ORDER_KEY, [...providerOrder.value])
       }
     } catch (error) {
       console.error('Failed to save provider order:', error)
@@ -138,7 +140,7 @@ export const useProviderStore = defineStore('provider', () => {
 
   const saveProviderTimestamps = async () => {
     try {
-      await configClient.setSetting(PROVIDER_TIMESTAMP_KEY, providerTimestamps.value)
+      await configClient.setSetting(PROVIDER_TIMESTAMP_KEY, { ...providerTimestamps.value })
     } catch (error) {
       console.error('Failed to save provider timestamps:', error)
     }
@@ -148,6 +150,13 @@ export const useProviderStore = defineStore('provider', () => {
     // Load order first to ensure we have the latest saved order before processing provider list updates
     await loadProviderOrder()
     await providersQuery.refetch()
+  }
+
+  const ensureDefaultProvidersReady = async () => {
+    if (defaultProvidersQuery.data.value) {
+      return
+    }
+
     await defaultProvidersQuery.refetch()
   }
 
@@ -334,11 +343,41 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const initialize = async () => {
-    await loadProviderTimestamps()
-    await loadProviderOrder()
+    if (initialized.value) {
+      return
+    }
+
+    if (initializationPromise.value) {
+      await initializationPromise.value
+      return
+    }
+
+    initializationPromise.value = (async () => {
+      await loadProviderTimestamps()
+      await loadProviderOrder()
+      setupProviderListeners()
+      await refreshProviders()
+      initialized.value = true
+    })()
+
+    try {
+      await initializationPromise.value
+    } finally {
+      if (!initialized.value) {
+        initializationPromise.value = null
+      }
+    }
+  }
+
+  const ensureInitialized = async () => {
+    await initialize()
+  }
+
+  const primeProviders = async () => {
     setupProviderListeners()
-    await refreshProviders()
-    await defaultProvidersQuery.refetch()
+    await providersQuery.refetch()
+    await loadProviderOrder()
+    await loadProviderTimestamps()
   }
 
   let providerOrderSyncTimer: ReturnType<typeof setTimeout> | null = null
@@ -380,8 +419,12 @@ export const useProviderStore = defineStore('provider', () => {
     sortedProviders,
     providerOrder,
     providerTimestamps,
+    initialized,
     initialize,
+    ensureInitialized,
+    primeProviders,
     refreshProviders,
+    ensureDefaultProvidersReady,
     updateProvider,
     updateProviderConfig,
     updateProviderApi,

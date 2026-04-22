@@ -1763,6 +1763,7 @@ export interface MCPResourceContent {
 }
 
 export interface IMCPPresenter {
+  initialize(): Promise<void>
   isReady(): boolean
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   getMcpClients(): Promise<McpClient[]>

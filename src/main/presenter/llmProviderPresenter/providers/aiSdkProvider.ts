@@ -121,7 +121,7 @@ function toErrorMessage(error: unknown, fallback: string): string {
 }
 
 export class AiSdkProvider extends BaseLLMProvider {
-  private readonly definition: AiSdkProviderDefinition
+  private definition: AiSdkProviderDefinition
 
   constructor(
     provider: LLM_PROVIDER,
@@ -137,6 +137,18 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
     this.definition = definition
     this.init()
+  }
+
+  public override updateConfig(provider: LLM_PROVIDER): void {
+    const definition = resolveAiSdkProviderDefinition(provider)
+    if (!definition) {
+      throw new Error(
+        `No AI SDK definition found for provider ${provider.id} (${provider.apiType})`
+      )
+    }
+
+    super.updateConfig(provider)
+    this.definition = definition
   }
 
   private getRouteStrategy(): AiSdkRouteStrategy {

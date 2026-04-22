@@ -54,6 +54,10 @@ type SetupOptions = {
   acpDraftSessionId?: string | null
   acpProcessConfig?: AcpConfigState | null
   acpSessionConfig?: AcpConfigState | null
+  deferStartupTasks?: boolean
+  modelStoreInitialized?: boolean
+  modelStoreInitializationError?: Error | null
+  initializeModels?: () => Promise<void>
 }
 
 const createDeferred = <T>() => {
@@ -259,6 +263,25 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const modelStore = reactive({
+    initialized: options.modelStoreInitialized ?? true,
+    isInitializing: false,
+    initializationError: options.modelStoreInitializationError ?? null,
+    initialize: vi.fn().mockImplementation(async () => {
+      modelStore.isInitializing = true
+      modelStore.initializationError = null
+      try {
+        if (options.initializeModels) {
+          await options.initializeModels()
+        }
+        modelStore.initialized = true
+      } catch (error) {
+        modelStore.initialized = false
+        modelStore.initializationError = error as Error
+        throw error
+      } finally {
+        modelStore.isInitializing = false
+      }
+    }),
     enabledModels: [...baseModelGroups, ...normalizedExtraModelGroups],
     findModelByIdOrName: vi.fn((value: string) => modelLookup.get(value) ?? null)
   })
@@ -497,6 +520,7 @@ const setup = async (options: SetupOptions = {}) => {
       }
     }
   }
+  const startupDeferredTasks: Array<() => void | Promise<void>> = []
 
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
@@ -530,6 +554,16 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => agentSessionPresenter)
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      if (options.deferStartupTasks) {
+        startupDeferredTasks.push(task)
+      } else {
+        void task()
+      }
+      return () => {}
+    })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -600,12 +634,22 @@ const setup = async (options: SetupOptions = {}) => {
     agentSessionPresenter,
     llmproviderPresenter,
     modelClient,
+    modelStore,
     agentStore,
     sessionStore,
     draftStore,
     configPresenter,
     projectStore,
-    ipcRenderer
+    ipcRenderer,
+    flushStartupDeferredTasks: async () => {
+      while (startupDeferredTasks.length > 0) {
+        const task = startupDeferredTasks.shift()
+        if (task) {
+          await task()
+        }
+      }
+      await flushPromises()
+    }
   }
 }
 
@@ -692,6 +736,37 @@ describe('ChatStatusBar model and session panels', () => {
 
     const activeIndicator = active.wrapper.find('.mcp-indicator-stub')
     expect(activeIndicator.attributes('data-show-subagent-toggle')).toBe('false')
+  })
+
+  it('shows loading state and hides partial model groups before full initialization completes', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelStoreInitialized: false
+    })
+
+    expect(wrapper.find('[data-model-picker-state="loading"]').exists()).toBe(true)
+    expect(wrapper.find('[data-model-search-input="true"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('common.loading')
+    expect(wrapper.text()).not.toContain('gpt-4')
+    expect(wrapper.text()).not.toContain('claude-3-5-sonnet')
+  })
+
+  it('shows retry state after initialization failure and retries on demand', async () => {
+    const { wrapper, modelStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelStoreInitialized: false,
+      modelStoreInitializationError: new Error('init failed')
+    })
+
+    expect(wrapper.find('[data-model-picker-state="error"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('model.error.loadFailed')
+
+    await wrapper.get('[data-model-picker-state="error"] button').trigger('click')
+    await flushPromises()
+
+    expect(modelStore.initialize).toHaveBeenCalledTimes(1)
   })
 
   it('renders compact model ids in the trigger and list, and keeps chevron actions for settings', async () => {
@@ -1381,6 +1456,7 @@ describe('ChatStatusBar model and session panels', () => {
       temperature: 0.7,
       contextLength: 16000,
       maxTokens: 4096,
+      timeout: 60000,
       thinkingBudget: 512,
       reasoningEffort: 'medium',
       verbosity: 'medium'
@@ -1857,6 +1933,29 @@ describe('ChatStatusBar model and session panels', () => {
     })
 
     expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
+  })
+
+  it('defers ACP process warmup until startup deferred tasks are released', async () => {
+    const { llmproviderPresenter, flushStartupDeferredTasks } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      deferStartupTasks: true
+    })
+
+    expect(llmproviderPresenter.warmupAcpProcess).not.toHaveBeenCalled()
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).not.toHaveBeenCalled()
+
+    await flushStartupDeferredTasks()
+
+    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
   })
 
   it('shows only the ACP badge and MCP when no ACP config data is available', async () => {

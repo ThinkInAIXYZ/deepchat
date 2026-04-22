@@ -21,6 +21,11 @@ const { newSessionActiveSkillsStore, skillSessionStatePort } = vi.hoisted(() => 
   }
 }))
 
+const discoveryWorkerMock = vi.hoisted(() => ({
+  discoverSkillMetadataInWorker: vi.fn(),
+  logSkillDiscoveryWorkerWarnings: vi.fn()
+}))
+
 // Mock external dependencies
 vi.mock('electron', () => ({
   app: {
@@ -140,6 +145,8 @@ vi.mock('@shared/logger', () => ({
   }
 }))
 
+vi.mock('../../../../src/main/presenter/skillPresenter/discoveryWorker', () => discoveryWorkerMock)
+
 // Import mocked modules
 import fs from 'fs'
 import path from 'path'
@@ -253,6 +260,10 @@ describe('SkillPresenter', () => {
       data: { name: 'test-skill', description: 'Test skill' },
       content: '# Test content'
     })
+    discoveryWorkerMock.discoverSkillMetadataInWorker.mockRejectedValue(
+      new Error('worker unavailable')
+    )
+    discoveryWorkerMock.logSkillDiscoveryWorkerWarnings.mockImplementation(() => {})
     ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(false)
     ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
       async (conversationId: string) => newSessionActiveSkillsStore.get(conversationId) ?? []
@@ -482,6 +493,52 @@ describe('SkillPresenter', () => {
           path: secondPath
         })
       )
+    })
+
+    it('uses worker discovery results when the worker succeeds', async () => {
+      const workerSkill = createSkillMetadata('worker-skill', 'worker-skill')
+      discoveryWorkerMock.discoverSkillMetadataInWorker.mockResolvedValue({
+        skills: [workerSkill],
+        warnings: []
+      })
+      ;(skillPresenter as any).parseSkillMetadata = vi.fn()
+
+      const skills = await skillPresenter.discoverSkills()
+
+      expect(skills).toEqual([
+        expect.objectContaining({
+          name: 'worker-skill',
+          path: workerSkill.path
+        })
+      ])
+      expect((skillPresenter as any).parseSkillMetadata).not.toHaveBeenCalled()
+      expect(discoveryWorkerMock.logSkillDiscoveryWorkerWarnings).toHaveBeenCalledWith([])
+    })
+
+    it('falls back to main-thread discovery when the worker fails', async () => {
+      discoveryWorkerMock.discoverSkillMetadataInWorker.mockRejectedValue(
+        new Error('worker failed')
+      )
+      mockSkillTree(['fallback-skill'])
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => target)
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'fallback-skill', description: 'Fallback skill description' },
+        content: '# Fallback skill'
+      })
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const skills = await skillPresenter.discoverSkills()
+
+      expect(skills).toEqual([
+        expect.objectContaining({
+          name: 'fallback-skill'
+        })
+      ])
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        '[SkillPresenter] Worker discovery failed, falling back to main thread:',
+        expect.any(Error)
+      )
+      consoleWarnSpy.mockRestore()
     })
   })
 

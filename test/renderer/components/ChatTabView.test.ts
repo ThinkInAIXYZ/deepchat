@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, reactive } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type SetupOptions = {
   collapsed?: boolean
@@ -8,11 +8,14 @@ type SetupOptions = {
   selectedAgentId?: string | null
   chatSessionId?: string | null
   newConversationTargetAgentId?: string | null
+  sessionError?: string | null
+  activeSessionId?: string | null
 }
 
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
+  const markStartupInteractive = vi.fn()
   const pageRouter = reactive({
     currentRoute: options.currentRoute ?? 'newThread',
     chatSessionId: options.chatSessionId ?? (options.currentRoute === 'chat' ? 'session-1' : null),
@@ -22,9 +25,15 @@ const setup = async (options: SetupOptions = {}) => {
     activeSession:
       options.currentRoute === 'chat'
         ? {
-            projectDir: 'C:/repo'
+            projectDir: 'C:/repo',
+            providerId: 'openai'
           }
         : null,
+    activeSessionId:
+      options.activeSessionId ??
+      options.chatSessionId ??
+      (options.currentRoute === 'chat' ? 'session-1' : null),
+    error: options.sessionError ?? null,
     newConversationTargetAgentId: options.newConversationTargetAgentId ?? 'deepchat',
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     startNewConversation: vi.fn().mockResolvedValue(undefined)
@@ -37,9 +46,13 @@ const setup = async (options: SetupOptions = {}) => {
     collapsed: options.collapsed ?? false
   })
   const projectStore = {
+    loadDefaultProjectPath: vi.fn().mockResolvedValue(undefined),
     fetchProjects: vi.fn().mockResolvedValue(undefined)
   }
   const modelStore = {
+    initialize: vi.fn().mockResolvedValue(undefined)
+  }
+  const ollamaStore = {
     initialize: vi.fn().mockResolvedValue(undefined)
   }
 
@@ -60,6 +73,21 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
+  }))
+  vi.doMock('@/stores/ollamaStore', () => ({
+    useOllamaStore: () => ollamaStore
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    markStartupInteractive,
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      void task()
+      return () => {}
+    })
+  }))
+  vi.doMock('@api/ConfigClient', () => ({
+    createConfigClient: () => ({
+      getSetting: vi.fn().mockResolvedValue(undefined)
+    })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -117,23 +145,88 @@ const setup = async (options: SetupOptions = {}) => {
   const wrapper = mount(ChatTabView)
 
   await flushPromises()
+  await vi.runAllTimersAsync()
+  await flushPromises()
 
   return {
     wrapper,
+    pageRouter,
+    agentStore,
     modelStore,
-    sessionStore
+    ollamaStore,
+    projectStore,
+    sessionStore,
+    markStartupInteractive
   }
 }
 
 describe('ChatTabView collapsed new chat button', () => {
-  it('does not initialize modelStore on mount', async () => {
-    const { modelStore } = await setup({
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('runs full model compensation in deferred hydration after the first screen becomes interactive', async () => {
+    const { modelStore, ollamaStore, markStartupInteractive } = await setup({
       collapsed: false,
       currentRoute: 'newThread',
       selectedAgentId: 'deepchat'
     })
 
-    expect(modelStore.initialize).not.toHaveBeenCalled()
+    expect(markStartupInteractive).toHaveBeenCalledTimes(1)
+    expect(modelStore.initialize).toHaveBeenCalledTimes(1)
+    expect(ollamaStore.initialize).toHaveBeenCalledTimes(1)
+  })
+
+  it('hydrates the route from the session store state and keeps provider warmup on demand', async () => {
+    const { pageRouter, agentStore, projectStore, sessionStore, markStartupInteractive } =
+      await setup({
+        collapsed: false,
+        currentRoute: 'chat',
+        chatSessionId: 'session-42',
+        selectedAgentId: 'acp-a'
+      })
+
+    expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
+    expect(projectStore.loadDefaultProjectPath).toHaveBeenCalledTimes(1)
+    expect(pageRouter.initialize).toHaveBeenCalledWith({
+      activeSessionId: 'session-42'
+    })
+    expect(markStartupInteractive).toHaveBeenCalledTimes(1)
+    expect(agentStore.fetchAgents).toHaveBeenCalledTimes(1)
+    expect(projectStore.fetchProjects).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to route recovery when the session snapshot is unusable', async () => {
+    const { pageRouter, sessionStore } = await setup({
+      collapsed: false,
+      currentRoute: 'newThread',
+      activeSessionId: null,
+      sessionError: 'Failed to load sessions'
+    })
+
+    expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
+    expect(pageRouter.initialize).toHaveBeenCalledWith()
+    expect(pageRouter.initialize).not.toHaveBeenCalledWith({
+      activeSessionId: null
+    })
+  })
+
+  it('passes a null session id through fallback recovery when the snapshot is still usable', async () => {
+    const { pageRouter, sessionStore } = await setup({
+      collapsed: false,
+      currentRoute: 'newThread',
+      activeSessionId: null,
+      sessionError: null
+    })
+
+    expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
+    expect(pageRouter.initialize).toHaveBeenCalledWith({
+      activeSessionId: null
+    })
   })
 
   it('hides the collapsed new chat button when the sidebar is expanded', async () => {

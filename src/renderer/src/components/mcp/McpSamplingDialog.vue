@@ -134,54 +134,79 @@
             {{ t('mcp.sampling.maxTokensInfo', { maxTokens: store.request.maxTokens }) }}
           </div>
 
-          <!-- Model Selection (Compact Popover) -->
-          <div class="flex items-center gap-3">
-            <span class="text-sm font-medium text-muted-foreground">{{
-              t('mcp.sampling.respondWith')
-            }}</span>
-            <Popover v-model:open="modelSelectOpen">
-              <PopoverTrigger as-child>
-                <Button
-                  variant="ghost"
-                  class="flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                  size="sm"
-                  :disabled="!store.hasEligibleModel"
-                >
-                  <ModelIcon
-                    v-if="store.selectedModel"
-                    :model-id="store.selectedProviderId"
-                    :is-dark="true"
-                    custom-class="w-4 h-4"
-                  />
-                  <span class="text-xs font-semibold truncate max-w-[140px] text-foreground">
-                    {{ store.selectedModel?.name || t('mcp.sampling.selectModel') }}
-                  </span>
-                  <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" class="w-80 border-none bg-transparent p-0 shadow-none">
-                <ModelChooser
-                  :requires-vision="store.requiresVision"
-                  :selected-provider-id="store.selectedProviderId ?? ''"
-                  :selected-model-id="store.selectedModel?.id ?? ''"
-                  @update:model="onModelUpdate"
-                />
-              </PopoverContent>
-            </Popover>
+          <div
+            v-if="store.isPreparingModels"
+            class="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground"
+          >
+            <div class="flex items-center justify-center gap-2">
+              <Icon icon="lucide:loader-2" class="h-4 w-4 animate-spin" />
+              <span>{{ t('common.loading') }}</span>
+            </div>
           </div>
 
-          <!-- Model Status Messages -->
-          <div v-if="!store.hasEligibleModel" class="text-sm text-destructive">
-            {{
-              store.requiresVision ? t('mcp.sampling.noVisionModels') : t('mcp.sampling.noModels')
-            }}
-          </div>
           <div
-            v-else-if="store.requiresVision && !store.selectedModelSupportsVision"
-            class="text-sm text-destructive"
+            v-else-if="store.modelPreparationError"
+            class="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground"
           >
-            {{ t('mcp.sampling.visionWarning') }}
+            <div>{{ t('model.error.loadFailed') }}</div>
+            <Button variant="outline" class="mt-3" @click="onRetryModels">
+              {{ t('settings.dashboard.rtk.actions.retry') }}
+            </Button>
           </div>
+
+          <template v-else>
+            <!-- Model Selection (Compact Popover) -->
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-medium text-muted-foreground">{{
+                t('mcp.sampling.respondWith')
+              }}</span>
+              <Popover v-model:open="modelSelectOpen">
+                <PopoverTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    class="flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    size="sm"
+                    :disabled="!store.hasEligibleModel"
+                  >
+                    <ModelIcon
+                      v-if="store.selectedModel"
+                      :model-id="store.selectedProviderId"
+                      :is-dark="true"
+                      custom-class="w-4 h-4"
+                    />
+                    <span class="text-xs font-semibold truncate max-w-[140px] text-foreground">
+                      {{ store.selectedModel?.name || t('mcp.sampling.selectModel') }}
+                    </span>
+                    <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  class="w-80 border-none bg-transparent p-0 shadow-none"
+                >
+                  <ModelChooser
+                    :requires-vision="store.requiresVision"
+                    :selected-provider-id="store.selectedProviderId ?? ''"
+                    :selected-model-id="store.selectedModel?.id ?? ''"
+                    @update:model="onModelUpdate"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <!-- Model Status Messages -->
+            <div v-if="!store.hasEligibleModel" class="text-sm text-destructive">
+              {{
+                store.requiresVision ? t('mcp.sampling.noVisionModels') : t('mcp.sampling.noModels')
+              }}
+            </div>
+            <div
+              v-else-if="store.requiresVision && !store.selectedModelSupportsVision"
+              class="text-sm text-destructive"
+            >
+              {{ t('mcp.sampling.visionWarning') }}
+            </div>
+          </template>
         </div>
 
         <DialogFooter class="border-t border-border/60 bg-card/60 px-6 py-4">
@@ -196,7 +221,13 @@
             </Button>
             <Button
               class="sm:min-w-[120px]"
-              :disabled="store.isSubmitting || !store.selectedModel || !store.hasEligibleModel"
+              :disabled="
+                store.isSubmitting ||
+                store.isPreparingModels ||
+                Boolean(store.modelPreparationError) ||
+                !store.selectedModel ||
+                !store.hasEligibleModel
+              "
               @click="onConfirm"
             >
               <Icon
@@ -294,6 +325,10 @@ const onReject = () => {
 
 const onConfirm = () => {
   void store.confirmApproval()
+}
+
+const onRetryModels = () => {
+  void store.retryPrepareModels()
 }
 
 const onDialogToggle = (open: boolean) => {

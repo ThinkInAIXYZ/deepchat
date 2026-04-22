@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { createConfigClient } from '../../../api/ConfigClient'
 import { createModelClient } from '../../../api/ModelClient'
 import { createSessionClient } from '../../../api/SessionClient'
-import type { Agent } from '@shared/types/agent-interface'
+import type { Agent, AgentBootstrapItem } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
 
@@ -42,31 +42,43 @@ export const useAgentStore = defineStore('agent', () => {
 
   // --- Actions ---
 
+  function mapAgentToUiAgent(agent: Agent | AgentBootstrapItem): UIAgent {
+    return {
+      id: agent.id,
+      name: agent.name,
+      type: agent.type,
+      agentType: agent.agentType,
+      enabled: agent.enabled,
+      protected: agent.protected,
+      icon: agent.icon,
+      description: agent.description,
+      source: agent.source,
+      avatar: agent.avatar,
+      config: 'config' in agent ? agent.config : undefined,
+      installState: 'installState' in agent ? (agent.installState ?? null) : null
+    }
+  }
+
+  function applyAgents(nextAgents: Array<Agent | AgentBootstrapItem>): void {
+    agents.value = nextAgents.map(mapAgentToUiAgent)
+    if (selectedAgentId.value !== null) {
+      const currentSelectedAgent = agents.value.find((agent) => agent.id === selectedAgentId.value)
+      if (!currentSelectedAgent || !currentSelectedAgent.enabled) {
+        selectedAgentId.value = null
+      }
+    }
+  }
+
+  function applyBootstrapAgents(nextAgents: AgentBootstrapItem[]): void {
+    applyAgents(nextAgents)
+  }
+
   async function fetchAgents(): Promise<void> {
     loading.value = true
     error.value = null
     try {
       const result: Agent[] = await sessionClient.getAgents()
-      agents.value = result.map((a) => ({
-        id: a.id,
-        name: a.name,
-        type: a.type,
-        agentType: a.agentType,
-        enabled: a.enabled,
-        protected: a.protected,
-        icon: a.icon,
-        description: a.description,
-        source: a.source,
-        avatar: a.avatar,
-        config: a.config,
-        installState: a.installState ?? null
-      }))
-      if (selectedAgentId.value !== null) {
-        const selectedAgent = agents.value.find((agent) => agent.id === selectedAgentId.value)
-        if (!selectedAgent || !selectedAgent.enabled) {
-          selectedAgentId.value = null
-        }
-      }
+      applyAgents(result)
     } catch (e) {
       error.value = `Failed to load agents: ${e}`
     } finally {
@@ -101,6 +113,7 @@ export const useAgentStore = defineStore('agent', () => {
     error,
     enabledAgents,
     selectedAgent,
+    applyBootstrapAgents,
     setSelectedAgent,
     fetchAgents,
     selectAgent

@@ -1,5 +1,8 @@
 import type {
   Agent,
+  SessionListItem,
+  SessionLightweightListResult,
+  SessionPageCursor,
   IAgentImplementation,
   CreateSessionInput,
   CreateDetachedSessionInput,
@@ -230,6 +233,7 @@ export class AgentSessionPresenter {
   private sessionPermissionPort?: SessionPermissionPort
   private sessionUiPort?: SessionUiPort
   private usageStatsBackfillPromise: Promise<void> | null = null
+  private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
 
   constructor(
     agentRuntimeAgent: IAgentImplementation,
@@ -260,6 +264,17 @@ export class AgentSessionPresenter {
     this.agentRegistry.register(
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       agentRuntimeAgent
+    )
+
+    eventBus.on(
+      SESSION_EVENTS.STATUS_CHANGED,
+      (payload: { sessionId?: string; status?: SessionWithState['status'] }) => {
+        if (!payload?.sessionId || !payload?.status) {
+          return
+        }
+
+        this.sessionStatusSnapshots.set(payload.sessionId, payload.status)
+      }
     )
   }
 
@@ -365,13 +380,12 @@ export class AgentSessionPresenter {
       webContentsId,
       sessionId
     })
-    publishDeepchatEvent('sessions.updated', {
+    this.emitSessionListUpdated({
       sessionIds: [sessionId],
       reason: 'created',
       activeSessionId: sessionId,
       webContentsId
     })
-    this.emitSessionListUpdated()
 
     if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
       await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
@@ -492,8 +506,7 @@ export class AgentSessionPresenter {
       await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
     }
 
-    this.emitSessionListUpdated()
-    publishDeepchatEvent('sessions.updated', {
+    this.emitSessionListUpdated({
       sessionIds: [sessionId],
       reason: 'created'
     })
@@ -590,12 +603,14 @@ export class AgentSessionPresenter {
         }
 
         const session = (await this.buildSessionWithState(record)) as SessionWithState
-        this.emitSessionListUpdated()
+        this.emitSessionListUpdated({
+          sessionIds: [session.id],
+          reason: 'created'
+        })
         return session
       } catch (error) {
         lastError = error
         await this.cleanupFailedSessionInitialization(agent, sessionId, runtimeConfig.providerId)
-        this.emitSessionListUpdated()
 
         if (attempt >= SUBAGENT_SESSION_INIT_MAX_ATTEMPTS) {
           throw error
@@ -634,6 +649,7 @@ export class AgentSessionPresenter {
       input.permissionMode === 'default' ? 'default' : 'full_access'
 
     let record = await this.findReusableDraftSession(agentId, projectDir, agent)
+    let createdDraftSession = false
     if (!record) {
       const sessionId = this.sessionManager.create(agentId, 'New Chat', projectDir, {
         isDraft: true,
@@ -655,6 +671,7 @@ export class AgentSessionPresenter {
       if (!record) {
         throw new Error(`Failed to read created ACP draft session: ${sessionId}`)
       }
+      createdDraftSession = true
     } else {
       await this.ensureSessionRuntimeInitialized(agent, record.id, {
         agentId,
@@ -667,7 +684,10 @@ export class AgentSessionPresenter {
 
     await (this.providerSessionPort?.prepareAcpSession?.(record.id, agentId, projectDir) ??
       this.llmProviderPresenter.prepareAcpSession(record.id, agentId, projectDir))
-    this.emitSessionListUpdated()
+    this.emitSessionListUpdated({
+      sessionIds: [record.id],
+      reason: createdDraftSession ? 'created' : 'updated'
+    })
 
     const state = await agent.getSessionState(record.id)
     return {
@@ -687,7 +707,10 @@ export class AgentSessionPresenter {
     if (session.isDraft) {
       const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
       this.sessionManager.update(sessionId, { isDraft: false, title })
-      this.emitSessionListUpdated()
+      this.emitSessionListUpdated({
+        sessionIds: [sessionId],
+        reason: 'updated'
+      })
       session = this.sessionManager.get(sessionId)
       if (!session) throw new Error(`Session not found: ${sessionId}`)
     }
@@ -746,7 +769,10 @@ export class AgentSessionPresenter {
     if (currentSession.isDraft) {
       const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
       this.sessionManager.update(sessionId, { isDraft: false, title })
-      this.emitSessionListUpdated()
+      this.emitSessionListUpdated({
+        sessionIds: [sessionId],
+        reason: 'updated'
+      })
       currentSession = this.sessionManager.get(sessionId) ?? currentSession
     }
 
@@ -926,7 +952,10 @@ export class AgentSessionPresenter {
       throw error
     }
 
-    this.emitSessionListUpdated()
+    this.emitSessionListUpdated({
+      sessionIds: [targetSessionId],
+      reason: 'created'
+    })
 
     const record = this.sessionManager.get(targetSessionId)
     if (!record) {
@@ -952,13 +981,55 @@ export class AgentSessionPresenter {
     const enriched: SessionWithState[] = []
 
     for (const record of records) {
-      const session = await this.tryBuildSessionWithState(record)
+      const session = await this.tryBuildSessionWithState(record, 'list')
       if (session) {
         enriched.push(session)
       }
     }
 
     return enriched
+  }
+
+  async getLightweightSessionList(options?: {
+    limit?: number
+    cursor?: SessionPageCursor | null
+    includeSubagents?: boolean
+    agentId?: string
+    prioritizeSessionId?: string
+  }): Promise<SessionLightweightListResult> {
+    const page = this.sessionManager.listPage({
+      limit: options?.limit,
+      cursor: options?.cursor,
+      agentId: options?.agentId,
+      includeSubagents: options?.includeSubagents
+    })
+    const items = page.records.map((record) => this.mapSessionRecordToListItem(record))
+
+    const prioritizeSessionId = options?.prioritizeSessionId?.trim()
+    if (prioritizeSessionId) {
+      const prioritizedRecord = this.sessionManager.get(prioritizeSessionId)
+      if (prioritizedRecord && this.matchesLightweightFilter(prioritizedRecord, options)) {
+        items.unshift(this.mapSessionRecordToListItem(prioritizedRecord))
+      }
+    }
+
+    const deduped = this.dedupeAndSortSessionListItems(items)
+    return {
+      items: deduped,
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore
+    }
+  }
+
+  async getLightweightSessionsByIds(sessionIds: string[]): Promise<SessionListItem[]> {
+    const dedupedIds = Array.from(
+      new Set(sessionIds.map((sessionId) => sessionId.trim()).filter(Boolean))
+    )
+    return this.dedupeAndSortSessionListItems(
+      this.sessionManager
+        .getMany(dedupedIds)
+        .map((record) => this.mapSessionRecordToListItem(record))
+    )
   }
 
   async getSession(sessionId: string): Promise<SessionWithState | null> {
@@ -1341,6 +1412,10 @@ export class AgentSessionPresenter {
     return session
   }
 
+  getActiveSessionId(webContentsId: number): string | null {
+    return this.sessionManager.getActiveSessionId(webContentsId)
+  }
+
   async getAgents(): Promise<Agent[]> {
     const [agents, acpEnabled] = await Promise.all([
       this.configPresenter.listAgents(),
@@ -1362,7 +1437,10 @@ export class AgentSessionPresenter {
     }
 
     this.sessionManager.update(sessionId, { title: normalized })
-    this.emitSessionListUpdated()
+    this.emitSessionListUpdated({
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
   }
 
   async toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
@@ -1372,7 +1450,10 @@ export class AgentSessionPresenter {
     }
 
     this.sessionManager.update(sessionId, { isPinned: pinned })
-    this.emitSessionListUpdated()
+    this.emitSessionListUpdated({
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
   }
 
   async clearSessionMessages(sessionId: string): Promise<void> {
@@ -1387,7 +1468,10 @@ export class AgentSessionPresenter {
     }
 
     await agent.clearMessages(sessionId)
-    this.emitSessionListUpdated()
+    this.emitSessionListUpdated({
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
   }
 
   async exportSession(
@@ -1425,8 +1509,11 @@ export class AgentSessionPresenter {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    await this.deleteSessionInternal(sessionId)
-    this.emitSessionListUpdated()
+    const deletedSessionIds = await this.deleteSessionInternal(sessionId)
+    this.emitSessionListUpdated({
+      sessionIds: deletedSessionIds,
+      reason: 'deleted'
+    })
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
@@ -1548,7 +1635,10 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found after update: ${sessionId}`)
     }
 
-    this.emitSessionListUpdated()
+    this.emitSessionListUpdated({
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
     const sessionWithState = await this.tryBuildSessionWithState(updated)
     if (!sessionWithState) {
       throw new Error(`Failed to build session state for sessionId: ${sessionId}`)
@@ -1590,7 +1680,10 @@ export class AgentSessionPresenter {
       providerId: state?.providerId ?? nextProviderId,
       modelId: state?.modelId ?? nextModelId
     }
-    this.emitSessionListUpdated()
+    this.emitSessionListUpdated({
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
     return updated
   }
 
@@ -1615,7 +1708,10 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found after update: ${sessionId}`)
     }
 
-    this.emitSessionListUpdated()
+    this.emitSessionListUpdated({
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
     return await this.tryBuildSessionWithState(updated)
   }
 
@@ -1731,7 +1827,10 @@ export class AgentSessionPresenter {
       if (latest.title !== initialTitle) return
 
       this.sessionManager.update(sessionId, { title: normalized })
-      this.emitSessionListUpdated()
+      this.emitSessionListUpdated({
+        sessionIds: [sessionId],
+        reason: 'updated'
+      })
     } catch (error) {
       console.warn(
         `[AgentSessionPresenter] title generation skipped for session=${sessionId}:`,
@@ -1740,11 +1839,25 @@ export class AgentSessionPresenter {
     }
   }
 
-  private emitSessionListUpdated(): void {
+  private emitSessionListUpdated(
+    options: {
+      sessionIds?: string[]
+      reason?: 'created' | 'updated' | 'deleted' | 'list-refreshed'
+      activeSessionId?: string | null
+      webContentsId?: number
+    } = {}
+  ): void {
+    const sessionIds = Array.from(
+      new Set(options.sessionIds?.map((sessionId) => sessionId.trim()).filter(Boolean) ?? [])
+    )
+    const reason = options.reason ?? (sessionIds.length > 0 ? 'updated' : 'list-refreshed')
+
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
     publishDeepchatEvent('sessions.updated', {
-      sessionIds: [],
-      reason: 'list-refreshed'
+      sessionIds,
+      reason,
+      activeSessionId: options.activeSessionId,
+      webContentsId: options.webContentsId
     })
     this.sessionUiPort?.refreshSessionUi()
   }
@@ -1771,20 +1884,71 @@ export class AgentSessionPresenter {
     return false
   }
 
-  private async buildSessionWithState(record: SessionRecord): Promise<SessionWithState> {
+  private async buildSessionWithState(
+    record: SessionRecord,
+    mode: 'full' | 'list' = 'full'
+  ): Promise<SessionWithState> {
     const agent = await this.resolveAgentImplementation(record.agentId)
-    const state = await agent.getSessionState(record.id)
+    const state =
+      mode === 'list' && agent.getSessionListState
+        ? await agent.getSessionListState(record.id)
+        : await agent.getSessionState(record.id)
+    const status = state?.status ?? 'idle'
+    this.sessionStatusSnapshots.set(record.id, status)
     return {
       ...record,
-      status: state?.status ?? 'idle',
+      status,
       providerId: state?.providerId ?? '',
       modelId: state?.modelId ?? ''
     }
   }
 
-  private async tryBuildSessionWithState(record: SessionRecord): Promise<SessionWithState> {
+  private mapSessionRecordToListItem(record: SessionRecord): SessionListItem {
+    return {
+      ...record,
+      status: this.sessionStatusSnapshots.get(record.id) ?? 'idle'
+    }
+  }
+
+  private dedupeAndSortSessionListItems(items: SessionListItem[]): SessionListItem[] {
+    const sessionMap = new Map<string, SessionListItem>()
+    for (const item of items) {
+      sessionMap.set(item.id, item)
+    }
+
+    return Array.from(sessionMap.values()).sort((left, right) => {
+      if (right.updatedAt !== left.updatedAt) {
+        return right.updatedAt - left.updatedAt
+      }
+
+      return right.id.localeCompare(left.id)
+    })
+  }
+
+  private matchesLightweightFilter(
+    record: SessionRecord,
+    options?: {
+      includeSubagents?: boolean
+      agentId?: string
+    }
+  ): boolean {
+    if (options?.agentId && record.agentId !== options.agentId) {
+      return false
+    }
+
+    if (options?.includeSubagents !== true && record.sessionKind === 'subagent') {
+      return false
+    }
+
+    return true
+  }
+
+  private async tryBuildSessionWithState(
+    record: SessionRecord,
+    mode: 'full' | 'list' = 'full'
+  ): Promise<SessionWithState> {
     try {
-      return await this.buildSessionWithState(record)
+      return await this.buildSessionWithState(record, mode)
     } catch (error) {
       console.warn(
         `[AgentSessionPresenter] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
@@ -1963,9 +2127,11 @@ export class AgentSessionPresenter {
     }
   }
 
-  private async deleteSessionInternal(sessionId: string): Promise<void> {
+  private async deleteSessionInternal(sessionId: string): Promise<string[]> {
     const session = this.sessionManager.get(sessionId)
-    if (!session) return
+    if (!session) return []
+
+    const deletedSessionIds: string[] = []
 
     if (session.sessionKind === 'regular') {
       const children = this.sessionManager.list({
@@ -1973,7 +2139,7 @@ export class AgentSessionPresenter {
         parentSessionId: sessionId
       })
       for (const child of children) {
-        await this.deleteSessionInternal(child.id)
+        deletedSessionIds.push(...(await this.deleteSessionInternal(child.id)))
       }
     }
 
@@ -1991,6 +2157,10 @@ export class AgentSessionPresenter {
     this.sessionPermissionPort?.clearSessionPermissions(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
+    this.sessionStatusSnapshots.delete(sessionId)
+    deletedSessionIds.push(sessionId)
+
+    return deletedSessionIds
   }
 
   private async isAcpBackedSession(sessionId: string, agentId: string): Promise<boolean> {

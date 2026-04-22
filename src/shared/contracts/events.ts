@@ -37,6 +37,7 @@ import {
 import { providersOllamaPullProgressEvent } from './events/misc.providers.events'
 import { providersChangedEvent } from './events/providers.events'
 import { settingsChangedEvent } from './events/settings.events'
+import { startupWorkloadChangedEvent } from './events/startup.events'
 import {
   sessionsAcpCommandsReadyEvent,
   sessionsAcpConfigOptionsReadyEvent,
@@ -72,6 +73,7 @@ export * from './events/misc.providers.events'
 export * from './events/models.events'
 export * from './events/providers.events'
 export * from './events/settings.events'
+export * from './events/startup.events'
 export * from './events/sessions.events'
 export * from './events/skills.events'
 export * from './events/sync.events'
@@ -85,6 +87,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [browserOpenRequestedEvent.name]: browserOpenRequestedEvent,
   [browserStatusChangedEvent.name]: browserStatusChangedEvent,
   [settingsChangedEvent.name]: settingsChangedEvent,
+  [startupWorkloadChangedEvent.name]: startupWorkloadChangedEvent,
   [sessionsUpdatedEvent.name]: sessionsUpdatedEvent,
   [sessionsStatusChangedEvent.name]: sessionsStatusChangedEvent,
   [sessionsPendingInputsChangedEvent.name]: sessionsPendingInputsChangedEvent,

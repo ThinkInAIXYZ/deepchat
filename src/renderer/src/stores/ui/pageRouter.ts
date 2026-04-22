@@ -6,6 +6,9 @@ export type PageRoute = { name: 'newThread' } | { name: 'chat'; sessionId: strin
 type GoToNewThreadOptions = {
   refresh?: boolean
 }
+type InitializePageRouterOptions = {
+  activeSessionId?: string | null
+}
 
 export const usePageRouterStore = defineStore('pageRouter', () => {
   const sessionClient = createSessionClient()
@@ -17,8 +20,17 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
 
   // --- Actions ---
 
-  async function initialize(): Promise<void> {
+  async function initialize(options: InitializePageRouterOptions = {}): Promise<void> {
     try {
+      error.value = null
+
+      if (options.activeSessionId !== undefined) {
+        route.value = options.activeSessionId
+          ? { name: 'chat', sessionId: options.activeSessionId }
+          : { name: 'newThread' }
+        return
+      }
+
       // 1. Check for the active agent session bound to this renderer first.
       const { session: activeAgentSession } = await sessionClient.getActive()
       if (activeAgentSession) {

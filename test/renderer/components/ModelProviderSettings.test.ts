@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string) =>
@@ -51,6 +51,8 @@ const setup = async (options?: {
   const providerStore = reactive({
     providers,
     sortedProviders: providers,
+    initialized: ref(true),
+    ensureInitialized: vi.fn().mockResolvedValue(undefined),
     refreshProviders: vi.fn().mockResolvedValue(undefined),
     updateProviderConfig: vi.fn().mockResolvedValue(undefined),
     updateProviderApi: vi.fn().mockResolvedValue(undefined),
@@ -63,7 +65,8 @@ const setup = async (options?: {
   const modelStore = reactive({
     allProviderModels: [{ providerId: 'anthropic', models: [{ id: 'claude-sonnet' }] }],
     refreshAllModels: vi.fn().mockResolvedValue(undefined),
-    refreshProviderModels: vi.fn().mockResolvedValue(undefined)
+    refreshProviderModels: vi.fn().mockResolvedValue(undefined),
+    ensureProviderModelsReady: vi.fn().mockResolvedValue(undefined)
   })
 
   const router = {

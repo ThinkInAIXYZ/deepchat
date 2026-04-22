@@ -1,4 +1,4 @@
-import { computed, type ComputedRef, ref } from 'vue'
+import { computed, type ComputedRef, readonly, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
@@ -39,6 +39,8 @@ export const useModelStore = defineStore('model', () => {
   const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const listenersRegistered = ref(false)
   const initialized = ref(false)
+  const isInitializing = ref(false)
+  const initializationError = ref<Error | null>(null)
   const initializationPromise = ref<Promise<void> | null>(null)
 
   const providerModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
@@ -46,9 +48,30 @@ export const useModelStore = defineStore('model', () => {
   const enabledModelQueries = new Map<string, ModelQueryHandle<RENDERER_MODEL_META[]>>()
   const queryCache = useQueryCache()
   let removeModelListeners: (() => void) | null = null
-  const inFlightRefreshes = new Map<string, Promise<void>>()
+  const inFlightRefreshes = new Map<string, Promise<boolean>>()
   const rerunRequested = new Set<string>()
   const pendingRefreshStarts = new Set<string>()
+
+  const ensureModelRuntime = () => {
+    setupModelListeners()
+  }
+
+  const getMaterializedProviderIds = () => {
+    return Array.from(
+      new Set([
+        ...allProviderModels.value.map((entry) => entry.providerId),
+        ...customModels.value.map((entry) => entry.providerId),
+        ...enabledModels.value.map((entry) => entry.providerId)
+      ])
+    ).filter((providerId): providerId is string => Boolean(providerId))
+  }
+
+  const refreshMaterializedProviders = async () => {
+    const providerIds = getMaterializedProviderIds()
+    for (const providerId of providerIds) {
+      await refreshProviderModels(providerId)
+    }
+  }
 
   const matchesProviderModelsEntry = (
     entry: { key: readonly unknown[] },
@@ -276,7 +299,7 @@ export const useModelStore = defineStore('model', () => {
     enabledModels.value = [...enabledModels.value]
   }
 
-  const refreshCustomModels = async (providerId: string): Promise<void> => {
+  const refreshCustomModels = async (providerId: string): Promise<boolean> => {
     try {
       const query = getCustomModelsQuery(providerId)
       await query.refetch()
@@ -285,7 +308,7 @@ export const useModelStore = defineStore('model', () => {
         customModels.value.find((item) => item.providerId === providerId)?.models ?? []
 
       if (customModelsList.length === 0 && existingCustom.length === 0) {
-        return
+        return true
       }
 
       const modelIds = customModelsList.map((model) => model.id)
@@ -310,12 +333,14 @@ export const useModelStore = defineStore('model', () => {
           ?.models.filter((model) => !model.isCustom) || []
       updateAllProviderState(providerId, [...existingStandard, ...customModelsWithStatus])
       updateEnabledState(providerId, [...existingStandard, ...customModelsWithStatus])
+      return true
     } catch (error) {
       console.error(`刷新自定义模型失败: ${providerId}`, error)
+      return false
     }
   }
 
-  const refreshStandardModels = async (providerId: string): Promise<void> => {
+  const refreshStandardModels = async (providerId: string): Promise<boolean> => {
     try {
       await invalidateProviderModelsCache(providerId)
       let models: RENDERER_MODEL_META[] = await modelClient.getDbProviderModels(providerId)
@@ -449,29 +474,38 @@ export const useModelStore = defineStore('model', () => {
         customModels.value.find((item) => item.providerId === providerId)?.models || []
       updateAllProviderState(providerId, [...modelsWithStatus, ...existingCustom])
       updateEnabledState(providerId, [...modelsWithStatus, ...existingCustom])
+      return true
     } catch (error) {
       console.error(`刷新标准模型失败: ${providerId}`, error)
+      return false
     }
   }
 
-  const refreshProviderModelsNow = async (providerId: string) => {
+  const refreshProviderModelsNow = async (providerId: string): Promise<boolean> => {
     if (providerId === 'acp') {
       try {
         const { rendererModels, modelMetas } = await agentModelStore.refreshAgentModels(providerId)
         updateProviderModelsCache(providerId, modelMetas)
         updateAllProviderState(providerId, rendererModels)
         updateEnabledState(providerId, rendererModels)
+        return true
       } catch (error) {
         console.error(`[ModelStore] Failed to refresh agent models for ${providerId}:`, error)
+        return false
       }
-      return
     }
 
-    await refreshStandardModels(providerId)
-    await refreshCustomModels(providerId)
+    const [standardRefreshed, customRefreshed] = await Promise.all([
+      refreshStandardModels(providerId),
+      refreshCustomModels(providerId)
+    ])
+
+    return standardRefreshed && customRefreshed
   }
 
-  const refreshProviderModels = (providerId: string): Promise<void> => {
+  const refreshProviderModels = (providerId: string): Promise<boolean> => {
+    ensureModelRuntime()
+
     const existingRefresh = inFlightRefreshes.get(providerId)
     if (existingRefresh) {
       if (!pendingRefreshStarts.has(providerId)) {
@@ -481,16 +515,19 @@ export const useModelStore = defineStore('model', () => {
     }
 
     pendingRefreshStarts.add(providerId)
-    let refreshPromise: Promise<void> | null = null
+    let refreshPromise: Promise<boolean> | null = null
     refreshPromise = (async () => {
+      let lastRefreshSucceeded = true
       try {
         await Promise.resolve()
         pendingRefreshStarts.delete(providerId)
 
         do {
           rerunRequested.delete(providerId)
-          await refreshProviderModelsNow(providerId)
+          lastRefreshSucceeded = await refreshProviderModelsNow(providerId)
         } while (rerunRequested.has(providerId))
+
+        return lastRefreshSucceeded
       } finally {
         pendingRefreshStarts.delete(providerId)
         rerunRequested.delete(providerId)
@@ -504,11 +541,15 @@ export const useModelStore = defineStore('model', () => {
     return refreshPromise
   }
 
-  const _refreshAllModelsInternal = async () => {
+  const _refreshAllModelsInternal = async (): Promise<boolean> => {
     const activeProviders = providerStore.providers.filter((p) => p.enable)
+    let allProvidersRefreshed = true
     for (const provider of activeProviders) {
-      await refreshProviderModels(provider.id)
+      const refreshed = await refreshProviderModels(provider.id)
+      allProvidersRefreshed = allProvidersRefreshed && refreshed
     }
+
+    return allProvidersRefreshed
   }
 
   const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, true)
@@ -756,13 +797,23 @@ export const useModelStore = defineStore('model', () => {
     if (listenersRegistered.value) return
     listenersRegistered.value = true
 
-    const unsubscribeModelListChanged = modelClient.onModelsChanged(async ({ providerId }) => {
-      if (providerId) {
-        await refreshProviderModels(providerId)
-      } else {
-        await refreshAllModels()
+    const unsubscribeModelListChanged = modelClient.onModelsChanged(
+      async ({ providerId, reason }) => {
+        if (providerId) {
+          await refreshProviderModels(providerId)
+          return
+        }
+
+        if (reason === 'provider-db-loaded' || reason === 'provider-db-updated') {
+          await refreshMaterializedProviders()
+          return
+        }
+
+        if (initialized.value) {
+          await refreshAllModels()
+        }
       }
-    })
+    )
 
     const unsubscribeModelStatusChanged = modelClient.onModelStatusChanged(
       async (msg: { providerId: string; modelId: string; enabled: boolean }) => {
@@ -781,6 +832,8 @@ export const useModelStore = defineStore('model', () => {
     removeModelListeners = null
     listenersRegistered.value = false
     initialized.value = false
+    isInitializing.value = false
+    initializationError.value = null
     initializationPromise.value = null
     inFlightRefreshes.clear()
     rerunRequested.clear()
@@ -797,19 +850,35 @@ export const useModelStore = defineStore('model', () => {
       return
     }
 
+    initializationError.value = null
+    isInitializing.value = true
     initializationPromise.value = (async () => {
-      setupModelListeners()
-      await refreshAllModels()
+      ensureModelRuntime()
+      const refreshed = await _refreshAllModelsInternal()
+      if (!refreshed) {
+        console.warn('[ModelStore] Some enabled providers failed to refresh during initialization')
+      }
       initialized.value = true
     })()
 
     try {
       await initializationPromise.value
+    } catch (error) {
+      initialized.value = false
+      initializationError.value =
+        error instanceof Error ? error : new Error('Failed to initialize enabled models')
+      throw error
     } finally {
+      isInitializing.value = false
       if (!initialized.value) {
         initializationPromise.value = null
       }
     }
+  }
+
+  const ensureProviderModelsReady = async (providerId: string) => {
+    ensureModelRuntime()
+    await refreshProviderModels(providerId)
   }
 
   const addCustomModelMutation = useIpcMutation({
@@ -845,12 +914,16 @@ export const useModelStore = defineStore('model', () => {
     enabledModels,
     allProviderModels,
     customModels,
+    initialized: readonly(initialized),
+    isInitializing: readonly(isInitializing),
+    initializationError: readonly(initializationError),
     getProviderModelsQuery,
     getCustomModelsQuery,
     getEnabledModelsQuery,
     refreshCustomModels,
     refreshStandardModels,
     refreshProviderModels,
+    ensureProviderModelsReady,
     refreshAllModels,
     updateModelStatus,
     updateLocalModelStatus,

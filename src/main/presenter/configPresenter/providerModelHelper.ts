@@ -47,9 +47,14 @@ export class ProviderModelHelper {
     this.deleteModelStatus = options.deleteModelStatus
   }
 
+  private getStoreName(providerId: string): string {
+    const safeProviderId = encodeURIComponent(providerId).replace(/\*/g, '%2A')
+    return `models_${safeProviderId}`
+  }
+
   getProviderModelStore(providerId: string): ElectronStore<IModelStore> {
     if (!this.stores.has(providerId)) {
-      const storeName = `models_${providerId}`
+      const storeName = this.getStoreName(providerId)
       const storePath = path.join(this.userDataPath, PROVIDER_MODELS_DIR)
       console.log(
         `[ProviderModelHelper] getProviderModelStore: creating isolated store "${storeName}" at "${storePath}" for provider "${providerId}"`

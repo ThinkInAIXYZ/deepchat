@@ -78,6 +78,7 @@ const mountSettingsApp = async (options?: {
   let shouldFailConsumeOnce = options?.failConsumeOnce ?? false
 
   const providerStore = reactive({
+    initialized: false,
     providers: options?.failPreviewApply
       ? []
       : [
@@ -93,6 +94,12 @@ const mountSettingsApp = async (options?: {
     initialize: options?.failPreviewApply
       ? vi.fn().mockRejectedValue(new Error('sync failed'))
       : vi.fn().mockResolvedValue(undefined),
+    ensureInitialized: options?.failPreviewApply
+      ? vi.fn().mockRejectedValue(new Error('sync failed'))
+      : vi.fn().mockImplementation(async () => {
+          providerStore.initialized = true
+        }),
+    primeProviders: vi.fn().mockResolvedValue(undefined),
     updateProviderApi: options?.failImport
       ? vi.fn().mockRejectedValue(new Error('apply failed'))
       : vi.fn().mockResolvedValue(undefined),
@@ -111,7 +118,8 @@ const mountSettingsApp = async (options?: {
 
   const modelStore = reactive({
     initialize: vi.fn().mockResolvedValue(undefined),
-    refreshProviderModels: vi.fn().mockResolvedValue(undefined)
+    refreshProviderModels: vi.fn().mockResolvedValue(undefined),
+    ensureProviderModelsReady: vi.fn().mockResolvedValue(undefined)
   })
   const providerDeeplinkImportStore = createProviderDeeplinkImportStore()
   const toast = vi.fn(() => ({ dismiss: vi.fn() }))
@@ -216,7 +224,8 @@ const mountSettingsApp = async (options?: {
   }))
   vi.doMock('../../../src/renderer/src/stores/ollamaStore', () => ({
     useOllamaStore: () => ({
-      initialize: vi.fn().mockResolvedValue(undefined)
+      initialize: vi.fn().mockResolvedValue(undefined),
+      ensureProviderReady: vi.fn().mockResolvedValue(undefined)
     })
   }))
   vi.doMock('../../../src/renderer/src/stores/mcp', () => ({

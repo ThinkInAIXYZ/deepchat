@@ -51,6 +51,12 @@ function createMockDeepChatAgent() {
       modelId: 'gpt-4',
       permissionMode: 'full_access'
     }),
+    getSessionListState: vi.fn().mockResolvedValue({
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      permissionMode: 'full_access'
+    }),
     processMessage: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
@@ -1162,7 +1168,7 @@ describe('AgentSessionPresenter', () => {
       expect(session.modelId).toBe('acp-reviewer')
     })
 
-    it('refreshes the session list only after a child is fully materialized and after failed cleanup', async () => {
+    it('refreshes the session list only after a child is fully materialized', async () => {
       const nanoidMock = nanoid as unknown as ReturnType<typeof vi.fn>
       nanoidMock.mockReturnValueOnce('child-session-1').mockReturnValueOnce('child-session-2')
 
@@ -1221,11 +1227,39 @@ describe('AgentSessionPresenter', () => {
       expect(deepChatAgent.destroySession).toHaveBeenCalledTimes(1)
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('child-session-1')
       expect(session.id).toBe('child-session-2')
-      expect(sessionSnapshots).toEqual([[], ['child-session-2']])
+      expect(sessionSnapshots).toEqual([['child-session-2']])
     })
   })
 
   describe('getSessionList', () => {
+    it('prefers lightweight session list state when available', async () => {
+      sqlitePresenter.newSessionsTable.list.mockReturnValue([
+        {
+          id: 's1',
+          agent_id: 'deepchat',
+          title: 'Chat 1',
+          project_dir: null,
+          is_pinned: 0,
+          created_at: 1000,
+          updated_at: 2000
+        }
+      ])
+      deepChatAgent.getSessionListState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'summary-provider',
+        modelId: 'summary-model',
+        permissionMode: 'full_access'
+      })
+
+      const sessions = await presenter.getSessionList()
+
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0].providerId).toBe('summary-provider')
+      expect(sessions[0].modelId).toBe('summary-model')
+      expect(deepChatAgent.getSessionListState).toHaveBeenCalledWith('s1')
+      expect(deepChatAgent.getSessionState).not.toHaveBeenCalled()
+    })
+
     it('enriches sessions with agent state', async () => {
       sqlitePresenter.newSessionsTable.list.mockReturnValue([
         {
@@ -1302,7 +1336,7 @@ describe('AgentSessionPresenter', () => {
           updated_at: 2001
         }
       ])
-      deepChatAgent.getSessionState.mockImplementation(async (sessionId: string) => {
+      deepChatAgent.getSessionListState.mockImplementation(async (sessionId: string) => {
         if (sessionId === 'broken-state') {
           throw new Error('state failed')
         }

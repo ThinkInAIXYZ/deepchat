@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
+import type { Agent } from '../types/agent-interface'
 import {
   ReasoningEffortSchema,
   ReasoningVisibilitySchema,
@@ -40,6 +41,8 @@ export const AppErrorSchema = z.object({
 export const PermissionModeSchema = z.enum(['default', 'full_access'])
 export const SessionStatusSchema = z.enum(['idle', 'generating', 'error'])
 export const SessionKindSchema = z.enum(['regular', 'subagent'])
+export const AgentTypeSchema = z.enum(['deepchat', 'acp'])
+export const AgentSourceSchema = z.enum(['builtin', 'manual', 'registry'])
 
 export const DeepChatSubagentMetaSchema = z
   .object({
@@ -139,6 +142,77 @@ export const SessionWithStateSchema = z.object({
   status: SessionStatusSchema,
   providerId: z.string(),
   modelId: z.string()
+})
+
+export const SessionListItemSchema = SessionWithStateSchema.omit({
+  providerId: true,
+  modelId: true
+})
+
+export const ActiveSessionSummarySchema = SessionWithStateSchema
+
+export const SessionPageCursorSchema = z.object({
+  updatedAt: TimestampMsSchema,
+  id: EntityIdSchema
+})
+
+export const AgentBootstrapItemSchema = z.object({
+  id: EntityIdSchema,
+  name: z.string(),
+  type: AgentTypeSchema,
+  agentType: AgentTypeSchema.optional(),
+  enabled: z.boolean(),
+  protected: z.boolean().optional(),
+  icon: z.string().optional(),
+  description: z.string().optional(),
+  source: AgentSourceSchema.optional(),
+  avatar: z.custom<Agent['avatar']>().optional()
+})
+
+export const StartupBootstrapShellSchema = z.object({
+  startupRunId: z.string(),
+  activeSessionId: EntityIdSchema.nullable(),
+  activeSession: SessionListItemSchema.nullable().optional(),
+  agents: z.array(AgentBootstrapItemSchema),
+  defaultProjectPath: z.string().nullable()
+})
+
+export const StartupWorkloadTargetSchema = z.enum(['main', 'settings'])
+export const StartupWorkloadPhaseSchema = z.enum(['interactive', 'deferred', 'background'])
+export const StartupWorkloadStateSchema = z.enum([
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled'
+])
+export const StartupWorkloadTaskIdSchema = z.enum([
+  'main.bootstrap',
+  'main.session.firstPage',
+  'main.provider.warmup',
+  'settings.providers.summary',
+  'settings.provider.models',
+  'settings.ollama',
+  'settings.skills.catalog',
+  'settings.skills.syncScan',
+  'settings.mcp.runtime',
+  'settings.remote.runtime'
+])
+
+export const StartupWorkloadTaskSchema = z.object({
+  id: StartupWorkloadTaskIdSchema,
+  phase: StartupWorkloadPhaseSchema,
+  state: StartupWorkloadStateSchema,
+  labelKey: z.string().min(1),
+  progress: z.number().min(0).max(1).optional(),
+  startedAt: TimestampMsSchema.optional(),
+  updatedAt: TimestampMsSchema.optional()
+})
+
+export const StartupWorkloadChangedPayloadSchema = z.object({
+  startupRunId: z.string(),
+  target: StartupWorkloadTargetSchema,
+  tasks: z.array(StartupWorkloadTaskSchema)
 })
 
 export const ChatMessageRecordSchema = z.object({

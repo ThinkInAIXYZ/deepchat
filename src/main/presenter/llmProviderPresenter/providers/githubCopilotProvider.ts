@@ -71,6 +71,15 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     this.init()
   }
 
+  public override updateConfig(provider: LLM_PROVIDER): void {
+    const newDeviceFlow = getGlobalGitHubCopilotDeviceFlow(provider.copilotClientId)
+
+    super.updateConfig(provider)
+    this.copilotToken = null
+    this.tokenExpiresAt = 0
+    this.deviceFlow = newDeviceFlow
+  }
+
   private async getCopilotToken(signal?: AbortSignal): Promise<string> {
     // 优先使用设备流获取 token
     if (this.deviceFlow) {

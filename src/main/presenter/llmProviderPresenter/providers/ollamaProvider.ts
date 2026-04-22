@@ -25,7 +25,13 @@ import {
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class OllamaProvider extends BaseLLMProvider {
+  private static readonly CONFIG_DRAIN_TIMEOUT_MS = 1500
+
   private ollama: Ollama
+  private activeStreams = 0
+  private activeStreamResolvers: Array<() => void> = []
+  private isDraining = false
+  private configUpdateChain: Promise<void> = Promise.resolve()
 
   constructor(
     provider: LLM_PROVIDER,
@@ -155,6 +161,77 @@ export class OllamaProvider extends BaseLLMProvider {
   }
 
   public onProxyResolved(): void {}
+
+  public override updateConfig(provider: LLM_PROVIDER): void {
+    this.configUpdateChain = this.configUpdateChain
+      .then(() => this.applyConfigUpdate(provider))
+      .catch((error) => {
+        console.error(`Failed to update Ollama config ${provider.id}:`, error)
+      })
+  }
+
+  private async applyConfigUpdate(provider: LLM_PROVIDER): Promise<void> {
+    this.isDraining = true
+
+    try {
+      const previousClient = this.ollama
+      await this.waitForActiveStreamsToDrain(previousClient)
+
+      super.updateConfig(provider)
+      this.ollama = this.createOllamaClient()
+    } finally {
+      this.isDraining = false
+    }
+  }
+
+  private async waitForActiveStreamsToDrain(client: Ollama): Promise<void> {
+    if (this.activeStreams === 0) {
+      return
+    }
+
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        this.activeStreamResolvers.push(resolve)
+      }),
+      new Promise<void>((resolve) => {
+        const timeoutId = setTimeout(() => {
+          try {
+            client.abort()
+          } catch (error) {
+            console.warn('Failed to abort active Ollama streams during config drain:', error)
+          }
+          resolve()
+        }, OllamaProvider.CONFIG_DRAIN_TIMEOUT_MS)
+
+        this.activeStreamResolvers.push(() => {
+          clearTimeout(timeoutId)
+          resolve()
+        })
+      })
+    ])
+  }
+
+  private async waitForDrainIfNeeded(): Promise<void> {
+    await this.configUpdateChain
+    if (!this.isDraining) {
+      return
+    }
+
+    await this.configUpdateChain
+  }
+
+  private beginActiveStream(): () => void {
+    this.activeStreams += 1
+
+    return () => {
+      this.activeStreams = Math.max(0, this.activeStreams - 1)
+      if (this.activeStreams === 0) {
+        const resolvers = this.activeStreamResolvers
+        this.activeStreamResolvers = []
+        resolvers.forEach((resolve) => resolve())
+      }
+    }
+  }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
@@ -357,6 +434,9 @@ export class OllamaProvider extends BaseLLMProvider {
     modelName: string,
     onProgress?: (progress: ProgressResponse) => void
   ): Promise<boolean> {
+    await this.waitForDrainIfNeeded()
+
+    const finishStream = this.beginActiveStream()
     try {
       const stream = await this.ollama.pull({
         model: modelName,
@@ -372,6 +452,8 @@ export class OllamaProvider extends BaseLLMProvider {
     } catch (error) {
       console.error(`Failed to pull Ollama model ${modelName}:`, (error as Error).message)
       return false
+    } finally {
+      finishStream()
     }
   }
 

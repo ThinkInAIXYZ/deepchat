@@ -130,6 +130,7 @@ import {
   providersListOllamaModelsRoute,
   providersListOllamaRunningModelsRoute,
   providersListRoute,
+  providersListSummariesRoute,
   providersPullOllamaModelRoute,
   providersRefreshModelsRoute,
   providersRemoveRoute,
@@ -150,6 +151,7 @@ import {
   settingsListSystemFontsRoute,
   settingsUpdateRoute
 } from './routes/settings.routes'
+import { startupGetBootstrapRoute } from './routes/startup.routes'
 import {
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
@@ -168,9 +170,11 @@ import {
   sessionsGetActiveRoute,
   sessionsGetAgentsRoute,
   sessionsGetDisabledAgentToolsRoute,
+  sessionsGetLightweightByIdsRoute,
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsListLightweightRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
@@ -270,6 +274,7 @@ export * from './routes/models.routes'
 export * from './routes/providers.routes'
 export * from './routes/project.routes'
 export * from './routes/settings.routes'
+export * from './routes/startup.routes'
 export * from './routes/sessions.routes'
 export * from './routes/skills.routes'
 export * from './routes/sync.routes'
@@ -376,9 +381,12 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [settingsGetSnapshotRoute.name]: settingsGetSnapshotRoute,
   [settingsListSystemFontsRoute.name]: settingsListSystemFontsRoute,
   [settingsUpdateRoute.name]: settingsUpdateRoute,
+  [startupGetBootstrapRoute.name]: startupGetBootstrapRoute,
   [sessionsCreateRoute.name]: sessionsCreateRoute,
   [sessionsRestoreRoute.name]: sessionsRestoreRoute,
   [sessionsListRoute.name]: sessionsListRoute,
+  [sessionsListLightweightRoute.name]: sessionsListLightweightRoute,
+  [sessionsGetLightweightByIdsRoute.name]: sessionsGetLightweightByIdsRoute,
   [sessionsActivateRoute.name]: sessionsActivateRoute,
   [sessionsDeactivateRoute.name]: sessionsDeactivateRoute,
   [sessionsGetActiveRoute.name]: sessionsGetActiveRoute,
@@ -417,6 +425,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [sessionsUpdateDisabledAgentToolsRoute.name]: sessionsUpdateDisabledAgentToolsRoute,
   [sessionsUpdateGenerationSettingsRoute.name]: sessionsUpdateGenerationSettingsRoute,
   [providersListRoute.name]: providersListRoute,
+  [providersListSummariesRoute.name]: providersListSummariesRoute,
   [providersListDefaultsRoute.name]: providersListDefaultsRoute,
   [providersSetByIdRoute.name]: providersSetByIdRoute,
   [providersUpdateRoute.name]: providersUpdateRoute,

@@ -69,11 +69,15 @@ import {
   mcpStopServerRoute,
   mcpSubmitSamplingDecisionRoute,
   mcpUpdateServerRoute,
+  modelsGetProviderCatalogRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
   projectSelectDirectoryRoute,
   providersListModelsRoute,
+  providersListOllamaModelsRoute,
+  providersListOllamaRunningModelsRoute,
+  providersListSummariesRoute,
   providersTestConnectionRoute,
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
@@ -92,9 +96,11 @@ import {
   sessionsGetActiveRoute,
   sessionsGetAgentsRoute,
   sessionsGetDisabledAgentToolsRoute,
+  sessionsGetLightweightByIdsRoute,
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsListLightweightRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
@@ -118,6 +124,7 @@ import {
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
+  startupGetBootstrapRoute,
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
   skillsGetExtensionRoute,
@@ -181,6 +188,7 @@ import { ProviderService } from './providers/providerService'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
+import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -203,6 +211,7 @@ export type MainKernelRouteRuntime = {
   workspacePresenter: IWorkspacePresenter
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
+  startupWorkloadCoordinator: StartupWorkloadCoordinator
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -222,6 +231,7 @@ export function createMainKernelRouteRuntime(deps: {
   workspacePresenter: IWorkspacePresenter
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
+  startupWorkloadCoordinator: StartupWorkloadCoordinator
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -267,7 +277,8 @@ export function createMainKernelRouteRuntime(deps: {
     filePresenter: deps.filePresenter,
     workspacePresenter: deps.workspacePresenter,
     yoBrowserPresenter: deps.yoBrowserPresenter,
-    tabPresenter: deps.tabPresenter
+    tabPresenter: deps.tabPresenter,
+    startupWorkloadCoordinator: deps.startupWorkloadCoordinator
   }
 }
 
@@ -304,6 +315,166 @@ async function readBrowserStatus(runtime: MainKernelRouteRuntime, sessionId: str
   return await runtime.yoBrowserPresenter.getBrowserStatus(sessionId)
 }
 
+type StartupTrackedRouteTask = {
+  target: 'main' | 'settings'
+  visibleId:
+    | 'main.bootstrap'
+    | 'main.session.firstPage'
+    | 'main.provider.warmup'
+    | 'settings.providers.summary'
+    | 'settings.provider.models'
+    | 'settings.ollama'
+    | 'settings.skills.catalog'
+    | 'settings.mcp.runtime'
+  phase: 'interactive' | 'deferred' | 'background'
+  resource: 'cpu' | 'io'
+  labelKey: string
+  id: string
+  dedupeKey?: string
+}
+
+function isSettingsWindowContext(runtime: MainKernelRouteRuntime, context: RouteContext): boolean {
+  const getSettingsWindowId = (
+    runtime.windowPresenter as IWindowPresenter & { getSettingsWindowId?: () => number | null }
+  ).getSettingsWindowId
+
+  if (context.windowId == null || typeof getSettingsWindowId !== 'function') {
+    return false
+  }
+
+  return getSettingsWindowId.call(runtime.windowPresenter) === context.windowId
+}
+
+function resolveTrackedRouteTask(
+  runtime: MainKernelRouteRuntime,
+  routeName: string,
+  context: RouteContext
+): StartupTrackedRouteTask | null {
+  const isSettings = isSettingsWindowContext(runtime, context)
+
+  if (routeName === providersListSummariesRoute.name && isSettings) {
+    return {
+      target: 'settings',
+      visibleId: 'settings.providers.summary',
+      phase: 'interactive',
+      resource: 'io',
+      labelKey: 'startup.settings.providers.summary',
+      id: 'settings.providers.summary:route',
+      dedupeKey: 'settings.providers.summary:route'
+    }
+  }
+
+  if (routeName === modelsGetProviderCatalogRoute.name) {
+    if (isSettings) {
+      return {
+        target: 'settings',
+        visibleId: 'settings.provider.models',
+        phase: 'deferred',
+        resource: 'io',
+        labelKey: 'startup.settings.provider.models',
+        id: 'settings.provider.models:route'
+      }
+    }
+
+    return {
+      target: 'main',
+      visibleId: 'main.provider.warmup',
+      phase: 'deferred',
+      resource: 'io',
+      labelKey: 'startup.main.provider.warmup',
+      id: 'main.provider.warmup:route'
+    }
+  }
+
+  if (
+    isSettings &&
+    (routeName === providersListOllamaModelsRoute.name ||
+      routeName === providersListOllamaRunningModelsRoute.name)
+  ) {
+    return {
+      target: 'settings',
+      visibleId: 'settings.ollama',
+      phase: 'deferred',
+      resource: 'io',
+      labelKey: 'startup.settings.ollama',
+      id: `settings.ollama:${routeName}`
+    }
+  }
+
+  if (routeName === sessionsListLightweightRoute.name && !isSettings) {
+    return {
+      target: 'main',
+      visibleId: 'main.session.firstPage',
+      phase: 'interactive',
+      resource: 'io',
+      labelKey: 'startup.main.session.firstPage',
+      id: 'main.session.firstPage:route',
+      dedupeKey: 'main.session.firstPage:route'
+    }
+  }
+
+  if (routeName === skillsListMetadataRoute.name && isSettings) {
+    return {
+      target: 'settings',
+      visibleId: 'settings.skills.catalog',
+      phase: 'deferred',
+      resource: 'cpu',
+      labelKey: 'startup.settings.skills.catalog',
+      id: 'settings.skills.catalog:route'
+    }
+  }
+
+  const isSettingsMcpRuntimeRoute =
+    routeName === mcpGetServersRoute.name ||
+    routeName === mcpGetEnabledRoute.name ||
+    routeName === mcpGetClientsRoute.name ||
+    routeName === mcpGetNpmRegistryStatusRoute.name
+
+  if (isSettings && isSettingsMcpRuntimeRoute) {
+    return {
+      target: 'settings',
+      visibleId: 'settings.mcp.runtime',
+      phase: 'deferred',
+      resource: 'io',
+      labelKey: 'startup.settings.mcp.runtime',
+      id: `settings.mcp.runtime:${routeName}`
+    }
+  }
+
+  return null
+}
+
+async function runTrackedRouteTask<T>(
+  runtime: MainKernelRouteRuntime,
+  routeName: string,
+  context: RouteContext,
+  action: () => Promise<T>
+): Promise<T> {
+  const coordinator = (runtime as Partial<MainKernelRouteRuntime>).startupWorkloadCoordinator
+  if (!coordinator) {
+    return await action()
+  }
+
+  const trackedTask = resolveTrackedRouteTask(runtime, routeName, context)
+  if (!trackedTask) {
+    return await action()
+  }
+
+  return await coordinator.scheduleTask({
+    id: trackedTask.id,
+    target: trackedTask.target,
+    phase: trackedTask.phase,
+    resource: trackedTask.resource,
+    labelKey: trackedTask.labelKey,
+    visibleId: trackedTask.visibleId,
+    dedupeKey: trackedTask.dedupeKey,
+    runId: coordinator.getRunId(trackedTask.target),
+    run: async () => {
+      return await action()
+    }
+  })
+}
+
 export async function dispatchDeepchatRoute(
   runtime: MainKernelRouteRuntime,
   routeName: string,
@@ -319,26 +490,30 @@ export async function dispatchDeepchatRoute(
     return configResult
   }
 
-  const providerResult = await dispatchProviderRoute(
-    {
-      configPresenter: runtime.configPresenter,
-      llmProviderPresenter: runtime.llmProviderPresenter
-    },
-    routeName,
-    rawInput
-  )
+  const providerResult = await runTrackedRouteTask(runtime, routeName, context, async () => {
+    return await dispatchProviderRoute(
+      {
+        configPresenter: runtime.configPresenter,
+        llmProviderPresenter: runtime.llmProviderPresenter
+      },
+      routeName,
+      rawInput
+    )
+  })
   if (providerResult !== undefined) {
     return providerResult
   }
 
-  const modelResult = await dispatchModelRoute(
-    {
-      configPresenter: runtime.configPresenter,
-      llmProviderPresenter: runtime.llmProviderPresenter
-    },
-    routeName,
-    rawInput
-  )
+  const modelResult = await runTrackedRouteTask(runtime, routeName, context, async () => {
+    return await dispatchModelRoute(
+      {
+        configPresenter: runtime.configPresenter,
+        llmProviderPresenter: runtime.llmProviderPresenter
+      },
+      routeName,
+      rawInput
+    )
+  })
   if (modelResult !== undefined) {
     return modelResult
   }
@@ -730,6 +905,99 @@ export async function dispatchDeepchatRoute(
       return runtime.settingsHandler.update(rawInput)
     }
 
+    case startupGetBootstrapRoute.name: {
+      startupGetBootstrapRoute.input.parse(rawInput)
+      const coordinator = (runtime as Partial<MainKernelRouteRuntime>).startupWorkloadCoordinator
+
+      if (!coordinator) {
+        const activeSessionId = runtime.agentSessionPresenter.getActiveSessionId(
+          context.webContentsId
+        )
+        const activeSession = activeSessionId
+          ? ((
+              await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
+            )[0] ?? null)
+          : null
+        const [agents, acpEnabled] = await Promise.all([
+          runtime.configPresenter.listAgents(),
+          runtime.configPresenter.getAcpEnabled()
+        ])
+
+        const bootstrap = {
+          startupRunId: `startup:${context.webContentsId}:${Date.now()}`,
+          activeSessionId,
+          activeSession,
+          agents: agents
+            .filter((agent) => agent.type === 'deepchat' || acpEnabled)
+            .map((agent) => ({
+              id: agent.id,
+              name: agent.name,
+              type: agent.type,
+              agentType: agent.agentType,
+              enabled: agent.enabled,
+              protected: agent.protected,
+              icon: agent.icon,
+              description: agent.description,
+              source: agent.source,
+              avatar: agent.avatar
+            })),
+          defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+        }
+
+        return startupGetBootstrapRoute.output.parse({ bootstrap })
+      }
+
+      return await coordinator.scheduleTask({
+        id: 'main.bootstrap:route',
+        target: 'main',
+        phase: 'interactive',
+        resource: 'io',
+        labelKey: 'startup.main.bootstrap',
+        visibleId: 'main.bootstrap',
+        dedupeKey: 'main.bootstrap:route',
+        runId: coordinator.getRunId('main'),
+        run: async () => {
+          const startupRunId = coordinator.getRunId('main')
+          const activeSessionId = runtime.agentSessionPresenter.getActiveSessionId(
+            context.webContentsId
+          )
+          const activeSession = activeSessionId
+            ? ((
+                await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
+              )[0] ?? null)
+            : null
+          const [agents, acpEnabled] = await Promise.all([
+            runtime.configPresenter.listAgents(),
+            runtime.configPresenter.getAcpEnabled()
+          ])
+
+          const bootstrap = {
+            startupRunId,
+            activeSessionId,
+            activeSession,
+            agents: agents
+              .filter((agent) => agent.type === 'deepchat' || acpEnabled)
+              .map((agent) => ({
+                id: agent.id,
+                name: agent.name,
+                type: agent.type,
+                agentType: agent.agentType,
+                enabled: agent.enabled,
+                protected: agent.protected,
+                icon: agent.icon,
+                description: agent.description,
+                source: agent.source,
+                avatar: agent.avatar
+              })),
+            defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+          }
+
+          coordinator.replayTarget('main')
+          return startupGetBootstrapRoute.output.parse({ bootstrap })
+        }
+      })
+    }
+
     case sessionsCreateRoute.name: {
       const input = sessionsCreateRoute.input.parse(rawInput)
       const session = await runtime.sessionService.createSession(input, context)
@@ -746,6 +1014,22 @@ export async function dispatchDeepchatRoute(
       const input = sessionsListRoute.input.parse(rawInput)
       const sessions = await runtime.sessionService.listSessions(input)
       return sessionsListRoute.output.parse({ sessions })
+    }
+
+    case sessionsListLightweightRoute.name: {
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        const input = sessionsListLightweightRoute.input.parse(rawInput)
+        const page = await runtime.agentSessionPresenter.getLightweightSessionList(input)
+        return sessionsListLightweightRoute.output.parse(page)
+      })
+    }
+
+    case sessionsGetLightweightByIdsRoute.name: {
+      const input = sessionsGetLightweightByIdsRoute.input.parse(rawInput)
+      const items = await runtime.agentSessionPresenter.getLightweightSessionsByIds(
+        input.sessionIds
+      )
+      return sessionsGetLightweightByIdsRoute.output.parse({ items })
     }
 
     case sessionsActivateRoute.name: {
@@ -1028,9 +1312,11 @@ export async function dispatchDeepchatRoute(
     }
 
     case skillsListMetadataRoute.name: {
-      skillsListMetadataRoute.input.parse(rawInput)
-      const skills = await runtime.skillPresenter.getMetadataList()
-      return skillsListMetadataRoute.output.parse({ skills })
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        skillsListMetadataRoute.input.parse(rawInput)
+        const skills = await runtime.skillPresenter.getMetadataList()
+        return skillsListMetadataRoute.output.parse({ skills })
+      })
     }
 
     case skillsGetDirectoryRoute.name: {
@@ -1125,21 +1411,27 @@ export async function dispatchDeepchatRoute(
     }
 
     case mcpGetServersRoute.name: {
-      mcpGetServersRoute.input.parse(rawInput)
-      const servers = await runtime.mcpPresenter.getMcpServers()
-      return mcpGetServersRoute.output.parse({ servers })
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        mcpGetServersRoute.input.parse(rawInput)
+        const servers = await runtime.mcpPresenter.getMcpServers()
+        return mcpGetServersRoute.output.parse({ servers })
+      })
     }
 
     case mcpGetEnabledRoute.name: {
-      mcpGetEnabledRoute.input.parse(rawInput)
-      const enabled = await runtime.mcpPresenter.getMcpEnabled()
-      return mcpGetEnabledRoute.output.parse({ enabled })
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        mcpGetEnabledRoute.input.parse(rawInput)
+        const enabled = await runtime.mcpPresenter.getMcpEnabled()
+        return mcpGetEnabledRoute.output.parse({ enabled })
+      })
     }
 
     case mcpGetClientsRoute.name: {
-      mcpGetClientsRoute.input.parse(rawInput)
-      const clients = await runtime.mcpPresenter.getMcpClients()
-      return mcpGetClientsRoute.output.parse({ clients })
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        mcpGetClientsRoute.input.parse(rawInput)
+        const clients = await runtime.mcpPresenter.getMcpClients()
+        return mcpGetClientsRoute.output.parse({ clients })
+      })
     }
 
     case mcpListToolDefinitionsRoute.name: {
@@ -1239,12 +1531,14 @@ export async function dispatchDeepchatRoute(
     }
 
     case mcpGetNpmRegistryStatusRoute.name: {
-      mcpGetNpmRegistryStatusRoute.input.parse(rawInput)
-      if (!runtime.mcpPresenter.getNpmRegistryStatus) {
-        throw new Error('NPM registry status is not available')
-      }
-      const status = await runtime.mcpPresenter.getNpmRegistryStatus()
-      return mcpGetNpmRegistryStatusRoute.output.parse({ status })
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        mcpGetNpmRegistryStatusRoute.input.parse(rawInput)
+        if (!runtime.mcpPresenter.getNpmRegistryStatus) {
+          throw new Error('NPM registry status is not available')
+        }
+        const status = await runtime.mcpPresenter.getNpmRegistryStatus()
+        return mcpGetNpmRegistryStatusRoute.output.parse({ status })
+      })
     }
 
     case mcpRefreshNpmRegistryRoute.name: {

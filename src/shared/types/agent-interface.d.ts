@@ -63,6 +63,9 @@ export interface IAgentImplementation {
   /** Get runtime state for a session */
   getSessionState(sessionId: string): Promise<DeepChatSessionState | null>
 
+  /** Get lightweight runtime state for session list hydration */
+  getSessionListState?(sessionId: string): Promise<DeepChatSessionState | null>
+
   /** Process a user message: persist, call LLM, stream response */
   processMessage(
     sessionId: string,
@@ -538,6 +541,19 @@ export interface Agent {
   } | null
 }
 
+export interface AgentBootstrapItem {
+  id: string
+  name: string
+  type: AgentType
+  agentType?: AgentType
+  enabled: boolean
+  protected?: boolean
+  icon?: string
+  description?: string
+  source?: AgentSource
+  avatar?: AgentAvatar | null
+}
+
 export interface SessionRecord {
   id: string
   agentId: string
@@ -553,10 +569,35 @@ export interface SessionRecord {
   updatedAt: number
 }
 
+export interface SessionListItem extends SessionRecord {
+  status: SessionStatus
+}
+
 export interface SessionWithState extends SessionRecord {
   status: SessionStatus
   providerId: string
   modelId: string
+}
+
+export interface ActiveSessionSummary extends SessionWithState {}
+
+export interface SessionPageCursor {
+  updatedAt: number
+  id: string
+}
+
+export interface SessionLightweightListResult {
+  items: SessionListItem[]
+  nextCursor: SessionPageCursor | null
+  hasMore: boolean
+}
+
+export interface StartupBootstrapShell {
+  startupRunId: string
+  activeSessionId: string | null
+  activeSession?: SessionListItem | null
+  agents: AgentBootstrapItem[]
+  defaultProjectPath: string | null
 }
 
 export type ToolInteractionResponse =

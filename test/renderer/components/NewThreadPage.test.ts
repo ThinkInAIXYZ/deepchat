@@ -53,6 +53,9 @@ const setup = async (options?: {
   defaultModel?: { providerId: string; modelId: string }
   preferredModel?: { providerId: string; modelId: string }
   resolvedAgentConfig?: Record<string, unknown>
+  deferStartupTasks?: boolean
+  modelStoreInitialized?: boolean
+  initializeModels?: () => Promise<void>
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
@@ -89,6 +92,13 @@ const setup = async (options?: {
   })
 
   const modelStore = reactive({
+    initialized: options?.modelStoreInitialized ?? true,
+    initialize: vi.fn().mockImplementation(async () => {
+      if (options?.initializeModels) {
+        await options.initializeModels()
+      }
+      modelStore.initialized = true
+    }),
     enabledModels: []
   })
 
@@ -135,6 +145,7 @@ const setup = async (options?: {
         })
     )
   }
+  const startupDeferredTasks: Array<() => void | Promise<void>> = []
 
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
@@ -156,6 +167,16 @@ const setup = async (options?: {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      if (options?.deferStartupTasks) {
+        startupDeferredTasks.push(task)
+      } else {
+        void task()
+      }
+      return () => {}
+    })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -205,11 +226,36 @@ const setup = async (options?: {
     agentStore,
     modelStore,
     draftStore,
-    sessionClient
+    sessionClient,
+    flushStartupDeferredTasks: async () => {
+      while (startupDeferredTasks.length > 0) {
+        const task = startupDeferredTasks.shift()
+        if (task) {
+          await task()
+        }
+      }
+      await flushPromises()
+    }
   }
 }
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
+  it('defers ACP draft session bootstrap until startup deferred tasks are released', async () => {
+    const { sessionClient, flushStartupDeferredTasks } = await setup({
+      deferStartupTasks: true
+    })
+
+    expect(sessionClient.ensureAcpDraftSession).not.toHaveBeenCalled()
+
+    await flushStartupDeferredTasks()
+
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
+      agentId: 'acp-agent',
+      projectDir: '/tmp/workspace',
+      permissionMode: 'full_access'
+    })
+  })
+
   it('uses the preselected project path when default project selection is already applied', async () => {
     const { sessionClient } = await setup({
       selectedProject: {
@@ -258,6 +304,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup()
 
     agentStore.selectedAgentId = 'deepchat'
+    await flushPromises()
     modelStore.enabledModels = [
       {
         providerId: 'openai',
@@ -292,6 +339,38 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
           contextLength: 8192,
           maxTokens: 2048
         }
+      })
+    )
+  })
+
+  it('awaits full model initialization before creating a deepchat session', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup({
+      modelStoreInitialized: false
+    })
+
+    agentStore.selectedAgentId = 'deepchat'
+    await flushPromises()
+    modelStore.initialize.mockImplementation(async () => {
+      modelStore.enabledModels = [
+        {
+          providerId: 'openai',
+          models: [{ id: 'gpt-4', name: 'GPT-4' }]
+        }
+      ]
+      modelStore.initialized = true
+    })
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'gpt-4'
+    ;(wrapper.vm as any).message = 'hello after init'
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(modelStore.initialize).toHaveBeenCalledTimes(1)
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'openai',
+        modelId: 'gpt-4'
       })
     )
   })

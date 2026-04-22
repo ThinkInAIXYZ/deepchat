@@ -48,6 +48,10 @@ class TestProvider extends BaseLLMProvider {
     return this.convertToolsToXml(tools)
   }
 
+  public getProviderSnapshot(): LLM_PROVIDER {
+    return this.provider
+  }
+
   public onProxyResolved(): void {}
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
@@ -215,5 +219,22 @@ describe('BaseLLMProvider tool XML conversion', () => {
     ])
 
     expect(xml).toContain('description="He said &quot;hi&quot; &amp; used &lt;tag&gt; &gt; output"')
+  })
+
+  it('updates the provider config through the default implementation', () => {
+    const provider = new TestProvider(configPresenter)
+
+    provider.updateConfig({
+      ...provider.getProviderSnapshot(),
+      apiKey: 'updated-key',
+      baseUrl: 'https://example.com'
+    } as unknown as LLM_PROVIDER)
+
+    expect(provider.getProviderSnapshot()).toEqual(
+      expect.objectContaining({
+        apiKey: 'updated-key',
+        baseUrl: 'https://example.com'
+      })
+    )
   })
 })

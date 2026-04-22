@@ -490,6 +490,28 @@ describe('AgentRuntimePresenter', () => {
     })
   })
 
+  describe('getSessionListState', () => {
+    it('rebuilds lightweight state without hydrating generation settings', async () => {
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'full_access'
+      })
+
+      const state = await agent.getSessionListState('s1')
+
+      expect(state).toEqual({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+      expect(configPresenter.getDefaultSystemPrompt).not.toHaveBeenCalled()
+      expect(configPresenter.getReasoningPortrait).not.toHaveBeenCalled()
+    })
+  })
+
   describe('processMessage', () => {
     it('creates user and assistant messages with correct order_seq', async () => {
       sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq

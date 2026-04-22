@@ -29,47 +29,11 @@ export class ProviderInstanceManager {
   constructor(private readonly options: ProviderInstanceManagerOptions) {}
 
   init(): void {
-    const providers = this.options.configPresenter.getProviders()
-    for (const provider of providers) {
-      this.providers.set(provider.id, provider)
-      if (provider.enable) {
-        try {
-          console.log('init provider', provider.id, provider.apiType)
-          const instance = this.createProviderInstance(provider)
-          if (instance) {
-            this.providerInstances.set(provider.id, instance)
-          }
-        } catch (error) {
-          console.error(`Failed to initialize provider ${provider.id}:`, error)
-        }
-      }
-    }
+    this.replaceProviders(this.options.configPresenter.getProviders())
   }
 
   setProviders(providers: LLM_PROVIDER[]): void {
-    this.providers.clear()
-    providers.forEach((provider) => {
-      this.providers.set(provider.id, provider)
-    })
-    this.providerInstances.clear()
-    const enabledProviders = Array.from(this.providers.values()).filter(
-      (provider) => provider.enable
-    )
-    this.onProvidersUpdated(providers)
-
-    for (const provider of enabledProviders) {
-      try {
-        console.log(`Initializing provider instance: ${provider.id}`)
-        this.getProviderInstance(provider.id)
-      } catch (error) {
-        console.error(`Failed to initialize provider ${provider.id}:`, error)
-      }
-    }
-
-    const currentProviderId = this.options.getCurrentProviderId()
-    if (currentProviderId && !providers.find((p) => p.id === currentProviderId)) {
-      this.options.setCurrentProviderId(null)
-    }
+    this.replaceProviders(providers)
   }
 
   handleProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
@@ -214,9 +178,9 @@ export class ProviderInstanceManager {
         }
       } else {
         const instance = this.providerInstances.get(change.providerId)
-        if (instance && 'updateConfig' in instance) {
+        if (instance) {
           try {
-            ;(instance as any).updateConfig(updatedProvider)
+            instance.updateConfig(updatedProvider)
           } catch (error) {
             console.error(`Failed to update provider config ${change.providerId}:`, error)
           }
@@ -269,6 +233,45 @@ export class ProviderInstanceManager {
 
   private onProvidersUpdated(providers: LLM_PROVIDER[]): void {
     this.options.rateLimitManager.syncProviders(providers)
+  }
+
+  private replaceProviders(providers: LLM_PROVIDER[]): void {
+    const nextProviders = new Map(providers.map((provider) => [provider.id, provider]))
+
+    for (const providerId of Array.from(this.providerInstances.keys())) {
+      const nextProvider = nextProviders.get(providerId)
+      if (!nextProvider || !nextProvider.enable) {
+        this.cleanupProviderInstance(providerId)
+      }
+    }
+
+    this.providers.clear()
+    providers.forEach((provider) => {
+      this.providers.set(provider.id, provider)
+    })
+
+    for (const provider of providers) {
+      const instance = this.providerInstances.get(provider.id)
+      if (instance) {
+        try {
+          instance.updateConfig(provider)
+        } catch (error) {
+          console.error(`Failed to update provider config ${provider.id}:`, error)
+        }
+      }
+    }
+
+    this.onProvidersUpdated(providers)
+
+    const currentProviderId = this.options.getCurrentProviderId()
+    if (!currentProviderId) {
+      return
+    }
+
+    const currentProvider = nextProviders.get(currentProviderId)
+    if (!currentProvider || !currentProvider.enable) {
+      this.options.setCurrentProviderId(null)
+    }
   }
 
   /**

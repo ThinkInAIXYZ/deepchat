@@ -92,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
@@ -122,6 +122,7 @@ import type {
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { isChatSelectableModelType, type ModelType } from '@shared/model'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -143,6 +144,7 @@ const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
 let currentDraftDefaultsTask: Promise<void> | null = null
+let cancelEnsureDraftTask: (() => void) | null = null
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
 const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
   if (!agentId) {
@@ -211,7 +213,26 @@ const getEnabledModel = (
   return matched ? { providerId, modelId } : null
 }
 
+const ensureEnabledModelsReady = async (): Promise<boolean> => {
+  if (modelStore.initialized) {
+    return true
+  }
+
+  try {
+    await modelStore.initialize()
+    return true
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to initialize enabled models:', error)
+    return false
+  }
+}
+
 async function resolveModel(): Promise<{ providerId: string; modelId: string } | null> {
+  const ready = await ensureEnabledModelsReady()
+  if (!ready) {
+    return null
+  }
+
   // 0. model manually selected in current NewThread page
   const draftModel = getEnabledModel(draftStore.providerId, draftStore.modelId)
   if (draftModel) {
@@ -299,7 +320,8 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
   message.value = buildStartMessage(payload)
   draftStore.systemPrompt = payload.systemPrompt
 
-  const matchedModel = resolveStartModelSelection(payload.modelId)
+  const modelsReady = await ensureEnabledModelsReady()
+  const matchedModel = modelsReady ? resolveStartModelSelection(payload.modelId) : null
   if (matchedModel) {
     draftStore.providerId = matchedModel.providerId
     draftStore.modelId = matchedModel.modelId
@@ -530,12 +552,16 @@ watch(
   () => [agentStore.selectedAgentId, projectStore.selectedProject?.path] as const,
   ([selectedAgentId, projectPath]) => {
     acpDraftRequestSeq.value += 1
+    cancelEnsureDraftTask?.()
+    cancelEnsureDraftTask = null
     if (!selectedAgentId || selectedAgent.value.type === 'deepchat' || !projectPath?.trim()) {
       acpDraftSessionId.value = null
       lastAcpDraftKey.value = null
       return
     }
-    void ensureAcpDraftSession(selectedAgentId, projectPath)
+    cancelEnsureDraftTask = scheduleStartupDeferredTask(async () => {
+      await ensureAcpDraftSession(selectedAgentId, projectPath)
+    })
   },
   { immediate: true }
 )
@@ -575,5 +601,10 @@ watch(
 
 onMounted(() => {
   draftStore.projectDir = projectStore.selectedProject?.path
+})
+
+onUnmounted(() => {
+  cancelEnsureDraftTask?.()
+  cancelEnsureDraftTask = null
 })
 </script>

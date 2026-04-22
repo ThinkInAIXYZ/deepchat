@@ -3,6 +3,7 @@ import { EntityIdSchema, ProviderModelSummarySchema, defineRouteContract } from 
 import {
   AcpConfigStateSchema,
   LlmProviderSchema,
+  LlmProviderSummarySchema,
   OllamaModelSchema,
   ProviderRateLimitStatusSchema
 } from '../domainSchemas'
@@ -35,6 +36,14 @@ export const providersListRoute = defineRouteContract({
   input: z.object({}).default({}),
   output: z.object({
     providers: z.array(LlmProviderSchema)
+  })
+})
+
+export const providersListSummariesRoute = defineRouteContract({
+  name: 'providers.listSummaries',
+  input: z.object({}).default({}),
+  output: z.object({
+    providers: z.array(LlmProviderSummarySchema)
   })
 })
 

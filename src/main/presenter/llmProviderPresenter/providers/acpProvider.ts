@@ -208,6 +208,10 @@ export class AcpProvider extends BaseLLMProvider {
     void this.initWhenEnabled()
   }
 
+  public override updateConfig(provider: LLM_PROVIDER): void {
+    super.updateConfig(provider)
+  }
+
   /**
    * Override init to send MODEL_LIST_CHANGED event after initialization
    * This ensures renderer is notified when ACP provider is initialized on startup

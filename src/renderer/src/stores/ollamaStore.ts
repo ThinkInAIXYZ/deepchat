@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createProviderClient } from '../../api/ProviderClient'
 import type { OllamaModel } from '@shared/presenter'
@@ -10,6 +10,7 @@ export const useOllamaStore = defineStore('ollama', () => {
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
   let unsubscribeOllamaPullProgress: (() => void) | null = null
+  const initializedProviderIds = ref<Set<string>>(new Set())
 
   const runningModels = ref<Record<string, OllamaModel[]>>({})
   const localModels = ref<Record<string, OllamaModel[]>>({})
@@ -56,7 +57,9 @@ export const useOllamaStore = defineStore('ollama', () => {
   const getOllamaPullingModels = (providerId: string): Record<string, number> =>
     pullingProgress.value[providerId] || {}
 
-  const refreshOllamaModels = async (providerId: string): Promise<void> => {
+  const refreshOllamaModels = async (providerId: string): Promise<boolean> => {
+    setupOllamaEventListeners()
+
     try {
       const [running, local] = await Promise.all([
         providerClient.listOllamaRunningModels(providerId),
@@ -66,12 +69,16 @@ export const useOllamaStore = defineStore('ollama', () => {
       setLocalModels(providerId, local)
       await providerClient.refreshModels(providerId)
       await modelStore.refreshProviderModels(providerId)
+      return true
     } catch (error) {
       console.error('Failed to refresh Ollama models for', providerId, error)
+      return false
     }
   }
 
   const pullOllamaModel = async (providerId: string, modelName: string) => {
+    setupOllamaEventListeners()
+
     try {
       updatePullingProgress(providerId, modelName, 0)
       const success = await providerClient.pullOllamaModels(providerId, modelName)
@@ -114,6 +121,10 @@ export const useOllamaStore = defineStore('ollama', () => {
       return
     }
 
+    if (typeof providerClient.onOllamaPullProgress !== 'function') {
+      return
+    }
+
     unsubscribeOllamaPullProgress = providerClient.onOllamaPullProgress((data) =>
       handleOllamaModelPullEvent(data)
     )
@@ -150,23 +161,26 @@ export const useOllamaStore = defineStore('ollama', () => {
     return getOllamaLocalModels(providerId).some((m) => m.name === modelName)
   }
 
-  onMounted(() => {
-    setupOllamaEventListeners()
-  })
-
   const initialize = async () => {
     setupOllamaEventListeners()
     const ollamaProviders = providerStore.providers.filter(
       (p) => p.apiType === 'ollama' && p.enable
     )
     for (const provider of ollamaProviders) {
-      await refreshOllamaModels(provider.id)
+      await ensureProviderReady(provider.id)
     }
   }
 
-  onBeforeUnmount(() => {
-    removeOllamaEventListeners()
-  })
+  const ensureProviderReady = async (providerId: string) => {
+    if (initializedProviderIds.value.has(providerId)) {
+      return
+    }
+
+    const refreshed = await refreshOllamaModels(providerId)
+    if (refreshed) {
+      initializedProviderIds.value = new Set(initializedProviderIds.value).add(providerId)
+    }
+  }
 
   return {
     runningModels,
@@ -186,6 +200,7 @@ export const useOllamaStore = defineStore('ollama', () => {
     clearOllamaProviderData,
     isOllamaModelRunning,
     isOllamaModelLocal,
-    initialize
+    initialize,
+    ensureProviderReady
   }
 })

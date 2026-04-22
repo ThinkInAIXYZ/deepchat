@@ -38,6 +38,12 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   const sessionClient = {
     list: vi.fn().mockResolvedValue({ sessions: [] }),
     getActive: vi.fn().mockResolvedValue({ session: null }),
+    listLightweight: vi.fn().mockResolvedValue({
+      items: [],
+      hasMore: false,
+      nextCursor: null
+    }),
+    getLightweightByIds: vi.fn().mockResolvedValue([]),
     create: vi.fn().mockResolvedValue({
       session: createSession()
     }),
@@ -475,66 +481,77 @@ describe('sessionStore streaming cleanup', () => {
     expect(setCurrentSessionId).toHaveBeenCalledWith('session-b')
   })
 
-  it('syncs active session and selected agent from SessionClient when fetching sessions', async () => {
-    const { store, sessionClient, setCurrentSessionId, agentStore } = await setupStore({
+  it('hydrates active session and selected agent from the bootstrap shell', async () => {
+    const { store, setCurrentSessionId, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
     })
-    sessionClient.list.mockResolvedValueOnce({
-      sessions: [
-        {
-          id: 'session-sync-1',
-          title: 'Session Sync',
-          agentId: 'acp-sync',
-          status: 'idle',
-          projectDir: null,
-          providerId: 'acp',
-          modelId: 'acp-sync',
-          isPinned: false,
-          isDraft: false,
-          createdAt: 1,
-          updatedAt: 2
-        }
-      ]
-    })
-    sessionClient.getActive.mockResolvedValueOnce({
-      session: {
-        id: 'session-sync-1'
+
+    await store.applyBootstrapShell({
+      activeSessionId: 'session-sync-1',
+      activeSession: {
+        id: 'session-sync-1',
+        title: 'Session Sync',
+        agentId: 'acp-sync',
+        status: 'idle',
+        projectDir: null,
+        providerId: 'acp',
+        modelId: 'acp-sync',
+        isPinned: false,
+        isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentEnabled: false,
+        subagentMeta: null,
+        createdAt: 1,
+        updatedAt: 2
       }
     })
 
-    await store.fetchSessions()
-
-    expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBe('session-sync-1')
     expect(setCurrentSessionId).toHaveBeenCalledWith('session-sync-1')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-sync')
   })
 
-  it('clears streaming when fetch detects active session switch', async () => {
-    const { store, clearStreamingState, sessionClient } = await setupStore()
+  it('clears streaming when bootstrap shell switches the active session', async () => {
+    const { store, clearStreamingState } = await setupStore()
     store.activeSessionId.value = 'session-a'
-    sessionClient.getActive.mockResolvedValueOnce({
-      session: {
-        id: 'session-b'
+
+    await store.applyBootstrapShell({
+      activeSessionId: 'session-b',
+      activeSession: {
+        id: 'session-b',
+        title: 'Session B',
+        agentId: 'deepchat',
+        status: 'idle',
+        projectDir: null,
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+        isPinned: false,
+        isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentEnabled: false,
+        subagentMeta: null,
+        createdAt: 1,
+        updatedAt: 2
       }
     })
-
-    await store.fetchSessions()
 
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBe('session-b')
   })
 
-  it('returns to new thread when active session becomes unavailable', async () => {
-    const { store, clearStreamingState, setCurrentSessionId, sessionClient, pageRouter } =
+  it('returns to new thread when the current window receives a deactivation event', async () => {
+    const { store, clearStreamingState, setCurrentSessionId, pageRouter, emitSessionUpdate } =
       await setupStore()
     store.activeSessionId.value = 'session-a'
     pageRouter.currentRoute = 'chat'
-    sessionClient.getActive.mockResolvedValueOnce({
-      session: null
-    })
 
-    await store.fetchSessions()
+    emitSessionUpdate({
+      sessionIds: [],
+      reason: 'deactivated',
+      webContentsId: 1
+    })
 
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBeNull()
@@ -551,8 +568,7 @@ describe('sessionStore streaming cleanup', () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(sessionClient.list).toHaveBeenCalledTimes(1)
-    expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
+    expect(sessionClient.listLightweight).toHaveBeenCalledTimes(1)
   })
 
   it('routes to chat and syncs the selected agent on external session activation', async () => {

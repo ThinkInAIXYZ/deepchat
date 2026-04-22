@@ -1,5 +1,27 @@
 <template>
-  <div class="w-full h-full flex flex-row">
+  <div v-if="showProviderSkeleton" class="w-full h-full flex flex-row animate-pulse">
+    <div class="w-64 h-full border-r p-4 space-y-3">
+      <div class="h-9 rounded-md bg-muted/60"></div>
+      <div
+        v-for="index in 8"
+        :key="`provider-skeleton-${index}`"
+        class="h-10 rounded-lg bg-muted/40"
+      ></div>
+      <div class="pt-2">
+        <div class="h-10 rounded-lg bg-muted/50"></div>
+      </div>
+    </div>
+    <div class="flex-1 p-6 space-y-4">
+      <div class="h-6 w-48 rounded-md bg-muted/50"></div>
+      <div class="h-24 rounded-xl bg-muted/40"></div>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="h-20 rounded-xl bg-muted/40"></div>
+        <div class="h-20 rounded-xl bg-muted/40"></div>
+      </div>
+      <div class="h-72 rounded-xl bg-muted/30"></div>
+    </div>
+  </div>
+  <div v-else class="w-full h-full flex flex-row">
     <ScrollArea class="w-64 border-r h-full">
       <div class="space-y-4 p-4">
         <!-- 搜索框 -->
@@ -210,7 +232,8 @@ import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
+import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 
 const route = useRoute()
 const router = useRouter()
@@ -219,6 +242,13 @@ const languageStore = useLanguageStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
+const startupWorkloadStore = (() => {
+  try {
+    return useStartupWorkloadStore()
+  } catch {
+    return null
+  }
+})()
 const isAddProviderDialogOpen = ref(false)
 const searchQueryBase = ref('')
 const searchQuery = refDebounced(searchQueryBase, 150)
@@ -281,6 +311,12 @@ const filterProviders = (providers: LLM_PROVIDER[]) => {
 
 const visibleProviders = computed(() =>
   providerStore.sortedProviders.filter((provider) => provider.id !== 'acp')
+)
+const showProviderSkeleton = computed(
+  () =>
+    (!providerStore.initialized ||
+      startupWorkloadStore?.isTaskRunning('settings.providers.summary')) &&
+    visibleProviders.value.length === 0
 )
 
 const allEnabledProviders = computed(() => visibleProviders.value.filter((p) => p.enable))
@@ -379,16 +415,23 @@ const handleProviderAdded = (provider: LLM_PROVIDER) => {
 }
 
 onMounted(async () => {
-  if (!providerStore.providers.length) {
-    await providerStore.refreshProviders()
-  }
-  if (!modelStore.allProviderModels.length) {
-    await modelStore.refreshAllModels()
-  }
+  await providerStore.ensureInitialized()
   if (!route.params.providerId && visibleProviders.value.length > 0) {
     setActiveProvider(visibleProviders.value[0].id)
   }
 })
+
+watch(
+  () => route.params.providerId,
+  async (providerId) => {
+    if (typeof providerId !== 'string' || providerId.length === 0) {
+      return
+    }
+
+    await modelStore.ensureProviderModelsReady(providerId)
+  },
+  { immediate: true }
+)
 
 // 处理拖拽结束事件
 const handleDragEnd = () => {

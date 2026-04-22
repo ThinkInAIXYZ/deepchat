@@ -11,7 +11,7 @@ interface BindMessageStoreIpcOptions {
     blocks: AssistantMessageBlock[]
   }) => void
   clearStreamingState: () => void
-  loadMessages: (sessionId: string) => void | Promise<void>
+  loadMessages: (sessionId: string) => void | Promise<unknown>
   applyStreamingBlocksToMessage: (
     messageId: string,
     sessionId: string,

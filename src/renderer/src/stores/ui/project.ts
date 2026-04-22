@@ -96,6 +96,12 @@ export const useProjectStore = defineStore('project', () => {
     applyDefaultSelection()
   }
 
+  const applyBootstrapDefaultProjectPath = (path: string | null | undefined) => {
+    defaultProjectPath.value = normalizePath(path)
+    projects.value = reconcileProjects(projects.value)
+    applyDefaultSelection()
+  }
+
   const ensureListenersRegistered = () => {
     if (listenersRegistered) return
     configClient.onDefaultProjectPathChanged(({ path }) => {
@@ -110,9 +116,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function loadDefaultProjectPath(): Promise<void> {
     try {
-      defaultProjectPath.value = normalizePath(await configClient.getDefaultProjectPath())
-      projects.value = reconcileProjects(projects.value)
-      applyDefaultSelection()
+      applyBootstrapDefaultProjectPath(await configClient.getDefaultProjectPath())
     } catch (e) {
       error.value = `Failed to load default project path: ${e}`
     }
@@ -214,6 +218,7 @@ export const useProjectStore = defineStore('project', () => {
     fetchProjects,
     fetchEnvironments,
     loadDefaultProjectPath,
+    applyBootstrapDefaultProjectPath,
     refreshEnvironmentData,
     selectProject,
     setDefaultProject,

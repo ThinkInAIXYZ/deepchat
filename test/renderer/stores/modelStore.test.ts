@@ -120,6 +120,56 @@ describe('modelStore.refreshProviderModels', () => {
     expect(modelClient.onModelStatusChanged).toHaveBeenCalledTimes(1)
   })
 
+  it('limits provider-db refreshes to materialized providers', async () => {
+    let modelsChangedListener:
+      | ((payload: { reason: string; providerId?: string }) => Promise<void> | void)
+      | undefined
+
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'ollama', enable: true },
+          { id: 'acp', enable: true }
+        ]
+      },
+      modelClient: {
+        onModelsChanged: vi.fn((listener) => {
+          modelsChangedListener = listener
+          return vi.fn()
+        }),
+        getDbProviderModels: vi.fn().mockImplementation(async (providerId: string) =>
+          providerId === 'openai'
+            ? [
+                {
+                  id: 'gpt-5',
+                  name: 'GPT-5',
+                  providerId: 'openai',
+                  maxTokens: 8192,
+                  contextLength: 128000,
+                  isCustom: false
+                }
+              ]
+            : []
+        ),
+        getProviderModels: vi.fn(async () => []),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({}))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledTimes(1)
+
+    await modelsChangedListener?.({
+      reason: 'provider-db-updated'
+    })
+
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledTimes(2)
+    expect(modelClient.getDbProviderModels).toHaveBeenNthCalledWith(1, 'openai')
+    expect(modelClient.getDbProviderModels).toHaveBeenNthCalledWith(2, 'openai')
+  })
+
   it('uses ACP refresh path for acp provider', async () => {
     const { store, agentModelStore, modelClient } = await setupStore()
     agentModelStore.refreshAgentModels.mockResolvedValue({
@@ -450,5 +500,109 @@ describe('modelStore.refreshProviderModels', () => {
     await store.updateModelStatus('ollama', 'deepseek-r1:1.5b', false)
 
     expect(modelClient.updateModelStatus).toHaveBeenCalledWith('ollama', 'deepseek-r1:1.5b', false)
+  })
+})
+
+describe('modelStore.initialize', () => {
+  it('marks the store initialized only after full initialization succeeds', async () => {
+    const { store } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'openai', enable: true }]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            providerId: 'openai',
+            isCustom: false
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+      }
+    })
+
+    await store.initialize()
+
+    expect(store.initialized.value).toBe(true)
+    expect(store.initializationError.value).toBeNull()
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+
+  it('does not mark the store initialized when only one provider is materialized', async () => {
+    const { store } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            providerId: 'openai',
+            isCustom: false
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+      }
+    })
+
+    await store.ensureProviderModelsReady('openai')
+
+    expect(store.initialized.value).toBe(false)
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+
+  it('allows initialization to succeed when one enabled provider fails to refresh', async () => {
+    const { store } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'ollama', enable: true }
+        ]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async (providerId: string) => {
+          if (providerId === 'ollama') {
+            throw new Error('catalog stale')
+          }
+          return [
+            {
+              id: 'gpt-5',
+              name: 'GPT-5',
+              providerId: 'openai',
+              isCustom: false
+            }
+          ]
+        }),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async (providerId: string) =>
+          providerId === 'openai' ? { 'gpt-5': true } : {}
+        )
+      }
+    })
+
+    await store.initialize()
+
+    expect(store.initialized.value).toBe(true)
+    expect(store.initializationError.value).toBeNull()
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
   })
 })

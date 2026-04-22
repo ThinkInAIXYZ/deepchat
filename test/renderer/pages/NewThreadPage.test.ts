@@ -65,6 +65,10 @@ const setup = async (pendingModelId: string) => {
     agents: [{ id: 'deepchat', type: 'deepchat' }]
   })
   const modelStore = reactive({
+    initialized: true,
+    initialize: vi.fn().mockImplementation(async () => {
+      modelStore.initialized = true
+    }),
     enabledModels: [
       {
         providerId: 'openai',
@@ -112,6 +116,25 @@ const setup = async (pendingModelId: string) => {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      void task()
+      return () => {}
+    })
+  }))
+  vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
+    default: {
+      name: 'ChatInputBox',
+      props: ['modelValue'],
+      template: '<div data-testid="chat-input">{{ modelValue }}<slot name="toolbar" /></div>'
+    }
+  }))
+  vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
+    default: {
+      name: 'ChatStatusBar',
+      template: '<div data-testid="chat-status-bar" />'
+    }
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

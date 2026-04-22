@@ -25,20 +25,6 @@ describe('LinkNode', () => {
       }
     }
 
-    const yoBrowserPresenter = {
-      loadUrl: vi.fn().mockResolvedValue({})
-    }
-
-    const workspacePresenter = {
-      resolveMarkdownLinkedFile: vi.fn().mockResolvedValue({
-        path: '/repo/docs/README.md',
-        name: 'README.md',
-        relativePath: 'docs/README.md',
-        workspaceRoot: '/repo'
-      }),
-      openFile: vi.fn().mockResolvedValue(undefined)
-    }
-
     vi.doMock('@/stores/ui/sidepanel', () => ({
       useSidepanelStore: () => sidepanelStore
     }))
@@ -48,17 +34,7 @@ describe('LinkNode', () => {
     }))
 
     vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'yoBrowserPresenter') {
-          return yoBrowserPresenter
-        }
-
-        if (name === 'workspacePresenter') {
-          return workspacePresenter
-        }
-
-        return {}
-      }
+      useLegacyPresenter: () => ({})
     }))
 
     const LinkNode = (await import('@/components/markdown/LinkNode.vue')).default
@@ -82,9 +58,7 @@ describe('LinkNode', () => {
     return {
       wrapper,
       sidepanelStore,
-      sessionStore,
-      yoBrowserPresenter,
-      workspacePresenter
+      sessionStore
     }
   }
 
@@ -100,14 +74,20 @@ describe('LinkNode', () => {
   })
 
   it('opens http links in YoBrowser by default', async () => {
-    const { wrapper, sidepanelStore, yoBrowserPresenter } = await setup({
+    const { wrapper, sidepanelStore } = await setup({
       href: 'https://example.com'
     })
 
     await wrapper.get('a').trigger('click')
 
     expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
-    expect(yoBrowserPresenter.loadUrl).toHaveBeenCalledWith('session-1', 'https://example.com')
+    expect(window.deepchat.invoke).toHaveBeenCalledWith(
+      'browser.loadUrl',
+      expect.objectContaining({
+        sessionId: 'session-1',
+        url: 'https://example.com'
+      })
+    )
     expect(window.api.openExternal).not.toHaveBeenCalled()
   })
 
@@ -154,7 +134,7 @@ describe('LinkNode', () => {
   })
 
   it('opens http links in the system browser on Alt click', async () => {
-    const { wrapper, sidepanelStore, yoBrowserPresenter } = await setup({
+    const { wrapper, sidepanelStore } = await setup({
       href: 'https://example.com'
     })
 
@@ -162,11 +142,11 @@ describe('LinkNode', () => {
 
     expect(window.api.openExternal).toHaveBeenCalledWith('https://example.com')
     expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
-    expect(yoBrowserPresenter.loadUrl).not.toHaveBeenCalled()
+    expect(window.deepchat.invoke).not.toHaveBeenCalledWith('browser.loadUrl', expect.anything())
   })
 
   it('opens mailto links externally without using YoBrowser', async () => {
-    const { wrapper, sidepanelStore, yoBrowserPresenter } = await setup({
+    const { wrapper, sidepanelStore } = await setup({
       href: 'mailto:test@example.com'
     })
 
@@ -174,11 +154,27 @@ describe('LinkNode', () => {
 
     expect(window.api.openExternal).toHaveBeenCalledWith('mailto:test@example.com')
     expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
-    expect(yoBrowserPresenter.loadUrl).not.toHaveBeenCalled()
+    expect(window.deepchat.invoke).not.toHaveBeenCalledWith('browser.loadUrl', expect.anything())
   })
 
   it('opens local markdown links in the workspace preview', async () => {
-    const { wrapper, sidepanelStore, workspacePresenter } = await setup({
+    const deepchatInvoke = window.deepchat.invoke as ReturnType<typeof vi.fn>
+    deepchatInvoke.mockImplementation((routeName: string) => {
+      if (routeName === 'workspace.resolveMarkdownLinkedFile') {
+        return Promise.resolve({
+          resolution: {
+            path: '/repo/docs/README.md',
+            name: 'README.md',
+            relativePath: 'docs/README.md',
+            workspaceRoot: '/repo'
+          }
+        })
+      }
+
+      return Promise.resolve({})
+    })
+
+    const { wrapper, sidepanelStore } = await setup({
       href: './docs/README.md',
       linkContext: {
         source: 'workspace',
@@ -189,7 +185,7 @@ describe('LinkNode', () => {
 
     await wrapper.get('a').trigger('click')
 
-    expect(workspacePresenter.resolveMarkdownLinkedFile).toHaveBeenCalledWith({
+    expect(window.deepchat.invoke).toHaveBeenCalledWith('workspace.resolveMarkdownLinkedFile', {
       workspacePath: '/repo',
       href: './docs/README.md',
       sourceFilePath: '/repo/guide.md'
@@ -210,7 +206,7 @@ describe('LinkNode', () => {
     })
     document.body.appendChild(target)
 
-    const { wrapper, sidepanelStore, yoBrowserPresenter, workspacePresenter } = await setup({
+    const { wrapper, sidepanelStore } = await setup({
       href: '#details'
     })
 
@@ -218,8 +214,11 @@ describe('LinkNode', () => {
 
     expect(scrollIntoView).toHaveBeenCalled()
     expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
-    expect(yoBrowserPresenter.loadUrl).not.toHaveBeenCalled()
-    expect(workspacePresenter.resolveMarkdownLinkedFile).not.toHaveBeenCalled()
+    expect(window.deepchat.invoke).not.toHaveBeenCalledWith('browser.loadUrl', expect.anything())
+    expect(window.deepchat.invoke).not.toHaveBeenCalledWith(
+      'workspace.resolveMarkdownLinkedFile',
+      expect.anything()
+    )
     expect(window.api.openExternal).not.toHaveBeenCalled()
   })
 })

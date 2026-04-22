@@ -27,6 +27,7 @@ import { SKILL_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import logger from '@shared/logger'
 import { normalizeSkillAllowedTools } from './toolNameMapping'
+import { discoverSkillMetadataInWorker, logSkillDiscoveryWorkerWarnings } from './discoveryWorker'
 
 /**
  * Skill system configuration constants
@@ -284,31 +285,22 @@ export class SkillPresenter implements ISkillPresenter {
       return []
     }
 
-    const skillManifestPaths = [...this.collectSkillManifestPaths(this.skillsDir)].sort(
-      (left, right) => left.localeCompare(right)
-    )
+    let discoveredSkills: SkillMetadata[]
+    try {
+      const workerResult = await discoverSkillMetadataInWorker({
+        skillsDir: this.skillsDir,
+        sidecarDirName: SKILL_CONFIG.SIDECAR_DIR,
+        maxDepth: SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH
+      })
+      logSkillDiscoveryWorkerWarnings(workerResult.warnings)
+      discoveredSkills = workerResult.skills
+    } catch (error) {
+      console.warn('[SkillPresenter] Worker discovery failed, falling back to main thread:', error)
+      discoveredSkills = await this.discoverSkillsOnMainThread()
+    }
 
-    for (const skillPath of skillManifestPaths) {
-      const dirName = path.basename(path.dirname(skillPath))
-      try {
-        const metadata = await this.parseSkillMetadata(skillPath, dirName)
-        if (!metadata) {
-          continue
-        }
-        if (this.metadataCache.has(metadata.name)) {
-          logger.warn(
-            '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
-            {
-              name: metadata.name,
-              path: metadata.path
-            }
-          )
-          continue
-        }
-        this.metadataCache.set(metadata.name, metadata)
-      } catch (error) {
-        console.error(`[SkillPresenter] Failed to parse skill at ${skillPath}:`, error)
-      }
+    for (const metadata of discoveredSkills) {
+      this.metadataCache.set(metadata.name, metadata)
     }
 
     const skills = Array.from(this.metadataCache.values()).sort((left, right) => {
@@ -325,6 +317,38 @@ export class SkillPresenter implements ISkillPresenter {
     })
 
     return skills
+  }
+
+  private async discoverSkillsOnMainThread(): Promise<SkillMetadata[]> {
+    const discovered = new Map<string, SkillMetadata>()
+    const skillManifestPaths = [...this.collectSkillManifestPaths(this.skillsDir)].sort(
+      (left, right) => left.localeCompare(right)
+    )
+
+    for (const skillPath of skillManifestPaths) {
+      const dirName = path.basename(path.dirname(skillPath))
+      try {
+        const metadata = await this.parseSkillMetadata(skillPath, dirName)
+        if (!metadata) {
+          continue
+        }
+        if (discovered.has(metadata.name)) {
+          logger.warn(
+            '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
+            {
+              name: metadata.name,
+              path: metadata.path
+            }
+          )
+          continue
+        }
+        discovered.set(metadata.name, metadata)
+      } catch (error) {
+        console.error(`[SkillPresenter] Failed to parse skill at ${skillPath}:`, error)
+      }
+    }
+
+    return Array.from(discovered.values())
   }
 
   /**

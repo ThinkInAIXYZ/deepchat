@@ -116,6 +116,7 @@ type ActiveProviderPermission = {
 type PersistedSessionGenerationRow = {
   provider_id: string
   model_id: string
+  permission_mode: PermissionMode
   system_prompt: string | null
   temperature: number | null
   context_length: number | null
@@ -329,17 +330,30 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
+    return await this.getResolvedSessionState(sessionId, 'full')
+  }
+
+  async getSessionListState(sessionId: string): Promise<DeepChatSessionState | null> {
+    return await this.getResolvedSessionState(sessionId, 'summary')
+  }
+
+  private async getResolvedSessionState(
+    sessionId: string,
+    hydrationMode: 'full' | 'summary'
+  ): Promise<DeepChatSessionState | null> {
     const state = this.runtimeState.get(sessionId)
     if (state) {
       this.getSessionAgentId(sessionId)
       if (this.hasPendingInteractions(sessionId)) {
         state.status = 'generating'
       }
-      await this.getEffectiveSessionGenerationSettings(sessionId)
+      if (hydrationMode === 'full') {
+        await this.getEffectiveSessionGenerationSettings(sessionId)
+      }
       return { ...state }
     }
 
-    const dbSession = this.sessionStore.get(sessionId)
+    const dbSession = this.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined
     if (!dbSession) return null
 
     this.getSessionAgentId(sessionId)
@@ -350,7 +364,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       permissionMode: dbSession.permission_mode || 'full_access'
     }
     this.runtimeState.set(sessionId, rebuilt)
-    await this.getEffectiveSessionGenerationSettings(sessionId)
+    if (hydrationMode === 'full') {
+      await this.getEffectiveSessionGenerationSettings(sessionId)
+    }
     return { ...rebuilt }
   }
 

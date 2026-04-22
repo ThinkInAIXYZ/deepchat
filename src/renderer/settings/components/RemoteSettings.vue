@@ -1,8 +1,11 @@
 <template>
   <ScrollArea class="h-full w-full">
     <div class="flex h-full w-full flex-col gap-4 p-4">
-      <div v-if="isLoading" class="text-sm text-muted-foreground">
-        {{ t('common.loading') }}
+      <div v-if="isLoading" class="space-y-4 animate-pulse">
+        <div class="h-6 w-48 rounded bg-muted/50"></div>
+        <div class="h-20 rounded-xl bg-muted/40"></div>
+        <div class="h-12 rounded-xl bg-muted/30"></div>
+        <div class="h-80 rounded-xl bg-muted/20"></div>
       </div>
       <div
         v-else-if="

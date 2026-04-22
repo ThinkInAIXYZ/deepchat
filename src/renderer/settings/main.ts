@@ -3,6 +3,7 @@ import { addCollection } from '@iconify/vue'
 import lucideIcons from '@iconify-json/lucide/icons.json'
 import vscodeIcons from '@iconify-json/vscode-icons/icons.json'
 import { createPinia } from 'pinia'
+import { PiniaColada } from '@pinia/colada'
 import { createApp } from 'vue'
 import App from './App.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -67,6 +68,12 @@ const pinia = createPinia()
 const app = createApp(App)
 
 app.use(pinia)
+app.use(PiniaColada, {
+  queryOptions: {
+    staleTime: 30_000,
+    gcTime: 300_000
+  }
+})
 app.use(i18n)
 app.use(router)
 app.mount('#app')
