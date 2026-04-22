@@ -1,6 +1,9 @@
 <template>
   <Dialog v-model:open="isOpen" @update:open="onOpenChange">
-    <DialogContent class="sm:max-w-[500px] max-h-[80vh] overflow-hidden flex flex-col">
+    <DialogContent
+      data-testid="model-check-dialog"
+      class="sm:max-w-[500px] max-h-[80vh] overflow-hidden flex flex-col"
+    >
       <DialogHeader>
         <DialogTitle>{{ t('settings.provider.dialog.modelCheck.title') }}</DialogTitle>
         <DialogDescription>
@@ -10,7 +13,12 @@
 
       <!-- 显示错误或成功消息 -->
       <div v-if="result" class="mb-4 shrink-0">
-        <div v-if="result.isOk" class="p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div
+          v-if="result.isOk"
+          data-testid="model-check-result"
+          data-success="true"
+          class="p-4 bg-green-50 border border-green-200 rounded-lg"
+        >
           <div class="flex items-center">
             <Icon icon="lucide:check-circle" class="w-5 h-5 text-green-600 mr-2 shrink-0" />
             <span class="text-green-800 font-medium">{{
@@ -18,7 +26,12 @@
             }}</span>
           </div>
         </div>
-        <div v-else class="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div
+          v-else
+          data-testid="model-check-result"
+          data-success="false"
+          class="p-4 bg-red-50 border border-red-200 rounded-lg"
+        >
           <div class="flex items-start">
             <Icon icon="lucide:x-circle" class="w-5 h-5 text-red-600 mr-2 mt-0.5 shrink-0" />
             <div class="text-red-800 min-w-0 flex-1">
@@ -48,13 +61,19 @@
               {{ t('settings.provider.dialog.modelCheck.model') }}
             </Label>
             <Select v-model="selectedModelId" required>
-              <SelectTrigger class="col-span-3">
+              <SelectTrigger data-testid="model-check-select" class="col-span-3">
                 <SelectValue
                   :placeholder="t('settings.provider.dialog.modelCheck.modelPlaceholder')"
                 />
               </SelectTrigger>
               <SelectContent class="max-h-60">
-                <SelectItem v-for="model in availableModels" :key="model.id" :value="model.id">
+                <SelectItem
+                  v-for="model in availableModels"
+                  :key="model.id"
+                  :value="model.id"
+                  data-testid="model-check-option"
+                  :data-model-id="model.id"
+                >
                   {{ model.name }}
                 </SelectItem>
               </SelectContent>
@@ -78,6 +97,7 @@
           {{ result ? t('dialog.close') : t('dialog.cancel') }}
         </Button>
         <Button
+          data-testid="model-check-submit"
           v-if="!result && hasModels"
           type="button"
           :disabled="!selectedModelId || isChecking"

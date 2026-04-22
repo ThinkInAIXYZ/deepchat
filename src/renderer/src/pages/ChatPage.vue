@@ -2,6 +2,8 @@
   <TooltipProvider :delay-duration="200">
     <div
       ref="scrollContainer"
+      data-testid="chat-page"
+      :data-generating="String(isGenerating)"
       class="message-list-container h-full w-full min-w-0 overflow-y-auto"
       @scroll="onScroll"
     >

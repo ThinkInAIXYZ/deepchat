@@ -86,6 +86,7 @@
         <Popover v-else-if="showModelPopover" v-model:open="isModelPanelOpen">
           <PopoverTrigger as-child>
             <Button
+              data-testid="app-model-switcher"
               variant="ghost"
               size="sm"
               :class="[
@@ -188,6 +189,9 @@
                         >
                           <button
                             type="button"
+                            data-testid="model-option"
+                            :data-provider-id="group.providerId"
+                            :data-model-id="model.id"
                             :class="[
                               'flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
                               isModelSelected(group.providerId, model.id)

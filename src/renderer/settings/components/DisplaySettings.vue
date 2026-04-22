@@ -1,5 +1,5 @@
 <template>
-  <ScrollArea class="w-full h-full">
+  <ScrollArea data-testid="settings-appearance-page" class="w-full h-full">
     <div class="w-full h-full flex flex-col gap-1.5 p-4">
       <!-- 语言选择 -->
       <div class="flex flex-col gap-2 px-2 py-2">
@@ -13,7 +13,7 @@
           </span>
           <div class="ml-auto w-auto">
             <Select v-model="selectedLanguage">
-              <SelectTrigger class="h-8!">
+              <SelectTrigger data-testid="language-select" class="h-8!">
                 <SelectValue :placeholder="t('settings.common.languageSelect')" />
               </SelectTrigger>
               <SelectContent>
@@ -50,6 +50,8 @@
             v-for="option in themeOptions"
             :key="option.value"
             type="button"
+            data-testid="theme-toggle"
+            :data-theme-mode="option.value"
             class="group relative flex w-full max-w-[120px] basis-[120px] flex-col items-center text-left outline-none transition disabled:cursor-not-allowed disabled:opacity-80"
             :aria-pressed="themeMode === option.value"
             :disabled="isUpdatingTheme"

@@ -1,6 +1,6 @@
 <template>
   <TooltipProvider :delay-duration="200">
-    <div class="h-full w-full flex flex-col">
+    <div data-testid="new-thread-page" class="h-full w-full flex flex-col">
       <!-- Main content area (centered) -->
       <div class="flex-1 flex flex-col items-center justify-center px-6">
         <!-- Logo -->

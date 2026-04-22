@@ -447,6 +447,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
+    data-testid="app-root"
     class="flex flex-col h-screen"
     :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
   >
@@ -457,6 +458,7 @@ onBeforeUnmount(() => {
 
         <!-- Main content area -->
         <div
+          data-testid="app-main"
           class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-black/20 bg-background dark:border-white/10"
         >
           <div class="min-h-0 flex-1">

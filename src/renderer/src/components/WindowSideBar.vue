@@ -11,6 +11,9 @@
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
+              data-testid="sidebar-agent-all-button"
+              data-agent-id="__all__"
+              :data-selected="String(sidebarSelectedAgentId === null)"
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
                 sidebarSelectedAgentId === null
@@ -31,6 +34,9 @@
         <Tooltip v-for="agent in agentStore.enabledAgents" :key="agent.id">
           <TooltipTrigger as-child>
             <Button
+              data-testid="sidebar-agent-button"
+              :data-agent-id="agent.id"
+              :data-selected="String(sidebarSelectedAgentId === agent.id)"
               size="icon"
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
@@ -109,6 +115,7 @@
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
+              data-testid="app-settings-button"
               class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
               :title="t('routes.settings')"
               @click="openSettings"
@@ -155,6 +162,7 @@
             <Tooltip>
               <TooltipTrigger as-child>
                 <button
+                  data-testid="app-new-chat-button"
                   class="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-150"
                   @click="handleNewChat"
                 >

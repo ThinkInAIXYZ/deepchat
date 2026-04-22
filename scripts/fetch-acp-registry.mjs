@@ -9,6 +9,16 @@ const ICON_TMP_DIR = path.join(OUTPUT_DIR, '.icons-tmp')
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 const SAFE_ICON_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 
+const hasLocalSnapshot = async () => {
+  try {
+    await fs.access(OUTPUT_PATH)
+    await fs.access(ICON_OUTPUT_DIR)
+    return true
+  } catch {
+    return false
+  }
+}
+
 const isCacheableRegistryIcon = (icon) =>
   typeof icon === 'string' &&
   icon.startsWith(ACP_REGISTRY_ICON_PREFIX) &&
@@ -73,6 +83,19 @@ const main = async () => {
 }
 
 main().catch((error) => {
-  console.error('[fetch-acp-registry] failed:', error)
-  process.exitCode = 1
+  hasLocalSnapshot()
+    .then((cached) => {
+      if (cached) {
+        console.warn('[fetch-acp-registry] failed:', error)
+        console.warn('[fetch-acp-registry] using existing local snapshot')
+        return
+      }
+
+      console.error('[fetch-acp-registry] failed:', error)
+      process.exitCode = 1
+    })
+    .catch(() => {
+      console.error('[fetch-acp-registry] failed:', error)
+      process.exitCode = 1
+    })
 })

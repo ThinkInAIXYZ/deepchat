@@ -21,7 +21,7 @@
       <div class="h-72 rounded-xl bg-muted/30"></div>
     </div>
   </div>
-  <div v-else class="w-full h-full flex flex-row">
+  <div v-else data-testid="settings-provider-page" class="w-full h-full flex flex-row">
     <ScrollArea class="w-64 border-r h-full">
       <div class="space-y-4 p-4">
         <!-- 搜索框 -->
@@ -174,6 +174,7 @@
 
         <div class="sticky bottom-4 z-10" :dir="languageStore.dir">
           <Button
+            data-testid="provider-add-button"
             variant="outline"
             class="w-full flex flex-row items-center gap-2 rounded-lg p-2 backdrop-blur-lg cursor-pointer hover:bg-accent"
             @click="openAddProviderDialog"
