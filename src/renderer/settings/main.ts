@@ -1,7 +1,4 @@
 import '@/assets/main.css'
-import { addCollection } from '@iconify/vue'
-import lucideIcons from '@iconify-json/lucide/icons.json'
-import vscodeIcons from '@iconify-json/vscode-icons/icons.json'
 import { createPinia } from 'pinia'
 import { PiniaColada } from '@pinia/colada'
 import { createApp } from 'vue'
@@ -11,6 +8,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { createI18n } from 'vue-i18n'
 import locales from '@/i18n'
 import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
+import { preloadIcons } from '../src/lib/iconLoader'
 
 const settingsRouteComponents = {
   'settings-common': () => import('./components/CommonSettings.vue'),
@@ -60,10 +58,7 @@ const router = createRouter({
   ]
 })
 
-// Add icon collections to local registry
-addCollection(lucideIcons)
-addCollection(vscodeIcons)
-
+// Icons will be loaded asynchronously to improve startup performance
 const pinia = createPinia()
 const app = createApp(App)
 
@@ -77,3 +72,10 @@ app.use(PiniaColada, {
 app.use(i18n)
 app.use(router)
 app.mount('#app')
+
+// Preload icons asynchronously after app mount to improve perceived startup time
+setTimeout(() => {
+  preloadIcons().catch((error) => {
+    console.error('Failed to preload icons:', error)
+  })
+}, 0)

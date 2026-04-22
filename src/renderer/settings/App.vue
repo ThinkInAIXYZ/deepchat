@@ -82,6 +82,7 @@ import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
+import { ensureIconsLoaded } from '../src/lib/iconLoader'
 import { useFontManager } from '../src/composables/useFontManager'
 import { markStartupInteractive } from '../src/lib/startupDeferred'
 import type {
@@ -449,6 +450,8 @@ const settings: Ref<
 )
 
 onMounted(() => {
+  // Ensure icons are loaded
+  void ensureIconsLoaded()
   logSettingsStartup('app mounted')
 })
 
