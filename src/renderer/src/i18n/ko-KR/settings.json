@@ -478,6 +478,7 @@
       "currentUsingModelDefault": "현재 모델 기본 설정 사용 중",
       "temperature": {
         "description": "출력의 무작위성을 제어하십시오. 대부분의 모델은 0-1이며 일부는 0-2 사이의 지원입니다. 무작위성이 높아집니다.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
         "label": "온도"
       },
       "title": "사용자 정의 모델 매개 변수",

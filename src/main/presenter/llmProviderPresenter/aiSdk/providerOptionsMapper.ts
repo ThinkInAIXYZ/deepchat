@@ -1,5 +1,6 @@
 import type { MCPToolDefinition, ModelConfig } from '@shared/presenter'
 import type { ModelMessage } from 'ai'
+import { resolveMoonshotKimiTemperaturePolicy } from '@shared/moonshotKimiPolicy'
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
@@ -127,14 +128,17 @@ export function buildProviderOptions(
     params.capabilityProviderId,
     params.modelId
   )
-  const reasoningEnabled = getReasoningEffectiveEnabledForProvider(
-    params.capabilityProviderId,
-    reasoningPortrait,
-    {
+  const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
+    params.providerId,
+    params.modelId,
+    params.modelConfig.reasoning
+  )
+  const reasoningEnabled =
+    fixedTemperatureKimi?.reasoningEnabled ??
+    getReasoningEffectiveEnabledForProvider(params.capabilityProviderId, reasoningPortrait, {
       reasoning: params.modelConfig.reasoning,
       reasoningEffort: params.modelConfig.reasoningEffort
-    }
-  )
+    })
   const hasThinkingConfig =
     params.modelConfig.thinkingBudget !== undefined || Boolean(params.modelConfig.reasoningEffort)
   const shouldSendThinkingConfig =
@@ -169,6 +173,11 @@ export function buildProviderOptions(
       }
       if (promptCachePlan.cacheKey) {
         config.promptCacheKey = promptCachePlan.cacheKey
+      }
+      if (fixedTemperatureKimi) {
+        config.thinking = {
+          type: fixedTemperatureKimi.thinkingType
+        }
       }
       if (supportsDoubaoThinking(params.providerId, params.modelId) && reasoningEnabled) {
         config.thinking = {

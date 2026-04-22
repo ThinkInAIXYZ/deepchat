@@ -1936,6 +1936,70 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('normalizes Moonshot Kimi generation temperatures from model reasoning defaults', async () => {
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+        if (providerId === 'moonshot' && modelId === 'moonshotai/kimi-k2.6') {
+          return {
+            temperature: 0.6,
+            maxTokens: 4096,
+            contextLength: 128000,
+            reasoning: true,
+            thinkingBudget: 512,
+            vision: false
+          }
+        }
+
+        return {
+          temperature: 0.7,
+          maxTokens: 4096,
+          contextLength: 128000,
+          thinkingBudget: 512,
+          reasoningEffort: 'medium',
+          verbosity: 'medium',
+          vision: false
+        }
+      })
+      configPresenter.getReasoningPortrait.mockImplementation(
+        (providerId: string, modelId: string) => {
+          if (providerId === 'moonshot' && modelId === 'moonshotai/kimi-k2.6') {
+            return {
+              supported: true,
+              defaultEnabled: true,
+              mode: 'budget',
+              budget: { min: 0, max: 32768, default: 8192 }
+            }
+          }
+          return {
+            supported: true,
+            defaultEnabled: true,
+            mode: 'effort',
+            budget: { min: 0, max: 8192, default: 512 },
+            effort: 'medium',
+            effortOptions: ['minimal', 'low', 'medium', 'high'],
+            verbosity: 'medium',
+            verbosityOptions: ['low', 'medium', 'high']
+          }
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'moonshot', modelId: 'moonshotai/kimi-k2.6' })
+
+      const defaults = await agent.getGenerationSettings('s1')
+      expect(defaults?.temperature).toBe(1)
+
+      const updated = await agent.updateGenerationSettings('s1', {
+        temperature: 0.2
+      })
+
+      expect(updated.temperature).toBe(1)
+      expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          temperature: 1
+        })
+      )
+    })
+
     it('inherits interleaved thinking defaults and allows explicit session disable', async () => {
       configPresenter.getModelConfig.mockReturnValue({
         temperature: 0.7,

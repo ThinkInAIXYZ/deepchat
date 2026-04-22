@@ -139,6 +139,42 @@ describe('Provider DB strict matching + user overrides', () => {
               }
             }
           ]
+        },
+        moonshot: {
+          id: 'moonshot',
+          name: 'Moonshot',
+          models: [
+            {
+              id: 'moonshotai/kimi-k2.6',
+              reasoning: {
+                supported: true,
+                default: true
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: true,
+                  mode: 'budget',
+                  budget: { min: 0, max: 32768, default: 8192 }
+                }
+              }
+            },
+            {
+              id: 'moonshotai/kimi-k2.6:thinking',
+              reasoning: {
+                supported: true,
+                default: false
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: false,
+                  mode: 'budget',
+                  budget: { min: 0, max: 32768, default: 8192 }
+                }
+              }
+            }
+          ]
         }
       }
     }
@@ -316,6 +352,24 @@ describe('Provider DB strict matching + user overrides', () => {
     expect(cfg.reasoning).toBe(false)
     expect(cfg.reasoningEffort).toBe('none')
     expect(cfg.verbosity).toBe('medium')
+  })
+
+  it('forces Moonshot Kimi defaults to the thinking-enabled temperature when reasoning defaults on', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+
+    const cfg = helper.getModelConfig('moonshotai/kimi-k2.6', 'moonshot')
+
+    expect(cfg.reasoning).toBe(true)
+    expect(cfg.temperature).toBe(1)
+  })
+
+  it('forces Moonshot Kimi :thinking variants to keep reasoning on and temperature at 1.0', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+
+    const cfg = helper.getModelConfig('moonshotai/kimi-k2.6:thinking', 'moonshot')
+
+    expect(cfg.reasoning).toBe(true)
+    expect(cfg.temperature).toBe(1)
   })
 
   it('recomputes reasoning-related fields for provider cached configs', () => {

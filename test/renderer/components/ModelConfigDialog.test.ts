@@ -518,6 +518,55 @@ describe('ModelConfigDialog reasoning portraits', () => {
 
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
   })
+
+  it('locks Moonshot Kimi temperatures and treats :thinking variants as indicator-only reasoning', async () => {
+    const { wrapper } = await setup({
+      providerId: 'moonshot',
+      modelId: 'moonshotai/kimi-k2.6:thinking',
+      modelName: 'Kimi K2.6 Thinking',
+      modelConfig: {
+        reasoning: false,
+        temperature: 0.6
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'budget',
+        budget: { min: 0, max: 32768, default: 8192 }
+      }
+    })
+
+    expect((wrapper.vm as any).isMoonshotKimiTemperatureLocked).toBe(true)
+    expect((wrapper.vm as any).moonshotKimiTemperatureHint).toBe(
+      'settings.model.modelConfig.temperature.fixedMoonshotKimi'
+    )
+    expect((wrapper.vm as any).config.temperature).toBe(1)
+    expect((wrapper.vm as any).config.reasoning).toBe(true)
+    expect((wrapper.vm as any).reasoningToggleMode).toBe('indicator')
+    expect((wrapper.vm as any).reasoningToggleValue).toBe(true)
+  })
+
+  it('locks Kimi temperatures for proxy-style providers too, not only the official Moonshot provider', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      providerApiType: 'new-api',
+      modelId: 'kimi-k2.6',
+      modelName: 'Kimi K2.6',
+      modelConfig: {
+        reasoning: true,
+        temperature: 1.4
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'budget',
+        budget: { min: 0, max: 32768, default: 8192 }
+      }
+    })
+
+    expect((wrapper.vm as any).isMoonshotKimiTemperatureLocked).toBe(true)
+    expect((wrapper.vm as any).config.temperature).toBe(1)
+  })
 })
 
 describe('ModelConfigDialog new-api endpoint normalization', () => {

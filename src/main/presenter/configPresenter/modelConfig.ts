@@ -12,6 +12,7 @@ import {
   resolveModelContextLength,
   resolveModelFunctionCall
 } from '@shared/modelConfigDefaults'
+import { applyMoonshotKimiReasoningTemperaturePolicy } from '@shared/moonshotKimiPolicy'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
 import {
@@ -122,6 +123,18 @@ export class ModelConfigHelper {
     return ModelType.Chat
   }
 
+  private applyProviderSpecificPolicies(
+    providerId: string | undefined,
+    modelId: string,
+    config: ModelConfig
+  ): ModelConfig {
+    if (!providerId) {
+      return config
+    }
+
+    return applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
+  }
+
   private buildConfigFromProviderModel(model: ProviderModel, providerId: string): ModelConfig {
     const portrait = modelCapabilities.getReasoningPortrait(providerId, model.id)
     const capabilityProviderId = resolveProviderCapabilityProviderId(providerId, null, model.id)
@@ -143,7 +156,7 @@ export class ModelConfigHelper {
       portrait?.verbosity ?? model.reasoning?.verbosity
     )
 
-    return {
+    return this.applyProviderSpecificPolicies(providerId, model.id, {
       maxTokens: resolveDerivedModelMaxTokens(model.limit?.output),
       contextLength: resolveModelContextLength(model.limit?.context),
       timeout: DEFAULT_MODEL_TIMEOUT,
@@ -164,7 +177,7 @@ export class ModelConfigHelper {
         | 'balanced'
         | 'precise',
       maxCompletionTokens: undefined
-    }
+    })
   }
 
   private initializeMetaFromLegacyStore(): void {
@@ -385,7 +398,9 @@ export class ModelConfigHelper {
     const isUserConfig = storedSource === 'user'
 
     if (storedConfig && isUserConfig) {
-      const finalUserConfig = { ...storedConfig }
+      const finalUserConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
+        ...storedConfig
+      })
       finalUserConfig.isUserDefined = true
       return finalUserConfig
     }
@@ -485,8 +500,12 @@ export class ModelConfigHelper {
       }
     }
 
-    finalConfig!.isUserDefined = false
-    return finalConfig!
+    const normalizedFinalConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
+      ...finalConfig!,
+      isUserDefined: false
+    })
+    normalizedFinalConfig.isUserDefined = false
+    return normalizedFinalConfig
   }
 
   /**
@@ -511,12 +530,12 @@ export class ModelConfigHelper {
       typeof config.timeout === 'number' && Number.isFinite(config.timeout) && config.timeout > 0
         ? Math.round(config.timeout)
         : undefined
-    const storedConfig: ModelConfig = {
+    const storedConfig: ModelConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
       ...config,
       ...(normalizedMaxTokens !== undefined ? { maxTokens: normalizedMaxTokens } : {}),
       ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
       isUserDefined: source === 'user'
-    }
+    })
     const configData: IModelConfig = {
       id: modelId,
       providerId: providerId,

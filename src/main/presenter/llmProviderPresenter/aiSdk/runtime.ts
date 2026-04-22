@@ -9,6 +9,10 @@ import type {
   ModelConfig
 } from '@shared/presenter'
 import { ApiEndpointType } from '@shared/model'
+import {
+  applyMoonshotKimiReasoningTemperaturePolicy,
+  resolveMoonshotKimiTemperaturePolicy
+} from '@shared/moonshotKimiPolicy'
 import { presenter } from '@/presenter'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
@@ -150,6 +154,39 @@ function resolveRequestTimeout(modelConfig: ModelConfig): number | undefined {
   return Math.round(timeout)
 }
 
+function normalizeRuntimeModelConfig(
+  context: AiSdkRuntimeContext,
+  modelId: string,
+  modelConfig: ModelConfig
+): ModelConfig {
+  return applyMoonshotKimiReasoningTemperaturePolicy(context.provider.id, modelId, modelConfig)
+}
+
+function resolveRuntimeTemperature(
+  context: AiSdkRuntimeContext,
+  modelId: string,
+  modelConfig: ModelConfig,
+  requestedTemperature: number | undefined
+): { shouldSendTemperature: boolean; temperature: number | undefined } {
+  const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
+    context.provider.id,
+    modelId,
+    modelConfig.reasoning
+  )
+  if (fixedTemperatureKimi) {
+    return {
+      shouldSendTemperature: true,
+      temperature: fixedTemperatureKimi.temperature
+    }
+  }
+
+  return {
+    shouldSendTemperature:
+      supportsTemperatureControlRuntime(context, modelId) && requestedTemperature !== undefined,
+    temperature: requestedTemperature
+  }
+}
+
 async function buildPromptRuntime(
   context: AiSdkRuntimeContext,
   messages: ChatMessage[],
@@ -222,16 +259,24 @@ export async function runAiSdkGenerateText(
   temperature?: number,
   maxTokens?: number
 ): Promise<LLMResponse> {
-  const runtime = await buildPromptRuntime(context, messages, modelId, modelConfig, [])
-  const supportsTemperature = supportsTemperatureControlRuntime(context, modelId)
-  const timeout = resolveRequestTimeout(modelConfig)
+  const normalizedModelConfig = normalizeRuntimeModelConfig(context, modelId, modelConfig)
+  const runtime = await buildPromptRuntime(context, messages, modelId, normalizedModelConfig, [])
+  const { shouldSendTemperature, temperature: resolvedTemperature } = resolveRuntimeTemperature(
+    context,
+    modelId,
+    normalizedModelConfig,
+    temperature
+  )
+  const timeout = resolveRequestTimeout(normalizedModelConfig)
   const requestBody = {
     model: runtime.providerContext.resolvedModelId ?? modelId,
     maxOutputTokens: maxTokens,
-    ...(supportsTemperature && temperature !== undefined ? { temperature } : {})
+    ...(shouldSendTemperature && resolvedTemperature !== undefined
+      ? { temperature: resolvedTemperature }
+      : {})
   }
 
-  await context.emitRequestTrace?.(modelConfig, {
+  await context.emitRequestTrace?.(normalizedModelConfig, {
     endpoint: runtime.providerContext.endpoint,
     headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
     body: requestBody
@@ -242,7 +287,9 @@ export async function runAiSdkGenerateText(
     messages: runtime.messages,
     providerOptions: runtime.providerOptions as any,
     ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
-    ...(supportsTemperature && temperature !== undefined ? { temperature } : {}),
+    ...(shouldSendTemperature && resolvedTemperature !== undefined
+      ? { temperature: resolvedTemperature }
+      : {}),
     maxOutputTokens: maxTokens
   })
 
@@ -262,9 +309,10 @@ export async function* runAiSdkCoreStream(
   maxTokens: number,
   tools: MCPToolDefinition[]
 ): AsyncGenerator<LLMCoreStreamEvent> {
-  const timeout = resolveRequestTimeout(modelConfig)
+  const normalizedModelConfig = normalizeRuntimeModelConfig(context, modelId, modelConfig)
+  const timeout = resolveRequestTimeout(normalizedModelConfig)
 
-  if (shouldUseImageGenerationRuntime(context, modelId, modelConfig)) {
+  if (shouldUseImageGenerationRuntime(context, modelId, normalizedModelConfig)) {
     const prompt = extractImagePrompt(messages)
 
     const providerContext = createAiSdkProviderContext({
@@ -314,16 +362,23 @@ export async function* runAiSdkCoreStream(
     return
   }
 
-  const runtime = await buildPromptRuntime(context, messages, modelId, modelConfig, tools)
-  const supportsTemperature = supportsTemperatureControlRuntime(context, modelId)
+  const runtime = await buildPromptRuntime(context, messages, modelId, normalizedModelConfig, tools)
+  const { shouldSendTemperature, temperature: resolvedTemperature } = resolveRuntimeTemperature(
+    context,
+    modelId,
+    normalizedModelConfig,
+    temperature
+  )
   const requestBody = {
     model: runtime.providerContext.resolvedModelId ?? modelId,
     maxOutputTokens: maxTokens,
-    ...(supportsTemperature ? { temperature } : {}),
+    ...(shouldSendTemperature && resolvedTemperature !== undefined
+      ? { temperature: resolvedTemperature }
+      : {}),
     tools: tools.map((tool) => tool.function.name)
   }
 
-  await context.emitRequestTrace?.(modelConfig, {
+  await context.emitRequestTrace?.(normalizedModelConfig, {
     endpoint: runtime.providerContext.endpoint,
     headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
     body: requestBody
@@ -335,7 +390,9 @@ export async function* runAiSdkCoreStream(
     tools: runtime.tools,
     providerOptions: runtime.providerOptions as any,
     ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
-    ...(supportsTemperature ? { temperature } : {}),
+    ...(shouldSendTemperature && resolvedTemperature !== undefined
+      ? { temperature: resolvedTemperature }
+      : {}),
     maxOutputTokens: maxTokens
   })
 

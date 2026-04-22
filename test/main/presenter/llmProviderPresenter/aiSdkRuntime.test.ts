@@ -254,6 +254,76 @@ describe('AI SDK runtime', () => {
     expect(tracePayloads[0]?.body).toHaveProperty('temperature', 0.6)
   })
 
+  it('forces Moonshot Kimi temperature to 1.0 when reasoning is enabled', async () => {
+    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'moonshot',
+        apiType: 'openai-compatible'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+        tracePayloads.push(payload)
+      })
+    } as any
+
+    await runAiSdkGenerateText(
+      context,
+      [],
+      'moonshotai/kimi-k2.6',
+      {
+        apiEndpoint: 'chat',
+        reasoning: true
+      } as any,
+      0.6,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).toHaveProperty('temperature', 1)
+    expect(tracePayloads[0]?.body).toHaveProperty('temperature', 1)
+  })
+
+  it('forces Moonshot Kimi temperature to 0.6 when reasoning is disabled', async () => {
+    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'moonshot',
+        apiType: 'openai-compatible'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+        tracePayloads.push(payload)
+      })
+    } as any
+
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      context,
+      [],
+      'moonshotai/kimi-k2.6',
+      {
+        apiEndpoint: 'chat',
+        reasoning: false,
+        functionCall: false
+      } as any,
+      1,
+      2048,
+      []
+    )) {
+      events.push(event)
+    }
+
+    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).toHaveProperty('temperature', 0.6)
+    expect(tracePayloads[0]?.body).toHaveProperty('temperature', 0.6)
+    expect(events).toEqual([])
+  })
+
   it('passes anthropic adaptive reasoning options through runtime context for zenmux routes', async () => {
     mockCreateAiSdkProviderContext.mockReturnValue({
       providerOptionsKey: 'anthropic',

@@ -43,6 +43,70 @@ describe('AI SDK provider options', () => {
     mockSupportsReasoning.mockReturnValue(false)
   })
 
+  it('maps Moonshot Kimi thinking state through providerOptions even when temperature is fixed', () => {
+    const enabled = buildProviderOptions({
+      providerId: 'moonshot',
+      capabilityProviderId: 'moonshot',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'moonshotai/kimi-k2.6',
+      modelConfig: {
+        reasoning: true,
+        temperature: 0.6
+      } as any,
+      tools: [],
+      messages: []
+    })
+
+    expect(enabled.providerOptions?.openai).toMatchObject({
+      thinking: {
+        type: 'enabled'
+      }
+    })
+
+    const disabled = buildProviderOptions({
+      providerId: 'moonshot',
+      capabilityProviderId: 'moonshot',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'moonshotai/kimi-k2.6',
+      modelConfig: {
+        reasoning: false,
+        temperature: 1
+      } as any,
+      tools: [],
+      messages: []
+    })
+
+    expect(disabled.providerOptions?.openai).toMatchObject({
+      thinking: {
+        type: 'disabled'
+      }
+    })
+  })
+
+  it('maps Kimi thinking state for transport-compatible proxy providers as well', () => {
+    const result = buildProviderOptions({
+      providerId: 'new-api',
+      capabilityProviderId: 'new-api',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'kimi-k2.6',
+      modelConfig: {
+        reasoning: true,
+        temperature: 1.4
+      } as any,
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.openai).toMatchObject({
+      thinking: {
+        type: 'enabled'
+      }
+    })
+  })
+
   it('maps official anthropic adaptive reasoning controls when enabled', () => {
     mockGetReasoningPortrait.mockReturnValue({
       supported: true,

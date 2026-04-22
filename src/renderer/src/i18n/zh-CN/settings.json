@@ -480,7 +480,8 @@
       },
       "temperature": {
         "label": "温度",
-        "description": "控制输出的随机性，大部分模型0-1，部分支持0-2之间，越高越随机"
+        "description": "控制输出的随机性，大部分模型0-1，部分支持0-2之间，越高越随机",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在开启思考时固定为 {enabled}，关闭思考时固定为 {disabled}。"
       },
       "vision": {
         "label": "视觉能力",

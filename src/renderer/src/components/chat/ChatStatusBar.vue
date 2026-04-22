@@ -273,7 +273,9 @@
                               label: t('chat.advancedSettings.temperature')
                             })
                           "
-                          :disabled="hasNumericInputError('temperature')"
+                          :disabled="
+                            isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
+                          "
                           @click="stepTemperature(-1)"
                         >
                           <Icon icon="lucide:minus" class="h-3 w-3" />
@@ -286,6 +288,7 @@
                           data-setting-control="temperature"
                           type="number"
                           :step="TEMPERATURE_STEP"
+                          :disabled="isMoonshotKimiTemperatureLocked"
                           :aria-invalid="hasNumericInputError('temperature')"
                           :model-value="temperatureInputValue"
                           @focus="startNumericInputEdit('temperature')"
@@ -304,12 +307,20 @@
                               label: t('chat.advancedSettings.temperature')
                             })
                           "
-                          :disabled="hasNumericInputError('temperature')"
+                          :disabled="
+                            isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
+                          "
                           @click="stepTemperature(1)"
                         >
                           <Icon icon="lucide:plus" class="h-3 w-3" />
                         </Button>
                       </div>
+                      <p
+                        v-if="moonshotKimiTemperatureHint"
+                        class="text-[11px] text-muted-foreground"
+                      >
+                        {{ moonshotKimiTemperatureHint }}
+                      </p>
                       <p
                         v-if="getNumericInputErrorMessage('temperature')"
                         class="text-[11px] text-destructive"
@@ -882,6 +893,12 @@ import {
   resolveProviderCapabilityProviderId
 } from '@shared/model'
 import {
+  MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE,
+  MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE,
+  getMoonshotKimiTemperaturePolicy,
+  resolveMoonshotKimiTemperaturePolicy
+} from '@shared/moonshotKimiPolicy'
+import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
   getReasoningEffectiveEnabledForProvider,
@@ -1133,6 +1150,24 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
   }
   return draftModelSelection.value
 })
+
+const moonshotKimiTemperaturePolicy = computed(() =>
+  getMoonshotKimiTemperaturePolicy(
+    effectiveModelSelection.value?.providerId,
+    effectiveModelSelection.value?.modelId
+  )
+)
+const isMoonshotKimiTemperatureLocked = computed(
+  () => moonshotKimiTemperaturePolicy.value?.lockTemperatureControl === true
+)
+const moonshotKimiTemperatureHint = computed(() =>
+  isMoonshotKimiTemperatureLocked.value
+    ? t('chat.advancedSettings.temperatureFixedMoonshotKimi', {
+        enabled: MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE.toFixed(1),
+        disabled: MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE.toFixed(1)
+      })
+    : ''
+)
 
 const canSelectPermissionMode = computed(() => !isAcpAgent.value)
 const showSubagentToggle = computed(() => {
@@ -1795,7 +1830,9 @@ const showThinkingBudget = computed(() => {
 })
 
 const showTemperatureControl = computed(
-  () => capabilitySupportsTemperature.value !== false && Boolean(localSettings.value)
+  () =>
+    (capabilitySupportsTemperature.value !== false || isMoonshotKimiTemperatureLocked.value) &&
+    Boolean(localSettings.value)
 )
 
 const showVerbosity = computed(
@@ -2082,6 +2119,11 @@ const resolveDefaultGenerationSettings = async (
     modelId,
     modelConfig.endpointType
   )
+  const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
+    providerId,
+    modelId,
+    modelConfig.reasoning
+  )
   const portrait = capabilities.reasoningPortrait ?? null
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
@@ -2090,7 +2132,8 @@ const resolveDefaultGenerationSettings = async (
 
   const defaults: SessionGenerationSettings = {
     systemPrompt: agentConfig.systemPrompt ?? '',
-    temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+    temperature:
+      fixedTemperatureKimi?.temperature ?? parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
     contextLength: contextLengthDefault,
     timeout:
       timeoutDefault >= TIMEOUT_MIN && timeoutDefault <= TIMEOUT_MAX
@@ -2243,42 +2286,47 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   generationSyncToken += 1
   generationLocalRevision += 1
 
+  const nextPatch = { ...patch }
+  if (isMoonshotKimiTemperatureLocked.value) {
+    delete nextPatch.temperature
+  }
+
   const next: SessionGenerationSettings = {
     ...localSettings.value,
-    ...patch
+    ...nextPatch
   }
 
   localSettings.value = next
 
   const normalizedPatch: Partial<SessionGenerationSettings> = {}
-  if (Object.prototype.hasOwnProperty.call(patch, 'systemPrompt')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'systemPrompt')) {
     normalizedPatch.systemPrompt = next.systemPrompt
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'temperature')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'temperature')) {
     normalizedPatch.temperature = next.temperature
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'contextLength')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'contextLength')) {
     normalizedPatch.contextLength = next.contextLength
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'maxTokens')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'maxTokens')) {
     normalizedPatch.maxTokens = next.maxTokens
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'timeout')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'timeout')) {
     normalizedPatch.timeout = next.timeout
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'thinkingBudget')) {
     normalizedPatch.thinkingBudget = next.thinkingBudget
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'reasoningEffort')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'reasoningEffort')) {
     normalizedPatch.reasoningEffort = next.reasoningEffort
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'reasoningVisibility')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'reasoningVisibility')) {
     normalizedPatch.reasoningVisibility = next.reasoningVisibility
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'verbosity')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'verbosity')) {
     normalizedPatch.verbosity = next.verbosity
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'forceInterleavedThinkingCompat')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'forceInterleavedThinkingCompat')) {
     normalizedPatch.forceInterleavedThinkingCompat = next.forceInterleavedThinkingCompat
   }
 
@@ -2855,6 +2903,9 @@ function stepTemperature(direction: -1 | 1) {
   if (!localSettings.value) {
     return
   }
+  if (isMoonshotKimiTemperatureLocked.value) {
+    return
+  }
   if (hasNumericInputError('temperature')) {
     return
   }
@@ -2866,10 +2917,17 @@ function stepTemperature(direction: -1 | 1) {
 }
 
 function onTemperatureInput(value: string | number) {
+  if (isMoonshotKimiTemperatureLocked.value) {
+    return
+  }
   setNumericInputDraft('temperature', value)
 }
 
 function commitTemperatureInput() {
+  if (isMoonshotKimiTemperatureLocked.value) {
+    resetNumericInputFieldState('temperature')
+    return
+  }
   const next = commitNumericField('temperature', numericInputDrafts.value.temperature)
   if (next === undefined) {
     return
