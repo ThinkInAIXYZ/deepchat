@@ -101,7 +101,7 @@ const initializeRouteFromFallbackState = async () => {
 onMounted(async () => {
   startupWorkloadStore?.connect()
   console.info('[Startup][Renderer] ChatTabView critical hydration begin')
-  let shouldRefreshAgentsInDeferred = true
+  let criticalLoadPromises: Promise<void> | null = null
 
   try {
     const startupClient = createStartupClient()
@@ -120,31 +120,38 @@ onMounted(async () => {
     await pageRouter.initialize({
       activeSessionId: bootstrap.activeSessionId
     })
+
+    // Start loading agents, projects, models, and ollama immediately after router init
+    // Don't block on them, they load in background while we mark interactive
+    criticalLoadPromises = Promise.allSettled([
+      agentStore.fetchAgents(),
+      projectStore.fetchProjects(),
+      modelStore.initialize(),
+      ollamaStore.initialize()
+    ]).then(() => {
+      console.info('[Startup][Renderer] ChatTabView critical loads complete')
+    })
   } catch (error) {
     console.warn('[Startup][Renderer] ChatTabView critical hydration failed:', error)
     await Promise.allSettled([agentStore.fetchAgents(), projectStore.loadDefaultProjectPath()])
-    shouldRefreshAgentsInDeferred = false
     await initializeRouteFromFallbackState()
   } finally {
     isReady.value = true
     console.info('[Startup][Renderer] ChatTabView interactive ready')
 
-    console.info('[Startup][Renderer] startup.session.first-page.begin')
-    await sessionStore.fetchSessions()
-    const sessionCount = Array.isArray((sessionStore as { sessions?: unknown[] }).sessions)
-      ? sessionStore.sessions.length
-      : 0
-    console.info(`[Startup][Renderer] startup.session.first-page.ready count=${sessionCount}`)
+    // Session data is already loading in parallel from App.vue.onMounted
+    // Don't block on it here - let it load in background
+    if (!sessionStore.hasLoadedInitialPage) {
+      void sessionStore.fetchSessions()
+    }
 
     markStartupInteractive()
     cancelDeferredHydration = scheduleStartupDeferredTask(async () => {
       console.info('[Startup][Renderer] ChatTabView deferred hydration begin')
-      await Promise.allSettled([
-        shouldRefreshAgentsInDeferred ? agentStore.fetchAgents() : Promise.resolve(),
-        projectStore.fetchProjects(),
-        modelStore.initialize(),
-        ollamaStore.initialize()
-      ])
+      // Wait for critical loads if they're still running
+      if (criticalLoadPromises) {
+        await criticalLoadPromises
+      }
       console.info('[Startup][Renderer] ChatTabView deferred hydration complete')
     })
   }
