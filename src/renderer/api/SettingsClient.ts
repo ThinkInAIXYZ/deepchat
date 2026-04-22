@@ -17,6 +17,29 @@ import {
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 
+const normalizeSettingsNavigationPayload = (
+  navigation?: SettingsNavigationPayload
+): SettingsNavigationPayload | undefined => {
+  if (!navigation) {
+    return undefined
+  }
+
+  const params = navigation.params
+    ? Object.entries(navigation.params).reduce<Record<string, string>>((acc, [key, value]) => {
+        if (typeof value === 'string') {
+          acc[key] = value
+        }
+        return acc
+      }, {})
+    : undefined
+
+  return {
+    routeName: navigation.routeName,
+    params: params && Object.keys(params).length > 0 ? params : undefined,
+    section: navigation.section
+  }
+}
+
 export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function getSnapshot(keys?: SettingsKey[]): Promise<Partial<SettingsSnapshotValues>> {
     const result = await bridge.invoke(settingsGetSnapshotRoute.name, { keys })
@@ -54,7 +77,10 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
   }
 
   async function openSettings(navigation?: SettingsNavigationPayload) {
-    return await bridge.invoke(systemOpenSettingsRoute.name, navigation ?? {})
+    return await bridge.invoke(
+      systemOpenSettingsRoute.name,
+      normalizeSettingsNavigationPayload(navigation) ?? {}
+    )
   }
 
   function onChanged(
