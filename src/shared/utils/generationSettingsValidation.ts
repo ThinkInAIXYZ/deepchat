@@ -1,3 +1,4 @@
+import { MODEL_TIMEOUT_MAX_MS, MODEL_TIMEOUT_MIN_MS } from '../modelConfigDefaults'
 import type { SessionGenerationSettings } from '../types/agent-interface'
 
 export type GenerationNumericField =
@@ -14,9 +15,6 @@ export type GenerationNumericValidationCode =
   | 'max_tokens_exceed_context_length'
   | 'timeout_too_small'
   | 'timeout_too_large'
-
-const TIMEOUT_MIN = 1000
-const TIMEOUT_MAX = 600000
 
 type GenerationRelationContext = Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'>
 
@@ -79,10 +77,10 @@ export const validateGenerationNumericField = (
   }
 
   if (field === 'timeout') {
-    if (numeric < TIMEOUT_MIN) {
+    if (numeric < MODEL_TIMEOUT_MIN_MS) {
       return 'timeout_too_small'
     }
-    if (numeric > TIMEOUT_MAX) {
+    if (numeric > MODEL_TIMEOUT_MAX_MS) {
       return 'timeout_too_large'
     }
   }

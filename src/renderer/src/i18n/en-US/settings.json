@@ -565,7 +565,7 @@
         "temperatureMin": "The temperature must be greater than or equal to 0",
         "temperatureRequired": "The temperature cannot be empty",
         "timeoutMin": "Request timeout must be at least 1000ms",
-        "timeoutMax": "Request timeout cannot exceed 600000ms"
+        "timeoutMax": "Request timeout cannot exceed 3600000ms"
       },
       "vision": {
         "description": "Does the model support visual ability?",

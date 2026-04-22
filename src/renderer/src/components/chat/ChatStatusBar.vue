@@ -917,7 +917,11 @@ import {
   type GenerationNumericValidationCode,
   validateGenerationNumericField
 } from '@shared/utils/generationSettingsValidation'
-import { DEFAULT_MODEL_TIMEOUT } from '@shared/modelConfigDefaults'
+import {
+  DEFAULT_MODEL_TIMEOUT,
+  MODEL_TIMEOUT_MAX_MS,
+  MODEL_TIMEOUT_MIN_MS
+} from '@shared/modelConfigDefaults'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { createConfigClient } from '@api/ConfigClient'
@@ -966,8 +970,8 @@ const TEMPERATURE_STEP = 0.1
 const CONTEXT_LENGTH_STEP = 1024
 const MAX_TOKENS_STEP = 128
 const TIMEOUT_STEP = 1000
-const TIMEOUT_MIN = 1000
-const TIMEOUT_MAX = 600000
+const TIMEOUT_MIN = MODEL_TIMEOUT_MIN_MS
+const TIMEOUT_MAX = MODEL_TIMEOUT_MAX_MS
 const THINKING_BUDGET_STEP = 128
 const ACP_INLINE_OPTION_LIMIT = 3
 const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [

@@ -577,7 +577,7 @@
         "temperatureMin": "温度必须大于等于0",
         "temperatureMax": "温度必须小于等于2",
         "timeoutMin": "请求超时时间不能小于1000毫秒",
-        "timeoutMax": "请求超时时间不能超过600000毫秒"
+        "timeoutMax": "请求超时时间不能超过3600000毫秒"
       },
       "endpointType": {
         "label": "协议类型",

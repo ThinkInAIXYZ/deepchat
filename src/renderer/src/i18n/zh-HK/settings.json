@@ -503,7 +503,7 @@
         "temperatureMin": "溫度必須大於等於0",
         "temperatureRequired": "溫度不能為空",
         "timeoutMin": "請求逾時時間不能小於1000毫秒",
-        "timeoutMax": "請求逾時時間不能超過600000毫秒"
+        "timeoutMax": "請求逾時時間不能超過3600000毫秒"
       },
       "vision": {
         "description": "模型是否支持視覺能力",

@@ -105,8 +105,8 @@
               v-model.number="config.timeout"
               type="number"
               step="1000"
-              :min="1000"
-              :max="600000"
+              :min="MODEL_TIMEOUT_MIN_MS"
+              :max="MODEL_TIMEOUT_MAX_MS"
               :placeholder="t('settings.model.modelConfig.timeout.label')"
               :class="{ 'border-destructive': errors.timeout }"
             />
@@ -496,7 +496,9 @@ import {
   DEFAULT_MODEL_FUNCTION_CALL,
   DEFAULT_MODEL_MAX_TOKENS,
   DEFAULT_MODEL_TIMEOUT,
-  DEFAULT_MODEL_VISION
+  DEFAULT_MODEL_VISION,
+  MODEL_TIMEOUT_MAX_MS,
+  MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -1136,9 +1138,9 @@ const validateForm = () => {
 
   if (config.value.timeout !== undefined && config.value.timeout !== null) {
     const timeout = Number(config.value.timeout)
-    if (!Number.isFinite(timeout) || timeout < 1000) {
+    if (!Number.isFinite(timeout) || timeout < MODEL_TIMEOUT_MIN_MS) {
       errors.value.timeout = t('settings.model.modelConfig.validation.timeoutMin')
-    } else if (timeout > 600000) {
+    } else if (timeout > MODEL_TIMEOUT_MAX_MS) {
       errors.value.timeout = t('settings.model.modelConfig.validation.timeoutMax')
     }
   }
