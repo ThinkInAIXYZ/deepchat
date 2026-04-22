@@ -28,7 +28,6 @@ type SessionBrowserState = {
   visible: boolean
   attachedWindowId: number | null
   lastBounds: Rectangle | null
-  hostReady: boolean
 }
 
 type HostWindowListeners = {
@@ -38,25 +37,13 @@ type HostWindowListeners = {
   closed: () => void
 }
 
-type HostReadyWaiter = {
-  sessionId: string
-  hostWindowId: number
-  timeoutId: NodeJS.Timeout
-  stableTimerId: NodeJS.Timeout | null
-  resolve: () => void
-  reject: (error: Error) => void
-}
-
 export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly sessionBrowsers = new Map<string, SessionBrowserState>()
   private readonly hostWindowListeners = new Map<number, HostWindowListeners>()
-  private readonly hostReadyWaiters = new Map<string, HostReadyWaiter>()
   private readonly cdpManager = new CDPManager()
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
   private readonly downloadManager = new DownloadManager()
   private readonly windowPresenter: IWindowPresenter
-  private readonly embeddedHostReadyTimeoutMs = 5000
-  private readonly embeddedHostReadyStableMs = 120
   readonly toolHandler: YoBrowserToolHandler
 
   constructor(windowPresenter: IWindowPresenter) {
@@ -92,7 +79,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     const state = this.ensureSessionBrowserState(normalizedSessionId)
-    this.markHostNotReady(state)
     this.logLifecycle('open requested', {
       sessionId: normalizedSessionId,
       windowId: resolvedHostWindowId,
@@ -100,9 +86,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     })
 
     this.emitOpenRequested(normalizedSessionId, resolvedHostWindowId, url)
-    this.windowPresenter.show(resolvedHostWindowId, true)
-
-    await this.waitForSessionHostReady(normalizedSessionId, resolvedHostWindowId, state)
     await state.page.navigateUntilDomReady(url, timeoutMs ?? 30000)
     state.updatedAt = Date.now()
     this.emitWindowUpdated(normalizedSessionId)
@@ -127,7 +110,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     if (state.attachedWindowId !== hostWindowId) {
-      this.markHostNotReady(state)
       try {
         hostWindow.contentView.addChildView(state.view)
       } catch {
@@ -163,7 +145,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     state.updatedAt = Date.now()
 
     if (!visible || normalizedBounds.width <= 0 || normalizedBounds.height <= 0) {
-      this.markHostNotReady(state)
       this.setSessionVisibility(state, false)
       return
     }
@@ -177,7 +158,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
     state.view.setBounds(normalizedBounds)
     this.setSessionVisibility(state, true)
-    this.scheduleSessionHostReady(sessionId, hostWindowId, normalizedBounds)
   }
 
   async detachSessionBrowser(sessionId: string): Promise<void> {
@@ -187,7 +167,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     this.detachFromWindow(state, state.attachedWindowId)
-    this.markHostNotReady(state)
     state.updatedAt = Date.now()
     this.setSessionVisibility(state, false)
   }
@@ -198,10 +177,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return
     }
 
-    this.resolveOrRejectHostReadyWait(
-      sessionId,
-      new Error(`Session browser ${sessionId} was destroyed before it became ready`)
-    )
     await this.detachSessionBrowser(sessionId)
     state.page.destroy()
     this.sessionBrowsers.delete(sessionId)
@@ -353,8 +328,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       updatedAt: now,
       visible: false,
       attachedWindowId: null,
-      lastBounds: null,
-      hostReady: false
+      lastBounds: null
     }
 
     this.sessionBrowsers.set(sessionId, state)
@@ -460,14 +434,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return
     }
 
-    this.resolveOrRejectHostReadyWait(
-      sessionId,
-      new Error(`Session browser ${sessionId} was destroyed before it became ready`)
-    )
     state.page.destroy()
     state.attachedWindowId = null
     state.visible = false
-    state.hostReady = false
     this.sessionBrowsers.delete(sessionId)
     this.emitWindowClosed(sessionId)
     this.emitWindowCount()
@@ -513,7 +482,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       const state = this.findAttachedStateByWindowId(windowId)
       if (state) {
         state.attachedWindowId = null
-        state.hostReady = false
         this.setSessionVisibility(state, false)
       }
       this.detachHostWindowListeners(windowId)
@@ -550,7 +518,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       }
 
       this.detachFromWindow(state, hostWindowId)
-      this.markHostNotReady(state)
       this.setSessionVisibility(state, false)
       state.updatedAt = Date.now()
       this.emitWindowUpdated(state.sessionId)
@@ -609,120 +576,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     return firstWindow && !firstWindow.isDestroyed() ? firstWindow.id : null
   }
 
-  private async waitForSessionHostReady(
-    sessionId: string,
-    hostWindowId: number,
-    state: SessionBrowserState
-  ): Promise<void> {
-    if (
-      state.hostReady &&
-      state.attachedWindowId === hostWindowId &&
-      state.visible &&
-      state.lastBounds &&
-      state.lastBounds.width > 0 &&
-      state.lastBounds.height > 0
-    ) {
-      return
-    }
-
-    this.resolveOrRejectHostReadyWait(
-      sessionId,
-      new Error(
-        `Session browser host wait was interrupted before host ${hostWindowId} became ready`
-      )
-    )
-
-    await new Promise<void>((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        const error = new Error(
-          `Session browser host ${hostWindowId} did not become ready within ${this.embeddedHostReadyTimeoutMs}ms`
-        )
-        this.resolveOrRejectHostReadyWait(sessionId, error)
-      }, this.embeddedHostReadyTimeoutMs)
-
-      this.hostReadyWaiters.set(sessionId, {
-        sessionId,
-        hostWindowId,
-        timeoutId,
-        stableTimerId: null,
-        resolve,
-        reject
-      })
-    })
-  }
-
-  private scheduleSessionHostReady(
-    sessionId: string,
-    hostWindowId: number,
-    bounds: Rectangle
-  ): void {
-    const state = this.sessionBrowsers.get(sessionId)
-    const waiter = this.hostReadyWaiters.get(sessionId)
-    if (!state || !waiter || waiter.hostWindowId !== hostWindowId) {
-      return
-    }
-
-    if (waiter.stableTimerId) {
-      clearTimeout(waiter.stableTimerId)
-      waiter.stableTimerId = null
-    }
-
-    const expectedBoundsKey = this.boundsKey(bounds)
-    waiter.stableTimerId = setTimeout(() => {
-      const currentState = this.sessionBrowsers.get(sessionId)
-      const currentWaiter = this.hostReadyWaiters.get(sessionId)
-      if (
-        !currentState ||
-        !currentWaiter ||
-        currentWaiter !== waiter ||
-        currentWaiter.hostWindowId !== hostWindowId ||
-        currentState.attachedWindowId !== hostWindowId ||
-        !currentState.visible ||
-        this.boundsKey(currentState.lastBounds) !== expectedBoundsKey
-      ) {
-        return
-      }
-
-      currentState.hostReady = true
-      this.logLifecycle('host ready', {
-        sessionId,
-        windowId: hostWindowId,
-        pageId: currentState.page.pageId,
-        url: currentState.page.url
-      })
-      this.resolveOrRejectHostReadyWait(sessionId)
-    }, this.embeddedHostReadyStableMs)
-  }
-
-  private markHostNotReady(state: SessionBrowserState): void {
-    state.hostReady = false
-    const waiter = this.hostReadyWaiters.get(state.sessionId)
-    if (waiter?.stableTimerId) {
-      clearTimeout(waiter.stableTimerId)
-      waiter.stableTimerId = null
-    }
-  }
-
-  private resolveOrRejectHostReadyWait(sessionId: string, error?: Error): void {
-    const waiter = this.hostReadyWaiters.get(sessionId)
-    if (!waiter) {
-      return
-    }
-
-    clearTimeout(waiter.timeoutId)
-    if (waiter.stableTimerId) {
-      clearTimeout(waiter.stableTimerId)
-    }
-    this.hostReadyWaiters.delete(sessionId)
-
-    if (error) {
-      waiter.reject(error)
-      return
-    }
-
-    waiter.resolve()
-  }
-
   private toStatus(state: SessionBrowserState | null): YoBrowserStatus {
     if (!state || state.page.contents.isDestroyed()) {
       return {
@@ -760,13 +613,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       width: Math.max(0, Math.round(bounds.width)),
       height: Math.max(0, Math.round(bounds.height))
     }
-  }
-
-  private boundsKey(bounds?: Rectangle | null): string {
-    if (!bounds) {
-      return 'null'
-    }
-    return `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
   }
 
   private logLifecycle(message: string, context: Record<string, unknown>): void {
