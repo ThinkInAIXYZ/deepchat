@@ -1,5 +1,112 @@
 import { vi, beforeEach, afterEach } from 'vitest'
 
+type DeepchatPayload = Record<string, unknown> | undefined
+
+function getDefaultDeepchatInvokeResult(
+  routeName: string,
+  payload: DeepchatPayload = {}
+): Record<string, unknown> {
+  switch (routeName) {
+    case 'browser.getStatus':
+    case 'browser.loadUrl':
+    case 'browser.goBack':
+    case 'browser.goForward':
+    case 'browser.reload':
+      return { status: null }
+    case 'browser.attachCurrentWindow':
+      return { attached: true }
+    case 'browser.updateCurrentWindowBounds':
+      return { updated: true }
+    case 'browser.detach':
+      return { detached: true }
+    case 'browser.destroy':
+      return { destroyed: true }
+    case 'workspace.readDirectory':
+    case 'workspace.expandDirectory':
+    case 'workspace.searchFiles':
+      return { nodes: [] }
+    case 'workspace.readFilePreview':
+      return { preview: null }
+    case 'workspace.resolveMarkdownLinkedFile':
+      return { resolution: null }
+    case 'workspace.getGitStatus':
+      return { state: null }
+    case 'workspace.getGitDiff':
+      return { diff: '' }
+    case 'file.getMimeType':
+      return { mimeType: 'text/plain' }
+    case 'file.prepareFile':
+    case 'file.prepareDirectory':
+      return {
+        file: {
+          path: typeof payload?.path === 'string' ? payload.path : '',
+          name: 'mock-file'
+        }
+      }
+    case 'file.readFile':
+      return { content: '' }
+    case 'file.isDirectory':
+      return { isDirectory: false }
+    case 'file.writeImageBase64':
+      return { path: '/tmp/mock-image.png' }
+    case 'device.getInfo':
+      return {
+        info: {
+          platform: 'darwin',
+          arch: 'arm64',
+          version: '14.0.0'
+        }
+      }
+    case 'device.getAppVersion':
+      return { version: '1.0.0-test' }
+    case 'device.selectDirectory':
+      return { canceled: true, filePaths: [] }
+    case 'device.restartApp':
+      return { restarted: true }
+    case 'device.sanitizeSvg':
+      return {
+        content: typeof payload?.svgContent === 'string' ? payload.svgContent : ''
+      }
+    default:
+      return {}
+  }
+}
+
+function installRendererTestGlobals(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  ;(window as any).electron = {
+    ipcRenderer: {
+      invoke: vi.fn(),
+      on: vi.fn(),
+      removeAllListeners: vi.fn(),
+      removeListener: vi.fn(),
+      send: vi.fn()
+    }
+  }
+
+  ;(window as any).api = {
+    copyImage: vi.fn(),
+    copyText: vi.fn(),
+    formatPathForInput: vi.fn((value: string) => value),
+    getPathForFile: vi.fn(() => ''),
+    getWebContentsId: vi.fn(() => 1),
+    getWindowId: vi.fn(() => 1),
+    openExternal: vi.fn(),
+    readClipboardText: vi.fn(() => ''),
+    toRelativePath: vi.fn((filePath: string) => filePath)
+  }
+
+  ;(window as any).deepchat = {
+    invoke: vi.fn((routeName: string, payload?: Record<string, unknown>) =>
+      Promise.resolve(getDefaultDeepchatInvokeResult(routeName, payload))
+    ),
+    on: vi.fn(() => vi.fn())
+  }
+}
+
 // Mock Electron modules for testing
 vi.mock('electron', () => ({
   app: {
@@ -77,10 +184,13 @@ vi.mock('path', async () => {
   }
 })
 
+installRendererTestGlobals()
+
 // Global test setup
 beforeEach(() => {
   // Clear all mocks before each test
   vi.clearAllMocks()
+  installRendererTestGlobals()
 })
 
 afterEach(() => {

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
 
 describe('sessionPaths offload path sanitization', () => {
-  const homeDir = path.join('C:', 'Users', 'tester')
+  const homeDir = path.join('/Users', 'tester')
 
   afterEach(() => {
     vi.restoreAllMocks()

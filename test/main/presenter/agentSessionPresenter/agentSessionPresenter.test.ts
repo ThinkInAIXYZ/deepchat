@@ -1168,7 +1168,7 @@ describe('AgentSessionPresenter', () => {
       expect(session.modelId).toBe('acp-reviewer')
     })
 
-    it('refreshes the session list only after a child is fully materialized and after failed cleanup', async () => {
+    it('refreshes the session list only after a child is fully materialized', async () => {
       const nanoidMock = nanoid as unknown as ReturnType<typeof vi.fn>
       nanoidMock.mockReturnValueOnce('child-session-1').mockReturnValueOnce('child-session-2')
 
@@ -1227,7 +1227,7 @@ describe('AgentSessionPresenter', () => {
       expect(deepChatAgent.destroySession).toHaveBeenCalledTimes(1)
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('child-session-1')
       expect(session.id).toBe('child-session-2')
-      expect(sessionSnapshots).toEqual([[], ['child-session-2']])
+      expect(sessionSnapshots).toEqual([['child-session-2']])
     })
   })
 

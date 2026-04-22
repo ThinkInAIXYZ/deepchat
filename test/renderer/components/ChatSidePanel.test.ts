@@ -6,7 +6,7 @@ describe('ChatSidePanel', () => {
   it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {
     vi.resetModules()
 
-    const handlers = new Map<string, (_event: unknown, payload: unknown) => void>()
+    const handlers = new Map<string, (payload: unknown) => void>()
     const sidepanelStore = {
       open: false,
       activeTab: 'workspace',
@@ -44,13 +44,12 @@ describe('ChatSidePanel', () => {
       ...(window as any).api,
       getWindowId: vi.fn(() => 7)
     }
-    ;(window as any).electron = {
-      ipcRenderer: {
-        on: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => void) => {
-          handlers.set(channel, handler)
-        }),
-        removeListener: vi.fn()
-      }
+    ;(window as any).deepchat = {
+      ...(window as any).deepchat,
+      on: vi.fn((eventName: string, handler: (payload: unknown) => void) => {
+        handlers.set(eventName, handler)
+        return vi.fn()
+      })
     }
 
     const ChatSidePanel = (await import('@/components/sidepanel/ChatSidePanel.vue')).default
@@ -73,10 +72,15 @@ describe('ChatSidePanel', () => {
     })
 
     await flushPromises()
-    const handler = handlers.get('yo-browser:open-requested')
+    const handler = handlers.get('browser.open.requested')
     expect(handler).toBeTypeOf('function')
 
-    handler?.({}, { windowId: 7, sessionId: 'session-1' })
+    handler?.({
+      windowId: 7,
+      sessionId: 'session-1',
+      url: 'https://example.com',
+      version: Date.now()
+    })
 
     expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
   })
