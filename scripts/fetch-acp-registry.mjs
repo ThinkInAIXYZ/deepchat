@@ -9,11 +9,18 @@ const ICON_TMP_DIR = path.join(OUTPUT_DIR, '.icons-tmp')
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 const SAFE_ICON_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 
+const getCacheableIconAgents = (parsed) =>
+  Array.isArray(parsed.agents)
+    ? parsed.agents.filter((agent) => agent?.id && isCacheableRegistryIcon(agent.icon))
+    : []
+
 const hasLocalSnapshot = async () => {
   try {
-    await fs.access(OUTPUT_PATH)
-    await fs.access(ICON_OUTPUT_DIR)
-    return true
+    const parsed = JSON.parse(await fs.readFile(OUTPUT_PATH, 'utf-8'))
+    const expectedIcons = getCacheableIconAgents(parsed).map((agent) => `${sanitizeAgentId(agent.id)}.svg`)
+    const localIcons = new Set(await fs.readdir(ICON_OUTPUT_DIR))
+
+    return expectedIcons.every((iconName) => localIcons.has(iconName))
   } catch {
     return false
   }
@@ -39,11 +46,8 @@ const writeManifest = async (parsed) => {
   await fs.rename(tmpPath, OUTPUT_PATH)
 }
 
-const downloadIcons = async (parsed) => {
-  const iconAgents = Array.isArray(parsed.agents)
-    ? parsed.agents.filter((agent) => agent?.id && isCacheableRegistryIcon(agent.icon))
-    : []
-
+const stageIcons = async (parsed) => {
+  const iconAgents = getCacheableIconAgents(parsed)
   await fs.rm(ICON_TMP_DIR, { recursive: true, force: true })
   await fs.mkdir(ICON_TMP_DIR, { recursive: true })
 
@@ -60,10 +64,12 @@ const downloadIcons = async (parsed) => {
     })
   )
 
+  return iconAgents.length
+}
+
+const commitStagedIcons = async () => {
   await fs.rm(ICON_OUTPUT_DIR, { recursive: true, force: true })
   await fs.rename(ICON_TMP_DIR, ICON_OUTPUT_DIR)
-
-  return iconAgents.length
 }
 
 const main = async () => {
@@ -75,14 +81,16 @@ const main = async () => {
   const text = await response.text()
   const parsed = JSON.parse(text)
 
+  const iconCount = await stageIcons(parsed)
   await writeManifest(parsed)
-  const iconCount = await downloadIcons(parsed)
+  await commitStagedIcons()
 
   console.log(`[fetch-acp-registry] wrote ${OUTPUT_PATH}`)
   console.log(`[fetch-acp-registry] wrote ${iconCount} icons to ${ICON_OUTPUT_DIR}`)
 }
 
 main().catch((error) => {
+  fs.rm(ICON_TMP_DIR, { recursive: true, force: true }).catch(() => undefined)
   hasLocalSnapshot()
     .then((cached) => {
       if (cached) {

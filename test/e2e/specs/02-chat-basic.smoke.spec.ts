@@ -8,7 +8,12 @@ import {
   selectModel,
   sendMessage
 } from '../helpers/chat'
-import { createExactReplyPrompt, createSmokeToken, E2E_TARGET_MODEL_ID } from '../helpers/testData'
+import {
+  createExactReplyPrompt,
+  createSmokeToken,
+  E2E_TARGET_MODEL_ID,
+  E2E_TARGET_PROVIDER_ID
+} from '../helpers/testData'
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 test('基础聊天流程 @smoke', async ({ app }, testInfo) => {
@@ -18,7 +23,7 @@ test('基础聊天流程 @smoke', async ({ app }, testInfo) => {
   await waitForAppReady(app.page)
   await selectAgent(app.page)
   await createNewChat(app.page)
-  await selectModel(app.page, E2E_TARGET_MODEL_ID)
+  await selectModel(app.page, E2E_TARGET_MODEL_ID, E2E_TARGET_PROVIDER_ID)
 
   await sendMessage(app.page, createExactReplyPrompt(firstReplyToken))
   await waitForGenerationDone(app.page)
@@ -30,10 +35,16 @@ test('基础聊天流程 @smoke', async ({ app }, testInfo) => {
 
   await expect
     .poll(async () => {
-      const text = (await app.page.getByTestId('app-model-switcher').textContent())?.trim() ?? ''
-      return text.includes(E2E_TARGET_MODEL_ID)
+      const switcher = app.page.getByTestId('app-model-switcher')
+      return {
+        modelId: (await switcher.getAttribute('data-selected-model-id')) ?? '',
+        providerId: (await switcher.getAttribute('data-selected-provider-id')) ?? ''
+      }
     })
-    .toBe(true)
+    .toEqual({
+      modelId: E2E_TARGET_MODEL_ID,
+      providerId: E2E_TARGET_PROVIDER_ID
+    })
 
   const firstSessionId = await getActiveSessionId(app.page)
   expect(firstSessionId).not.toBe('')

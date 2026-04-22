@@ -39,16 +39,21 @@ export async function waitForChatSurface(page: Page): Promise<void> {
 }
 
 export async function waitForGenerationDone(page: Page): Promise<void> {
-  await expect(page.getByTestId('chat-page')).toBeVisible({ timeout: 60_000 })
+  const chatPage = page.getByTestId('chat-page')
+  await expect(chatPage).toBeVisible({ timeout: 60_000 })
 
   await expect
-    .poll(
-      async () => (await page.getByTestId('chat-page').getAttribute('data-generating')) ?? 'false',
-      {
-        timeout: 240_000,
-        intervals: [500, 1_000, 2_000]
-      }
-    )
+    .poll(async () => (await chatPage.getAttribute('data-generating')) ?? 'false', {
+      timeout: 15_000,
+      intervals: [250, 500, 1_000]
+    })
+    .toBe('true')
+
+  await expect
+    .poll(async () => (await chatPage.getAttribute('data-generating')) ?? 'false', {
+      timeout: 240_000,
+      intervals: [500, 1_000, 2_000]
+    })
     .toBe('false')
 
   await expect(page.getByTestId('chat-send-button')).toBeVisible({ timeout: 30_000 })

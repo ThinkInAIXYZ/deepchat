@@ -238,24 +238,27 @@ Settings smoke target:
 
 ## Increment Plan
 
-### Increment 1
+### Increment 1 (v1)
 
-Target only:
+Target:
 
 - `P0-01` launch app
 - `P0-02` basic chat flow
+- `P0-03` restart persistence
+- `P0-04` settings navigation
 
 Why:
 
 - this is the shortest path to a useful regression line
-- it validates boot, selector strategy, real provider requests, and end-to-end message flow
+- it validates boot, selector strategy, real provider requests, end-to-end message flow,
+  restart persistence, and settings routing
 
-### Increment 2
+### Later Phases
 
-Add:
+Add optional or broader coverage:
 
-- `P0-03` restart persistence
-- `P0-04` settings navigation
+- explicit provider connectivity checks behind an opt-in environment flag
+- the deferred P1 scenarios from [spec.md](./spec.md)
 
 ## Validation Plan
 
@@ -348,5 +351,5 @@ Use one PR for the spec and discussion, then implement in this order:
 
 1. infrastructure: Playwright config and basic fixtures
 2. selectors: minimal anchor set for launch and main chat
-3. smoke specs: `P0-01` and `P0-02`
-4. follow-up PRs for persistence and settings navigation
+3. smoke specs: `P0-01` through `P0-04`
+4. follow-up PRs for optional provider integration and deferred P1 scenarios

@@ -29,13 +29,14 @@ export async function createNewChat(page: Page): Promise<void> {
   await expect(page.getByTestId('chat-input-editor')).toBeVisible({ timeout: 30_000 })
 }
 
-export async function selectModel(page: Page, modelId: string): Promise<void> {
+export async function selectModel(page: Page, modelId: string, providerId?: string): Promise<void> {
   const switcher = page.getByTestId('app-model-switcher')
 
   await expect(switcher).toBeVisible({ timeout: 30_000 })
 
-  const existingText = (await switcher.textContent())?.trim() ?? ''
-  if (existingText.includes(modelId)) {
+  const selectedModelId = await switcher.getAttribute('data-selected-model-id')
+  const selectedProviderId = await switcher.getAttribute('data-selected-provider-id')
+  if (selectedModelId === modelId && (!providerId || selectedProviderId === providerId)) {
     return
   }
 
@@ -55,8 +56,11 @@ export async function selectModel(page: Page, modelId: string): Promise<void> {
 
   await expect
     .poll(async () => {
-      const text = (await switcher.textContent())?.trim() ?? ''
-      return text.includes(modelId)
+      const nextSelectedModelId = await switcher.getAttribute('data-selected-model-id')
+      const nextSelectedProviderId = await switcher.getAttribute('data-selected-provider-id')
+      return (
+        nextSelectedModelId === modelId && (!providerId || nextSelectedProviderId === providerId)
+      )
     })
     .toBe(true)
 }

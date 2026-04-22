@@ -47,7 +47,9 @@ This spec adopts the following baseline approach:
 6. Assume the operator has already configured at least one working provider and chat-capable model.
 7. Keep the entrypoint simple with a single `pnpm run e2e:smoke` command.
 8. Assert on user-visible success signals instead of mock-specific or provider-specific exact output.
-9. Deliver the suite in phases, with the first implementation slice limited to launch + basic chat smoke.
+9. Deliver the suite in phases, with v1 smoke coverage including `P0-01` launch app,
+   `P0-02` basic chat flow, `P0-03` restart persistence, and `P0-04` settings navigation.
+   Later phases can add optional provider-integration checks and broader P1 scenarios.
 
 ## User Stories
 
@@ -102,7 +104,7 @@ This spec adopts the following baseline approach:
 
 ## Test Scope
 
-### P0 Smoke Coverage
+### P0 Smoke Coverage (v1)
 
 The target P0 smoke matrix is:
 
@@ -134,4 +136,5 @@ Unless we explicitly change direction during discussion, the implementation shou
 2. The suite runs against `pnpm run build` output.
 3. The only official E2E script in v1 is `pnpm run e2e:smoke`.
 4. The suite runs against the user's current local profile instead of an isolated E2E profile.
-5. The first implementation slice is limited to `P0-01` and `P0-02`.
+5. The v1 implementation slice includes `P0-01` through `P0-04`; later phases can add optional
+   provider-integration checks and the deferred P1 scenarios listed above.

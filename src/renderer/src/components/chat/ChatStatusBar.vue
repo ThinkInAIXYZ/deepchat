@@ -87,6 +87,8 @@
           <PopoverTrigger as-child>
             <Button
               data-testid="app-model-switcher"
+              :data-selected-provider-id="effectiveModelSelection?.providerId ?? ''"
+              :data-selected-model-id="effectiveModelSelection?.modelId ?? ''"
               variant="ghost"
               size="sm"
               :class="[

@@ -8,7 +8,12 @@ import {
   selectModel,
   sendMessage
 } from '../helpers/chat'
-import { createExactReplyPrompt, createSmokeToken, E2E_TARGET_MODEL_ID } from '../helpers/testData'
+import {
+  createExactReplyPrompt,
+  createSmokeToken,
+  E2E_TARGET_MODEL_ID,
+  E2E_TARGET_PROVIDER_ID
+} from '../helpers/testData'
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 test('会话重启后持久化 @smoke', async ({ app, launchApp }) => {
@@ -19,13 +24,13 @@ test('会话重启后持久化 @smoke', async ({ app, launchApp }) => {
   await selectAgent(app.page)
 
   await createNewChat(app.page)
-  await selectModel(app.page, E2E_TARGET_MODEL_ID)
+  await selectModel(app.page, E2E_TARGET_MODEL_ID, E2E_TARGET_PROVIDER_ID)
   await sendMessage(app.page, createExactReplyPrompt(sessionAToken))
   await waitForGenerationDone(app.page)
   const sessionAId = await getActiveSessionId(app.page)
 
   await createNewChat(app.page)
-  await selectModel(app.page, E2E_TARGET_MODEL_ID)
+  await selectModel(app.page, E2E_TARGET_MODEL_ID, E2E_TARGET_PROVIDER_ID)
   await sendMessage(app.page, createExactReplyPrompt(sessionBToken))
   await waitForGenerationDone(app.page)
   const sessionBId = await getActiveSessionId(app.page)
@@ -37,6 +42,7 @@ test('会话重启后持久化 @smoke', async ({ app, launchApp }) => {
 
   const relaunched = await launchApp()
   await waitForAppReady(relaunched.page)
+  await selectAgent(relaunched.page)
 
   await expect(
     relaunched.page.locator(`[data-testid="sidebar-session-item"][data-session-id="${sessionAId}"]`)
@@ -47,4 +53,7 @@ test('会话重启后持久化 @smoke', async ({ app, launchApp }) => {
 
   await openSessionById(relaunched.page, sessionAId)
   await expect(getAssistantMessages(relaunched.page).last()).toContainText(sessionAToken)
+
+  await openSessionById(relaunched.page, sessionBId)
+  await expect(getAssistantMessages(relaunched.page).last()).toContainText(sessionBToken)
 })

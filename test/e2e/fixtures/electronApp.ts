@@ -111,6 +111,7 @@ export const test = base.extend<ElectronFixtures>({
 
     const launchApp = async (): Promise<ElectronAppInstance> => {
       launchCount += 1
+      const currentLaunch = launchCount
 
       const electronApp = await electron.launch({
         args: ['.'],
@@ -118,18 +119,10 @@ export const test = base.extend<ElectronFixtures>({
         timeout: 120_000
       })
 
-      electronApp.on('window', (page) => {
-        attachPageListeners(page, `window-${launchCount}`)
-      })
-
-      const page = await waitForMainAppWindow(electronApp)
-      attachPageListeners(page, `main-${launchCount}`)
-      await page.waitForLoadState('domcontentloaded')
-
       let closed = false
       const app: ElectronAppInstance = {
         electronApp,
-        page,
+        page: undefined as unknown as Page,
         consoleLogs,
         pageErrors,
         close: async () => {
@@ -138,12 +131,27 @@ export const test = base.extend<ElectronFixtures>({
           }
 
           closed = true
+          launchedApps.delete(app)
           await electronApp.close().catch(() => undefined)
         }
       }
 
       launchedApps.add(app)
-      return app
+
+      electronApp.on('window', (page) => {
+        attachPageListeners(page, `window-${currentLaunch}`)
+      })
+
+      try {
+        const page = await waitForMainAppWindow(electronApp)
+        attachPageListeners(page, `main-${currentLaunch}`)
+        await page.waitForLoadState('domcontentloaded')
+        app.page = page
+        return app
+      } catch (error) {
+        await app.close()
+        throw error
+      }
     }
 
     try {
