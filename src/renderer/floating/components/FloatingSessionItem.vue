@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FloatingWidgetSessionItem } from '@shared/types/floating-widget'
+import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 
 defineOptions({
   name: 'FloatingSessionItem'
@@ -9,6 +10,7 @@ defineOptions({
 
 const props = defineProps<{
   session: FloatingWidgetSessionItem
+  theme: 'dark' | 'light'
 }>()
 
 const emit = defineEmits<{
@@ -82,11 +84,18 @@ const dotClass = computed(() => {
   <button
     type="button"
     data-no-drag
-    class="session-card group flex w-full items-center gap-3 border pl-4 pr-5 py-3 text-left"
+    class="session-card group flex w-full items-center gap-3 border px-4 py-3 text-left"
     :class="itemClass"
     @click="emit('select', session.id)"
   >
     <span class="h-8 w-1.5 shrink-0 rounded-full" :class="accentClass"></span>
+
+    <AgentAvatar
+      :agent="session.agent"
+      :theme="theme"
+      class-name="h-5 w-5"
+      fallback-class-name="rounded-lg"
+    />
 
     <div
       class="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-foreground/90 dark:text-white/94"

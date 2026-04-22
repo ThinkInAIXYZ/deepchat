@@ -12,6 +12,7 @@ const FLOATING_BUTTON_EVENTS = {
   LANGUAGE_CHANGED: 'floating-button:language-changed',
   THEME_REQUEST: 'floating-button:theme-request',
   THEME_CHANGED: 'floating-button:theme-changed',
+  ACP_REGISTRY_ICON_REQUEST: 'floating-button:acp-registry-icon-request',
   TOGGLE_EXPANDED: 'floating-button:toggle-expanded',
   SET_EXPANDED: 'floating-button:set-expanded',
   OPEN_SESSION: 'floating-button:open-session',
@@ -49,6 +50,13 @@ const floatingButtonAPI = {
 
   getTheme: async (): Promise<'dark' | 'light'> => {
     return await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.THEME_REQUEST)
+  },
+
+  getAcpRegistryIconMarkup: async (agentId: string, iconUrl: string): Promise<string> => {
+    return await ipcRenderer.invoke(FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST, {
+      agentId,
+      iconUrl
+    })
   },
 
   toggleExpanded: () => {

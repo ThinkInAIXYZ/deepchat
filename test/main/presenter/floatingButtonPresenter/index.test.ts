@@ -12,6 +12,7 @@ const {
   presenterState,
   sendToRendererMock,
   menuPopupMock,
+  getAgentsMock,
   getSessionListMock
 } = vi.hoisted(() => {
   const eventHandlers = new Map<string, (...args: unknown[]) => unknown>()
@@ -52,6 +53,23 @@ const {
 
   const presenterState = {
     sessions: [] as SessionWithState[],
+    agents: [
+      {
+        id: 'deepchat',
+        name: 'DeepChat',
+        type: 'deepchat' as const,
+        enabled: true,
+        avatar: null
+      },
+      {
+        id: 'acp-agent',
+        name: 'ACP Agent',
+        type: 'acp' as const,
+        enabled: true,
+        avatar: null,
+        icon: 'https://example.com/acp-agent.svg'
+      }
+    ],
     reset() {
       this.sessions = []
     }
@@ -59,6 +77,7 @@ const {
 
   const sendToRendererMock = vi.fn()
   const menuPopupMock = vi.fn()
+  const getAgentsMock = vi.fn(async () => presenterState.agents)
   const getSessionListMock = vi.fn(async () => presenterState.sessions)
 
   return {
@@ -75,6 +94,7 @@ const {
     presenterState,
     sendToRendererMock,
     menuPopupMock,
+    getAgentsMock,
     getSessionListMock
   }
 })
@@ -147,6 +167,7 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
 vi.mock('../../../../src/main/presenter/index', () => ({
   presenter: {
     agentSessionPresenter: {
+      getAgents: getAgentsMock,
       getSessionList: getSessionListMock,
       activateSession: vi.fn()
     },
@@ -191,6 +212,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     presenterState.reset()
     sendToRendererMock.mockReset()
     menuPopupMock.mockReset()
+    getAgentsMock.mockClear()
     getSessionListMock.mockClear()
   })
 

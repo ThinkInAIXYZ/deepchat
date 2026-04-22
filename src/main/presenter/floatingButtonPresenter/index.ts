@@ -9,7 +9,7 @@ import {
   type WidgetRect
 } from './layout'
 import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
-import type { SessionWithState } from '@shared/types/agent-interface'
+import type { Agent, SessionWithState } from '@shared/types/agent-interface'
 import { BrowserWindow, ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
 import { presenter } from '../index'
@@ -95,6 +95,7 @@ export class FloatingButtonPresenter {
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST)
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.THEME_REQUEST)
+    ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED)
@@ -154,8 +155,8 @@ export class FloatingButtonPresenter {
 
   public async refreshWidgetState(): Promise<void> {
     try {
-      const sessions = await this.loadSessions()
-      this.snapshot = buildFloatingWidgetSnapshot(sessions, this.snapshot.expanded)
+      const [sessions, agents] = await Promise.all([this.loadSessions(), this.loadAgents()])
+      this.snapshot = buildFloatingWidgetSnapshot(sessions, agents, this.snapshot.expanded)
       this.applyWindowLayout()
       this.pushSnapshotToRenderer()
     } catch (error) {
@@ -210,6 +211,7 @@ export class FloatingButtonPresenter {
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST)
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.THEME_REQUEST)
+    ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED)
@@ -236,6 +238,25 @@ export class FloatingButtonPresenter {
     ipcMain.handle(FLOATING_BUTTON_EVENTS.THEME_REQUEST, async () => {
       return await this.resolveTheme()
     })
+
+    ipcMain.handle(
+      FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST,
+      async (_event, payload: { agentId?: string; iconUrl?: string }) => {
+        const agentId = payload?.agentId?.trim()
+        const iconUrl = payload?.iconUrl?.trim()
+
+        if (!agentId || !iconUrl) {
+          return ''
+        }
+
+        try {
+          return (await this.configPresenter.getAcpRegistryIconMarkup(agentId, iconUrl)) ?? ''
+        } catch (error) {
+          console.warn('Failed to resolve floating ACP registry icon markup:', error)
+          return ''
+        }
+      }
+    )
 
     ipcMain.on(FLOATING_BUTTON_EVENTS.CLICKED, () => {
       this.toggleExpanded()
@@ -556,6 +577,20 @@ export class FloatingButtonPresenter {
     }
 
     return await agentSessionPresenter.getSessionList()
+  }
+
+  private async loadAgents(): Promise<Agent[]> {
+    const agentSessionPresenter = presenter.agentSessionPresenter as
+      | {
+          getAgents?: () => Promise<Agent[]>
+        }
+      | undefined
+
+    if (!agentSessionPresenter?.getAgents) {
+      return []
+    }
+
+    return await agentSessionPresenter.getAgents()
   }
 
   private async openSession(sessionId: string): Promise<void> {
