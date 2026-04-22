@@ -156,6 +156,24 @@ export function normalizeVertexRequestBody(body: unknown): unknown {
   return nextBody
 }
 
+export function normalizeGeminiBaseUrl(baseUrl: string | undefined): string {
+  const normalized = (baseUrl || '').trim().replace(/\/+$/, '')
+
+  if (!normalized) {
+    return 'https://generativelanguage.googleapis.com/v1beta'
+  }
+
+  if (/\/v1beta1$/i.test(normalized) || /\/v1beta$/i.test(normalized)) {
+    return normalized
+  }
+
+  if (/\/v1$/i.test(normalized)) {
+    return normalized.replace(/\/v1$/i, '/v1beta')
+  }
+
+  return `${normalized}/v1beta`
+}
+
 function normalizeRequestBody(
   provider: LLM_PROVIDER,
   requestUrl: string,
@@ -183,6 +201,10 @@ function normalizeRequestBody(
   }
 }
 
+function shouldUseGeminiApiKeyHeader(provider: LLM_PROVIDER): boolean {
+  return provider.apiType === 'gemini'
+}
+
 function createFetchMiddleware(
   provider: LLM_PROVIDER,
   defaultHeaders: Record<string, string>,
@@ -203,6 +225,7 @@ function createFetchMiddleware(
 
     const headers = new Headers(init?.headers ?? {})
     Object.entries(defaultHeaders).forEach(([key, value]) => headers.set(key, value))
+    const shouldUseGeminiHeader = shouldUseGeminiApiKeyHeader(provider)
 
     if (cleanHeaders) {
       const allowedHeaders = new Set([
@@ -226,7 +249,7 @@ function createFetchMiddleware(
         }
       })
 
-      if (!sanitized.has('Authorization') && provider.apiKey) {
+      if (!shouldUseGeminiHeader && !sanitized.has('Authorization') && provider.apiKey) {
         sanitized.set('Authorization', `Bearer ${provider.apiKey}`)
       }
 
@@ -506,8 +529,9 @@ export function createAiSdkProviderContext(
     }
 
     case 'gemini': {
+      const geminiBaseUrl = normalizeGeminiBaseUrl(baseUrl || undefined)
       const provider = createGoogleGenerativeAI({
-        baseURL: baseUrl || undefined,
+        baseURL: geminiBaseUrl,
         apiKey: params.provider.apiKey || process.env.GEMINI_API_KEY,
         headers: params.defaultHeaders,
         fetch
@@ -519,7 +543,7 @@ export function createAiSdkProviderContext(
         model: maybeWrapModel(provider.languageModel(params.modelId) as any),
         embeddingModel: provider.embeddingModel(params.modelId),
         imageModel: provider.imageModel(params.modelId),
-        endpoint: baseUrl || 'https://generativelanguage.googleapis.com'
+        endpoint: geminiBaseUrl
       }
     }
 
