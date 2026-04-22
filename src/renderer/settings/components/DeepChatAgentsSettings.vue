@@ -259,6 +259,7 @@
                   </div>
                   <ModelSelect
                     :exclude-providers="['acp']"
+                    :respect-chat-mode="false"
                     :vision-only="field.key === 'visionModel'"
                     @update:model="(model, providerId) => selectModel(field.key, model, providerId)"
                   />

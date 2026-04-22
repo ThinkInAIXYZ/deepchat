@@ -17,6 +17,7 @@ describe('Settings App', () => {
     const ipcRemoveListener = vi.fn()
     const ipcRemoveAllListeners = vi.fn()
     const ipcSend = vi.fn()
+    const initializeModelStore = vi.fn().mockResolvedValue(undefined)
 
     ;(window as any).electron = {
       ipcRenderer: {
@@ -119,7 +120,7 @@ describe('Settings App', () => {
     }))
     vi.doMock('../../../src/renderer/src/stores/modelStore', () => ({
       useModelStore: () => ({
-        initialize: vi.fn().mockResolvedValue(undefined),
+        initialize: initializeModelStore,
         ensureProviderModelsReady: vi.fn().mockResolvedValue(undefined)
       })
     }))
@@ -207,6 +208,7 @@ describe('Settings App', () => {
     await flushPromises()
 
     expect(isReady).toHaveBeenCalledTimes(1)
+    expect(initializeModelStore).toHaveBeenCalledTimes(1)
     expect(ipcSend).toHaveBeenCalledWith(SETTINGS_EVENTS.READY)
   }, 15000)
 

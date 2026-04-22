@@ -31,7 +31,11 @@
             </Button>
           </PopoverTrigger>
           <PopoverContent class="w-[320px] p-0" align="end">
-            <ModelSelect :exclude-providers="['acp']" @update:model="handleAssistantModelSelect" />
+            <ModelSelect
+              :exclude-providers="['acp']"
+              :respect-chat-mode="false"
+              @update:model="handleAssistantModelSelect"
+            />
           </PopoverContent>
         </Popover>
       </div>
@@ -63,7 +67,11 @@
             </Button>
           </PopoverTrigger>
           <PopoverContent class="w-[320px] p-0" align="end">
-            <ModelSelect :exclude-providers="['acp']" @update:model="handleChatModelSelect" />
+            <ModelSelect
+              :exclude-providers="['acp']"
+              :respect-chat-mode="false"
+              @update:model="handleChatModelSelect"
+            />
           </PopoverContent>
         </Popover>
       </div>

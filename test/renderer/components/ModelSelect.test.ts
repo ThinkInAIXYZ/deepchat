@@ -3,12 +3,20 @@ import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import { ModelType } from '../../../src/shared/model'
 
-const setup = async () => {
+const setup = async (
+  options: {
+    currentMode?: 'agent' | 'acp agent'
+    props?: Record<string, unknown>
+  } = {}
+) => {
   vi.resetModules()
+
+  const currentMode = options.currentMode ?? 'agent'
 
   vi.doMock('@/stores/providerStore', () => ({
     useProviderStore: () => ({
       sortedProviders: [
+        { id: 'acp', name: 'ACP', enable: true },
         { id: 'ollama', name: 'Ollama', enable: true },
         { id: 'openai', name: 'OpenAI', enable: true }
       ]
@@ -24,6 +32,10 @@ const setup = async () => {
             { id: 'deepseek-r1:1.5b', name: 'deepseek-r1:1.5b', type: 'chat' },
             { id: 'nomic-embed-text:latest', name: 'nomic-embed-text:latest', type: 'embedding' }
           ]
+        },
+        {
+          providerId: 'acp',
+          models: [{ id: 'acp-agent', name: 'ACP Agent', type: 'chat' }]
         }
       ]
     })
@@ -43,7 +55,7 @@ const setup = async () => {
 
   vi.doMock('@/components/chat-input/composables/useChatMode', () => ({
     useChatMode: () => ({
-      currentMode: ref('agent')
+      currentMode: ref(currentMode)
     })
   }))
 
@@ -74,7 +86,8 @@ const setup = async () => {
 
   return mount(ModelSelect, {
     props: {
-      type: [ModelType.Chat]
+      type: [ModelType.Chat],
+      ...options.props
     }
   })
 }
@@ -92,5 +105,18 @@ describe('ModelSelect', () => {
     expect(wrapper.emitted('update:model')).toEqual([
       [{ id: 'deepseek-r1:1.5b', name: 'deepseek-r1:1.5b', type: 'chat' }, 'ollama']
     ])
+  })
+
+  it('can ignore chat mode filtering for settings pickers', async () => {
+    const wrapper = await setup({
+      currentMode: 'acp agent',
+      props: {
+        excludeProviders: ['acp'],
+        respectChatMode: false
+      }
+    })
+
+    expect(wrapper.text()).toContain('deepseek-r1:1.5b')
+    expect(wrapper.text()).not.toContain('ACP Agent')
   })
 })
