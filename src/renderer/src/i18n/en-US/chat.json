@@ -154,6 +154,7 @@
     "systemPrompt": "System Prompt",
     "systemPromptPlaceholder": "Select a preset",
     "temperature": "Temperature",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
     "contextLength": "Context Length",
     "maxTokens": "Max Tokens",
     "thinkingBudget": "Thinking Budget",

@@ -42,6 +42,7 @@ import {
   toValidNonNegativeInteger,
   validateGenerationNumericField
 } from '@shared/utils/generationSettingsValidation'
+import { resolveMoonshotKimiTemperaturePolicy } from '@shared/moonshotKimiPolicy'
 import { DEFAULT_MODEL_TIMEOUT } from '@shared/modelConfigDefaults'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -2723,6 +2724,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     modelId: string
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
+      providerId,
+      modelId,
+      modelConfig.reasoning
+    )
     const portrait = this.getReasoningPortrait(providerId, modelId)
     const capabilityProviderId = this.resolveCapabilityProviderId(providerId, modelId)
     const anthropicReasoningToggle = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
@@ -2740,7 +2746,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const defaults: SessionGenerationSettings = {
       systemPrompt: defaultSystemPrompt ?? '',
-      temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+      temperature:
+        fixedTemperatureKimi?.temperature ??
+        parseFiniteNumericValue(modelConfig.temperature) ??
+        0.7,
       contextLength: contextLengthDefault,
       timeout:
         timeoutDefault >= SESSION_TIMEOUT_MIN_MS && timeoutDefault <= SESSION_TIMEOUT_MAX_MS
@@ -2819,6 +2828,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     baseSettings?: SessionGenerationSettings
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
+      providerId,
+      modelId,
+      modelConfig.reasoning
+    )
     const portrait = this.getReasoningPortrait(providerId, modelId)
     const capabilityProviderId = this.resolveCapabilityProviderId(providerId, modelId)
     const anthropicReasoningToggle = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
@@ -2970,6 +2984,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     } else if (typeof base.forceInterleavedThinkingCompat !== 'boolean') {
       delete next.forceInterleavedThinkingCompat
+    }
+
+    if (fixedTemperatureKimi) {
+      next.temperature = fixedTemperatureKimi.temperature
     }
 
     return next

@@ -10,6 +10,7 @@ type TestGenerationSettings = {
   temperature: number
   contextLength: number
   maxTokens: number
+  reasoning?: boolean
   thinkingBudget?: number
   forceInterleavedThinkingCompat?: boolean
   reasoningEffort?: ReasoningEffort
@@ -1419,6 +1420,42 @@ describe('ChatStatusBar model and session panels', () => {
 
     expect((wrapper.vm as any).localSettings.forceInterleavedThinkingCompat).toBe(true)
     expect(findInterleavedThinkingToggle(wrapper).attributes('data-model-value')).toBe('true')
+  })
+
+  it('locks Moonshot Kimi temperatures in chat advanced settings and keeps the fixed value', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      extraModelGroups: [
+        {
+          providerId: 'moonshot',
+          providerName: 'Moonshot',
+          models: [{ id: 'moonshotai/kimi-k2.6', name: 'Kimi K2.6' }]
+        }
+      ],
+      modelConfig: {
+        temperature: 0.6,
+        reasoning: true
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'budget',
+        budget: { min: 0, max: 32768, default: 8192 }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('moonshot', 'moonshotai/kimi-k2.6')
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.temperature).toBe(1)
+    expect((wrapper.vm as any).isMoonshotKimiTemperatureLocked).toBe(true)
+    expect(wrapper.text()).toContain('chat.advancedSettings.temperatureFixedMoonshotKimi')
+    expect(findNumericButton(wrapper, 'temperature', 'increment').attributes('disabled')).toBe('')
+    expect(findNumericInput(wrapper, 'temperature').attributes('disabled')).toBe('')
+
+    await findNumericButton(wrapper, 'temperature', 'increment').trigger('click')
+    expect((wrapper.vm as any).localSettings.temperature).toBe(1)
   })
 
   it('ignores existing draft generation overrides when loading draft model defaults', async () => {

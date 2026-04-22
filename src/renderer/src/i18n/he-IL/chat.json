@@ -147,6 +147,7 @@
     "systemPrompt": "הנחיית מערכת",
     "systemPromptPlaceholder": "בחר תבנית",
     "temperature": "טמפרטורה",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 מקבע את הטמפרטורה ל-{enabled} כשהחשיבה מופעלת ול-{disabled} כשהיא כבויה.",
     "contextLength": "אורך הקשר",
     "maxTokens": "מקסימום טוקנים",
     "thinkingBudget": "תקציב חשיבה",

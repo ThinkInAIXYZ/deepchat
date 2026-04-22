@@ -478,6 +478,7 @@
       "currentUsingModelDefault": "Utilise actuellement la configuration par défaut du modèle",
       "temperature": {
         "description": "Contrôle l’aléatoire de la sortie. Valeur plus élevée = plus aléatoire.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixe la température à {enabled} lorsque la réflexion est activée et à {disabled} lorsqu’elle est désactivée.",
         "label": "Température"
       },
       "title": "Paramètres du modèle personnalisé",

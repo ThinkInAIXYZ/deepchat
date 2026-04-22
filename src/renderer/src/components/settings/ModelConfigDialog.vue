@@ -130,9 +130,13 @@
               :max="2"
               :placeholder="t('settings.model.modelConfig.temperature.label')"
               :class="{ 'border-destructive': errors.temperature }"
+              :disabled="isMoonshotKimiTemperatureLocked"
             />
             <p class="text-xs text-muted-foreground">
               {{ t('settings.model.modelConfig.temperature.description') }}
+            </p>
+            <p v-if="moonshotKimiTemperatureHint" class="text-xs text-muted-foreground">
+              {{ moonshotKimiTemperatureHint }}
             </p>
             <p v-if="errors.temperature" class="text-xs text-destructive">
               {{ errors.temperature }}
@@ -465,6 +469,12 @@ import {
   resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
+import {
+  MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE,
+  MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE,
+  getMoonshotKimiTemperaturePolicy,
+  resolveMoonshotKimiTemperaturePolicy
+} from '@shared/moonshotKimiPolicy'
 import type { ModelConfig } from '@shared/presenter'
 import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
@@ -841,6 +851,28 @@ const currentModelLookupId = computed(() =>
   (isCreateMode.value ? modelIdField.value : props.modelId || modelIdField.value).trim()
 )
 
+const moonshotKimiTemperaturePolicy = computed(() =>
+  getMoonshotKimiTemperaturePolicy(props.providerId, currentModelLookupId.value)
+)
+const resolvedMoonshotKimiTemperaturePolicy = computed(() =>
+  resolveMoonshotKimiTemperaturePolicy(
+    props.providerId,
+    currentModelLookupId.value,
+    config.value.reasoning
+  )
+)
+const isMoonshotKimiTemperatureLocked = computed(
+  () => moonshotKimiTemperaturePolicy.value?.lockTemperatureControl === true
+)
+const moonshotKimiTemperatureHint = computed(() =>
+  isMoonshotKimiTemperatureLocked.value
+    ? t('settings.model.modelConfig.temperature.fixedMoonshotKimi', {
+        enabled: MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE.toFixed(1),
+        disabled: MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE.toFixed(1)
+      })
+    : ''
+)
+
 const providerModelMeta = computed(() => {
   const targetModelId = currentModelLookupId.value
   if (!targetModelId) return null
@@ -898,18 +930,26 @@ const hasModelIdConflict = (modelId: string, excludeId?: string) => {
   })
 }
 
-const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) => ({
-  id,
-  name,
-  enabled: enabled ?? true,
-  contextLength: config.value.contextLength ?? DEFAULT_MODEL_CONTEXT_LENGTH,
-  maxTokens: config.value.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
-  vision: config.value.vision ?? DEFAULT_MODEL_VISION,
-  functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
-  reasoning: config.value.reasoning ?? false,
-  type: config.value.type ?? ModelType.Chat,
-  endpointType: config.value.endpointType
-})
+const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) => {
+  const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
+    props.providerId,
+    id,
+    config.value.reasoning
+  )
+
+  return {
+    id,
+    name,
+    enabled: enabled ?? true,
+    contextLength: config.value.contextLength ?? DEFAULT_MODEL_CONTEXT_LENGTH,
+    maxTokens: config.value.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
+    vision: config.value.vision ?? DEFAULT_MODEL_VISION,
+    functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
+    reasoning: fixedTemperatureKimi?.reasoningEnabled ?? config.value.reasoning ?? false,
+    type: config.value.type ?? ModelType.Chat,
+    endpointType: config.value.endpointType
+  }
+}
 
 const syncNewApiDerivedFields = () => {
   if (!showEndpointTypeSelector.value) {
@@ -1252,9 +1292,15 @@ const showReasoningVisibility = computed(
 )
 const supportsTemperatureControl = computed(() => capabilitySupportsTemperature.value !== false)
 const showTemperatureControl = computed(
-  () => supportsTemperatureControl.value && !supportsReasoningEffort.value
+  () =>
+    (supportsTemperatureControl.value || isMoonshotKimiTemperatureLocked.value) &&
+    !supportsReasoningEffort.value
 )
 const reasoningToggleMode = computed(() => {
+  if (moonshotKimiTemperaturePolicy.value?.isThinkingVariant) {
+    return 'indicator' as const
+  }
+
   if (isCreateMode.value || props.isCustomModel) {
     return 'toggle' as const
   }
@@ -1272,9 +1318,11 @@ const reasoningToggleMode = computed(() => {
 })
 const reasoningToggleDisabled = computed(() => reasoningToggleMode.value === 'indicator')
 const reasoningToggleValue = computed(() =>
-  reasoningToggleDisabled.value
-    ? supportsReasoningCapability(capabilityReasoningPortrait.value)
-    : Boolean(config.value.reasoning)
+  moonshotKimiTemperaturePolicy.value?.isThinkingVariant
+    ? true
+    : reasoningToggleDisabled.value
+      ? supportsReasoningCapability(capabilityReasoningPortrait.value)
+      : Boolean(config.value.reasoning)
 )
 const reasoningToggleLabelKey = computed(() =>
   reasoningToggleDisabled.value
@@ -1348,6 +1396,25 @@ watch(
   () => [props.providerId, currentModelLookupId.value, providerModelMeta.value?.id],
   () => {
     syncCapabilityProviderId()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [props.providerId, currentModelLookupId.value, config.value.reasoning],
+  () => {
+    const fixedTemperatureKimi = resolvedMoonshotKimiTemperaturePolicy.value
+    if (!fixedTemperatureKimi) {
+      return
+    }
+
+    if (config.value.reasoning !== fixedTemperatureKimi.reasoningEnabled) {
+      config.value.reasoning = fixedTemperatureKimi.reasoningEnabled
+    }
+
+    if (config.value.temperature !== fixedTemperatureKimi.temperature) {
+      config.value.temperature = fixedTemperatureKimi.temperature
+    }
   },
   { immediate: true }
 )

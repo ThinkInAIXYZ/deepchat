@@ -147,6 +147,7 @@
     "systemPrompt": "システムプロンプト",
     "systemPromptPlaceholder": "プリセットを選択",
     "temperature": "温度",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 は、思考を有効にすると温度が {enabled} に固定され、無効にすると {disabled} に固定されます。",
     "contextLength": "コンテキスト長",
     "maxTokens": "最大トークン",
     "thinkingBudget": "思考予算",
