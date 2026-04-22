@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.3-beta.6 (2026-04-22)
+- Added model initialization in settings so ModelSelect respects the current chat mode and restores default model controls more reliably
+- Added ACP registry icon request handling in the floating widget to improve agent icon rendering and related session visuals
+- Simplified YoBrowser host readiness handling to keep the embedded browser lifecycle more predictable
+- 新增设置页模型初始化流程，使 ModelSelect 更准确地遵循当前聊天模式，并提升默认模型配置恢复稳定性
+- 新增悬浮组件中的 ACP registry 图标请求处理，优化 Agent 图标渲染与相关会话视觉表现
+- 精简 YoBrowser host readiness 处理逻辑，提升内嵌浏览器生命周期的可预测性
+
 ## v1.0.3-beta.5 (2026-04-22)
 - Added privacy mode and inline chat session renaming to improve workspace discretion and session organization
 - Added request timeout controls with a higher default range, and refined Kimi fixed-temperature plus Gemini v1beta compatibility handling
