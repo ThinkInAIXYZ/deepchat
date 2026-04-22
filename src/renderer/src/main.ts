@@ -1,7 +1,4 @@
 import './assets/main.css'
-import { addCollection } from '@iconify/vue'
-import lucideIcons from '@iconify-json/lucide/icons.json'
-import vscodeIcons from '@iconify-json/vscode-icons/icons.json'
 import { createPinia } from 'pinia'
 import { PiniaColada } from '@pinia/colada'
 import { createApp } from 'vue'
@@ -20,6 +17,7 @@ import {
 } from 'markstream-vue'
 import KatexWorker from 'markstream-vue/workers/katexRenderer.worker?worker&inline'
 import MermaidWorker from 'markstream-vue/workers/mermaidParser.worker?worker&inline'
+import { preloadIcons } from './lib/iconLoader'
 
 const globalScope = globalThis as typeof globalThis & {
   __markdownWorkers?: {
@@ -54,9 +52,7 @@ const i18n = createI18n({
   legacy: false,
   messages: locales
 })
-// Add complete icon collections locally
-addCollection(lucideIcons)
-addCollection(vscodeIcons)
+// Icons will be loaded asynchronously on app mount to improve startup performance
 const pinia = createPinia()
 
 const app = createApp(App)
@@ -72,3 +68,10 @@ app.use(PiniaColada, {
 app.use(router)
 app.use(i18n)
 app.mount('#app')
+
+// Preload icons asynchronously after app mount to improve perceived startup time
+setTimeout(() => {
+  preloadIcons().catch((error) => {
+    console.error('Failed to preload icons:', error)
+  })
+}, 0)

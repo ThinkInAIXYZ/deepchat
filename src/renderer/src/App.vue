@@ -20,6 +20,7 @@ import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
+import { ensureIconsLoaded } from '@/lib/iconLoader'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from './composables/useFontManager'
 import AppBar from '@/components/AppBar.vue'
@@ -388,8 +389,13 @@ watch(
 onMounted(() => {
   window.addEventListener('keydown', handleEscKey)
 
-  // initialize store data
+  // Ensure icons are loaded (load asynchronously, can happen in parallel with store init)
+  void ensureIconsLoaded()
+
+  // Start all critical data loads in parallel, don't wait for them
+  // This way session data starts loading much earlier instead of waiting for initAppStores() to complete
   void initAppStores()
+  void sessionStore.fetchSessions()
   setupMcpDeeplink()
   setupAppIpcRuntime()
 
