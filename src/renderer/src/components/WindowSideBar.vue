@@ -121,7 +121,11 @@
       </div>
 
       <!-- Right Column: Session List (240px) -->
-      <div v-show="!collapsed" class="flex flex-col w-0 flex-1 min-w-0">
+      <div
+        v-show="!collapsed"
+        data-testid="window-sidebar-session-column"
+        class="window-no-drag-region flex flex-col w-0 flex-1 min-w-0"
+      >
         <!-- Header -->
         <div class="flex items-center justify-between px-3 h-10 shrink-0">
           <span class="text-sm font-medium text-foreground truncate">

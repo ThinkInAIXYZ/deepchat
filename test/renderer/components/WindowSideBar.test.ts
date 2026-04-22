@@ -471,6 +471,9 @@ describe('WindowSideBar agent switch', () => {
     async () => {
       const { wrapper } = await setup()
 
+      expect(wrapper.get('[data-testid="window-sidebar-session-column"]').classes()).toContain(
+        'window-no-drag-region'
+      )
       expect(wrapper.get('[data-testid="window-sidebar-search"]').classes()).toContain(
         'window-no-drag-region'
       )
