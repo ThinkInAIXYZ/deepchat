@@ -192,9 +192,10 @@
         page-mode
         :buffer="500"
       >
-        <template #default="{ item, active }">
+        <template #default="{ item, index, active }">
           <DynamicScrollerItem
             :item="item"
+            :index="index"
             :active="active"
             :size-dependencies="getScrollerItemSizeDependencies(item)"
           >
