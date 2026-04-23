@@ -1051,6 +1051,7 @@ export class AgentToolManager {
 
     addPath(path.join(app.getPath('home'), '.deepchat'))
     addPath(app.getPath('temp'))
+    addPath(path.join(app.getPath('userData'), 'temp'))
 
     if (conversationId) {
       const approved = this.runtimePort.getApprovedFilePaths(conversationId)
