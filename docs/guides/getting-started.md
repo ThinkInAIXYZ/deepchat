@@ -4,7 +4,7 @@
 
 ## 前置要求
 
-- Node.js `>= 20.19`
+- Node.js `24.14.1` recommended
 - pnpm `>= 10.11`
 - Git
 - 一个支持 TypeScript / Vue 的编辑器
@@ -157,4 +157,3 @@ pnpm run lint:architecture
 - `docs/archives/legacy-agentpresenter-architecture.md`
 - `docs/archives/legacy-agentpresenter-flows.md`
 - `docs/archives/thread-presenter-migration-plan.md`
-

@@ -130,13 +130,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.13.1'
+          node-version: '24.14.1'
           package-manager-cache: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 10.12.1
+          version: 10.13.1
 
       - name: Install dependencies
         run: pnpm install
@@ -202,13 +202,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.13.1'
+          node-version: '24.14.1'
           package-manager-cache: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 10.12.1
+          version: 10.13.1
 
       - name: Install dependencies
         run: pnpm install
@@ -261,13 +261,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.13.1'
+          node-version: '24.14.1'
           package-manager-cache: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 10.12.1
+          version: 10.13.1
 
       - name: Install dependencies
         run: pnpm install
