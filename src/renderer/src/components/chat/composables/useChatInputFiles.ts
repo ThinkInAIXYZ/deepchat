@@ -44,8 +44,8 @@ export function useChatInputFiles(
             fileName: file.name ?? 'image',
             fileSize: file.size,
             fileDescription: file.type,
-            fileCreated: new Date(),
-            fileModified: new Date()
+            fileCreated: new Date().toISOString(),
+            fileModified: new Date().toISOString()
           },
           token: calculateImageTokens(imageInfo.width, imageInfo.height),
           path: tempFilePath,
@@ -173,8 +173,8 @@ export function useChatInputFiles(
             fileName: fileItem.name,
             fileSize: fileItem.size || 0,
             fileDescription: fileItem.description || '',
-            fileCreated: new Date(fileItem.createdAt || Date.now()),
-            fileModified: new Date(fileItem.createdAt || Date.now())
+            fileCreated: new Date(fileItem.createdAt || Date.now()).toISOString(),
+            fileModified: new Date(fileItem.createdAt || Date.now()).toISOString()
           },
           token: approximateTokenSize(fileItem.content || ''),
           path: fileItem.path || fileItem.name

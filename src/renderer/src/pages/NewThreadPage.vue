@@ -92,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
@@ -335,20 +335,28 @@ async function onSubmit() {
 
   const text = message.value.trim()
   if (!text) return
-  const files = [...attachedFiles.value]
-  message.value = ''
-  attachedFiles.value = []
+  const files = [...attachedFiles.value].map((f) => toRaw(f))
 
-  await submitText(text, files)
+  try {
+    await submitText(text, files)
+    message.value = ''
+    attachedFiles.value = []
+  } catch (e) {
+    console.error('[NewThreadPage] submit failed:', e)
+  }
 }
 
 async function onCommandSubmit(command: string) {
   if (isAcpWorkdirMissing.value) return
   const text = command.trim()
   if (!text) return
-  const files = [...attachedFiles.value]
-  attachedFiles.value = []
-  await submitText(text, files)
+  const files = [...attachedFiles.value].map((f) => toRaw(f))
+  try {
+    await submitText(text, files)
+    attachedFiles.value = []
+  } catch (e) {
+    console.error('[NewThreadPage] submit failed:', e)
+  }
 }
 
 async function submitText(text: string, files: MessageFile[]) {

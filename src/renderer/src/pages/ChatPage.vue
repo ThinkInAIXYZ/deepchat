@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
@@ -854,7 +854,7 @@ async function onSubmit() {
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
-  const files = [...attachedFiles.value]
+  const files = [...attachedFiles.value].map((f) => toRaw(f))
   if (!text && files.length === 0) return
   await pendingInputStore.queueInput(props.sessionId, { text, files })
   message.value = ''

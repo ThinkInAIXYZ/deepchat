@@ -195,8 +195,8 @@ export interface MessageFile {
     fileName?: string
     fileSize?: number
     fileDescription?: string
-    fileCreated?: Date
-    fileModified?: Date
+    fileCreated?: string
+    fileModified?: string
     [key: string]: unknown
   }
 }

@@ -749,7 +749,7 @@ export class AgentSessionPresenter {
   async listPendingInputs(sessionId: string) {
     const session = this.sessionManager.get(sessionId)
     if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
+      return []
     }
     const agent = await this.resolveAgentImplementation(session.agentId)
     if (!agent.listPendingInputs) {
