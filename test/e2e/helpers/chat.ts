@@ -1,11 +1,24 @@
 import { expect, type Page } from '@playwright/test'
 
+const escapeAttributeValue = (value: string): string =>
+  value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+
+const createModelOptionSelector = (modelId: string, providerId?: string): string => {
+  const selector = `[data-testid="model-option"][data-model-id="${escapeAttributeValue(modelId)}"]`
+  return providerId
+    ? `${selector}[data-provider-id="${escapeAttributeValue(providerId)}"]`
+    : selector
+}
+
 export async function selectAgent(page: Page, preferredAgentId = 'deepchat'): Promise<void> {
   const preferredAgent = page
     .locator(`[data-testid="sidebar-agent-button"][data-agent-id="${preferredAgentId}"]`)
     .first()
   const fallbackAgent = page.getByTestId('sidebar-agent-button').first()
-  const button = (await preferredAgent.count()) > 0 ? preferredAgent : fallbackAgent
+  await preferredAgent.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined)
+  const button = (await preferredAgent.isVisible().catch(() => false))
+    ? preferredAgent
+    : fallbackAgent
 
   await expect(button).toBeVisible({ timeout: 30_000 })
 
@@ -42,16 +55,13 @@ export async function selectModel(page: Page, modelId: string, providerId?: stri
 
   await switcher.click()
 
-  const searchInput = page.locator('[data-model-search-input="true"]').last()
-  if ((await searchInput.count()) > 0) {
-    await searchInput.fill(modelId)
-  }
-
-  const option = page.locator(`[data-testid="model-option"][data-model-id="${modelId}"]`).first()
+  const option = page.locator(createModelOptionSelector(modelId, providerId)).first()
   await expect(
     option,
-    `Model "${modelId}" was not found. Configure it before running "pnpm run e2e:smoke".`
-  ).toBeVisible({ timeout: 30_000 })
+    `Model "${providerId ? `${providerId}/` : ''}${modelId}" was not found. Configure it before running "pnpm run e2e:smoke".`
+  ).toBeAttached({ timeout: 30_000 })
+  await option.scrollIntoViewIfNeeded()
+  await expect(option).toBeVisible({ timeout: 30_000 })
   await option.click()
 
   await expect

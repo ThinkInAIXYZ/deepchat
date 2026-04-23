@@ -542,6 +542,8 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const _refreshAllModelsInternal = async (): Promise<boolean> => {
+    await providerStore.ensureInitialized()
+
     const activeProviders = providerStore.providers.filter((p) => p.enable)
     let allProvidersRefreshed = true
     for (const provider of activeProviders) {
