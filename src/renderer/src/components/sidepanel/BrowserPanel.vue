@@ -90,6 +90,7 @@ const pendingBrowserDestroySessionIds = new Set<string>()
 let visibilityRunId = 0
 let stopOpenRequestedListener: (() => void) | null = null
 let stopStatusChangedListener: (() => void) | null = null
+let pendingBoundsSyncFrame: number | null = null
 
 const STABLE_RECT_SAMPLE_MS = 48
 const STABLE_RECT_TIMEOUT_MS = 1500
@@ -152,6 +153,29 @@ const captureContainerBounds = (): Rectangle | null => {
   }
 }
 
+const roundBounds = (bounds: Rectangle): Rectangle => ({
+  x: Math.round(bounds.x),
+  y: Math.round(bounds.y),
+  width: Math.round(bounds.width),
+  height: Math.round(bounds.height)
+})
+
+const areBoundsEqual = (left: Rectangle | null, right: Rectangle): boolean => {
+  return (
+    left !== null &&
+    left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height
+  )
+}
+
+const canSyncVisibleBounds = () => {
+  return Boolean(
+    currentSessionId.value && browserStatus.value.initialized && isBrowserPanelVisible.value
+  )
+}
+
 const wait = async (ms: number) => {
   await new Promise((resolve) => window.setTimeout(resolve, ms))
 }
@@ -206,23 +230,49 @@ const loadState = async (sessionId: string = currentSessionId.value) => {
 }
 
 const syncVisibleBounds = async () => {
-  if (!currentSessionId.value || !browserStatus.value.initialized || !isBrowserPanelVisible.value) {
+  if (!canSyncVisibleBounds()) {
     return
   }
 
-  const rect = captureContainerBounds()
+  const sessionId = currentSessionId.value
+  const capturedBounds = captureContainerBounds()
+  const rect = capturedBounds ? roundBounds(capturedBounds) : null
   if (!rect || rect.width <= 0 || rect.height <= 0) {
+    return
+  }
+  if (areBoundsEqual(lastSyncedBounds.value, rect)) {
     return
   }
 
   lastSyncedBounds.value = rect
   await callBrowserAction('updateCurrentWindowBounds', () =>
-    browserClient.updateCurrentWindowBounds(currentSessionId.value, rect, true)
+    browserClient.updateCurrentWindowBounds(sessionId, rect, true)
   )
+}
+
+const scheduleVisibleBoundsSync = () => {
+  if (!canSyncVisibleBounds() || pendingBoundsSyncFrame !== null) {
+    return
+  }
+
+  pendingBoundsSyncFrame = window.requestAnimationFrame(() => {
+    pendingBoundsSyncFrame = null
+    void syncVisibleBounds()
+  })
+}
+
+const cancelScheduledBoundsSync = () => {
+  if (pendingBoundsSyncFrame === null) {
+    return
+  }
+
+  window.cancelAnimationFrame(pendingBoundsSyncFrame)
+  pendingBoundsSyncFrame = null
 }
 
 const hideEmbedded = async (sessionId: string = currentSessionId.value) => {
   visibilityRunId += 1
+  cancelScheduledBoundsSync()
 
   if (!sessionId) {
     return
@@ -262,9 +312,10 @@ const ensureVisibleAttachment = async () => {
     return
   }
 
-  lastSyncedBounds.value = stableRect
+  const visibleBounds = roundBounds(stableRect)
+  lastSyncedBounds.value = visibleBounds
   await callBrowserAction('updateCurrentWindowBounds(visible)', () =>
-    browserClient.updateCurrentWindowBounds(currentSessionId.value, stableRect, true)
+    browserClient.updateCurrentWindowBounds(currentSessionId.value, visibleBounds, true)
   )
   await loadState(currentSessionId.value)
 }
@@ -412,11 +463,7 @@ const flushPendingSessionDestroys = async () => {
 }
 
 useResizeObserver(containerRef, () => {
-  if (!isBrowserPanelVisible.value || !browserStatus.value.initialized) {
-    return
-  }
-
-  void syncVisibleBounds()
+  scheduleVisibleBoundsSync()
 })
 
 watch(isBrowserPanelVisible, (visible) => {
@@ -460,6 +507,7 @@ watch(
 )
 
 onMounted(async () => {
+  window.addEventListener('resize', scheduleVisibleBoundsSync)
   stopOpenRequestedListener = browserClient.onOpenRequestedForCurrentWindow(handleOpenRequested)
   stopStatusChangedListener = browserClient.onStatusChanged(handleStatusChanged)
 
@@ -472,6 +520,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', scheduleVisibleBoundsSync)
+  cancelScheduledBoundsSync()
   void hideEmbedded(currentSessionId.value)
   stopOpenRequestedListener?.()
   stopOpenRequestedListener = null

@@ -4,7 +4,7 @@
 
 <h1 align="center">DeepChat - 强大的开源多模型 AI Agent 平台</h1>
 
-<p align="center">DeepChat是一个功能丰富的开源 AI Agent 平台，统一模型、工具与 Agent：多模型聊天、MCP 工具调用，以及 ACP Agent 集成。</p>
+<p align="center">DeepChat是一个功能丰富的开源 AI Agent 平台，统一模型、工具与 Agent：多模型聊天、MCP 工具调用、Skills、ACP Agent 集成和远程控制。</p>
 
 <p align="center">
   <a href="https://github.com/ThinkInAIXYZ/deepchat/stargazers"><img src="https://img.shields.io/github/stars/ThinkInAIXYZ/deepchat" alt="Stars Badge"/></a>
@@ -30,7 +30,9 @@
 - [🚀 项目简介](#-项目简介)
 - [💡 为什么选择DeepChat](#-为什么选择deepchat)
 - [🔥 主要功能](#-主要功能)
+- [🧠 Skills 支持](#-skills-支持)
 - [🧩 ACP 集成（Agent Client Protocol）](#-acp-集成agent-client-protocol)
+- [📡 远程控制](#-远程控制)
 - [🤖 支持的模型提供商](#-支持的模型提供商)
   - [兼容任何OpenAI/Gemini/Anthropic API格式的模型提供商](#兼容任何openaigeminianthropic-api格式的模型提供商)
 - [🔍 使用场景](#-使用场景)
@@ -51,7 +53,7 @@
 
 DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 Agent Runtime 统一在一款桌面应用中。无论是云端API如OpenAI、Gemini、Anthropic，还是本地部署的Ollama模型，DeepChat都能提供流畅的用户体验。
 
-除了聊天，DeepChat还支持更强的 agentic 工作流：通过 MCP（Model Context Protocol）进行工具调用，并内置 ACP（Agent Client Protocol）集成，让 ACP 兼容 Agent 以一等“模型”形态接入，同时提供专用 Workspace UI。
+除了聊天，DeepChat还支持更强的 agentic 工作流：通过 MCP（Model Context Protocol）进行工具调用，通过可安装的 Skills强化专门任务，并内置 ACP（Agent Client Protocol）集成，让 ACP 兼容 Agent 以一等“模型”形态接入，同时提供专用 Workspace UI，也支持从聊天软件远程控制会话。
 
 <table align="center">
   <tr>
@@ -72,14 +74,15 @@ DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 A
 
 - **多模型统一管理**：一个应用支持几乎所有主流LLM，无需在多个应用间切换
 - **本地模型无缝集成**：内置Ollama支持，无需命令行操作即可管理和使用本地模型
-- **Agentic 协议生态**：内置MCP支持工具调用（代码执行、网络访问等），同时内置ACP支持将外部 Agent 接入 DeepChat，并提供原生 Workspace 体验
+- **Agentic 协议生态**：内置MCP支持工具调用（代码执行、网络访问等），Skills 提供可复用的任务专长，同时内置ACP支持将外部 Agent 接入 DeepChat，并提供原生 Workspace 体验
 - **强大的搜索增强**：支持多种搜索引擎，让AI回答更加准确和及时，提供了非标网页搜索范式，可以快速定制
+- **远程工作流**：支持通过 Telegram、飞书/Lark、QQBot、Discord 和微信 iLink 控制 DeepChat 会话
 - **注重隐私保护**：本地数据存储，支持网络代理，减少信息泄露风险
 - **开源友好**：基于 Apache License 2.0 协议，适合商业和个人使用
 
 ## 🔥 主要功能
 
-- 🌐 **多种云端LLM提供商支持**：DeepSeek、OpenAI、Kimi、Grok、Gemini、Anthropic等
+- 🌐 **多种云端LLM提供商支持**：DeepSeek、OpenAI、Moonshot/Kimi、Grok、Gemini、Anthropic等
 - 🏠 **本地模型部署支持**：
   - 集成Ollama，提供全面的管理功能
   - 无需命令行操作即可控制和管理Ollama模型的下载、部署和运行
@@ -104,9 +107,18 @@ DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 A
   - 支持 StreamableHTTP/SSE/Stdio 协议 Transports
   - 支持 inMemory 服务，内置代码执行、网络信息获取、文件操作等实用工具；开箱即用，无需二次安装即可满足大多数常见用例
   - 通过内置 MCP 服务，将视觉模型能力转换为任何模型都可通用的函数
+- 🧠 **Skills**
+  - 支持从文件夹、ZIP 文件或 URL 安装 Skills
+  - 可按会话启用 Skills，让 DeepChat 加载任务专用说明、参考资料和可选脚本
+  - 支持与其他 AI 编程助手导入/导出 Skills
+  - 内置 Skills 覆盖代码审查、文档协作、Office/PDF 处理、前端设计、MCP 开发等任务
 - 🤝 **ACP（Agent Client Protocol）Agent 集成**
   - 将 ACP 兼容 Agent（内置或自定义命令）作为可选“模型”使用
   - Agent 提供时，支持 ACP Workspace UI 展示结构化计划、工具调用与终端输出
+- 📡 **远程控制**
+  - 支持通过 Telegram、飞书/Lark、QQBot、Discord 和微信 iLink 控制 DeepChat 会话
+  - 可将远程端点绑定到会话，并从聊天软件中管理对话
+  - 支持远程新建或切换会话、停止生成、打开桌面会话、处理待确认交互、切换模型和查看状态
 - 💻 **多平台支持**：Windows、macOS、Linux
 - 🎨 **美观友好的界面**，以用户为中心的设计，精心设计的明暗主题
 - 🔗 **丰富的DeepLink支持**：通过链接发起对话，与其他应用无缝集成。还支持一键安装MCP服务，简单快速
@@ -117,6 +129,20 @@ DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 A
   - 企业集成只需要修改极少配置代码即可使用预留的加密混淆的安全能力
   - 代码结构清晰，无论是模型供应商还是 MCP 服务都高度解耦，可以随意进行增删定制，成本极低
   - 架构合理，数据交互和UI行为分离，充分利用 Electron 的能力，拒绝简单的网页套壳，性能优异
+
+## 🧠 Skills 支持
+
+DeepChat Skills 是兼容标准 Agent Skills 规范的设计。一个 Skill 可以包含任务说明、参考资料、素材和可选脚本，让 DeepChat 在启用后更像某个领域的专门助手。
+
+你可以从文件夹、ZIP 文件或 URL 安装 Skills，也可以与 Claude Code、Codex、Cursor、Windsurf、GitHub Copilot、Kiro、Antigravity、OpenCode、Goose、Kilo Code 等兼容工具导入/导出。
+
+内置 Skills 覆盖算法艺术、代码审查、DeepChat 设置、文档协作、DOCX、前端设计、git commit 信息、信息图语法、MCP 构建、PDF、PPTX、Skill 创建、Web Artifacts 和 XLSX 工作流。
+
+快速上手：
+
+1. 打开 **设置 → Skills**
+2. 安装或导入一个 Skill
+3. 在需要对应能力的会话中启用它
 
 ## 🧩 ACP 集成（Agent Client Protocol）
 
@@ -129,6 +155,14 @@ DeepChat内置对 [Agent Client Protocol（ACP）](https://agentclientprotocol.c
 3. 在模型选择器中选择该 ACP Agent，开始一个 Agent 会话
 
 ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/overview/clients
+
+## 📡 远程控制
+
+DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继续使用同一个会话。配置入口在 **设置 → Remote**。
+
+当前支持 Telegram、飞书/Lark、QQBot、Discord 和微信 iLink。远程端点可以绑定到一个 DeepChat 会话，然后在远程聊天中创建新会话、列出和切换最近会话、停止生成、在桌面打开当前会话、回答待确认问题或权限请求、切换模型并查看运行状态。
+
+常用命令包括 `/start`、`/help`、`/pair`、`/new`、`/sessions`、`/use`、`/stop`、`/open`、`/pending`、`/model` 和 `/status`。
 
 ## 🤖 支持的模型提供商
 
@@ -161,8 +195,8 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <a href="https://www.qiniu.com">七牛</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/newapi.svg" width="50" height="50" alt="NewApi图标"><br/>
-      <a href="https://www.newapi.ai/">NewApi</a>
+      <img src="./src/renderer/src/assets/llm-icons/newapi.svg" width="50" height="50" alt="New API图标"><br/>
+      <a href="https://www.newapi.ai/">New API</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/grok.svg" width="50" height="50" alt="Grok图标"><br/>
@@ -283,14 +317,50 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow图标"><br/>
-      <a href="https://www.siliconflow.cn/">硅基流动</a>
-    </td>
-    <td>
       <img src="./src/renderer/src/assets/llm-icons/anthropic.svg" width="50" height="50" alt="Anthropic图标"><br/>
       <a href="https://www.anthropic.com/">Anthropic</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/voiceai.svg" width="50" height="50" alt="Voice.ai图标"><br/>
+      <a href="https://voice.ai/">Voice.ai</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/vertexai-color.svg" width="50" height="50" alt="Vertex AI图标"><br/>
+      <a href="https://cloud.google.com/vertex-ai">Vertex AI</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/githubcopilot.svg" width="50" height="50" alt="GitHub Copilot图标"><br/>
+      <a href="https://github.com/features/copilot">GitHub Copilot</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/xiaomi.png" width="50" height="50" alt="小米图标"><br/>
+      <a href="https://platform.xiaomimimo.com/#/docs/quick-start/first-api-call">小米</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/o3-fan.png" width="50" height="50" alt="o3.fan图标"><br/>
+      <a href="https://o3.fan">o3.fan</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/novitaai.svg" width="50" height="50" alt="Novita AI图标"><br/>
+      <a href="https://novita.ai/">Novita AI</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/astraflow.png" width="50" height="50" alt="Astraflow Global图标"><br/>
+      <a href="https://astraflow.ucloud.cn/">Astraflow (Global)</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/astraflow.png" width="50" height="50" alt="Astraflow CN图标"><br/>
+      <a href="https://astraflow.ucloud.cn/">Astraflow CN</a>
+    </td>
     <td></td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow图标"><br/>
+      <a href="https://www.siliconflow.cn/">硅基流动</a>
+    </td>
   </tr>
 
 </table>

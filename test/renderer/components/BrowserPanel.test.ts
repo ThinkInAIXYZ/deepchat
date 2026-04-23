@@ -178,6 +178,53 @@ describe('BrowserPanel', () => {
     )
   })
 
+  it('syncs bounds when window resize changes only the browser panel position', async () => {
+    let currentRect = makeRect(24, 48, 320, 480)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => {
+      return currentRect
+    })
+
+    const { browserClient } = await setup()
+    await vi.advanceTimersByTimeAsync(160)
+    await flushPromises()
+    browserClient.updateCurrentWindowBounds.mockClear()
+
+    currentRect = makeRect(12, 48, 320, 480)
+    window.dispatchEvent(new Event('resize'))
+    await vi.advanceTimersByTimeAsync(20)
+    await flushPromises()
+
+    expect(browserClient.updateCurrentWindowBounds).toHaveBeenCalledTimes(1)
+    expect(browserClient.updateCurrentWindowBounds).toHaveBeenCalledWith(
+      'session-a',
+      {
+        x: 12,
+        y: 48,
+        width: 320,
+        height: 480
+      },
+      true
+    )
+  })
+
+  it('skips resize bounds sync when rounded bounds are unchanged', async () => {
+    const currentRect = makeRect(24, 48, 320, 480)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => {
+      return currentRect
+    })
+
+    const { browserClient } = await setup()
+    await vi.advanceTimersByTimeAsync(160)
+    await flushPromises()
+    browserClient.updateCurrentWindowBounds.mockClear()
+
+    window.dispatchEvent(new Event('resize'))
+    await vi.advanceTimersByTimeAsync(20)
+    await flushPromises()
+
+    expect(browserClient.updateCurrentWindowBounds).not.toHaveBeenCalled()
+  })
+
   it('ignores open requests for a different host window or session', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
       makeRect(10, 10, 300, 400)
