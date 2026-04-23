@@ -160,7 +160,7 @@
     "cross-env": "^10.1.0",
     "dayjs": "^1.11.19",
     "electron": "^40.9.2",
-    "electron-builder": "26.0.12",
+    "electron-builder": "26.9.0",
     "electron-vite": "5.0.0",
     "jsdom": "^26.1.0",
     "katex": "^0.16.27",
