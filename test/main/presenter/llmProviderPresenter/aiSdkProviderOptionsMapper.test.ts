@@ -633,7 +633,7 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
   })
 
-  it('does not send google thinking config when a budget portrait defaults to disabled', () => {
+  it('does not send vertex-only tool argument streaming to the google provider', () => {
     mockGetReasoningPortrait.mockReturnValue({
       supported: true,
       defaultEnabled: false,
@@ -667,9 +667,42 @@ describe('AI SDK provider options', () => {
       messages: []
     })
 
+    expect(result.providerOptions).toBeUndefined()
+  })
+
+  it('keeps google thinking config when tools are present without adding vertex-only options', () => {
+    const result = buildProviderOptions({
+      providerId: 'google',
+      capabilityProviderId: 'google',
+      providerOptionsKey: 'google',
+      apiType: 'google',
+      modelId: 'gemini-3.1-flash-lite-preview',
+      modelConfig: {
+        reasoning: true,
+        thinkingBudget: 1024
+      },
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'search_web',
+            description: 'Search the web',
+            parameters: {
+              type: 'object',
+              properties: {}
+            }
+          }
+        }
+      ] as any,
+      messages: []
+    })
+
     expect(result.providerOptions).toEqual({
       google: {
-        streamFunctionCallArguments: true
+        thinkingConfig: {
+          thinkingBudget: 1024,
+          includeThoughts: true
+        }
       }
     })
   })

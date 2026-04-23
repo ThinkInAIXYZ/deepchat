@@ -287,9 +287,6 @@ export function buildProviderOptions(
 
     case 'google': {
       const config: Record<string, unknown> = {}
-      if (params.tools.length > 0) {
-        config.streamFunctionCallArguments = true
-      }
       if (shouldSendThinkingConfig) {
         config.thinkingConfig = {
           ...(params.modelConfig.thinkingBudget !== undefined
