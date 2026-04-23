@@ -51,6 +51,8 @@ export async function openSettings(app: ElectronAppInstance): Promise<Page> {
 
 export async function openSettingsTab(settingsPage: Page, tabTestId: string): Promise<void> {
   const tab = settingsPage.getByTestId(tabTestId)
+  await expect(tab).toBeAttached({ timeout: 30_000 })
+  await tab.scrollIntoViewIfNeeded()
   await expect(tab).toBeVisible({ timeout: 30_000 })
   await tab.click()
 }
