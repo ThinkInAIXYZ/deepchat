@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-message-list w-full min-w-0">
+  <div data-testid="chat-message-list" class="chat-message-list w-full min-w-0">
     <div class="mx-auto w-full max-w-5xl space-y-1 px-6 py-6">
       <template v-for="item in messages" :key="item.id">
         <div

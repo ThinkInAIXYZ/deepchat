@@ -1,5 +1,9 @@
 <template>
-  <div class="w-full h-screen flex flex-col" :class="isWinMacOS ? '' : 'bg-background'">
+  <div
+    data-testid="settings-page"
+    class="w-full h-screen flex flex-col"
+    :class="isWinMacOS ? '' : 'bg-background'"
+  >
     <div
       class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
       :class="[
@@ -24,6 +28,7 @@
         <div
           v-for="setting in settings"
           :key="setting.name"
+          :data-testid="getSettingsTabTestId(setting.name)"
           :class="[
             'flex flex-row items-center hover:bg-accent gap-2 rounded-lg p-2 cursor-pointer',
             route.name === setting.name ? 'bg-accent' : ''
@@ -486,6 +491,17 @@ watch(
 const handleClick = (path: string) => {
   router.push(path)
 }
+
+const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
+  'settings-common': 'settings-tab-general',
+  'settings-display': 'settings-tab-appearance',
+  'settings-provider': 'settings-tab-model-providers',
+  'settings-mcp': 'settings-tab-mcp',
+  'settings-acp': 'settings-tab-acp-agents'
+}
+
+const getSettingsTabTestId = (name: string) =>
+  SETTINGS_TAB_TEST_IDS[name] ?? `settings-tab-${name.replace(/^settings-/, '')}`
 
 // Watch language changes and update i18n + HTML dir
 watch(

@@ -1,5 +1,6 @@
 <template>
   <div
+    data-testid="chat-message-user"
     v-show="!message.content.continue"
     :data-message-id="message.id"
     class="flex flex-row-reverse group pt-5 pl-11 gap-2 user-message-item"

@@ -40,6 +40,8 @@
       <Tooltip :key="buttonMode">
         <TooltipTrigger as-child>
           <Button
+            :data-testid="buttonMode === 'stop' ? 'chat-stop-button' : 'chat-send-button'"
+            :data-mode="buttonMode"
             :variant="buttonMode === 'stop' ? 'outline' : 'default'"
             size="icon"
             class="h-7 w-7 rounded-full"

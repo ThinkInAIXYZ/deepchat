@@ -6,6 +6,7 @@
     >
       <div
         ref="rootRef"
+        data-testid="chat-message-assistant"
         :data-message-id="message.id"
         class="flex flex-row pl-4 pt-5 pr-11 group gap-2 w-full justify-start assistant-message-item"
         @contextmenu.capture="handleContextMenuOpen"

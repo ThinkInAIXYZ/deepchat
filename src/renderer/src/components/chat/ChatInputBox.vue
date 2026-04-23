@@ -1,5 +1,6 @@
 <template>
   <div
+    data-testid="chat-input-box"
     :class="[
       'w-full overflow-hidden rounded-xl border bg-card/30 shadow-sm backdrop-blur-lg',
       props.maxWidthClass
@@ -41,6 +42,7 @@
     </div>
 
     <div
+      data-testid="chat-input-editor"
       class="chat-input-editor px-4 pt-4 pb-2 text-sm"
       @keydown="handleKeydown"
       @paste.capture="onPaste"
@@ -192,6 +194,7 @@ const setCaretToEnd = (editor: Editor) => {
 const editor = new VueEditor({
   editorProps: {
     attributes: {
+      'data-testid': 'chat-input-contenteditable',
       class: 'outline-none min-h-[60px] max-h-[240px] overflow-y-auto overscroll-contain'
     }
   },

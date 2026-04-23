@@ -116,6 +116,7 @@ const titleSegments = computed(() => {
 
 <template>
   <div
+    data-testid="sidebar-session-item"
     class="session-item no-drag flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 text-left transition-colors duration-200"
     :class="[
       active ? 'bg-accent text-accent-foreground' : 'text-foreground/80 hover:bg-accent/50',
@@ -123,6 +124,7 @@ const titleSegments = computed(() => {
     ]"
     :data-pin-fx="pinFeedbackMode ?? undefined"
     :data-pin-state="pinState"
+    :data-active="String(active)"
     :data-session-region="region"
     :data-session-id="session.id"
     @click="emit('select', session)"

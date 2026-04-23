@@ -139,6 +139,7 @@
       </div>
       <div class="flex flex-row gap-2">
         <Button
+          data-testid="provider-verify-button"
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
@@ -149,6 +150,7 @@
           }}
         </Button>
         <Button
+          data-testid="provider-refresh-models-button"
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"

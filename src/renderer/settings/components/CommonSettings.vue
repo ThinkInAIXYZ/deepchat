@@ -1,5 +1,5 @@
 <template>
-  <ScrollArea class="w-full h-full">
+  <ScrollArea data-testid="settings-general-page" class="w-full h-full">
     <div class="w-full h-full flex flex-col gap-3 p-4">
       <UploadFileSettingsSection />
       <ProxySettingsSection />

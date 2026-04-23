@@ -20,3 +20,5 @@ runtime/**/*
 .env.local
 .npmrc
 .claude/settings.local.json
+playwright-report/
+test-results/
