@@ -34,13 +34,19 @@ test('基础聊天流程 @smoke', async ({ app }, testInfo) => {
   await expect(getAssistantMessages(app.page).last()).toContainText(firstReplyToken)
 
   await expect
-    .poll(async () => {
-      const switcher = app.page.getByTestId('app-model-switcher')
-      return {
-        modelId: (await switcher.getAttribute('data-selected-model-id')) ?? '',
-        providerId: (await switcher.getAttribute('data-selected-provider-id')) ?? ''
+    .poll(
+      async () => {
+        const switcher = app.page.getByTestId('app-model-switcher')
+        return {
+          modelId: (await switcher.getAttribute('data-selected-model-id')) ?? '',
+          providerId: (await switcher.getAttribute('data-selected-provider-id')) ?? ''
+        }
+      },
+      {
+        message: `Model switcher should keep ${E2E_TARGET_PROVIDER_ID}/${E2E_TARGET_MODEL_ID}.`,
+        timeout: 60_000
       }
-    })
+    )
     .toEqual({
       modelId: E2E_TARGET_MODEL_ID,
       providerId: E2E_TARGET_PROVIDER_ID

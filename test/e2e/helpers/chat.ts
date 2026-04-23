@@ -26,6 +26,7 @@ export async function selectAgent(page: Page, preferredAgentId = 'deepchat'): Pr
     await button.click()
   }
 
+  await expect(button).toHaveAttribute('data-selected', 'true', { timeout: 30_000 })
   await expect(page.getByTestId('chat-input-editor')).toBeVisible({ timeout: 30_000 })
 }
 
@@ -55,28 +56,35 @@ export async function selectModel(page: Page, modelId: string, providerId?: stri
 
   await switcher.click()
 
+  const modelLabel = providerId ? `${providerId}/${modelId}` : modelId
   const option = page.locator(createModelOptionSelector(modelId, providerId)).first()
   await expect(
     option,
-    `Model "${providerId ? `${providerId}/` : ''}${modelId}" was not found. Configure it before running "pnpm run e2e:smoke".`
+    `Model "${modelLabel}" was not found. Configure it before running "pnpm run e2e:smoke".`
   ).toBeAttached({ timeout: 30_000 })
   await option.scrollIntoViewIfNeeded()
   await expect(option).toBeVisible({ timeout: 30_000 })
   await option.click()
 
   await expect
-    .poll(async () => {
-      const nextSelectedModelId = await switcher.getAttribute('data-selected-model-id')
-      const nextSelectedProviderId = await switcher.getAttribute('data-selected-provider-id')
-      return (
-        nextSelectedModelId === modelId && (!providerId || nextSelectedProviderId === providerId)
-      )
-    })
+    .poll(
+      async () => {
+        const nextSelectedModelId = await switcher.getAttribute('data-selected-model-id')
+        const nextSelectedProviderId = await switcher.getAttribute('data-selected-provider-id')
+        return (
+          nextSelectedModelId === modelId && (!providerId || nextSelectedProviderId === providerId)
+        )
+      },
+      {
+        message: `Model switcher should select "${modelLabel}".`,
+        timeout: 60_000
+      }
+    )
     .toBe(true)
 }
 
 export async function sendMessage(page: Page, text: string): Promise<void> {
-  const editor = page.getByTestId('chat-input-contenteditable')
+  const editor = page.getByTestId('chat-input-editor').locator('[contenteditable="true"]').first()
   await expect(editor).toBeVisible({ timeout: 30_000 })
   await editor.click()
   await editor.fill(text)
@@ -114,4 +122,5 @@ export async function openSessionById(page: Page, sessionId: string): Promise<vo
     .first()
   await expect(sessionItem).toBeVisible({ timeout: 30_000 })
   await sessionItem.click()
+  await expect(sessionItem).toHaveAttribute('data-active', 'true', { timeout: 30_000 })
 }
