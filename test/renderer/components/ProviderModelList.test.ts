@@ -42,11 +42,30 @@ const DynamicScrollerStub = defineComponent({
       default: () => []
     }
   },
-  template: '<div><slot v-for="item in items" :key="item.id" :item="item" :active="true" /></div>'
+  template:
+    '<div><slot v-for="(item, index) in items" :key="item.id" :item="item" :index="index" :active="true" /></div>'
 })
 
 const DynamicScrollerItemStub = defineComponent({
   name: 'DynamicScrollerItemStub',
+  props: {
+    item: {
+      type: Object,
+      required: true
+    },
+    active: {
+      type: Boolean,
+      required: true
+    },
+    index: {
+      type: Number,
+      required: true
+    },
+    sizeDependencies: {
+      type: Array,
+      default: () => []
+    }
+  },
   template: '<div><slot /></div>'
 })
 

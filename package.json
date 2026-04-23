@@ -195,7 +195,7 @@
     "vue-router": "4",
     "vue-sonner": "^2.0.9",
     "vue-tsgo": "0.0.1-yggdrasill.11",
-    "vue-virtual-scroller": "^2.0.0-beta.10",
+    "vue-virtual-scroller": "^3.0.0",
     "vuedraggable": "^4.1.0",
     "yaml": "^2.8.3",
     "zod-to-json-schema": "^3.25.1"
