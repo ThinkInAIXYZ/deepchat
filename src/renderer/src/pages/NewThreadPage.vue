@@ -336,10 +336,14 @@ async function onSubmit() {
   const text = message.value.trim()
   if (!text) return
   const files = [...attachedFiles.value].map((f) => toRaw(f))
-  message.value = ''
-  attachedFiles.value = []
 
-  await submitText(text, files)
+  try {
+    await submitText(text, files)
+    message.value = ''
+    attachedFiles.value = []
+  } catch (e) {
+    console.error('[NewThreadPage] submit failed:', e)
+  }
 }
 
 async function onCommandSubmit(command: string) {
@@ -347,8 +351,12 @@ async function onCommandSubmit(command: string) {
   const text = command.trim()
   if (!text) return
   const files = [...attachedFiles.value].map((f) => toRaw(f))
-  attachedFiles.value = []
-  await submitText(text, files)
+  try {
+    await submitText(text, files)
+    attachedFiles.value = []
+  } catch (e) {
+    console.error('[NewThreadPage] submit failed:', e)
+  }
 }
 
 async function submitText(text: string, files: MessageFile[]) {
