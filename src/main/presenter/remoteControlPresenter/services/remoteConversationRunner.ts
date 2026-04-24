@@ -389,6 +389,11 @@ export class RemoteConversationRunner {
       this.deps.agentRuntimePresenter.getActiveGeneration(session.id)?.eventId ?? null
 
     const files = await this.prepareRemoteAttachments(endpointKey, session, input)
+    const hasInputAttachments = (input.attachments?.length ?? 0) > 0
+    if (hasInputAttachments && files.length === 0 && input.text.trim() === '') {
+      throw new Error('All attachments failed validation/download.')
+    }
+
     const text = input.text.trim() || (files.length > 0 ? 'Please use the attached files.' : '')
     const messageInput: string | SendMessageInput = files.length > 0 ? { text, files } : text
 

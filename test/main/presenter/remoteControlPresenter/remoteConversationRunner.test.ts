@@ -401,6 +401,68 @@ describe('RemoteConversationRunner', () => {
     }
   })
 
+  it('rejects empty text turns when all remote attachments are skipped', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
+    const session = createSession({
+      id: 'session-bound',
+      projectDir: workspace
+    })
+    const agentSessionPresenter = {
+      getSession: vi.fn().mockResolvedValue(session),
+      getMessages: vi.fn().mockResolvedValue([]),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      getMessage: vi.fn().mockResolvedValue(null)
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: agentSessionPresenter as any,
+        agentRuntimePresenter: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-bound',
+          updatedAt: 1
+        }),
+        clearBinding: vi.fn(),
+        clearActiveEvent: vi.fn(),
+        rememberActiveEvent: vi.fn()
+      } as any
+    )
+
+    try {
+      await expect(
+        runner.sendInput('telegram:100:0', {
+          text: '   ',
+          sourceMessageId: 'telegram-message-empty-attachments',
+          attachments: [
+            {
+              id: 'failed-file',
+              filename: 'failed.txt',
+              mediaType: 'text/plain',
+              failedDownload: true
+            },
+            {
+              id: 'empty-file',
+              filename: 'empty.txt',
+              mediaType: 'text/plain'
+            }
+          ]
+        })
+      ).rejects.toThrow('All attachments failed validation/download.')
+      expect(agentSessionPresenter.sendMessage).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledTimes(2)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   it('downloads and decrypts inbound encrypted remote media before sending', async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
     const plainContent = Buffer.from('weixin image bytes')
