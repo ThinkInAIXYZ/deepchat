@@ -15,6 +15,7 @@ import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { createModelClient } from '../../api/ModelClient'
 
 const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
@@ -33,6 +34,7 @@ export const useModelStore = defineStore('model', () => {
   const providerStore = useProviderStore()
   const modelConfigStore = useModelConfigStore()
   const agentModelStore = useAgentModelStore()
+  const uiSettingsStore = useUiSettingsStore()
 
   const enabledModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
@@ -51,6 +53,29 @@ export const useModelStore = defineStore('model', () => {
   const inFlightRefreshes = new Map<string, Promise<boolean>>()
   const rerunRequested = new Set<string>()
   const pendingRefreshStarts = new Set<string>()
+  const pendingModelStatusEchoes = new Map<string, boolean>()
+
+  const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
+  const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+  const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
+    if (!uiSettingsStore.traceDebugEnabled) {
+      return
+    }
+
+    console.info(`${MODEL_TOGGLE_PERF_LOG_PREFIX} ${phase}`, details)
+  }
+
+  const getModelStatusKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
+
+  const trackPendingModelStatusEcho = (providerId: string, modelId: string, enabled: boolean) => {
+    const statusKey = getModelStatusKey(providerId, modelId)
+    pendingModelStatusEchoes.set(statusKey, enabled)
+    setTimeout(() => {
+      if (pendingModelStatusEchoes.get(statusKey) === enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }, 1500)
+  }
 
   const ensureModelRuntime = () => {
     setupModelListeners()
@@ -654,17 +679,45 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const updateModelStatus = async (providerId: string, modelId: string, enabled: boolean) => {
+    const actionStart = getPerfNow()
     const previousState = getLocalModelEnabledState(providerId, modelId)
+    const localUpdateStart = getPerfNow()
     updateLocalModelStatus(providerId, modelId, enabled)
+    trackPendingModelStatusEcho(providerId, modelId, enabled)
+    logModelTogglePerf('store.local-update', {
+      providerId,
+      modelId,
+      enabled,
+      previousState,
+      elapsedMs: Math.round(getPerfNow() - localUpdateStart)
+    })
 
     try {
+      const ipcStart = getPerfNow()
       await modelClient.updateModelStatus(providerId, modelId, enabled)
-      await refreshProviderModels(providerId)
+      logModelTogglePerf('store.ipc-complete', {
+        providerId,
+        modelId,
+        enabled,
+        elapsedMs: Math.round(getPerfNow() - ipcStart),
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
     } catch (error) {
       console.error('Failed to update model status:', error)
+      const statusKey = getModelStatusKey(providerId, modelId)
+      if (pendingModelStatusEchoes.get(statusKey) === enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
       if (previousState !== null && previousState !== enabled) {
         updateLocalModelStatus(providerId, modelId, previousState)
       }
+      logModelTogglePerf('store.rollback', {
+        providerId,
+        modelId,
+        enabled,
+        previousState,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
     }
   }
 
@@ -819,6 +872,15 @@ export const useModelStore = defineStore('model', () => {
 
     const unsubscribeModelStatusChanged = modelClient.onModelStatusChanged(
       async (msg: { providerId: string; modelId: string; enabled: boolean }) => {
+        const statusKey = getModelStatusKey(msg.providerId, msg.modelId)
+        const pendingEnabled = pendingModelStatusEchoes.get(statusKey)
+        if (pendingEnabled !== undefined) {
+          pendingModelStatusEchoes.delete(statusKey)
+          if (pendingEnabled === msg.enabled) {
+            return
+          }
+        }
+
         updateLocalModelStatus(msg.providerId, msg.modelId, msg.enabled)
       }
     )
@@ -840,6 +902,7 @@ export const useModelStore = defineStore('model', () => {
     inFlightRefreshes.clear()
     rerunRequested.clear()
     pendingRefreshStarts.clear()
+    pendingModelStatusEchoes.clear()
   }
 
   const initialize = async () => {

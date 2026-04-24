@@ -90,9 +90,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { LLM_PROVIDER, RENDERER_MODEL_META, VERTEX_PROVIDER } from '@shared/presenter'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import ProviderApiConfig from './ProviderApiConfig.vue'
@@ -132,6 +133,7 @@ const props = defineProps<{
 
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
+const uiSettingsStore = useUiSettingsStore()
 const modelCheckStore = useModelCheckStore()
 const azureApiVersion = ref('')
 const geminiSafetyLevels = reactive<Record<string, number>>({})
@@ -229,7 +231,6 @@ const initProviderSettings = async () => {
   console.log('initData for provider:', props.provider.id)
 
   await providerStore.ensureDefaultProvidersReady()
-  await modelStore.ensureProviderModelsReady(props.provider.id)
 
   // Fetch Azure API Version if applicable
   if (props.provider.id === 'azure-openai') {
@@ -287,6 +288,26 @@ const handleApiKeyChange = (value: string) =>
 const handleApiHostChange = (value: string) =>
   providerStore.updateProviderApi(props.provider.id, undefined, value)
 
+const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
+const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
+  if (!uiSettingsStore.traceDebugEnabled) {
+    return
+  }
+
+  console.info(`${MODEL_TOGGLE_PERF_LOG_PREFIX} ${phase}`, details)
+}
+
+const waitForNextPaint = async () => {
+  if (typeof requestAnimationFrame !== 'function') {
+    return
+  }
+
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve())
+  })
+}
+
 const handleModelEnabledChange = async (
   model: RENDERER_MODEL_META,
   enabled: boolean,
@@ -297,7 +318,34 @@ const handleModelEnabledChange = async (
     return
   }
 
+  const interactionStart = getPerfNow()
+  logModelTogglePerf('detail.click', {
+    providerId: props.provider.id,
+    modelId: model.id,
+    enabled
+  })
+
   await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+
+  const storeComplete = getPerfNow()
+  if (!uiSettingsStore.traceDebugEnabled) {
+    return
+  }
+
+  await nextTick()
+  const nextTickComplete = getPerfNow()
+  await waitForNextPaint()
+  const paintComplete = getPerfNow()
+
+  logModelTogglePerf('detail.settled', {
+    providerId: props.provider.id,
+    modelId: model.id,
+    enabled,
+    storeMs: Math.round(storeComplete - interactionStart),
+    nextTickMs: Math.round(nextTickComplete - storeComplete),
+    paintMs: Math.round(paintComplete - nextTickComplete),
+    totalMs: Math.round(paintComplete - interactionStart)
+  })
 }
 
 const disableModel = (model: RENDERER_MODEL_META) => {
