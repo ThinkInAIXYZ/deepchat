@@ -7,12 +7,14 @@
 - Added project workspace directories, privacy mode, inline chat session renaming, long user message collapse, and improved new chat entry behavior
 - Added NewAPI and Astraflow (ModelVerse) provider support, richer model capability controls, request timeout settings, and more reliable model list management
 - Improved desktop security, startup responsiveness, embedded browser resizing, image paste submission, Gemini compatibility, and SQLite upgrade recovery
+- Added Sharp native package hoisting to keep image processing dependencies available in release builds
 - 新增 DeepSeek V4 系列模型支持，并刷新 Provider 模型数据，提升默认模型可用性覆盖
 - 将模型请求迁移到 AI SDK 运行时，提升 Provider 行为、流式输出、Prompt Cache 与工具调用一致性
 - 远程控制升级为统一多渠道配置，新增 Discord、QQ Bot 与微信 iLink 支持
 - 新增项目工作区目录、隐私模式、会话内联重命名、长用户消息折叠，并优化新建会话入口体验
 - 新增 NewAPI 与 Astraflow（ModelVerse）Provider，补充模型能力控制、请求超时配置与更稳定的模型列表管理
 - 提升桌面端安全性、启动响应、内嵌浏览器尺寸调整、图片粘贴提交、Gemini 兼容性与 SQLite 升级恢复稳定性
+- 增加 Sharp 原生包 hoist 配置，确保图片处理依赖在 release 构建中可用
 
 ## v1.0.3-beta.6 (2026-04-22)
 - Added model initialization in settings so ModelSelect respects the current chat mode and restores default model controls more reliably
