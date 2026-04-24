@@ -53,8 +53,7 @@ export class FeishuParser {
         ? [
             {
               id: content.image_key,
-              filename: `${content.image_key}.png`,
-              mediaType: 'image/png',
+              filename: content.image_key,
               resourceKey: content.image_key,
               resourceType: 'image' as const
             }

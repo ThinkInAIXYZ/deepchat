@@ -30,6 +30,50 @@ const createTextPayload = (text: string): string =>
 
 const createCardPayload = (card: FeishuInteractiveCardPayload): string => JSON.stringify(card)
 
+const readHeaderValue = (headers: unknown, name: string): string | undefined => {
+  if (!headers) {
+    return undefined
+  }
+
+  if (typeof (headers as { get?: unknown }).get === 'function') {
+    return (
+      ((headers as { get: (key: string) => string | null }).get(name) ?? '').trim() || undefined
+    )
+  }
+
+  if (typeof headers === 'object') {
+    const record = headers as Record<string, string | string[] | undefined>
+    const value = record[name] ?? record[name.toLowerCase()]
+    if (Array.isArray(value)) {
+      return value.find((entry) => entry.trim())?.trim()
+    }
+    return value?.trim() || undefined
+  }
+
+  return undefined
+}
+
+const readResponseContentType = (response: unknown): string | undefined => {
+  const record = response as
+    | {
+        headers?: unknown
+        data?: {
+          headers?: unknown
+        }
+        response?: {
+          headers?: unknown
+        }
+      }
+    | null
+    | undefined
+
+  return (
+    readHeaderValue(record?.headers, 'content-type') ||
+    readHeaderValue(record?.data?.headers, 'content-type') ||
+    readHeaderValue(record?.response?.headers, 'content-type')
+  )
+}
+
 const resolveLarkDomain = (brand: FeishuBrand): string | undefined => {
   if (brand === 'lark') {
     return ((Lark as any).Domain?.Lark as string | undefined) ?? 'https://open.larksuite.com'
@@ -193,8 +237,7 @@ export class FeishuClient {
     type: 'image' | 'file'
   }): Promise<{
     data: string
-    mediaType: string
-    filename?: string
+    mediaType?: string
   }> {
     const response = await (this.sdk as any).im.messageResource.get({
       path: {
@@ -226,7 +269,7 @@ export class FeishuClient {
 
     return {
       data: Buffer.concat(chunks).toString('base64'),
-      mediaType: params.type === 'image' ? 'image/png' : 'application/octet-stream'
+      mediaType: readResponseContentType(response)
     }
   }
 

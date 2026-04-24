@@ -51,6 +51,7 @@ const sleep = async (ms: number): Promise<void> => {
 }
 
 const REMOTE_ASSET_ROOT = '.deepchat/remote-assets'
+const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 35_000
 
 const MIME_EXTENSION: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -61,6 +62,9 @@ const MIME_EXTENSION: Record<string, string> = {
   'text/plain': '.txt'
 }
 
+const isInvalidPathSegment = (value: string): boolean =>
+  value.length === 0 || value === '.' || value === '..'
+
 const sanitizePathSegment = (value: string | null | undefined, fallback: string): string => {
   const unsafeCharacters = '\\/:*?"<>|'
   const normalized =
@@ -69,7 +73,7 @@ const sanitizePathSegment = (value: string | null | undefined, fallback: string)
       .split('')
       .map((char) => (char.charCodeAt(0) < 32 || unsafeCharacters.includes(char) ? '_' : char))
       .join('') ?? ''
-  return normalized || fallback
+  return isInvalidPathSegment(normalized) ? fallback : normalized
 }
 
 const sanitizeFileName = (
@@ -77,7 +81,12 @@ const sanitizeFileName = (
   fallback: string,
   mimeType?: string | null
 ): string => {
-  const baseName = sanitizePathSegment(path.basename(value?.trim() || ''), fallback)
+  const fallbackName = sanitizePathSegment(path.basename(fallback.trim() || ''), 'attachment')
+  let baseName = sanitizePathSegment(path.basename(value?.trim() || ''), fallbackName)
+  if (isInvalidPathSegment(baseName)) {
+    baseName = fallbackName
+  }
+
   if (path.extname(baseName)) {
     return baseName
   }
@@ -647,7 +656,9 @@ export class RemoteConversationRunner {
       throw new Error(`Remote attachment "${attachment.filename}" has no downloadable data.`)
     }
 
-    const response = await fetch(url)
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
+    })
     if (!response.ok) {
       throw new Error(
         `Failed to download remote attachment: ${response.status} ${response.statusText}`
@@ -676,7 +687,9 @@ export class RemoteConversationRunner {
       throw new Error(`Remote attachment "${attachment.filename}" has no downloadable data.`)
     }
 
-    const response = await fetch(url)
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
+    })
     if (!response.ok) {
       throw new Error(
         `Failed to download remote attachment: ${response.status} ${response.statusText}`
@@ -897,7 +910,17 @@ export class RemoteConversationRunner {
       hashEndpointKey(endpointKey),
       sanitizePathSegment(messageId, 'assistant-message')
     )
-    await fs.mkdir(assetDir, { recursive: true })
+    try {
+      await fs.mkdir(assetDir, { recursive: true })
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to create generated image asset directory:', {
+        endpointKey,
+        messageId,
+        assetDir,
+        error
+      })
+      return []
+    }
 
     const assets: RemoteGeneratedImageAsset[] = []
     for (const { block, index } of imageBlocks) {
@@ -912,18 +935,27 @@ export class RemoteConversationRunner {
       const filePath = path.join(assetDir, filename)
 
       try {
-        await fs.access(filePath)
-      } catch {
-        await fs.writeFile(filePath, Buffer.from(stripDataUrlPrefix(data), 'base64'))
-      }
+        try {
+          await fs.access(filePath)
+        } catch {
+          await fs.writeFile(filePath, Buffer.from(stripDataUrlPrefix(data), 'base64'))
+        }
 
-      assets.push({
-        key: `${messageId}:${index}:image`,
-        path: filePath,
-        mimeType,
-        filename,
-        sourceMessageId: messageId
-      })
+        assets.push({
+          key: `${messageId}:${index}:image`,
+          path: filePath,
+          mimeType,
+          filename,
+          sourceMessageId: messageId
+        })
+      } catch (error) {
+        console.warn('[RemoteConversationRunner] Failed to persist generated image:', {
+          endpointKey,
+          messageId,
+          index,
+          error
+        })
+      }
     }
 
     return assets

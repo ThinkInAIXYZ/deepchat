@@ -95,4 +95,34 @@ describe('QQBotParser', () => {
       })
     )
   })
+
+  it('uses unique fallback filenames for unnamed attachments', () => {
+    const parser = new QQBotParser()
+
+    const parsed = parser.parseDispatch({
+      t: 'C2C_MESSAGE_CREATE',
+      d: {
+        id: 'msg_c2c_3',
+        content: '',
+        author: {
+          user_openid: 'user_openid_1'
+        },
+        attachments: [
+          {
+            id: 'attachment-1',
+            url: 'https://qq.example/one'
+          },
+          {
+            id: 'attachment-2',
+            url: 'https://qq.example/two'
+          }
+        ]
+      }
+    })
+
+    expect(parsed?.attachments.map((attachment) => attachment.filename)).toEqual([
+      'attachment-1',
+      'attachment-2'
+    ])
+  })
 })

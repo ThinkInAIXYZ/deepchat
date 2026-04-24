@@ -15,6 +15,7 @@ const createMessage = (
   command: null,
   mentionedBot: false,
   mentions: [],
+  attachments: [],
   ...overrides
 })
 
@@ -35,6 +36,50 @@ const createRunner = (overrides: Record<string, unknown> = {}) => ({
 })
 
 describe('FeishuCommandRouter', () => {
+  it('surfaces failed attachment downloads before sending to the runner', async () => {
+    const runner = createRunner({
+      sendInput: vi.fn()
+    })
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn().mockReturnValue({
+        state: 'running',
+        lastError: null,
+        botUser: null
+      })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '',
+        attachments: [
+          {
+            id: 'img-key',
+            filename: 'img-key',
+            resourceKey: 'img-key',
+            resourceType: 'image',
+            failedDownload: true,
+            errorMessage: 'Failed to load attachment'
+          }
+        ],
+        allAttachmentsFailed: true
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['Failed to load your attachment. Please resend.']
+    })
+    expect(runner.sendInput).not.toHaveBeenCalled()
+  })
+
   it('ignores group messages that do not mention the bot', async () => {
     const router = new FeishuCommandRouter({
       authGuard: {

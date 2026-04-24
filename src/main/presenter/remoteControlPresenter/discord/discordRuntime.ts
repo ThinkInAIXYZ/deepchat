@@ -630,7 +630,10 @@ export class DiscordRuntime {
           path: asset.path,
           error
         })
-        await this.deps.client.sendMessage(target.channelId, `[Image]\nPath: ${asset.path}`)
+        await this.deps.client.sendMessage(
+          target.channelId,
+          '[Image] Delivery failed - see local copy in the app.'
+        )
       }
     }
   }

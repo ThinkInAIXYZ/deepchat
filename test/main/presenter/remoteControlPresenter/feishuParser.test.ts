@@ -116,8 +116,7 @@ describe('FeishuParser', () => {
         attachments: [
           {
             id: 'img_v3_key',
-            filename: 'img_v3_key.png',
-            mediaType: 'image/png',
+            filename: 'img_v3_key',
             resourceKey: 'img_v3_key',
             resourceType: 'image'
           }

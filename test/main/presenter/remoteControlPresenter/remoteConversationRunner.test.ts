@@ -271,7 +271,10 @@ describe('RemoteConversationRunner', () => {
 
     const preparedPath = filePresenter.prepareFile.mock.calls[0][0] as string
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://novac2c.cdn.weixin.qq.com/c2c/download?encrypted_query_param=encrypted%20query'
+      'https://novac2c.cdn.weixin.qq.com/c2c/download?encrypted_query_param=encrypted%20query',
+      {
+        signal: expect.any(AbortSignal)
+      }
     )
     await expect(fs.readFile(preparedPath)).resolves.toEqual(plainContent)
     expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-bound', {

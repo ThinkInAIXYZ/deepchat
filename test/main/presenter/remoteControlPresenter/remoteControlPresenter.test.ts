@@ -87,6 +87,7 @@ const createConfigPresenter = () => {
     setSetting: vi.fn((key: string, value: unknown) => {
       store.set(key, value)
     }),
+    getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),
     listAgents: vi.fn().mockResolvedValue([
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'acp-agent', name: 'ACP Agent', type: 'acp', enabled: true }
@@ -415,7 +416,8 @@ describe('RemoteControlPresenter', () => {
     const saved = await presenter.saveTelegramSettings({
       botToken: 'test-bot-token',
       remoteEnabled: true,
-      defaultAgentId: 'acp-agent'
+      defaultAgentId: 'acp-agent',
+      defaultWorkdir: '/workspace'
     })
 
     expect(saved.defaultAgentId).toBe('acp-agent')

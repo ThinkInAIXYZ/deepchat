@@ -351,7 +351,7 @@ export class FeishuRuntime {
           return {
             ...attachment,
             data: downloaded.data,
-            mediaType: downloaded.mediaType || attachment.mediaType
+            mediaType: downloaded.mediaType?.trim() || attachment.mediaType
           }
         } catch (error) {
           console.warn('[FeishuRuntime] Failed to download Feishu message resource:', {
@@ -359,14 +359,20 @@ export class FeishuRuntime {
             filename: attachment.filename,
             error
           })
-          return attachment
+          return {
+            ...attachment,
+            failedDownload: true,
+            errorMessage: 'Failed to load attachment'
+          }
         }
       })
     )
 
     return {
       ...message,
-      attachments
+      attachments,
+      allAttachmentsFailed:
+        attachments.length > 0 && attachments.every((attachment) => attachment.failedDownload)
     }
   }
 
@@ -597,7 +603,10 @@ export class FeishuRuntime {
           path: asset.path,
           error
         })
-        await this.deps.client.sendText(target, `[Image]\nPath: ${asset.path}`)
+        await this.deps.client.sendText(
+          target,
+          '[Image] Delivery failed - see local copy in the app.'
+        )
       }
     }
   }

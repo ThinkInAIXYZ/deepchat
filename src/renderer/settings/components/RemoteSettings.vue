@@ -2169,7 +2169,7 @@ const normalizePath = (value: string | null | undefined) => {
   return normalized ? normalized : null
 }
 
-const pathLabel = (value: string) => value.split(/[/\\]/).pop() ?? value
+const pathLabel = (value: string) => value.split(/[/\\]/).filter(Boolean).pop() || value
 
 const getChannelDefaultWorkdir = (channel: RemoteChannel): string => {
   switch (channel) {

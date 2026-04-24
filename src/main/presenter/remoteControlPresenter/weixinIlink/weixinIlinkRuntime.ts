@@ -586,12 +586,16 @@ export class WeixinIlinkRuntime {
           mimeType: asset.mimeType
         })
       } catch (error) {
-        this.logInfo('Failed to send Weixin iLink generated image; sending local path.', {
+        this.logInfo('Failed to send Weixin iLink generated image; using local copy fallback.', {
           accountId: this.deps.accountId,
           path: asset.path,
           error: error instanceof Error ? error.message : String(error)
         })
-        await this.sendText(sendContext, `[Image]\nPath: ${asset.path}`, 'image-fallback')
+        await this.sendText(
+          sendContext,
+          '[Image] Delivery failed - see local copy in the app.',
+          'image-fallback'
+        )
       }
     }
   }

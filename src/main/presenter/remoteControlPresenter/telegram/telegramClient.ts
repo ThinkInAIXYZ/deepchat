@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import type { TelegramInlineKeyboardMarkup, TelegramTransportTarget } from '../types'
 
 type TelegramApiErrorParameters = {
@@ -88,6 +90,25 @@ const buildReplyMarkup = (
 ): TelegramInlineKeyboardMarkup | undefined =>
   replyMarkup === null ? { inline_keyboard: [] } : replyMarkup
 
+const TELEGRAM_FILE_REQUEST_TIMEOUT_MS = 35_000
+
+const fetchWithTimeout = async (
+  url: string,
+  init: RequestInit = {},
+  timeoutMs: number = TELEGRAM_FILE_REQUEST_TIMEOUT_MS
+): Promise<Response> => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export class TelegramApiRequestError extends Error {
   constructor(
     message: string,
@@ -163,7 +184,7 @@ export class TelegramClient {
       throw new Error('Telegram file_path is missing from getFile response.')
     }
 
-    const response = await fetch(`${this.fileBaseUrl}/${filePath}`)
+    const response = await fetchWithTimeout(`${this.fileBaseUrl}/${filePath}`)
     if (!response.ok) {
       throw new TelegramApiRequestError(`Telegram file download failed: ${response.status}`)
     }
@@ -188,11 +209,11 @@ export class TelegramClient {
     if (caption?.trim()) {
       form.set('caption', caption.trim())
     }
-    const fileBuffer = await import('node:fs/promises').then((fs) => fs.readFile(filePath))
-    const fileName = filePath.split(/[\\/]/).pop() || 'image'
+    const fileBuffer = await fs.readFile(filePath)
+    const fileName = path.basename(filePath) || 'image'
     form.set('photo', new Blob([fileBuffer]), fileName)
 
-    const response = await fetch(`${this.baseUrl}/sendPhoto`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/sendPhoto`, {
       method: 'POST',
       body: form
     })

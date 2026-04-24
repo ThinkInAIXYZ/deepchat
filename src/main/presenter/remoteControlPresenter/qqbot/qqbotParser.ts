@@ -41,9 +41,9 @@ const parseCommand = (text: string): TelegramCommandPayload | null => {
 
 const normalizeAttachments = (payload: QQBotRawMessage) =>
   (payload.attachments ?? [])
-    .map((attachment) => ({
+    .map((attachment, index) => ({
       id: attachment.id?.trim() || attachment.url?.trim() || '',
-      filename: attachment.filename?.trim() || 'attachment',
+      filename: attachment.filename?.trim() || `attachment-${index + 1}`,
       mediaType: attachment.content_type?.trim() || 'application/octet-stream',
       size: typeof attachment.size === 'number' ? attachment.size : null,
       url: attachment.url?.trim() || '',

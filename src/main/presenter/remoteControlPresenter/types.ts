@@ -394,6 +394,7 @@ export interface FeishuInboundMessage {
   mentionedBot: boolean
   mentions: FeishuRawMention[]
   attachments: RemoteInputAttachment[]
+  allAttachmentsFailed?: boolean
 }
 
 export interface QQBotInboundMessage {
@@ -422,7 +423,7 @@ export interface DiscordInboundAttachment {
 export interface RemoteInputAttachment {
   id?: string
   filename: string
-  mediaType: string
+  mediaType?: string
   size?: number | null
   url?: string
   data?: string
@@ -430,6 +431,8 @@ export interface RemoteInputAttachment {
   resourceKey?: string
   resourceType?: 'image' | 'file'
   encryptedMedia?: RemoteInputEncryptedMedia
+  failedDownload?: boolean
+  errorMessage?: string
 }
 
 export interface RemoteInputEncryptedMedia {

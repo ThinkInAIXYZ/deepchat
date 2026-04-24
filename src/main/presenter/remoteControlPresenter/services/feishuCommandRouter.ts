@@ -83,6 +83,12 @@ export class FeishuCommandRouter {
     }
 
     try {
+      if (message.allAttachmentsFailed) {
+        return {
+          replies: ['Failed to load your attachment. Please resend.']
+        }
+      }
+
       const pendingInteraction = await this.deps.runner.getPendingInteraction(endpointKey)
       if (pendingInteraction) {
         if (!command) {
@@ -217,7 +223,7 @@ export class FeishuCommandRouter {
                 endpointKey,
                 {
                   text: message.text,
-                  attachments,
+                  attachments: attachments.filter((attachment) => !attachment.failedDownload),
                   sourceMessageId: message.messageId
                 },
                 bindingMeta

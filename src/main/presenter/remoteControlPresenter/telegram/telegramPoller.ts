@@ -555,7 +555,10 @@ export class TelegramPoller {
           path: asset.path,
           error
         })
-        await this.sendChunkedMessage(target, `[Image]\nPath: ${asset.path}`)
+        await this.sendChunkedMessage(
+          target,
+          '[Image] Delivery failed - see local copy in the app.'
+        )
       }
     }
   }

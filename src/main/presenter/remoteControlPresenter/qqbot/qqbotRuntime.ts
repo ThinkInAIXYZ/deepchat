@@ -786,7 +786,10 @@ export class QQBotRuntime {
         })
         sendContext.sentCount -= 1
         sendContext.nextMsgSeq -= 1
-        await this.sendText(sendContext, `[Image]\nPath: ${asset.path}`)
+        await this.sendText(
+          sendContext,
+          '[Image] Delivery failed - see local copy in the app.'
+        ).catch(() => undefined)
       }
     }
   }

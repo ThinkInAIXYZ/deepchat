@@ -1835,10 +1835,6 @@ export class RemoteControlPresenter {
   }
 
   private async assertAcpDefaultWorkdir(agentId: string, defaultWorkdir: string): Promise<void> {
-    if (typeof this.deps.configPresenter.getAgentType !== 'function') {
-      return
-    }
-
     if ((await this.deps.configPresenter.getAgentType(agentId)) !== 'acp') {
       return
     }

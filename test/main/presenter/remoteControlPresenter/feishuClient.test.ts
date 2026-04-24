@@ -5,6 +5,7 @@ const wsClientConfigs: unknown[] = []
 const wsStart = vi.fn().mockResolvedValue(undefined)
 const wsClose = vi.fn()
 const register = vi.fn()
+const messageResourceGet = vi.fn()
 
 vi.mock('@larksuiteoapi/node-sdk', () => ({
   Domain: {
@@ -24,6 +25,9 @@ vi.mock('@larksuiteoapi/node-sdk', () => ({
         reply: vi.fn(),
         create: vi.fn(),
         update: vi.fn()
+      },
+      messageResource: {
+        get: messageResourceGet
       }
     }
 
@@ -55,6 +59,7 @@ describe('FeishuClient', () => {
     wsStart.mockClear()
     wsClose.mockClear()
     register.mockClear()
+    messageResourceGet.mockReset()
   })
 
   it('uses the lark domain for both rest and websocket clients', async () => {
@@ -86,5 +91,32 @@ describe('FeishuClient', () => {
     )
     expect(wsStart).toHaveBeenCalledTimes(1)
     expect(register).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses response content-type for downloaded message resources', async () => {
+    messageResourceGet.mockResolvedValue({
+      data: Buffer.from('image-bytes'),
+      headers: {
+        'content-type': 'image/jpeg'
+      }
+    })
+    const client = new FeishuClient({
+      brand: 'feishu',
+      appId: 'cli_feishu',
+      appSecret: 'secret',
+      verificationToken: 'verify',
+      encryptKey: 'encrypt'
+    })
+
+    const downloaded = await client.downloadMessageResource({
+      messageId: 'om_1',
+      fileKey: 'img_key',
+      type: 'image'
+    })
+
+    expect(downloaded).toEqual({
+      data: Buffer.from('image-bytes').toString('base64'),
+      mediaType: 'image/jpeg'
+    })
   })
 })
