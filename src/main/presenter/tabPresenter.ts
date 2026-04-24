@@ -6,7 +6,6 @@ import { ITabPresenter, TabCreateOptions, IWindowPresenter, TabData } from '@sha
 import {
   BrowserWindow,
   WebContentsView,
-  shell,
   nativeImage,
   webContents as electronWebContents,
   type WebPreferences
@@ -17,6 +16,7 @@ import { getContextMenuLabels } from '@shared/i18n'
 import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
+import { openExternalUrl } from '@/lib/externalUrl'
 import { presenter } from './'
 import { getYoBrowserSession } from './browser/yoBrowserSession'
 
@@ -625,7 +625,7 @@ export class TabPresenter implements ITabPresenter {
   ): void {
     // 处理外部链接
     webContents.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url)
+      openExternalUrl(url, 'tab window')
       return { action: 'deny' }
     })
 

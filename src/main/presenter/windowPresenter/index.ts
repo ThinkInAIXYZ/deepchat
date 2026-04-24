@@ -34,6 +34,7 @@ import { TabPresenter } from '../tabPresenter' // TabPresenter type
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { StartupWorkloadCoordinator } from '../startupWorkloadCoordinator'
+import { openExternalUrl } from '@/lib/externalUrl'
 
 type PendingSettingsMessage = {
   channel: string
@@ -59,7 +60,6 @@ export class WindowPresenter implements IWindowPresenter {
   private settingsWindowReady = false
   private pendingSettingsMessages: PendingSettingsMessage[] = []
   private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
-  private readonly blockedWindowOpenProtocols = new Set(['about:', 'blob:', 'data:', 'javascript:'])
   private readonly startupWorkloadCoordinator?: StartupWorkloadCoordinator
 
   constructor(
@@ -165,24 +165,7 @@ export class WindowPresenter implements IWindowPresenter {
 
   private setupManagedWindowOpenHandler(window: BrowserWindow): void {
     window.webContents.setWindowOpenHandler(({ url }) => {
-      if (!url?.trim()) {
-        return { action: 'deny' }
-      }
-
-      try {
-        const parsedUrl = new URL(url)
-        if (this.blockedWindowOpenProtocols.has(parsedUrl.protocol)) {
-          console.warn(`Blocked attempt to open disallowed URL from managed window: ${url}`)
-          return { action: 'deny' }
-        }
-
-        shell.openExternal(url).catch((error) => {
-          console.error(`Failed to open external URL from managed window: ${url}`, error)
-        })
-      } catch (error) {
-        console.warn(`Blocked attempt to open invalid URL from managed window: ${url}`, error)
-      }
-
+      openExternalUrl(url, 'managed window')
       return { action: 'deny' }
     })
   }
@@ -1338,20 +1321,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // Ensure links with target="_blank" open in the user's default browser
     settingsWindow.webContents.setWindowOpenHandler(({ url }) => {
-      try {
-        // Validate URL protocol - only allow http/https
-        const parsedUrl = new URL(url)
-        if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
-          console.log(`Opening external URL from settings window: ${url}`)
-          shell.openExternal(url).catch((error) => {
-            console.error(`Failed to open external URL: ${url}`, error)
-          })
-        } else {
-          console.warn(`Blocked attempt to open non-http(s) URL: ${url}`)
-        }
-      } catch (error) {
-        console.error(`Invalid URL format: ${url}`, error)
-      }
+      openExternalUrl(url, 'settings window')
       return { action: 'deny' }
     })
 
