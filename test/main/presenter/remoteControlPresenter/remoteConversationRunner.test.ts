@@ -144,7 +144,11 @@ describe('RemoteConversationRunner', () => {
       getMessage: vi.fn().mockResolvedValue(null)
     }
     const filePresenter = {
-      prepareFile: vi.fn().mockResolvedValue(preparedFile)
+      prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
+        ...preparedFile,
+        path: filePath,
+        mimeType
+      }))
     }
     const runner = new RemoteConversationRunner(
       {
@@ -186,11 +190,116 @@ describe('RemoteConversationRunner', () => {
     const preparedPath = filePresenter.prepareFile.mock.calls[0][0] as string
     expect(preparedPath).toContain(path.join('.deepchat', 'remote-assets', 'telegram'))
     expect(preparedPath).toContain('telegram-message-1')
+    expect(path.basename(preparedPath)).toBe('note-1.txt')
     await expect(fs.readFile(preparedPath, 'utf8')).resolves.toBe('hello file')
     expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-bound', {
       text: 'read this',
-      files: [preparedFile]
+      files: [
+        expect.objectContaining({
+          name: 'note.txt',
+          path: preparedPath,
+          size: 10,
+          metadata: expect.objectContaining({
+            fileName: 'note.txt',
+            fileSize: 10
+          })
+        })
+      ]
     })
+  })
+
+  it('stores same-named remote attachments at unique local paths', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
+    const session = createSession({
+      id: 'session-bound',
+      projectDir: workspace
+    })
+    const agentSessionPresenter = {
+      getSession: vi.fn().mockResolvedValue(session),
+      getMessages: vi.fn().mockResolvedValue([]),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      getMessage: vi.fn().mockResolvedValue(null)
+    }
+    const filePresenter = {
+      prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
+        name: path.basename(filePath),
+        path: filePath,
+        mimeType,
+        content: '',
+        metadata: {
+          fileName: path.basename(filePath),
+          fileSize: 0
+        }
+      }))
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: agentSessionPresenter as any,
+        filePresenter: filePresenter as any,
+        agentRuntimePresenter: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-bound',
+          updatedAt: 1
+        }),
+        clearBinding: vi.fn(),
+        clearActiveEvent: vi.fn(),
+        rememberActiveEvent: vi.fn()
+      } as any
+    )
+
+    await runner.sendInput('telegram:100:0', {
+      text: 'read these',
+      sourceMessageId: 'telegram-message-duplicates',
+      attachments: [
+        {
+          id: 'file-1',
+          filename: 'duplicate.txt',
+          mediaType: 'text/plain',
+          data: Buffer.from('first file').toString('base64')
+        },
+        {
+          id: 'file-2',
+          filename: 'duplicate.txt',
+          mediaType: 'text/plain',
+          data: Buffer.from('second file').toString('base64')
+        }
+      ]
+    })
+
+    expect(filePresenter.prepareFile).toHaveBeenCalledTimes(2)
+    const firstPath = filePresenter.prepareFile.mock.calls[0][0] as string
+    const secondPath = filePresenter.prepareFile.mock.calls[1][0] as string
+    expect(path.basename(firstPath)).toBe('duplicate-1.txt')
+    expect(path.basename(secondPath)).toBe('duplicate-2.txt')
+    expect(firstPath).not.toBe(secondPath)
+    await expect(fs.readFile(firstPath, 'utf8')).resolves.toBe('first file')
+    await expect(fs.readFile(secondPath, 'utf8')).resolves.toBe('second file')
+
+    const sentInput = agentSessionPresenter.sendMessage.mock.calls[0][1] as {
+      files: Array<{
+        name: string
+        path: string
+        metadata?: {
+          fileName?: string
+          fileSize?: number
+        }
+      }>
+    }
+    expect(sentInput.files).toHaveLength(2)
+    expect(sentInput.files.map((file) => file.name)).toEqual(['duplicate.txt', 'duplicate.txt'])
+    expect(sentInput.files.map((file) => file.path)).toEqual([firstPath, secondPath])
+    expect(sentInput.files.map((file) => file.metadata?.fileName)).toEqual([
+      'duplicate.txt',
+      'duplicate.txt'
+    ])
   })
 
   it('skips remote attachments that have no downloadable data', async () => {
@@ -213,7 +322,11 @@ describe('RemoteConversationRunner', () => {
       getMessage: vi.fn().mockResolvedValue(null)
     }
     const filePresenter = {
-      prepareFile: vi.fn().mockResolvedValue(preparedFile)
+      prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
+        ...preparedFile,
+        path: filePath,
+        mimeType
+      }))
     }
     const runner = new RemoteConversationRunner(
       {
@@ -266,10 +379,21 @@ describe('RemoteConversationRunner', () => {
       expect(filePresenter.prepareFile).toHaveBeenCalledTimes(1)
       const preparedPath = filePresenter.prepareFile.mock.calls[0][0] as string
       expect(preparedPath).toContain('telegram-message-2')
+      expect(path.basename(preparedPath)).toBe('note-1.txt')
       await expect(fs.readFile(preparedPath, 'utf8')).resolves.toBe('hello file')
       expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-bound', {
         text: 'read this',
-        files: [preparedFile]
+        files: [
+          expect.objectContaining({
+            name: 'note.txt',
+            path: preparedPath,
+            size: 10,
+            metadata: expect.objectContaining({
+              fileName: 'note.txt',
+              fileSize: 10
+            })
+          })
+        ]
       })
       expect(warnSpy).toHaveBeenCalledTimes(2)
     } finally {
@@ -309,7 +433,11 @@ describe('RemoteConversationRunner', () => {
       getMessage: vi.fn().mockResolvedValue(null)
     }
     const filePresenter = {
-      prepareFile: vi.fn().mockResolvedValue(preparedFile)
+      prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
+        ...preparedFile,
+        path: filePath,
+        mimeType
+      }))
     }
     const runner = new RemoteConversationRunner(
       {
@@ -363,7 +491,17 @@ describe('RemoteConversationRunner', () => {
     await expect(fs.readFile(preparedPath)).resolves.toEqual(plainContent)
     expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-bound', {
       text: 'read this image',
-      files: [preparedFile]
+      files: [
+        expect.objectContaining({
+          name: 'image-1.png',
+          path: preparedPath,
+          size: plainContent.byteLength,
+          metadata: expect.objectContaining({
+            fileName: 'image-1.png',
+            fileSize: plainContent.byteLength
+          })
+        })
+      ]
     })
   })
 

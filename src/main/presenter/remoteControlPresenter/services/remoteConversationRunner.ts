@@ -95,6 +95,12 @@ const sanitizeFileName = (
   return extension ? `${baseName}${extension}` : baseName
 }
 
+const appendFileNameIndex = (fileName: string, index: number): string => {
+  const extension = path.extname(fileName)
+  const baseName = extension ? fileName.slice(0, -extension.length) : fileName
+  return `${baseName}-${index + 1}${extension}`
+}
+
 const hashEndpointKey = (endpointKey: string): string =>
   crypto.createHash('sha256').update(endpointKey).digest('hex').slice(0, 16)
 
@@ -653,10 +659,10 @@ export class RemoteConversationRunner {
     for (const [index, attachment] of attachments.entries()) {
       const mediaType = attachment.mediaType?.trim() || 'application/octet-stream'
       const fileName = sanitizeFileName(attachment.filename, `attachment-${index + 1}`, mediaType)
-      const localPath = path.join(assetDir, fileName)
+      const localPath = path.join(assetDir, appendFileNameIndex(fileName, index))
       const data = await this.readAttachmentData(attachment)
       await fs.writeFile(localPath, data)
-      files.push(await this.prepareMessageFile(localPath, mediaType, attachment, data.byteLength))
+      files.push(await this.prepareMessageFile(localPath, mediaType, fileName, data.byteLength))
     }
 
     return files
@@ -731,12 +737,22 @@ export class RemoteConversationRunner {
   private async prepareMessageFile(
     filePath: string,
     mediaType: string,
-    attachment: RemoteInputAttachment,
+    displayFileName: string,
     size: number
   ): Promise<MessageFile> {
     try {
       if (this.deps.filePresenter) {
-        return await this.deps.filePresenter.prepareFile(filePath, mediaType)
+        const preparedFile = await this.deps.filePresenter.prepareFile(filePath, mediaType)
+        return {
+          ...preparedFile,
+          name: displayFileName,
+          size,
+          metadata: {
+            ...preparedFile.metadata,
+            fileName: displayFileName,
+            fileSize: size
+          }
+        }
       }
     } catch (error) {
       console.warn('[RemoteConversationRunner] Failed to prepare remote attachment:', {
@@ -747,14 +763,14 @@ export class RemoteConversationRunner {
     }
 
     return {
-      name: path.basename(filePath),
+      name: displayFileName,
       path: filePath,
       mimeType: mediaType,
-      size: attachment.size ?? size,
+      size,
       content: '',
       metadata: {
-        fileName: path.basename(filePath),
-        fileSize: attachment.size ?? size,
+        fileName: displayFileName,
+        fileSize: size,
         fileDescription: 'remote attachment'
       }
     }
