@@ -1274,6 +1274,10 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelStatusHelper.batchSetModelStatus(providerId, modelStatusMap)
   }
 
+  batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void {
+    this.modelStatusHelper.batchSetModelStatusQuiet(providerId, modelStatusMap)
+  }
+
   getProviderModels(providerId: string): MODEL_META[] {
     const models = this.providerModelHelper.getProviderModels(providerId)
     return models.map((model) => {

@@ -54,6 +54,7 @@ export const useModelStore = defineStore('model', () => {
   const rerunRequested = new Set<string>()
   const pendingRefreshStarts = new Set<string>()
   const pendingModelStatusEchoes = new Map<string, boolean>()
+  const providerModelsReadyAt = new Map<string, number>()
 
   const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
   const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
@@ -66,6 +67,23 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const getModelStatusKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
+
+  const markProviderModelsReady = (providerId: string) => {
+    providerModelsReadyAt.set(providerId, Date.now())
+  }
+
+  const clearProviderModelsReady = (providerId?: string) => {
+    if (providerId) {
+      providerModelsReadyAt.delete(providerId)
+      return
+    }
+
+    providerModelsReadyAt.clear()
+  }
+
+  const isProviderModelsReady = (providerId: string) => {
+    return providerModelsReadyAt.has(providerId)
+  }
 
   const trackPendingModelStatusEcho = (providerId: string, modelId: string, enabled: boolean) => {
     const statusKey = getModelStatusKey(providerId, modelId)
@@ -324,6 +342,139 @@ export const useModelStore = defineStore('model', () => {
     enabledModels.value = [...enabledModels.value]
   }
 
+  const updateEnabledStateFromLocalProvider = (providerId: string) => {
+    const materializedProviderModels =
+      allProviderModels.value.find((item) => item.providerId === providerId)?.models ?? []
+    const materializedCustomModels =
+      customModels.value.find((item) => item.providerId === providerId)?.models ?? []
+
+    if (materializedCustomModels.length === 0) {
+      updateEnabledState(providerId, materializedProviderModels)
+      return
+    }
+
+    const mergedModels = new Map<string, RENDERER_MODEL_META>()
+
+    for (const model of materializedProviderModels) {
+      mergedModels.set(model.id, model)
+    }
+
+    for (const model of materializedCustomModels) {
+      mergedModels.set(model.id, model)
+    }
+
+    updateEnabledState(providerId, Array.from(mergedModels.values()))
+  }
+
+  const updateLocalBatchModelStatus = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    const previousStates = new Map<string, boolean | null>()
+
+    if (updates.length === 0) {
+      return previousStates
+    }
+
+    const providerEntry = allProviderModels.value.find((item) => item.providerId === providerId)
+    const customEntry = customModels.value.find((item) => item.providerId === providerId)
+    const enabledEntry = enabledModels.value.find((item) => item.providerId === providerId)
+    const providerModelById = providerEntry
+      ? new Map(providerEntry.models.map((model) => [model.id, model]))
+      : null
+    const customModelById = customEntry
+      ? new Map(customEntry.models.map((model) => [model.id, model]))
+      : null
+    const enabledModelIds = enabledEntry
+      ? new Set(enabledEntry.models.map((model) => model.id))
+      : null
+
+    const nextEnabledByModelId = new Map<string, boolean>()
+    for (const update of updates) {
+      const providerModel = providerModelById?.get(update.modelId)
+      const customModel = customModelById?.get(update.modelId)
+      previousStates.set(
+        update.modelId,
+        providerModel
+          ? !!providerModel.enabled
+          : customModel
+            ? !!customModel.enabled
+            : (enabledModelIds?.has(update.modelId) ?? null)
+      )
+      nextEnabledByModelId.set(update.modelId, update.enabled)
+    }
+
+    if (providerEntry) {
+      for (const model of providerEntry.models) {
+        const nextEnabled = nextEnabledByModelId.get(model.id)
+        if (nextEnabled !== undefined) {
+          model.enabled = nextEnabled
+        }
+      }
+    }
+
+    if (customEntry) {
+      for (const model of customEntry.models) {
+        const nextEnabled = nextEnabledByModelId.get(model.id)
+        if (nextEnabled !== undefined) {
+          model.enabled = nextEnabled
+        }
+      }
+    }
+
+    updateEnabledStateFromLocalProvider(providerId)
+
+    return previousStates
+  }
+
+  const rollbackLocalBatchModelStatus = (
+    providerId: string,
+    previousStates: Map<string, boolean | null>
+  ) => {
+    const rollbackUpdates: { modelId: string; enabled: boolean }[] = []
+    for (const [modelId, enabled] of previousStates) {
+      if (enabled !== null) {
+        rollbackUpdates.push({ modelId, enabled })
+      }
+    }
+
+    if (rollbackUpdates.length > 0) {
+      updateLocalBatchModelStatus(providerId, rollbackUpdates)
+    }
+  }
+
+  const trackPendingBatchModelStatusEchoes = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    const trackedEchoes: { statusKey: string; enabled: boolean }[] = []
+    for (const update of updates) {
+      const statusKey = getModelStatusKey(providerId, update.modelId)
+      pendingModelStatusEchoes.set(statusKey, update.enabled)
+      trackedEchoes.push({ statusKey, enabled: update.enabled })
+    }
+
+    setTimeout(() => {
+      for (const echo of trackedEchoes) {
+        if (pendingModelStatusEchoes.get(echo.statusKey) === echo.enabled) {
+          pendingModelStatusEchoes.delete(echo.statusKey)
+        }
+      }
+    }, 1500)
+  }
+
+  const clearPendingBatchModelStatusEchoes = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    for (const update of updates) {
+      const statusKey = getModelStatusKey(providerId, update.modelId)
+      if (pendingModelStatusEchoes.get(statusKey) === update.enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }
+  }
+
   const refreshCustomModels = async (providerId: string): Promise<boolean> => {
     try {
       const query = getCustomModelsQuery(providerId)
@@ -358,6 +509,7 @@ export const useModelStore = defineStore('model', () => {
           ?.models.filter((model) => !model.isCustom) || []
       updateAllProviderState(providerId, [...existingStandard, ...customModelsWithStatus])
       updateEnabledState(providerId, [...existingStandard, ...customModelsWithStatus])
+      markProviderModelsReady(providerId)
       return true
     } catch (error) {
       console.error(`刷新自定义模型失败: ${providerId}`, error)
@@ -499,6 +651,7 @@ export const useModelStore = defineStore('model', () => {
         customModels.value.find((item) => item.providerId === providerId)?.models || []
       updateAllProviderState(providerId, [...modelsWithStatus, ...existingCustom])
       updateEnabledState(providerId, [...modelsWithStatus, ...existingCustom])
+      markProviderModelsReady(providerId)
       return true
     } catch (error) {
       console.error(`刷新标准模型失败: ${providerId}`, error)
@@ -513,9 +666,11 @@ export const useModelStore = defineStore('model', () => {
         updateProviderModelsCache(providerId, modelMetas)
         updateAllProviderState(providerId, rendererModels)
         updateEnabledState(providerId, rendererModels)
+        markProviderModelsReady(providerId)
         return true
       } catch (error) {
         console.error(`[ModelStore] Failed to refresh agent models for ${providerId}:`, error)
+        clearProviderModelsReady(providerId)
         return false
       }
     }
@@ -524,6 +679,10 @@ export const useModelStore = defineStore('model', () => {
       refreshStandardModels(providerId),
       refreshCustomModels(providerId)
     ])
+
+    if (!standardRefreshed || !customRefreshed) {
+      clearProviderModelsReady(providerId)
+    }
 
     return standardRefreshed && customRefreshed
   }
@@ -765,52 +924,86 @@ export const useModelStore = defineStore('model', () => {
     }
   }
 
-  const enableAllModels = async (providerId: string): Promise<void> => {
+  const enableAllModels = async (
+    providerId: string,
+    models: RENDERER_MODEL_META[] = []
+  ): Promise<void> => {
+    const actionStart = getPerfNow()
+    let previousStates: Map<string, boolean | null> | null = null
+    let updates: { modelId: string; enabled: boolean }[] = []
     try {
-      const providerModelsData = allProviderModels.value.find((p) => p.providerId === providerId)
+      const providerModelsData =
+        models.length > 0
+          ? { providerId, models }
+          : allProviderModels.value.find((p) => p.providerId === providerId)
+
       if (!providerModelsData || providerModelsData.models.length === 0) {
         console.warn(`No models found for provider ${providerId}`)
         return
       }
 
-      for (const model of providerModelsData.models) {
-        if (!model.enabled) {
-          await modelClient.updateModelStatus(providerId, model.id, true)
-        }
+      const targetModels = providerModelsData.models.filter((model) => !model.enabled)
+      if (targetModels.length === 0) {
+        return
       }
-      await refreshProviderModels(providerId)
+
+      updates = targetModels.map((model) => ({ modelId: model.id, enabled: true }))
+      previousStates = updateLocalBatchModelStatus(providerId, updates)
+      trackPendingBatchModelStatusEchoes(providerId, updates)
+      await modelClient.setBatchModelStatus(providerId, updates)
+      logModelTogglePerf('store.batch-enable-complete', {
+        providerId,
+        modelCount: updates.length,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
     } catch (error) {
       console.error(`Failed to enable all models for provider ${providerId}:`, error)
+      clearPendingBatchModelStatusEchoes(providerId, updates)
+      if (previousStates) {
+        rollbackLocalBatchModelStatus(providerId, previousStates)
+      }
       throw error
     }
   }
 
-  const disableAllModels = async (providerId: string): Promise<void> => {
+  const disableAllModels = async (
+    providerId: string,
+    models: RENDERER_MODEL_META[] = []
+  ): Promise<void> => {
+    const actionStart = getPerfNow()
+    let previousStates: Map<string, boolean | null> | null = null
+    let updates: { modelId: string; enabled: boolean }[] = []
     try {
-      const providerModelsData = allProviderModels.value.find((p) => p.providerId === providerId)
+      const providerModelsData =
+        models.length > 0
+          ? { providerId, models }
+          : allProviderModels.value.find((p) => p.providerId === providerId)
+
       if (!providerModelsData || providerModelsData.models.length === 0) {
         console.warn(`No models found for provider ${providerId}`)
         return
       }
 
-      const customModelsData = customModels.value.find((p) => p.providerId === providerId)
-      const standardModels = providerModelsData.models
-      for (const model of standardModels) {
-        if (model.enabled) {
-          await modelClient.updateModelStatus(providerId, model.id, false)
-        }
+      const targetModels = providerModelsData.models.filter((model) => model.enabled)
+      if (targetModels.length === 0) {
+        return
       }
 
-      if (customModelsData) {
-        for (const model of customModelsData.models) {
-          if (model.enabled) {
-            await modelClient.updateModelStatus(providerId, model.id, false)
-          }
-        }
-      }
-      await refreshProviderModels(providerId)
+      updates = targetModels.map((model) => ({ modelId: model.id, enabled: false }))
+      previousStates = updateLocalBatchModelStatus(providerId, updates)
+      trackPendingBatchModelStatusEchoes(providerId, updates)
+      await modelClient.setBatchModelStatus(providerId, updates)
+      logModelTogglePerf('store.batch-disable-complete', {
+        providerId,
+        modelCount: updates.length,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
     } catch (error) {
       console.error(`Failed to disable all models for provider ${providerId}:`, error)
+      clearPendingBatchModelStatusEchoes(providerId, updates)
+      if (previousStates) {
+        rollbackLocalBatchModelStatus(providerId, previousStates)
+      }
       throw error
     }
   }
@@ -885,9 +1078,26 @@ export const useModelStore = defineStore('model', () => {
       }
     )
 
+    const unsubscribeModelBatchStatusChanged = modelClient.onModelBatchStatusChanged(
+      async (msg: { providerId: string; updates: { modelId: string; enabled: boolean }[] }) => {
+        for (const update of msg.updates) {
+          const statusKey = getModelStatusKey(msg.providerId, update.modelId)
+          const pendingEnabled = pendingModelStatusEchoes.get(statusKey)
+          if (pendingEnabled !== undefined) {
+            pendingModelStatusEchoes.delete(statusKey)
+            if (pendingEnabled === update.enabled) {
+              continue
+            }
+          }
+          updateLocalModelStatus(msg.providerId, update.modelId, update.enabled)
+        }
+      }
+    )
+
     removeModelListeners = () => {
       unsubscribeModelListChanged()
       unsubscribeModelStatusChanged()
+      unsubscribeModelBatchStatusChanged()
     }
   }
 
@@ -903,6 +1113,7 @@ export const useModelStore = defineStore('model', () => {
     rerunRequested.clear()
     pendingRefreshStarts.clear()
     pendingModelStatusEchoes.clear()
+    clearProviderModelsReady()
   }
 
   const initialize = async () => {
@@ -943,6 +1154,10 @@ export const useModelStore = defineStore('model', () => {
 
   const ensureProviderModelsReady = async (providerId: string) => {
     ensureModelRuntime()
+    if (isProviderModelsReady(providerId)) {
+      return
+    }
+
     await refreshProviderModels(providerId)
   }
 

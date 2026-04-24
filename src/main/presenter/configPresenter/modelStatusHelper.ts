@@ -192,6 +192,33 @@ export class ModelStatusHelper {
     this.statusSnapshot = null
   }
 
+  batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void {
+    const persistedStatuses: Record<string, boolean> = {}
+    const updates: { modelId: string; enabled: boolean }[] = []
+
+    for (const [modelId, enabled] of Object.entries(modelStatusMap)) {
+      const statusKey = this.getStatusKey(providerId, modelId)
+      persistedStatuses[statusKey] = enabled
+      updates.push({ modelId, enabled })
+    }
+
+    if (updates.length === 0) {
+      return
+    }
+
+    this.store.set(persistedStatuses)
+
+    for (const [statusKey, enabled] of Object.entries(persistedStatuses)) {
+      this.cache.set(statusKey, enabled)
+      this.statusSnapshot?.set(statusKey, enabled)
+    }
+
+    eventBus.send(CONFIG_EVENTS.MODEL_BATCH_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+      providerId,
+      updates
+    })
+  }
+
   batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void {
     for (const [modelId, enabled] of Object.entries(modelStatusMap)) {
       this.setModelStatus(providerId, modelId, enabled)

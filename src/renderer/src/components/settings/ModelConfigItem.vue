@@ -1,35 +1,47 @@
 <template>
   <div
     :class="[
-      'flex flex-row bg-muted/50 hover:bg-accent items-center gap-2 px-3 py-2 border-b last:border-none transition-colors'
+      'flex h-14 min-h-14 flex-row items-center gap-2 overflow-hidden bg-muted/50 px-3 py-2 transition-colors hover:bg-accent border-b last:border-none'
     ]"
   >
-    <div class="flex gap-1 items-center">
-      <span class="text-xs" :class="!enabled ? 'text-foreground/70' : ''">
+    <div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+      <span class="truncate text-xs" :class="!enabled ? 'text-foreground/70' : ''">
         {{ modelName }}
       </span>
-      <Icon v-if="vision" icon="lucide:eye" class="w-4 h-4 text-blue-500" title="视觉能力" />
+      <Icon
+        v-if="vision"
+        icon="lucide:eye"
+        class="h-4 w-4 shrink-0 text-blue-500"
+        title="视觉能力"
+      />
       <Icon
         v-if="functionCall"
         icon="lucide:function-square"
-        class="w-4 h-4 text-orange-500"
+        class="h-4 w-4 shrink-0 text-orange-500"
         title="函数调用能力"
       />
-      <Icon v-if="reasoning" icon="lucide:brain" class="w-4 h-4 text-purple-500" title="推理能力" />
+      <Icon
+        v-if="reasoning"
+        icon="lucide:brain"
+        class="h-4 w-4 shrink-0 text-purple-500"
+        title="推理能力"
+      />
       <Icon
         v-if="enableSearch"
         icon="lucide:globe"
-        class="w-4 h-4 text-green-500"
+        class="h-4 w-4 shrink-0 text-green-500"
         title="联网搜索能力"
       />
     </div>
-    <div class="grow"></div>
-    <div class="flex flex-row items-center gap-2">
-      <span v-if="group && group !== 'default'" class="text-xs text-muted-foreground">{{
-        group
-      }}</span>
+    <div class="flex shrink-0 flex-row items-center gap-2 whitespace-nowrap">
       <span
-        class="px-2 py-0.5 rounded-full bg-muted text-xs text-muted-foreground border border-muted-foreground/20 select-none"
+        v-if="group && group !== 'default'"
+        class="max-w-[6rem] truncate text-xs text-muted-foreground"
+      >
+        {{ group }}
+      </span>
+      <span
+        class="shrink-0 rounded-full border border-muted-foreground/20 bg-muted px-2 py-0.5 text-xs text-muted-foreground select-none"
       >
         {{ type }}
       </span>
@@ -63,6 +75,7 @@
 
   <!-- 模型配置对话框 -->
   <ModelConfigDialog
+    v-if="showConfigDialog"
     v-model:open="showConfigDialog"
     :model-id="modelId"
     :model-name="modelName"

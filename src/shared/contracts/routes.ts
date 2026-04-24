@@ -117,6 +117,7 @@ import {
   modelsListRuntimeRoute,
   modelsRemoveCustomRoute,
   modelsResetConfigRoute,
+  modelsSetBatchStatusRoute,
   modelsSetConfigRoute,
   modelsSetStatusRoute,
   modelsUpdateCustomRoute
@@ -443,6 +444,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [providersGetAcpProcessConfigOptionsRoute.name]: providersGetAcpProcessConfigOptionsRoute,
   [modelsGetProviderCatalogRoute.name]: modelsGetProviderCatalogRoute,
   [modelsListRuntimeRoute.name]: modelsListRuntimeRoute,
+  [modelsSetBatchStatusRoute.name]: modelsSetBatchStatusRoute,
   [modelsSetStatusRoute.name]: modelsSetStatusRoute,
   [modelsAddCustomRoute.name]: modelsAddCustomRoute,
   [modelsRemoveCustomRoute.name]: modelsRemoveCustomRoute,

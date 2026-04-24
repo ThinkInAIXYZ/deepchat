@@ -2,7 +2,8 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   modelsChangedEvent,
   modelsConfigChangedEvent,
-  modelsStatusChangedEvent
+  modelsStatusChangedEvent,
+  modelBatchStatusChangedEvent
 } from '@shared/contracts/events'
 import {
   modelsAddCustomRoute,
@@ -16,6 +17,7 @@ import {
   modelsListRuntimeRoute,
   modelsRemoveCustomRoute,
   modelsResetConfigRoute,
+  modelsSetBatchStatusRoute,
   modelsSetConfigRoute,
   modelsSetStatusRoute,
   modelsUpdateCustomRoute
@@ -104,6 +106,18 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       providerId,
       modelId,
       enabled
+    })
+    clearProviderCatalogCache(providerId)
+    return result
+  }
+
+  async function setBatchModelStatus(
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) {
+    const result = await bridge.invoke(modelsSetBatchStatusRoute.name, {
+      providerId,
+      updates
     })
     clearProviderCatalogCache(providerId)
     return result
@@ -259,6 +273,16 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return bridge.on(modelsStatusChangedEvent.name, listener)
   }
 
+  function onModelBatchStatusChanged(
+    listener: (payload: {
+      providerId: string
+      updates: { modelId: string; enabled: boolean }[]
+      version: number
+    }) => void
+  ) {
+    return bridge.on(modelBatchStatusChangedEvent.name, listener)
+  }
+
   function onModelConfigChanged(
     listener: (payload: {
       changeType: 'updated' | 'reset' | 'imported'
@@ -280,6 +304,7 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     getBatchModelStatus,
     getModelList,
     updateModelStatus,
+    setBatchModelStatus,
     addCustomModel,
     removeCustomModel,
     updateCustomModel,
@@ -300,6 +325,7 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     getTemperatureCapability,
     onModelsChanged,
     onModelStatusChanged,
+    onModelBatchStatusChanged,
     onModelConfigChanged
   }
 }

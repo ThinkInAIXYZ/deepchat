@@ -384,6 +384,21 @@ export function setupLegacyTypedEventBridge(deps: {
   )
 
   eventBus.on(
+    CONFIG_EVENTS.MODEL_BATCH_STATUS_CHANGED,
+    (payload?: { providerId?: string; updates?: { modelId: string; enabled: boolean }[] }) => {
+      if (!payload?.providerId || !payload?.updates) {
+        return
+      }
+
+      publishDeepchatEvent('models.batch.status.changed', {
+        providerId: payload.providerId,
+        updates: payload.updates,
+        version: Date.now()
+      })
+    }
+  )
+
+  eventBus.on(
     CONFIG_EVENTS.MODEL_CONFIG_CHANGED,
     (providerId?: string, modelId?: string, config?: Record<string, unknown>) => {
       publishDeepchatEvent('models.config.changed', {

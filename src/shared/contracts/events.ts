@@ -32,7 +32,8 @@ import {
 import {
   modelsChangedEvent,
   modelsConfigChangedEvent,
-  modelsStatusChangedEvent
+  modelsStatusChangedEvent,
+  modelBatchStatusChangedEvent
 } from './events/models.events'
 import { providersOllamaPullProgressEvent } from './events/misc.providers.events'
 import { providersChangedEvent } from './events/providers.events'
@@ -107,6 +108,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [providersOllamaPullProgressEvent.name]: providersOllamaPullProgressEvent,
   [modelsChangedEvent.name]: modelsChangedEvent,
   [modelsStatusChangedEvent.name]: modelsStatusChangedEvent,
+  [modelBatchStatusChangedEvent.name]: modelBatchStatusChangedEvent,
   [modelsConfigChangedEvent.name]: modelsConfigChangedEvent,
   [chatStreamUpdatedEvent.name]: chatStreamUpdatedEvent,
   [chatStreamCompletedEvent.name]: chatStreamCompletedEvent,

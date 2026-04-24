@@ -155,6 +155,27 @@ export const modelsImportConfigsRoute = defineRouteContract({
   })
 })
 
+export const modelsSetBatchStatusRoute = defineRouteContract({
+  name: 'models.setBatchStatus',
+  input: z.object({
+    providerId: EntityIdSchema,
+    updates: z.array(
+      z.object({
+        modelId: z.string().min(1),
+        enabled: z.boolean()
+      })
+    )
+  }),
+  output: z.object({
+    results: z.array(
+      z.object({
+        modelId: z.string().min(1),
+        enabled: z.boolean()
+      })
+    )
+  })
+})
+
 export const modelsGetCapabilitiesRoute = defineRouteContract({
   name: 'models.getCapabilities',
   input: z.object({

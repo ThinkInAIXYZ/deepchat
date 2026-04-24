@@ -177,6 +177,17 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await this.modelManager.updateModelStatus(providerId, modelId, enabled)
   }
 
+  async batchUpdateModelStatus(
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ): Promise<void> {
+    const statusMap: Record<string, boolean> = {}
+    for (const update of updates) {
+      statusMap[update.modelId] = update.enabled
+    }
+    await this.modelManager.batchUpdateModelStatusQuiet(providerId, statusMap)
+  }
+
   /**
    * 更新 provider 的速率限制配置
    */
