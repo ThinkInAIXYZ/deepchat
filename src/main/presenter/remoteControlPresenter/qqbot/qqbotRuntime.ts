@@ -707,10 +707,12 @@ export class QQBotRuntime {
     if (finalText) {
       return finalText
     }
-    if ((snapshot.generatedImages?.length ?? 0) > 0) {
+    const fullText = snapshot.fullText?.trim() ?? ''
+    const text = snapshot.text?.trim() ?? ''
+    if ((snapshot.generatedImages?.length ?? 0) > 0 && !fullText && !text) {
       return ''
     }
-    return (snapshot.fullText ?? snapshot.text).trim()
+    return fullText || text
   }
 
   private createSendContext(target: QQBotTransportTarget, nextMsgSeq: number): QQBotSendContext {

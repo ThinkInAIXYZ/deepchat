@@ -106,6 +106,12 @@ const stripDataUrlPrefix = (data: string): string => {
   return data.startsWith('data:') && commaIndex >= 0 ? data.slice(commaIndex + 1) : data
 }
 
+const hasAttachmentDownloadSource = (attachment: RemoteInputAttachment): boolean =>
+  Boolean(
+    !attachment.failedDownload &&
+    (attachment.data?.trim() || attachment.url?.trim() || attachment.encryptedMedia)
+  )
+
 const buildCdnDownloadUrl = (encryptedQueryParam: string, cdnBaseUrl: string): string =>
   `${cdnBaseUrl.replace(/\/+$/, '')}/download?encrypted_query_param=${encodeURIComponent(
     encryptedQueryParam
@@ -610,7 +616,21 @@ export class RemoteConversationRunner {
     session: Pick<SessionWithState, 'id' | 'projectDir' | 'agentId'>,
     input: RemoteConversationInput
   ): Promise<MessageFile[]> {
-    const attachments = input.attachments?.filter((attachment) => Boolean(attachment)) ?? []
+    const inputAttachments = input.attachments?.filter((attachment) => Boolean(attachment)) ?? []
+    const attachments = inputAttachments.filter((attachment) => {
+      const shouldUse = hasAttachmentDownloadSource(attachment)
+      if (!shouldUse) {
+        console.warn('[RemoteConversationRunner] Skipped remote attachment without data:', {
+          endpointKey,
+          sessionId: session.id,
+          sourceMessageId: input.sourceMessageId,
+          filename: attachment.filename,
+          failedDownload: attachment.failedDownload
+        })
+      }
+      return shouldUse
+    })
+
     if (attachments.length === 0) {
       return []
     }

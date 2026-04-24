@@ -1,5 +1,6 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
-import fs from 'node:fs'
+import { createReadStream } from 'node:fs'
+import { access } from 'node:fs/promises'
 import type { EventHandles } from '@larksuiteoapi/node-sdk'
 import type { FeishuBrand } from '@shared/presenter'
 import {
@@ -274,10 +275,16 @@ export class FeishuClient {
   }
 
   async sendImage(target: FeishuTransportTarget, imagePath: string): Promise<string | null> {
+    try {
+      await access(imagePath)
+    } catch {
+      throw new Error(`Feishu image file is missing: ${imagePath}`)
+    }
+
     const upload = await (this.sdk as any).im.image.create({
       data: {
         image_type: 'message',
-        image: fs.createReadStream(imagePath)
+        image: createReadStream(imagePath)
       }
     })
     const imageKey = upload?.data?.image_key || upload?.image_key
@@ -285,18 +292,34 @@ export class FeishuClient {
       throw new Error('Feishu image upload did not return image_key.')
     }
 
-    const response = await this.sdk.im.message.create({
-      params: {
-        receive_id_type: 'chat_id'
-      },
-      data: {
-        receive_id: target.chatId,
-        msg_type: 'image',
-        content: JSON.stringify({
-          image_key: imageKey
-        })
-      }
+    const imageContent = JSON.stringify({
+      image_key: imageKey
     })
+    const response = target.replyToMessageId
+      ? await (this.sdk.im.message.reply as any)({
+          path: {
+            message_id: target.replyToMessageId
+          },
+          params: {
+            receive_id_type: 'chat_id'
+          },
+          data: {
+            receive_id: target.chatId,
+            msg_type: 'image',
+            content: imageContent,
+            reply_in_thread: Boolean(target.threadId)
+          }
+        })
+      : await this.sdk.im.message.create({
+          params: {
+            receive_id_type: 'chat_id'
+          },
+          data: {
+            receive_id: target.chatId,
+            msg_type: 'image',
+            content: imageContent
+          }
+        })
 
     return ((response as FeishuMessageResponse).data?.message_id ?? '').trim() || null
   }

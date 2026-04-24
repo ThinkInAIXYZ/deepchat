@@ -193,6 +193,90 @@ describe('RemoteConversationRunner', () => {
     })
   })
 
+  it('skips remote attachments that have no downloadable data', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
+    const preparedFile = {
+      name: 'note.txt',
+      path: path.join(workspace, '.deepchat/remote-assets/telegram/hash/message/note.txt'),
+      mimeType: 'text/plain',
+      content: 'hello file'
+    }
+    const session = createSession({
+      id: 'session-bound',
+      projectDir: workspace
+    })
+    const agentSessionPresenter = {
+      getSession: vi.fn().mockResolvedValue(session),
+      getMessages: vi.fn().mockResolvedValue([]),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      getMessage: vi.fn().mockResolvedValue(null)
+    }
+    const filePresenter = {
+      prepareFile: vi.fn().mockResolvedValue(preparedFile)
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: agentSessionPresenter as any,
+        filePresenter: filePresenter as any,
+        agentRuntimePresenter: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-bound',
+          updatedAt: 1
+        }),
+        clearBinding: vi.fn(),
+        clearActiveEvent: vi.fn(),
+        rememberActiveEvent: vi.fn()
+      } as any
+    )
+
+    try {
+      await runner.sendInput('telegram:100:0', {
+        text: 'read this',
+        sourceMessageId: 'telegram-message-2',
+        attachments: [
+          {
+            id: 'failed-file',
+            filename: 'failed.txt',
+            mediaType: 'text/plain',
+            failedDownload: true
+          },
+          {
+            id: 'empty-file',
+            filename: 'empty.txt',
+            mediaType: 'text/plain'
+          },
+          {
+            id: 'file-1',
+            filename: 'note.txt',
+            mediaType: 'text/plain',
+            data: Buffer.from('hello file').toString('base64')
+          }
+        ]
+      })
+
+      expect(filePresenter.prepareFile).toHaveBeenCalledTimes(1)
+      const preparedPath = filePresenter.prepareFile.mock.calls[0][0] as string
+      expect(preparedPath).toContain('telegram-message-2')
+      await expect(fs.readFile(preparedPath, 'utf8')).resolves.toBe('hello file')
+      expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-bound', {
+        text: 'read this',
+        files: [preparedFile]
+      })
+      expect(warnSpy).toHaveBeenCalledTimes(2)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   it('downloads and decrypts inbound encrypted remote media before sending', async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
     const plainContent = Buffer.from('weixin image bytes')
