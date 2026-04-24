@@ -11,6 +11,7 @@ import {
   modelsListRuntimeRoute,
   modelsRemoveCustomRoute,
   modelsResetConfigRoute,
+  modelsSetBatchStatusRoute,
   modelsSetConfigRoute,
   modelsSetStatusRoute,
   modelsUpdateCustomRoute
@@ -53,6 +54,12 @@ export async function dispatchModelRoute(
       return modelsListRuntimeRoute.output.parse({
         models: await llmProviderPresenter.getModelList(input.providerId)
       })
+    }
+
+    case modelsSetBatchStatusRoute.name: {
+      const input = modelsSetBatchStatusRoute.input.parse(rawInput)
+      await llmProviderPresenter.batchUpdateModelStatus(input.providerId, input.updates)
+      return modelsSetBatchStatusRoute.output.parse({ results: input.updates })
     }
 
     case modelsSetStatusRoute.name: {

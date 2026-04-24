@@ -214,6 +214,10 @@ export interface ILlmProviderPresenter {
   getExistingProviderInstance(providerId: string): unknown
   getModelList(providerId: string): Promise<MODEL_META[]>
   updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void>
+  batchUpdateModelStatus(
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ): Promise<void>
   addCustomModel(
     providerId: string,
     model: Omit<MODEL_META, 'providerId' | 'isCustom' | 'group'>

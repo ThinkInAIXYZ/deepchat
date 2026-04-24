@@ -581,6 +581,8 @@ export interface IConfigPresenter {
   getModelStatus(providerId: string, modelId: string): boolean
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void
   ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void
+  batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void
+  batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void
   // Batch get model status
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
   // Language settings

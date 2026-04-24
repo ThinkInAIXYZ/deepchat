@@ -28,6 +28,20 @@ export const modelsStatusChangedEvent = defineEventContract({
   })
 })
 
+export const modelBatchStatusChangedEvent = defineEventContract({
+  name: 'models.batch.status.changed',
+  payload: z.object({
+    providerId: z.string(),
+    updates: z.array(
+      z.object({
+        modelId: z.string(),
+        enabled: z.boolean()
+      })
+    ),
+    version: TimestampMsSchema
+  })
+})
+
 export const modelsConfigChangedEvent = defineEventContract({
   name: 'models.config.changed',
   payload: z.object({

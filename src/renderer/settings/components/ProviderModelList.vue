@@ -158,6 +158,18 @@
         <ModelConfigItem
           v-for="model in filteredCustomModels"
           :key="model.id"
+          v-memo="[
+            model.id,
+            model.providerId,
+            model.enabled,
+            model.name,
+            model.group,
+            model.type,
+            model.vision,
+            model.functionCall,
+            model.reasoning,
+            model.enableSearch
+          ]"
           :model-name="model.name"
           :model-id="model.id"
           :provider-id="model.providerId"
@@ -168,9 +180,9 @@
           :reasoning="model.reasoning"
           :enable-search="model.enableSearch"
           :type="model.type ?? ModelType.Chat"
-          @enabled-change="(enabled) => handleModelEnabledChange(model, enabled)"
-          @delete-model="() => handleDeleteCustomModel(model)"
-          @config-changed="$emit('config-changed')"
+          @enabled-change="handleCustomModelEnabledChange(model, $event)"
+          @delete-model="handleDeleteCustomModel(model)"
+          @config-changed="emitConfigChanged"
         />
       </div>
     </div>
@@ -184,73 +196,99 @@
     </div>
 
     <template v-else-if="virtualItems.length > 0">
-      <DynamicScroller
+      <RecycleScroller
         :items="virtualItems"
-        :min-item-size="MIN_MODEL_ITEM_HEIGHT"
+        :item-size="null"
+        :min-item-size="LABEL_ITEM_HEIGHT"
         key-field="id"
+        size-field="size"
         class="w-full"
         page-mode
-        :buffer="500"
+        :buffer="900"
+        :prerender="12"
       >
-        <template #default="{ item, index, active }">
-          <DynamicScrollerItem
-            :item="item"
-            :index="index"
-            :active="active"
-            :size-dependencies="getScrollerItemSizeDependencies(item)"
+        <template #default="{ item }">
+          <div
+            v-if="isLabelItem(item)"
+            class="flex h-9 items-center px-3 text-xs text-muted-foreground"
           >
-            <div v-if="isLabelItem(item)" class="px-3 py-2 text-xs text-muted-foreground">
-              {{ item.label }}
+            {{ item.label }}
+          </div>
+          <div
+            v-else-if="isProviderActionsItem(item)"
+            class="flex h-14 items-center justify-between gap-3 overflow-hidden px-3 py-2 bg-muted/30"
+          >
+            <div class="min-w-0 flex-1 truncate text-sm font-medium">
+              {{ getProviderName(item.providerId) }}
             </div>
-            <div
-              v-else-if="isProviderActionsItem(item)"
-              class="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-muted/30"
-            >
-              <div class="text-sm font-medium">{{ getProviderName(item.providerId) }}</div>
-              <div class="flex gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="text-xs text-normal rounded-lg"
-                  @click="enableAllModels(item.providerId)"
-                >
-                  <Icon icon="lucide:check-circle" class="w-3.5 h-3.5 mr-1" />
+            <div class="flex shrink-0 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
+                :disabled="isProviderBatchPending(item.providerId)"
+                :title="t('model.actions.enableAll')"
+                @click="enableAllModels(item.providerId)"
+              >
+                <Icon
+                  :icon="
+                    getProviderPendingAction(item.providerId) === 'enable'
+                      ? 'lucide:loader-2'
+                      : 'lucide:check-circle'
+                  "
+                  class="h-3.5 w-3.5 shrink-0 sm:mr-1"
+                  :class="
+                    getProviderPendingAction(item.providerId) === 'enable' ? 'animate-spin' : ''
+                  "
+                />
+                <span class="hidden min-w-0 truncate sm:inline">
                   {{ t('model.actions.enableAll') }}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="text-xs text-normal rounded-lg"
-                  @click="disableAllModels(item.providerId)"
-                >
-                  <Icon icon="lucide:x-circle" class="w-3.5 h-3.5 mr-1" />
+                </span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
+                :disabled="isProviderBatchPending(item.providerId)"
+                :title="t('model.actions.disableAll')"
+                @click="disableAllModels(item.providerId)"
+              >
+                <Icon
+                  :icon="
+                    getProviderPendingAction(item.providerId) === 'disable'
+                      ? 'lucide:loader-2'
+                      : 'lucide:x-circle'
+                  "
+                  class="h-3.5 w-3.5 shrink-0 sm:mr-1"
+                  :class="
+                    getProviderPendingAction(item.providerId) === 'disable' ? 'animate-spin' : ''
+                  "
+                />
+                <span class="hidden min-w-0 truncate sm:inline">
                   {{ t('model.actions.disableAll') }}
-                </Button>
-              </div>
+                </span>
+              </Button>
             </div>
-            <div v-else-if="isModelItem(item)" :key="item.id" class="bg-card">
-              <ModelConfigItem
-                :key="item.id"
-                :model-name="item.name"
-                :model-id="item.modelId"
-                :provider-id="item.providerId"
-                :enabled="item.enabled ?? false"
-                :is-custom-model="false"
-                :vision="item.vision"
-                :function-call="item.functionCall"
-                :reasoning="item.reasoning"
-                :enable-search="item.enableSearch"
-                :type="item.typeValue ?? ModelType.Chat"
-                @enabled-change="
-                  (enabled) => handleModelEnabledChange(toRendererModel(item), enabled)
-                "
-                @delete-model="() => handleDeleteCustomModel(toRendererModel(item))"
-                @config-changed="$emit('config-changed')"
-              />
-            </div>
-          </DynamicScrollerItem>
+          </div>
+          <div v-else-if="isModelItem(item)" :key="item.id" class="h-12 overflow-hidden bg-card">
+            <ModelConfigItem
+              :key="item.id"
+              :model-name="item.name"
+              :model-id="item.modelId"
+              :provider-id="item.providerId"
+              :enabled="item.enabled ?? false"
+              :is-custom-model="false"
+              :vision="item.vision"
+              :function-call="item.functionCall"
+              :reasoning="item.reasoning"
+              :enable-search="item.enableSearch"
+              :type="item.typeValue ?? ModelType.Chat"
+              @enabled-change="handleVirtualModelEnabledChange(item, $event)"
+              @config-changed="emitConfigChanged"
+            />
+          </div>
         </template>
-      </DynamicScroller>
+      </RecycleScroller>
     </template>
 
     <div
@@ -274,17 +312,20 @@ import { type RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { useElementSize } from '@vueuse/core'
+import { useDebounceFn, useElementSize } from '@vueuse/core'
 
 import AddCustomModelButton from './AddCustomModelButton.vue'
 
 const { t } = useI18n()
 const modelSearchQuery = ref('')
+const debouncedSearchQuery = ref('')
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
-const MIN_MODEL_ITEM_HEIGHT = 56
+const LABEL_ITEM_HEIGHT = 36
+const MODEL_ITEM_HEIGHT = 48
+const PROVIDER_ACTIONS_ITEM_HEIGHT = 56
 const modelNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
 const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
@@ -304,11 +345,19 @@ type FilterToken = {
   label: string
 }
 
+type BatchAction = 'enable' | 'disable'
+
 type FacetOption<Value extends string> = {
   value: Value
   label: string
   icon: string
   count: number
+}
+
+type FacetCounts = {
+  total: number
+  capabilities: Record<ModelCapabilityKey, number>
+  types: Partial<Record<ModelType, number>>
 }
 
 const CAPABILITY_ORDER: ModelCapabilityKey[] = ['vision', 'functionCall', 'reasoning', 'search']
@@ -361,37 +410,84 @@ const emit = defineEmits<{
 
 const stickyBaseOffset = computed(() => props.stickyOffset ?? 0)
 
-const normalizedSearchQuery = computed(() => modelSearchQuery.value.trim().toLowerCase())
+const syncSearchQuery = useDebounceFn((value: string) => {
+  debouncedSearchQuery.value = value
+}, 180)
+
+watch(
+  modelSearchQuery,
+  (value) => {
+    syncSearchQuery(value)
+  },
+  { immediate: true }
+)
+
+const normalizedSearchQuery = computed(() => debouncedSearchQuery.value.trim().toLowerCase())
 
 const getModelTypeValue = (model: RENDERER_MODEL_META): ModelType => model.type ?? ModelType.Chat
 
-const getModelCapabilityValues = (model: RENDERER_MODEL_META): ModelCapabilityKey[] => {
-  const capabilities: ModelCapabilityKey[] = []
-  if (model.vision) capabilities.push('vision')
-  if (model.functionCall) capabilities.push('functionCall')
-  if (model.reasoning) capabilities.push('reasoning')
-  if (model.enableSearch) capabilities.push('search')
-  return capabilities
+const hasModelCapability = (model: RENDERER_MODEL_META, capability: ModelCapabilityKey) => {
+  switch (capability) {
+    case 'vision':
+      return !!model.vision
+    case 'functionCall':
+      return !!model.functionCall
+    case 'reasoning':
+      return !!model.reasoning
+    case 'search':
+      return !!model.enableSearch
+  }
 }
 
 const getModelTypeLabel = (type: ModelType) => t(`model.filter.typeOptions.${type}`)
 const getCapabilityLabel = (capability: ModelCapabilityKey) =>
   t(`model.filter.capabilityOptions.${capability}`)
 
-const allModels = computed(() => [
-  ...props.customModels,
-  ...props.providerModels.flatMap((provider) => provider.models)
-])
+const createFacetCounts = (): FacetCounts => ({
+  total: 0,
+  capabilities: {
+    vision: 0,
+    functionCall: 0,
+    reasoning: 0,
+    search: 0
+  },
+  types: {}
+})
 
-const totalModelCount = computed(() => allModels.value.length)
+const addModelToFacetCounts = (counts: FacetCounts, model: RENDERER_MODEL_META) => {
+  counts.total += 1
+  if (model.vision) counts.capabilities.vision += 1
+  if (model.functionCall) counts.capabilities.functionCall += 1
+  if (model.reasoning) counts.capabilities.reasoning += 1
+  if (model.enableSearch) counts.capabilities.search += 1
+
+  const type = getModelTypeValue(model)
+  counts.types[type] = (counts.types[type] ?? 0) + 1
+}
+
+const facetCounts = computed(() => {
+  const counts = createFacetCounts()
+  for (const model of props.customModels) {
+    addModelToFacetCounts(counts, model)
+  }
+
+  for (const provider of props.providerModels) {
+    for (const model of provider.models) {
+      addModelToFacetCounts(counts, model)
+    }
+  }
+
+  return counts
+})
+
+const totalModelCount = computed(() => facetCounts.value.total)
 
 const capabilityFilterOptions = computed<FacetOption<ModelCapabilityKey>[]>(() =>
   CAPABILITY_ORDER.map((capability) => ({
     value: capability,
     label: getCapabilityLabel(capability),
     icon: CAPABILITY_ICONS[capability],
-    count: allModels.value.filter((model) => getModelCapabilityValues(model).includes(capability))
-      .length
+    count: facetCounts.value.capabilities[capability]
   })).filter((option) => option.count > 0)
 )
 
@@ -400,7 +496,7 @@ const typeFilterOptions = computed<FacetOption<ModelType>[]>(() =>
     value: type,
     label: getModelTypeLabel(type),
     icon: TYPE_ICONS[type],
-    count: allModels.value.filter((model) => getModelTypeValue(model) === type).length
+    count: facetCounts.value.types[type] ?? 0
   })).filter((option) => option.count > 0)
 )
 
@@ -444,22 +540,25 @@ const hasListRefinements = computed(
 )
 
 const matchesSearch = (model: RENDERER_MODEL_META) => {
-  if (!normalizedSearchQuery.value) {
+  const query = normalizedSearchQuery.value
+  if (!query) {
     return true
   }
 
-  return [model.name, model.id, model.group, model.description]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .some((value) => value.toLowerCase().includes(normalizedSearchQuery.value))
+  return (
+    model.name.toLowerCase().includes(query) ||
+    model.id.toLowerCase().includes(query) ||
+    (!!model.group && model.group.toLowerCase().includes(query)) ||
+    (!!model.description && model.description.toLowerCase().includes(query))
+  )
 }
 
 const matchesAdvancedFilters = (model: RENDERER_MODEL_META) => {
-  const capabilities = getModelCapabilityValues(model)
   const type = getModelTypeValue(model)
 
   if (
     filterState.capabilities.length > 0 &&
-    !filterState.capabilities.some((capability) => capabilities.includes(capability))
+    !filterState.capabilities.some((capability) => hasModelCapability(model, capability))
   ) {
     return false
   }
@@ -475,6 +574,26 @@ const statusSortWeight = (model: RENDERER_MODEL_META) => (model.enabled ? 0 : 1)
 
 const getModelKey = (model: RENDERER_MODEL_META) => `${model.providerId}:${model.id}`
 const statusSortOrder = ref<Record<string, number>>({})
+const providerBatchPending = ref<Record<string, BatchAction | undefined>>({})
+const virtualItemCache = new Map<string, VirtualModelListItem>()
+
+const modelStructureFingerprint = (model: RENDERER_MODEL_META) =>
+  [
+    model.providerId,
+    model.id,
+    model.name,
+    model.group,
+    model.type ?? ModelType.Chat,
+    model.vision ? '1' : '0',
+    model.functionCall ? '1' : '0',
+    model.reasoning ? '1' : '0',
+    model.enableSearch ? '1' : '0'
+  ].join('\u001f')
+
+const modelStructureKeys = computed(() => [
+  ...props.customModels.map(modelStructureFingerprint),
+  ...props.providerModels.flatMap((provider) => provider.models.map(modelStructureFingerprint))
+])
 
 const buildStatusSortOrder = () => {
   const models = [
@@ -498,30 +617,7 @@ const buildStatusSortOrder = () => {
   statusSortOrder.value = nextOrder
 }
 
-const modelStructureSignature = computed(() =>
-  JSON.stringify({
-    customModels: props.customModels.map((model) => ({
-      providerId: model.providerId,
-      id: model.id,
-      name: model.name,
-      group: model.group,
-      type: model.type ?? ModelType.Chat,
-      capabilities: getModelCapabilityValues(model)
-    })),
-    providerModels: props.providerModels.map((provider) => ({
-      providerId: provider.providerId,
-      models: provider.models.map((model) => ({
-        id: model.id,
-        name: model.name,
-        group: model.group,
-        type: model.type ?? ModelType.Chat,
-        capabilities: getModelCapabilityValues(model)
-      }))
-    }))
-  })
-)
-
-watch(modelStructureSignature, buildStatusSortOrder, { immediate: true })
+watch(modelStructureKeys, buildStatusSortOrder, { immediate: true })
 
 const sortModels = (models: RENDERER_MODEL_META[]) =>
   [...models].sort((left, right) => {
@@ -580,11 +676,12 @@ const visibleModelCount = computed(
 )
 
 type VirtualModelListItem =
-  | { id: string; type: 'label'; label: string }
-  | { id: string; type: 'provider-actions'; providerId: string }
+  | { id: string; type: 'label'; label: string; size: number }
+  | { id: string; type: 'provider-actions'; providerId: string; size: number }
   | {
       id: string
       type: 'model'
+      size: number
       providerId: string
       modelId: string
       name: string
@@ -602,9 +699,104 @@ type VirtualModelListItem =
       endpointType: RENDERER_MODEL_META['endpointType']
     }
 
+const getCachedVirtualItem = <TItem extends VirtualModelListItem>(
+  id: string,
+  factory: () => TItem,
+  apply: (item: TItem) => void
+): TItem => {
+  const existing = virtualItemCache.get(id)
+  if (existing) {
+    const typedExisting = existing as TItem
+    apply(typedExisting)
+    return typedExisting
+  }
+
+  const nextItem = factory()
+  apply(nextItem)
+  virtualItemCache.set(id, nextItem)
+  return nextItem
+}
+
+const syncVirtualItemCache = (activeIds: Set<string>) => {
+  for (const id of virtualItemCache.keys()) {
+    if (!activeIds.has(id)) {
+      virtualItemCache.delete(id)
+    }
+  }
+}
+
+const createLabelItem = (label: string) =>
+  getCachedVirtualItem(
+    'label-official',
+    () => ({ id: 'label-official', type: 'label', label, size: LABEL_ITEM_HEIGHT }),
+    (item) => {
+      item.label = label
+      item.size = LABEL_ITEM_HEIGHT
+    }
+  )
+
+const createProviderActionsItem = (providerId: string) =>
+  getCachedVirtualItem(
+    `${providerId}-actions`,
+    () => ({
+      id: `${providerId}-actions`,
+      type: 'provider-actions',
+      providerId,
+      size: PROVIDER_ACTIONS_ITEM_HEIGHT
+    }),
+    (item) => {
+      item.providerId = providerId
+      item.size = PROVIDER_ACTIONS_ITEM_HEIGHT
+    }
+  )
+
+const createModelItem = (model: RENDERER_MODEL_META) =>
+  getCachedVirtualItem(
+    `${model.providerId}-${model.id}`,
+    () => ({
+      id: `${model.providerId}-${model.id}`,
+      type: 'model',
+      size: MODEL_ITEM_HEIGHT,
+      providerId: model.providerId,
+      modelId: model.id,
+      name: model.name,
+      enabled: model.enabled ?? false,
+      vision: model.vision ?? false,
+      functionCall: model.functionCall ?? false,
+      reasoning: model.reasoning ?? false,
+      enableSearch: model.enableSearch ?? false,
+      typeValue: model.type ?? ModelType.Chat,
+      group: model.group,
+      contextLength: model.contextLength,
+      maxTokens: model.maxTokens,
+      isCustom: model.isCustom ?? false,
+      supportedEndpointTypes: model.supportedEndpointTypes,
+      endpointType: model.endpointType
+    }),
+    (item) => {
+      item.size = MODEL_ITEM_HEIGHT
+      item.providerId = model.providerId
+      item.modelId = model.id
+      item.name = model.name
+      item.enabled = model.enabled ?? false
+      item.vision = model.vision ?? false
+      item.functionCall = model.functionCall ?? false
+      item.reasoning = model.reasoning ?? false
+      item.enableSearch = model.enableSearch ?? false
+      item.typeValue = model.type ?? ModelType.Chat
+      item.group = model.group
+      item.contextLength = model.contextLength
+      item.maxTokens = model.maxTokens
+      item.isCustom = model.isCustom ?? false
+      item.supportedEndpointTypes = model.supportedEndpointTypes
+      item.endpointType = model.endpointType
+    }
+  )
+
 const virtualItems = computed<VirtualModelListItem[]>(() => {
   const start = getPerfNow()
   const items: VirtualModelListItem[] = []
+  const activeIds = new Set<string>()
   let officialLabelInserted = false
   filteredProviderModels.value.forEach((provider) => {
     if (provider.models.length === 0) {
@@ -612,40 +804,26 @@ const virtualItems = computed<VirtualModelListItem[]>(() => {
     }
 
     if (!officialLabelInserted) {
-      items.push({ id: 'label-official', type: 'label', label: t('model.type.official') })
+      const labelItem = createLabelItem(t('model.type.official'))
+      items.push(labelItem)
+      activeIds.add(labelItem.id)
       officialLabelInserted = true
     }
 
     if (!hasListRefinements.value) {
-      items.push({
-        id: `${provider.providerId}-actions`,
-        type: 'provider-actions',
-        providerId: provider.providerId
-      })
+      const providerActionsItem = createProviderActionsItem(provider.providerId)
+      items.push(providerActionsItem)
+      activeIds.add(providerActionsItem.id)
     }
 
     provider.models.forEach((model) => {
-      items.push({
-        id: `${provider.providerId}-${model.id}`,
-        type: 'model',
-        providerId: provider.providerId,
-        modelId: model.id,
-        name: model.name,
-        enabled: model.enabled ?? false,
-        vision: model.vision ?? false,
-        functionCall: model.functionCall ?? false,
-        reasoning: model.reasoning ?? false,
-        enableSearch: model.enableSearch ?? false,
-        typeValue: model.type ?? ModelType.Chat,
-        group: model.group,
-        contextLength: model.contextLength,
-        maxTokens: model.maxTokens,
-        isCustom: model.isCustom ?? false,
-        supportedEndpointTypes: model.supportedEndpointTypes,
-        endpointType: model.endpointType
-      })
+      const modelItem = createModelItem(model)
+      items.push(modelItem)
+      activeIds.add(modelItem.id)
     })
   })
+
+  syncVirtualItemCache(activeIds)
 
   logModelTogglePerf('list.virtual-items', {
     itemCount: items.length,
@@ -678,37 +856,48 @@ const isModelItem = (item: unknown): item is Extract<VirtualModelListItem, { typ
   )
 }
 
-const getItemSizeDependencies = (item: VirtualModelListItem) => {
-  if (item.type === 'model') {
-    return [
-      item.name,
-      item.modelId,
-      item.enabled,
-      item.vision,
-      item.functionCall,
-      item.reasoning,
-      item.enableSearch,
-      item.typeValue
-    ]
-  }
-
-  if (item.type === 'provider-actions') {
-    return [
-      item.providerId,
-      filteredProviderModels.value.find((p) => p.providerId === item.providerId)?.models.length
-    ]
-  }
-
-  return [item.label]
-}
-
-const getScrollerItemSizeDependencies = (item: unknown) => {
-  return getItemSizeDependencies(item as VirtualModelListItem)
-}
-
 const getProviderName = (providerId: string) => {
   const provider = props.providers.find((p) => p.id === providerId)
   return provider?.name || providerId
+}
+
+const getProviderPendingAction = (providerId: string) => providerBatchPending.value[providerId]
+
+const isProviderBatchPending = (providerId: string) =>
+  getProviderPendingAction(providerId) !== undefined
+
+const setProviderBatchPending = (providerId: string, action?: BatchAction) => {
+  const nextPending = { ...providerBatchPending.value }
+  if (action) {
+    nextPending[providerId] = action
+  } else {
+    delete nextPending[providerId]
+  }
+  providerBatchPending.value = nextPending
+}
+
+const getBatchTargetModels = (providerId: string) => {
+  const providerModels =
+    filteredProviderModels.value.find((provider) => provider.providerId === providerId)?.models ??
+    []
+  const providerCustomModels = filteredCustomModels.value.filter(
+    (model) => model.providerId === providerId
+  )
+
+  if (providerCustomModels.length === 0) {
+    return providerModels
+  }
+
+  const dedupedModels = new Map<string, RENDERER_MODEL_META>()
+  for (const model of providerModels) {
+    dedupedModels.set(getModelKey(model), model)
+  }
+
+  for (const model of providerCustomModels) {
+    dedupedModels.set(getModelKey(model), model)
+  }
+
+  return Array.from(dedupedModels.values())
 }
 
 const toRendererModel = (
@@ -733,6 +922,21 @@ const toRendererModel = (
 
 const handleModelEnabledChange = (model: RENDERER_MODEL_META, enabled: boolean) => {
   emit('enabledChange', model, enabled)
+}
+
+const handleCustomModelEnabledChange = (model: RENDERER_MODEL_META, enabled: boolean) => {
+  handleModelEnabledChange(model, enabled)
+}
+
+const handleVirtualModelEnabledChange = (
+  item: Extract<VirtualModelListItem, { type: 'model' }>,
+  enabled: boolean
+) => {
+  handleModelEnabledChange(toRendererModel(item), enabled)
+}
+
+const emitConfigChanged = () => {
+  emit('config-changed')
 }
 
 const handleDeleteCustomModel = async (model: RENDERER_MODEL_META) => {
@@ -782,13 +986,35 @@ const setSort = (sort: ModelSortKey) => {
 }
 
 // 启用提供商下所有模型
-const enableAllModels = (providerId: string) => {
-  modelStore.enableAllModels(providerId)
+const enableAllModels = async (providerId: string) => {
+  if (isProviderBatchPending(providerId)) {
+    return
+  }
+
+  setProviderBatchPending(providerId, 'enable')
+  try {
+    await modelStore.enableAllModels(providerId, getBatchTargetModels(providerId))
+  } catch (error) {
+    console.error(`Failed to enable all models for provider ${providerId}:`, error)
+  } finally {
+    setProviderBatchPending(providerId)
+  }
 }
 
 // 禁用提供商下所有模型
-const disableAllModels = (providerId: string) => {
-  modelStore.disableAllModels(providerId)
+const disableAllModels = async (providerId: string) => {
+  if (isProviderBatchPending(providerId)) {
+    return
+  }
+
+  setProviderBatchPending(providerId, 'disable')
+  try {
+    await modelStore.disableAllModels(providerId, getBatchTargetModels(providerId))
+  } catch (error) {
+    console.error(`Failed to disable all models for provider ${providerId}:`, error)
+  } finally {
+    setProviderBatchPending(providerId)
+  }
 }
 
 const searchContainerRef = ref<HTMLElement | null>(null)

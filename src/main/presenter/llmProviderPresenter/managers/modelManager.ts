@@ -74,6 +74,13 @@ export class ModelManager {
     this.options.configPresenter.setModelStatus(providerId, modelId, enabled)
   }
 
+  async batchUpdateModelStatusQuiet(
+    providerId: string,
+    statusMap: Record<string, boolean>
+  ): Promise<void> {
+    this.options.configPresenter.batchSetModelStatusQuiet(providerId, statusMap)
+  }
+
   async addCustomModel(
     providerId: string,
     model: Omit<MODEL_META, 'providerId' | 'isCustom' | 'group'>
