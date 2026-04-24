@@ -231,18 +231,20 @@
             <div v-else-if="isModelItem(item)" :key="item.id" class="bg-card">
               <ModelConfigItem
                 :key="item.id"
-                :model-name="item.model.name"
-                :model-id="item.model.id"
+                :model-name="item.name"
+                :model-id="item.modelId"
                 :provider-id="item.providerId"
-                :enabled="item.model.enabled ?? false"
+                :enabled="item.enabled ?? false"
                 :is-custom-model="false"
-                :vision="item.model.vision"
-                :function-call="item.model.functionCall"
-                :reasoning="item.model.reasoning"
-                :enable-search="item.model.enableSearch"
-                :type="item.model.type ?? ModelType.Chat"
-                @enabled-change="(enabled) => handleModelEnabledChange(item.model, enabled)"
-                @delete-model="() => handleDeleteCustomModel(item.model)"
+                :vision="item.vision"
+                :function-call="item.functionCall"
+                :reasoning="item.reasoning"
+                :enable-search="item.enableSearch"
+                :type="item.typeValue ?? ModelType.Chat"
+                @enabled-change="
+                  (enabled) => handleModelEnabledChange(toRendererModel(item), enabled)
+                "
+                @delete-model="() => handleDeleteCustomModel(toRendererModel(item))"
                 @config-changed="$emit('config-changed')"
               />
             </div>
@@ -271,6 +273,7 @@ import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { type RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { useModelStore } from '@/stores/modelStore'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { useElementSize } from '@vueuse/core'
@@ -280,8 +283,18 @@ import AddCustomModelButton from './AddCustomModelButton.vue'
 const { t } = useI18n()
 const modelSearchQuery = ref('')
 const modelStore = useModelStore()
+const uiSettingsStore = useUiSettingsStore()
 const MIN_MODEL_ITEM_HEIGHT = 56
 const modelNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
+const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
+  if (!uiSettingsStore.traceDebugEnabled) {
+    return
+  }
+
+  console.info(`${MODEL_TOGGLE_PERF_LOG_PREFIX} ${phase}`, details)
+}
 
 type ModelSortKey = 'status' | 'name'
 type ModelCapabilityKey = 'vision' | 'functionCall' | 'reasoning' | 'search'
@@ -540,12 +553,22 @@ const filterAndSortModels = (models: RENDERER_MODEL_META[]) =>
   sortModels(models.filter((model) => matchesSearch(model) && matchesAdvancedFilters(model)))
 
 const filteredProviderModels = computed(() => {
-  return props.providerModels
+  const start = getPerfNow()
+  const result = props.providerModels
     .map((provider) => ({
       providerId: provider.providerId,
       models: filterAndSortModels(provider.models)
     }))
     .filter((provider) => provider.models.length > 0)
+
+  logModelTogglePerf('list.filtered-provider-models', {
+    providerCount: result.length,
+    visibleModels: result.reduce((total, provider) => total + provider.models.length, 0),
+    elapsedMs: Math.round(getPerfNow() - start),
+    hasRefinements: hasListRefinements.value
+  })
+
+  return result
 })
 
 const filteredCustomModels = computed(() => filterAndSortModels(props.customModels))
@@ -563,10 +586,24 @@ type VirtualModelListItem =
       id: string
       type: 'model'
       providerId: string
-      model: RENDERER_MODEL_META
+      modelId: string
+      name: string
+      enabled: boolean
+      vision: boolean
+      functionCall: boolean
+      reasoning: boolean
+      enableSearch: boolean
+      typeValue: ModelType
+      group: string
+      contextLength: number
+      maxTokens: number
+      isCustom: boolean
+      supportedEndpointTypes: RENDERER_MODEL_META['supportedEndpointTypes']
+      endpointType: RENDERER_MODEL_META['endpointType']
     }
 
 const virtualItems = computed<VirtualModelListItem[]>(() => {
+  const start = getPerfNow()
   const items: VirtualModelListItem[] = []
   let officialLabelInserted = false
   filteredProviderModels.value.forEach((provider) => {
@@ -592,9 +629,28 @@ const virtualItems = computed<VirtualModelListItem[]>(() => {
         id: `${provider.providerId}-${model.id}`,
         type: 'model',
         providerId: provider.providerId,
-        model
+        modelId: model.id,
+        name: model.name,
+        enabled: model.enabled ?? false,
+        vision: model.vision ?? false,
+        functionCall: model.functionCall ?? false,
+        reasoning: model.reasoning ?? false,
+        enableSearch: model.enableSearch ?? false,
+        typeValue: model.type ?? ModelType.Chat,
+        group: model.group,
+        contextLength: model.contextLength,
+        maxTokens: model.maxTokens,
+        isCustom: model.isCustom ?? false,
+        supportedEndpointTypes: model.supportedEndpointTypes,
+        endpointType: model.endpointType
       })
     })
+  })
+
+  logModelTogglePerf('list.virtual-items', {
+    itemCount: items.length,
+    elapsedMs: Math.round(getPerfNow() - start),
+    hasRefinements: hasListRefinements.value
   })
 
   return items
@@ -625,14 +681,14 @@ const isModelItem = (item: unknown): item is Extract<VirtualModelListItem, { typ
 const getItemSizeDependencies = (item: VirtualModelListItem) => {
   if (item.type === 'model') {
     return [
-      item.model.name,
-      item.model.id,
-      item.model.enabled,
-      item.model.vision,
-      item.model.functionCall,
-      item.model.reasoning,
-      item.model.enableSearch,
-      item.model.type
+      item.name,
+      item.modelId,
+      item.enabled,
+      item.vision,
+      item.functionCall,
+      item.reasoning,
+      item.enableSearch,
+      item.typeValue
     ]
   }
 
@@ -654,6 +710,26 @@ const getProviderName = (providerId: string) => {
   const provider = props.providers.find((p) => p.id === providerId)
   return provider?.name || providerId
 }
+
+const toRendererModel = (
+  item: Extract<VirtualModelListItem, { type: 'model' }>
+): RENDERER_MODEL_META => ({
+  id: item.modelId,
+  name: item.name,
+  contextLength: item.contextLength,
+  maxTokens: item.maxTokens,
+  group: item.group,
+  providerId: item.providerId,
+  enabled: item.enabled,
+  isCustom: item.isCustom,
+  vision: item.vision,
+  functionCall: item.functionCall,
+  reasoning: item.reasoning,
+  enableSearch: item.enableSearch,
+  type: item.typeValue,
+  supportedEndpointTypes: item.supportedEndpointTypes,
+  endpointType: item.endpointType
+})
 
 const handleModelEnabledChange = (model: RENDERER_MODEL_META, enabled: boolean) => {
   emit('enabledChange', model, enabled)

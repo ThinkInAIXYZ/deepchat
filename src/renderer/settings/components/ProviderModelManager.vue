@@ -15,9 +15,9 @@
     <div class="w-full">
       <ProviderModelList
         :provider-id="provider.id"
-        :provider-models="[{ providerId: provider.id, models: providerModels }]"
+        :provider-models="providerModelGroups"
         :custom-models="customModels"
-        :providers="[{ id: provider.id, name: provider.name }]"
+        :providers="providerOptions"
         @enabled-change="(model, enabled) => $emit('model-enabled-change', model, enabled)"
         @saved="$emit('custom-model-added')"
         @config-changed="$emit('config-changed')"
@@ -28,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
@@ -35,7 +36,7 @@ import ProviderModelList from './ProviderModelList.vue'
 
 const { t } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   provider: LLM_PROVIDER
   enabledModels: RENDERER_MODEL_META[]
   totalModelsCount: number
@@ -43,6 +44,20 @@ defineProps<{
   customModels: RENDERER_MODEL_META[]
   isModelListLoading?: boolean
 }>()
+
+const providerModelGroups = computed(() => [
+  {
+    providerId: props.provider.id,
+    models: props.providerModels
+  }
+])
+
+const providerOptions = computed(() => [
+  {
+    id: props.provider.id,
+    name: props.provider.name
+  }
+])
 
 defineEmits<{
   'disable-all-models': []
