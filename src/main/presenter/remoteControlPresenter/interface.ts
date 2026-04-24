@@ -3,6 +3,7 @@ import type {
   FeishuRemoteSettings,
   IConfigPresenter,
   IAgentSessionPresenter,
+  IFilePresenter,
   IRemoteControlPresenter,
   QQBotRemoteSettings,
   ITabPresenter,
@@ -15,6 +16,7 @@ import type { AgentRuntimePresenter } from '../agentRuntimePresenter'
 export interface RemoteControlPresenterDeps {
   configPresenter: IConfigPresenter
   agentSessionPresenter: IAgentSessionPresenter
+  filePresenter?: IFilePresenter
   agentRuntimePresenter: AgentRuntimePresenter
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter

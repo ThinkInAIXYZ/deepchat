@@ -110,6 +110,14 @@ export class TelegramAdapter extends ChannelAdapter {
     await this.client.sendMessage(this.parseTransportTarget(chatId), text)
   }
 
+  async sendImage(chatId: string, imagePath: string, _opts?: SendMessageOptions): Promise<void> {
+    if (!this.client) {
+      throw new Error('Telegram adapter is not connected.')
+    }
+
+    await this.client.sendPhoto(this.parseTransportTarget(chatId), imagePath)
+  }
+
   async sendTypingIndicator(chatId: string): Promise<void> {
     if (!this.client) {
       throw new Error('Telegram adapter is not connected.')

@@ -173,6 +173,82 @@
                       </SelectContent>
                     </Select>
                   </div>
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
+                          :title="defaultWorkdirTitle('telegram')"
+                        >
+                          <div class="flex min-w-0 items-center gap-1.5">
+                            <Icon
+                              icon="lucide:folder"
+                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="truncate">{{ defaultWorkdirLabel('telegram') }}</span>
+                          </div>
+                          <Icon
+                            icon="lucide:chevron-down"
+                            class="h-3 w-3 shrink-0 text-muted-foreground"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" class="w-[20rem]">
+                        <DropdownMenuItem
+                          v-for="project in directoryOptions('telegram')"
+                          :key="project.path"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="selectDefaultWorkdir('telegram', project.path)"
+                        >
+                          <Icon
+                            icon="lucide:folder"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate">{{ project.name }}</div>
+                            <div class="truncate text-[10px] text-muted-foreground">
+                              {{ project.path }}
+                            </div>
+                          </div>
+                          <Icon
+                            v-if="normalizePath(telegramSettings.defaultWorkdir) === project.path"
+                            icon="lucide:check"
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="pickDefaultWorkdir('telegram')"
+                        >
+                          <Icon
+                            icon="lucide:folder-open"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.project.openFolder') }}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="telegramSettings.defaultWorkdir"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="clearDefaultWorkdir('telegram')"
+                        >
+                          <Icon
+                            icon="lucide:x"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.clear') }}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
@@ -368,11 +444,74 @@
                     <Label class="text-xs text-muted-foreground">
                       {{ t('settings.remote.remoteControl.defaultWorkdir') }}
                     </Label>
-                    <Input
-                      v-model="feishuSettings.defaultWorkdir"
-                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
-                      @blur="queueFeishuSettingsPersist"
-                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
+                          :title="defaultWorkdirTitle('feishu')"
+                        >
+                          <div class="flex min-w-0 items-center gap-1.5">
+                            <Icon
+                              icon="lucide:folder"
+                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="truncate">{{ defaultWorkdirLabel('feishu') }}</span>
+                          </div>
+                          <Icon
+                            icon="lucide:chevron-down"
+                            class="h-3 w-3 shrink-0 text-muted-foreground"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" class="w-[20rem]">
+                        <DropdownMenuItem
+                          v-for="project in directoryOptions('feishu')"
+                          :key="project.path"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="selectDefaultWorkdir('feishu', project.path)"
+                        >
+                          <Icon
+                            icon="lucide:folder"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate">{{ project.name }}</div>
+                            <div class="truncate text-[10px] text-muted-foreground">
+                              {{ project.path }}
+                            </div>
+                          </div>
+                          <Icon
+                            v-if="normalizePath(feishuSettings.defaultWorkdir) === project.path"
+                            icon="lucide:check"
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="pickDefaultWorkdir('feishu')"
+                        >
+                          <Icon
+                            icon="lucide:folder-open"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.project.openFolder') }}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="feishuSettings.defaultWorkdir"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="clearDefaultWorkdir('feishu')"
+                        >
+                          <Icon
+                            icon="lucide:x"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.clear') }}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
                       {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
                     </p>
@@ -517,11 +656,74 @@
                     <Label class="text-xs text-muted-foreground">
                       {{ t('settings.remote.remoteControl.defaultWorkdir') }}
                     </Label>
-                    <Input
-                      v-model="qqbotSettings.defaultWorkdir"
-                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
-                      @blur="queueQQBotSettingsPersist"
-                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
+                          :title="defaultWorkdirTitle('qqbot')"
+                        >
+                          <div class="flex min-w-0 items-center gap-1.5">
+                            <Icon
+                              icon="lucide:folder"
+                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="truncate">{{ defaultWorkdirLabel('qqbot') }}</span>
+                          </div>
+                          <Icon
+                            icon="lucide:chevron-down"
+                            class="h-3 w-3 shrink-0 text-muted-foreground"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" class="w-[20rem]">
+                        <DropdownMenuItem
+                          v-for="project in directoryOptions('qqbot')"
+                          :key="project.path"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="selectDefaultWorkdir('qqbot', project.path)"
+                        >
+                          <Icon
+                            icon="lucide:folder"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate">{{ project.name }}</div>
+                            <div class="truncate text-[10px] text-muted-foreground">
+                              {{ project.path }}
+                            </div>
+                          </div>
+                          <Icon
+                            v-if="normalizePath(qqbotSettings.defaultWorkdir) === project.path"
+                            icon="lucide:check"
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="pickDefaultWorkdir('qqbot')"
+                        >
+                          <Icon
+                            icon="lucide:folder-open"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.project.openFolder') }}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="qqbotSettings.defaultWorkdir"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="clearDefaultWorkdir('qqbot')"
+                        >
+                          <Icon
+                            icon="lucide:x"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.clear') }}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
                       {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
                     </p>
@@ -672,11 +874,74 @@
                     <Label class="text-xs text-muted-foreground">
                       {{ t('settings.remote.remoteControl.defaultWorkdir') }}
                     </Label>
-                    <Input
-                      v-model="discordSettings.defaultWorkdir"
-                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
-                      @blur="queueDiscordSettingsPersist"
-                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
+                          :title="defaultWorkdirTitle('discord')"
+                        >
+                          <div class="flex min-w-0 items-center gap-1.5">
+                            <Icon
+                              icon="lucide:folder"
+                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="truncate">{{ defaultWorkdirLabel('discord') }}</span>
+                          </div>
+                          <Icon
+                            icon="lucide:chevron-down"
+                            class="h-3 w-3 shrink-0 text-muted-foreground"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" class="w-[20rem]">
+                        <DropdownMenuItem
+                          v-for="project in directoryOptions('discord')"
+                          :key="project.path"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="selectDefaultWorkdir('discord', project.path)"
+                        >
+                          <Icon
+                            icon="lucide:folder"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate">{{ project.name }}</div>
+                            <div class="truncate text-[10px] text-muted-foreground">
+                              {{ project.path }}
+                            </div>
+                          </div>
+                          <Icon
+                            v-if="normalizePath(discordSettings.defaultWorkdir) === project.path"
+                            icon="lucide:check"
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="pickDefaultWorkdir('discord')"
+                        >
+                          <Icon
+                            icon="lucide:folder-open"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.project.openFolder') }}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="discordSettings.defaultWorkdir"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="clearDefaultWorkdir('discord')"
+                        >
+                          <Icon
+                            icon="lucide:x"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.clear') }}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
                       {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
                     </p>
@@ -917,11 +1182,76 @@
                     <Label class="text-xs text-muted-foreground">
                       {{ t('settings.remote.remoteControl.defaultWorkdir') }}
                     </Label>
-                    <Input
-                      v-model="weixinIlinkSettings.defaultWorkdir"
-                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
-                      @blur="queueWeixinIlinkSettingsPersist"
-                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
+                          :title="defaultWorkdirTitle('weixin-ilink')"
+                        >
+                          <div class="flex min-w-0 items-center gap-1.5">
+                            <Icon
+                              icon="lucide:folder"
+                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="truncate">{{ defaultWorkdirLabel('weixin-ilink') }}</span>
+                          </div>
+                          <Icon
+                            icon="lucide:chevron-down"
+                            class="h-3 w-3 shrink-0 text-muted-foreground"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" class="w-[20rem]">
+                        <DropdownMenuItem
+                          v-for="project in directoryOptions('weixin-ilink')"
+                          :key="project.path"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="selectDefaultWorkdir('weixin-ilink', project.path)"
+                        >
+                          <Icon
+                            icon="lucide:folder"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate">{{ project.name }}</div>
+                            <div class="truncate text-[10px] text-muted-foreground">
+                              {{ project.path }}
+                            </div>
+                          </div>
+                          <Icon
+                            v-if="
+                              normalizePath(weixinIlinkSettings.defaultWorkdir) === project.path
+                            "
+                            icon="lucide:check"
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="pickDefaultWorkdir('weixin-ilink')"
+                        >
+                          <Icon
+                            icon="lucide:folder-open"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.project.openFolder') }}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="weixinIlinkSettings.defaultWorkdir"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="clearDefaultWorkdir('weixin-ilink')"
+                        >
+                          <Icon
+                            icon="lucide:x"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.clear') }}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
                       {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
                     </p>
@@ -1194,6 +1524,13 @@ import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Label } from '@shadcn/components/ui/label'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -1210,7 +1547,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import { useLegacyPresenter, useLegacyRemoteControlPresenter } from '@api/legacy/presenters'
 import { useToast } from '@/components/use-toast'
-import type { Agent } from '@shared/types/agent-interface'
+import type { Agent, Project } from '@shared/types/agent-interface'
 import type {
   DiscordPairingSnapshot,
   DiscordRemoteSettings,
@@ -1288,6 +1625,7 @@ const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
 
 const remoteControlPresenter = useLegacyRemoteControlPresenter()
 const agentSessionPresenter = useLegacyPresenter('agentSessionPresenter')
+const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
 const { t } = useI18n()
 const { toast } = useToast()
 
@@ -1321,6 +1659,7 @@ const isLoading = ref(false)
 const showBotToken = ref(false)
 const showDiscordBotToken = ref(false)
 const availableAgents = ref<Agent[]>([])
+const recentProjects = ref<Project[]>([])
 const activeChannel = ref<RemoteChannel>('telegram')
 const pairDialogChannel = ref<PairableRemoteChannel | null>(null)
 const pairDialogOpen = ref(false)
@@ -1370,7 +1709,8 @@ let pairDialogRefreshTimer: ReturnType<typeof setInterval> | null = null
 const defaultTelegramSettings = (): TelegramRemoteSettings => ({
   botToken: '',
   remoteEnabled: false,
-  defaultAgentId: 'deepchat'
+  defaultAgentId: 'deepchat',
+  defaultWorkdir: ''
 })
 
 const defaultFeishuSettings = (): FeishuRemoteSettings => ({
@@ -1824,6 +2164,104 @@ const defaultAgentOptions = (currentAgentId: string) => {
   return options
 }
 
+const normalizePath = (value: string | null | undefined) => {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
+}
+
+const pathLabel = (value: string) => value.split(/[/\\]/).filter(Boolean).pop() || value
+
+const getChannelDefaultWorkdir = (channel: RemoteChannel): string => {
+  switch (channel) {
+    case 'telegram':
+      return telegramSettings.value?.defaultWorkdir ?? ''
+    case 'feishu':
+      return feishuSettings.value?.defaultWorkdir ?? ''
+    case 'qqbot':
+      return qqbotSettings.value?.defaultWorkdir ?? ''
+    case 'discord':
+      return discordSettings.value?.defaultWorkdir ?? ''
+    case 'weixin-ilink':
+      return weixinIlinkSettings.value?.defaultWorkdir ?? ''
+  }
+}
+
+const setChannelDefaultWorkdir = (channel: RemoteChannel, value: string) => {
+  if (channel === 'telegram' && telegramSettings.value) {
+    telegramSettings.value.defaultWorkdir = value
+    queueTelegramSettingsPersist()
+  } else if (channel === 'feishu' && feishuSettings.value) {
+    feishuSettings.value.defaultWorkdir = value
+    queueFeishuSettingsPersist()
+  } else if (channel === 'qqbot' && qqbotSettings.value) {
+    qqbotSettings.value.defaultWorkdir = value
+    queueQQBotSettingsPersist()
+  } else if (channel === 'discord' && discordSettings.value) {
+    discordSettings.value.defaultWorkdir = value
+    queueDiscordSettingsPersist()
+  } else if (channel === 'weixin-ilink' && weixinIlinkSettings.value) {
+    weixinIlinkSettings.value.defaultWorkdir = value
+    queueWeixinIlinkSettingsPersist()
+  }
+}
+
+const directoryOptions = (channel: RemoteChannel) => {
+  const normalizedCurrentPath = normalizePath(getChannelDefaultWorkdir(channel))
+  const options = new Map<string, { path: string; name: string }>()
+
+  if (normalizedCurrentPath) {
+    options.set(normalizedCurrentPath, {
+      path: normalizedCurrentPath,
+      name: pathLabel(normalizedCurrentPath)
+    })
+  }
+
+  for (const project of recentProjects.value) {
+    const normalized = normalizePath(project.path)
+    if (!normalized || options.has(normalized)) {
+      continue
+    }
+
+    options.set(normalized, {
+      path: normalized,
+      name: project.name || pathLabel(normalized)
+    })
+  }
+
+  return Array.from(options.values())
+}
+
+const defaultWorkdirLabel = (channel: RemoteChannel) => {
+  const normalized = normalizePath(getChannelDefaultWorkdir(channel))
+  return normalized
+    ? pathLabel(normalized)
+    : t('settings.remote.remoteControl.defaultWorkdirPlaceholder')
+}
+
+const defaultWorkdirTitle = (channel: RemoteChannel) =>
+  normalizePath(getChannelDefaultWorkdir(channel)) ??
+  t('settings.remote.remoteControl.defaultWorkdirPlaceholder')
+
+const pickDefaultWorkdir = async (channel: RemoteChannel) => {
+  try {
+    const selectedPath = await projectPresenter.selectDirectory()
+    if (selectedPath) {
+      setChannelDefaultWorkdir(channel, selectedPath)
+      void loadRecentProjects()
+    }
+  } catch (error) {
+    console.warn('[RemoteSettings] Failed to select default workdir:', error)
+  }
+}
+
+const selectDefaultWorkdir = (channel: RemoteChannel, projectPath: string) => {
+  setChannelDefaultWorkdir(channel, projectPath)
+}
+
+const clearDefaultWorkdir = (channel: RemoteChannel) => {
+  setChannelDefaultWorkdir(channel, '')
+}
+
 const pairDialogVisible = computed({
   get: () => pairDialogOpen.value,
   set: (open: boolean) => {
@@ -1964,6 +2402,15 @@ const loadAvailableAgents = async () => {
   availableAgents.value = await agentSessionPresenter.getAgents()
 }
 
+const loadRecentProjects = async () => {
+  try {
+    const result = await projectPresenter.getRecentProjects(8)
+    recentProjects.value = Array.isArray(result) ? result : []
+  } catch {
+    recentProjects.value = []
+  }
+}
+
 const loadState = async () => {
   isLoading.value = true
   try {
@@ -1991,7 +2438,8 @@ const loadState = async () => {
       getChannelStatusCompat('qqbot'),
       getChannelStatusCompat('discord'),
       getChannelStatusCompat('weixin-ilink'),
-      loadAvailableAgents()
+      loadAvailableAgents(),
+      loadRecentProjects()
     ])
 
     channelDescriptors.value =

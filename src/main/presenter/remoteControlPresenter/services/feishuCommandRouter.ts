@@ -83,6 +83,12 @@ export class FeishuCommandRouter {
     }
 
     try {
+      if (message.allAttachmentsFailed) {
+        return {
+          replies: ['Failed to load your attachment. Please resend.']
+        }
+      }
+
       const pendingInteraction = await this.deps.runner.getPendingInteraction(endpointKey)
       if (pendingInteraction) {
         if (!command) {
@@ -208,9 +214,21 @@ export class FeishuCommandRouter {
           break
       }
 
+      const attachments = message.attachments ?? []
       return {
         replies: [],
-        conversation: await this.deps.runner.sendText(endpointKey, message.text, bindingMeta)
+        conversation:
+          attachments.length > 0
+            ? await this.deps.runner.sendInput(
+                endpointKey,
+                {
+                  text: message.text,
+                  attachments: attachments.filter((attachment) => !attachment.failedDownload),
+                  sourceMessageId: message.messageId
+                },
+                bindingMeta
+              )
+            : await this.deps.runner.sendText(endpointKey, message.text, bindingMeta)
       }
     } catch (error) {
       return {

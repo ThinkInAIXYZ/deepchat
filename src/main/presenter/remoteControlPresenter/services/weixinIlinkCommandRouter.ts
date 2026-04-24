@@ -225,9 +225,21 @@ export class WeixinIlinkCommandRouter {
           break
       }
 
+      const attachments = message.attachments ?? []
       return {
         replies: [],
-        conversation: await this.deps.runner.sendText(endpointKey, message.text, bindingMeta)
+        conversation:
+          attachments.length > 0
+            ? await this.deps.runner.sendInput(
+                endpointKey,
+                {
+                  text: message.text,
+                  attachments,
+                  sourceMessageId: message.messageId
+                },
+                bindingMeta
+              )
+            : await this.deps.runner.sendText(endpointKey, message.text, bindingMeta)
       }
     } catch (error) {
       return {

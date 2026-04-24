@@ -478,6 +478,7 @@ export class DiscordRuntime {
         } else if (finalText) {
           await this.deps.client.sendMessage(target.channelId, finalText)
         }
+        await this.sendGeneratedImages(target, snapshot)
         return
       }
 
@@ -607,7 +608,34 @@ export class DiscordRuntime {
   private getFinalDeliveryText(
     snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
   ): string {
-    return (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
+    const finalText = snapshot.finalText?.trim() ?? ''
+    if (finalText) {
+      return finalText
+    }
+    if ((snapshot.generatedImages?.length ?? 0) > 0) {
+      return ''
+    }
+    return (snapshot.fullText ?? snapshot.text).trim()
+  }
+
+  private async sendGeneratedImages(
+    target: DiscordTransportTarget,
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): Promise<void> {
+    for (const asset of snapshot.generatedImages ?? []) {
+      try {
+        await this.deps.client.sendImage(target.channelId, asset.path)
+      } catch (error) {
+        console.warn('[DiscordRuntime] Failed to send generated image:', {
+          path: asset.path,
+          error
+        })
+        await this.deps.client.sendMessage(
+          target.channelId,
+          '[Image] Delivery failed - see local copy in the app.'
+        )
+      }
+    }
   }
 
   private appendTerminalDeliverySegment(

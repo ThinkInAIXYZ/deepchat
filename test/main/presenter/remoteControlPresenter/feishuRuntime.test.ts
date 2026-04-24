@@ -21,6 +21,7 @@ const createParsedMessage = (
   command: null,
   mentionedBot: false,
   mentions: [],
+  attachments: [],
   ...overrides
 })
 
@@ -57,6 +58,10 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
     sendText: vi.fn().mockImplementation(async () => `om_bot_${nextMessageId++}`),
     updateText: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
+    downloadMessageResource: vi.fn().mockResolvedValue({
+      data: Buffer.from('file').toString('base64'),
+      mediaType: 'text/plain'
+    }),
     sendCard: vi.fn().mockResolvedValue(undefined)
   }
   const parser = {
@@ -108,6 +113,42 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
 }
 
 describe('FeishuRuntime', () => {
+  it('marks attachments as failed when message resource download fails', async () => {
+    const harness = await createHarness()
+    harness.client.downloadMessageResource.mockRejectedValue(new Error('download failed'))
+
+    await harness.onMessage({
+      parsed: createParsedMessage({
+        text: '',
+        attachments: [
+          {
+            id: 'img-key',
+            filename: 'img-key',
+            resourceKey: 'img-key',
+            resourceType: 'image'
+          }
+        ]
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.router.handleMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          allAttachmentsFailed: true,
+          attachments: [
+            expect.objectContaining({
+              id: 'img-key',
+              failedDownload: true,
+              errorMessage: 'Failed to load attachment'
+            })
+          ]
+        })
+      )
+    })
+
+    await harness.runtime.stop()
+  })
+
   it('streams answer text beside a persistent trace log', async () => {
     vi.useFakeTimers()
 

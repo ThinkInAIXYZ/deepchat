@@ -221,9 +221,12 @@ export class TelegramPoller {
         ? this.createCallbackQueryAcknowledger(parsed.callbackQueryId)
         : null
 
+    const messageForRouting =
+      parsed.kind === 'message' ? await this.resolveMessageAttachments(parsed) : parsed
+
     let routed: Awaited<ReturnType<RemoteCommandRouter['handleMessage']>>
     try {
-      routed = await this.deps.router.handleMessage(parsed)
+      routed = await this.deps.router.handleMessage(messageForRouting)
     } catch (error) {
       if (callbackAcknowledger) {
         await callbackAcknowledger.answer()
@@ -239,11 +242,48 @@ export class TelegramPoller {
       target,
       routed,
       runId,
-      parsed.kind === 'message' && !parsed.command ? parsed : null
+      messageForRouting.kind === 'message' && !messageForRouting.command ? messageForRouting : null
     )
 
     if (routed.deferred) {
       this.scheduleDeferredRouteResult(target, routed.deferred, runId)
+    }
+  }
+
+  private async resolveMessageAttachments(
+    message: TelegramInboundMessage
+  ): Promise<TelegramInboundMessage> {
+    if ((message.attachments ?? []).length === 0) {
+      return message
+    }
+
+    const attachments = await Promise.all(
+      (message.attachments ?? []).map(async (attachment) => {
+        if (!attachment.fileId || attachment.data) {
+          return attachment
+        }
+
+        try {
+          const downloaded = await this.deps.client.downloadFileBase64(attachment.fileId)
+          return {
+            ...attachment,
+            data: downloaded.data,
+            size: attachment.size ?? downloaded.size
+          }
+        } catch (error) {
+          console.warn('[TelegramPoller] Failed to download Telegram attachment:', {
+            messageId: message.messageId,
+            filename: attachment.filename,
+            error
+          })
+          return attachment
+        }
+      })
+    )
+
+    return {
+      ...message,
+      attachments
     }
   }
 
@@ -374,6 +414,7 @@ export class TelegramPoller {
         } else if (finalText) {
           await this.sendChunkedMessage(target, finalText)
         }
+        await this.sendGeneratedImages(target, snapshot)
         return
       }
 
@@ -492,7 +533,34 @@ export class TelegramPoller {
   private getFinalDeliveryText(
     snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
   ): string {
-    return (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
+    const finalText = snapshot.finalText?.trim() ?? ''
+    if (finalText) {
+      return finalText
+    }
+    if ((snapshot.generatedImages?.length ?? 0) > 0) {
+      return ''
+    }
+    return (snapshot.fullText ?? snapshot.text).trim()
+  }
+
+  private async sendGeneratedImages(
+    target: TelegramTransportTarget,
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): Promise<void> {
+    for (const asset of snapshot.generatedImages ?? []) {
+      try {
+        await this.deps.client.sendPhoto(target, asset.path)
+      } catch (error) {
+        console.warn('[TelegramPoller] Failed to send generated image:', {
+          path: asset.path,
+          error
+        })
+        await this.sendChunkedMessage(
+          target,
+          '[Image] Delivery failed - see local copy in the app.'
+        )
+      }
+    }
   }
 
   private appendTerminalDeliverySegment(

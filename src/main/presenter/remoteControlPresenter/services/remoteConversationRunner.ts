@@ -1,6 +1,12 @@
 import { BrowserWindow } from 'electron'
+import crypto from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import type {
+  AssistantMessageBlock,
   ChatMessageRecord,
+  MessageFile,
+  SendMessageInput,
   SessionWithState,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
@@ -8,6 +14,7 @@ import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
   IAgentSessionPresenter,
+  IFilePresenter,
   ITabPresenter,
   IWindowPresenter
 } from '@shared/presenter'
@@ -17,6 +24,8 @@ import {
   type RemoteDeliverySegment,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   type RemoteEndpointBindingMeta,
+  type RemoteGeneratedImageAsset,
+  type RemoteInputAttachment,
   type RemoteRenderableBlock,
   type RemotePendingInteraction,
   type TelegramModelProviderOption
@@ -41,6 +50,110 @@ const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+const REMOTE_ASSET_ROOT = '.deepchat/remote-assets'
+const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 35_000
+
+const MIME_EXTENSION: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'application/pdf': '.pdf',
+  'text/plain': '.txt'
+}
+
+const isInvalidPathSegment = (value: string): boolean =>
+  value.length === 0 || value === '.' || value === '..'
+
+const sanitizePathSegment = (value: string | null | undefined, fallback: string): string => {
+  const unsafeCharacters = '\\/:*?"<>|'
+  const normalized =
+    value
+      ?.trim()
+      .split('')
+      .map((char) => (char.charCodeAt(0) < 32 || unsafeCharacters.includes(char) ? '_' : char))
+      .join('') ?? ''
+  return isInvalidPathSegment(normalized) ? fallback : normalized
+}
+
+const sanitizeFileName = (
+  value: string | null | undefined,
+  fallback: string,
+  mimeType?: string | null
+): string => {
+  const fallbackName = sanitizePathSegment(path.basename(fallback.trim() || ''), 'attachment')
+  let baseName = sanitizePathSegment(path.basename(value?.trim() || ''), fallbackName)
+  if (isInvalidPathSegment(baseName)) {
+    baseName = fallbackName
+  }
+
+  if (path.extname(baseName)) {
+    return baseName
+  }
+
+  const extension = mimeType ? MIME_EXTENSION[mimeType.toLowerCase()] : ''
+  return extension ? `${baseName}${extension}` : baseName
+}
+
+const appendFileNameIndex = (fileName: string, index: number): string => {
+  const extension = path.extname(fileName)
+  const baseName = extension ? fileName.slice(0, -extension.length) : fileName
+  return `${baseName}-${index + 1}${extension}`
+}
+
+const hashEndpointKey = (endpointKey: string): string =>
+  crypto.createHash('sha256').update(endpointKey).digest('hex').slice(0, 16)
+
+const channelFromEndpointKey = (endpointKey: string): string =>
+  endpointKey.split(':', 1)[0]?.trim() || 'remote'
+
+const stripDataUrlPrefix = (data: string): string => {
+  const commaIndex = data.indexOf(',')
+  return data.startsWith('data:') && commaIndex >= 0 ? data.slice(commaIndex + 1) : data
+}
+
+const hasAttachmentDownloadSource = (attachment: RemoteInputAttachment): boolean =>
+  Boolean(
+    !attachment.failedDownload &&
+    (attachment.data?.trim() || attachment.url?.trim() || attachment.encryptedMedia)
+  )
+
+const buildCdnDownloadUrl = (encryptedQueryParam: string, cdnBaseUrl: string): string =>
+  `${cdnBaseUrl.replace(/\/+$/, '')}/download?encrypted_query_param=${encodeURIComponent(
+    encryptedQueryParam
+  )}`
+
+const parseAes128Key = (
+  value: string,
+  encoding: 'auto' | 'hex' | undefined,
+  label: string
+): Buffer => {
+  if (encoding === 'hex') {
+    const key = Buffer.from(value, 'hex')
+    if (key.length === 16) {
+      return key
+    }
+  } else if (/^[0-9a-fA-F]{32}$/.test(value)) {
+    return Buffer.from(value, 'hex')
+  } else {
+    const decoded = Buffer.from(value, 'base64')
+    if (decoded.length === 16) {
+      return decoded
+    }
+
+    if (decoded.length === 32 && /^[0-9a-fA-F]{32}$/.test(decoded.toString('ascii'))) {
+      return Buffer.from(decoded.toString('ascii'), 'hex')
+    }
+  }
+
+  throw new Error(`Remote attachment "${label}" has an invalid encrypted media key.`)
+}
+
+const decryptAes128Ecb = (content: Buffer, key: Buffer): Buffer => {
+  const decipher = crypto.createDecipheriv('aes-128-ecb', key, null)
+  return Buffer.concat([decipher.update(content), decipher.final()])
+}
+
 export interface RemoteConversationSnapshot {
   messageId: string | null
   text: string
@@ -51,6 +164,7 @@ export interface RemoteConversationSnapshot {
   draftText?: string
   renderBlocks?: RemoteRenderableBlock[]
   fullText?: string
+  generatedImages?: RemoteGeneratedImageAsset[]
   completed: boolean
   pendingInteraction: RemotePendingInteraction | null
 }
@@ -59,6 +173,12 @@ export interface RemoteConversationExecution {
   sessionId: string
   eventId: string | null
   getSnapshot(): Promise<RemoteConversationSnapshot>
+}
+
+export interface RemoteConversationInput {
+  text: string
+  attachments?: RemoteInputAttachment[]
+  sourceMessageId?: string
 }
 
 export interface RemoteRunnerStatus {
@@ -83,6 +203,7 @@ export type RemoteOpenSessionResult =
 type RemoteConversationRunnerDeps = {
   configPresenter: IConfigPresenter
   agentSessionPresenter: IAgentSessionPresenter
+  filePresenter?: IFilePresenter
   agentRuntimePresenter: AgentRuntimePresenter
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter
@@ -110,15 +231,15 @@ export class RemoteConversationRunner {
   ): Promise<SessionWithState> {
     const agentId = await this.deps.resolveDefaultAgentId()
     const agentType = await this.deps.configPresenter.getAgentType(agentId)
-    const projectDir =
-      agentType === 'acp' ? await this.resolveDefaultWorkdirForAgent(endpointKey, agentId) : null
+    const projectDir = await this.resolveDefaultWorkdirForAgent(endpointKey, agentId)
     if (agentType === 'acp' && !projectDir) {
-      throw new Error('ACP agent requires a workdir. Set a global default directory first.')
+      throw new Error('ACP remote agent requires a channel default directory.')
     }
 
     const session = await this.deps.agentSessionPresenter.createDetachedSession({
       title: title?.trim() || 'New Chat',
       agentId,
+      ...(projectDir ? { projectDir } : {}),
       ...(agentType === 'acp'
         ? {
             providerId: 'acp',
@@ -152,10 +273,19 @@ export class RemoteConversationRunner {
 
   async ensureBoundSession(
     endpointKey: string,
-    bindingMeta?: RemoteEndpointBindingMeta
+    bindingMeta?: RemoteEndpointBindingMeta,
+    options?: {
+      requireCurrentDefaultAgent?: boolean
+    }
   ): Promise<SessionWithState> {
     const existing = await this.getCurrentSession(endpointKey)
     if (existing) {
+      if (options?.requireCurrentDefaultAgent) {
+        const defaultAgentId = await this.deps.resolveDefaultAgentId()
+        if (existing.agentId !== defaultAgentId) {
+          return await this.createNewSession(endpointKey, undefined, bindingMeta)
+        }
+      }
       return existing
     }
 
@@ -242,13 +372,32 @@ export class RemoteConversationRunner {
     text: string,
     bindingMeta?: RemoteEndpointBindingMeta
   ): Promise<RemoteConversationExecution> {
-    const session = await this.ensureBoundSession(endpointKey, bindingMeta)
+    return await this.sendInput(endpointKey, { text }, bindingMeta)
+  }
+
+  async sendInput(
+    endpointKey: string,
+    input: RemoteConversationInput,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<RemoteConversationExecution> {
+    const session = await this.ensureBoundSession(endpointKey, bindingMeta, {
+      requireCurrentDefaultAgent: true
+    })
     const beforeMessages = await this.deps.agentSessionPresenter.getMessages(session.id)
     const lastOrderSeq = beforeMessages.at(-1)?.orderSeq ?? 0
     const previousActiveEventId =
       this.deps.agentRuntimePresenter.getActiveGeneration(session.id)?.eventId ?? null
 
-    await this.deps.agentSessionPresenter.sendMessage(session.id, text)
+    const files = await this.prepareRemoteAttachments(endpointKey, session, input)
+    const hasInputAttachments = (input.attachments?.length ?? 0) > 0
+    if (hasInputAttachments && files.length === 0 && input.text.trim() === '') {
+      throw new Error('All attachments failed validation/download.')
+    }
+
+    const text = input.text.trim() || (files.length > 0 ? 'Please use the attached files.' : '')
+    const messageInput: string | SendMessageInput = files.length > 0 ? { text, files } : text
+
+    await this.deps.agentSessionPresenter.sendMessage(session.id, messageInput)
 
     const seededMessage = await this.waitForAssistantMessage(session.id, lastOrderSeq, 800, {
       ignoreMessageId: previousActiveEventId
@@ -423,32 +572,213 @@ export class RemoteConversationRunner {
     return normalized ? normalized : null
   }
 
+  private getChannelDefaultWorkdir(endpointKey: string): string | null {
+    const channelDefaultWorkdir = endpointKey.startsWith('telegram:')
+      ? this.bindingStore.getTelegramDefaultWorkdir?.()
+      : endpointKey.startsWith('feishu:')
+        ? this.bindingStore.getFeishuDefaultWorkdir?.()
+        : endpointKey.startsWith('qqbot:')
+          ? this.bindingStore.getQQBotDefaultWorkdir?.()
+          : endpointKey.startsWith('discord:')
+            ? this.bindingStore.getDiscordDefaultWorkdir?.()
+            : endpointKey.startsWith('weixin-ilink:')
+              ? this.bindingStore.getWeixinIlinkDefaultWorkdir?.()
+              : ''
+
+    const normalized = channelDefaultWorkdir?.trim()
+    return normalized || null
+  }
+
   private async resolveDefaultWorkdirForAgent(
     endpointKey: string,
     agentId: string
   ): Promise<string | null> {
-    if ((await this.deps.configPresenter.getAgentType(agentId)) !== 'acp') {
+    const channelDefaultWorkdir = this.getChannelDefaultWorkdir(endpointKey)
+    if (channelDefaultWorkdir) {
+      return channelDefaultWorkdir
+    }
+
+    if ((await this.deps.configPresenter.getAgentType(agentId)) === 'acp') {
       return null
     }
 
-    const channelDefaultWorkdir = endpointKey.startsWith('telegram:')
-      ? this.bindingStore.getTelegramDefaultWorkdir()
-      : endpointKey.startsWith('feishu:')
-        ? this.bindingStore.getFeishuDefaultWorkdir()
-        : endpointKey.startsWith('qqbot:')
-          ? this.bindingStore.getQQBotDefaultWorkdir()
-          : endpointKey.startsWith('discord:')
-            ? this.bindingStore.getDiscordDefaultWorkdir()
-            : endpointKey.startsWith('weixin-ilink:')
-              ? this.bindingStore.getWeixinIlinkDefaultWorkdir()
-              : ''
+    return this.getGlobalDefaultWorkdir()
+  }
 
-    const normalizedChannelDefaultWorkdir = channelDefaultWorkdir?.trim()
-    if (normalizedChannelDefaultWorkdir) {
-      return normalizedChannelDefaultWorkdir
+  private async resolveAssetWorkspace(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'projectDir' | 'agentId'>
+  ): Promise<string> {
+    const projectDir = session.projectDir?.trim()
+    if (projectDir) {
+      return projectDir
     }
 
-    return this.getGlobalDefaultWorkdir()
+    const defaultWorkdir = await this.resolveDefaultWorkdirForAgent(endpointKey, session.agentId)
+    if (defaultWorkdir) {
+      return defaultWorkdir
+    }
+
+    throw new Error('Remote attachments require a workspace directory.')
+  }
+
+  private async prepareRemoteAttachments(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'id' | 'projectDir' | 'agentId'>,
+    input: RemoteConversationInput
+  ): Promise<MessageFile[]> {
+    const inputAttachments = input.attachments?.filter((attachment) => Boolean(attachment)) ?? []
+    const attachments = inputAttachments.filter((attachment) => {
+      const shouldUse = hasAttachmentDownloadSource(attachment)
+      if (!shouldUse) {
+        console.warn('[RemoteConversationRunner] Skipped remote attachment without data:', {
+          endpointKey,
+          sessionId: session.id,
+          sourceMessageId: input.sourceMessageId,
+          filename: attachment.filename,
+          failedDownload: attachment.failedDownload
+        })
+      }
+      return shouldUse
+    })
+
+    if (attachments.length === 0) {
+      return []
+    }
+
+    const workspace = await this.resolveAssetWorkspace(endpointKey, session)
+    const sourceMessageId = sanitizePathSegment(
+      input.sourceMessageId || attachments[0]?.id,
+      `message-${Date.now()}`
+    )
+    const assetDir = path.join(
+      workspace,
+      REMOTE_ASSET_ROOT,
+      channelFromEndpointKey(endpointKey),
+      hashEndpointKey(endpointKey),
+      sourceMessageId
+    )
+    await fs.mkdir(assetDir, { recursive: true })
+
+    const files: MessageFile[] = []
+    for (const [index, attachment] of attachments.entries()) {
+      const mediaType = attachment.mediaType?.trim() || 'application/octet-stream'
+      const fileName = sanitizeFileName(attachment.filename, `attachment-${index + 1}`, mediaType)
+      const localPath = path.join(assetDir, appendFileNameIndex(fileName, index))
+      const data = await this.readAttachmentData(attachment)
+      await fs.writeFile(localPath, data)
+      files.push(await this.prepareMessageFile(localPath, mediaType, fileName, data.byteLength))
+    }
+
+    return files
+  }
+
+  private async readAttachmentData(attachment: RemoteInputAttachment): Promise<Buffer> {
+    if (attachment.data?.trim()) {
+      return Buffer.from(stripDataUrlPrefix(attachment.data.trim()), 'base64')
+    }
+
+    if (attachment.encryptedMedia) {
+      return await this.readEncryptedAttachmentData(attachment)
+    }
+
+    const url = attachment.url?.trim()
+    if (!url) {
+      throw new Error(`Remote attachment "${attachment.filename}" has no downloadable data.`)
+    }
+
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
+    })
+    if (!response.ok) {
+      throw new Error(
+        `Failed to download remote attachment: ${response.status} ${response.statusText}`
+      )
+    }
+
+    return Buffer.from(await response.arrayBuffer())
+  }
+
+  private async readEncryptedAttachmentData(attachment: RemoteInputAttachment): Promise<Buffer> {
+    const media = attachment.encryptedMedia
+    if (!media) {
+      throw new Error(`Remote attachment "${attachment.filename}" has no encrypted media data.`)
+    }
+
+    const fullUrl = media.fullUrl?.trim()
+    const encryptedQueryParam = media.encryptedQueryParam?.trim()
+    const cdnBaseUrl = media.cdnBaseUrl?.trim()
+    const url =
+      fullUrl ||
+      (encryptedQueryParam && cdnBaseUrl
+        ? buildCdnDownloadUrl(encryptedQueryParam, cdnBaseUrl)
+        : '')
+
+    if (!url) {
+      throw new Error(`Remote attachment "${attachment.filename}" has no downloadable data.`)
+    }
+
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
+    })
+    if (!response.ok) {
+      throw new Error(
+        `Failed to download remote attachment: ${response.status} ${response.statusText}`
+      )
+    }
+
+    const content = Buffer.from(await response.arrayBuffer())
+    const aesKey = media.aesKey?.trim()
+    if (!aesKey) {
+      return content
+    }
+
+    return decryptAes128Ecb(
+      content,
+      parseAes128Key(aesKey, media.aesKeyEncoding, attachment.filename)
+    )
+  }
+
+  private async prepareMessageFile(
+    filePath: string,
+    mediaType: string,
+    displayFileName: string,
+    size: number
+  ): Promise<MessageFile> {
+    try {
+      if (this.deps.filePresenter) {
+        const preparedFile = await this.deps.filePresenter.prepareFile(filePath, mediaType)
+        return {
+          ...preparedFile,
+          name: displayFileName,
+          size,
+          metadata: {
+            ...preparedFile.metadata,
+            fileName: displayFileName,
+            fileSize: size
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to prepare remote attachment:', {
+        filePath,
+        mediaType,
+        error
+      })
+    }
+
+    return {
+      name: displayFileName,
+      path: filePath,
+      mimeType: mediaType,
+      size,
+      content: '',
+      metadata: {
+        fileName: displayFileName,
+        fileSize: size,
+        fileDescription: 'remote attachment'
+      }
+    }
   }
 
   private async getConversationSnapshot(
@@ -515,9 +845,17 @@ export class RemoteConversationRunner {
     const traceText = buildRemoteTraceText(blocks)
     const draftText = buildRemoteDraftText(blocks)
     const deliverySegments = buildRemoteDeliverySegments(trackedMessage.id, blocks)
+    const generatedImages = await this.persistGeneratedImages(
+      endpointKey,
+      session,
+      trackedMessage.id,
+      blocks
+    )
+    const generatedImagesByKey = new Map(generatedImages.map((asset) => [asset.key, asset]))
     const renderBlocks = await buildRemoteRenderableBlocks({
       messageId: trackedMessage.id,
       blocks,
+      imageAssetsByKey: generatedImagesByKey,
       loadSearchResults: async (messageId, searchId) =>
         await this.loadSearchResults(messageId, searchId)
     })
@@ -534,6 +872,8 @@ export class RemoteConversationRunner {
         trackedMessage.status === 'error' ? 'The conversation ended with an error.' : undefined,
       fallbackNoResponseText: REMOTE_NO_RESPONSE_TEXT
     })
+    const resolvedFinalText =
+      generatedImages.length > 0 && finalText === REMOTE_NO_RESPONSE_TEXT ? '' : finalText
     const completed =
       Boolean(pendingInteraction) ||
       (trackedMessage.status !== 'pending' &&
@@ -549,10 +889,11 @@ export class RemoteConversationRunner {
       traceText,
       deliverySegments,
       statusText: pendingInteraction ? REMOTE_WAITING_STATUS_TEXT : statusText,
-      finalText,
+      finalText: resolvedFinalText,
       draftText,
       renderBlocks,
       fullText,
+      ...(generatedImages.length > 0 ? { generatedImages } : {}),
       completed,
       pendingInteraction: pendingInteraction
         ? this.stripPendingInteractionDetails(pendingInteraction)
@@ -575,6 +916,90 @@ export class RemoteConversationRunner {
       })
       return []
     }
+  }
+
+  private async persistGeneratedImages(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'id' | 'projectDir' | 'agentId'>,
+    messageId: string,
+    blocks: AssistantMessageBlock[]
+  ): Promise<RemoteGeneratedImageAsset[]> {
+    const imageBlocks = blocks
+      .map((block, index) => ({ block, index }))
+      .filter(({ block }) => block.type === 'image' && block.status !== 'pending')
+
+    if (imageBlocks.length === 0) {
+      return []
+    }
+
+    let workspace: string
+    try {
+      workspace = await this.resolveAssetWorkspace(endpointKey, session)
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to resolve generated image workspace:', {
+        endpointKey,
+        messageId,
+        error
+      })
+      return []
+    }
+
+    const assetDir = path.join(
+      workspace,
+      REMOTE_ASSET_ROOT,
+      channelFromEndpointKey(endpointKey),
+      hashEndpointKey(endpointKey),
+      sanitizePathSegment(messageId, 'assistant-message')
+    )
+    try {
+      await fs.mkdir(assetDir, { recursive: true })
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to create generated image asset directory:', {
+        endpointKey,
+        messageId,
+        assetDir,
+        error
+      })
+      return []
+    }
+
+    const assets: RemoteGeneratedImageAsset[] = []
+    for (const { block, index } of imageBlocks) {
+      const data = block.image_data?.data?.trim()
+      if (!data) {
+        continue
+      }
+
+      const mimeType = block.image_data?.mimeType?.trim() || 'image/png'
+      const extension = MIME_EXTENSION[mimeType.toLowerCase()] || '.img'
+      const filename = `generated-${index + 1}${extension}`
+      const filePath = path.join(assetDir, filename)
+
+      try {
+        try {
+          await fs.access(filePath)
+        } catch {
+          await fs.writeFile(filePath, Buffer.from(stripDataUrlPrefix(data), 'base64'))
+        }
+
+        assets.push({
+          key: `${messageId}:${index}:image`,
+          path: filePath,
+          mimeType,
+          filename,
+          sourceMessageId: messageId
+        })
+      } catch (error) {
+        console.warn('[RemoteConversationRunner] Failed to persist generated image:', {
+          endpointKey,
+          messageId,
+          index,
+          error
+        })
+      }
+    }
+
+    return assets
   }
 
   private async waitForAssistantMessage(

@@ -82,6 +82,11 @@ export interface IChannelAdapter extends EventEmitter {
   disconnect(): Promise<void>
   getStatusSnapshot(): ChannelStatusSnapshot
   sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
+  sendImage?(
+    chatId: string,
+    imagePath: string,
+    opts?: SendMessageOptions
+  ): Promise<string | null | void>
   sendTypingIndicator(chatId: string): Promise<void>
   onTextUpdate(chatId: string, fullText: string): Promise<void>
   onStreamComplete(chatId: string, finalText: string): Promise<boolean>

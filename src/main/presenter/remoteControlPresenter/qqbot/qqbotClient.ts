@@ -12,6 +12,10 @@ type QQBotMessageResponse = {
   timestamp?: string | number
 }
 
+type QQBotFileUploadResponse = {
+  file_info?: string
+}
+
 export class QQBotApiRequestError extends Error {
   constructor(
     readonly status: number,
@@ -133,6 +137,28 @@ export class QQBotClient {
     return (await response.json()) as QQBotMessageResponse
   }
 
+  async sendC2CImage(target: {
+    openId: string
+    msgId: string
+    msgSeq: number
+    filePath: string
+  }): Promise<QQBotMessageResponse> {
+    const media = await this.uploadC2CFile(target.openId, target.filePath)
+    const response = await this.request(`/v2/users/${encodeURIComponent(target.openId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        msg_type: 7,
+        msg_id: target.msgId,
+        msg_seq: target.msgSeq,
+        media: {
+          file_info: media.file_info
+        }
+      })
+    })
+
+    return (await response.json()) as QQBotMessageResponse
+  }
+
   async sendGroupMessage(target: {
     groupOpenId: string
     msgId: string
@@ -153,6 +179,64 @@ export class QQBotClient {
     )
 
     return (await response.json()) as QQBotMessageResponse
+  }
+
+  async sendGroupImage(target: {
+    groupOpenId: string
+    msgId: string
+    msgSeq: number
+    filePath: string
+  }): Promise<QQBotMessageResponse> {
+    const media = await this.uploadGroupFile(target.groupOpenId, target.filePath)
+    const response = await this.request(
+      `/v2/groups/${encodeURIComponent(target.groupOpenId)}/messages`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          msg_type: 7,
+          msg_id: target.msgId,
+          msg_seq: target.msgSeq,
+          media: {
+            file_info: media.file_info
+          }
+        })
+      }
+    )
+
+    return (await response.json()) as QQBotMessageResponse
+  }
+
+  private async uploadC2CFile(openId: string, filePath: string): Promise<QQBotFileUploadResponse> {
+    const fileData = await import('node:fs/promises').then(async (fs) =>
+      (await fs.readFile(filePath)).toString('base64')
+    )
+    const response = await this.request(`/v2/users/${encodeURIComponent(openId)}/files`, {
+      method: 'POST',
+      body: JSON.stringify({
+        file_type: 1,
+        file_data: fileData,
+        srv_send_msg: false
+      })
+    })
+    return (await response.json()) as QQBotFileUploadResponse
+  }
+
+  private async uploadGroupFile(
+    groupOpenId: string,
+    filePath: string
+  ): Promise<QQBotFileUploadResponse> {
+    const fileData = await import('node:fs/promises').then(async (fs) =>
+      (await fs.readFile(filePath)).toString('base64')
+    )
+    const response = await this.request(`/v2/groups/${encodeURIComponent(groupOpenId)}/files`, {
+      method: 'POST',
+      body: JSON.stringify({
+        file_type: 1,
+        file_data: fileData,
+        srv_send_msg: false
+      })
+    })
+    return (await response.json()) as QQBotFileUploadResponse
   }
 
   private async request(path: string, init: RequestInit, retry: boolean = true): Promise<Response> {

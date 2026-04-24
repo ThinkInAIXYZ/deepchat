@@ -97,6 +97,7 @@ export interface TelegramRemoteSettings {
   botToken: string
   remoteEnabled: boolean
   defaultAgentId: string
+  defaultWorkdir: string
 }
 
 export interface FeishuRemoteSettings {

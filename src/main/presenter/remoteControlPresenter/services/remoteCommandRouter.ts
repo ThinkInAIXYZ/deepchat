@@ -255,9 +255,17 @@ export class RemoteCommandRouter {
           break
       }
 
+      const attachments = message.attachments ?? []
       return {
         replies: [],
-        conversation: await this.deps.runner.sendText(endpointKey, message.text)
+        conversation:
+          attachments.length > 0
+            ? await this.deps.runner.sendInput(endpointKey, {
+                text: message.text,
+                attachments,
+                sourceMessageId: String(message.messageId)
+              })
+            : await this.deps.runner.sendText(endpointKey, message.text)
       }
     } catch (error) {
       return {

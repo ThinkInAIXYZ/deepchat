@@ -131,7 +131,8 @@ export class RemoteControlPresenter {
     return {
       botToken: remoteConfig.botToken,
       remoteEnabled: remoteConfig.enabled,
-      defaultAgentId: remoteConfig.defaultAgentId
+      defaultAgentId: remoteConfig.defaultAgentId,
+      defaultWorkdir: remoteConfig.defaultWorkdir
     }
   }
 
@@ -413,16 +414,19 @@ export class RemoteControlPresenter {
   async saveTelegramSettings(input: TelegramRemoteSettings): Promise<TelegramRemoteSettings> {
     const normalized = normalizeTelegramSettingsInput(input)
     const defaultAgentId = await this.sanitizeDefaultAgentId('telegram', normalized.defaultAgentId)
+    await this.assertAcpDefaultWorkdir(defaultAgentId, normalized.defaultWorkdir)
     const currentRemoteConfig = this.bindingStore.getTelegramConfig()
     const shouldClearFatalError =
       currentRemoteConfig.enabled !== normalized.remoteEnabled ||
-      currentRemoteConfig.botToken !== normalized.botToken
+      currentRemoteConfig.botToken !== normalized.botToken ||
+      currentRemoteConfig.defaultWorkdir !== normalized.defaultWorkdir
 
     this.bindingStore.updateTelegramConfig((config) => ({
       ...config,
       botToken: normalized.botToken,
       enabled: normalized.remoteEnabled,
       defaultAgentId,
+      defaultWorkdir: normalized.defaultWorkdir,
       streamMode: currentRemoteConfig.streamMode,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
@@ -507,6 +511,7 @@ export class RemoteControlPresenter {
   async saveFeishuSettings(input: FeishuRemoteSettings): Promise<FeishuRemoteSettings> {
     const normalized = normalizeFeishuSettingsInput(input)
     const defaultAgentId = await this.sanitizeDefaultAgentId('feishu', normalized.defaultAgentId)
+    await this.assertAcpDefaultWorkdir(defaultAgentId, normalized.defaultWorkdir)
     const currentRemoteConfig = this.bindingStore.getFeishuConfig()
     const shouldClearFatalError =
       currentRemoteConfig.brand !== normalized.brand ||
@@ -570,6 +575,7 @@ export class RemoteControlPresenter {
   async saveQQBotSettings(input: QQBotRemoteSettings): Promise<QQBotRemoteSettings> {
     const normalized = normalizeQQBotSettingsInput(input)
     const defaultAgentId = await this.sanitizeDefaultAgentId('qqbot', normalized.defaultAgentId)
+    await this.assertAcpDefaultWorkdir(defaultAgentId, normalized.defaultWorkdir)
     const currentRemoteConfig = this.bindingStore.getQQBotConfig()
     const shouldClearFatalError =
       currentRemoteConfig.enabled !== normalized.remoteEnabled ||
@@ -627,6 +633,7 @@ export class RemoteControlPresenter {
   async saveDiscordSettings(input: DiscordRemoteSettings): Promise<DiscordRemoteSettings> {
     const normalized = normalizeDiscordSettingsInput(input)
     const defaultAgentId = await this.sanitizeDefaultAgentId('discord', normalized.defaultAgentId)
+    await this.assertAcpDefaultWorkdir(defaultAgentId, normalized.defaultWorkdir)
     const currentRemoteConfig = this.bindingStore.getDiscordConfig()
     const shouldClearFatalError =
       currentRemoteConfig.enabled !== normalized.remoteEnabled ||
@@ -689,6 +696,7 @@ export class RemoteControlPresenter {
       'weixin-ilink',
       normalized.defaultAgentId
     )
+    await this.assertAcpDefaultWorkdir(defaultAgentId, normalized.defaultWorkdir)
     const currentRemoteConfig = this.bindingStore.getWeixinIlinkConfig()
     const currentAccountsById = new Map(
       currentRemoteConfig.accounts.map((account) => [account.accountId, account] as const)
@@ -1601,7 +1609,8 @@ export class RemoteControlPresenter {
     return JSON.stringify({
       botToken: settings.botToken.trim(),
       remoteEnabled: settings.remoteEnabled,
-      defaultAgentId: settings.defaultAgentId.trim()
+      defaultAgentId: settings.defaultAgentId.trim(),
+      defaultWorkdir: settings.defaultWorkdir.trim()
     })
   }
 
@@ -1727,6 +1736,7 @@ export class RemoteControlPresenter {
       {
         configPresenter: this.deps.configPresenter,
         agentSessionPresenter: this.deps.agentSessionPresenter,
+        filePresenter: this.deps.filePresenter,
         agentRuntimePresenter: this.deps.agentRuntimePresenter,
         windowPresenter: this.deps.windowPresenter,
         tabPresenter: this.deps.tabPresenter,
@@ -1822,6 +1832,18 @@ export class RemoteControlPresenter {
     }
 
     return nextDefaultAgentId
+  }
+
+  private async assertAcpDefaultWorkdir(agentId: string, defaultWorkdir: string): Promise<void> {
+    if ((await this.deps.configPresenter.getAgentType(agentId)) !== 'acp') {
+      return
+    }
+
+    if (defaultWorkdir.trim()) {
+      return
+    }
+
+    throw new Error('ACP remote agent requires a channel default directory.')
   }
 
   private async registerTelegramCommands(client: TelegramClient): Promise<void> {

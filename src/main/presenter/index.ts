@@ -538,6 +538,7 @@ export class Presenter implements IPresenter {
     this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,
       agentSessionPresenter: this.agentSessionPresenter,
+      filePresenter: this.filePresenter,
       agentRuntimePresenter,
       windowPresenter: this.windowPresenter,
       tabPresenter: this.tabPresenter

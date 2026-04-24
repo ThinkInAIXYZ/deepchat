@@ -133,6 +133,41 @@ export class DiscordClient {
     return messageId || null
   }
 
+  async sendImage(
+    channelId: string,
+    filePath: string,
+    content: string = ''
+  ): Promise<string | null> {
+    const fileBuffer = await import('node:fs/promises').then((fs) => fs.readFile(filePath))
+    const fileName = filePath.split(/[\\/]/).pop() || 'image'
+    const form = new FormData()
+    form.set(
+      'payload_json',
+      JSON.stringify({
+        content,
+        allowed_mentions: {
+          parse: []
+        },
+        attachments: [
+          {
+            id: 0,
+            filename: fileName
+          }
+        ]
+      })
+    )
+    form.set('files[0]', new Blob([fileBuffer]), fileName)
+
+    const response = await this.request(`/channels/${encodeURIComponent(channelId)}/messages`, {
+      method: 'POST',
+      body: form
+    })
+
+    const data = (await response.json()) as DiscordMessageResponse
+    const messageId = data.id === undefined ? '' : String(data.id).trim()
+    return messageId || null
+  }
+
   async updateMessage(channelId: string, messageId: string, content: string): Promise<void> {
     await this.request(
       `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`,
@@ -206,9 +241,8 @@ export class DiscordClient {
     init: RequestInit,
     auth: 'bot' | 'none' = 'bot'
   ): Promise<Response> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    }
+    const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData
+    const headers: Record<string, string> = isFormData ? {} : { 'Content-Type': 'application/json' }
 
     if (auth === 'bot') {
       headers.Authorization = `Bot ${this.credentials.botToken}`

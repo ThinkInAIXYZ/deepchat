@@ -15,6 +15,8 @@ const runtimeInstances: Array<{
 const clientInstances: Array<{
   sendC2CMessage: ReturnType<typeof vi.fn>
   sendGroupMessage: ReturnType<typeof vi.fn>
+  sendC2CImage: ReturnType<typeof vi.fn>
+  sendGroupImage: ReturnType<typeof vi.fn>
 }> = []
 
 vi.mock('@/presenter/remoteControlPresenter/qqbot/qqbotRuntime', () => ({
@@ -49,6 +51,12 @@ vi.mock('@/presenter/remoteControlPresenter/qqbot/qqbotClient', () => ({
     })
     readonly sendGroupMessage = vi.fn().mockResolvedValue({
       id: 'msg_reply_2'
+    })
+    readonly sendC2CImage = vi.fn().mockResolvedValue({
+      id: 'msg_image_1'
+    })
+    readonly sendGroupImage = vi.fn().mockResolvedValue({
+      id: 'msg_image_2'
     })
 
     constructor(_credentials: unknown) {
@@ -119,5 +127,41 @@ describe('QQBotAdapter', () => {
     runtimeInstances[0].deps.onFatalError?.('fatal qqbot error')
 
     expect(onFatalError).toHaveBeenCalledWith('fatal qqbot error')
+  })
+
+  it('sends images through QQBot rich media APIs', async () => {
+    const adapter = new QQBotAdapter(
+      {
+        channelId: 'default',
+        channelType: 'qqbot',
+        agentId: 'deepchat',
+        channelConfig: {
+          appId: '1024',
+          clientSecret: 'secret'
+        },
+        configSignature: 'qqbot:test'
+      },
+      {
+        bindingStore: {} as any,
+        createConversationRunner: () => ({}) as any
+      }
+    )
+
+    await adapter.connect()
+    await adapter.sendImage('c2c:user-openid:msg-1', '/tmp/generated.png')
+    await adapter.sendImage('group:group-openid:msg-2', '/tmp/generated.png')
+
+    expect(clientInstances[0].sendC2CImage).toHaveBeenCalledWith({
+      openId: 'user-openid',
+      msgId: 'msg-1',
+      msgSeq: 1,
+      filePath: '/tmp/generated.png'
+    })
+    expect(clientInstances[0].sendGroupImage).toHaveBeenCalledWith({
+      groupOpenId: 'group-openid',
+      msgId: 'msg-2',
+      msgSeq: 1,
+      filePath: '/tmp/generated.png'
+    })
   })
 })

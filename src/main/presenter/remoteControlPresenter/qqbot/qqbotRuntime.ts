@@ -365,6 +365,7 @@ export class QQBotRuntime {
         if (finalText && (!skipNoResponseTerminal || !didFlushProcessOutput)) {
           await this.sendText(sendContext, finalText)
         }
+        await this.sendGeneratedImages(sendContext, snapshot)
         this.clearToolBuffer(endpointKey)
         this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
 
@@ -702,7 +703,16 @@ export class QQBotRuntime {
   private getFinalDeliveryText(
     snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
   ): string {
-    return (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
+    const finalText = snapshot.finalText?.trim() ?? ''
+    if (finalText) {
+      return finalText
+    }
+    const fullText = snapshot.fullText?.trim() ?? ''
+    const text = snapshot.text?.trim() ?? ''
+    if ((snapshot.generatedImages?.length ?? 0) > 0 && !fullText && !text) {
+      return ''
+    }
+    return fullText || text
   }
 
   private createSendContext(target: QQBotTransportTarget, nextMsgSeq: number): QQBotSendContext {
@@ -740,6 +750,50 @@ export class QQBotRuntime {
       content: normalized
     })
     return response.id?.trim() || null
+  }
+
+  private async sendGeneratedImages(
+    sendContext: QQBotSendContext,
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): Promise<void> {
+    for (const asset of snapshot.generatedImages ?? []) {
+      if (sendContext.sentCount >= QQBOT_MAX_PASSIVE_REPLIES) {
+        return
+      }
+
+      const currentMsgSeq = sendContext.nextMsgSeq
+      sendContext.nextMsgSeq += 1
+      sendContext.sentCount += 1
+
+      try {
+        if (sendContext.target.chatType === 'c2c') {
+          await this.deps.client.sendC2CImage({
+            openId: sendContext.target.openId,
+            msgId: sendContext.target.msgId,
+            msgSeq: currentMsgSeq,
+            filePath: asset.path
+          })
+        } else {
+          await this.deps.client.sendGroupImage({
+            groupOpenId: sendContext.target.openId,
+            msgId: sendContext.target.msgId,
+            msgSeq: currentMsgSeq,
+            filePath: asset.path
+          })
+        }
+      } catch (error) {
+        console.warn('[QQBotRuntime] Failed to send generated image:', {
+          path: asset.path,
+          error
+        })
+        sendContext.sentCount -= 1
+        sendContext.nextMsgSeq -= 1
+        await this.sendText(
+          sendContext,
+          '[Image] Delivery failed - see local copy in the app.'
+        ).catch(() => undefined)
+      }
+    }
   }
 
   private setBotUser(botUser: QQBotGatewayBotUser): void {

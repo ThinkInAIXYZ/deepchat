@@ -55,4 +55,74 @@ describe('QQBotParser', () => {
       })
     )
   })
+
+  it('parses image attachments from c2c payloads', () => {
+    const parser = new QQBotParser()
+
+    const parsed = parser.parseDispatch({
+      t: 'C2C_MESSAGE_CREATE',
+      d: {
+        id: 'msg_c2c_2',
+        content: '',
+        author: {
+          user_openid: 'user_openid_1'
+        },
+        attachments: [
+          {
+            id: 'attachment-1',
+            filename: 'image.png',
+            content_type: 'image/png',
+            size: 123,
+            url: 'https://qq.example/image.png'
+          }
+        ]
+      }
+    })
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        text: '',
+        attachments: [
+          {
+            id: 'attachment-1',
+            filename: 'image.png',
+            mediaType: 'image/png',
+            size: 123,
+            url: 'https://qq.example/image.png',
+            resourceType: 'image'
+          }
+        ]
+      })
+    )
+  })
+
+  it('uses unique fallback filenames for unnamed attachments', () => {
+    const parser = new QQBotParser()
+
+    const parsed = parser.parseDispatch({
+      t: 'C2C_MESSAGE_CREATE',
+      d: {
+        id: 'msg_c2c_3',
+        content: '',
+        author: {
+          user_openid: 'user_openid_1'
+        },
+        attachments: [
+          {
+            id: 'attachment-1',
+            url: 'https://qq.example/one'
+          },
+          {
+            id: 'attachment-2',
+            url: 'https://qq.example/two'
+          }
+        ]
+      }
+    })
+
+    expect(parsed?.attachments.map((attachment) => attachment.filename)).toEqual([
+      'attachment-1',
+      'attachment-2'
+    ])
+  })
 })

@@ -171,6 +171,35 @@ afterEach(() => {
 })
 
 describe('QQBotRuntime', () => {
+  it('keeps fallback text when generated images also exist', () => {
+    const { runtime } = createRuntime()
+
+    expect(
+      (runtime as any).getFinalDeliveryText({
+        finalText: '',
+        fullText: 'Caption text',
+        text: '',
+        generatedImages: [{}]
+      })
+    ).toBe('Caption text')
+    expect(
+      (runtime as any).getFinalDeliveryText({
+        finalText: '',
+        fullText: '',
+        text: 'Fallback caption',
+        generatedImages: [{}]
+      })
+    ).toBe('Fallback caption')
+    expect(
+      (runtime as any).getFinalDeliveryText({
+        finalText: '',
+        fullText: '   ',
+        text: '',
+        generatedImages: [{}]
+      })
+    ).toBe('')
+  })
+
   it.each([
     {
       label: 'c2c',

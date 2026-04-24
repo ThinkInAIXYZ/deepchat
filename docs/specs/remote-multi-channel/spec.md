@@ -50,12 +50,13 @@ The WeChat iLink design basis follows Tencent official package behavior only:
 - QQBot first-release scope is:
   - C2C direct messages
   - group `@bot` messages
-  - text-only passive replies
+  - passive text replies plus generated image replies when rich media upload succeeds
 - WeChat iLink first-release scope is:
   - official QR login
   - multi-account management in settings
   - owner-account-only remote control
-  - text-only direct replies
+  - direct text replies plus generated image replies when the iLink media item is accepted
+- Built-in remotes download inbound files and images into the bound session workspace, then attach the local files to the agent message context.
 - `RemoteBindingStore`, `RemoteConversationRunner`, and `RemoteBlockRenderer` stay the source of truth for bindings, sessions, and rendered delivery text.
 - Remote settings persist QQBot data under `remoteControl.qqbot` without flattening everything into a generic `channels` map.
 - Remote settings persist WeChat iLink data under `remoteControl.weixinIlink`, including per-account runtime credentials and bindings.
