@@ -46,6 +46,7 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     strategy?: 'turbo' | 'max'
   } | null>(null)
   const isLoading = ref(false)
+  let requestId = 0
 
   // === Internal Methods ===
   const resetCapabilities = () => {
@@ -56,29 +57,40 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
   }
 
   const fetchCapabilities = async () => {
-    if (!providerId.value || !modelId.value) {
+    const currentRequestId = ++requestId
+    const currentProviderId = providerId.value
+    const currentModelId = modelId.value
+
+    if (!currentProviderId || !currentModelId) {
       resetCapabilities()
+      isLoading.value = false
       return
     }
 
     isLoading.value = true
     try {
       const [sr, br, ss, sd] = await Promise.all([
-        modelClient.supportsReasoningCapability(providerId.value, modelId.value),
-        modelClient.getThinkingBudgetRange(providerId.value, modelId.value),
-        modelClient.supportsSearchCapability(providerId.value, modelId.value),
-        modelClient.getSearchDefaults(providerId.value, modelId.value)
+        modelClient.supportsReasoningCapability(currentProviderId, currentModelId),
+        modelClient.getThinkingBudgetRange(currentProviderId, currentModelId),
+        modelClient.supportsSearchCapability(currentProviderId, currentModelId),
+        modelClient.getSearchDefaults(currentProviderId, currentModelId)
       ])
+
+      if (currentRequestId !== requestId) return
 
       capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null
       capabilityBudgetRange.value = br || {}
       capabilitySupportsSearch.value = typeof ss === 'boolean' ? ss : null
       capabilitySearchDefaults.value = sd || {}
     } catch (error) {
+      if (currentRequestId !== requestId) return
+
       resetCapabilities()
       console.error(error)
     } finally {
-      isLoading.value = false
+      if (currentRequestId === requestId) {
+        isLoading.value = false
+      }
     }
   }
 

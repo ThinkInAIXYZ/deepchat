@@ -30,6 +30,7 @@ export function useModelTypeDetection(
 
   // === Local State ===
   const modelReasoning = ref(false)
+  let requestId = 0
 
   // === Computed Properties ===
 
@@ -57,15 +58,23 @@ export function useModelTypeDetection(
 
   // === Internal Methods ===
   const fetchModelReasoning = async () => {
-    if (!modelId.value || !providerId.value) {
+    const currentRequestId = ++requestId
+    const currentModelId = modelId.value
+    const currentProviderId = providerId.value
+
+    if (!currentModelId || !currentProviderId) {
       modelReasoning.value = false
       return
     }
 
     try {
-      const modelConfig = await modelConfigStore.getModelConfig(modelId.value, providerId.value)
+      const modelConfig = await modelConfigStore.getModelConfig(currentModelId, currentProviderId)
+      if (currentRequestId !== requestId) return
+
       modelReasoning.value = modelConfig.reasoning || false
     } catch (error) {
+      if (currentRequestId !== requestId) return
+
       modelReasoning.value = false
       console.error(error)
     }
