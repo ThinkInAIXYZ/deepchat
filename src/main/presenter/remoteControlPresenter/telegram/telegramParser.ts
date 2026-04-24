@@ -1,4 +1,4 @@
-import type { TelegramInboundEvent } from '../types'
+import type { RemoteInputAttachment, TelegramInboundEvent } from '../types'
 import type { TelegramRawUpdate } from './telegramClient'
 
 const TELEGRAM_COMMAND_REGEX = /^\/([a-zA-Z0-9_]+)(?:@[a-zA-Z0-9_]+)?(?:\s+([\s\S]*))?$/
@@ -21,12 +21,40 @@ export class TelegramParser {
     }
 
     const message = update.message
-    if (!message || typeof message.text !== 'string') {
+    if (!message) {
       return null
     }
 
-    const text = message.text.trim()
-    if (!text) {
+    const attachments: RemoteInputAttachment[] = []
+    const largestPhoto = [...(message.photo ?? [])].sort(
+      (left, right) => (right.file_size ?? 0) - (left.file_size ?? 0)
+    )[0]
+    if (largestPhoto?.file_id) {
+      attachments.push({
+        id: largestPhoto.file_unique_id || largestPhoto.file_id,
+        filename: `${largestPhoto.file_unique_id || largestPhoto.file_id}.jpg`,
+        mediaType: 'image/jpeg',
+        size: largestPhoto.file_size ?? null,
+        fileId: largestPhoto.file_id,
+        resourceType: 'image' as const
+      })
+    }
+
+    if (message.document?.file_id) {
+      attachments.push({
+        id: message.document.file_unique_id || message.document.file_id,
+        filename: message.document.file_name?.trim() || message.document.file_id,
+        mediaType: message.document.mime_type?.trim() || 'application/octet-stream',
+        size: message.document.file_size ?? null,
+        fileId: message.document.file_id,
+        resourceType: message.document.mime_type?.startsWith('image/')
+          ? ('image' as const)
+          : ('file' as const)
+      })
+    }
+
+    const text = (message.text ?? message.caption ?? '').trim()
+    if (!text && attachments.length === 0) {
       return null
     }
 
@@ -45,7 +73,8 @@ export class TelegramParser {
             name: commandMatch[1].toLowerCase(),
             args: commandMatch[2]?.trim() ?? ''
           }
-        : null
+        : null,
+      attachments
     }
   }
 }

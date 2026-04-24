@@ -417,15 +417,13 @@ export class WeixinIlinkRuntime {
 
       if (snapshot.completed) {
         const finalText = this.getFinalDeliveryText(snapshot)
-        deliverySegments = this.appendTerminalDeliverySegment(
-          deliverySegments,
-          sourceMessageId,
-          finalText
-        )
+        const processSegments = deliverySegments.filter((segment) => segment.kind === 'process')
 
-        if (deliveryState && deliverySegments.length > 0) {
-          await this.syncDeliverySegments(deliveryState, endpointKey, sendContext, deliverySegments)
-        } else if (finalText.trim()) {
+        if (deliveryState && processSegments.length > 0) {
+          await this.syncDeliverySegments(deliveryState, endpointKey, sendContext, processSegments)
+        }
+
+        if (finalText.trim()) {
           this.logInfo('Sending Weixin iLink final fallback text without delivery state.', {
             accountId: message.accountId,
             userId: message.userId,
@@ -443,13 +441,15 @@ export class WeixinIlinkRuntime {
             sourceMessageId
           })
         }
+        await this.sendGeneratedImages(sendContext, snapshot)
 
         this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
         return
       }
 
-      if (deliveryState && deliverySegments.length > 0) {
-        await this.syncDeliverySegments(deliveryState, endpointKey, sendContext, deliverySegments)
+      const liveSegments = deliverySegments.filter((segment) => segment.kind === 'process')
+      if (deliveryState && liveSegments.length > 0) {
+        await this.syncDeliverySegments(deliveryState, endpointKey, sendContext, liveSegments)
       }
 
       if (Date.now() - startedAt >= 5 * 60_000) {
@@ -525,7 +525,7 @@ export class WeixinIlinkRuntime {
     ]
   }
 
-  private appendTerminalDeliverySegment(
+  appendTerminalDeliverySegment(
     segments: RemoteDeliverySegment[],
     sourceMessageId: string | null,
     finalText: string
@@ -537,21 +537,10 @@ export class WeixinIlinkRuntime {
 
     const lastAnswerSegment = [...segments].reverse().find((segment) => segment.kind === 'answer')
     if (lastAnswerSegment?.text.trim() === normalized) {
-      this.logInfo('Skipped duplicate terminal delivery segment for Weixin iLink.', {
-        accountId: this.deps.accountId,
-        sourceMessageId,
-        answerSegmentKey: lastAnswerSegment.key,
-        textLength: normalized.length,
-        textPreview: this.getTextPreview(normalized)
-      })
       return segments
     }
 
     if (normalized === REMOTE_NO_RESPONSE_TEXT && segments.length > 0) {
-      this.logInfo('Skipped terminal no-response segment because prior segments already exist.', {
-        accountId: this.deps.accountId,
-        sourceMessageId
-      })
       return segments
     }
 
@@ -574,12 +563,37 @@ export class WeixinIlinkRuntime {
   private getFinalDeliveryText(
     snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
   ): string {
-    return (
-      snapshot.finalText?.trim() ||
-      snapshot.fullText?.trim() ||
-      snapshot.text.trim() ||
-      REMOTE_NO_RESPONSE_TEXT
-    )
+    const finalText = snapshot.finalText?.trim() ?? ''
+    if (finalText) {
+      return finalText
+    }
+    if ((snapshot.generatedImages?.length ?? 0) > 0) {
+      return ''
+    }
+    return snapshot.fullText?.trim() || snapshot.text.trim() || REMOTE_NO_RESPONSE_TEXT
+  }
+
+  private async sendGeneratedImages(
+    sendContext: WeixinIlinkSendContext,
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): Promise<void> {
+    for (const asset of snapshot.generatedImages ?? []) {
+      try {
+        await this.deps.client.sendImageMessage({
+          toUserId: sendContext.userId,
+          contextToken: sendContext.contextToken,
+          imagePath: asset.path,
+          mimeType: asset.mimeType
+        })
+      } catch (error) {
+        this.logInfo('Failed to send Weixin iLink generated image; sending local path.', {
+          accountId: this.deps.accountId,
+          path: asset.path,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        await this.sendText(sendContext, `[Image]\nPath: ${asset.path}`, 'image-fallback')
+      }
+    }
   }
 
   private async syncDeliverySegments(

@@ -155,6 +155,22 @@ export class WeixinIlinkAdapter extends ChannelAdapter {
     })
   }
 
+  async sendImage(chatId: string, imagePath: string, _opts?: SendMessageOptions): Promise<void> {
+    if (!this.client) {
+      throw new Error('Weixin iLink adapter is not connected.')
+    }
+
+    const userId = chatId.trim()
+    if (!userId) {
+      throw new Error('Invalid Weixin iLink transport target.')
+    }
+
+    await this.client.sendImageMessage({
+      toUserId: userId,
+      imagePath
+    })
+  }
+
   async sendTypingIndicator(chatId: string): Promise<void> {
     if (!this.client) {
       return

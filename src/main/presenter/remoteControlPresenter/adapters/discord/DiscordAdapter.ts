@@ -110,6 +110,15 @@ export class DiscordAdapter extends ChannelAdapter {
     await this.client.sendMessage(target.channelId, text)
   }
 
+  async sendImage(chatId: string, imagePath: string, _opts?: SendMessageOptions): Promise<void> {
+    if (!this.client) {
+      throw new Error('Discord adapter is not connected.')
+    }
+
+    const target = this.parseTransportTarget(chatId)
+    await this.client.sendImage(target.channelId, imagePath)
+  }
+
   async sendTypingIndicator(chatId: string): Promise<void> {
     if (!this.client) {
       throw new Error('Discord adapter is not connected.')

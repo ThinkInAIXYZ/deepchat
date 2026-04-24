@@ -118,6 +118,17 @@ export class FeishuAdapter extends ChannelAdapter {
     await this.client.sendText(this.parseTransportTarget(chatId, opts?.replyToMessageId), text)
   }
 
+  async sendImage(chatId: string, imagePath: string, opts?: SendMessageOptions): Promise<void> {
+    if (!this.client) {
+      throw new Error('Feishu adapter is not connected.')
+    }
+
+    await this.client.sendImage(
+      this.parseTransportTarget(chatId, opts?.replyToMessageId),
+      imagePath
+    )
+  }
+
   async sendTypingIndicator(_chatId: string): Promise<void> {
     return
   }

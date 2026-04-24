@@ -86,4 +86,46 @@ describe('DiscordParser', () => {
       })
     )
   })
+
+  it('parses image attachments from message payloads', () => {
+    const parser = new DiscordParser()
+
+    const parsed = parser.parseDispatch({
+      t: 'MESSAGE_CREATE',
+      d: {
+        id: 'msg-2',
+        channel_id: 'dm-1',
+        content: '',
+        author: {
+          id: 'user-1',
+          username: 'alice'
+        },
+        attachments: [
+          {
+            id: 'attachment-1',
+            filename: 'image.png',
+            content_type: 'image/png',
+            size: 123,
+            url: 'https://cdn.discordapp.com/image.png'
+          }
+        ]
+      }
+    })
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        kind: 'message',
+        text: 'Attachments:\nimage.png: https://cdn.discordapp.com/image.png',
+        attachments: [
+          {
+            id: 'attachment-1',
+            filename: 'image.png',
+            contentType: 'image/png',
+            size: 123,
+            url: 'https://cdn.discordapp.com/image.png'
+          }
+        ]
+      })
+    )
+  })
 })

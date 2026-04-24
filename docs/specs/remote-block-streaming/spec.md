@@ -19,7 +19,7 @@ The status message is deleted when the turn finishes. The answer-text message re
 ## Acceptance Criteria
 
 - Remote snapshot generation continues to expose `statusText`, `text`, and `finalText`, while keeping `draftText`, `renderBlocks`, and `fullText` for compatibility.
-- During execution, `text` contains only streamable answer content from `content` blocks; `reasoning_content`, tool, search, and image transcript text never enters the answer stream.
+- During execution, `text` contains only streamable answer content from `content` blocks; `reasoning_content`, tool, and search transcript text never enters the answer stream.
 - `statusText` still reflects the current phase, such as thinking, calling a tool, reviewing search results, writing, or waiting for user input.
 - Telegram creates a temporary status message and a separate streamed answer message for a normal assistant turn.
 - Feishu creates a temporary status message and a separate streamed answer message for a normal assistant turn.
@@ -32,7 +32,7 @@ The status message is deleted when the turn finishes. The answer-text message re
 
 - No extra model call is allowed to summarize tool output or synthesize status text.
 - Desktop-local message rendering and persistence remain unchanged.
-- No binary image upload support is added for remote channels.
+- Generated image blocks are persisted into the session workspace and exposed to remote runtimes as local image assets. Channels that support image messages send the image first and fall back to a local path text reply when upload fails.
 
 ## Compatibility
 

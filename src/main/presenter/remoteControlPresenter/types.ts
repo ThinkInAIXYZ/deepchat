@@ -362,6 +362,7 @@ export interface TelegramInboundMessage extends TelegramInboundBase {
   kind: 'message'
   text: string
   command: TelegramCommandPayload | null
+  attachments: RemoteInputAttachment[]
 }
 
 export interface TelegramInboundCallbackQuery extends TelegramInboundBase {
@@ -392,6 +393,7 @@ export interface FeishuInboundMessage {
   command: TelegramCommandPayload | null
   mentionedBot: boolean
   mentions: FeishuRawMention[]
+  attachments: RemoteInputAttachment[]
 }
 
 export interface QQBotInboundMessage {
@@ -406,6 +408,7 @@ export interface QQBotInboundMessage {
   text: string
   command: TelegramCommandPayload | null
   mentionedBot: boolean
+  attachments: RemoteInputAttachment[]
 }
 
 export interface DiscordInboundAttachment {
@@ -414,6 +417,27 @@ export interface DiscordInboundAttachment {
   contentType: string | null
   size: number | null
   url: string
+}
+
+export interface RemoteInputAttachment {
+  id?: string
+  filename: string
+  mediaType: string
+  size?: number | null
+  url?: string
+  data?: string
+  fileId?: string
+  resourceKey?: string
+  resourceType?: 'image' | 'file'
+  encryptedMedia?: RemoteInputEncryptedMedia
+}
+
+export interface RemoteInputEncryptedMedia {
+  encryptedQueryParam?: string
+  aesKey?: string
+  aesKeyEncoding?: 'auto' | 'hex'
+  fullUrl?: string
+  cdnBaseUrl?: string
 }
 
 export interface DiscordInboundMessage {
@@ -442,6 +466,7 @@ export interface WeixinIlinkInboundMessage {
   contextToken: string | null
   command: TelegramCommandPayload | null
   createdAt: number | null
+  attachments: RemoteInputAttachment[]
 }
 
 export interface TelegramInlineKeyboardButton {
@@ -502,12 +527,21 @@ export interface RemoteRenderableBlock {
   text: string
   truncated: boolean
   sourceMessageId: string
+  asset?: RemoteGeneratedImageAsset
 }
 
 export interface RemoteDeliverySegment {
   key: string
   kind: 'process' | 'answer' | 'terminal'
   text: string
+  sourceMessageId: string
+}
+
+export interface RemoteGeneratedImageAsset {
+  key: string
+  path: string
+  mimeType: string
+  filename: string
   sourceMessageId: string
 }
 
@@ -1592,7 +1626,8 @@ export const normalizeTelegramSettingsInput = (
 ): TelegramRemoteSettings => ({
   botToken: input.botToken?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
-  defaultAgentId: input.defaultAgentId?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+  defaultAgentId: input.defaultAgentId?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
+  defaultWorkdir: input.defaultWorkdir?.trim() ?? ''
 })
 
 export const normalizeFeishuSettingsInput = (

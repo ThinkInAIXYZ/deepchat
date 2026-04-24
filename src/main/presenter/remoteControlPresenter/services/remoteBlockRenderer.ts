@@ -1,7 +1,11 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
-import type { RemoteDeliverySegment, RemoteRenderableBlock } from '../types'
+import type {
+  RemoteDeliverySegment,
+  RemoteGeneratedImageAsset,
+  RemoteRenderableBlock
+} from '../types'
 
 const TOOL_ARGS_PREVIEW_LIMIT = 1_200
 const TOOL_RESULT_PREVIEW_LIMIT = 1_600
@@ -187,15 +191,18 @@ const estimateImageBytes = (data: string | undefined): number => {
   return Math.max(0, Math.floor((data.length * 3) / 4) - padding)
 }
 
-const formatImageNoticeBlock = (block: AssistantMessageBlock): string => {
+const formatImageNoticeBlock = (
+  block: AssistantMessageBlock,
+  asset?: RemoteGeneratedImageAsset
+): string => {
   const mimeType = normalizeText(block.image_data?.mimeType) || 'unknown'
   const bytes = estimateImageBytes(block.image_data?.data)
 
   return [
-    '[Image Notice]',
+    '[Image]',
     `MIME: ${mimeType}`,
     bytes > 0 ? `Approx size: ${bytes} bytes` : '',
-    'Remote channel does not render binary images.'
+    asset ? `Path: ${asset.path}` : 'Remote channel does not have a saved image path.'
   ]
     .filter(Boolean)
     .join('\n')
@@ -549,6 +556,7 @@ type BuildRemoteRenderableBlocksParams = {
   messageId: string
   blocks: AssistantMessageBlock[]
   loadSearchResults: (messageId: string, searchId?: string) => Promise<SearchResult[]>
+  imageAssetsByKey?: Map<string, RemoteGeneratedImageAsset>
 }
 
 export const buildRemoteRenderableBlocks = async (
@@ -558,10 +566,9 @@ export const buildRemoteRenderableBlocks = async (
   const rendered: RemoteRenderableBlock[] = []
 
   for (const [index, block] of blocks.entries()) {
-    // V1 remote rendering intentionally leaves `plan`, `action`, `audio`, and
+    // Remote rendering intentionally leaves `plan`, `action`, `audio`, and
     // `artifact-thinking` out of the transcript path: remote control is private-chat
-    // only, action blocks are handled separately by `collectPendingInteraction`, and
-    // media upload/playback stays out of scope for now.
+    // only, and action blocks are handled separately by `collectPendingInteraction`.
     if (block.type === 'content' && isRenderableNarrativeBlock(block)) {
       rendered.push({
         key: `${messageId}:${index}:answer`,
@@ -626,12 +633,15 @@ export const buildRemoteRenderableBlocks = async (
     }
 
     if (block.type === 'image' && block.status !== 'pending') {
+      const key = `${messageId}:${index}:image`
+      const asset = params.imageAssetsByKey?.get(key)
       rendered.push({
-        key: `${messageId}:${index}:image`,
+        key,
         kind: 'imageNotice',
-        text: formatImageNoticeBlock(block),
+        text: formatImageNoticeBlock(block, asset),
         truncated: false,
-        sourceMessageId: messageId
+        sourceMessageId: messageId,
+        ...(asset ? { asset } : {})
       })
       continue
     }

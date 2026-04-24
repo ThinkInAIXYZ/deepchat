@@ -16,6 +16,13 @@ type QQBotRawMessage = {
   content?: string
   author?: QQBotRawAuthor
   group_openid?: string
+  attachments?: Array<{
+    id?: string
+    filename?: string
+    content_type?: string
+    url?: string
+    size?: number
+  }>
 }
 
 const QQBOT_COMMAND_REGEX = /^\/([a-zA-Z0-9_]+)(?:\s+([\s\S]*))?$/
@@ -32,6 +39,20 @@ const parseCommand = (text: string): TelegramCommandPayload | null => {
   }
 }
 
+const normalizeAttachments = (payload: QQBotRawMessage) =>
+  (payload.attachments ?? [])
+    .map((attachment) => ({
+      id: attachment.id?.trim() || attachment.url?.trim() || '',
+      filename: attachment.filename?.trim() || 'attachment',
+      mediaType: attachment.content_type?.trim() || 'application/octet-stream',
+      size: typeof attachment.size === 'number' ? attachment.size : null,
+      url: attachment.url?.trim() || '',
+      resourceType: attachment.content_type?.startsWith('image/')
+        ? ('image' as const)
+        : ('file' as const)
+    }))
+    .filter((attachment) => attachment.url)
+
 export class QQBotParser {
   parseDispatch(input: QQBotDispatchEnvelope): QQBotInboundMessage | null {
     const eventType = input.t?.trim()
@@ -45,7 +66,8 @@ export class QQBotParser {
 
     const payload = (input.d ?? {}) as QQBotRawMessage
     const rawText = payload.content?.trim() || ''
-    if (!rawText) {
+    const attachments = normalizeAttachments(payload)
+    if (!rawText && attachments.length === 0) {
       return null
     }
 
@@ -65,8 +87,9 @@ export class QQBotParser {
         senderUserId: userOpenId,
         senderUserName: payload.author?.username?.trim() || userOpenId,
         text: rawText,
-        command: parseCommand(rawText),
-        mentionedBot: false
+        command: rawText ? parseCommand(rawText) : null,
+        mentionedBot: false,
+        attachments
       }
     }
 
@@ -86,8 +109,9 @@ export class QQBotParser {
       senderUserId: memberOpenId,
       senderUserName: payload.author?.username?.trim() || memberOpenId,
       text: rawText,
-      command: parseCommand(rawText),
-      mentionedBot: true
+      command: rawText ? parseCommand(rawText) : null,
+      mentionedBot: true,
+      attachments
     }
   }
 }

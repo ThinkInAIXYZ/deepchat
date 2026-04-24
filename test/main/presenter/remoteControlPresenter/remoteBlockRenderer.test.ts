@@ -176,7 +176,7 @@ describe('remoteBlockRenderer', () => {
       })
     )
     expect(renderBlocks[0].text).toContain('MIME: image/png')
-    expect(renderBlocks[0].text).toContain('Remote channel does not render binary images.')
+    expect(renderBlocks[0].text).toContain('Remote channel does not have a saved image path.')
   })
 
   it('builds draft text from trailing pending reasoning and answer blocks only', () => {

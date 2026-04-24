@@ -260,15 +260,16 @@ export class FeishuRuntime {
     if (!this.isCurrentRun(runId)) {
       return
     }
+    const message = await this.resolveMessageAttachments(parsed)
 
     const target: FeishuTransportTarget = {
-      chatId: parsed.chatId,
-      threadId: parsed.threadId,
-      replyToMessageId: parsed.messageId
+      chatId: message.chatId,
+      threadId: message.threadId,
+      replyToMessageId: message.messageId
     }
 
     try {
-      const routed = await this.deps.router.handleMessage(parsed)
+      const routed = await this.deps.router.handleMessage(message)
       if (!this.isCurrentRun(runId)) {
         return
       }
@@ -291,10 +292,10 @@ export class FeishuRuntime {
       const diagnostics = {
         runId,
         target,
-        chatId: parsed.chatId,
-        threadId: parsed.threadId,
-        messageId: parsed.messageId,
-        eventId: parsed.eventId
+        chatId: message.chatId,
+        threadId: message.threadId,
+        messageId: message.messageId,
+        eventId: message.eventId
       }
 
       console.warn('[FeishuRuntime] Failed to handle event:', {
@@ -320,11 +321,52 @@ export class FeishuRuntime {
         console.warn('[FeishuRuntime] Failed to send error reply:', {
           chatId: parsed.chatId,
           threadId: parsed.threadId,
-          messageId: parsed.messageId,
-          eventId: parsed.eventId,
+          messageId: message.messageId,
+          eventId: message.eventId,
           error: sendError
         })
       }
+    }
+  }
+
+  private async resolveMessageAttachments(
+    message: FeishuInboundMessage
+  ): Promise<FeishuInboundMessage> {
+    if ((message.attachments ?? []).length === 0) {
+      return message
+    }
+
+    const attachments = await Promise.all(
+      (message.attachments ?? []).map(async (attachment) => {
+        if (!attachment.resourceKey || attachment.data) {
+          return attachment
+        }
+
+        try {
+          const downloaded = await this.deps.client.downloadMessageResource({
+            messageId: message.messageId,
+            fileKey: attachment.resourceKey,
+            type: attachment.resourceType === 'image' ? 'image' : 'file'
+          })
+          return {
+            ...attachment,
+            data: downloaded.data,
+            mediaType: downloaded.mediaType || attachment.mediaType
+          }
+        } catch (error) {
+          console.warn('[FeishuRuntime] Failed to download Feishu message resource:', {
+            messageId: message.messageId,
+            filename: attachment.filename,
+            error
+          })
+          return attachment
+        }
+      })
+    )
+
+    return {
+      ...message,
+      attachments
     }
   }
 
@@ -400,6 +442,7 @@ export class FeishuRuntime {
         } else if (finalText) {
           await this.deps.client.sendText(target, finalText)
         }
+        await this.sendGeneratedImages(target, snapshot)
         return
       }
 
@@ -532,7 +575,31 @@ export class FeishuRuntime {
   private getFinalDeliveryText(
     snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
   ): string {
-    return (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
+    const finalText = snapshot.finalText?.trim() ?? ''
+    if (finalText) {
+      return finalText
+    }
+    if ((snapshot.generatedImages?.length ?? 0) > 0) {
+      return ''
+    }
+    return (snapshot.fullText ?? snapshot.text).trim()
+  }
+
+  private async sendGeneratedImages(
+    target: FeishuTransportTarget,
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): Promise<void> {
+    for (const asset of snapshot.generatedImages ?? []) {
+      try {
+        await this.deps.client.sendImage(target, asset.path)
+      } catch (error) {
+        console.warn('[FeishuRuntime] Failed to send generated image:', {
+          path: asset.path,
+          error
+        })
+        await this.deps.client.sendText(target, `[Image]\nPath: ${asset.path}`)
+      }
+    }
   }
 
   private appendTerminalDeliverySegment(

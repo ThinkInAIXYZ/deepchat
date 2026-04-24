@@ -33,8 +33,57 @@ describe('TelegramParser', () => {
       command: {
         name: 'use',
         args: '2'
+      },
+      attachments: []
+    })
+  })
+
+  it('parses photo messages as image attachments', () => {
+    const parser = new TelegramParser()
+
+    const parsed = parser.parseUpdate({
+      update_id: 3,
+      message: {
+        message_id: 21,
+        chat: {
+          id: 100,
+          type: 'private'
+        },
+        from: {
+          id: 123
+        },
+        caption: 'look',
+        photo: [
+          {
+            file_id: 'small-file',
+            file_unique_id: 'small',
+            file_size: 10
+          },
+          {
+            file_id: 'large-file',
+            file_unique_id: 'large',
+            file_size: 20
+          }
+        ]
       }
     })
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        kind: 'message',
+        text: 'look',
+        attachments: [
+          {
+            id: 'large',
+            filename: 'large.jpg',
+            mediaType: 'image/jpeg',
+            size: 20,
+            fileId: 'large-file',
+            resourceType: 'image'
+          }
+        ]
+      })
+    )
   })
 
   it('parses callback queries from inline keyboards', () => {

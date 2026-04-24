@@ -22,12 +22,31 @@ type TelegramUser = {
   username?: string
 }
 
+export type TelegramRawPhotoSize = {
+  file_id: string
+  file_unique_id?: string
+  width?: number
+  height?: number
+  file_size?: number
+}
+
+export type TelegramRawDocument = {
+  file_id: string
+  file_unique_id?: string
+  file_name?: string
+  mime_type?: string
+  file_size?: number
+}
+
 export type TelegramRawMessage = {
   message_id: number
   message_thread_id?: number
   chat: TelegramChat
   from?: TelegramUser
   text?: string
+  caption?: string
+  photo?: TelegramRawPhotoSize[]
+  document?: TelegramRawDocument
 }
 
 export type TelegramRawCallbackQuery = {
@@ -39,6 +58,13 @@ export type TelegramRawCallbackQuery = {
 
 type TelegramSentMessage = {
   message_id: number
+}
+
+type TelegramFile = {
+  file_id: string
+  file_unique_id?: string
+  file_size?: number
+  file_path?: string
 }
 
 export type TelegramRawUpdate = {
@@ -75,9 +101,11 @@ export class TelegramApiRequestError extends Error {
 
 export class TelegramClient {
   private readonly baseUrl: string
+  private readonly fileBaseUrl: string
 
   constructor(botToken: string) {
     this.baseUrl = `https://api.telegram.org/bot${botToken}`
+    this.fileBaseUrl = `https://api.telegram.org/file/bot${botToken}`
   }
 
   async getMe(): Promise<TelegramBotUser> {
@@ -117,6 +145,69 @@ export class TelegramClient {
       reply_markup: buildReplyMarkup(replyMarkup)
     })
     return message.message_id
+  }
+
+  async getFile(fileId: string): Promise<TelegramFile> {
+    return await this.request<TelegramFile>('getFile', {
+      file_id: fileId
+    })
+  }
+
+  async downloadFileBase64(fileId: string): Promise<{
+    data: string
+    size: number
+  }> {
+    const file = await this.getFile(fileId)
+    const filePath = file.file_path?.trim()
+    if (!filePath) {
+      throw new Error('Telegram file_path is missing from getFile response.')
+    }
+
+    const response = await fetch(`${this.fileBaseUrl}/${filePath}`)
+    if (!response.ok) {
+      throw new TelegramApiRequestError(`Telegram file download failed: ${response.status}`)
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer())
+    return {
+      data: buffer.toString('base64'),
+      size: buffer.byteLength
+    }
+  }
+
+  async sendPhoto(
+    target: TelegramTransportTarget,
+    filePath: string,
+    caption?: string
+  ): Promise<number> {
+    const form = new FormData()
+    form.set('chat_id', String(target.chatId))
+    if (target.messageThreadId) {
+      form.set('message_thread_id', String(target.messageThreadId))
+    }
+    if (caption?.trim()) {
+      form.set('caption', caption.trim())
+    }
+    const fileBuffer = await import('node:fs/promises').then((fs) => fs.readFile(filePath))
+    const fileName = filePath.split(/[\\/]/).pop() || 'image'
+    form.set('photo', new Blob([fileBuffer]), fileName)
+
+    const response = await fetch(`${this.baseUrl}/sendPhoto`, {
+      method: 'POST',
+      body: form
+    })
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as TelegramApiResponse<TelegramSentMessage>
+    if (!response.ok || !payload.ok || payload.result === undefined) {
+      const description = payload.description?.trim() || 'Telegram sendPhoto failed.'
+      throw new TelegramApiRequestError(
+        description,
+        payload.error_code,
+        payload.parameters?.retry_after
+      )
+    }
+    return payload.result.message_id
   }
 
   async sendMessageDraft(

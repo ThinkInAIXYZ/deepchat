@@ -86,4 +86,43 @@ describe('FeishuParser', () => {
       })
     )
   })
+
+  it('parses image messages as attachments without leaking raw JSON into text', () => {
+    const parser = new FeishuParser()
+
+    const parsed = parser.parseEvent({
+      event_id: 'evt-3',
+      sender: {
+        sender_id: {
+          open_id: 'ou_user'
+        },
+        sender_type: 'user'
+      },
+      message: {
+        message_id: 'om_3',
+        create_time: '1',
+        chat_id: 'oc_1',
+        chat_type: 'p2p',
+        message_type: 'image',
+        content: JSON.stringify({
+          image_key: 'img_v3_key'
+        })
+      }
+    })
+
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        text: '',
+        attachments: [
+          {
+            id: 'img_v3_key',
+            filename: 'img_v3_key.png',
+            mediaType: 'image/png',
+            resourceKey: 'img_v3_key',
+            resourceType: 'image'
+          }
+        ]
+      })
+    )
+  })
 })

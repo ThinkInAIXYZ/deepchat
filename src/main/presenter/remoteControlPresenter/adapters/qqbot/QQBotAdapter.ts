@@ -127,6 +127,30 @@ export class QQBotAdapter extends ChannelAdapter {
     })
   }
 
+  async sendImage(chatId: string, imagePath: string, opts?: SendMessageOptions): Promise<void> {
+    if (!this.client) {
+      throw new Error('QQBot adapter is not connected.')
+    }
+
+    const target = this.parseTransportTarget(chatId, opts?.replyToMessageId)
+    if (target.chatType === 'c2c') {
+      await this.client.sendC2CImage({
+        openId: target.openId,
+        msgId: target.msgId,
+        msgSeq: 1,
+        filePath: imagePath
+      })
+      return
+    }
+
+    await this.client.sendGroupImage({
+      groupOpenId: target.openId,
+      msgId: target.msgId,
+      msgSeq: 1,
+      filePath: imagePath
+    })
+  }
+
   async sendTypingIndicator(_chatId: string): Promise<void> {
     return
   }

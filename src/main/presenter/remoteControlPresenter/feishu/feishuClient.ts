@@ -1,4 +1,5 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
+import fs from 'node:fs'
 import type { EventHandles } from '@larksuiteoapi/node-sdk'
 import type { FeishuBrand } from '@shared/presenter'
 import {
@@ -184,6 +185,77 @@ export class FeishuClient {
     }
 
     return messageId
+  }
+
+  async downloadMessageResource(params: {
+    messageId: string
+    fileKey: string
+    type: 'image' | 'file'
+  }): Promise<{
+    data: string
+    mediaType: string
+    filename?: string
+  }> {
+    const response = await (this.sdk as any).im.messageResource.get({
+      path: {
+        message_id: params.messageId,
+        file_key: params.fileKey
+      },
+      params: {
+        type: params.type
+      }
+    })
+
+    const stream = response?.data?.file || response?.file || response?.data
+    const chunks: Buffer[] = []
+    if (stream && typeof stream.on === 'function') {
+      await new Promise<void>((resolve, reject) => {
+        stream.on('data', (chunk: Buffer | string) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+        })
+        stream.on('end', () => resolve())
+        stream.on('error', reject)
+      })
+    } else if (Buffer.isBuffer(stream)) {
+      chunks.push(stream)
+    }
+
+    if (chunks.length === 0) {
+      throw new Error('Feishu message resource response did not contain file data.')
+    }
+
+    return {
+      data: Buffer.concat(chunks).toString('base64'),
+      mediaType: params.type === 'image' ? 'image/png' : 'application/octet-stream'
+    }
+  }
+
+  async sendImage(target: FeishuTransportTarget, imagePath: string): Promise<string | null> {
+    const upload = await (this.sdk as any).im.image.create({
+      data: {
+        image_type: 'message',
+        image: fs.createReadStream(imagePath)
+      }
+    })
+    const imageKey = upload?.data?.image_key || upload?.image_key
+    if (!imageKey) {
+      throw new Error('Feishu image upload did not return image_key.')
+    }
+
+    const response = await this.sdk.im.message.create({
+      params: {
+        receive_id_type: 'chat_id'
+      },
+      data: {
+        receive_id: target.chatId,
+        msg_type: 'image',
+        content: JSON.stringify({
+          image_key: imageKey
+        })
+      }
+    })
+
+    return ((response as FeishuMessageResponse).data?.message_id ?? '').trim() || null
   }
 
   async updateText(messageId: string, text: string): Promise<void> {

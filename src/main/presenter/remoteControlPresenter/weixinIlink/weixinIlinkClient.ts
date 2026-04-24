@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
 
 type WeixinIlinkQrCodeResponse = {
   qrcode?: string
@@ -14,6 +15,13 @@ type WeixinIlinkQrStatusResponse = {
   redirect_host?: string
 }
 
+type WeixinIlinkCdnMedia = {
+  encrypt_query_param?: string
+  aes_key?: string
+  encrypt_type?: number
+  full_url?: string
+}
+
 export type WeixinIlinkMessageItem = {
   type?: number
   text_item?: {
@@ -21,6 +29,28 @@ export type WeixinIlinkMessageItem = {
   }
   voice_item?: {
     text?: string
+  }
+  image_item?: {
+    filename?: string
+    content_type?: string
+    url?: string
+    data?: string
+    media?: WeixinIlinkCdnMedia
+    thumb_media?: WeixinIlinkCdnMedia
+    aeskey?: string
+    mid_size?: number
+    thumb_size?: number
+    hd_size?: number
+  }
+  file_item?: {
+    filename?: string
+    file_name?: string
+    content_type?: string
+    url?: string
+    data?: string
+    size?: number
+    len?: string
+    media?: WeixinIlinkCdnMedia
   }
 }
 
@@ -88,6 +118,7 @@ export class WeixinIlinkApiError extends Error {
 }
 
 const WEIXIN_ILINK_FIXED_BASE_URL = 'https://ilinkai.weixin.qq.com'
+export const WEIXIN_ILINK_CDN_BASE_URL = 'https://novac2c.cdn.weixin.qq.com/c2c'
 const WEIXIN_ILINK_DEFAULT_BOT_TYPE = '3'
 const WEIXIN_ILINK_LOGIN_TTL_MS = 5 * 60_000
 const WEIXIN_ILINK_QR_POLL_TIMEOUT_MS = 35_000
@@ -409,6 +440,44 @@ export class WeixinIlinkClient {
               type: 1,
               text_item: {
                 text: params.text
+              }
+            }
+          ],
+          ...(params.contextToken?.trim()
+            ? {
+                context_token: params.contextToken.trim()
+              }
+            : {})
+        }
+      }
+    })
+  }
+
+  async sendImageMessage(params: {
+    toUserId: string
+    imagePath: string
+    mimeType?: string
+    contextToken?: string | null
+  }): Promise<void> {
+    const imageContent = (await fs.readFile(params.imagePath)).toString('base64')
+    await fetchPostJson<Record<string, unknown>>({
+      baseUrl: this.credentials.baseUrl,
+      endpoint: 'ilink/bot/sendmessage',
+      token: this.credentials.botToken,
+      timeoutMs: WEIXIN_ILINK_REQUEST_TIMEOUT_MS,
+      body: {
+        msg: {
+          from_user_id: '',
+          to_user_id: params.toUserId,
+          client_id: randomUUID(),
+          message_type: 2,
+          message_state: 2,
+          item_list: [
+            {
+              type: 2,
+              image_item: {
+                content_type: params.mimeType || 'image/png',
+                data: imageContent
               }
             }
           ],

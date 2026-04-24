@@ -213,7 +213,25 @@ export class DiscordCommandRouter {
 
       return {
         replies: [],
-        conversation: await this.deps.runner.sendText(endpointKey, message.text, bindingMeta)
+        conversation:
+          message.attachments.length > 0
+            ? await this.deps.runner.sendInput(
+                endpointKey,
+                {
+                  text: message.text,
+                  attachments: message.attachments.map((attachment) => ({
+                    id: attachment.id,
+                    filename: attachment.filename,
+                    mediaType: attachment.contentType || 'application/octet-stream',
+                    size: attachment.size,
+                    url: attachment.url,
+                    resourceType: attachment.contentType?.startsWith('image/') ? 'image' : 'file'
+                  })),
+                  sourceMessageId: message.messageId
+                },
+                bindingMeta
+              )
+            : await this.deps.runner.sendText(endpointKey, message.text, bindingMeta)
       }
     } catch (error) {
       return {
