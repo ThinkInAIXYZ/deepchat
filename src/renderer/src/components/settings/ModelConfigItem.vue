@@ -1,7 +1,7 @@
 <template>
   <div
     :class="[
-      'flex h-14 min-h-14 flex-row items-center gap-2 overflow-hidden bg-muted/50 px-3 py-2 transition-colors hover:bg-accent border-b last:border-none'
+      'flex h-12 min-h-12 flex-row items-center gap-2 overflow-hidden bg-muted/50 px-2.5 py-1.5 transition-colors hover:bg-accent border-b last:border-none'
     ]"
   >
     <div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">

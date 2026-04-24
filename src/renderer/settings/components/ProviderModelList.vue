@@ -270,20 +270,9 @@
               </Button>
             </div>
           </div>
-          <div v-else-if="isModelItem(item)" :key="item.id" class="h-14 overflow-hidden bg-card">
+          <div v-else-if="isModelItem(item)" :key="item.id" class="h-12 overflow-hidden bg-card">
             <ModelConfigItem
               :key="item.id"
-              v-memo="[
-                item.id,
-                item.enabled,
-                item.name,
-                item.group,
-                item.typeValue,
-                item.vision,
-                item.functionCall,
-                item.reasoning,
-                item.enableSearch
-              ]"
               :model-name="item.name"
               :model-id="item.modelId"
               :provider-id="item.providerId"
@@ -335,7 +324,7 @@ const debouncedSearchQuery = ref('')
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
 const LABEL_ITEM_HEIGHT = 36
-const MODEL_ITEM_HEIGHT = 56
+const MODEL_ITEM_HEIGHT = 48
 const PROVIDER_ACTIONS_ITEM_HEIGHT = 56
 const modelNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
