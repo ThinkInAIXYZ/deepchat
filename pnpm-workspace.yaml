@@ -3,3 +3,6 @@ supportedArchitectures:
     - current
   cpu:
     - current
+
+publicHoistPattern:
+  - '@img/sharp-*'
