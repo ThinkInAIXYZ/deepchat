@@ -5,10 +5,12 @@
 - Fixed ACP working directory propagation for remote executions so agent commands run in the intended workspace
 - Added batch model status updates to reduce provider model list churn and keep model management more responsive
 - Hardened renderer model capability detection, external URL opening, and SVG sanitization against stale state and unsafe links
+- Fixed RTK runtime startup when the expected hook is missing, improving agent runtime resilience on affected installs
 - 优化 Discord、飞书、QQ Bot、Telegram 与微信 iLink 的远程控制媒体投递，完善块流式输出与文件处理
 - 修复远程执行中的 ACP 工作目录传递，确保 agent 命令在预期工作区运行
 - 新增模型状态批量更新，减少 Provider 模型列表抖动并提升模型管理响应速度
 - 加强渲染端模型能力检测、外部链接打开与 SVG 清理，避免过期状态和不安全链接
+- 修复缺少预期 hook 时 RTK runtime 启动失败的问题，提升受影响安装环境下的 agent runtime 韧性
 
 ## v1.0.3 (2026-04-24)
 - Added DeepSeek V4 series model support and refreshed provider model data for more complete default model availability
