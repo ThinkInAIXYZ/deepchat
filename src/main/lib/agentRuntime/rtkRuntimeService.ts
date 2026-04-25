@@ -58,6 +58,11 @@ interface PrepareShellCommandResult {
   rtkFallbackReason?: string
 }
 
+type RtkRewriteResult =
+  | { status: 'rewritten'; command: string }
+  | { status: 'bypass'; message: string }
+  | { status: 'failure'; message: string }
+
 interface RtkRuntimeServiceDeps {
   runtimeHelper?: Pick<
     RuntimeHelper,
@@ -110,6 +115,37 @@ function getErrorMessage(error: unknown): string {
     return error.message
   }
   return String(error)
+}
+
+function classifyRtkRewriteResult(result: CommandResult): RtkRewriteResult {
+  const stdout = result.stdout.trim()
+  const stderr = result.stderr.trim()
+
+  if (result.code === 0 && stdout) {
+    return {
+      status: 'rewritten',
+      command: stdout
+    }
+  }
+
+  if (result.code === 3 && stdout && /No hook installed/i.test(stderr)) {
+    return {
+      status: 'rewritten',
+      command: stdout
+    }
+  }
+
+  if (result.code === 1) {
+    return {
+      status: 'bypass',
+      message: 'RTK rewrite did not match this command'
+    }
+  }
+
+  return {
+    status: 'failure',
+    message: stderr || stdout || 'rtk rewrite failed'
+  }
 }
 
 async function defaultRunCommand(
@@ -371,24 +407,22 @@ export class RtkRuntimeService {
         env: preparedEnv,
         timeoutMs: RTK_REWRITE_TIMEOUT_MS
       })
+      const rewrite = classifyRtkRewriteResult(rewriteResult)
 
-      if (rewriteResult.code === 0) {
-        const rewritten = rewriteResult.stdout.trim()
-        if (rewritten) {
-          this.recordRuntimeSuccess()
-          return {
-            originalCommand: rawCommand,
-            command: rewritten,
-            env: preparedEnv,
-            rewritten: true,
-            usedRtk: true,
-            rtkApplied: true,
-            rtkMode: 'rewrite'
-          }
+      if (rewrite.status === 'rewritten') {
+        this.recordRuntimeSuccess()
+        return {
+          originalCommand: rawCommand,
+          command: rewrite.command,
+          env: preparedEnv,
+          rewritten: true,
+          usedRtk: true,
+          rtkApplied: true,
+          rtkMode: 'rewrite'
         }
       }
 
-      if (rewriteResult.code === 1) {
+      if (rewrite.status === 'bypass') {
         this.recordRuntimeSuccess()
         return {
           originalCommand: rawCommand,
@@ -398,13 +432,11 @@ export class RtkRuntimeService {
           usedRtk: false,
           rtkApplied: false,
           rtkMode: 'bypass',
-          rtkFallbackReason: 'RTK rewrite did not match this command'
+          rtkFallbackReason: rewrite.message
         }
       }
 
-      const failureMessage =
-        rewriteResult.stderr.trim() || rewriteResult.stdout.trim() || 'rtk rewrite failed'
-      this.recordRuntimeFailure('rewrite', failureMessage)
+      this.recordRuntimeFailure('rewrite', rewrite.message)
       return {
         originalCommand: rawCommand,
         command: rawCommand,
@@ -413,7 +445,7 @@ export class RtkRuntimeService {
         usedRtk: false,
         rtkApplied: false,
         rtkMode: 'bypass',
-        rtkFallbackReason: failureMessage
+        rtkFallbackReason: rewrite.message
       }
     } catch (error) {
       const failureMessage = getErrorMessage(error)
@@ -569,11 +601,9 @@ export class RtkRuntimeService {
       env: baseEnv,
       timeoutMs: RTK_HEALTH_TIMEOUT_MS
     })
-    if (rewrite.code !== 0 || !rewrite.stdout.trim()) {
-      throw new RtkHealthCheckError(
-        'rewrite',
-        rewrite.stderr.trim() || rewrite.stdout.trim() || 'rtk rewrite failed'
-      )
+    const rewriteCheck = classifyRtkRewriteResult(rewrite)
+    if (rewriteCheck.status !== 'rewritten') {
+      throw new RtkHealthCheckError('rewrite', rewriteCheck.message)
     }
 
     const resolvedRtk = await this.runCommandImpl('rtk', ['--version'], {
