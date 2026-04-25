@@ -99,7 +99,7 @@ function createHealthCheckService(tempRoot: string, runCommand = vi.fn()) {
   })
 }
 
-function createHealthCheckRunCommand() {
+function createHealthCheckRunCommand(rewriteResult = createCommandResult(0, 'rtk git status\n')) {
   return vi.fn(async (command: string, args: string[]) => {
     if (args[0] === 'ls') {
       return createCommandResult(
@@ -114,7 +114,7 @@ function createHealthCheckRunCommand() {
     }
 
     if (command === '/runtime/rtk/rtk.exe' && args[0] === 'rewrite' && args[1] === 'git status') {
-      return createCommandResult(0, 'rtk git status\n')
+      return rewriteResult
     }
 
     if (command === 'rtk' && args[0] === '--version') {
@@ -170,6 +170,29 @@ describe('RtkRuntimeService', () => {
     )
     expect(result.originalCommand).toBe('find . -name "*.ts"')
     expect(result.command).toBe('rtk find . -name "*.ts"')
+    expect(result.rewritten).toBe(true)
+    expect(result.rtkApplied).toBe(true)
+    expect(result.rtkMode).toBe('rewrite')
+  })
+
+  it('uses rewrite output when RTK reports a missing global hook', async () => {
+    const runCommand = vi.fn().mockResolvedValue({
+      code: 3,
+      stdout: 'rtk git status\n',
+      stderr: 'No hook installed\n',
+      signal: null,
+      timedOut: false
+    })
+    const service = createService(runCommand)
+
+    const result = await service.prepareShellCommand(
+      'git status',
+      {},
+      { getSetting: vi.fn().mockReturnValue(true) }
+    )
+
+    expect(result.originalCommand).toBe('git status')
+    expect(result.command).toBe('rtk git status')
     expect(result.rewritten).toBe(true)
     expect(result.rtkApplied).toBe(true)
     expect(result.rtkMode).toBe('rewrite')
@@ -236,6 +259,33 @@ describe('RtkRuntimeService', () => {
       expect(state.source).toBe('bundled')
       expect(runCommand.mock.calls.some(([, args]) => args[0] === 'ls')).toBe(false)
       expect(runCommand.mock.calls.some(([, args]) => args[0] === 'read')).toBe(true)
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps bundled RTK healthy when rewrite reports a missing global hook', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-rtk-health-test-'))
+    const runCommand = createHealthCheckRunCommand(
+      createCommandResult(3, 'rtk git status\n', 'No hook installed\n')
+    )
+    const service = createHealthCheckService(tempRoot, runCommand)
+
+    try {
+      const state = await service.startHealthCheck()
+
+      expect(state).toMatchObject({
+        health: 'healthy',
+        source: 'bundled',
+        failureStage: null,
+        failureMessage: null
+      })
+      expect(
+        runCommand.mock.calls.some(
+          ([command, args]) =>
+            command === '/runtime/rtk/rtk.exe' && args[0] === 'rewrite' && args[1] === 'git status'
+        )
+      ).toBe(true)
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true })
     }
