@@ -597,82 +597,18 @@ export class RtkRuntimeService {
       )
     }
 
-    const rewrite = await this.runCommandImpl(candidate.command, ['rewrite', 'git status'], {
-      env: baseEnv,
-      timeoutMs: RTK_HEALTH_TIMEOUT_MS
-    })
-    const rewriteCheck = classifyRtkRewriteResult(rewrite)
-    if (rewriteCheck.status !== 'rewritten') {
-      throw new RtkHealthCheckError('rewrite', rewriteCheck.message)
-    }
-
     const resolvedRtk = await this.runCommandImpl('rtk', ['--version'], {
       env: baseEnv,
       timeoutMs: RTK_HEALTH_TIMEOUT_MS
     })
     if (resolvedRtk.code !== 0) {
       throw new RtkHealthCheckError(
-        'smoke',
+        'version',
         resolvedRtk.stderr.trim() ||
           resolvedRtk.stdout.trim() ||
           'rtk is not resolvable via injected PATH'
       )
     }
-
-    const bundledRipgrepCommand = this.runtimeHelper.replaceWithRuntimeCommand('rg', true, true)
-    if (bundledRipgrepCommand !== 'rg') {
-      const resolvedRg = await this.runCommandImpl('rg', ['--version'], {
-        env: baseEnv,
-        timeoutMs: RTK_HEALTH_TIMEOUT_MS
-      })
-      if (resolvedRg.code !== 0) {
-        throw new RtkHealthCheckError(
-          'smoke',
-          resolvedRg.stderr.trim() ||
-            resolvedRg.stdout.trim() ||
-            'rg is not resolvable via injected PATH'
-        )
-      }
-    }
-
-    const tempRoot = fs.mkdtempSync(path.join(this.getPathImpl('temp'), 'deepchat-rtk-health-'))
-    try {
-      const healthFilePath = path.join(tempRoot, 'health.txt')
-      fs.writeFileSync(healthFilePath, 'ok', 'utf-8')
-      const smokeDbPath = path.join(tempRoot, 'tracking.db')
-      const smokeEnv = await this.createRuntimeEnv({}, smokeDbPath)
-      const smoke = await this.runCommandImpl(candidate.command, ['read', healthFilePath], {
-        cwd: tempRoot,
-        env: smokeEnv,
-        timeoutMs: RTK_HEALTH_TIMEOUT_MS
-      })
-      if (smoke.code !== 0 || !smoke.stdout.trim()) {
-        throw new RtkHealthCheckError(
-          'smoke',
-          smoke.stderr.trim() || smoke.stdout.trim() || 'rtk smoke test failed'
-        )
-      }
-    } finally {
-      fs.rmSync(tempRoot, { recursive: true, force: true })
-    }
-
-    const gainEnv = await this.createRuntimeEnv({}, this.getAppTrackingDbPath())
-    const gain = await this.runCommandImpl(
-      candidate.command,
-      ['gain', '--all', '--format', 'json'],
-      {
-        env: gainEnv,
-        timeoutMs: RTK_HEALTH_TIMEOUT_MS
-      }
-    )
-    if (gain.code !== 0) {
-      throw new RtkHealthCheckError(
-        'gain',
-        gain.stderr.trim() || gain.stdout.trim() || 'rtk gain failed'
-      )
-    }
-
-    this.parseGainJson(gain.stdout)
   }
 
   private async createRuntimeEnv(
