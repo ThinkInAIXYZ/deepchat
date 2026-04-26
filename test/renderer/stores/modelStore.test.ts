@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { ref } from 'vue'
+import { ModelType } from '../../../src/shared/model'
 
 const createQueryCache = () => {
   return {
@@ -46,11 +47,13 @@ const setupStore = async (overrides?: {
     updateCustomModel: vi.fn(async () => true),
     onModelsChanged: vi.fn(() => vi.fn()),
     onModelStatusChanged: vi.fn(() => vi.fn()),
+    onModelBatchStatusChanged: vi.fn(() => vi.fn()),
     onModelConfigChanged: vi.fn(() => vi.fn()),
     ...overrides?.modelClient
   }
   const providerStore = {
     providers: [],
+    ensureInitialized: vi.fn(async () => undefined),
     ...overrides?.providerStore
   }
 
@@ -358,6 +361,46 @@ describe('modelStore.refreshProviderModels', () => {
           expect.objectContaining({
             id: 'gpt-5.4',
             reasoning: true
+          })
+        ]
+      }
+    ])
+  })
+
+  it('keeps enabled provider DB-only embedding models after refresh', async () => {
+    const dbEmbeddingModel = {
+      id: 'text-embedding-3-small',
+      name: 'text-embedding-3-small',
+      providerId: 'aihubmix',
+      type: ModelType.Embedding,
+      functionCall: false,
+      vision: false,
+      contextLength: 8192,
+      maxTokens: 8192,
+      isCustom: false
+    }
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [dbEmbeddingModel]),
+        getProviderModels: vi.fn(async () => []),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'text-embedding-3-small': true }))
+      }
+    })
+
+    await store.refreshProviderModels('aihubmix')
+
+    expect(modelClient.getBatchModelStatus).toHaveBeenCalledWith('aihubmix', [
+      'text-embedding-3-small'
+    ])
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'aihubmix',
+        models: [
+          expect.objectContaining({
+            id: 'text-embedding-3-small',
+            enabled: true,
+            type: ModelType.Embedding
           })
         ]
       }

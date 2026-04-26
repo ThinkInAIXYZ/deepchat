@@ -56,6 +56,7 @@ import { providerDbLoader } from './providerDbLoader'
 import {
   ProviderAggregate,
   ReasoningPortrait,
+  type ProviderModel,
   type ReasoningEffort,
   type Verbosity
 } from '@shared/types/model-db'
@@ -784,6 +785,24 @@ export class ConfigPresenter implements IConfigPresenter {
     )
   }
 
+  private inferProviderDbModelType(model: ProviderModel): ModelType {
+    if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
+      return ModelType.ImageGeneration
+    }
+
+    switch (model.type) {
+      case 'embedding':
+        return ModelType.Embedding
+      case 'rerank':
+        return ModelType.Rerank
+      case 'imageGeneration':
+        return ModelType.ImageGeneration
+      case 'chat':
+      default:
+        return ModelType.Chat
+    }
+  }
+
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     return modelCapabilities.getReasoningPortrait(
       this.getCapabilityProviderId(providerId, modelId),
@@ -1333,10 +1352,7 @@ export class ConfigPresenter implements IConfigPresenter {
       ),
       functionCall: resolveModelFunctionCall(m.tool_call),
       reasoning: this.supportsReasoningCapability(providerId, m.id),
-      type:
-        Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
-          ? ModelType.ImageGeneration
-          : ModelType.Chat
+      type: this.inferProviderDbModelType(m)
     }))
   }
 
