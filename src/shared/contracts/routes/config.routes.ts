@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { TimestampMsSchema, defineRouteContract } from '../common'
 import {
   AcpAgentConfigSchema,
+  BuiltinKnowledgeConfigSchema,
   ConfigValueSchema,
   DeepChatAgentConfigSchema,
   LanguageDirectionSchema,
@@ -455,6 +456,24 @@ export const configGetMcpServersRoute = defineRouteContract({
   input: z.object({}).default({}),
   output: z.object({
     servers: z.record(z.string(), McpServerConfigSchema)
+  })
+})
+
+export const configGetKnowledgeConfigsRoute = defineRouteContract({
+  name: 'config.getKnowledgeConfigs',
+  input: z.object({}).default({}),
+  output: z.object({
+    configs: z.array(BuiltinKnowledgeConfigSchema)
+  })
+})
+
+export const configSetKnowledgeConfigsRoute = defineRouteContract({
+  name: 'config.setKnowledgeConfigs',
+  input: z.object({
+    configs: z.array(BuiltinKnowledgeConfigSchema)
+  }),
+  output: z.object({
+    configs: z.array(BuiltinKnowledgeConfigSchema)
   })
 })
 

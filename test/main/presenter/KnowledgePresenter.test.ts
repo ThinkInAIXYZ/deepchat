@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { KnowledgePresenter } from '../../../src/main/presenter/knowledgePresenter'
 import { IConfigPresenter, IFilePresenter } from '../../../src/shared/presenter'
 import { FileValidationResult } from '../../../src/main/presenter/filePresenter/FileValidationService'
+import { DuckDBPresenter } from '../../../src/main/presenter/knowledgePresenter/database/duckdbPresenter'
+import { KnowledgeStorePresenter } from '../../../src/main/presenter/knowledgePresenter/knowledgeStorePresenter'
 
 // Mock all external dependencies
 vi.mock('electron', () => ({
@@ -44,11 +46,13 @@ vi.mock('../../../src/main/presenter', () => ({
 
 // Mock DuckDBPresenter
 vi.mock('../../../src/main/presenter/knowledgePresenter/database/duckdbPresenter', () => ({
-  DuckDBPresenter: vi.fn().mockImplementation(() => ({
-    open: vi.fn(),
-    initialize: vi.fn(),
-    close: vi.fn()
-  }))
+  DuckDBPresenter: vi.fn().mockImplementation(function () {
+    return {
+      open: vi.fn(),
+      initialize: vi.fn(),
+      close: vi.fn()
+    }
+  })
 }))
 
 // Mock KnowledgeStorePresenter
@@ -58,7 +62,7 @@ vi.mock('../../../src/main/presenter/knowledgePresenter/knowledgeStorePresenter'
     deleteFile: vi.fn(),
     reAddFile: vi.fn(),
     queryFile: vi.fn(),
-    listFiles: vi.fn(),
+    listFiles: vi.fn().mockResolvedValue([]),
     close: vi.fn(),
     destroy: vi.fn(),
     similarityQuery: vi.fn(),
@@ -100,12 +104,52 @@ const mockFilePresenter: IFilePresenter = {
   getSupportedExtensions: vi.fn()
 } as any
 
+const createKnowledgeConfig = (id: string) => ({
+  id,
+  description: 'Local docs',
+  embedding: {
+    providerId: 'openai',
+    modelId: 'text-embedding-3-small'
+  },
+  dimensions: 1536,
+  normalized: true,
+  fragmentsNumber: 6,
+  enabled: true
+})
+
 describe('KnowledgePresenter Validation Methods', () => {
   let knowledgePresenter: KnowledgePresenter
   const mockDbDir = '/mock/db/dir'
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(
+      DuckDBPresenter as unknown as {
+        mockImplementation: (factory: () => unknown) => void
+      }
+    ).mockImplementation(() => ({
+      open: vi.fn(),
+      initialize: vi.fn(),
+      close: vi.fn()
+    }))
+    ;(
+      KnowledgeStorePresenter as unknown as {
+        mockImplementation: (factory: () => unknown) => void
+      }
+    ).mockImplementation(() => ({
+      addFile: vi.fn(),
+      deleteFile: vi.fn(),
+      reAddFile: vi.fn(),
+      queryFile: vi.fn(),
+      listFiles: vi.fn().mockResolvedValue([]),
+      close: vi.fn(),
+      destroy: vi.fn(),
+      similarityQuery: vi.fn(),
+      pauseAllRunningTasks: vi.fn(),
+      resumeAllPausedTasks: vi.fn(),
+      updateConfig: vi.fn()
+    }))
+    ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([])
     knowledgePresenter = new KnowledgePresenter(mockConfigPresenter, mockDbDir, mockFilePresenter)
   })
 
@@ -259,6 +303,45 @@ describe('KnowledgePresenter Validation Methods', () => {
   })
 
   describe('integration with existing methods', () => {
+    it('should list files for configs saved through ConfigPresenter', async () => {
+      const config = createKnowledgeConfig('knowledge-1')
+      ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([config])
+      ;(knowledgePresenter as any).getVectorDatabasePresenter = vi.fn().mockResolvedValue({})
+
+      const result = await knowledgePresenter.listFiles(config.id)
+
+      expect(result).toEqual([])
+      expect(mockConfigPresenter.getKnowledgeConfigs).toHaveBeenCalled()
+    })
+
+    it('should reuse one store creation when listFiles is called concurrently', async () => {
+      const config = createKnowledgeConfig('knowledge-1')
+      ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([config])
+      const getVectorDatabasePresenter = vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve({}), 0)
+          })
+      )
+      ;(knowledgePresenter as any).getVectorDatabasePresenter = getVectorDatabasePresenter
+
+      const results = await Promise.all([
+        knowledgePresenter.listFiles(config.id),
+        knowledgePresenter.listFiles(config.id)
+      ])
+
+      expect(results).toEqual([[], []])
+      expect(getVectorDatabasePresenter).toHaveBeenCalledTimes(1)
+    })
+
+    it('should keep throwing when the knowledge config id is missing', async () => {
+      ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([])
+
+      await expect(knowledgePresenter.listFiles('missing-id')).rejects.toThrow(
+        'Knowledge config not found for id: missing-id'
+      )
+    })
+
     it('should not interfere with existing KnowledgePresenter functionality', () => {
       // Verify that the new methods don't break existing functionality
       expect(typeof knowledgePresenter.validateFile).toBe('function')

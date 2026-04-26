@@ -9,7 +9,6 @@ import { DeepResearchServer } from './deepResearchServer'
 import { AutoPromptingServer } from './autoPromptingServer'
 import { ConversationSearchServer } from './conversationSearchServer'
 import { BuiltinKnowledgeServer } from './builtinKnowledgeServer'
-import { BuiltinKnowledgeConfig } from '@shared/presenter'
 import { AppleServer } from './appleServer'
 
 export function getInMemoryServer(
@@ -64,11 +63,7 @@ export function getInMemoryServer(
         }
       )
     case 'builtinKnowledge':
-      return new BuiltinKnowledgeServer(
-        env as {
-          configs: BuiltinKnowledgeConfig[]
-        }
-      )
+      return new BuiltinKnowledgeServer()
     case 'deepchat-inmemory/deep-research-server':
       return new DeepResearchServer(env)
     case 'deepchat-inmemory/auto-prompting-server':
