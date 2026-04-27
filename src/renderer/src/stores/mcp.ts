@@ -382,8 +382,8 @@ export const useMcpStore = defineStore('mcp', () => {
     // 3. 未启用的inmemory服务
     // 4. 其他服务
     return servers.sort((a, b) => {
-      const aIsInmemory = a.type === 'inmemory'
-      const bIsInmemory = b.type === 'inmemory'
+      const aIsInmemory = a.type === 'inmemory' || a.source === 'deepchat'
+      const bIsInmemory = b.type === 'inmemory' || b.source === 'deepchat'
 
       // inmemory 都优先
       if (aIsInmemory && !bIsInmemory) return -1

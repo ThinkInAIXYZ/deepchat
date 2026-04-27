@@ -1118,7 +1118,37 @@
     "restartServer": "重啟服務器",
     "viewLogs": "查看日誌",
     "starting": "啟動中",
-    "error": "錯誤"
+    "error": "錯誤",
+    "computerUse": {
+      "title": "Computer Use",
+      "description": "允许 Agent 在授权后读取屏幕并操作这台 Mac。",
+      "helper": "Helper",
+      "accessibility": "辅助功能",
+      "screenRecording": "屏幕录制",
+      "mcpServer": "MCP服务",
+      "openPermissions": "打开权限",
+      "checkAgain": "重新检查",
+      "restart": "重启服务",
+      "mcpDisabledNotice": "Computer Use 已启用。打开 MCP 后服务会启动。",
+      "loadFailed": "Computer Use 状态加载失败",
+      "updateFailed": "Computer Use 设置更新失败",
+      "openPermissionsFailed": "权限引导打开失败",
+      "restartFailed": "Computer Use 服务重启失败",
+      "status": {
+        "ready": "就绪",
+        "missingHelper": "缺少 Helper",
+        "granted": "已授权",
+        "missing": "待授权",
+        "unknown": "待检测",
+        "running": "运行中",
+        "registered": "已注册",
+        "notRegistered": "待注册",
+        "error": "异常",
+        "disabled": "已关闭"
+      }
+    },
+    "managedServerReadOnly": "DeepChat托管服务",
+    "managedServerReadOnlyDesc": "请在 Computer Use 卡片中管理启用和权限"
   },
   "about": {
     "title": "關於我們",

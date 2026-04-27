@@ -69,6 +69,7 @@ import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { ProjectPresenter } from './projectPresenter'
 import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
+import { ComputerUsePresenter } from './computerUsePresenter'
 import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
@@ -186,6 +187,7 @@ export class Presenter implements IPresenter {
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
+  computerUsePresenter: ComputerUsePresenter
   hooksNotifications: HooksNotificationsService
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
@@ -238,6 +240,10 @@ export class Presenter implements IPresenter {
       configPresenter: this.configPresenter
     })
     this.mcpPresenter = new McpPresenter(this.configPresenter)
+    this.computerUsePresenter = new ComputerUsePresenter({
+      configPresenter: this.configPresenter,
+      mcpPresenter: this.mcpPresenter
+    })
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
     this.filePresenter = new FilePresenter(this.configPresenter)
@@ -781,6 +787,7 @@ export class Presenter implements IPresenter {
 
   private async initializeMcp() {
     try {
+      await this.computerUsePresenter.initialize()
       await this.mcpPresenter.initialize()
     } catch (error) {
       console.error('Failed to initialize McpPresenter:', error)
@@ -910,7 +917,8 @@ registerMainKernelRoutes(ipcMain, () =>
         workspacePresenter: presenter.workspacePresenter,
         yoBrowserPresenter: presenter.yoBrowserPresenter,
         tabPresenter: presenter.tabPresenter,
-        startupWorkloadCoordinator: presenter.startupWorkloadCoordinator
+        startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
+        computerUsePresenter: presenter.computerUsePresenter
       }))
     : undefined
 )

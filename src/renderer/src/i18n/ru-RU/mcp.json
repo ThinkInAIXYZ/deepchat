@@ -198,6 +198,10 @@
     "deepchat/apple-server": {
       "desc": "Пусть модель работает системные функции MacOS, такие как календарь, контакты, электронные письма, карты, записки, напоминания и другие системы",
       "name": "MacOS System Assistant"
+    },
+    "deepchat/computer-use": {
+      "name": "Computer Use",
+      "desc": "Lets agents read the screen and operate this Mac after permission is granted"
     }
   },
   "prompts": {

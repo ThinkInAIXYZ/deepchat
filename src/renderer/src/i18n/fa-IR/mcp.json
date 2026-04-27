@@ -198,6 +198,10 @@
     "deepchat/apple-server": {
       "desc": "بگذارید مدل عملکردهای سیستم MACOS مانند تقویم ، مخاطبین ، ایمیل ها ، نقشه ها ، یادداشت ها ، یادآوری ها و سایر سیستم ها را کار کند",
       "name": "دستیار سیستم MACOS"
+    },
+    "deepchat/computer-use": {
+      "name": "Computer Use",
+      "desc": "Lets agents read the screen and operate this Mac after permission is granted"
     }
   },
   "prompts": {

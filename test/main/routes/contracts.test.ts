@@ -37,6 +37,7 @@ describe('main kernel contracts', () => {
       expect.arrayContaining([
         'browser.attachCurrentWindow',
         'chat.sendMessage',
+        'computerUse.getStatus',
         'config.resolveDeepChatAgentConfig',
         'dialog.error',
         'dialog.respond',

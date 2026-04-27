@@ -30,11 +30,14 @@ interface ServerInfo {
   type?: string
   baseUrl?: string
   errorMessage?: string
+  source?: string
+  sourceId?: string
 }
 
 interface Props {
   server: ServerInfo
   isBuiltIn?: boolean
+  isManaged?: boolean
   isLoading?: boolean
   disabled?: boolean
   toolsCount?: number
@@ -114,6 +117,9 @@ const fullDescription = computed(() => {
     : props.server.descriptions
 })
 
+const canEdit = computed(() => !props.isManaged)
+const hasMenuActions = computed(() => canEdit.value || !props.isBuiltIn)
+
 // 检查文本是否溢出
 const checkTextOverflow = async () => {
   await nextTick()
@@ -154,7 +160,7 @@ watch(watchDescription, () => {
         </div>
 
         <!-- 操作菜单 -->
-        <DropdownMenu>
+        <DropdownMenu v-if="hasMenuActions">
           <DropdownMenuTrigger as-child>
             <Button
               variant="ghost"
@@ -165,11 +171,11 @@ watch(watchDescription, () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem :disabled="disabled" @click="$emit('edit')">
+            <DropdownMenuItem v-if="canEdit" :disabled="disabled" @click="$emit('edit')">
               <Icon icon="lucide:edit-3" class="h-4 w-4 mr-2" />
               {{ t('settings.mcp.editServer') }}
             </DropdownMenuItem>
-            <DropdownMenuSeparator v-if="!isBuiltIn" />
+            <DropdownMenuSeparator v-if="canEdit && !isBuiltIn" />
             <DropdownMenuItem
               v-if="!isBuiltIn"
               :disabled="disabled"

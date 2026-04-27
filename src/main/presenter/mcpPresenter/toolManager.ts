@@ -14,6 +14,41 @@ import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
+import { COMPUTER_USE_SERVER_NAME } from '@shared/types/computerUse'
+
+const COMPUTER_USE_READ_TOOLS = new Set([
+  'check_permissions',
+  'list_apps',
+  'list_windows',
+  'get_screen_size',
+  'get_window_state',
+  'get_accessibility_tree',
+  'get_cursor_position',
+  'get_agent_cursor_state',
+  'get_config',
+  'get_recording_state',
+  'screenshot'
+])
+
+const COMPUTER_USE_ACTION_TOOLS = new Set([
+  'launch_app',
+  'click',
+  'right_click',
+  'double_click',
+  'scroll',
+  'move_cursor',
+  'type_text',
+  'type_text_chars',
+  'press_key',
+  'hotkey',
+  'set_value',
+  'set_agent_cursor_enabled',
+  'set_agent_cursor_motion',
+  'set_recording',
+  'set_config',
+  'replay_trajectory',
+  'zoom'
+])
 
 export class ToolManager {
   private configPresenter: IConfigPresenter
@@ -224,7 +259,17 @@ export class ToolManager {
   }
 
   // 确定权限类型的新方法
-  private determinePermissionType(toolName: string): 'read' | 'write' | 'all' {
+  private determinePermissionType(toolName: string, serverName?: string): 'read' | 'write' | 'all' {
+    if (serverName === COMPUTER_USE_SERVER_NAME) {
+      if (COMPUTER_USE_READ_TOOLS.has(toolName)) {
+        return 'read'
+      }
+      if (COMPUTER_USE_ACTION_TOOLS.has(toolName)) {
+        return 'write'
+      }
+      return 'write'
+    }
+
     const lowerToolName = toolName.toLowerCase()
 
     // Read operations
@@ -312,7 +357,7 @@ export class ToolManager {
       `conversationId: ${conversationId}`
     )
 
-    const permissionType = this.determinePermissionType(originalToolName)
+    const permissionType = this.determinePermissionType(originalToolName, serverName)
     console.log(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
 
     // 1. 优先检查 session 级别的内存权限（当前会话自动执行）
@@ -400,7 +445,7 @@ export class ToolManager {
       return null // Already has permission
     }
 
-    const permissionType = this.determinePermissionType(originalName)
+    const permissionType = this.determinePermissionType(originalName, toolServerName)
     return {
       needsPermission: true,
       toolName: originalName,
@@ -534,7 +579,7 @@ export class ToolManager {
           `Permission required for tool '${originalName}' on server '${toolServerName}'.`
         )
 
-        const permissionType = this.determinePermissionType(originalName)
+        const permissionType = this.determinePermissionType(originalName, toolServerName)
 
         // Return permission request instead of error
         return {

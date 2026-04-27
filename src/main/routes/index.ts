@@ -31,6 +31,11 @@ import {
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatStopStreamRoute,
+  computerUseCheckPermissionsRoute,
+  computerUseGetStatusRoute,
+  computerUseOpenPermissionGuideRoute,
+  computerUseRestartMcpServerRoute,
+  computerUseSetEnabledRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -189,6 +194,7 @@ import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
+import type { ComputerUsePresenter } from '@/presenter/computerUsePresenter'
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -212,6 +218,7 @@ export type MainKernelRouteRuntime = {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
+  computerUsePresenter: ComputerUsePresenter
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -232,6 +239,7 @@ export function createMainKernelRouteRuntime(deps: {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
+  computerUsePresenter: ComputerUsePresenter
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -278,7 +286,8 @@ export function createMainKernelRouteRuntime(deps: {
     workspacePresenter: deps.workspacePresenter,
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
-    startupWorkloadCoordinator: deps.startupWorkloadCoordinator
+    startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
+    computerUsePresenter: deps.computerUsePresenter
   }
 }
 
@@ -428,7 +437,9 @@ function resolveTrackedRouteTask(
     routeName === mcpGetServersRoute.name ||
     routeName === mcpGetEnabledRoute.name ||
     routeName === mcpGetClientsRoute.name ||
-    routeName === mcpGetNpmRegistryStatusRoute.name
+    routeName === mcpGetNpmRegistryStatusRoute.name ||
+    routeName === computerUseGetStatusRoute.name ||
+    routeName === computerUseCheckPermissionsRoute.name
 
   if (isSettings && isSettingsMcpRuntimeRoute) {
     return {
@@ -606,6 +617,40 @@ export async function dispatchDeepchatRoute(
       const input = deviceSanitizeSvgRoute.input.parse(rawInput)
       return deviceSanitizeSvgRoute.output.parse({
         content: await runtime.devicePresenter.sanitizeSvgContent(input.svgContent)
+      })
+    }
+
+    case computerUseGetStatusRoute.name: {
+      computerUseGetStatusRoute.input.parse(rawInput)
+      return computerUseGetStatusRoute.output.parse({
+        status: await runtime.computerUsePresenter.getStatus()
+      })
+    }
+
+    case computerUseSetEnabledRoute.name: {
+      const input = computerUseSetEnabledRoute.input.parse(rawInput)
+      return computerUseSetEnabledRoute.output.parse({
+        status: await runtime.computerUsePresenter.setEnabled(input.enabled)
+      })
+    }
+
+    case computerUseOpenPermissionGuideRoute.name: {
+      const input = computerUseOpenPermissionGuideRoute.input.parse(rawInput)
+      await runtime.computerUsePresenter.openPermissionGuide(input.target)
+      return computerUseOpenPermissionGuideRoute.output.parse({ opened: true })
+    }
+
+    case computerUseCheckPermissionsRoute.name: {
+      computerUseCheckPermissionsRoute.input.parse(rawInput)
+      return computerUseCheckPermissionsRoute.output.parse({
+        permissions: await runtime.computerUsePresenter.checkPermissions()
+      })
+    }
+
+    case computerUseRestartMcpServerRoute.name: {
+      computerUseRestartMcpServerRoute.input.parse(rawInput)
+      return computerUseRestartMcpServerRoute.output.parse({
+        status: await runtime.computerUsePresenter.restartMcpServer()
       })
     }
 

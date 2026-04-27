@@ -222,6 +222,10 @@
     "deepchat/apple-server": {
       "name": "macOS系统助手",
       "desc": "让模型能操作macOS的日历、联系人、邮件、地图、备忘录、提醒事项等系统功能"
+    },
+    "deepchat/computer-use": {
+      "name": "Computer Use",
+      "desc": "让模型在授权后读取屏幕并操作这台 Mac"
     }
   },
   "prompts": {

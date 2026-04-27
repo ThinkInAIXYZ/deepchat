@@ -98,6 +98,10 @@
     "ragflowKnowledge": {
       "desc": "RAGFlow vidensbase søgetjeneste kan søge i indholdet af RAGFlow vidensbasen.",
       "name": "RAGFlow vidensbase søgning"
+    },
+    "deepchat/computer-use": {
+      "name": "Computer Use",
+      "desc": "Lets agents read the screen and operate this Mac after permission is granted"
     }
   },
   "isDefault": "Standardserver",

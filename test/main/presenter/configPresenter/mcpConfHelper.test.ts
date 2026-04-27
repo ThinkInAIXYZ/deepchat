@@ -139,6 +139,27 @@ describe('McpConfHelper', () => {
     expect(mcpStore.get('mcpServers')['deepchat/apple-server']).toBeUndefined()
   })
 
+  it('removes the Computer Use managed server on unsupported platforms', async () => {
+    const { McpConfHelper } = await loadHelper('win32')
+    const helper = new McpConfHelper()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {
+      'deepchat/computer-use': {
+        type: 'stdio',
+        command: '/helper/cua-driver',
+        args: ['mcp'],
+        enabled: true,
+        source: 'deepchat',
+        sourceId: 'computer-use'
+      }
+    })
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['deepchat/computer-use']).toBeUndefined()
+  })
+
   it('migrates legacy builtin knowledge configs out of MCP env', async () => {
     const { McpConfHelper } = await loadHelper('win32')
     const helper = new McpConfHelper()

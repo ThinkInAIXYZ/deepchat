@@ -1,5 +1,6 @@
 export * from './BrowserClient'
 export * from './ConfigClient'
+export * from './ComputerUseClient'
 export * from './ChatClient'
 export * from './DeviceClient'
 export * from './DialogClient'

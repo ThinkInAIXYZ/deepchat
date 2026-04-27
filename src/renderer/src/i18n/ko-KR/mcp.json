@@ -198,6 +198,10 @@
     "deepchat/apple-server": {
       "desc": "모델이 캘린더, 연락처, 이메일,지도, 메모, 알림 및 기타 시스템과 같은 MacOS의 시스템 기능을 작동하도록합니다.",
       "name": "MACOS 시스템 어시스턴트"
+    },
+    "deepchat/computer-use": {
+      "name": "Computer Use",
+      "desc": "Lets agents read the screen and operate this Mac after permission is granted"
     }
   },
   "prompts": {
