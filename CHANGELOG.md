@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.4-beta.3 (2026-04-27)
+- Fixed attachment date metadata transfer across IPC payloads so attachment records stay valid in chat flows
+- 修复附件日期元数据在 IPC 载荷中的传递，确保聊天流程中的附件记录保持有效
+
 ## v1.0.4-beta.2 (2026-04-27)
 - Preserved interleaved reasoning output so mixed reasoning and answer streams stay in the correct order
 - Updated the Markstream renderer to the stable 0.0.13 release for more reliable Markdown streaming
