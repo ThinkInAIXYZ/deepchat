@@ -2,46 +2,48 @@
   <div data-testid="chat-message-list" class="chat-message-list w-full min-w-0">
     <div class="mx-auto w-full max-w-5xl space-y-1 px-6 py-6">
       <template v-for="item in messages" :key="item.id">
-        <div
-          v-if="isCompactionMessageItem(item)"
-          data-compaction-indicator="true"
-          :data-compaction-status="item.compactionStatus ?? 'compacted'"
-          class="compaction-divider"
-        >
-          <div class="compaction-divider__line" />
-          <span
-            class="compaction-divider__label"
-            :class="{
-              'compaction-divider__label--compacting': item.compactionStatus === 'compacting'
-            }"
+        <div class="message-list-row">
+          <div
+            v-if="isCompactionMessageItem(item)"
+            data-compaction-indicator="true"
+            :data-compaction-status="item.compactionStatus ?? 'compacted'"
+            class="compaction-divider"
           >
-            {{ getCompactionCopy(item.compactionStatus) }}
-          </span>
-          <div class="compaction-divider__line" />
+            <div class="compaction-divider__line" />
+            <span
+              class="compaction-divider__label"
+              :class="{
+                'compaction-divider__label--compacting': item.compactionStatus === 'compacting'
+              }"
+            >
+              {{ getCompactionCopy(item.compactionStatus) }}
+            </span>
+            <div class="compaction-divider__line" />
+          </div>
+          <MessageItemUser
+            v-else-if="item.role === 'user'"
+            :message="item as DisplayUserMessage"
+            :is-read-only="isReadOnly"
+            @retry="onRetry"
+            @delete="onDelete"
+            @edit-save="onEditSave"
+          />
+          <MessageItemAssistant
+            v-else-if="item.role === 'assistant'"
+            :message="item as DisplayAssistantMessage"
+            :use-legacy-actions="false"
+            :is-in-generating-thread="isGenerating"
+            :show-trace="traceMessageIdSet.has(item.id)"
+            :is-capturing-image="isCapturing"
+            :is-read-only="isReadOnly"
+            @retry="onRetry"
+            @delete="onDelete"
+            @fork="onFork"
+            @continue="onContinue"
+            @trace="onTrace"
+            @copy-image="handleCopyImage"
+          />
         </div>
-        <MessageItemUser
-          v-else-if="item.role === 'user'"
-          :message="item as DisplayUserMessage"
-          :is-read-only="isReadOnly"
-          @retry="onRetry"
-          @delete="onDelete"
-          @edit-save="onEditSave"
-        />
-        <MessageItemAssistant
-          v-else-if="item.role === 'assistant'"
-          :message="item as DisplayAssistantMessage"
-          :use-legacy-actions="false"
-          :is-in-generating-thread="isGenerating"
-          :show-trace="traceMessageIdSet.has(item.id)"
-          :is-capturing-image="isCapturing"
-          :is-read-only="isReadOnly"
-          @retry="onRetry"
-          @delete="onDelete"
-          @fork="onFork"
-          @continue="onContinue"
-          @trace="onTrace"
-          @copy-image="handleCopyImage"
-        />
       </template>
       <div v-if="ephemeralRateLimitBlock" data-rate-limit-indicator="true" class="pl-11 pr-11 pt-1">
         <MessageBlockAction
@@ -172,6 +174,11 @@ const handleCopyImage = async (
 </script>
 
 <style scoped>
+.message-list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}
+
 .compaction-divider {
   display: flex;
   align-items: center;

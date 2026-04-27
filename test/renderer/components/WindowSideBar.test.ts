@@ -265,6 +265,7 @@ const setup = async (options: SetupOptions = {}) => {
         DialogTitle: passthrough,
         Button: buttonStub,
         Input: inputStub,
+        AgentAvatar: true,
         Icon: true,
         ModelIcon: true
       }
@@ -391,12 +392,12 @@ describe('WindowSideBar agent switch', () => {
       await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).not.toContain('Pinned Session')
+      expect(wrapper.get('[data-group-id="__pinned__"]').attributes('aria-expanded')).toBe('false')
 
       await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).toContain('Pinned Session')
+      expect(wrapper.get('[data-group-id="__pinned__"]').attributes('aria-expanded')).toBe('true')
     },
     TEST_TIMEOUT_MS
   )
@@ -544,12 +545,16 @@ describe('WindowSideBar agent switch', () => {
       await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).not.toContain('Today Session')
+      expect(wrapper.get('[data-group-id="common.time.today"]').attributes('aria-expanded')).toBe(
+        'false'
+      )
 
       await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).toContain('Today Session')
+      expect(wrapper.get('[data-group-id="common.time.today"]').attributes('aria-expanded')).toBe(
+        'true'
+      )
     },
     TEST_TIMEOUT_MS
   )
@@ -582,12 +587,16 @@ describe('WindowSideBar agent switch', () => {
       await wrapper.find('[data-group-id="project:/tmp/deepchat"]').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).not.toContain('Project Session')
+      expect(
+        wrapper.get('[data-group-id="project:/tmp/deepchat"]').attributes('aria-expanded')
+      ).toBe('false')
 
       await wrapper.find('[data-group-id="project:/tmp/deepchat"]').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).toContain('Project Session')
+      expect(
+        wrapper.get('[data-group-id="project:/tmp/deepchat"]').attributes('aria-expanded')
+      ).toBe('true')
     },
     TEST_TIMEOUT_MS
   )
@@ -631,8 +640,16 @@ describe('WindowSideBar agent switch', () => {
       await wrapper.find('[data-group-id="/tmp/workspaces/company-a/deepchat"]').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).not.toContain('Company A Session')
-      expect(wrapper.text()).toContain('Company B Session')
+      expect(
+        wrapper
+          .get('[data-group-id="/tmp/workspaces/company-a/deepchat"]')
+          .attributes('aria-expanded')
+      ).toBe('false')
+      expect(
+        wrapper
+          .get('[data-group-id="/tmp/workspaces/company-b/deepchat"]')
+          .attributes('aria-expanded')
+      ).toBe('true')
     },
     TEST_TIMEOUT_MS
   )

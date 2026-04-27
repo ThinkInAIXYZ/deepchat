@@ -2,11 +2,11 @@
   <TooltipProvider :delay-duration="200">
     <div
       data-testid="window-sidebar"
-      class="flex flex-row h-full shrink-0 window-drag-region transition-all duration-200"
+      class="window-sidebar-shell flex flex-row h-full shrink-0 overflow-hidden window-drag-region transition-[width] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
       :class="collapsed ? 'w-12' : 'w-[288px]'"
     >
       <!-- Left Column: Agent Icons (48px) -->
-      <div class="flex flex-col items-center shrink-0 pt-2 pb-2 gap-1 w-12">
+      <div class="window-no-drag-region flex flex-col items-center shrink-0 pt-2 pb-2 gap-1 w-12">
         <!-- All agents button -->
         <Tooltip>
           <TooltipTrigger as-child>
@@ -129,9 +129,13 @@
 
       <!-- Right Column: Session List (240px) -->
       <div
-        v-show="!collapsed"
         data-testid="window-sidebar-session-column"
-        class="window-no-drag-region flex flex-col w-0 flex-1 min-w-0"
+        class="window-sidebar-session-column window-no-drag-region flex flex-col w-0 flex-1 min-w-0 transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+        :class="
+          collapsed ? 'pointer-events-none translate-x-1.5 opacity-0' : 'translate-x-0 opacity-100'
+        "
+        :aria-hidden="collapsed ? 'true' : undefined"
+        :inert="collapsed ? true : undefined"
       >
         <!-- Header -->
         <div class="flex items-center justify-between px-3 h-10 shrink-0">
@@ -246,7 +250,7 @@
         <div
           ref="sessionListRef"
           class="session-list flex-1 overflow-y-auto px-1.5"
-          @scroll="handleSessionListScroll"
+          @scroll.passive="handleSessionListScroll"
         >
           <div v-if="pinnedSessions.length > 0" class="pt-2">
             <button
@@ -267,24 +271,22 @@
               </span>
             </button>
 
-            <Transition name="sidebar-group-collapse">
-              <div v-if="!isPinnedSectionCollapsed" class="space-y-0.5">
-                <WindowSideBarSessionItem
-                  v-for="session in pinnedSessions"
-                  :key="`pinned-${session.id}`"
-                  :session="session"
-                  :active="sessionStore.activeSessionId === session.id"
-                  region="pinned"
-                  :hero-hidden="pinFlightSessionId === session.id"
-                  :force-pin-docked="pinDockedSessionId === session.id"
-                  :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
-                  :search-query="sessionSearchQuery"
-                  @select="handleSessionClick"
-                  @toggle-pin="handleTogglePin"
-                  @delete="openDeleteDialog"
-                />
-              </div>
-            </Transition>
+            <div v-show="!isPinnedSectionCollapsed" class="space-y-0.5">
+              <WindowSideBarSessionItem
+                v-for="session in pinnedSessions"
+                :key="`pinned-${session.id}`"
+                :session="session"
+                :active="sessionStore.activeSessionId === session.id"
+                region="pinned"
+                :hero-hidden="pinFlightSessionId === session.id"
+                :force-pin-docked="pinDockedSessionId === session.id"
+                :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                :search-query="sessionSearchQuery"
+                @select="handleSessionClick"
+                @toggle-pin="handleTogglePin"
+                @delete="openDeleteDialog"
+              />
+            </div>
           </div>
 
           <template v-for="group in filteredGroups" :key="getGroupIdentifier(group)">
@@ -305,24 +307,22 @@
                 {{ getGroupLabel(group) }}
               </span>
             </button>
-            <Transition name="sidebar-group-collapse">
-              <div v-if="!isGroupCollapsed(group)" class="space-y-0.5">
-                <WindowSideBarSessionItem
-                  v-for="session in group.sessions"
-                  :key="session.id"
-                  :session="session"
-                  :active="sessionStore.activeSessionId === session.id"
-                  region="grouped"
-                  :hero-hidden="pinFlightSessionId === session.id"
-                  :force-pin-docked="pinDockedSessionId === session.id"
-                  :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
-                  :search-query="sessionSearchQuery"
-                  @select="handleSessionClick"
-                  @toggle-pin="handleTogglePin"
-                  @delete="openDeleteDialog"
-                />
-              </div>
-            </Transition>
+            <div v-show="!isGroupCollapsed(group)" class="space-y-0.5">
+              <WindowSideBarSessionItem
+                v-for="session in group.sessions"
+                :key="session.id"
+                :session="session"
+                :active="sessionStore.activeSessionId === session.id"
+                region="grouped"
+                :hero-hidden="pinFlightSessionId === session.id"
+                :force-pin-docked="pinDockedSessionId === session.id"
+                :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                :search-query="sessionSearchQuery"
+                @select="handleSessionClick"
+                @toggle-pin="handleTogglePin"
+                @delete="openDeleteDialog"
+              />
+            </div>
           </template>
 
           <div
@@ -471,6 +471,7 @@ let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
 let pinFeedbackTimer: number | null = null
+let sessionListScrollFrame: number | null = null
 const sidebarSelectedAgentId = computed(() => {
   const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
   if (sessionStore.hasActiveSession && activeSessionAgentId) {
@@ -821,7 +822,7 @@ const restoreSessionListScroll = (scrollTop: number | null) => {
   sessionListRef.value.scrollTop = scrollTop
 }
 
-const handleSessionListScroll = () => {
+const performSessionListScrollCheck = () => {
   const listElement = sessionListRef.value
   if (!listElement || sessionStore.loadingMore || !sessionStore.hasMore) {
     return
@@ -833,6 +834,17 @@ const handleSessionListScroll = () => {
   if (distanceToBottom <= 96) {
     void sessionStore.loadNextPage()
   }
+}
+
+const handleSessionListScroll = () => {
+  if (sessionListScrollFrame !== null) {
+    return
+  }
+
+  sessionListScrollFrame = window.requestAnimationFrame(() => {
+    sessionListScrollFrame = null
+    performSessionListScrollCheck()
+  })
 }
 
 const getSessionItemElement = (sessionId: string, region: 'pinned' | 'grouped') =>
@@ -1001,6 +1013,11 @@ onUnmounted(() => {
     remoteControlStatusTimer = null
   }
 
+  if (sessionListScrollFrame !== null) {
+    window.cancelAnimationFrame(sessionListScrollFrame)
+    sessionListScrollFrame = null
+  }
+
   pinFlightSessionId.value = null
   pinDockedSessionId.value = null
   clearPinFeedback()
@@ -1014,6 +1031,16 @@ onUnmounted(() => {
 
 .window-no-drag-region {
   -webkit-app-region: no-drag;
+}
+
+.window-sidebar-shell {
+  contain: layout style paint;
+}
+
+.window-sidebar-session-column {
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform, opacity;
 }
 
 .session-list {
@@ -1046,26 +1073,10 @@ input {
   margin-left: var(--pin-text-shift) !important;
 }
 
-.sidebar-group-collapse-enter-active,
-.sidebar-group-collapse-leave-active {
-  overflow: hidden;
-  transition:
-    max-height 180ms ease,
-    opacity 160ms ease,
-    transform 180ms ease;
-}
-
-.sidebar-group-collapse-enter-from,
-.sidebar-group-collapse-leave-to {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-.sidebar-group-collapse-enter-to,
-.sidebar-group-collapse-leave-from {
-  max-height: 720px;
-  opacity: 1;
-  transform: translateY(0);
+@media (prefers-reduced-motion: reduce) {
+  .window-sidebar-shell,
+  .window-sidebar-session-column {
+    transition: none;
+  }
 }
 </style>

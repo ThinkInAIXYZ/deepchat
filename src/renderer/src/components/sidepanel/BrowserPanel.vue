@@ -85,7 +85,7 @@ const currentUrl = ref('about:blank')
 const urlInput = ref('')
 const canGoBack = ref(false)
 const canGoForward = ref(false)
-const lastSyncedBounds = ref<Rectangle | null>(null)
+let lastSyncedBounds: Rectangle | null = null
 const pendingBrowserDestroySessionIds = new Set<string>()
 let visibilityRunId = 0
 let stopOpenRequestedListener: (() => void) | null = null
@@ -240,11 +240,11 @@ const syncVisibleBounds = async () => {
   if (!rect || rect.width <= 0 || rect.height <= 0) {
     return
   }
-  if (areBoundsEqual(lastSyncedBounds.value, rect)) {
+  if (areBoundsEqual(lastSyncedBounds, rect)) {
     return
   }
 
-  lastSyncedBounds.value = rect
+  lastSyncedBounds = rect
   await callBrowserAction('updateCurrentWindowBounds', () =>
     browserClient.updateCurrentWindowBounds(sessionId, rect, true)
   )
@@ -278,7 +278,7 @@ const hideEmbedded = async (sessionId: string = currentSessionId.value) => {
     return
   }
 
-  const hiddenBounds = lastSyncedBounds.value ??
+  const hiddenBounds = lastSyncedBounds ??
     captureContainerBounds() ?? {
       x: 0,
       y: 0,
@@ -313,7 +313,7 @@ const ensureVisibleAttachment = async () => {
   }
 
   const visibleBounds = roundBounds(stableRect)
-  lastSyncedBounds.value = visibleBounds
+  lastSyncedBounds = visibleBounds
   await callBrowserAction('updateCurrentWindowBounds(visible)', () =>
     browserClient.updateCurrentWindowBounds(currentSessionId.value, visibleBounds, true)
   )

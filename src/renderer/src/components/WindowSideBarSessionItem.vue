@@ -117,7 +117,7 @@ const titleSegments = computed(() => {
 <template>
   <div
     data-testid="sidebar-session-item"
-    class="session-item no-drag flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 text-left transition-colors duration-200"
+    class="session-item no-drag flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 text-left transition-colors duration-150"
     :class="[
       active ? 'bg-accent text-accent-foreground' : 'text-foreground/80 hover:bg-accent/50',
       heroHidden && 'is-hero-hidden'
@@ -185,7 +185,6 @@ const titleSegments = computed(() => {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  transform: translateZ(0);
   min-height: 2.625rem;
   --pin-inline-start: 0.45rem;
   --pin-text-shift: 1.95rem;
@@ -260,19 +259,16 @@ const titleSegments = computed(() => {
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent),
     var(--action-shadow);
-  backdrop-filter: blur(10px);
   transition:
     background-color 180ms ease,
     border-color 180ms ease,
     color 180ms ease,
-    box-shadow 220ms ease,
-    transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1);
+    transform 160ms ease;
 }
 
 .session-action-button:hover {
   background-color: color-mix(in srgb, var(--accent) 80%, var(--background) 20%);
   border-color: color-mix(in srgb, var(--border) 64%, var(--foreground) 8%);
-  box-shadow: 0 16px 32px -24px rgb(15 23 42 / 0.58);
 }
 
 .pin-button {
@@ -288,11 +284,11 @@ const titleSegments = computed(() => {
   transition:
     opacity 160ms ease,
     visibility 0s linear 160ms,
-    transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    transform 160ms ease,
     background-color 180ms ease,
     border-color 180ms ease,
     color 180ms ease,
-    box-shadow 220ms ease;
+    box-shadow 160ms ease;
 }
 
 .pin-button::before {
@@ -330,7 +326,6 @@ const titleSegments = computed(() => {
   border-color: transparent;
   background-color: transparent;
   box-shadow: none;
-  backdrop-filter: none;
   transform: translate3d(0, -50%, 0) scale(1);
   transition: none;
 }
@@ -347,7 +342,6 @@ const titleSegments = computed(() => {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
-  backdrop-filter: none;
 }
 
 .session-item[data-pin-state='docked'] .pin-button:hover {
@@ -373,7 +367,7 @@ const titleSegments = computed(() => {
 }
 
 .session-item[data-pin-state='docked'] .pin-button:hover .pin-button__icon {
-  transform: translateY(-1px) scale(1.06) 2s;
+  transform: translateY(-1px) scale(1.06);
 }
 
 .session-item[data-pin-fx='pinning'] .pin-button::before {
@@ -460,8 +454,7 @@ const titleSegments = computed(() => {
   mask-size: 42% 100%;
   -webkit-mask-position: -26% 0;
   mask-position: -26% 0;
-  will-change: mask-position;
-  animation: session-loading-sheen 2.5s cubic-bezier(0.4, 0.08, 0.22, 0.98) infinite;
+  animation: session-loading-sheen 2.5s linear infinite;
 }
 
 .right-button {
