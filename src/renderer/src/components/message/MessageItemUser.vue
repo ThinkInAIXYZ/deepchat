@@ -113,7 +113,7 @@ import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
 const COLLAPSE_EXPLICIT_LINE_THRESHOLD = 8
@@ -148,6 +148,27 @@ const getVisibleMessageText = (message: DisplayUserMessage) => {
   return message.content.text || ''
 }
 
+const countExplicitLines = (value: string) => {
+  if (!value) {
+    return 0
+  }
+
+  let count = 1
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code === 10) {
+      count += 1
+    } else if (code === 13) {
+      count += 1
+      if (value.charCodeAt(index + 1) === 10) {
+        index += 1
+      }
+    }
+  }
+
+  return count
+}
+
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
 const { t } = useI18n()
@@ -163,9 +184,7 @@ const editTextarea = ref<HTMLTextAreaElement | null>(null)
 const isExpanded = ref(true)
 const hasManualCollapsePreference = ref(false)
 const visibleMessageText = computed(() => getVisibleMessageText(props.message))
-const explicitLineCount = computed(() =>
-  visibleMessageText.value ? visibleMessageText.value.split(/\r\n|\r|\n/).length : 0
-)
+const explicitLineCount = computed(() => countExplicitLines(visibleMessageText.value))
 const isCollapsible = computed(
   () =>
     visibleMessageText.value.length >= COLLAPSE_CHAR_THRESHOLD ||
@@ -271,7 +290,9 @@ const handleMentionClick = async (_block: DisplayUserMessageMentionBlock) => {
   return
 }
 
-const autoResize = () => {
+let pendingResizeFrame: number | null = null
+
+const runAutoResize = () => {
   const el = editTextarea.value
   if (!el) return
   el.style.height = 'auto'
@@ -284,6 +305,17 @@ const autoResize = () => {
   } else {
     el.style.overflowY = 'hidden'
   }
+}
+
+const autoResize = () => {
+  if (pendingResizeFrame !== null) {
+    window.cancelAnimationFrame(pendingResizeFrame)
+  }
+
+  pendingResizeFrame = window.requestAnimationFrame(() => {
+    pendingResizeFrame = null
+    runAutoResize()
+  })
 }
 
 watch(editedText, () => {
@@ -309,6 +341,13 @@ watch(
   },
   { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  if (pendingResizeFrame !== null) {
+    window.cancelAnimationFrame(pendingResizeFrame)
+    pendingResizeFrame = null
+  }
+})
 </script>
 
 <style scoped>

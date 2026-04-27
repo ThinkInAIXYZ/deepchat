@@ -50,6 +50,7 @@ const referenceStore = useReferenceStore()
 const sessionClient = createSessionClient()
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
+let searchResultsPromise: ReturnType<typeof sessionClient.getSearchResults> | null = null
 const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)
 const effectiveThreadId = computed(() => props.threadId ?? fallbackThreadId)
 const effectiveLinkContext = computed<MarkdownLinkContext>(() => {
@@ -83,6 +84,11 @@ const { navigateLink } = useMarkdownLinkNavigation({
   linkContext: effectiveLinkContext
 })
 
+const getSearchResults = () => {
+  searchResultsPromise ??= sessionClient.getSearchResults(effectiveMessageId.value)
+  return searchResultsPromise
+}
+
 const updateContent = useDebounceFn(
   (value: string) => {
     debouncedContent.value = value
@@ -97,6 +103,10 @@ watch(
     updateContent(value)
   }
 )
+
+watch(effectiveMessageId, () => {
+  searchResultsPromise = null
+})
 
 watch(
   customRendererId,
@@ -117,7 +127,7 @@ watch(
           messageId: effectiveMessageId.value,
           threadId: effectiveThreadId.value,
           onClick(event?: MouseEvent) {
-            sessionClient.getSearchResults(effectiveMessageId.value).then((results) => {
+            getSearchResults().then((results) => {
               const index = parseInt(_props.node.id, 10) - 1
               if (index >= 0 && index < results.length) {
                 void navigateLink(results[index].url, event)
@@ -126,7 +136,7 @@ watch(
           },
           onMouseEnter() {
             referenceStore.hideReference()
-            sessionClient.getSearchResults(effectiveMessageId.value).then((results) => {
+            getSearchResults().then((results) => {
               const index = parseInt(_props.node.id, 10) - 1
               if (index >= 0 && index < results.length && referenceNode.value) {
                 referenceStore.showReference(

@@ -10,6 +10,7 @@ type SetupOptions = {
   newConversationTargetAgentId?: string | null
   sessionError?: string | null
   activeSessionId?: string | null
+  bootstrapReject?: boolean
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -35,17 +36,21 @@ const setup = async (options: SetupOptions = {}) => {
       (options.currentRoute === 'chat' ? 'session-1' : null),
     error: options.sessionError ?? null,
     newConversationTargetAgentId: options.newConversationTargetAgentId ?? 'deepchat',
+    hasLoadedInitialPage: false,
+    applyBootstrapShell: vi.fn().mockResolvedValue(undefined),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     startNewConversation: vi.fn().mockResolvedValue(undefined)
   })
   const agentStore = reactive({
     selectedAgentId: options.selectedAgentId ?? null,
+    applyBootstrapAgents: vi.fn(),
     fetchAgents: vi.fn().mockResolvedValue(undefined)
   })
   const sidebarStore = reactive({
     collapsed: options.collapsed ?? false
   })
   const projectStore = {
+    applyBootstrapDefaultProjectPath: vi.fn(),
     loadDefaultProjectPath: vi.fn().mockResolvedValue(undefined),
     fetchProjects: vi.fn().mockResolvedValue(undefined)
   }
@@ -76,6 +81,31 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/ollamaStore', () => ({
     useOllamaStore: () => ollamaStore
+  }))
+  vi.doMock('@api/StartupClient', () => ({
+    createStartupClient: () => ({
+      getBootstrap: vi.fn().mockImplementation(async () => {
+        if (options.bootstrapReject) {
+          throw new Error('bootstrap failed')
+        }
+
+        return {
+          startupRunId: 'run-1',
+          activeSessionId: sessionStore.activeSessionId,
+          activeSession: sessionStore.activeSession,
+          agents:
+            agentStore.selectedAgentId === null
+              ? []
+              : [
+                  {
+                    id: agentStore.selectedAgentId,
+                    name: agentStore.selectedAgentId
+                  }
+                ],
+          defaultProjectPath: 'C:/repo'
+        }
+      })
+    })
   }))
   vi.doMock('@/lib/startupDeferred', () => ({
     markStartupInteractive,
@@ -160,7 +190,7 @@ const setup = async (options: SetupOptions = {}) => {
   }
 }
 
-describe('ChatTabView collapsed new chat button', () => {
+describe('ChatTabView startup and routing', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
@@ -191,7 +221,7 @@ describe('ChatTabView collapsed new chat button', () => {
       })
 
     expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
-    expect(projectStore.loadDefaultProjectPath).toHaveBeenCalledTimes(1)
+    expect(projectStore.applyBootstrapDefaultProjectPath).toHaveBeenCalledWith('C:/repo')
     expect(pageRouter.initialize).toHaveBeenCalledWith({
       activeSessionId: 'session-42'
     })
@@ -205,7 +235,8 @@ describe('ChatTabView collapsed new chat button', () => {
       collapsed: false,
       currentRoute: 'newThread',
       activeSessionId: null,
-      sessionError: 'Failed to load sessions'
+      sessionError: 'Failed to load sessions',
+      bootstrapReject: true
     })
 
     expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
@@ -229,7 +260,7 @@ describe('ChatTabView collapsed new chat button', () => {
     })
   })
 
-  it('hides the collapsed new chat button when the sidebar is expanded', async () => {
+  it('does not render the legacy collapsed new chat button when the sidebar is expanded', async () => {
     const { wrapper } = await setup({
       collapsed: false,
       currentRoute: 'newThread',
@@ -239,8 +270,8 @@ describe('ChatTabView collapsed new chat button', () => {
     expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
   })
 
-  it('shows the collapsed new chat button on the all-agents welcome page', async () => {
-    const { wrapper, sessionStore } = await setup({
+  it('does not render the legacy collapsed new chat button on the all-agents welcome page', async () => {
+    const { wrapper } = await setup({
       collapsed: true,
       currentRoute: 'newThread',
       selectedAgentId: null,
@@ -248,14 +279,10 @@ describe('ChatTabView collapsed new chat button', () => {
     })
 
     expect(wrapper.find('[data-testid="agent-welcome-page"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(true)
-
-    await wrapper.get('[data-testid="collapsed-new-chat-button"]').trigger('click')
-
-    expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
+    expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
   })
 
-  it('shows the collapsed new chat button on the selected-agent new thread page', async () => {
+  it('does not render the legacy collapsed new chat button on the selected-agent new thread page', async () => {
     const { wrapper } = await setup({
       collapsed: true,
       currentRoute: 'newThread',
@@ -264,10 +291,10 @@ describe('ChatTabView collapsed new chat button', () => {
     })
 
     expect(wrapper.find('[data-testid="new-thread-page"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
   })
 
-  it('shows the collapsed new chat button on the chat page', async () => {
+  it('does not render the legacy collapsed new chat button on the chat page', async () => {
     const { wrapper } = await setup({
       collapsed: true,
       currentRoute: 'chat',
@@ -277,6 +304,6 @@ describe('ChatTabView collapsed new chat button', () => {
     })
 
     expect(wrapper.find('[data-testid="chat-page"]').text()).toContain('session-42')
-    expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
   })
 })

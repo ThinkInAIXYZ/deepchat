@@ -2,7 +2,7 @@
   <div class="flex flex-col w-full">
     <div
       data-testid="tool-call-trigger"
-      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-150 select-none cursor-pointer overflow-hidden bg-accent hover:bg-accent/40"
+      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none cursor-pointer overflow-hidden bg-accent hover:bg-accent/40"
       @click="toggleExpanded"
     >
       <span
@@ -36,10 +36,10 @@
 
     <!-- 详细内容区域 -->
     <transition
-      enter-active-class="transition-all duration-200"
+      enter-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
       enter-from-class="opacity-0 -translate-y-4 scale-95"
       enter-to-class="opacity-100 translate-y-0 scale-100"
-      leave-active-class="transition-all duration-200"
+      leave-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
       leave-from-class="opacity-100 translate-y-0 scale-100"
       leave-to-class="opacity-0 -translate-y-4 scale-95"
     >
@@ -56,7 +56,7 @@
             type="button"
             :disabled="!task.sessionId"
             :class="[
-              'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-150 overflow-hidden',
+              'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] overflow-hidden',
               task.sessionId
                 ? 'cursor-pointer bg-background hover:bg-accent/60'
                 : 'cursor-default bg-background/80 opacity-70'
@@ -103,7 +103,7 @@
                 {{ t('toolCall.params') }}
               </h5>
               <button
-                class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
                 @click.stop="copyParams"
               >
                 <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
@@ -133,7 +133,7 @@
                 {{ isTerminalTool ? t('toolCall.terminalOutput') : t('toolCall.responseData') }}
               </h5>
               <button
-                class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
                 @click.stop="copyResponse"
               >
                 <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
@@ -176,7 +176,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
@@ -561,14 +561,20 @@ watch(
 
 const paramsCopyText = ref(t('common.copy'))
 const responseCopyText = ref(t('common.copy'))
+let paramsCopyResetTimer: number | null = null
+let responseCopyResetTimer: number | null = null
 
 const copyParams = async () => {
   if (!hasParams.value) return
   try {
     deviceClient.copyText(paramsText.value)
     paramsCopyText.value = t('common.copySuccess')
-    setTimeout(() => {
+    if (paramsCopyResetTimer !== null) {
+      window.clearTimeout(paramsCopyResetTimer)
+    }
+    paramsCopyResetTimer = window.setTimeout(() => {
       paramsCopyText.value = t('common.copy')
+      paramsCopyResetTimer = null
     }, 2000)
   } catch (error) {
     console.error('[MessageBlockToolCall] Failed to copy params:', error)
@@ -580,8 +586,12 @@ const copyResponse = async () => {
   try {
     deviceClient.copyText(responseText.value)
     responseCopyText.value = t('common.copySuccess')
-    setTimeout(() => {
+    if (responseCopyResetTimer !== null) {
+      window.clearTimeout(responseCopyResetTimer)
+    }
+    responseCopyResetTimer = window.setTimeout(() => {
       responseCopyText.value = t('common.copy')
+      responseCopyResetTimer = null
     }, 2000)
   } catch (error) {
     console.error('[MessageBlockToolCall] Failed to copy response:', error)
@@ -619,6 +629,18 @@ function getSubagentModeLabel(mode: string): string {
       return mode
   }
 }
+
+onBeforeUnmount(() => {
+  if (paramsCopyResetTimer !== null) {
+    window.clearTimeout(paramsCopyResetTimer)
+    paramsCopyResetTimer = null
+  }
+
+  if (responseCopyResetTimer !== null) {
+    window.clearTimeout(responseCopyResetTimer)
+    responseCopyResetTimer = null
+  }
+})
 
 function getSubagentStatusLabel(status: string): string {
   switch (status) {

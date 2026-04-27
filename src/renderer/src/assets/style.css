@@ -110,11 +110,18 @@
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
 
-    --animation-accordion-down: accordion-down 0.2s ease-out;
-    --animation-accordion-up: accordion-up 0.2s ease-out;
-    --animation-collapsible-down: collapsible-down 0.2s ease-in-out;
-    --animation-collapsible-up: collapsible-up 0.2s ease-in-out;
-    --animation-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    --animation-accordion-down: accordion-down var(--dc-motion-fast) var(--dc-ease-out-soft);
+    --animation-accordion-up: accordion-up var(--dc-motion-fast) var(--dc-ease-out-soft);
+    --animation-collapsible-down: collapsible-down var(--dc-motion-default)
+      var(--dc-ease-out-express);
+    --animation-collapsible-up: collapsible-up var(--dc-motion-default) var(--dc-ease-out-express);
+    --animation-pulse: pulse 2.4s var(--dc-ease-out-soft) infinite;
+
+    --dc-motion-fast: 140ms;
+    --dc-motion-default: 220ms;
+    --dc-motion-slow: 320ms;
+    --dc-ease-out-express: cubic-bezier(0.16, 1, 0.3, 1);
+    --dc-ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
     --display-weight: 700;
     --text-weight: 400;
@@ -833,13 +840,36 @@
   }
 
   body {
-    /* background-color: var(--background); */
     color: var(--foreground);
     font-weight: var(--text-weight);
+    transition:
+      color var(--dc-motion-default) var(--dc-ease-out-soft),
+      background-color var(--dc-motion-default) var(--dc-ease-out-soft);
   }
 
   html {
     font-family: var(--dc-font-family);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    scroll-behavior: smooth;
+    transition:
+      color var(--dc-motion-default) var(--dc-ease-out-soft),
+      background-color var(--dc-motion-default) var(--dc-ease-out-soft);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      transition-duration: 1ms !important;
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+    }
   }
 
   code,
