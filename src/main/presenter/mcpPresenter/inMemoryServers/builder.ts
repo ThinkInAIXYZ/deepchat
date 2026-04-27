@@ -27,41 +27,11 @@ export function getInMemoryServer(
     case 'deepResearch':
       return new DeepResearchServer(env)
     case 'difyKnowledge':
-      return new DifyKnowledgeServer(
-        env as {
-          configs: {
-            apiKey: string
-            endpoint: string
-            datasetId: string
-            description: string
-            enabled: boolean
-          }[]
-        }
-      )
+      return new DifyKnowledgeServer(env)
     case 'ragflowKnowledge':
-      return new RagflowKnowledgeServer(
-        env as {
-          configs: {
-            apiKey: string
-            endpoint: string
-            datasetIds: string[]
-            description: string
-            enabled: boolean
-          }[]
-        }
-      )
+      return new RagflowKnowledgeServer(env)
     case 'fastGptKnowledge':
-      return new FastGptKnowledgeServer(
-        env as {
-          configs: {
-            apiKey: string
-            endpoint: string
-            datasetId: string
-            description: string
-            enabled: boolean
-          }[]
-        }
-      )
+      return new FastGptKnowledgeServer(env)
     case 'builtinKnowledge':
       return new BuiltinKnowledgeServer()
     case 'deepchat-inmemory/deep-research-server':

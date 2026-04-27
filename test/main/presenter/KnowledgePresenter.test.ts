@@ -4,6 +4,7 @@ import { IConfigPresenter, IFilePresenter } from '../../../src/shared/presenter'
 import { FileValidationResult } from '../../../src/main/presenter/filePresenter/FileValidationService'
 import { DuckDBPresenter } from '../../../src/main/presenter/knowledgePresenter/database/duckdbPresenter'
 import { KnowledgeStorePresenter } from '../../../src/main/presenter/knowledgePresenter/knowledgeStorePresenter'
+import fs from 'fs'
 
 // Mock all external dependencies
 vi.mock('electron', () => ({
@@ -340,6 +341,24 @@ describe('KnowledgePresenter Validation Methods', () => {
       await expect(knowledgePresenter.listFiles('missing-id')).rejects.toThrow(
         'Knowledge config not found for id: missing-id'
       )
+    })
+
+    it('should remove local storage when an in-flight store creation fails during delete', async () => {
+      const config = createKnowledgeConfig('knowledge-1')
+      ;(knowledgePresenter as any).storePresenterInitTasks.set(
+        config.id,
+        Promise.reject(new Error('failed init'))
+      )
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+
+      await expect(knowledgePresenter.delete(config.id)).resolves.toBeUndefined()
+
+      expect(fs.rmSync).toHaveBeenCalledWith('/mock/db/dir/KnowledgeBase/knowledge-1', {
+        recursive: true
+      })
+      expect(fs.rmSync).toHaveBeenCalledWith('/mock/db/dir/KnowledgeBase/knowledge-1.wal', {
+        recursive: true
+      })
     })
 
     it('should not interfere with existing KnowledgePresenter functionality', () => {

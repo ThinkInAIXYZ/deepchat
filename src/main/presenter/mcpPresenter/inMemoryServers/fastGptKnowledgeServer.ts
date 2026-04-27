@@ -47,15 +47,7 @@ export class FastGptKnowledgeServer {
     enabled: boolean
   }> = []
 
-  constructor(env?: {
-    configs: {
-      apiKey: string
-      endpoint: string
-      datasetId: string
-      description: string
-      enabled: boolean
-    }[]
-  }) {
+  constructor(env?: Record<string, unknown>) {
     console.log('FastGptKnowledgeServer constructor', env)
     if (!env) {
       throw new Error('需要提供FastGPT知识库配置')
@@ -69,22 +61,28 @@ export class FastGptKnowledgeServer {
 
     // 处理每个配置
     for (const env of envs) {
-      if (!env.apiKey) {
+      const config = env && typeof env === 'object' ? (env as Record<string, unknown>) : {}
+      const apiKey = String(config.apiKey ?? '')
+      const datasetId = String(config.datasetId ?? '')
+      const description = String(config.description ?? '')
+      const endpoint = String(config.endpoint ?? '') || 'http://localhost:3000/api'
+
+      if (!apiKey) {
         throw new Error('需要提供FastGPT API Key')
       }
-      if (!env.datasetId) {
+      if (!datasetId) {
         throw new Error('需要提供FastGPT Dataset ID')
       }
-      if (!env.description) {
+      if (!description) {
         throw new Error('需要提供对这个知识库的描述，以方便ai决定是否检索此知识库')
       }
 
       this.configs.push({
-        apiKey: env.apiKey,
-        datasetId: env.datasetId,
-        endpoint: env.endpoint || 'http://localhost:3000/api',
-        description: env.description,
-        enabled: env.enabled
+        apiKey,
+        datasetId,
+        endpoint,
+        description,
+        enabled: config.enabled === true || String(config.enabled ?? '').toLowerCase() === 'true'
       })
     }
 

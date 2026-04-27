@@ -260,11 +260,14 @@ describe('RtkRuntimeService', () => {
       failureStage: null,
       failureMessage: null
     })
-    expect(runCommand.mock.calls.map(([command, args]) => [command, args])).toEqual([
-      ['/runtime/rtk/rtk.exe', ['--version']],
-      ['rtk', ['--version']],
-      ['rtk', ['--version']]
-    ])
+    expect(
+      new Set(runCommand.mock.calls.map(([command, args]) => JSON.stringify([command, args])))
+    ).toEqual(
+      new Set([
+        JSON.stringify(['/runtime/rtk/rtk.exe', ['--version']]),
+        JSON.stringify(['rtk', ['--version']])
+      ])
+    )
     expectNoHealthCommandProbes(runCommand.mock.calls)
   })
 

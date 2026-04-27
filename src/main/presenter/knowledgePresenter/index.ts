@@ -161,7 +161,7 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    * @param id Knowledge base ID
    */
   delete = async (id: string): Promise<void> => {
-    const initializingRag = await this.storePresenterInitTasks.get(id)
+    const initializingRag = await this.storePresenterInitTasks.get(id)?.catch(() => undefined)
     const cachedRag = this.getStorePresenter(id)
     const rag = cachedRag ?? initializingRag
 
