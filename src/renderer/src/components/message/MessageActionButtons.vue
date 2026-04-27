@@ -1,13 +1,13 @@
 <template>
   <TransitionGroup
     tag="div"
-    class="absolute bottom-3 right-3 flex flex-col items-center gap-2"
-    enter-active-class="transition-all duration-300 ease-out"
-    enter-from-class="opacity-0 translate-y-2"
+    class="absolute bottom-3 right-3 flex flex-col items-center gap-2 will-change-transform"
+    enter-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+    enter-from-class="opacity-0 translate-y-1"
     enter-to-class="opacity-100 translate-y-0"
-    leave-active-class="transition-all duration-300 ease-in"
+    leave-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
     leave-from-class="opacity-100 translate-y-0"
-    leave-to-class="opacity-0 translate-y-2"
+    leave-to-class="opacity-0 translate-y-1"
     move-class="message-actions-move"
     @before-leave="handleBeforeLeave"
     @after-leave="handleAfterLeave"

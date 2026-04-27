@@ -33,12 +33,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { nextTick, watch } from 'vue'
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
 import ArtifactPreview from '../artifacts/ArtifactPreview.vue'
 import ToolCallPreview from '../artifacts/ToolCallPreview.vue'
-import { useBlockContent } from '@/composables/useArtifacts'
+import { useBlockContent, type ProcessedPart } from '@/composables/useArtifacts'
 import { useArtifactStore } from '@/stores/artifact'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
@@ -52,11 +53,40 @@ const props = defineProps<{
 }>()
 
 const { processedContent } = useBlockContent(props)
+const lastArtifactSnapshot = ref<string>('')
 
-// 修改 watch 函数
+const artifactSnapshot = computed(() =>
+  processedContent.value
+    .filter(
+      (
+        part
+      ): part is ProcessedPart & {
+        type: 'artifact'
+        artifact: NonNullable<ProcessedPart['artifact']>
+      } => part.type === 'artifact' && Boolean(part.artifact)
+    )
+    .map((part) => {
+      const artifact = part.artifact
+      return [
+        artifact.identifier,
+        artifact.title,
+        artifact.type,
+        artifact.language || '',
+        part.loading ? '1' : '0',
+        part.content
+      ].join('::')
+    })
+    .join('\n__artifact__\n')
+)
+
 watch(
-  processedContent,
-  () => {
+  artifactSnapshot,
+  (nextSnapshot) => {
+    if (nextSnapshot === lastArtifactSnapshot.value) {
+      return
+    }
+
+    lastArtifactSnapshot.value = nextSnapshot
     nextTick(() => {
       for (const part of processedContent.value) {
         const artifact = part.type === 'artifact' && part.artifact

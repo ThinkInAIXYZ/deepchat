@@ -30,6 +30,8 @@ import SpotlightOverlay from '@/components/spotlight/SpotlightOverlay.vue'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
 import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
 import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
 import { createWindowClient } from '@api/WindowClient'
@@ -57,6 +59,8 @@ const { isWinMacOS } = useDeviceVersion()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
 const { t } = useI18n()
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
@@ -64,7 +68,7 @@ const toasterTheme = computed(() =>
 // Error notification queue and currently displayed error
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
-const errorDisplayTimer = ref<number | null>(null)
+let errorDisplayTimer: number | null = null
 
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 
@@ -90,7 +94,6 @@ watch(
   ([themeMode, isDark, fontSizeClass]) => {
     const nextThemeName = resolveThemeName(themeMode, isDark)
     syncAppearanceClasses(nextThemeName, fontSizeClass)
-    console.log('newTheme', nextThemeName)
   },
   { immediate: true }
 )
@@ -133,12 +136,11 @@ const displayError = (error: { id: string; title: string; message: string; type:
   })
 
   // Set timer to automatically close current error after 3 seconds
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
+  if (errorDisplayTimer) {
+    clearTimeout(errorDisplayTimer)
   }
 
-  errorDisplayTimer.value = window.setTimeout(() => {
-    console.log('errorDisplayTimer.value', errorDisplayTimer.value)
+  errorDisplayTimer = window.setTimeout(() => {
     // Handle logic after error is closed
     dismiss()
     handleErrorClosed()
@@ -158,9 +160,9 @@ const handleErrorClosed = () => {
     }
   } else {
     // Queue is empty, clear timer
-    if (errorDisplayTimer.value) {
-      clearTimeout(errorDisplayTimer.value)
-      errorDisplayTimer.value = null
+    if (errorDisplayTimer) {
+      clearTimeout(errorDisplayTimer)
+      errorDisplayTimer = null
     }
   }
 }
@@ -392,9 +394,10 @@ onMounted(() => {
   // Ensure icons are loaded (load asynchronously, can happen in parallel with store init)
   void ensureIconsLoaded()
 
-  // Start all critical data loads in parallel, don't wait for them
-  // This way session data starts loading much earlier instead of waiting for initAppStores() to complete
+  // Start shell-critical data directly from the main window so it does not depend on settings.
   void initAppStores()
+  void providerStore.ensureInitialized()
+  void modelStore.initialize()
   void sessionStore.fetchSessions()
   setupMcpDeeplink()
   setupAppIpcRuntime()
@@ -434,9 +437,9 @@ onMounted(() => {
 
 // Clear timers and event listeners before component unmounts
 onBeforeUnmount(() => {
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
+  if (errorDisplayTimer) {
+    clearTimeout(errorDisplayTimer)
+    errorDisplayTimer = null
   }
 
   window.removeEventListener('keydown', handleEscKey)

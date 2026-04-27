@@ -217,6 +217,7 @@ const chatSearchBarRef = ref<{
 let spotlightJumpTimer: number | null = null
 let scrollReadFrame: number | null = null
 let scrollWriteFrame: number | null = null
+let chatSearchRefreshFrame: number | null = null
 let pendingForcedScroll = false
 let lastObservedScrollHeight = 0
 let cancelSessionRestoreTask: (() => void) | null = null
@@ -505,8 +506,14 @@ const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(()
 })
 
 const displayMessages = computed(() => {
-  const msgs = messageStore.messages.map(toDisplayMessage)
-  const activeMessageIds = new Set(messageStore.messages.map((message) => message.id))
+  const msgs: DisplayMessage[] = []
+  const activeMessageIds = new Set<string>()
+
+  for (const message of messageStore.messages) {
+    activeMessageIds.add(message.id)
+    msgs.push(toDisplayMessage(message))
+  }
+
   for (const cachedId of displayMessageCache.keys()) {
     if (!activeMessageIds.has(cachedId)) {
       displayMessageCache.delete(cachedId)
@@ -561,6 +568,9 @@ async function refreshChatSearchHighlights() {
   }
 
   await nextTick()
+  if (!isChatSearchOpen.value) {
+    return
+  }
 
   const root = messageSearchRoot.value
   chatSearchMatches.value = applyChatSearchHighlights(root, chatSearchQuery.value)
@@ -575,6 +585,26 @@ async function refreshChatSearchHighlights() {
   setActiveChatSearchMatch(chatSearchMatches.value, nextIndex, { behavior: 'auto' })
 }
 
+function cancelScheduledChatSearchRefresh() {
+  if (chatSearchRefreshFrame === null) {
+    return
+  }
+
+  window.cancelAnimationFrame(chatSearchRefreshFrame)
+  chatSearchRefreshFrame = null
+}
+
+function scheduleChatSearchHighlights() {
+  if (!isChatSearchOpen.value || chatSearchRefreshFrame !== null) {
+    return
+  }
+
+  chatSearchRefreshFrame = window.requestAnimationFrame(() => {
+    chatSearchRefreshFrame = null
+    void refreshChatSearchHighlights()
+  })
+}
+
 function focusChatSearchInput() {
   nextTick(() => {
     chatSearchBarRef.value?.selectInput()
@@ -582,6 +612,7 @@ function focusChatSearchInput() {
 }
 
 function clearChatSearchState() {
+  cancelScheduledChatSearchRefresh()
   clearChatSearchHighlights(messageSearchRoot.value)
   chatSearchMatches.value = []
   chatSearchQuery.value = ''
@@ -660,7 +691,7 @@ function handleWindowKeydown(event: KeyboardEvent) {
 
 watch(chatSearchQuery, () => {
   activeChatSearchIndex.value = 0
-  void refreshChatSearchHighlights()
+  scheduleChatSearchHighlights()
 })
 
 watch(
@@ -670,7 +701,7 @@ watch(
       return
     }
 
-    void refreshChatSearchHighlights()
+    scheduleChatSearchHighlights()
   },
   { flush: 'post' }
 )
@@ -1041,6 +1072,7 @@ onUnmounted(() => {
     window.cancelAnimationFrame(scrollWriteFrame)
     scrollWriteFrame = null
   }
+  cancelScheduledChatSearchRefresh()
   pendingInputStore.clear()
 })
 </script>
