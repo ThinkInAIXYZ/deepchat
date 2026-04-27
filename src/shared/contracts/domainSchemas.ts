@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BrowserPageStatus } from '../types/browser'
 import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
-import { JsonValueSchema, ProviderModelSummarySchema } from './common'
+import { FileMetadataValueSchema, JsonValueSchema, ProviderModelSummarySchema } from './common'
 import {
   ReasoningEffortSchema,
   ReasoningModeSchema,
@@ -376,8 +376,6 @@ export const ConfigValueSchema = z.union([
   z.null(),
   JsonValueSchema
 ])
-
-const FileMetadataValueSchema = z.union([JsonValueSchema, z.date()])
 
 export const PreparedMessageFileSchema = z.object({
   name: z.string(),

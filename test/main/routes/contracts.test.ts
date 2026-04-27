@@ -201,6 +201,53 @@ describe('main kernel contracts', () => {
     })
   })
 
+  it('accepts prepared attachment metadata dates in message route contracts', () => {
+    const fileCreated = new Date('2024-01-01T00:00:00.000Z')
+    const fileModified = new Date('2024-01-02T00:00:00.000Z')
+    const pdfAttachment = {
+      name: 'sample.pdf',
+      path: '/tmp/sample.pdf',
+      mimeType: 'application/pdf',
+      content: '# PDF file description',
+      token: 128,
+      metadata: {
+        fileName: 'sample.pdf',
+        fileSize: 1024,
+        fileDescription: 'PDF Document',
+        fileCreated,
+        fileModified
+      }
+    }
+
+    expect(
+      sessionsCreateRoute.input.parse({
+        agentId: 'deepchat',
+        message: 'summarize this',
+        files: [pdfAttachment]
+      })
+    ).toEqual({
+      agentId: 'deepchat',
+      message: 'summarize this',
+      files: [pdfAttachment]
+    })
+
+    expect(
+      chatSendMessageRoute.input.parse({
+        sessionId: 'session-1',
+        content: {
+          text: 'summarize this',
+          files: [pdfAttachment]
+        }
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      content: {
+        text: 'summarize this',
+        files: [pdfAttachment]
+      }
+    })
+  })
+
   it('validates typed provider and tool interaction routes through the shared contract catalog', () => {
     expect(
       providersListModelsRoute.output.parse({
