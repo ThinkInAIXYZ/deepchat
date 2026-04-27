@@ -727,6 +727,71 @@ describe('processStream', () => {
     expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
   })
 
+  it('passes reasoning_content back after each interleaved tool-call loop', async () => {
+    let callCount = 0
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
+
+    const coreStream = vi.fn(function () {
+      callCount++
+      const round = callCount
+      if (round <= 2) {
+        return (async function* () {
+          yield {
+            type: 'reasoning',
+            reasoning_content: `Think ${round}`
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: `tc${round}`,
+            tool_call_name: 'get_weather'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: `tc${round}`,
+            tool_call_arguments_complete: `{"round":${round}}`
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      }
+
+      return (async function* () {
+        yield { type: 'text', content: 'Final answer' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('get_weather')],
+      interleavedReasoning: {
+        ...DEFAULT_INTERLEAVED_REASONING,
+        preserveReasoningContent: true,
+        portraitInterleaved: true
+      }
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    expect(coreStream).toHaveBeenCalledTimes(3)
+    const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+    const firstAssistantMessage = secondCallMessages.find(
+      (message: any) => message.role === 'assistant' && message.tool_calls?.[0]?.id === 'tc1'
+    )
+    expect(firstAssistantMessage.reasoning_content).toBe('Think 1')
+
+    const thirdCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[2][0]
+    const toolCallAssistantMessages = thirdCallMessages.filter(
+      (message: any) => message.role === 'assistant' && message.tool_calls?.length
+    )
+    expect(toolCallAssistantMessages.map((message: any) => message.reasoning_content)).toEqual([
+      'Think 1',
+      'Think 2'
+    ])
+  })
+
   it('max tool calls limit', async () => {
     let callCount = 0
     const toolPresenter = createMockToolPresenter({ action: 'done' })

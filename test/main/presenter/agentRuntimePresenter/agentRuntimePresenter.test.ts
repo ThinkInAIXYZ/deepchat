@@ -3231,6 +3231,80 @@ describe('AgentRuntimePresenter', () => {
       expect(processStream).toHaveBeenCalledTimes(1)
     })
 
+    it('preserves reasoning_content when resuming after a question answer', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { forceInterleavedThinkingCompat: true }
+      })
+      const row = makeAssistantRow({
+        blocks: [
+          {
+            type: 'reasoning_content',
+            content: 'Think before asking.',
+            status: 'success',
+            timestamp: 1
+          },
+          {
+            type: 'content',
+            content: 'Need a user choice.',
+            status: 'success',
+            timestamp: 2
+          },
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 3,
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 4,
+            content: 'Pick one',
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'Pick one',
+              questionOptions: [{ label: 'A' }]
+            }
+          }
+        ]
+      })
+      sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+        (id: string, content: string) => {
+          if (id === row.id) {
+            row.content = content
+          }
+        }
+      )
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'A'
+      })
+
+      expect(result).toEqual({ resumed: true })
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const assistantMessage = callArgs.messages.find(
+        (message: any) => message.role === 'assistant'
+      )
+      expect(callArgs.interleavedReasoning.preserveReasoningContent).toBe(true)
+      expect(assistantMessage).toEqual({
+        role: 'assistant',
+        content: 'Need a user choice.',
+        reasoning_content: 'Think before asking.',
+        tool_calls: [
+          {
+            id: 'tc1',
+            type: 'function',
+            function: { name: 'ask_question', arguments: '{}' }
+          }
+        ]
+      })
+    })
+
     it('treats an aborted resume signal as cancellation even for non-abort errors', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({ blocks: [] })

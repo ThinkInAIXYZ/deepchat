@@ -372,6 +372,23 @@ describe('buildContext', () => {
     })
   })
 
+  it('preserves reasoning_content separately for non-tool assistant history when enabled', () => {
+    const messages = [
+      makeUserRecord(1, 'Think about this'),
+      makeAssistantWithReasoningRecord(2, 'The answer is 42', 'Let me think...')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'Follow up', '', 10000, 4096, store, false, {
+      preserveInterleavedReasoning: true
+    })
+
+    expect(result[1]).toEqual({
+      role: 'assistant',
+      content: 'The answer is 42',
+      reasoning_content: 'Let me think...'
+    })
+  })
+
   it('preserves reasoning_content separately for settled tool calls when enabled', () => {
     const messages = [
       makeUserRecord(1, 'Use a tool'),
@@ -662,6 +679,73 @@ describe('buildResumeContext', () => {
     expect(result.slice(-2)).toEqual([
       { role: 'user', content: 'recent user' },
       { role: 'assistant', content: 'partial answer' }
+    ])
+  })
+
+  it('preserves reasoning_content for pending resume targets with resolved tool calls', () => {
+    const messages = [
+      makeUserRecord(1, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 2,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          {
+            type: 'reasoning_content',
+            content: 'Need a tool first.',
+            status: 'success',
+            timestamp: Date.now()
+          },
+          { type: 'content', content: 'Running tool...', status: 'success', timestamp: Date.now() },
+          {
+            type: 'tool_call',
+            status: 'success',
+            timestamp: Date.now(),
+            tool_call: {
+              id: 'tc-resume',
+              name: 'example_tool',
+              params: '{"foo":"bar"}',
+              response: 'tool result'
+            }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'success',
+            timestamp: Date.now(),
+            content: 'Pick one',
+            tool_call: { id: 'tc-resume', name: 'example_tool', params: '{"foo":"bar"}' },
+            extra: { needsUserAction: false, answerText: 'A' }
+          }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildResumeContext('s1', 'resume-target', '', 10000, 4096, store, false, {
+      preserveInterleavedReasoning: true
+    })
+
+    expect(result).toEqual([
+      { role: 'user', content: 'recent user' },
+      {
+        role: 'assistant',
+        content: 'Running tool...',
+        reasoning_content: 'Need a tool first.',
+        tool_calls: [
+          {
+            id: 'tc-resume',
+            type: 'function',
+            function: { name: 'example_tool', arguments: '{"foo":"bar"}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-resume', content: 'tool result' }
     ])
   })
 })
