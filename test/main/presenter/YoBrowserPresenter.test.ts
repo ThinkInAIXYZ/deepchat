@@ -233,7 +233,7 @@ describe('YoBrowserPresenter', () => {
     }
   }
 
-  it('does not start session navigation before the renderer reports a stable host', async () => {
+  it('starts session navigation immediately and resolves after dom-ready', async () => {
     const { presenter, windows, getSessionWebContents } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
@@ -241,7 +241,7 @@ describe('YoBrowserPresenter', () => {
     await Promise.resolve()
 
     const webContents = getSessionWebContents('session-a')
-    expect(webContents?.loadURL).not.toHaveBeenCalled()
+    expect(webContents?.loadURL).toHaveBeenCalledWith('https://example.com')
 
     await presenter.attachSessionBrowser('session-a', 1)
     await presenter.updateSessionBrowserBounds(
@@ -253,14 +253,12 @@ describe('YoBrowserPresenter', () => {
     await vi.advanceTimersByTimeAsync(130)
     await Promise.resolve()
 
-    expect(webContents?.loadURL).toHaveBeenCalledWith('https://example.com')
-
     webContents?.emitDomReady()
     await loadPromise
     webContents?.finishLoad()
   })
 
-  it('resolves loadUrl only after host-ready and the first dom-ready', async () => {
+  it('resolves loadUrl only after the first dom-ready', async () => {
     const { presenter, windows, getSessionWebContents } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
@@ -277,7 +275,6 @@ describe('YoBrowserPresenter', () => {
       { x: 10, y: 20, width: 300, height: 400 },
       true
     )
-    await vi.advanceTimersByTimeAsync(130)
     await Promise.resolve()
 
     expect(settled).toBe(false)
@@ -290,13 +287,13 @@ describe('YoBrowserPresenter', () => {
     webContents?.finishLoad()
   })
 
-  it('returns a clear error when session host-ready never arrives', async () => {
+  it('returns a clear error when dom-ready never arrives', async () => {
     const { presenter, windows } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
-    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com', 5000)
     const rejection = expect(loadPromise).rejects.toThrow(
-      'Session browser host 1 did not become ready within 5000ms'
+      'Timed out waiting for dom-ready: https://example.com'
     )
     await vi.advanceTimersByTimeAsync(5050)
     await rejection

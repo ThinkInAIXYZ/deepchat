@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.4-beta.2 (2026-04-27)
+- Preserved interleaved reasoning output so mixed reasoning and answer streams stay in the correct order
+- Updated the Markstream renderer to the stable 0.0.13 release for more reliable Markdown streaming
+- Improved chat message transitions, sidebar updates, and side panel rendering performance
+- Fixed RTK and built-in knowledge configuration status handling across MCP tool setup flows
+- 保留交错 reasoning 输出顺序，确保 reasoning 与正文混合流式内容按预期展示
+- 将 Markstream 渲染器更新到稳定版 0.0.13，提升 Markdown 流式渲染可靠性
+- 优化聊天消息动效、侧边栏更新与侧边面板渲染性能
+- 修复 RTK 与内置知识库配置状态处理，完善 MCP 工具配置流程
+
 ## v1.0.4-beta.1 (2026-04-25)
 - Improved remote control media delivery across Discord, Feishu, QQ Bot, Telegram, and WeChat iLink, including block streaming and file handling
 - Fixed ACP working directory propagation for remote executions so agent commands run in the intended workspace
