@@ -39,7 +39,13 @@ import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { app, nativeTheme, shell } from 'electron'
 import fs from 'fs'
-import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS, SESSION_EVENTS } from '@/events'
+import {
+  CONFIG_EVENTS,
+  SYSTEM_EVENTS,
+  FLOATING_BUTTON_EVENTS,
+  SESSION_EVENTS,
+  MCP_EVENTS
+} from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
@@ -50,6 +56,7 @@ import { providerDbLoader } from './providerDbLoader'
 import {
   ProviderAggregate,
   ReasoningPortrait,
+  type ProviderModel,
   type ReasoningEffort,
   type Verbosity
 } from '@shared/types/model-db'
@@ -778,6 +785,24 @@ export class ConfigPresenter implements IConfigPresenter {
     )
   }
 
+  private inferProviderDbModelType(model: ProviderModel): ModelType {
+    if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
+      return ModelType.ImageGeneration
+    }
+
+    switch (model.type) {
+      case 'embedding':
+        return ModelType.Embedding
+      case 'rerank':
+        return ModelType.Rerank
+      case 'imageGeneration':
+        return ModelType.ImageGeneration
+      case 'chat':
+      default:
+        return ModelType.Chat
+    }
+  }
+
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     return modelCapabilities.getReasoningPortrait(
       this.getCapabilityProviderId(providerId, modelId),
@@ -1327,10 +1352,7 @@ export class ConfigPresenter implements IConfigPresenter {
       ),
       functionCall: resolveModelFunctionCall(m.tool_call),
       reasoning: this.supportsReasoningCapability(providerId, m.id),
-      type:
-        Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
-          ? ModelType.ImageGeneration
-          : ModelType.Chat
+      type: this.inferProviderDbModelType(m)
     }))
   }
 
@@ -2605,12 +2627,29 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取知识库配置
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[] {
-    return this.knowledgeConfHelper.getKnowledgeConfigs()
+    const configs = this.knowledgeConfHelper.getKnowledgeConfigs()
+    const migratedConfigs = this.mcpConfHelper.migrateBuiltinKnowledgeConfigsFromEnv(configs)
+
+    if (migratedConfigs !== configs) {
+      this.knowledgeConfHelper.setKnowledgeConfigs(migratedConfigs)
+    }
+
+    return migratedConfigs
   }
 
   // 设置知识库配置
   setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void {
     this.knowledgeConfHelper.setKnowledgeConfigs(configs)
+    void Promise.all([this.getMcpServers(), this.getMcpEnabled()])
+      .then(([mcpServers, mcpEnabled]) => {
+        eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
+          mcpServers,
+          mcpEnabled
+        })
+      })
+      .catch((error) => {
+        console.error('Failed to notify MCP config change after knowledge config update:', error)
+      })
   }
 
   // 获取NPM Registry缓存
@@ -2660,10 +2699,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 对比知识库配置差异
   diffKnowledgeConfigs(newConfigs: BuiltinKnowledgeConfig[]) {
-    return KnowledgeConfHelper.diffKnowledgeConfigs(
-      this.knowledgeConfHelper.getKnowledgeConfigs(),
-      newConfigs
-    )
+    return KnowledgeConfHelper.diffKnowledgeConfigs(this.getKnowledgeConfigs(), newConfigs)
   }
 
   // 批量导入MCP服务器

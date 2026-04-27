@@ -94,6 +94,20 @@ function createRuntime() {
     copyWithCotEnabled: true,
     loggingEnabled: false
   }
+  const knowledgeConfigs = [
+    {
+      id: 'knowledge-1',
+      description: 'Local docs',
+      embedding: {
+        providerId: 'openai',
+        modelId: 'text-embedding-3-small'
+      },
+      dimensions: 1536,
+      normalized: true,
+      fragmentsNumber: 6,
+      enabled: true
+    }
+  ]
 
   const preparedFile = {
     name: 'demo.txt',
@@ -197,6 +211,10 @@ function createRuntime() {
     }),
     setTraceDebugEnabled: vi.fn((value: boolean) => {
       settings.traceDebugEnabled = value
+    }),
+    getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
+    setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
+      knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
     })
   } as unknown as IConfigPresenter
 
@@ -563,6 +581,64 @@ describe('dispatchDeepchatRoute', () => {
         fontSizeLevel: 4,
         privacyModeEnabled: true
       }
+    })
+  })
+
+  it('dispatches built-in knowledge config routes through ConfigPresenter', async () => {
+    const { runtime, configPresenter } = createRuntime()
+    const nextConfigs = [
+      {
+        id: 'knowledge-2',
+        description: 'Updated local docs',
+        embedding: {
+          providerId: 'openai',
+          modelId: 'text-embedding-3-small'
+        },
+        rerank: {
+          providerId: 'openai',
+          modelId: 'rerank-model'
+        },
+        dimensions: 1536,
+        normalized: true,
+        chunkSize: 800,
+        chunkOverlap: 120,
+        fragmentsNumber: 8,
+        separators: ['\n\n', '\n'],
+        enabled: false
+      }
+    ]
+
+    const getResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.getKnowledgeConfigs',
+      {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+    const setResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.setKnowledgeConfigs',
+      {
+        configs: nextConfigs
+      },
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
+    expect(getResult).toEqual({
+      configs: [
+        expect.objectContaining({
+          id: 'knowledge-1'
+        })
+      ]
+    })
+    expect(configPresenter.setKnowledgeConfigs).toHaveBeenCalledWith(nextConfigs)
+    expect(setResult).toEqual({
+      configs: nextConfigs
     })
   })
 

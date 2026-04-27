@@ -547,7 +547,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, toRaw, computed, watch, onUnmounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -600,11 +600,13 @@ import { useRoute } from 'vue-router'
 import { nanoid } from 'nanoid'
 import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useModelStore } from '@/stores/modelStore'
+import { createConfigClient } from '@api/ConfigClient'
 // 全局对象
 const { t } = useI18n()
 const mcpStore = useMcpStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
+const configClient = createConfigClient()
 const llmP = useLegacyPresenter('llmproviderPresenter')
 const knowledgeP = useLegacyPresenter('knowledgePresenter')
 const emit = defineEmits<{
@@ -832,37 +834,38 @@ const saveBuiltinConfig = async () => {
     editingBuiltinConfig.value.normalized = result.data.normalized
   }
 
-  if (isEditing.value) {
-    // 更新配置
-    if (editingConfigIndex.value !== -1) {
-      builtinConfigs.value[editingConfigIndex.value] = { ...editingBuiltinConfig.value }
-    }
-    toast({
-      title: t('settings.knowledgeBase.configUpdated'),
-      description: t('settings.knowledgeBase.configUpdatedDesc'),
-      duration: 3000
-    })
+  const nextConfigs = [...builtinConfigs.value]
+  if (isEditing.value && editingConfigIndex.value !== -1) {
+    nextConfigs[editingConfigIndex.value] = { ...editingBuiltinConfig.value }
   } else {
-    // 添加配置
-    builtinConfigs.value.push({ ...editingBuiltinConfig.value })
-    toast({
-      title: t('settings.knowledgeBase.configAdded'),
-      description: t('settings.knowledgeBase.configAddedDesc'),
-      duration: 3000
-    })
+    nextConfigs.push({ ...editingBuiltinConfig.value })
   }
 
-  // 更新到MCP配置
-  await updateBuiltinConfigToMcp()
+  const saved = await saveBuiltinConfigs(nextConfigs)
+  submitLoading.value = false
+  if (!saved) return
 
-  // 关闭对话框
+  builtinConfigs.value = nextConfigs
+  toast({
+    title: isEditing.value
+      ? t('settings.knowledgeBase.configUpdated')
+      : t('settings.knowledgeBase.configAdded'),
+    description: isEditing.value
+      ? t('settings.knowledgeBase.configUpdatedDesc')
+      : t('settings.knowledgeBase.configAddedDesc'),
+    duration: 3000
+  })
+
   closeBuiltinConfigDialog()
 }
 
 // 移除配置
 const removeBuiltinConfig = async (index: number) => {
-  builtinConfigs.value.splice(index, 1)
-  await updateBuiltinConfigToMcp()
+  const nextConfigs = builtinConfigs.value.filter((_, configIndex) => configIndex !== index)
+  const saved = await saveBuiltinConfigs(nextConfigs)
+  if (saved) {
+    builtinConfigs.value = nextConfigs
+  }
 }
 
 // 选择嵌入模型
@@ -890,8 +893,13 @@ const handleRerankModelSelect = (model: RENDERER_MODEL_META, providerId: string)
 
 // 切换配置启用状态
 const toggleConfigEnabled = async (index: number, enabled: boolean) => {
-  builtinConfigs.value[index].enabled = enabled
-  await updateBuiltinConfigToMcp()
+  const nextConfigs = builtinConfigs.value.map((config, configIndex) =>
+    configIndex === index ? { ...config, enabled } : config
+  )
+  const saved = await saveBuiltinConfigs(nextConfigs)
+  if (saved) {
+    builtinConfigs.value = nextConfigs
+  }
 }
 
 const isBuiltinMcpEnabled = computed(() => {
@@ -909,15 +917,9 @@ const toggleBuiltinConfigPanel = () => {
   isBuiltinConfigPanelOpen.value = !isBuiltinConfigPanelOpen.value
 }
 
-// 更新配置到MCP
-const updateBuiltinConfigToMcp = async () => {
+const saveBuiltinConfigs = async (configs: BuiltinKnowledgeConfig[]) => {
   try {
-    const envJson = {
-      configs: toRaw(builtinConfigs.value)
-    }
-    await mcpStore.updateServer('builtinKnowledge', {
-      env: envJson
-    })
+    await configClient.setKnowledgeConfigs(configs)
     return true
   } catch (error) {
     console.error('更新BuiltinKnowledge配置失败:', error)
@@ -931,24 +933,9 @@ const updateBuiltinConfigToMcp = async () => {
   }
 }
 
-// 从MCP加载内置配置
-const loadBuiltinConfigFromMcp = async () => {
+const loadBuiltinConfig = async () => {
   try {
-    const serverConfig = mcpStore.config.mcpServers['builtinKnowledge']
-    if (serverConfig && serverConfig.env) {
-      // 解析配置 - env可能是JSON字符串
-      try {
-        // 尝试解析JSON字符串
-        const envObj =
-          typeof serverConfig.env === 'string' ? JSON.parse(serverConfig.env) : serverConfig.env
-        // const envObj = serverConfig.env
-        if (envObj.configs && Array.isArray(envObj.configs)) {
-          builtinConfigs.value = envObj.configs
-        }
-      } catch (parseError) {
-        console.error('解析BuiltinKnowledge配置JSON失败:', parseError)
-      }
-    }
+    builtinConfigs.value = await configClient.getKnowledgeConfigs()
   } catch (error) {
     console.error('加载BuiltinKnowledge配置失败:', error)
   }
@@ -1051,25 +1038,7 @@ watch(
   }
 )
 
-// 组件挂载时加载配置
-let unwatch: (() => void) | undefined
 onMounted(async () => {
-  unwatch = watch(
-    () => mcpStore.config.ready,
-    async (ready) => {
-      if (ready) {
-        unwatch?.() // only run once to avoid multiple calls
-        await loadBuiltinConfigFromMcp()
-      }
-    },
-    { immediate: true }
-  )
-})
-
-// cancel the watch to avoid memory leaks
-onUnmounted(() => {
-  if (unwatch) {
-    unwatch?.()
-  }
+  await loadBuiltinConfig()
 })
 </script>

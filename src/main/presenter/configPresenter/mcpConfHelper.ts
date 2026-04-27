@@ -1,5 +1,5 @@
 import { eventBus, SendTarget } from '@/eventbus'
-import { MCPServerConfig } from '@shared/presenter'
+import { BuiltinKnowledgeConfig, MCPServerConfig } from '@shared/presenter'
 import { MCP_EVENTS } from '@/events'
 import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
@@ -210,9 +210,7 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'builtinKnowledge',
-    env: {
-      configs: []
-    },
+    env: {},
     disable: false
   },
   'deepchat-inmemory/deep-research-server': {
@@ -433,6 +431,64 @@ export class McpConfHelper {
     }
 
     return JSON.parse(JSON.stringify(config)) as MCPServerConfig
+  }
+
+  migrateBuiltinKnowledgeConfigsFromEnv(
+    existingConfigs: BuiltinKnowledgeConfig[]
+  ): BuiltinKnowledgeConfig[] {
+    const mcpServers = this.mcpStore.get('mcpServers') || {}
+    const builtinKnowledge = mcpServers.builtinKnowledge
+    const rawEnv = builtinKnowledge?.env as unknown
+
+    if (!builtinKnowledge || rawEnv === undefined || rawEnv === null) {
+      return existingConfigs
+    }
+
+    let env: Record<string, unknown>
+    if (typeof rawEnv === 'string') {
+      try {
+        env = JSON.parse(rawEnv) as Record<string, unknown>
+      } catch (error) {
+        console.warn('Failed to parse builtinKnowledge env for migration:', error)
+        return existingConfigs
+      }
+    } else if (typeof rawEnv === 'object') {
+      env = rawEnv as Record<string, unknown>
+    } else {
+      return existingConfigs
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(env, 'configs')) {
+      return existingConfigs
+    }
+
+    const legacyConfigs = Array.isArray(env.configs)
+      ? (env.configs.filter(
+          (config): config is BuiltinKnowledgeConfig =>
+            Boolean(config) &&
+            typeof config === 'object' &&
+            typeof (config as { id?: unknown }).id === 'string'
+        ) as BuiltinKnowledgeConfig[])
+      : []
+    const mergedConfigs = [...existingConfigs]
+    const existingIds = new Set(existingConfigs.map((config) => config.id))
+
+    for (const config of legacyConfigs) {
+      if (!existingIds.has(config.id)) {
+        mergedConfigs.push(config)
+        existingIds.add(config.id)
+      }
+    }
+
+    const migratedEnv = { ...env }
+    delete migratedEnv.configs
+    mcpServers.builtinKnowledge = {
+      ...builtinKnowledge,
+      env: migratedEnv
+    }
+    this.mcpStore.set('mcpServers', mcpServers)
+
+    return mergedConfigs
   }
 
   // Get MCP server configuration

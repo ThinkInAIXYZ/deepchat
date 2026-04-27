@@ -36,6 +36,10 @@ describe('renderer api clients', () => {
               return { prompts: [], defaultPromptId: 'empty', prompt: '' }
             case 'config.getDefaultProjectPath':
               return { path: null }
+            case 'config.getKnowledgeConfigs':
+              return { configs: [] }
+            case 'config.setKnowledgeConfigs':
+              return { configs: payload?.configs ?? [] }
             case 'providers.list':
             case 'providers.listSummaries':
               return { providers: [] }
@@ -195,6 +199,21 @@ describe('renderer api clients', () => {
     const configClient = createConfigClient(bridge)
     const providerClient = createProviderClient(bridge)
     const modelClient = createModelClient(bridge)
+    const knowledgeConfig = {
+      id: 'knowledge-1',
+      description: 'Local docs',
+      embedding: new Proxy(
+        {
+          providerId: 'openai',
+          modelId: 'text-embedding-3-small'
+        },
+        {}
+      ),
+      dimensions: 1536,
+      normalized: true,
+      fragmentsNumber: 6,
+      enabled: true
+    }
 
     await configClient.getSetting('input_chatMode')
     await configClient.setSetting('preferredModel', {
@@ -203,6 +222,8 @@ describe('renderer api clients', () => {
     })
     await configClient.getSystemPrompts()
     await configClient.getDefaultProjectPath()
+    await configClient.getKnowledgeConfigs()
+    await configClient.setKnowledgeConfigs([knowledgeConfig])
     configClient.onLanguageChanged(vi.fn())
     configClient.onCustomPromptsChanged(vi.fn())
 
@@ -242,18 +263,41 @@ describe('renderer api clients', () => {
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'config.getSystemPrompts', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'config.getDefaultProjectPath', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'providers.listSummaries', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'providers.getRateLimitStatus', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'config.getKnowledgeConfigs', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'config.setKnowledgeConfigs', {
+      configs: [
+        {
+          id: 'knowledge-1',
+          description: 'Local docs',
+          embedding: {
+            providerId: 'openai',
+            modelId: 'text-embedding-3-small'
+          },
+          dimensions: 1536,
+          normalized: true,
+          fragmentsNumber: 6,
+          enabled: true
+        }
+      ]
+    })
+    expect((bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[5][1].configs[0]).not.toBe(
+      knowledgeConfig
+    )
+    expect(
+      (bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[5][1].configs[0].embedding
+    ).not.toBe(knowledgeConfig.embedding)
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'providers.listSummaries', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'providers.getRateLimitStatus', {
       providerId: 'openai'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'providers.refreshModels', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'providers.refreshModels', {
       providerId: 'openai'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'models.getConfig', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'models.getConfig', {
       modelId: 'gpt-5.4',
       providerId: 'openai'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'models.setConfig', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'models.setConfig', {
       modelId: 'gpt-5.4',
       providerId: 'openai',
       config: {
@@ -266,7 +310,7 @@ describe('renderer api clients', () => {
         type: 'chat'
       }
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'models.getCapabilities', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'models.getCapabilities', {
       providerId: 'openai',
       modelId: 'gpt-5.4'
     })

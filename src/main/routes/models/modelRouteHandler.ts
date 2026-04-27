@@ -34,10 +34,14 @@ export async function dispatchModelRoute(
       const providerModels = configPresenter.getProviderModels(input.providerId) ?? []
       const customModels = configPresenter.getCustomModels(input.providerId) ?? []
       const dbProviderModels = configPresenter.getDbProviderModels(input.providerId) ?? []
-      const modelStatusMap = configPresenter.getBatchModelStatus(input.providerId, [
-        ...providerModels.map((model) => model.id),
-        ...customModels.map((model) => model.id)
-      ])
+      const modelIds = Array.from(
+        new Set([
+          ...providerModels.map((model) => model.id),
+          ...customModels.map((model) => model.id),
+          ...dbProviderModels.map((model) => model.id)
+        ])
+      )
+      const modelStatusMap = configPresenter.getBatchModelStatus(input.providerId, modelIds)
 
       return modelsGetProviderCatalogRoute.output.parse({
         catalog: {

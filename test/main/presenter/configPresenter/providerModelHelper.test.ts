@@ -365,3 +365,67 @@ describe('ConfigPresenter provider model cache invalidation', () => {
     expect(importedModels[0].maxTokens).toBe(24000)
   })
 })
+
+describe('ConfigPresenter provider DB model mapping', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    storeStates.clear()
+    eventBusMocks.on.mockReset()
+    eventBusMocks.send.mockReset()
+    eventBusMocks.sendToRenderer.mockReset()
+  })
+
+  it('preserves embedding and rerank types from provider DB models', async () => {
+    vi.doMock('@/presenter', () => ({
+      presenter: {}
+    }))
+
+    vi.doMock('../../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
+      providerDbLoader: {
+        getDb: vi.fn(() => ({
+          providers: {
+            aihubmix: {
+              id: 'aihubmix',
+              models: [
+                {
+                  id: 'text-embedding-3-small',
+                  display_name: 'text-embedding-3-small',
+                  type: 'embedding',
+                  limit: {
+                    context: 8192,
+                    output: 8192
+                  },
+                  tool_call: false
+                },
+                {
+                  id: 'rerank-v1',
+                  display_name: 'rerank-v1',
+                  type: 'rerank',
+                  tool_call: false
+                }
+              ]
+            }
+          }
+        }))
+      }
+    }))
+
+    const { ConfigPresenter } = await import('../../../../src/main/presenter/configPresenter/index')
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      supportsReasoningCapability: vi.fn(() => false)
+    }) as InstanceType<typeof ConfigPresenter>
+
+    const models = presenter.getDbProviderModels('aihubmix')
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'text-embedding-3-small',
+        type: ModelType.Embedding
+      }),
+      expect.objectContaining({
+        id: 'rerank-v1',
+        type: ModelType.Rerank
+      })
+    ])
+  })
+})

@@ -1,4 +1,3 @@
-import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { describe, expect, it, vi } from 'vitest'
@@ -67,22 +66,7 @@ function createCommandResult(code: number | null, stdout = '', stderr = '') {
   }
 }
 
-function createGainOutput(): string {
-  return JSON.stringify({
-    summary: {
-      total_commands: 1,
-      total_input: 10,
-      total_output: 2,
-      total_saved: 8,
-      avg_savings_pct: 80,
-      total_time_ms: 100,
-      avg_time_ms: 100
-    },
-    daily: []
-  })
-}
-
-function createHealthCheckService(tempRoot: string, runCommand = vi.fn()) {
+function createHealthCheckService(runCommand = vi.fn()) {
   return new RtkRuntimeService({
     runtimeHelper: {
       initializeRuntimes: vi.fn(),
@@ -95,51 +79,42 @@ function createHealthCheckService(tempRoot: string, runCommand = vi.fn()) {
     },
     getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
     runCommand,
-    getPath: () => tempRoot
+    getPath: (name) =>
+      name === 'userData'
+        ? path.join(os.tmpdir(), 'deepchat-rtk-userData')
+        : path.join(os.tmpdir(), 'deepchat-rtk-temp')
   })
 }
 
-function createHealthCheckRunCommand(rewriteResult = createCommandResult(0, 'rtk git status\n')) {
+function createHealthCheckRunCommand({
+  bundledVersion = createCommandResult(0, 'rtk 0.30.0'),
+  pathVersion = createCommandResult(0, 'rtk 0.30.0')
+}: {
+  bundledVersion?: ReturnType<typeof createCommandResult>
+  pathVersion?: ReturnType<typeof createCommandResult>
+} = {}) {
   return vi.fn(async (command: string, args: string[]) => {
-    if (args[0] === 'ls') {
-      return createCommandResult(
-        1,
-        '',
-        "Failed to resolve 'ls' via PATH, falling back to direct exec: Binary 'ls' not found on PATH"
-      )
-    }
-
     if (command === '/runtime/rtk/rtk.exe' && args[0] === '--version') {
-      return createCommandResult(0, 'rtk 0.30.0')
-    }
-
-    if (command === '/runtime/rtk/rtk.exe' && args[0] === 'rewrite' && args[1] === 'git status') {
-      return rewriteResult
+      return bundledVersion
     }
 
     if (command === 'rtk' && args[0] === '--version') {
-      return createCommandResult(0, 'rtk 0.30.0')
-    }
-
-    if (command === '/runtime/rtk/rtk.exe' && args[0] === 'read') {
-      const smokeFilePath = args[1]
-      expect(path.basename(smokeFilePath)).toBe('health.txt')
-      expect(fs.readFileSync(smokeFilePath, 'utf-8')).toBe('ok')
-      return createCommandResult(0, 'ok')
-    }
-
-    if (
-      command === '/runtime/rtk/rtk.exe' &&
-      args[0] === 'gain' &&
-      args[1] === '--all' &&
-      args[2] === '--format' &&
-      args[3] === 'json'
-    ) {
-      return createCommandResult(0, createGainOutput())
+      return pathVersion
     }
 
     throw new Error(`Unexpected command: ${command} ${args.join(' ')}`)
   })
+}
+
+function expectNoHealthCommandProbes(
+  calls: [command: string, args: string[], options?: unknown][]
+): void {
+  expect(calls.some(([, args]) => args[0] === 'rewrite')).toBe(false)
+  expect(calls.some(([, args]) => args[0] === 'read')).toBe(false)
+  expect(calls.some(([, args]) => args[0] === 'gain')).toBe(false)
+  expect(calls.some(([command]) => command === 'find')).toBe(false)
+  expect(calls.some(([command]) => command === 'ls')).toBe(false)
+  expect(calls.some(([command]) => command === 'rg')).toBe(false)
 }
 
 describe('RtkRuntimeService', () => {
@@ -224,70 +199,97 @@ describe('RtkRuntimeService', () => {
     )
   })
 
-  it('uses rtk read for the smoke check', async () => {
-    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-rtk-health-test-'))
+  it('keeps bundled RTK healthy with version-only startup probes', async () => {
     const runCommand = createHealthCheckRunCommand()
-    const service = createHealthCheckService(tempRoot, runCommand)
+    const service = createHealthCheckService(runCommand)
 
-    try {
-      const state = await service.startHealthCheck()
-      const smokeCall = runCommand.mock.calls.find(([, args]) => args[0] === 'read')
+    const state = await service.startHealthCheck()
 
-      expect(state).toMatchObject({
-        health: 'healthy',
-        source: 'bundled',
-        failureStage: null,
-        failureMessage: null
+    expect(state).toMatchObject({
+      health: 'healthy',
+      source: 'bundled',
+      failureStage: null,
+      failureMessage: null
+    })
+    expect(runCommand).toHaveBeenCalledTimes(2)
+    expect(runCommand).toHaveBeenNthCalledWith(
+      1,
+      '/runtime/rtk/rtk.exe',
+      ['--version'],
+      expect.objectContaining({
+        env: expect.objectContaining({ PATH: expect.stringContaining('/shell/bin') })
       })
-      expect(smokeCall).toBeDefined()
-      expect(smokeCall?.[1][1]).toContain('health.txt')
-      expect(runCommand.mock.calls.some(([, args]) => args[0] === 'ls')).toBe(false)
-    } finally {
-      fs.rmSync(tempRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('keeps bundled RTK healthy when ls is unavailable on Windows', async () => {
-    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-rtk-health-test-'))
-    const runCommand = createHealthCheckRunCommand()
-    const service = createHealthCheckService(tempRoot, runCommand)
-
-    try {
-      const state = await service.startHealthCheck()
-
-      expect(state.health).toBe('healthy')
-      expect(state.source).toBe('bundled')
-      expect(runCommand.mock.calls.some(([, args]) => args[0] === 'ls')).toBe(false)
-      expect(runCommand.mock.calls.some(([, args]) => args[0] === 'read')).toBe(true)
-    } finally {
-      fs.rmSync(tempRoot, { recursive: true, force: true })
-    }
-  })
-
-  it('keeps bundled RTK healthy when rewrite reports a missing global hook', async () => {
-    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-rtk-health-test-'))
-    const runCommand = createHealthCheckRunCommand(
-      createCommandResult(3, 'rtk git status\n', 'No hook installed\n')
     )
-    const service = createHealthCheckService(tempRoot, runCommand)
-
-    try {
-      const state = await service.startHealthCheck()
-
-      expect(state).toMatchObject({
-        health: 'healthy',
-        source: 'bundled',
-        failureStage: null,
-        failureMessage: null
+    expect(runCommand).toHaveBeenNthCalledWith(
+      2,
+      'rtk',
+      ['--version'],
+      expect.objectContaining({
+        env: expect.objectContaining({ PATH: expect.stringContaining('/shell/bin') })
       })
-      expect(
-        runCommand.mock.calls.some(
-          ([command, args]) =>
-            command === '/runtime/rtk/rtk.exe' && args[0] === 'rewrite' && args[1] === 'git status'
-        )
-      ).toBe(true)
-    } finally {
-      fs.rmSync(tempRoot, { recursive: true, force: true })
-    }
+    )
+    expectNoHealthCommandProbes(runCommand.mock.calls)
+  })
+
+  it('does not run rewrite, read, gain, or platform shell commands during health check', async () => {
+    const runCommand = createHealthCheckRunCommand()
+    const service = createHealthCheckService(runCommand)
+
+    const state = await service.startHealthCheck()
+
+    expect(state.health).toBe('healthy')
+    expect(runCommand.mock.calls.map(([command, args]) => [command, args])).toEqual([
+      ['/runtime/rtk/rtk.exe', ['--version']],
+      ['rtk', ['--version']]
+    ])
+    expectNoHealthCommandProbes(runCommand.mock.calls)
+  })
+
+  it('tries system RTK when bundled RTK version check fails', async () => {
+    const runCommand = createHealthCheckRunCommand({
+      bundledVersion: createCommandResult(1, '', 'bundled version failed'),
+      pathVersion: createCommandResult(0, 'rtk 0.30.0')
+    })
+    const service = createHealthCheckService(runCommand)
+
+    const state = await service.startHealthCheck()
+
+    expect(state).toMatchObject({
+      health: 'healthy',
+      source: 'system',
+      failureStage: null,
+      failureMessage: null
+    })
+    expect(
+      new Set(runCommand.mock.calls.map(([command, args]) => JSON.stringify([command, args])))
+    ).toEqual(
+      new Set([
+        JSON.stringify(['/runtime/rtk/rtk.exe', ['--version']]),
+        JSON.stringify(['rtk', ['--version']])
+      ])
+    )
+    expectNoHealthCommandProbes(runCommand.mock.calls)
+  })
+
+  it('marks RTK unhealthy when all version checks fail', async () => {
+    const runCommand = createHealthCheckRunCommand({
+      bundledVersion: createCommandResult(1, '', 'bundled version failed'),
+      pathVersion: createCommandResult(1, '', 'system version failed')
+    })
+    const service = createHealthCheckService(runCommand)
+
+    const state = await service.startHealthCheck()
+
+    expect(state).toMatchObject({
+      health: 'unhealthy',
+      source: 'system',
+      failureStage: 'version',
+      failureMessage: 'system version failed'
+    })
+    expect(runCommand.mock.calls.map(([command, args]) => [command, args])).toEqual([
+      ['/runtime/rtk/rtk.exe', ['--version']],
+      ['rtk', ['--version']]
+    ])
+    expectNoHealthCommandProbes(runCommand.mock.calls)
   })
 })
