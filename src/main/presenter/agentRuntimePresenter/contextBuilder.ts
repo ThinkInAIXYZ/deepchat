@@ -269,6 +269,33 @@ export function recordToChatMessages(
     .filter((block) => block.type === 'reasoning_content')
     .map((block) => block.content)
     .join('')
+  const contentParts = blocks
+    .filter(
+      (block): block is AssistantMessageBlock & { content: string } =>
+        block.type === 'content' && typeof block.content === 'string' && block.content.length > 0
+    )
+    .map((block) => {
+      const providerOptions = getBlockProviderOptions(block)
+      return {
+        type: 'text' as const,
+        text: block.content,
+        ...(providerOptions ? { provider_options: providerOptions } : {})
+      }
+    })
+  const assistantContent = contentParts.some((part) => part.provider_options) ? contentParts : text
+  const applyReasoningContent = (assistantMessage: ChatMessage): ChatMessage => {
+    if (preserveInterleavedReasoning && reasoning) {
+      assistantMessage.reasoning_content = reasoning
+      const reasoningProviderOptions = blocks
+        .filter((block) => block.type === 'reasoning_content')
+        .map((block) => getBlockProviderOptions(block))
+        .find(Boolean)
+      if (reasoningProviderOptions) {
+        assistantMessage.reasoning_provider_options = reasoningProviderOptions
+      }
+    }
+    return assistantMessage
+  }
 
   const toolCallBlocks = blocks.filter(
     (block) =>
@@ -281,6 +308,9 @@ export function recordToChatMessages(
   )
 
   if (toolCallBlocks.length === 0) {
+    if (preserveInterleavedReasoning && reasoning) {
+      return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
+    }
     return [{ role: 'assistant', content: combinedText }]
   }
 
@@ -301,38 +331,18 @@ export function recordToChatMessages(
   }
 
   if (toolCalls.length === 0) {
+    if (preserveInterleavedReasoning && reasoning) {
+      return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
+    }
     return [{ role: 'assistant', content: combinedText }]
   }
 
-  const contentParts = blocks
-    .filter(
-      (block): block is AssistantMessageBlock & { content: string } =>
-        block.type === 'content' && typeof block.content === 'string' && block.content.length > 0
-    )
-    .map((block) => {
-      const providerOptions = getBlockProviderOptions(block)
-      return {
-        type: 'text' as const,
-        text: block.content,
-        ...(providerOptions ? { provider_options: providerOptions } : {})
-      }
-    })
-
   const assistantMessage: ChatMessage = {
     role: 'assistant',
-    content: contentParts.some((part) => part.provider_options) ? contentParts : text,
+    content: assistantContent,
     tool_calls: toolCalls
   }
-  if (preserveInterleavedReasoning && reasoning) {
-    assistantMessage.reasoning_content = reasoning
-    const reasoningProviderOptions = blocks
-      .filter((block) => block.type === 'reasoning_content')
-      .map((block) => getBlockProviderOptions(block))
-      .find(Boolean)
-    if (reasoningProviderOptions) {
-      assistantMessage.reasoning_provider_options = reasoningProviderOptions
-    }
-  }
+  applyReasoningContent(assistantMessage)
 
   const result: ChatMessage[] = [assistantMessage]
   for (const block of toolCallBlocks) {
