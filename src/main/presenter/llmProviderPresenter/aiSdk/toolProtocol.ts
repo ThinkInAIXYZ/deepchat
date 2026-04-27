@@ -51,14 +51,25 @@ export function parseLegacyFunctionCalls(
   response: string,
   fallbackIdPrefix = 'tool-call'
 ): ParsedLegacyToolCall[] {
-  const functionCallMatches = response.match(/<function_call>([\s\S]*?)<\/function_call>/g)
-  if (!functionCallMatches) {
+  const functionCallMatches = [
+    ...response.matchAll(/<function_call>([\s\S]*?)<\/function_call>/g)
+  ].map((match) => match[1])
+
+  const trailingOpenTagIndex = response.lastIndexOf('<function_call>')
+  if (
+    trailingOpenTagIndex !== -1 &&
+    response.indexOf('</function_call>', trailingOpenTagIndex) === -1
+  ) {
+    functionCallMatches.push(response.slice(trailingOpenTagIndex + '<function_call>'.length))
+  }
+
+  if (functionCallMatches.length === 0) {
     return []
   }
 
   return functionCallMatches
     .map((match, index) => {
-      const content = match.replace(/<\/?function_call>/g, '').trim()
+      const content = normalizeLegacyFunctionCallContent(match)
       if (!content) {
         return null
       }
@@ -112,6 +123,17 @@ export function parseLegacyFunctionCalls(
       }
     })
     .filter((call): call is ParsedLegacyToolCall => call !== null)
+}
+
+function normalizeLegacyFunctionCallContent(content: string): string {
+  let normalized = content.replace(/<\/?function_call>/g, '').trim()
+
+  const fenced = normalized.match(/^```(?:json|JSON)?\s*([\s\S]*?)\s*```$/)
+  if (fenced?.[1]) {
+    normalized = fenced[1].trim()
+  }
+
+  return normalized
 }
 
 export function buildFunctionCallRecordContent(
