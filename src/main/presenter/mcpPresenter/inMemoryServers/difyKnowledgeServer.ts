@@ -59,7 +59,6 @@ export class DifyKnowledgeServer {
   }> = []
 
   constructor(env?: Record<string, unknown>) {
-    console.log('DifyKnowledgeServer constructor', env)
     if (!env) {
       throw new Error('需要提供Dify知识库配置')
     }

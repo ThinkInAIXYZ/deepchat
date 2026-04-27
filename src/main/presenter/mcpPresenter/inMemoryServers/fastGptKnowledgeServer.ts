@@ -48,7 +48,6 @@ export class FastGptKnowledgeServer {
   }> = []
 
   constructor(env?: Record<string, unknown>) {
-    console.log('FastGptKnowledgeServer constructor', env)
     if (!env) {
       throw new Error('需要提供FastGPT知识库配置')
     }

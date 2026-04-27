@@ -359,6 +359,68 @@ describe('KnowledgePresenter Validation Methods', () => {
       expect(fs.rmSync).toHaveBeenCalledWith('/mock/db/dir/KnowledgeBase/knowledge-1.wal', {
         recursive: true
       })
+      expect((knowledgePresenter as any).storePresenterInitTasks.has(config.id)).toBe(false)
+      expect((knowledgePresenter as any).storePresenterCache.has(config.id)).toBe(false)
+    })
+
+    it('should remove the init task before destroying a resolved store during delete', async () => {
+      const config = createKnowledgeConfig('knowledge-1')
+      const destroy = vi.fn().mockImplementation(() => {
+        expect((knowledgePresenter as any).storePresenterInitTasks.has(config.id)).toBe(false)
+        return Promise.resolve()
+      })
+      ;(knowledgePresenter as any).storePresenterInitTasks.set(
+        config.id,
+        Promise.resolve({ destroy })
+      )
+
+      await expect(knowledgePresenter.delete(config.id)).resolves.toBeUndefined()
+
+      expect(destroy).toHaveBeenCalled()
+      expect((knowledgePresenter as any).storePresenterCache.has(config.id)).toBe(false)
+    })
+
+    it('should swallow rejected initialization when updating an enabled config', async () => {
+      const config = createKnowledgeConfig('knowledge-1')
+      ;(knowledgePresenter as any).storePresenterInitTasks.set(
+        config.id,
+        Promise.reject(new Error('failed init'))
+      )
+
+      await expect(knowledgePresenter.update(config)).resolves.toBeUndefined()
+    })
+
+    it('should close cached store and clear cache when disabling after initialization failed', async () => {
+      const config = createKnowledgeConfig('knowledge-1')
+      const close = vi.fn().mockResolvedValue(undefined)
+      ;(knowledgePresenter as any).storePresenterCache.set(config.id, { close })
+      ;(knowledgePresenter as any).storePresenterInitTasks.set(
+        config.id,
+        Promise.reject(new Error('failed init'))
+      )
+
+      await expect(
+        knowledgePresenter.update({ ...config, enabled: false })
+      ).resolves.toBeUndefined()
+
+      expect(close).toHaveBeenCalled()
+      expect((knowledgePresenter as any).storePresenterCache.has(config.id)).toBe(false)
+    })
+
+    it('should close the vector database and preserve the error when store creation fails', async () => {
+      const config = createKnowledgeConfig('knowledge-1')
+      const close = vi.fn().mockResolvedValue(undefined)
+      const error = new Error('store constructor failed')
+      ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([config])
+      ;(knowledgePresenter as any).getVectorDatabasePresenter = vi.fn().mockResolvedValue({ close })
+      ;(KnowledgeStorePresenter as unknown as Mock).mockImplementationOnce(() => {
+        throw error
+      })
+
+      await expect(knowledgePresenter.listFiles(config.id)).rejects.toBe(error)
+
+      expect(close).toHaveBeenCalled()
+      expect((knowledgePresenter as any).storePresenterCache.has(config.id)).toBe(false)
     })
 
     it('should not interfere with existing KnowledgePresenter functionality', () => {

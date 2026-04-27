@@ -146,7 +146,9 @@ export class KnowledgePresenter implements IKnowledgePresenter {
         return
       }
 
-      const initializingRag = await this.storePresenterInitTasks.get(config.id)
+      const initializingRag = await this.storePresenterInitTasks
+        .get(config.id)
+        ?.catch(() => undefined)
       if (initializingRag) {
         initializingRag.updateConfig(config)
       }
@@ -161,25 +163,27 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    * @param id Knowledge base ID
    */
   delete = async (id: string): Promise<void> => {
-    const initializingRag = await this.storePresenterInitTasks.get(id)?.catch(() => undefined)
-    const cachedRag = this.getStorePresenter(id)
-    const rag = cachedRag ?? initializingRag
+    try {
+      const initializingRag = await this.storePresenterInitTasks.get(id)?.catch(() => undefined)
+      this.storePresenterInitTasks.delete(id)
+      const cachedRag = this.getStorePresenter(id)
+      const rag = cachedRag ?? initializingRag
 
-    if (rag) {
-      try {
+      if (rag) {
         await rag.destroy()
-      } finally {
-        this.storePresenterCache.delete(id)
+        return
       }
-      return
-    }
 
-    const dbPath = path.join(this.storageDir, id)
-    if (fs.existsSync(dbPath)) {
-      fs.rmSync(dbPath, { recursive: true })
-    }
-    if (fs.existsSync(dbPath + '.wal')) {
-      fs.rmSync(dbPath + '.wal', { recursive: true })
+      const dbPath = path.join(this.storageDir, id)
+      if (fs.existsSync(dbPath)) {
+        fs.rmSync(dbPath, { recursive: true })
+      }
+      if (fs.existsSync(dbPath + '.wal')) {
+        fs.rmSync(dbPath + '.wal', { recursive: true })
+      }
+    } finally {
+      this.storePresenterCache.delete(id)
+      this.storePresenterInitTasks.delete(id)
     }
   }
 
@@ -215,7 +219,15 @@ export class KnowledgePresenter implements IKnowledgePresenter {
         this.storePresenterCache.set(config.id, rag)
         return rag
       } catch (e) {
-        throw new Error(`Failed to create storePresenter: ${e}`)
+        try {
+          await db.close()
+        } catch (closeError) {
+          console.error(
+            '[RAG] Failed to close vector database after storePresenter error:',
+            closeError
+          )
+        }
+        throw e
       }
     })()
 
@@ -267,14 +279,14 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    * @returns void
    */
   private closeStorePresenterIfExists = async (id: string): Promise<void> => {
-    const initializingRag = await this.storePresenterInitTasks.get(id)
+    const initializingRag = await this.storePresenterInitTasks.get(id)?.catch(() => undefined)
     const rag = this.getStorePresenter(id) ?? initializingRag
-    if (rag) {
-      try {
+    try {
+      if (rag) {
         await rag.close()
-      } finally {
-        this.storePresenterCache.delete(id)
       }
+    } finally {
+      this.storePresenterCache.delete(id)
     }
   }
 
