@@ -591,6 +591,7 @@ export const useSessionStore = defineStore('session', () => {
       pageRouter.goToChat(session.id)
     } catch (createError) {
       error.value = `Failed to create session: ${createError}`
+      throw createError
     }
   }
 
@@ -649,6 +650,7 @@ export const useSessionStore = defineStore('session', () => {
       await chatClient.sendMessage(sessionId, content)
     } catch (sendError) {
       error.value = `Failed to send message: ${sendError}`
+      throw sendError
     }
   }
 

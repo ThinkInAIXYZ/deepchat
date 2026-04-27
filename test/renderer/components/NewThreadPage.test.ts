@@ -300,6 +300,29 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(sessionStore.createSession).not.toHaveBeenCalled()
   })
 
+  it('keeps draft input when ACP draft send fails', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { wrapper, sessionStore } = await setup()
+      const file = { name: 'a.pdf', path: '/tmp/a.pdf', mimeType: 'application/pdf' }
+      ;(wrapper.vm as any).message = 'hello from draft'
+      ;(wrapper.vm as any).attachedFiles = [file]
+      sessionStore.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+
+      await (wrapper.vm as any).onSubmit()
+      await flushPromises()
+
+      expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', {
+        text: 'hello from draft',
+        files: [file]
+      })
+      expect((wrapper.vm as any).message).toBe('hello from draft')
+      expect((wrapper.vm as any).attachedFiles).toEqual([file])
+    } finally {
+      consoleErrorSpy.mockRestore()
+    }
+  })
+
   it('passes draft generation settings when creating a deepchat session', async () => {
     const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup()
 
@@ -341,6 +364,42 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         }
       })
     )
+  })
+
+  it('keeps draft input when deepchat session creation fails', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup()
+      const file = { name: 'a.pdf', path: '/tmp/a.pdf', mimeType: 'application/pdf' }
+
+      agentStore.selectedAgentId = 'deepchat'
+      await flushPromises()
+      modelStore.enabledModels = [
+        {
+          providerId: 'openai',
+          models: [{ id: 'gpt-4', name: 'GPT-4' }]
+        }
+      ]
+      draftStore.providerId = 'openai'
+      draftStore.modelId = 'gpt-4'
+      ;(wrapper.vm as any).message = 'hello deepchat'
+      ;(wrapper.vm as any).attachedFiles = [file]
+      sessionStore.createSession.mockRejectedValueOnce(new Error('create failed'))
+
+      await (wrapper.vm as any).onSubmit()
+      await flushPromises()
+
+      expect(sessionStore.createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'hello deepchat',
+          files: [file]
+        })
+      )
+      expect((wrapper.vm as any).message).toBe('hello deepchat')
+      expect((wrapper.vm as any).attachedFiles).toEqual([file])
+    } finally {
+      consoleErrorSpy.mockRestore()
+    }
   })
 
   it('awaits full model initialization before creating a deepchat session', async () => {

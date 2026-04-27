@@ -31,6 +31,8 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   ])
 )
 
+export const FileMetadataValueSchema = z.union([JsonValueSchema, z.date()])
+
 export const AppErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
@@ -76,7 +78,7 @@ export const MessageFileSchema = z.object({
   mimeType: z.string().optional(),
   token: z.number().optional(),
   thumbnail: z.string().optional(),
-  metadata: z.record(JsonValueSchema).optional()
+  metadata: z.record(FileMetadataValueSchema).optional()
 })
 
 export const SendMessageInputSchema = z.object({
