@@ -34,8 +34,8 @@ const InputStub = defineComponent({
     '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
 })
 
-const DynamicScrollerStub = defineComponent({
-  name: 'DynamicScrollerStub',
+const RecycleScrollerStub = defineComponent({
+  name: 'RecycleScrollerStub',
   props: {
     items: {
       type: Array,
@@ -44,29 +44,6 @@ const DynamicScrollerStub = defineComponent({
   },
   template:
     '<div><slot v-for="(item, index) in items" :key="item.id" :item="item" :index="index" :active="true" /></div>'
-})
-
-const DynamicScrollerItemStub = defineComponent({
-  name: 'DynamicScrollerItemStub',
-  props: {
-    item: {
-      type: Object,
-      required: true
-    },
-    active: {
-      type: Boolean,
-      required: true
-    },
-    index: {
-      type: Number,
-      required: true
-    },
-    sizeDependencies: {
-      type: Array,
-      default: () => []
-    }
-  },
-  template: '<div><slot /></div>'
 })
 
 const ModelConfigItemStub = defineComponent({
@@ -101,7 +78,13 @@ describe('ProviderModelList', () => {
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
     }))
+    vi.doMock('@/stores/uiSettingsStore', () => ({
+      useUiSettingsStore: () => ({
+        traceDebugEnabled: false
+      })
+    }))
     vi.doMock('@vueuse/core', () => ({
+      useDebounceFn: (fn: (...args: unknown[]) => unknown) => fn,
       useElementSize: () => ({ height: ref(48) })
     }))
     vi.doMock('vue-i18n', () => ({
@@ -177,8 +160,7 @@ describe('ProviderModelList', () => {
           Popover: passthrough('Popover'),
           PopoverContent: passthrough('PopoverContent'),
           PopoverTrigger: passthrough('PopoverTrigger'),
-          DynamicScroller: DynamicScrollerStub,
-          DynamicScrollerItem: DynamicScrollerItemStub,
+          RecycleScroller: RecycleScrollerStub,
           AddCustomModelButton: passthrough('AddCustomModelButton'),
           ModelConfigItem: ModelConfigItemStub,
           Icon: true

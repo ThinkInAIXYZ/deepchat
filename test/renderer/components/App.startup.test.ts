@@ -92,7 +92,14 @@ const mountApp = async (options?: {
     activeSessionId: hasActiveSession ? 'session-1' : null,
     startNewConversation: vi.fn().mockResolvedValue(undefined),
     closeSession: vi.fn().mockResolvedValue(undefined),
-    selectSession: vi.fn()
+    selectSession: vi.fn(),
+    fetchSessions: vi.fn().mockResolvedValue(undefined)
+  }
+  const providerStore = {
+    ensureInitialized: vi.fn().mockResolvedValue(undefined)
+  }
+  const modelStore = {
+    initialize: vi.fn().mockResolvedValue(undefined)
   }
   const toast = vi.fn(() => ({ dismiss: vi.fn() }))
   const ipcOn = vi.fn()
@@ -223,6 +230,12 @@ const mountApp = async (options?: {
       currentProviderId: null,
       closeDialog: vi.fn()
     })
+  }))
+  vi.doMock('@/stores/providerStore', () => ({
+    useProviderStore: () => providerStore
+  }))
+  vi.doMock('@/stores/modelStore', () => ({
+    useModelStore: () => modelStore
   }))
   vi.doMock('@/lib/storeInitializer', () => ({
     initAppStores: vi.fn(),
