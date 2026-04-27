@@ -35,4 +35,43 @@ describe('AI SDK message mapper', () => {
       }
     ])
   })
+
+  it('maps interleaved reasoning and native tool calls into assistant parts', () => {
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'assistant',
+          content: 'I need current data.',
+          reasoning_content: 'Plan the lookup first.',
+          tool_calls: [
+            {
+              id: 'tc1',
+              type: 'function',
+              function: { name: 'search', arguments: '{"query":"weather"}' }
+            }
+          ]
+        }
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true
+      }
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'reasoning', text: 'Plan the lookup first.' },
+          { type: 'text', text: 'I need current data.' },
+          {
+            type: 'tool-call',
+            toolCallId: 'tc1',
+            toolName: 'search',
+            input: { query: 'weather' }
+          }
+        ]
+      }
+    ])
+  })
 })
