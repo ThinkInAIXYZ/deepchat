@@ -16,6 +16,7 @@ import {
   configGetEntriesRoute,
   configGetFloatingButtonRoute,
   configGetGeminiSafetyRoute,
+  configGetKnowledgeConfigsRoute,
   configGetLanguageRoute,
   configGetMcpServersRoute,
   configGetShortcutKeysRoute,
@@ -36,6 +37,7 @@ import {
   configSetDefaultSystemPromptRoute,
   configSetFloatingButtonRoute,
   configSetGeminiSafetyRoute,
+  configSetKnowledgeConfigsRoute,
   configSetLanguageRoute,
   configSetShortcutKeysRoute,
   configSetSystemPromptsRoute,
@@ -351,6 +353,21 @@ export async function dispatchConfigRoute(
       configGetMcpServersRoute.input.parse(rawInput)
       return configGetMcpServersRoute.output.parse({
         servers: await configPresenter.getMcpServers()
+      })
+    }
+
+    case configGetKnowledgeConfigsRoute.name: {
+      configGetKnowledgeConfigsRoute.input.parse(rawInput)
+      return configGetKnowledgeConfigsRoute.output.parse({
+        configs: configPresenter.getKnowledgeConfigs()
+      })
+    }
+
+    case configSetKnowledgeConfigsRoute.name: {
+      const input = configSetKnowledgeConfigsRoute.input.parse(rawInput)
+      configPresenter.setKnowledgeConfigs(input.configs)
+      return configSetKnowledgeConfigsRoute.output.parse({
+        configs: configPresenter.getKnowledgeConfigs()
       })
     }
 

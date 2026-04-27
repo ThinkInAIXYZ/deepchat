@@ -180,6 +180,16 @@ const getDefaultDeepchatInvokeResult = (
         servers: {},
         version: 0
       }
+    case 'config.getKnowledgeConfigs':
+      return {
+        configs: [],
+        version: 0
+      }
+    case 'config.setKnowledgeConfigs':
+      return {
+        configs: Array.isArray(payload.configs) ? payload.configs : [],
+        version: 1
+      }
     case 'config.getAcpRegistryIconMarkup':
       return {
         markup: ''

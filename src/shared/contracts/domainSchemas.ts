@@ -18,6 +18,20 @@ export const ModelSelectionSchema = z.object({
   modelId: z.string().min(1)
 })
 
+export const BuiltinKnowledgeConfigSchema = z.object({
+  id: z.string().min(1),
+  description: z.string(),
+  embedding: ModelSelectionSchema,
+  rerank: ModelSelectionSchema.optional(),
+  dimensions: z.number(),
+  normalized: z.boolean(),
+  chunkSize: z.number().optional(),
+  chunkOverlap: z.number().optional(),
+  fragmentsNumber: z.number(),
+  separators: z.array(z.string()).optional(),
+  enabled: z.boolean()
+})
+
 export const DeepChatAgentModelPresetSchema = ModelSelectionSchema.extend({
   temperature: z.number().optional(),
   contextLength: z.number().int().optional(),
@@ -327,7 +341,7 @@ export const McpServerConfigSchema = z
     command: z.string().optional(),
     args: z.array(z.string()).optional(),
     name: z.string().optional(),
-    env: z.record(z.string(), z.string()).optional()
+    env: z.record(z.string(), z.unknown()).optional()
   })
   .passthrough()
 

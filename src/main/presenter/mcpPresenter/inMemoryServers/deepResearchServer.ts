@@ -169,10 +169,11 @@ export class DeepResearchServer {
 
   constructor(env?: Record<string, unknown>) {
     // 检查 Bocha API 密钥是否已提供
-    if (!env?.BOCHA_API_KEY) {
+    const bochaApiKey = String(env?.BOCHA_API_KEY ?? '')
+    if (!bochaApiKey) {
       throw new Error('需要 BOCHA_API_KEY')
     }
-    this.bochaApiKey = env.BOCHA_API_KEY as string
+    this.bochaApiKey = bochaApiKey
 
     this.server = new Server(
       {

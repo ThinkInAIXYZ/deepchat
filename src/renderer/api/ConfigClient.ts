@@ -27,6 +27,7 @@ import {
   configGetDefaultSystemPromptRoute,
   configGetFloatingButtonRoute,
   configGetGeminiSafetyRoute,
+  configGetKnowledgeConfigsRoute,
   configGetLanguageRoute,
   configGetMcpServersRoute,
   configGetShortcutKeysRoute,
@@ -47,6 +48,7 @@ import {
   configSetDefaultSystemPromptRoute,
   configSetFloatingButtonRoute,
   configSetGeminiSafetyRoute,
+  configSetKnowledgeConfigsRoute,
   configSetLanguageRoute,
   configSetShortcutKeysRoute,
   configSetSystemPromptsRoute,
@@ -58,7 +60,12 @@ import {
   type ConfigEntryKey,
   type ConfigEntryValues
 } from '@shared/contracts/routes'
-import type { Prompt, ShortcutKeySetting, SystemPrompt } from '@shared/presenter'
+import type {
+  BuiltinKnowledgeConfig,
+  Prompt,
+  ShortcutKeySetting,
+  SystemPrompt
+} from '@shared/presenter'
 import { getDeepchatBridge } from './core'
 import { createSettingsClient } from './SettingsClient'
 
@@ -77,6 +84,41 @@ type GeminiSafetyValue =
   | 'BLOCK_MEDIUM_AND_ABOVE'
   | 'BLOCK_LOW_AND_ABOVE'
   | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+
+function toPlainKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): BuiltinKnowledgeConfig[] {
+  return configs.map((config) => {
+    const plainConfig: BuiltinKnowledgeConfig = {
+      id: config.id,
+      description: config.description,
+      embedding: {
+        providerId: config.embedding.providerId,
+        modelId: config.embedding.modelId
+      },
+      dimensions: config.dimensions,
+      normalized: config.normalized,
+      fragmentsNumber: config.fragmentsNumber,
+      enabled: config.enabled
+    }
+
+    if (config.rerank) {
+      plainConfig.rerank = {
+        providerId: config.rerank.providerId,
+        modelId: config.rerank.modelId
+      }
+    }
+    if (typeof config.chunkSize === 'number') {
+      plainConfig.chunkSize = config.chunkSize
+    }
+    if (typeof config.chunkOverlap === 'number') {
+      plainConfig.chunkOverlap = config.chunkOverlap
+    }
+    if (config.separators) {
+      plainConfig.separators = [...config.separators]
+    }
+
+    return plainConfig
+  })
+}
 
 export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   const settingsClient = createSettingsClient(bridge)
@@ -301,6 +343,18 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.servers
   }
 
+  async function getKnowledgeConfigs(): Promise<BuiltinKnowledgeConfig[]> {
+    const result = await bridge.invoke(configGetKnowledgeConfigsRoute.name, {})
+    return result.configs as unknown as BuiltinKnowledgeConfig[]
+  }
+
+  async function setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]) {
+    const result = await bridge.invoke(configSetKnowledgeConfigsRoute.name, {
+      configs: toPlainKnowledgeConfigs(configs)
+    })
+    return result.configs as unknown as BuiltinKnowledgeConfig[]
+  }
+
   async function getAcpRegistryIconMarkup(agentId: string, iconUrl: string) {
     const result = await bridge.invoke(configGetAcpRegistryIconMarkupRoute.name, {
       agentId,
@@ -475,6 +529,8 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     getAcpSharedMcpSelections,
     setAcpSharedMcpSelections,
     getMcpServers,
+    getKnowledgeConfigs,
+    setKnowledgeConfigs,
     getAcpRegistryIconMarkup,
     getVoiceAIConfig,
     updateVoiceAIConfig,

@@ -207,7 +207,7 @@ export class McpClient {
       if (this.serverConfig.type === 'inmemory') {
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
         const _args = Array.isArray(this.serverConfig.args) ? this.serverConfig.args : []
-        const _env = this.serverConfig.env ? (this.serverConfig.env as Record<string, string>) : {}
+        const _env = this.serverConfig.env ? (this.serverConfig.env as Record<string, unknown>) : {}
         const _server = getInMemoryServer(this.serverName, _args, _env)
         _server.startServer(serverTransport)
         this.transport = clientTransport
@@ -354,18 +354,19 @@ export class McpClient {
 
         // 添加自定义环境变量
         if (this.serverConfig.env) {
-          Object.entries(this.serverConfig.env as Record<string, string>).forEach(
+          Object.entries(this.serverConfig.env as Record<string, unknown>).forEach(
             ([key, value]) => {
               if (value !== undefined) {
+                const stringValue = String(value ?? '')
                 // 如果是PATH相关变量，合并到主PATH中
                 if (['PATH', 'Path', 'path'].includes(key)) {
                   const currentPathKey = process.platform === 'win32' ? 'Path' : 'PATH'
                   const separator = process.platform === 'win32' ? ';' : ':'
                   env[currentPathKey] = env[currentPathKey]
-                    ? `${value}${separator}${env[currentPathKey]}`
-                    : value
+                    ? `${stringValue}${separator}${env[currentPathKey]}`
+                    : stringValue
                 } else {
-                  env[key] = value
+                  env[key] = stringValue
                 }
               }
             }

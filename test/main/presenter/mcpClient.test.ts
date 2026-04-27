@@ -4,6 +4,8 @@ import { RuntimeHelper } from '../../../src/main/lib/runtimeHelper'
 import path from 'path'
 import fs from 'fs'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const fsExistsSyncMock = vi.hoisted(() => vi.fn())
 
@@ -31,9 +33,13 @@ vi.mock('fs', () => ({
 vi.mock('../../../src/main/eventbus', () => ({
   eventBus: {
     emit: vi.fn(),
+    send: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
     once: vi.fn()
+  },
+  SendTarget: {
+    ALL_WINDOWS: 'all-windows'
   }
 }))
 
@@ -85,18 +91,25 @@ vi.mock('../../../src/main/presenter/mcpPresenter/inMemoryServers/builder', () =
 // Mock MCP SDK modules
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
   Client: vi.fn().mockImplementation(() => ({
-    connect: vi.fn(),
+    connect: vi.fn().mockResolvedValue(undefined),
     callTool: vi.fn(),
     listTools: vi.fn(),
     listPrompts: vi.fn(),
     getPrompt: vi.fn(),
     listResources: vi.fn(),
-    readResource: vi.fn()
+    readResource: vi.fn(),
+    setNotificationHandler: vi.fn(),
+    setRequestHandler: vi.fn()
   }))
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
-  StdioClientTransport: vi.fn()
+  StdioClientTransport: vi.fn().mockImplementation(() => ({
+    stderr: {
+      on: vi.fn()
+    },
+    close: vi.fn()
+  }))
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
@@ -133,6 +146,29 @@ describe('McpClient Runtime Command Processing Tests', () => {
     mockGenerateCompletionStandalone.mockReset()
     mockGetProviderModels.mockReset()
     mockGetCustomModels.mockReset()
+    vi.mocked(Client).mockImplementation(
+      () =>
+        ({
+          connect: vi.fn().mockResolvedValue(undefined),
+          callTool: vi.fn(),
+          listTools: vi.fn(),
+          listPrompts: vi.fn(),
+          getPrompt: vi.fn(),
+          listResources: vi.fn(),
+          readResource: vi.fn(),
+          setNotificationHandler: vi.fn(),
+          setRequestHandler: vi.fn()
+        }) as any
+    )
+    vi.mocked(StdioClientTransport).mockImplementation(
+      () =>
+        ({
+          stderr: {
+            on: vi.fn()
+          },
+          close: vi.fn()
+        }) as any
+    )
   })
 
   afterEach(() => {
@@ -342,6 +378,32 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       // Should handle null registry gracefully
       expect((client as any).npmRegistry).toBeNull()
+    })
+
+    it('should coerce stdio server env values to strings before spawning', async () => {
+      const client = new McpClient('test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js'],
+        env: {
+          TOKEN: 123,
+          EMPTY: null,
+          SKIP: undefined,
+          PATH: '/custom/bin'
+        }
+      })
+
+      await client.connect()
+
+      const transportCalls = vi.mocked(StdioClientTransport).mock.calls
+      const transportOptions = transportCalls[transportCalls.length - 1][0] as {
+        env: Record<string, string>
+      }
+
+      expect(transportOptions.env.TOKEN).toBe('123')
+      expect(transportOptions.env.EMPTY).toBe('')
+      expect(transportOptions.env).not.toHaveProperty('SKIP')
+      expect(transportOptions.env.PATH).toContain('/custom/bin')
     })
   })
 

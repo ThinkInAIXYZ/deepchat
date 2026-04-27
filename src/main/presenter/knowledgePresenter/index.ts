@@ -5,7 +5,6 @@ import {
   IConfigPresenter,
   IKnowledgePresenter,
   BuiltinKnowledgeConfig,
-  MCPServerConfig,
   KnowledgeFileMessage,
   QueryResult,
   KnowledgeFileResult
@@ -13,6 +12,7 @@ import {
 import { FileValidationResult } from '../filePresenter/FileValidationService'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
+import { KnowledgeConfHelper } from '../configPresenter/knowledgeConfHelper'
 import { DuckDBPresenter } from './database/duckdbPresenter'
 import { KnowledgeStorePresenter } from './knowledgeStorePresenter'
 import { KnowledgeTaskPresenter } from './knowledgeTaskPresenter'
@@ -48,6 +48,9 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    * 缓存 RAG 应用实例
    */
   private readonly storePresenterCache: Map<string, KnowledgeStorePresenter>
+  private readonly storePresenterInitTasks: Map<string, Promise<KnowledgeStorePresenter>>
+
+  private knowledgeConfigSnapshot: BuiltinKnowledgeConfig[]
 
   constructor(configP: IConfigPresenter, dbDir: string, filePresenter: IFilePresenter) {
     console.log('[RAG] Initializing Built-in Knowledge Presenter')
@@ -56,6 +59,8 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     this.storageDir = path.join(dbDir, 'KnowledgeBase')
     this.taskP = new KnowledgeTaskPresenter()
     this.storePresenterCache = new Map()
+    this.storePresenterInitTasks = new Map()
+    this.knowledgeConfigSnapshot = this.configP.getKnowledgeConfigs() ?? []
 
     this.initStorageDir()
     this.setupEventBus()
@@ -72,48 +77,36 @@ export class KnowledgePresenter implements IKnowledgePresenter {
 
   private setupEventBus = (): void => {
     // 监听知识库相关事件
-    eventBus.on(MCP_EVENTS.CONFIG_CHANGED, async (payload) => {
-      try {
-        if (
-          !payload ||
-          typeof payload !== 'object' ||
-          !payload.mcpServers ||
-          typeof payload.mcpServers !== 'object'
-        ) {
-          console.warn('[RAG] Invalid payload for CONFIG_CHANGED event:', payload)
-          return
-        }
-        const mcpServers = payload.mcpServers
-        const builtinConfig = mcpServers['builtinKnowledge'] as MCPServerConfig
-        if (builtinConfig?.env && Array.isArray(builtinConfig.env.configs)) {
-          const configs = builtinConfig.env.configs as BuiltinKnowledgeConfig[]
-          console.log('[RAG] Received builtinKnowledge config update:', configs)
-          const diffs = this.configP.diffKnowledgeConfigs(configs)
-          this.configP.setKnowledgeConfigs(configs)
-          // 处理新增、删除和更新的配置
-          if (diffs.deleted.length > 0) {
-            diffs.deleted.forEach((config) => this.delete(config.id))
-          }
-          if (diffs.added.length > 0) {
-            diffs.added.forEach((config) => {
-              console.log(`[RAG] New knowledge config added: ${config.id}`)
-              this.create(config)
-            })
-          }
-          if (diffs.updated.length > 0) {
-            diffs.updated.forEach((config) => {
-              console.log(`[RAG] Knowledge config updated: ${config.id}`)
-              this.update(config)
-            })
-          }
-          console.log('[RAG] Updated knowledge configs:', configs)
-        } else {
-          console.warn('[RAG] builtinKnowledge config missing or invalid:', builtinConfig)
-        }
-      } catch (err) {
-        console.error('[RAG] Error handling CONFIG_CHANGED event:', err)
-      }
+    eventBus.on(MCP_EVENTS.CONFIG_CHANGED, () => {
+      void this.syncKnowledgeConfigChanges().catch((error) => {
+        console.error('[RAG] Error syncing knowledge configs:', error)
+      })
     })
+  }
+
+  private syncKnowledgeConfigChanges = async (): Promise<void> => {
+    const configs = this.configP.getKnowledgeConfigs() ?? []
+    const diffs = KnowledgeConfHelper.diffKnowledgeConfigs(this.knowledgeConfigSnapshot, configs)
+    this.knowledgeConfigSnapshot = configs
+
+    if (diffs.deleted.length > 0) {
+      await Promise.all(diffs.deleted.map((config) => this.delete(config.id)))
+    }
+
+    if (diffs.added.length > 0) {
+      diffs.added.forEach((config) => {
+        console.log(`[RAG] New knowledge config added: ${config.id}`)
+      })
+    }
+
+    if (diffs.updated.length > 0) {
+      await Promise.all(
+        diffs.updated.map((config) => {
+          console.log(`[RAG] Knowledge config updated: ${config.id}`)
+          return this.update(config)
+        })
+      )
+    }
   }
 
   /**
@@ -150,13 +143,18 @@ export class KnowledgePresenter implements IKnowledgePresenter {
       const rag = this.getStorePresenter(config.id)
       if (rag) {
         rag.updateConfig(config)
-      } else {
-        // 如果缓存中没有，则创建新的 RAG 实例
-        await this.createStorePresenter(config)
+        return
+      }
+
+      const initializingRag = await this.storePresenterInitTasks
+        .get(config.id)
+        ?.catch(() => undefined)
+      if (initializingRag) {
+        initializingRag.updateConfig(config)
       }
     } else {
       // 如果禁用且缓存中存在，关闭实例
-      this.closeStorePresenterIfExists(config.id)
+      await this.closeStorePresenterIfExists(config.id)
     }
   }
 
@@ -165,10 +163,17 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    * @param id Knowledge base ID
    */
   delete = async (id: string): Promise<void> => {
-    if (this.storePresenterCache.has(id)) {
-      await this.getStorePresenter(id)?.destroy()
-      this.storePresenterCache.delete(id)
-    } else {
+    try {
+      const initializingRag = await this.storePresenterInitTasks.get(id)?.catch(() => undefined)
+      this.storePresenterInitTasks.delete(id)
+      const cachedRag = this.getStorePresenter(id)
+      const rag = cachedRag ?? initializingRag
+
+      if (rag) {
+        await rag.destroy()
+        return
+      }
+
       const dbPath = path.join(this.storageDir, id)
       if (fs.existsSync(dbPath)) {
         fs.rmSync(dbPath, { recursive: true })
@@ -176,6 +181,9 @@ export class KnowledgePresenter implements IKnowledgePresenter {
       if (fs.existsSync(dbPath + '.wal')) {
         fs.rmSync(dbPath + '.wal', { recursive: true })
       }
+    } finally {
+      this.storePresenterCache.delete(id)
+      this.storePresenterInitTasks.delete(id)
     }
   }
 
@@ -187,20 +195,51 @@ export class KnowledgePresenter implements IKnowledgePresenter {
   private createStorePresenter = async (
     config: BuiltinKnowledgeConfig
   ): Promise<KnowledgeStorePresenter> => {
-    let rag: KnowledgeStorePresenter
-    const db = await this.getVectorDatabasePresenter(
-      config.id,
-      config.dimensions,
-      config.normalized
-    )
-    try {
-      rag = new KnowledgeStorePresenter(db, config, this.taskP)
-    } catch (e) {
-      throw new Error(`Failed to create storePresenter: ${e}`)
+    const cachedRag = this.getStorePresenter(config.id)
+    if (cachedRag) {
+      cachedRag.updateConfig(config)
+      return cachedRag
     }
 
-    this.storePresenterCache.set(config.id, rag)
-    return rag
+    const initializingRag = this.storePresenterInitTasks.get(config.id)
+    if (initializingRag) {
+      const rag = await initializingRag
+      rag.updateConfig(config)
+      return rag
+    }
+
+    const initTask = (async () => {
+      const db = await this.getVectorDatabasePresenter(
+        config.id,
+        config.dimensions,
+        config.normalized
+      )
+      try {
+        const rag = new KnowledgeStorePresenter(db, config, this.taskP)
+        this.storePresenterCache.set(config.id, rag)
+        return rag
+      } catch (e) {
+        try {
+          await db.close()
+        } catch (closeError) {
+          console.error(
+            '[RAG] Failed to close vector database after storePresenter error:',
+            closeError
+          )
+        }
+        throw e
+      }
+    })()
+
+    this.storePresenterInitTasks.set(config.id, initTask)
+
+    try {
+      return await initTask
+    } finally {
+      if (this.storePresenterInitTasks.get(config.id) === initTask) {
+        this.storePresenterInitTasks.delete(config.id)
+      }
+    }
   }
 
   /**
@@ -230,12 +269,8 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     if (!config) {
       throw new Error(`Knowledge config not found for id: ${id}`)
     }
-    // DuckDB 存储
-    const db = await this.getVectorDatabasePresenter(id, config.dimensions, config.normalized)
-    // 创建 RAG 应用实例
-    const rag = new KnowledgeStorePresenter(db, config, this.taskP)
-    this.storePresenterCache.set(id, rag)
-    return rag
+
+    return await this.createStorePresenter(config)
   }
 
   /**
@@ -244,9 +279,13 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    * @returns void
    */
   private closeStorePresenterIfExists = async (id: string): Promise<void> => {
-    const rag = this.getStorePresenter(id)
-    if (rag) {
-      await rag.close()
+    const initializingRag = await this.storePresenterInitTasks.get(id)?.catch(() => undefined)
+    const rag = this.getStorePresenter(id) ?? initializingRag
+    try {
+      if (rag) {
+        await rag.close()
+      }
+    } finally {
       this.storePresenterCache.delete(id)
     }
   }
@@ -314,10 +353,18 @@ export class KnowledgePresenter implements IKnowledgePresenter {
   }
 
   async closeAll(): Promise<void> {
-    this.storePresenterCache.forEach((rag) => {
-      rag.close()
-    })
+    const initializingRags = await Promise.allSettled(this.storePresenterInitTasks.values())
+    const stores = new Set<KnowledgeStorePresenter>(this.storePresenterCache.values())
+
+    for (const result of initializingRags) {
+      if (result.status === 'fulfilled') {
+        stores.add(result.value)
+      }
+    }
+
+    await Promise.all(Array.from(stores).map((rag) => rag.close()))
     this.storePresenterCache.clear()
+    this.storePresenterInitTasks.clear()
   }
 
   /**
