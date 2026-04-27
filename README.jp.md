@@ -316,10 +316,6 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/anthropic.svg" width="50" height="50" alt="Anthropic Icon"><br/>
-      <a href="https://www.anthropic.com/">Anthropic</a>
-    </td>
-    <td>
       <img src="./src/renderer/src/assets/llm-icons/voiceai.svg" width="50" height="50" alt="Voice.ai Icon"><br/>
       <a href="https://voice.ai/">Voice.ai</a>
     </td>
@@ -327,12 +323,12 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/vertexai-color.svg" width="50" height="50" alt="Vertex AI Icon"><br/>
       <a href="https://cloud.google.com/vertex-ai">Vertex AI</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/githubcopilot.svg" width="50" height="50" alt="GitHub Copilot Icon"><br/>
       <a href="https://github.com/features/copilot">GitHub Copilot</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/xiaomi.png" width="50" height="50" alt="Xiaomi Icon"><br/>
       <a href="https://platform.xiaomimimo.com/#/docs/quick-start/first-api-call">Xiaomi</a>
@@ -345,17 +341,16 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/novitaai.svg" width="50" height="50" alt="Novita AI Icon"><br/>
       <a href="https://novita.ai/">Novita AI</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/astraflow.png" width="50" height="50" alt="Astraflow Icon"><br/>
+      <a href="https://astraflow.ucloud.cn/">Astraflow</a>
+    </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/astraflow.png" width="50" height="50" alt="Astraflow Global Icon"><br/>
-      <a href="https://astraflow.ucloud.cn/">Astraflow (Global)</a>
+      <img src="./src/renderer/src/assets/llm-icons/anthropic.svg" width="50" height="50" alt="Anthropic Icon"><br/>
+      <a href="https://www.anthropic.com/">Anthropic</a>
     </td>
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/astraflow.png" width="50" height="50" alt="Astraflow CN Icon"><br/>
-      <a href="https://astraflow.ucloud.cn/">Astraflow CN</a>
-    </td>
-    <td></td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
       <a href="https://www.siliconflow.cn/">SiliconFlow</a>
