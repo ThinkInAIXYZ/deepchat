@@ -95,6 +95,7 @@
                   :queue-disabled="isQueueSubmitDisabled"
                   @attach="onAttach"
                   @queue="onQueueSubmit"
+                  @steer="onSteer"
                   @send="onSubmit"
                   @stop="onStop"
                 />
@@ -891,7 +892,7 @@ async function onSubmit() {
   const files = [...attachedFiles.value].map((f) => toRaw(f))
   if (!text && files.length === 0) return
   if (isGenerating.value) {
-    await chatClient.steerActiveTurn(props.sessionId, { text, files })
+    await pendingInputStore.queueInput(props.sessionId, { text, files })
   } else {
     await chatClient.sendMessage(props.sessionId, { text, files })
   }
@@ -908,7 +909,7 @@ async function onCommandSubmit(command: string) {
 
   const files = [...attachedFiles.value]
   if (isGenerating.value) {
-    await chatClient.steerActiveTurn(props.sessionId, { text, files })
+    await pendingInputStore.queueInput(props.sessionId, { text, files })
   } else {
     await chatClient.sendMessage(props.sessionId, { text, files })
   }
@@ -923,6 +924,18 @@ async function onQueueSubmit() {
   const files = [...attachedFiles.value].map((f) => toRaw(f))
   if (!text && files.length === 0) return
   await pendingInputStore.queueInput(props.sessionId, { text, files })
+  message.value = ''
+  attachedFiles.value = []
+}
+
+async function onSteer() {
+  if (isReadOnlySession.value) return
+  if (isAcpWorkdirMissing.value) return
+  if (activePendingInteraction.value || isHandlingInteraction.value) return
+  const text = message.value.trim()
+  const files = [...attachedFiles.value].map((f) => toRaw(f))
+  if (!text && files.length === 0) return
+  await chatClient.steerActiveTurn(props.sessionId, { text, files })
   message.value = ''
   attachedFiles.value = []
 }

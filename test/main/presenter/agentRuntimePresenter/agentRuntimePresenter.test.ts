@@ -57,11 +57,21 @@ vi.mock('@/presenter', () => ({
 vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
   buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
   buildSystemEnvPrompt: vi.fn(
-    async (options?: { providerId?: string; modelId?: string; now?: Date }) => {
+    async (options?: {
+      providerId?: string
+      modelId?: string
+      now?: Date
+      workdir?: string | null
+    }) => {
       const providerId = options?.providerId || 'unknown-provider'
       const modelId = options?.modelId || 'unknown-model'
       const dateText = (options?.now ?? new Date()).toDateString()
-      return ['ENV_BLOCK', `MODEL:${providerId}/${modelId}`, `DATE:${dateText}`].join('\n')
+      return [
+        'ENV_BLOCK',
+        `MODEL:${providerId}/${modelId}`,
+        `WORKDIR:${options?.workdir ?? ''}`,
+        `DATE:${dateText}`
+      ].join('\n')
     }
   )
 }))
@@ -1451,6 +1461,51 @@ describe('AgentRuntimePresenter', () => {
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
       expect(secondCallArgs.messages[0].content).toContain('Updated user prompt')
+    })
+
+    it('invalidates cached prompt after session project directory update', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Before project update')
+
+      await agent.setSessionProjectDir('s1', '/tmp/workspace')
+      await agent.processMessage('s1', 'After project update')
+
+      expect(envBuilder).toHaveBeenCalledTimes(2)
+
+      const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+      expect(secondCallArgs.messages[0].content).toContain('WORKDIR:/tmp/workspace')
+    })
+
+    it('uses persisted project directory when runtime state was restored from DB', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's-restored',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'full_access'
+      })
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-restored',
+        agent_id: 'deepchat',
+        project_dir: '/tmp/restored-workspace'
+      })
+
+      await agent.getSessionState('s-restored')
+      await agent.processMessage('s-restored', 'Restored session follow-up')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.messages[0].content).toContain('WORKDIR:/tmp/restored-workspace')
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationId: 's-restored',
+          agentWorkspacePath: '/tmp/restored-workspace'
+        })
+      )
     })
 
     it('invalidates cached prompt across natural days', async () => {
@@ -2905,13 +2960,16 @@ describe('AgentRuntimePresenter', () => {
         .mockReturnValue(claimedRecord)
       const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
 
-      const result = await agent.queuePendingInput('s1', 'Hello')
+      const result = await agent.queuePendingInput('s1', 'Hello', {
+        projectDir: '/tmp/workspace'
+      })
 
       expect(queueSpy).toHaveBeenCalledWith('s1', 'Hello', { state: 'claimed' })
       expect(processSpy).toHaveBeenCalledWith(
         's1',
         claimedRecord.payload,
         expect.objectContaining({
+          projectDir: '/tmp/workspace',
           pendingQueueItemId: claimedRecord.id
         })
       )

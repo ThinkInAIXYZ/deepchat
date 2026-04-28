@@ -39,18 +39,17 @@
       <Tooltip v-if="isGenerating && hasActiveInput">
         <TooltipTrigger as-child>
           <Button
-            data-testid="chat-queue-button"
+            data-testid="chat-steer-button"
             variant="ghost"
             size="icon"
             class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-            :disabled="queueDisabled"
-            @click="emit('queue')"
+            @click="emit('steer')"
           >
-            <Icon icon="lucide:list-plus" class="w-4 h-4" />
+            <Icon icon="lucide:compass" class="w-4 h-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{{ t('chat.input.queue') }}</p>
+          <p>{{ t('chat.input.steer') }}</p>
         </TooltipContent>
       </Tooltip>
 
@@ -58,16 +57,30 @@
       <Tooltip :key="buttonMode">
         <TooltipTrigger as-child>
           <Button
-            :data-testid="buttonMode === 'stop' ? 'chat-stop-button' : 'chat-send-button'"
+            :data-testid="
+              buttonMode === 'stop'
+                ? 'chat-stop-button'
+                : buttonMode === 'queue'
+                  ? 'chat-queue-button'
+                  : 'chat-send-button'
+            "
             :data-mode="buttonMode"
             :variant="buttonMode === 'stop' ? 'outline' : 'default'"
             size="icon"
             class="h-7 w-7 rounded-full"
-            :disabled="buttonMode === 'send' ? sendDisabled : false"
+            :disabled="
+              buttonMode === 'send' ? sendDisabled : buttonMode === 'queue' ? queueDisabled : false
+            "
             @click="handlePrimaryAction"
           >
             <Icon
-              :icon="buttonMode === 'stop' ? 'lucide:square' : 'lucide:arrow-up'"
+              :icon="
+                buttonMode === 'stop'
+                  ? 'lucide:square'
+                  : buttonMode === 'queue'
+                    ? 'lucide:list-plus'
+                    : 'lucide:arrow-up'
+              "
               :class="buttonMode === 'stop' ? 'w-4 h-4 text-red-500' : 'w-4 h-4'"
             />
           </Button>
@@ -109,25 +122,31 @@ const props = withDefaults(
 const emit = defineEmits<{
   send: []
   queue: []
+  steer: []
   attach: []
   stop: []
 }>()
 
 const { t } = useI18n()
 const hasActiveInput = computed(() => props.hasInput || props.hasText)
-const buttonMode = computed<'send' | 'stop'>(() =>
-  props.isGenerating && !hasActiveInput.value ? 'stop' : 'send'
-)
+const buttonMode = computed<'send' | 'queue' | 'stop'>(() => {
+  if (props.isGenerating && !hasActiveInput.value) return 'stop'
+  if (props.isGenerating) return 'queue'
+  return 'send'
+})
 const primaryTooltip = computed(() => {
-  if (buttonMode.value === 'stop') {
-    return t('chat.input.stop')
-  }
-  return props.isGenerating ? t('chat.input.steer') : t('chat.input.send')
+  if (buttonMode.value === 'stop') return t('chat.input.stop')
+  if (buttonMode.value === 'queue') return t('chat.input.queue')
+  return t('chat.input.send')
 })
 
 function handlePrimaryAction() {
   if (buttonMode.value === 'stop') {
     emit('stop')
+    return
+  }
+  if (buttonMode.value === 'queue') {
+    emit('queue')
     return
   }
   emit('send')

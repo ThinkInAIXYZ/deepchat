@@ -57,7 +57,7 @@ vi.mock('@shadcn/components/ui/tooltip', () => ({
 }))
 
 describe('ChatInputToolbar', () => {
-  it('switches from stop to send when draft input appears during generation', async () => {
+  it('switches from stop to queue when draft input appears during generation', async () => {
     const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
     const wrapper = mount(ChatInputToolbar, {
       props: {
@@ -71,28 +71,29 @@ describe('ChatInputToolbar', () => {
 
     await wrapper.setProps({ hasInput: true })
 
-    expect(wrapper.find('[data-icon="lucide:arrow-up"]').exists()).toBe(true)
+    expect(wrapper.find('[data-icon="lucide:list-plus"]').exists()).toBe(true)
     expect(wrapper.find('[data-icon="lucide:square"]').exists()).toBe(false)
   })
 
-  it('emits send after switching to draft mode while generating', async () => {
+  it('emits queue after switching to draft mode while generating', async () => {
     const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
     const wrapper = mount(ChatInputToolbar, {
       props: {
         isGenerating: true,
         hasInput: false,
-        sendDisabled: false
+        sendDisabled: false,
+        queueDisabled: false
       }
     })
 
     await wrapper.setProps({ hasInput: true })
-    await wrapper.get('[data-testid="chat-send-button"]').trigger('click')
+    await wrapper.get('[data-testid="chat-queue-button"]').trigger('click')
 
-    expect(wrapper.emitted('send')).toEqual([[]])
+    expect(wrapper.emitted('queue')).toEqual([[]])
     expect(wrapper.emitted('stop')).toBeUndefined()
   })
 
-  it('shows an explicit queue action while steering is available', async () => {
+  it('shows a separate steer button while generating with input', async () => {
     const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
     const wrapper = mount(ChatInputToolbar, {
       props: {
@@ -103,9 +104,9 @@ describe('ChatInputToolbar', () => {
       }
     })
 
-    await wrapper.get('[data-testid="chat-queue-button"]').trigger('click')
+    await wrapper.get('[data-testid="chat-steer-button"]').trigger('click')
 
-    expect(wrapper.find('[data-icon="lucide:list-plus"]').exists()).toBe(true)
-    expect(wrapper.emitted('queue')).toEqual([[]])
+    expect(wrapper.find('[data-icon="lucide:compass"]').exists()).toBe(true)
+    expect(wrapper.emitted('steer')).toEqual([[]])
   })
 })

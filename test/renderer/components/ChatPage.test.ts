@@ -674,8 +674,8 @@ describe('ChatPage', () => {
     })
   })
 
-  it('uses active draft submit as steer while generating', async () => {
-    const { wrapper, chatClient } = await setup({
+  it('queues active draft on submit while generating', async () => {
+    const { wrapper, pendingInputStore, chatClient } = await setup({
       isStreaming: true
     })
 
@@ -689,14 +689,15 @@ describe('ChatPage', () => {
     inputBox.vm.$emit('submit')
     await flushPromises()
 
-    expect(chatClient.steerActiveTurn).toHaveBeenCalledWith('s1', {
+    expect(pendingInputStore.queueInput).toHaveBeenCalledWith('s1', {
       text: 'tighten the answer',
       files: []
     })
+    expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('keeps steer available when the waiting queue is full', async () => {
+  it('disables queue submit when the waiting queue is full but keeps steer button available', async () => {
     const { wrapper } = await setup({
       isStreaming: true,
       pendingInputStorePatch: {
@@ -709,10 +710,13 @@ describe('ChatPage', () => {
     await flushPromises()
 
     const toolbar = wrapper.findComponent({ name: 'ChatInputToolbar' })
-    expect(inputBox.props('submitDisabled')).toBe(false)
+    expect(inputBox.props('submitDisabled')).toBe(true)
     expect(inputBox.props('queueSubmitDisabled')).toBe(true)
-    expect(toolbar.props('sendDisabled')).toBe(false)
+    expect(toolbar.props('sendDisabled')).toBe(true)
     expect(toolbar.props('queueDisabled')).toBe(true)
+    // Steer button is always available when generating with input
+    const steerButton = toolbar.find('[data-testid="chat-steer-button"]')
+    expect(steerButton.exists()).toBe(true)
   })
 
   it('queues drafts explicitly while a generation is running', async () => {

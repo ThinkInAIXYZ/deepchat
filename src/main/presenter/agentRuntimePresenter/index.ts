@@ -400,6 +400,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    const projectDir =
+      options && Object.prototype.hasOwnProperty.call(options, 'projectDir')
+        ? this.resolveProjectDir(sessionId, options.projectDir)
+        : this.resolveProjectDir(sessionId)
 
     const shouldClaimImmediately =
       ((options?.source ?? 'send') === 'send' && this.isAwaitingToolQuestionFollowUp(sessionId)) ||
@@ -410,7 +414,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     if (record.state === 'claimed') {
       void this.processMessage(sessionId, record.payload, {
-        projectDir: this.resolveProjectDir(sessionId),
+        projectDir,
         pendingQueueItemId: record.id,
         pendingQueueItemSource: options?.source ?? 'send'
       })
@@ -1076,6 +1080,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     )
     this.sessionGenerationSettings.set(sessionId, sanitized)
     this.invalidateSystemPromptCache(sessionId)
+  }
+
+  async setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
+    const normalized = this.normalizeProjectDir(projectDir)
+    const previous = this.sessionProjectDirs.has(sessionId)
+      ? (this.sessionProjectDirs.get(sessionId) ?? null)
+      : this.resolvePersistedSessionProjectDir(sessionId)
+    this.sessionProjectDirs.set(sessionId, normalized)
+    if (previous !== normalized) {
+      this.invalidateSystemPromptCache(sessionId)
+    }
   }
 
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
@@ -4495,6 +4510,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return normalized ? normalized : null
   }
 
+  private resolvePersistedSessionProjectDir(sessionId: string): string | null {
+    try {
+      const session = this.sqlitePresenter.newSessionsTable?.get(sessionId)
+      return this.normalizeProjectDir(session?.project_dir ?? null)
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to resolve persisted project directory:', {
+        sessionId,
+        error
+      })
+      return null
+    }
+  }
+
   private resolveProjectDir(sessionId: string, incoming?: string | null): string | null {
     if (incoming !== undefined) {
       const normalized = this.normalizeProjectDir(incoming)
@@ -4505,6 +4533,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       return normalized
     }
-    return this.sessionProjectDirs.get(sessionId) ?? null
+    if (this.sessionProjectDirs.has(sessionId)) {
+      return this.sessionProjectDirs.get(sessionId) ?? null
+    }
+
+    const persisted = this.resolvePersistedSessionProjectDir(sessionId)
+    this.sessionProjectDirs.set(sessionId, persisted)
+    return persisted
   }
 }
