@@ -159,6 +159,8 @@ type ActiveGeneration = {
   abortController: AbortController
 }
 
+type ActiveGenerationAbortReason = 'user_stop' | 'steer'
+
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -184,6 +186,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
   private readonly activeGenerations: Map<string, ActiveGeneration> = new Map()
+  private readonly activeGenerationAbortReasons: Map<string, ActiveGenerationAbortReason> =
+    new Map()
+  private readonly steerInterruptInputs: Map<string, SendMessageInput[]> = new Map()
   private readonly sessionAgentIds: Map<string, string> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
@@ -330,6 +335,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     this.abortDeferredToolAbortControllers(sessionId)
     this.activeGenerations.delete(sessionId)
+    this.activeGenerationAbortReasons.delete(sessionId)
+    this.steerInterruptInputs.delete(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
 
     this.pendingInputCoordinator.deleteBySession(sessionId)
@@ -398,6 +405,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    const projectDir =
+      options && Object.prototype.hasOwnProperty.call(options, 'projectDir')
+        ? this.resolveProjectDir(sessionId, options.projectDir)
+        : this.resolveProjectDir(sessionId)
 
     const shouldClaimImmediately =
       ((options?.source ?? 'send') === 'send' && this.isAwaitingToolQuestionFollowUp(sessionId)) ||
@@ -408,7 +419,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     if (record.state === 'claimed') {
       void this.processMessage(sessionId, record.payload, {
-        projectDir: this.resolveProjectDir(sessionId),
+        projectDir,
         pendingQueueItemId: record.id,
         pendingQueueItemSource: options?.source ?? 'send'
       })
@@ -417,6 +428,47 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
     return record
+  }
+
+  async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+    if (this.isAwaitingToolQuestionFollowUp(sessionId) || this.hasPendingInteractions(sessionId)) {
+      throw new Error('Please resolve pending tool interactions before steering.')
+    }
+
+    const normalizedInput = this.normalizeUserMessageInput(content)
+    if (!normalizedInput.text.trim() && (normalizedInput.files?.length ?? 0) === 0) {
+      return
+    }
+
+    const activeGeneration = this.activeGenerations.get(sessionId)
+    if (!activeGeneration) {
+      const preStreamController = this.abortControllers.get(sessionId)
+      if (state.status === 'generating' && preStreamController) {
+        this.enqueueSteerInterruptInput(sessionId, normalizedInput)
+        this.activeGenerationAbortReasons.set(sessionId, 'steer')
+        preStreamController.abort()
+        this.abortDeferredToolAbortControllers(sessionId)
+        this.clearActiveProviderPermissionsForSession(sessionId)
+        return
+      }
+
+      void this.processMessage(sessionId, normalizedInput, {
+        projectDir: this.resolveProjectDir(sessionId)
+      }).catch((error) => {
+        console.error('[AgentRuntime] Failed to process steer input:', error)
+      })
+      return
+    }
+
+    this.enqueueSteerInterruptInput(sessionId, normalizedInput)
+    this.activeGenerationAbortReasons.set(sessionId, 'steer')
+    activeGeneration.abortController.abort()
+    this.abortDeferredToolAbortControllers(sessionId)
+    this.clearActiveProviderPermissionsForSession(sessionId)
   }
 
   async updateQueuedInput(
@@ -638,6 +690,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           consumedPendingQueueItem = true
         }
       }
+      const steerInput = result.status === 'aborted' ? this.consumeAbortSteerInput(sessionId) : null
+      if (steerInput) {
+        try {
+          this.settleSteerInterruptedAssistant(sessionId, assistantMessageId)
+          this.setSessionStatus(sessionId, 'idle')
+        } finally {
+          this.clearActiveGeneration(sessionId, runId)
+        }
+        this.continueWithSteerInput(sessionId, steerInput, projectDir)
+        return
+      }
       try {
         this.applyProcessResultStatus(sessionId, result, runId)
       } finally {
@@ -664,24 +727,37 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         }
       }
       if (this.isAbortError(err) || preStreamAbortSignal.aborted) {
+        const steerInput = this.consumeAbortSteerInput(sessionId)
         if (userMessageId) {
           this.emitMessageRefresh(sessionId, userMessageId)
         }
         if (assistantMessageId) {
-          const existingAssistant = this.messageStore.getMessage(assistantMessageId)
-          const blocks = buildTerminalErrorBlocks(
-            existingAssistant ? this.parseAssistantBlocks(existingAssistant.content) : [],
-            'common.error.userCanceledGeneration'
-          )
-          this.messageStore.setMessageError(assistantMessageId, blocks)
-          this.emitMessageRefresh(sessionId, assistantMessageId)
+          if (steerInput) {
+            this.settleSteerInterruptedAssistant(sessionId, assistantMessageId)
+          } else {
+            const existingAssistant = this.messageStore.getMessage(assistantMessageId)
+            const existingBlocks = existingAssistant
+              ? this.parseAssistantBlocks(existingAssistant.content)
+              : []
+            const blocks = buildTerminalErrorBlocks(
+              existingBlocks,
+              'common.error.userCanceledGeneration'
+            )
+            this.messageStore.setMessageError(assistantMessageId, blocks)
+            this.emitMessageRefresh(sessionId, assistantMessageId)
+          }
         }
-        this.dispatchTerminalHooks(sessionId, state, {
-          status: 'aborted',
-          stopReason: 'user_stop',
-          errorMessage: 'common.error.userCanceledGeneration'
-        })
+        if (!steerInput) {
+          this.dispatchTerminalHooks(sessionId, state, {
+            status: 'aborted',
+            stopReason: 'user_stop',
+            errorMessage: 'common.error.userCanceledGeneration'
+          })
+        }
         this.setSessionStatus(sessionId, 'idle')
+        if (steerInput) {
+          this.continueWithSteerInput(sessionId, steerInput, projectDir)
+        }
         return
       }
       const errorMessage = err instanceof Error ? err.message : String(err)
@@ -1011,6 +1087,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.invalidateSystemPromptCache(sessionId)
   }
 
+  async setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
+    const normalized = this.normalizeProjectDir(projectDir)
+    const previous = this.sessionProjectDirs.has(sessionId)
+      ? (this.sessionProjectDirs.get(sessionId) ?? null)
+      : this.resolvePersistedSessionProjectDir(sessionId)
+    this.sessionProjectDirs.set(sessionId, normalized)
+    if (previous !== normalized) {
+      this.invalidateSystemPromptCache(sessionId)
+    }
+  }
+
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
     const state = this.runtimeState.get(sessionId)
     if (state) {
@@ -1059,8 +1146,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
+    this.steerInterruptInputs.delete(sessionId)
     const activeGeneration = this.activeGenerations.get(sessionId)
     if (activeGeneration) {
+      this.activeGenerationAbortReasons.set(sessionId, 'user_stop')
       activeGeneration.abortController.abort()
       this.clearActiveGeneration(sessionId, activeGeneration.runId)
 
@@ -3260,6 +3349,69 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return { text, files }
   }
 
+  private enqueueSteerInterruptInput(sessionId: string, input: SendMessageInput): void {
+    const existing = this.steerInterruptInputs.get(sessionId) ?? []
+    existing.push(input)
+    this.steerInterruptInputs.set(sessionId, existing)
+  }
+
+  private consumeAbortSteerInput(sessionId: string): SendMessageInput | null {
+    const abortReason = this.activeGenerationAbortReasons.get(sessionId) ?? 'user_stop'
+    this.activeGenerationAbortReasons.delete(sessionId)
+    return abortReason === 'steer' ? this.consumeSteerInterruptInput(sessionId) : null
+  }
+
+  private consumeSteerInterruptInput(sessionId: string): SendMessageInput | null {
+    const inputs = this.steerInterruptInputs.get(sessionId)
+    if (!inputs || inputs.length === 0) {
+      return null
+    }
+
+    this.steerInterruptInputs.delete(sessionId)
+    const text = inputs
+      .map((input) => input.text.trim())
+      .filter(Boolean)
+      .join('\n\n')
+    const files = inputs.flatMap((input) => input.files ?? []).filter(Boolean)
+    return { text, files }
+  }
+
+  private settleSteerInterruptedAssistant(sessionId: string, assistantMessageId: string): void {
+    const existingAssistant = this.messageStore.getMessage(assistantMessageId)
+    const existingBlocks = existingAssistant
+      ? this.parseAssistantBlocks(existingAssistant.content)
+      : []
+    const visibleBlocks = existingBlocks.filter(
+      (block) =>
+        !(block.type === 'error' && block.content === 'common.error.userCanceledGeneration')
+    )
+
+    if (visibleBlocks.length === 0) {
+      this.messageStore.deleteMessage(assistantMessageId)
+      this.emitMessageRefresh(sessionId, assistantMessageId)
+      return
+    }
+
+    const settledBlocks = visibleBlocks.map((block) =>
+      block.status === 'pending' || block.status === 'loading'
+        ? { ...block, status: 'success' as const }
+        : block
+    )
+    this.messageStore.updateAssistantContent(assistantMessageId, settledBlocks)
+    this.messageStore.updateMessageStatus(assistantMessageId, 'sent')
+    this.emitMessageRefresh(sessionId, assistantMessageId)
+  }
+
+  private continueWithSteerInput(
+    sessionId: string,
+    steerInput: SendMessageInput,
+    projectDir: string | null
+  ): void {
+    void this.processMessage(sessionId, steerInput, { projectDir }).catch((error) => {
+      console.error('[AgentRuntime] Failed to restart after steer interrupt:', error)
+    })
+  }
+
   private supportsVision(providerId: string, modelId: string): boolean {
     return Boolean(this.configPresenter.getModelConfig(modelId, providerId)?.vision)
   }
@@ -4408,6 +4560,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return normalized ? normalized : null
   }
 
+  private resolvePersistedSessionProjectDir(sessionId: string): string | null {
+    try {
+      const session = this.sqlitePresenter.newSessionsTable?.get(sessionId)
+      return this.normalizeProjectDir(session?.project_dir ?? null)
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to resolve persisted project directory:', {
+        sessionId,
+        error
+      })
+      return null
+    }
+  }
+
   private resolveProjectDir(sessionId: string, incoming?: string | null): string | null {
     if (incoming !== undefined) {
       const normalized = this.normalizeProjectDir(incoming)
@@ -4418,6 +4583,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       return normalized
     }
-    return this.sessionProjectDirs.get(sessionId) ?? null
+    if (this.sessionProjectDirs.has(sessionId)) {
+      return this.sessionProjectDirs.get(sessionId) ?? null
+    }
+
+    const persisted = this.resolvePersistedSessionProjectDir(sessionId)
+    this.sessionProjectDirs.set(sessionId, persisted)
+    return persisted
   }
 }

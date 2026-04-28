@@ -199,7 +199,11 @@ const saveApiKey = async () => {
 
     toast({ title: t('common.saved') })
   } catch (e) {
-    toast({ title: t('common.error'), description: String(e), variant: 'destructive' })
+    toast({
+      title: t('common.error.operationFailed'),
+      description: String(e),
+      variant: 'destructive'
+    })
   }
 }
 

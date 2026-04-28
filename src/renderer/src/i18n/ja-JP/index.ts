@@ -1,4 +1,5 @@
 import common from './common.json'
+import image from './image.json'
 import update from './update.json'
 import routes from './routes.json'
 import chat from './chat.json'
@@ -32,6 +33,7 @@ const others = {
 
 export default {
   common,
+  image,
   update,
   routes,
   chat,

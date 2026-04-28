@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent",
     "attach": "Joindre",
     "voiceInput": "Saisie vocale",
+    "send": "Envoyer",
+    "steer": "Guider",
     "queue": "Ajouter à la file",
     "stop": "Arrêter",
     "mcp": {

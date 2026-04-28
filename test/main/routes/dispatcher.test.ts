@@ -288,6 +288,7 @@ function createRuntime() {
         timeout: settings.timeout ?? 5000
       })),
     sendMessage: vi.fn().mockResolvedValue(undefined),
+    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     getMessage: vi.fn().mockResolvedValue({
       id: 'message-1',
@@ -685,6 +686,24 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'chat.steerActiveTurn',
+      {
+        sessionId: 'session-1',
+        content: 'refine the active answer'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    expect(agentSessionPresenter.steerActiveTurn).toHaveBeenCalledWith(
+      'session-1',
+      'refine the active answer'
+    )
   })
 
   it('dispatches session generation settings routes without dropping timeout', async () => {

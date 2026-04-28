@@ -58,11 +58,21 @@ vi.mock('@/presenter', () => ({
 vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
   buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
   buildSystemEnvPrompt: vi.fn(
-    async (options?: { providerId?: string; modelId?: string; now?: Date }) => {
+    async (options?: {
+      providerId?: string
+      modelId?: string
+      now?: Date
+      workdir?: string | null
+    }) => {
       const providerId = options?.providerId || 'unknown-provider'
       const modelId = options?.modelId || 'unknown-model'
       const dateText = (options?.now ?? new Date()).toDateString()
-      return ['ENV_BLOCK', `MODEL:${providerId}/${modelId}`, `DATE:${dateText}`].join('\n')
+      return [
+        'ENV_BLOCK',
+        `MODEL:${providerId}/${modelId}`,
+        `WORKDIR:${options?.workdir ?? ''}`,
+        `DATE:${dateText}`
+      ].join('\n')
     }
   )
 }))
@@ -283,6 +293,8 @@ describe('AgentRuntimePresenter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(processStream as ReturnType<typeof vi.fn>).mockReset()
+    ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'completed' })
     const skillPresenter = getSkillPresenterMock()
     skillPresenter.getMetadataList.mockResolvedValue([])
     skillPresenter.getActiveSkills.mockResolvedValue([])
@@ -559,6 +571,148 @@ describe('AgentRuntimePresenter', () => {
           })
         })
       )
+    })
+
+    it('steers during pre-stream setup without starting a parallel turn', async () => {
+      let releaseTools: (() => void) | null = null
+      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseTools = () => resolve([])
+          })
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const firstProcess = agent.processMessage('s1', 'First prompt')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      await agent.steerActiveTurn('s1', 'Refine before stream')
+      expect(processStream).not.toHaveBeenCalled()
+
+      releaseTools?.()
+      await firstProcess
+
+      let steeredUserInsert: any = null
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        steeredUserInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.find(
+          ([row]) => row.role === 'user'
+        )?.[0]
+        if (steeredUserInsert) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      expect(steeredUserInsert).toBeTruthy()
+      expect(JSON.parse(steeredUserInsert.content).text).toBe('Refine before stream')
+      expect(processStream).toHaveBeenCalledTimes(1)
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((await agent.getSessionState('s1'))?.status === 'idle') {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('interrupts an active stream for steer without marking the partial assistant as error', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(
+          async (params: { io: { abortSignal: AbortSignal } }) =>
+            await new Promise((resolve) => {
+              params.io.abortSignal.addEventListener(
+                'abort',
+                () => {
+                  resolve({
+                    status: 'aborted',
+                    stopReason: 'user_stop',
+                    errorMessage: 'common.error.userCanceledGeneration'
+                  })
+                },
+                { once: true }
+              )
+            })
+        )
+        .mockResolvedValueOnce({
+          status: 'completed',
+          stopReason: 'complete'
+        })
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'mock-msg-id',
+        session_id: 's1',
+        order_seq: 2,
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'content',
+            content: 'partial',
+            status: 'pending',
+            timestamp: 1
+          },
+          {
+            type: 'error',
+            content: 'common.error.userCanceledGeneration',
+            status: 'error',
+            timestamp: 2
+          }
+        ]),
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: null,
+        created_at: 1,
+        updated_at: 1
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const firstProcess = agent.processMessage('s1', 'First prompt')
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      await agent.steerActiveTurn('s1', 'Refine active stream')
+      await firstProcess
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
+        'mock-msg-id',
+        'sent'
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledWith(
+        'mock-msg-id',
+        JSON.stringify([
+          {
+            type: 'content',
+            content: 'partial',
+            status: 'success',
+            timestamp: 1
+          }
+        ])
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalledWith(
+        'mock-msg-id',
+        expect.any(String),
+        'error'
+      )
+      expect(processStream).toHaveBeenCalledTimes(2)
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((await agent.getSessionState('s1'))?.status === 'idle') {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
     it('dispatches lifecycle hooks through new session bridge', async () => {
@@ -1310,6 +1464,51 @@ describe('AgentRuntimePresenter', () => {
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
       expect(secondCallArgs.messages[0].content).toContain('Updated user prompt')
+    })
+
+    it('invalidates cached prompt after session project directory update', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Before project update')
+
+      await agent.setSessionProjectDir('s1', '/tmp/workspace')
+      await agent.processMessage('s1', 'After project update')
+
+      expect(envBuilder).toHaveBeenCalledTimes(2)
+
+      const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+      expect(secondCallArgs.messages[0].content).toContain('WORKDIR:/tmp/workspace')
+    })
+
+    it('uses persisted project directory when runtime state was restored from DB', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's-restored',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'full_access'
+      })
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-restored',
+        agent_id: 'deepchat',
+        project_dir: '/tmp/restored-workspace'
+      })
+
+      await agent.getSessionState('s-restored')
+      await agent.processMessage('s-restored', 'Restored session follow-up')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.messages[0].content).toContain('WORKDIR:/tmp/restored-workspace')
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationId: 's-restored',
+          agentWorkspacePath: '/tmp/restored-workspace'
+        })
+      )
     })
 
     it('invalidates cached prompt across natural days', async () => {
@@ -2853,13 +3052,16 @@ describe('AgentRuntimePresenter', () => {
         .mockReturnValue(claimedRecord)
       const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
 
-      const result = await agent.queuePendingInput('s1', 'Hello')
+      const result = await agent.queuePendingInput('s1', 'Hello', {
+        projectDir: '/tmp/workspace'
+      })
 
       expect(queueSpy).toHaveBeenCalledWith('s1', 'Hello', { state: 'claimed' })
       expect(processSpy).toHaveBeenCalledWith(
         's1',
         claimedRecord.payload,
         expect.objectContaining({
+          projectDir: '/tmp/workspace',
           pendingQueueItemId: claimedRecord.id
         })
       )

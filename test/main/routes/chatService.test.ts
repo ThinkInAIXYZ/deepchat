@@ -36,6 +36,7 @@ describe('ChatService', () => {
     }
     const providerExecutionPort = {
       sendMessage: vi.fn().mockResolvedValue(undefined),
+      steerActiveTurn: vi.fn().mockResolvedValue(undefined),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn().mockResolvedValue({
         resumed: true
@@ -70,6 +71,50 @@ describe('ChatService', () => {
     expect(scheduler.timeout).toHaveBeenCalledTimes(5)
   })
 
+  it('steers the active turn without claiming the normal send lock', async () => {
+    const scheduler = createScheduler()
+    const sessionRepository = {
+      get: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        agentId: 'deepchat'
+      })
+    }
+    const providerExecutionPort = {
+      sendMessage: vi.fn(),
+      steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+      cancelGeneration: vi.fn(),
+      respondToolInteraction: vi.fn()
+    }
+
+    const service = new ChatService({
+      sessionRepository: sessionRepository as any,
+      messageRepository: {
+        listBySession: vi.fn(),
+        get: vi.fn()
+      } as any,
+      providerExecutionPort,
+      providerCatalogPort: {
+        getAgentType: vi.fn()
+      } as any,
+      sessionPermissionPort: {
+        clearSessionPermissions: vi.fn()
+      },
+      scheduler
+    })
+
+    await expect(service.steerActiveTurn('session-1', 'refine this')).resolves.toEqual({
+      accepted: true
+    })
+
+    expect(sessionRepository.get).toHaveBeenCalledWith('session-1')
+    expect(providerExecutionPort.steerActiveTurn).toHaveBeenCalledWith('session-1', 'refine this')
+    expect(scheduler.timeout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'chat.steerActiveTurn:session-1'
+      })
+    )
+  })
+
   it('resolves stopStream by request id and clears permissions before cancelling', async () => {
     const scheduler = createScheduler()
     const sessionRepository = {
@@ -84,6 +129,7 @@ describe('ChatService', () => {
     }
     const providerExecutionPort = {
       sendMessage: vi.fn(),
+      steerActiveTurn: vi.fn(),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn()
     }
@@ -125,6 +171,7 @@ describe('ChatService', () => {
     }
     const providerExecutionPort = {
       sendMessage: vi.fn(),
+      steerActiveTurn: vi.fn(),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn()
     }
@@ -155,6 +202,7 @@ describe('ChatService', () => {
     const scheduler = createScheduler()
     const providerExecutionPort = {
       sendMessage: vi.fn(),
+      steerActiveTurn: vi.fn(),
       cancelGeneration: vi.fn(),
       respondToolInteraction: vi.fn().mockResolvedValue({
         resumed: true,
@@ -229,6 +277,7 @@ describe('ChatService', () => {
     }
     const providerExecutionPort = {
       sendMessage: vi.fn().mockRejectedValue(timeoutError),
+      steerActiveTurn: vi.fn(),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn()
     }
@@ -313,6 +362,7 @@ describe('ChatService', () => {
     }
     const providerExecutionPort = {
       sendMessage: vi.fn().mockResolvedValue(undefined),
+      steerActiveTurn: vi.fn().mockResolvedValue(undefined),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn()
     }
@@ -394,6 +444,7 @@ describe('ChatService', () => {
             })
         )
         .mockResolvedValue(undefined),
+      steerActiveTurn: vi.fn().mockResolvedValue(undefined),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn()
     }

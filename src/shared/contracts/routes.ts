@@ -14,6 +14,7 @@ import {
 import {
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
+  chatSteerActiveTurnRoute,
   chatStopStreamRoute
 } from './routes/chat.routes'
 import {
@@ -475,6 +476,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [modelsImportConfigsRoute.name]: modelsImportConfigsRoute,
   [modelsGetCapabilitiesRoute.name]: modelsGetCapabilitiesRoute,
   [chatSendMessageRoute.name]: chatSendMessageRoute,
+  [chatSteerActiveTurnRoute.name]: chatSteerActiveTurnRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,
   [chatRespondToolInteractionRoute.name]: chatRespondToolInteractionRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,

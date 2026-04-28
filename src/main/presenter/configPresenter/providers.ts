@@ -778,6 +778,51 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'xiaomi-token-plan-cn',
+    name: 'Xiaomi Token Plan (China)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.xiaomimimo.com/',
+      apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
+      docs: 'https://platform.xiaomimimo.com/#/docs',
+      models: 'https://platform.xiaomimimo.com/#/docs',
+      defaultBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1'
+    }
+  },
+  {
+    id: 'xiaomi-token-plan-sgp',
+    name: 'Xiaomi Token Plan (Singapore)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.xiaomimimo.com/',
+      apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
+      docs: 'https://platform.xiaomimimo.com/#/docs',
+      models: 'https://platform.xiaomimimo.com/#/docs',
+      defaultBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1'
+    }
+  },
+  {
+    id: 'xiaomi-token-plan-ams',
+    name: 'Xiaomi Token Plan (Europe)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://token-plan-ams.xiaomimimo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.xiaomimimo.com/',
+      apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
+      docs: 'https://platform.xiaomimimo.com/#/docs',
+      models: 'https://platform.xiaomimimo.com/#/docs',
+      defaultBaseUrl: 'https://token-plan-ams.xiaomimimo.com/v1'
+    }
+  },
+  {
     id: 'o3fan',
     name: 'o3.fan',
     apiType: 'o3fan',

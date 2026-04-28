@@ -1,4 +1,5 @@
 import common from './common.json'
+import image from './image.json'
 import mcp from './mcp.json'
 import settings from './settings.json'
 import about from './about.json'
@@ -33,6 +34,7 @@ const others = {
 
 export default {
   common,
+  image,
   mcp,
   settings,
   about,

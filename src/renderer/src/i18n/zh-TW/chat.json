@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "設置 Agent 工作目錄",
     "attach": "新增附件",
     "voiceInput": "語音輸入",
+    "send": "傳送",
+    "steer": "引導",
     "queue": "加入佇列",
     "stop": "停止",
     "mcp": {

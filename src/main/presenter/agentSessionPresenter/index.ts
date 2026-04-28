@@ -411,13 +411,18 @@ export class AgentSessionPresenter {
       modelId: state?.modelId ?? modelId
     }
 
-    // Queue the first message (non-blocking) after returning session ID
+    // Start the first message (non-blocking) after returning session ID.
     if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
       console.log(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
       if (agent.queuePendingInput) {
-        agent.queuePendingInput(sessionId, normalizedInput, { source: 'send' }).catch((err) => {
-          console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
-        })
+        agent
+          .queuePendingInput(sessionId, normalizedInput, {
+            source: 'send',
+            projectDir
+          })
+          .catch((err) => {
+            console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
+          })
       } else {
         agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
           console.error('[AgentSessionPresenter] processMessage failed:', err)
@@ -732,17 +737,60 @@ export class AgentSessionPresenter {
       session.projectDir ?? null
     )
     if (agent.queuePendingInput) {
-      await agent.queuePendingInput(sessionId, normalizedInput, { source: 'send' })
+      await agent.queuePendingInput(sessionId, normalizedInput, {
+        source: 'send',
+        projectDir: session.projectDir ?? null
+      })
       if (!hadMessages && !wasDraft) {
         void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
       }
       return
     }
-    await agent.processMessage(sessionId, normalizedInput, {
-      projectDir: session.projectDir ?? null
-    })
+
+    agent
+      .processMessage(sessionId, normalizedInput, {
+        projectDir: session.projectDir ?? null
+      })
+      .catch((error) => {
+        console.error('[AgentSessionPresenter] processMessage failed:', error)
+      })
     if (!hadMessages && !wasDraft) {
       void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
+    }
+  }
+
+  async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
+    let session = this.sessionManager.get(sessionId)
+    if (!session) throw new Error(`Session not found: ${sessionId}`)
+    const normalizedInput = this.normalizeSendMessageInput(content)
+
+    if (session.isDraft) {
+      const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
+      this.sessionManager.update(sessionId, { isDraft: false, title })
+      this.emitSessionListUpdated({
+        sessionIds: [sessionId],
+        reason: 'updated'
+      })
+      session = this.sessionManager.get(sessionId)
+      if (!session) throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    let providerId = state?.providerId ?? ''
+    if (!providerId && (await this.getAgentType(session.agentId)) === 'acp') {
+      providerId = 'acp'
+    }
+    this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      session.agentId,
+      session.projectDir ?? null
+    )
+
+    if (agent.steerActiveTurn) {
+      await agent.steerActiveTurn(sessionId, normalizedInput)
     }
   }
 
@@ -794,7 +842,10 @@ export class AgentSessionPresenter {
       currentSession.agentId,
       currentSession.projectDir ?? null
     )
-    return await agent.queuePendingInput(sessionId, normalizedInput, { source: 'queue' })
+    return await agent.queuePendingInput(sessionId, normalizedInput, {
+      source: 'queue',
+      projectDir: currentSession.projectDir ?? null
+    })
   }
 
   async updateQueuedInput(sessionId: string, itemId: string, content: string | SendMessageInput) {
@@ -1696,12 +1747,25 @@ export class AgentSessionPresenter {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    this.sessionManager.update(sessionId, { projectDir })
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    const providerId =
+      state?.providerId?.trim() ||
+      ((await this.getAgentType(session.agentId)) === 'acp' ? 'acp' : '')
+    const normalizedProjectDir = projectDir?.trim() || null
+    this.assertAcpSessionHasWorkdir(providerId, normalizedProjectDir)
+
+    this.sessionManager.update(sessionId, { projectDir: normalizedProjectDir })
 
     // Sync environment for new project dir
-    if (projectDir) {
-      this.sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
+    if (normalizedProjectDir) {
+      this.sqlitePresenter.newEnvironmentsTable.syncPath(normalizedProjectDir)
     }
+
+    if (agent.setSessionProjectDir) {
+      await agent.setSessionProjectDir(sessionId, normalizedProjectDir)
+    }
+    await this.syncAcpSessionWorkdir(providerId, sessionId, session.agentId, normalizedProjectDir)
 
     const updated = this.sessionManager.get(sessionId)
     if (!updated) {

@@ -30,6 +30,7 @@ import {
   browserUpdateCurrentWindowBoundsRoute,
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
+  chatSteerActiveTurnRoute,
   chatStopStreamRoute,
   computerUseCheckPermissionsRoute,
   computerUseGetStatusRoute,
@@ -1730,6 +1731,13 @@ export async function dispatchDeepchatRoute(
       const input = chatSendMessageRoute.input.parse(rawInput)
       return chatSendMessageRoute.output.parse(
         await runtime.chatService.sendMessage(input.sessionId, input.content)
+      )
+    }
+
+    case chatSteerActiveTurnRoute.name: {
+      const input = chatSteerActiveTurnRoute.input.parse(rawInput)
+      return chatSteerActiveTurnRoute.output.parse(
+        await runtime.chatService.steerActiveTurn(input.sessionId, input.content)
       )
     }
 

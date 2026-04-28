@@ -41,6 +41,7 @@ export interface MessageRepository {
 
 export interface ProviderExecutionPort {
   sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void>
+  steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
   cancelGeneration(sessionId: string): Promise<void>
   respondToolInteraction(
     sessionId: string,
@@ -80,6 +81,7 @@ export function createPresenterHotPathPorts(deps: {
     | 'getMessages'
     | 'getMessage'
     | 'sendMessage'
+    | 'steerActiveTurn'
     | 'cancelGeneration'
     | 'respondToolInteraction'
   > & {
@@ -115,6 +117,8 @@ export function createPresenterHotPathPorts(deps: {
     providerExecutionPort: {
       sendMessage: async (sessionId, content) =>
         await deps.agentSessionPresenter.sendMessage(sessionId, content),
+      steerActiveTurn: async (sessionId, content) =>
+        await deps.agentSessionPresenter.steerActiveTurn(sessionId, content),
       cancelGeneration: async (sessionId) =>
         await deps.agentSessionPresenter.cancelGeneration(sessionId),
       respondToolInteraction: async (sessionId, messageId, toolCallId, response) =>

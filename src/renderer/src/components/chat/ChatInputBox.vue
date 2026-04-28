@@ -107,6 +107,8 @@ const props = withDefaults(
     workspacePath?: string | null
     isAcpSession?: boolean
     submitDisabled?: boolean
+    queueSubmitEnabled?: boolean
+    queueSubmitDisabled?: boolean
     maxWidthClass?: string
     files?: MessageFile[]
   }>(),
@@ -117,6 +119,8 @@ const props = withDefaults(
     workspacePath: null,
     isAcpSession: false,
     submitDisabled: false,
+    queueSubmitEnabled: false,
+    queueSubmitDisabled: false,
     maxWidthClass: 'max-w-2xl',
     files: () => []
   }
@@ -125,6 +129,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   submit: []
+  'queue-submit': []
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'pending-skills-change': [skills: string[]]
@@ -304,6 +309,16 @@ function onCompositionEnd() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  const isPlainTab = e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey
+  if (isPlainTab && props.queueSubmitEnabled && !props.queueSubmitDisabled) {
+    if (mentions.isSuggestionMenuOpen.value || mentions.shouldSuppressSubmit()) {
+      return
+    }
+    e.preventDefault()
+    emit('queue-submit')
+    return
+  }
+
   if (e.key !== 'Enter' || e.shiftKey) {
     return
   }
