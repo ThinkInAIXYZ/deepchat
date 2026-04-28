@@ -1,6 +1,12 @@
 import fs from 'fs/promises'
+import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
+import { createRequire } from 'module'
+import { fileURLToPath } from 'url'
+
+const require = createRequire(import.meta.url)
+const fsSync = require('node:fs')
 
 const APP_NAME = 'DeepChat'
 const LINUX_APP_NAME = 'deepchat'
@@ -60,6 +66,21 @@ function read(command, args, options = {}) {
   }).trim()
 }
 
+function execSecret(command, args, label) {
+  try {
+    execFileSync(command, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+  } catch (error) {
+    const stderr =
+      error && typeof error === 'object' && 'stderr' in error && error.stderr
+        ? String(error.stderr).trim()
+        : ''
+    throw new Error(`${label} failed${stderr ? `: ${stderr}` : ''}`)
+  }
+}
+
 async function pathExists(targetPath) {
   try {
     await fs.access(targetPath)
@@ -80,25 +101,161 @@ async function removeComputerUseRuntime(appOutDir) {
   await fs.rm(runtimePath, { recursive: true, force: true })
 }
 
-function resolveSigningIdentity(releaseFlag) {
-  if (process.env.CSC_NAME) {
-    return process.env.CSC_NAME
-  }
-
-  const identities = read('security', ['find-identity', '-v', '-p', 'codesigning'])
+function parseDeveloperIdIdentity(identities) {
   const developerIdLine = identities
     .split('\n')
     .find((line) => line.includes('Developer ID Application'))
-  const identity = developerIdLine?.match(/"([^"]+)"/)?.[1]
-  if (identity) {
-    return identity
+  const hash = developerIdLine?.match(/\)\s+([A-Fa-f0-9]{40})\s+"/)?.[1]
+  const name = developerIdLine?.match(/"([^"]+)"/)?.[1]
+  return hash || name || null
+}
+
+function findDeveloperIdIdentity(keychainPath) {
+  const args = ['find-identity', '-v', '-p', 'codesigning']
+  if (keychainPath) {
+    args.push(keychainPath)
+  }
+
+  try {
+    return parseDeveloperIdIdentity(read('security', args))
+  } catch {
+    return null
+  }
+}
+
+function expandHome(candidate) {
+  if (candidate === '~') {
+    return os.homedir()
+  }
+  if (candidate.startsWith(`~${path.sep}`)) {
+    return path.join(os.homedir(), candidate.slice(2))
+  }
+  return candidate
+}
+
+function materializeCscCertificate(cscLink, tempDir) {
+  const expanded = expandHome(cscLink)
+  if (fsSync.existsSync(expanded)) {
+    return expanded
+  }
+
+  if (cscLink.startsWith('file://')) {
+    return fileURLToPath(cscLink)
+  }
+
+  const certificatePath = path.join(tempDir, 'certificate.p12')
+  if (/^https?:\/\//i.test(cscLink)) {
+    execSecret(
+      '/usr/bin/curl',
+      ['--fail', '--location', '--silent', '--show-error', '--output', certificatePath, cscLink],
+      'Downloading CSC_LINK certificate'
+    )
+    return certificatePath
+  }
+
+  const base64 = cscLink.replace(/^data:.*?;base64,/i, '').replace(/\s/g, '')
+  fsSync.writeFileSync(certificatePath, Buffer.from(base64, 'base64'), { mode: 0o600 })
+  return certificatePath
+}
+
+let importedSigningIdentity = null
+
+function importCscSigningIdentity() {
+  if (importedSigningIdentity) {
+    return importedSigningIdentity
+  }
+  if (!process.env.CSC_LINK) {
+    return null
+  }
+
+  const tempDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'deepchat-codesign-'))
+  const keychainPath = path.join(tempDir, 'codesign.keychain-db')
+  const keychainPassword =
+    process.env.CSC_KEYCHAIN_PASSWORD || `deepchat-${process.pid}-${Date.now()}`
+  const certificatePath = materializeCscCertificate(process.env.CSC_LINK, tempDir)
+  const certificatePassword = process.env.CSC_KEY_PASSWORD || ''
+
+  execSecret('security', ['create-keychain', '-p', keychainPassword, keychainPath], 'Creating signing keychain')
+  execSecret('security', ['unlock-keychain', '-p', keychainPassword, keychainPath], 'Unlocking signing keychain')
+  execSecret(
+    'security',
+    ['set-keychain-settings', '-lut', '21600', keychainPath],
+    'Configuring signing keychain'
+  )
+
+  const currentKeychains = read('security', ['list-keychains', '-d', 'user'])
+    .split('\n')
+    .map((line) => line.trim().replace(/^"|"$/g, ''))
+    .filter(Boolean)
+    .filter((candidate) => candidate !== keychainPath)
+  execSecret(
+    'security',
+    ['list-keychains', '-d', 'user', '-s', keychainPath, ...currentKeychains],
+    'Adding signing keychain to search list'
+  )
+
+  execSecret(
+    'security',
+    [
+      'import',
+      certificatePath,
+      '-k',
+      keychainPath,
+      '-P',
+      certificatePassword,
+      '-T',
+      '/usr/bin/codesign',
+      '-T',
+      '/usr/bin/productsign'
+    ],
+    'Importing CSC_LINK certificate'
+  )
+  execSecret(
+    'security',
+    [
+      'set-key-partition-list',
+      '-S',
+      'apple-tool:,apple:,codesign:',
+      '-s',
+      '-k',
+      keychainPassword,
+      keychainPath
+    ],
+    'Configuring signing key access'
+  )
+
+  const identity = findDeveloperIdIdentity(keychainPath)
+  if (!identity) {
+    throw new Error('CSC_LINK did not contain a Developer ID Application identity')
+  }
+
+  importedSigningIdentity = { identity, keychainPath }
+  return importedSigningIdentity
+}
+
+function resolveSigningIdentity(releaseFlag) {
+  if (process.env.CSC_NAME) {
+    const imported = releaseFlag ? importCscSigningIdentity() : null
+    return {
+      identity: process.env.CSC_NAME,
+      keychainPath: imported?.keychainPath
+    }
+  }
+
+  const existingIdentity = findDeveloperIdIdentity()
+  if (existingIdentity) {
+    return { identity: existingIdentity }
   }
 
   if (releaseFlag) {
+    const imported = importCscSigningIdentity()
+    if (imported) {
+      return imported
+    }
     throw new Error('Developer ID Application identity is required for release helper signing')
   }
 
-  return '-'
+  return { identity: '-' }
 }
 
 function validateHelperArchitecture(binaryPath, arch) {
@@ -110,19 +267,23 @@ function validateHelperArchitecture(binaryPath, arch) {
 }
 
 function signHelper(helperAppPath, releaseFlag) {
-  const identity = resolveSigningIdentity(releaseFlag)
+  const signing = resolveSigningIdentity(releaseFlag)
   const args = [
     '--force',
     '--deep',
     '--sign',
-    identity,
+    signing.identity,
     '--entitlements',
     HELPER_ENTITLEMENTS,
     '--options',
     'runtime'
   ]
 
-  if (identity === '-') {
+  if (signing.keychainPath) {
+    args.push('--keychain', signing.keychainPath)
+  }
+
+  if (signing.identity === '-') {
     args.push('--timestamp=none')
   } else {
     args.push('--timestamp')
