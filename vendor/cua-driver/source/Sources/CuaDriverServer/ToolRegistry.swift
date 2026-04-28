@@ -34,12 +34,14 @@ public struct ToolRegistry: Sendable {
     public static let actionToolNames: Set<String> = [
         "click",
         "right_click",
+        "drag",
         "scroll",
         "type_text",
         "type_text_chars",
         "press_key",
         "hotkey",
         "set_value",
+        "page",
     ]
 
     /// Click-family tools — their argument set carries a click point we
@@ -229,6 +231,7 @@ public struct ToolRegistry: Sendable {
         ClickTool.handler,
         DoubleClickTool.handler,
         RightClickTool.handler,
+        DragTool.handler,
         SetValueTool.handler,
         SetAgentCursorEnabledTool.handler,
         SetAgentCursorMotionTool.handler,
@@ -239,5 +242,6 @@ public struct ToolRegistry: Sendable {
         GetConfigTool.handler,
         SetConfigTool.handler,
         ZoomTool.handler,
+        PageTool.handler,
     ])
 }

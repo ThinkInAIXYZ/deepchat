@@ -124,6 +124,7 @@ struct CallCommand: AsyncParsableCommand {
 
     private func runInProcess(arguments: [String: Value]?) async throws {
         let registry = ToolRegistry.default
+        var arguments = arguments
 
         guard let handler = registry.handlers[toolName] else {
             printUnknownTool(toolName, registry: registry)
@@ -152,14 +153,20 @@ struct CallCommand: AsyncParsableCommand {
         // "NOT granted" even when the user has granted both permissions
         // to DeepChat Computer Use.app. If the daemon were up we'd already have
         // forwarded in run(); reaching this branch means no daemon is
-        // listening. Warn the user that the fallback answer is unreliable.
+        // listening. Warn the user that the fallback answer is unreliable,
+        // and force `prompt: false` — the tool's default would otherwise
+        // raise a TCC dialog attributed to the calling shell/IDE bundle,
+        // the caller's bundle, so the user would grant the wrong identity.
         if toolName == "check_permissions" {
             printToStderr(
                 """
                 ⚠️ Not running inside the cua-driver daemon process. Results may be inaccurate — TCC checks the calling process, not DeepChat Computer Use.app, so permissions granted to DeepChat Computer Use.app may read as "NOT granted" here.
-                For authoritative results, start the daemon first: `open -n -g -a CuaDriver --args serve`, then re-run this check.
+                For authoritative results, start the daemon first: `open -n -g -a "DeepChat Computer Use" --args serve`, then re-run this check.
                 """
             )
+            var coerced = arguments ?? [:]
+            coerced["prompt"] = .bool(false)
+            arguments = coerced
         }
 
         let result: CallTool.Result

@@ -16,6 +16,10 @@ runtime/
     cua-driver/
       current/
         DeepChat Computer Use.app/
+resources/
+  skills/
+    cua-driver/
+      SKILL.md
 ```
 
 The implementation uses a vendored source snapshot. `vendor/cua-driver/source` is the build source of
@@ -26,9 +30,9 @@ records the upstream location and base revision:
 {
   "upstreamRepo": "https://github.com/trycua/cua.git",
   "upstreamSubdir": "libs/cua-driver",
-  "tag": "cua-driver-v0.0.5",
-  "commit": "1a53f4bc33075be1fac5fceee7c7214452d6fda1",
-  "version": "0.0.5",
+  "tag": "cua-driver-v0.0.13",
+  "commit": "cc69f9eee7f30c1c8728f73ba91736488f1fb32e",
+  "version": "0.0.13",
   "updatedAt": "2026-04-28"
 }
 ```
@@ -39,6 +43,12 @@ Build requirements:
 - The pinned upstream commit/tag is recorded in `upstream.json`.
 - DeepChat source changes are reviewed as normal repository diffs.
 - Release builds depend on local source and never on upstream binary release assets.
+- The bundled `resources/skills/cua-driver` copy is synced from
+  `vendor/cua-driver/source/Skills/cua-driver`.
+- The `cua-driver` skill declares `platforms: [darwin]`; built-in skill installation skips it on
+  other platforms.
+- The `cua-driver` skill declares `metadata.deepchatFeature = computer-use`; SkillPresenter hides
+  that managed skill while Computer Use is disabled.
 
 ## Build Script
 
@@ -68,6 +78,20 @@ Responsibilities:
 - Remove stale staged helper before writing new one.
 - Verify binary architecture with `lipo -archs` or `file`.
 - Avoid `git clone`, `git fetch`, source copying, and runtime patching during normal builds.
+- Keep Windows and Linux packages clean by removing both the Computer Use runtime and the bundled
+  `cua-driver` skill during `afterPack`.
+
+## Skill Packaging
+
+When macOS Computer Use is enabled and the managed MCP server is enabled, DeepChat auto-pins the
+bundled `cua-driver` skill into the agent system prompt. When Computer Use is disabled, the managed
+skill is hidden from skill listing, skill viewing, and prompt loading. This gives the model the CUA
+workflow, snapshot-before-action rules, and visual fallback guidance only while the feature is
+active.
+
+The source of truth for the skill content stays in `vendor/cua-driver/source/Skills/cua-driver`.
+Update `resources/skills/cua-driver` from that vendored source whenever local CUA skill guidance
+changes.
 
 ## Upstream CUA Patch Requirements
 

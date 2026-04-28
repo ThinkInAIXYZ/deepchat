@@ -5,7 +5,7 @@ order so packaging, permissions, and UI can be reviewed independently.
 
 ## Phase 1: Source and Build Scaffold
 
-- Add vendored CUA Driver source under `vendor/cua-driver/source`, pinned to `cua-driver-v0.0.5`
+- Add vendored CUA Driver source under `vendor/cua-driver/source`, pinned to `cua-driver-v0.0.13`
   in `vendor/cua-driver/upstream.json`.
 - Commit DeepChat helper bundle identity, app name, relaunch behavior, self-update disablement,
   permission probe, non-blocking permission startup, background click dispatch, and telemetry default

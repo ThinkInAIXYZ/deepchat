@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import CoreGraphics
 import CuaDriverCore
@@ -260,6 +261,23 @@ public enum ClickTool {
             // without this we have no way to detect a silent no-op.
             // See the post-dispatch warning assembled below.
             let advertisedActions = AXInput.advertisedActionNames(of: element)
+            // Bail early if the element is disabled (AXEnabled = false).
+            // AXUIElementPerformAction returns .success even on disabled
+            // elements — the call reaches the app's AX layer but the app's
+            // command-dispatch silently discards it (Chrome marks Developer
+            // submenu items as disabled via commandDispatch when it isn't
+            // frontmost). Surfacing this as an error rather than a silent
+            // no-op lets the caller decide whether to activate the app first.
+            if AXInput.boolAttribute("AXEnabled", of: element) == false {
+                let target = AXInput.describe(element)
+                let appName = NSRunningApplication(processIdentifier: pid)?
+                    .localizedName ?? "the app"
+                var msg = "❌ [\(index)] \(target.role ?? "element") \"\(target.title ?? "")\" is disabled (AXEnabled = false) — action would be a silent no-op."
+                msg += "\n\nThis usually means the target app is not frontmost."
+                msg += " Activate it first, then re-snapshot and retry:"
+                msg += "\n  osascript -e 'tell application \"\(appName)\" to activate'"
+                return errorResult(msg)
+            }
             // Animate the visual agent cursor to the target before
             // firing the AX action. `animateAndWait` is a no-op
             // when the cursor is disabled (the default) or when
@@ -396,7 +414,7 @@ public enum ClickTool {
         if !DaemonClient.isDaemonListening(socketPath: socketPath) {
             return
                 "No cached AX state for pid \(pid). Start the daemon first: "
-                + "`open -n -g -a CuaDriver --args serve` "
+                + "`open -n -g -a \"DeepChat Computer Use\" --args serve` "
                 + "(or `cua-driver serve &` — the CLI auto-relaunches via "
                 + "`open` if your shell's TCC context is wrong). "
                 + "Element-indexed clicks read a cache populated by "

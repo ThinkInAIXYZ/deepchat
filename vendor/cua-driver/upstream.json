@@ -1,8 +1,8 @@
 {
   "upstreamRepo": "https://github.com/trycua/cua.git",
   "upstreamSubdir": "libs/cua-driver",
-  "tag": "cua-driver-v0.0.5",
-  "commit": "1a53f4bc33075be1fac5fceee7c7214452d6fda1",
-  "version": "0.0.5",
+  "tag": "cua-driver-v0.0.13",
+  "commit": "cc69f9eee7f30c1c8728f73ba91736488f1fb32e",
+  "version": "0.0.13",
   "updatedAt": "2026-04-28"
 }

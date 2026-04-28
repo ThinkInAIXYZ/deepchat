@@ -7,6 +7,7 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 import type { IConfigPresenter, IMCPPresenter, MCPServerConfig } from '@shared/presenter'
 import {
+  COMPUTER_USE_ENABLED_KEY,
   COMPUTER_USE_SERVER_NAME,
   COMPUTER_USE_SOURCE,
   COMPUTER_USE_SOURCE_ID,
@@ -22,7 +23,6 @@ import {
 
 const execFileAsync = promisify(execFile)
 
-const COMPUTER_USE_ENABLED_KEY = 'computerUseEnabled'
 const HELPER_APP_NAME = 'DeepChat Computer Use.app'
 const HELPER_BINARY_NAME = 'cua-driver'
 const PERMISSION_SETTINGS_URLS: Record<ComputerUsePermissionName, string> = {

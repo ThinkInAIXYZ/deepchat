@@ -127,6 +127,7 @@ describe('CUA Driver vendor scripts', () => {
 
   it('builds from vendored source without dynamic upstream patching', async () => {
     const buildScript = await readFile(buildScriptPath, 'utf8')
+    const updateScript = await readFile(updateScriptPath, 'utf8')
     const packageJson = JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8'))
     const electronBuilderConfig = await readFile(electronBuilderConfigPath, 'utf8')
 
@@ -137,6 +138,7 @@ describe('CUA Driver vendor scripts', () => {
     expect(buildScript).not.toContain('cloneOrUpdateSource')
     expect(buildScript).not.toContain('CUA_REPO_URL')
     expect(buildScript).not.toContain("run('git'")
+    expect(updateScript).toContain("['config', 'commit.gpgsign', 'false']")
     expect(packageJson.scripts['cua:update']).toBe('node scripts/update-cua-driver.mjs')
     expect(packageJson.scripts['cua:diff-upstream']).toBe(
       'node scripts/update-cua-driver.mjs --diff-upstream'
@@ -155,6 +157,23 @@ describe('CUA Driver vendor scripts', () => {
     expect(clickTool).toContain('if let actionName, hasCoordinateIntent && actionName != "press"')
     expect(clickTool).toContain('$0.isEmpty ? nil : $0')
     expect(clickTool).not.toContain('Provide either element_index or (x, y), not both.')
+  })
+
+  it('bundles the vendored CUA skill for macOS Computer Use', async () => {
+    const vendorSkill = await readFile(
+      path.join(repoRoot, 'vendor', 'cua-driver', 'source', 'Skills', 'cua-driver', 'SKILL.md'),
+      'utf8'
+    )
+    const bundledSkill = await readFile(
+      path.join(repoRoot, 'resources', 'skills', 'cua-driver', 'SKILL.md'),
+      'utf8'
+    )
+
+    expect(bundledSkill).toBe(vendorSkill)
+    expect(bundledSkill).toContain('platforms:\n  - darwin')
+    expect(bundledSkill).toContain('deepchatFeature: computer-use')
+    expect(bundledSkill).toContain('## DeepChat MCP mode')
+    expect(bundledSkill).toContain('## Sparse visible UI fallback')
   })
 
   it('reports missing upstream metadata fields clearly', async () => {

@@ -92,19 +92,25 @@ struct DiagnoseCommand: AsyncParsableCommand {
         }
 
         // CLI symlink that an MCP client (Claude Code etc.) invokes.
-        let cliPath = "/usr/local/bin/cua-driver"
-        let cliExists = FileManager.default.fileExists(atPath: cliPath)
-        lines.append("symlink: \(cliPath)   exists=\(cliExists)")
-        if cliExists {
-            let resolved = (try? FileManager.default.destinationOfSymbolicLink(
-                atPath: cliPath)) ?? "<not a symlink>"
-            lines.append("  resolves to: \(resolved)")
+        let cliPaths = [
+            ("symlink", "\(NSHomeDirectory())/.local/bin/cua-driver"),
+            ("legacy symlink", "/usr/local/bin/cua-driver"),
+        ]
+        for (label, cliPath) in cliPaths {
+            let cliExists = FileManager.default.fileExists(atPath: cliPath)
+            lines.append("\(label): \(cliPath)   exists=\(cliExists)")
+            if cliExists {
+                let resolved = (try? FileManager.default.destinationOfSymbolicLink(
+                    atPath: cliPath)) ?? "<not a symlink>"
+                lines.append("  resolves to: \(resolved)")
+            }
         }
 
         // Stale dev-install paths — flag these specifically so users who
         // followed an older install-local.sh (pre-path-alignment) see
         // they have leftovers to clean up.
         let stalePaths = [
+            "\(NSHomeDirectory())/Applications/CuaDriver.app",
             "\(NSHomeDirectory())/Applications/DeepChat Computer Use.app",
             "\(NSHomeDirectory())/.local/bin/cua-driver",
         ]

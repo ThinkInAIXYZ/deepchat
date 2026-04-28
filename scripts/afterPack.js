@@ -12,6 +12,7 @@ const APP_NAME = 'DeepChat'
 const LINUX_APP_NAME = 'deepchat'
 const HELPER_APP_NAME = 'DeepChat Computer Use.app'
 const HELPER_BINARY_NAME = 'cua-driver'
+const COMPUTER_USE_SKILL_NAME = 'cua-driver'
 const HELPER_ENTITLEMENTS = path.resolve('build', 'entitlements.computer-use.plist')
 
 const ELECTRON_BUILDER_ARCH = {
@@ -99,6 +100,18 @@ async function removeComputerUseRuntime(appOutDir) {
     'computer-use'
   )
   await fs.rm(runtimePath, { recursive: true, force: true })
+}
+
+async function removeComputerUseSkill(appOutDir) {
+  const skillPath = path.join(
+    appOutDir,
+    'resources',
+    'app.asar.unpacked',
+    'resources',
+    'skills',
+    COMPUTER_USE_SKILL_NAME
+  )
+  await fs.rm(skillPath, { recursive: true, force: true })
 }
 
 function parseDeveloperIdIdentity(identities) {
@@ -340,6 +353,7 @@ async function afterPack(context) {
   }
 
   await removeComputerUseRuntime(appOutDir)
+  await removeComputerUseSkill(appOutDir)
 
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })

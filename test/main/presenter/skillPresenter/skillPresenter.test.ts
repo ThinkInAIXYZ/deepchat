@@ -158,6 +158,10 @@ import logger from '@shared/logger'
 import { eventBus } from '../../../../src/main/eventbus'
 import { SKILL_EVENTS } from '../../../../src/main/events'
 import { SKILL_CONFIG, SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
+import {
+  COMPUTER_USE_ENABLED_KEY,
+  COMPUTER_USE_SKILL_NAME
+} from '../../../../src/shared/types/computerUse'
 
 function createDirEntry(name: string) {
   return {
@@ -239,7 +243,8 @@ describe('SkillPresenter', () => {
     ;(randomUUID as Mock).mockReturnValue('12345678-1234-1234-1234-123456789abc')
 
     mockConfigPresenter = {
-      getSkillsPath: vi.fn().mockReturnValue('')
+      getSkillsPath: vi.fn().mockReturnValue(''),
+      getSetting: vi.fn().mockReturnValue(undefined)
     } as unknown as IConfigPresenter
 
     // Setup default mocks
@@ -558,6 +563,61 @@ describe('SkillPresenter', () => {
       const second = await skillPresenter.getMetadataList()
 
       expect(first).toEqual(second)
+    })
+
+    it('shows the managed cua-driver skill only while Computer Use is enabled on macOS', async () => {
+      const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
+      Object.defineProperty(process, 'platform', {
+        ...platformDescriptor,
+        value: 'darwin'
+      })
+
+      try {
+        mockSkillTree([COMPUTER_USE_SKILL_NAME, 'regular-skill'])
+        ;(fs.existsSync as Mock).mockReturnValue(true)
+        ;(fs.readFileSync as Mock).mockImplementation((target: string) =>
+          target.includes(COMPUTER_USE_SKILL_NAME) ? 'cua-driver' : 'regular-skill'
+        )
+        ;(matter as unknown as Mock).mockImplementation((content: string) => {
+          if (content === 'cua-driver') {
+            return {
+              data: {
+                name: COMPUTER_USE_SKILL_NAME,
+                description: 'CUA',
+                platforms: ['darwin'],
+                metadata: { deepchatFeature: 'computer-use' }
+              },
+              content: ''
+            }
+          }
+
+          return {
+            data: { name: 'regular-skill', description: 'Regular' },
+            content: ''
+          }
+        })
+
+        ;(mockConfigPresenter.getSetting as Mock).mockImplementation((key: string) =>
+          key === COMPUTER_USE_ENABLED_KEY ? false : undefined
+        )
+        await skillPresenter.discoverSkills()
+        expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
+          'regular-skill'
+        ])
+        expect(await skillPresenter.loadSkillContent(COMPUTER_USE_SKILL_NAME)).toBeNull()
+
+        ;(mockConfigPresenter.getSetting as Mock).mockImplementation((key: string) =>
+          key === COMPUTER_USE_ENABLED_KEY ? true : undefined
+        )
+        expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
+          COMPUTER_USE_SKILL_NAME,
+          'regular-skill'
+        ])
+      } finally {
+        if (platformDescriptor) {
+          Object.defineProperty(process, 'platform', platformDescriptor)
+        }
+      }
     })
   })
 

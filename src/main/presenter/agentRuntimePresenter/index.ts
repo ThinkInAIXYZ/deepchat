@@ -28,6 +28,11 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
+  COMPUTER_USE_ENABLED_KEY,
+  COMPUTER_USE_SERVER_NAME,
+  COMPUTER_USE_SKILL_NAME
+} from '@shared/types/computerUse'
+import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
   isReasoningEffort,
@@ -2315,7 +2320,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const normalizedAvailableSkills = this.normalizeSkillMetadata(availableSkills)
-    const normalizedActiveSkills = this.normalizeSkillNames(activeSkillNames)
+    const availableSkillNames = new Set(normalizedAvailableSkills.map((skill) => skill.name))
+    const normalizedActiveSkills = this.normalizeSkillNames([
+      ...activeSkillNames.filter((skillName) => availableSkillNames.has(skillName)),
+      ...((await this.shouldAutoPinComputerUseSkill(
+        skillsEnabled,
+        Array.from(availableSkillNames),
+        toolDefinitions
+      ))
+        ? [COMPUTER_USE_SKILL_NAME]
+        : [])
+    ])
     const agentToolNames = this.getAgentToolNames(toolDefinitions)
     const fingerprint = this.buildSystemPromptFingerprint({
       providerId,
@@ -2563,6 +2578,41 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         left.name.localeCompare(right.name)
       )
     })
+  }
+
+  private async shouldAutoPinComputerUseSkill(
+    skillsEnabled: boolean,
+    availableSkillNames: string[],
+    toolDefinitions: MCPToolDefinition[]
+  ): Promise<boolean> {
+    if (!skillsEnabled || process.platform !== 'darwin') {
+      return false
+    }
+
+    if (!toolDefinitions.some((tool) => tool.server.name === COMPUTER_USE_SERVER_NAME)) {
+      return false
+    }
+
+    if (!availableSkillNames.includes(COMPUTER_USE_SKILL_NAME)) {
+      return false
+    }
+
+    if (this.configPresenter.getSetting<boolean>(COMPUTER_USE_ENABLED_KEY) !== true) {
+      return false
+    }
+
+    try {
+      if (!(await this.configPresenter.getMcpEnabled())) {
+        return false
+      }
+
+      const servers = await this.configPresenter.getMcpServers()
+      const computerUseServer = servers[COMPUTER_USE_SERVER_NAME]
+      return Boolean(computerUseServer?.enabled && computerUseServer.disable !== true)
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to resolve Computer Use skill activation:', error)
+      return false
+    }
   }
 
   private buildSystemPromptFingerprint(params: {

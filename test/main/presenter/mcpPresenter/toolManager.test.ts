@@ -93,7 +93,7 @@ describe('ToolManager', () => {
     }
   }
 
-  it('enhances Computer Use app-name matching tool descriptions', async () => {
+  it('leaves Computer Use tool descriptions unchanged', async () => {
     const client = createClient(COMPUTER_USE_SERVER_NAME, [
       {
         name: 'list_apps',
@@ -133,22 +133,9 @@ describe('ToolManager', () => {
     const launchApp = definitions.find((tool) => tool.function.name === 'launch_app')
     const click = definitions.find((tool) => tool.function.name === 'click')
 
-    expect(listApps?.function.description).toContain('List apps original description')
-    expect(listApps?.function.description).toContain("user's language")
-    expect(listApps?.function.description).toContain('system language')
-    expect(listApps?.function.description).toContain('English product names')
-    expect(listApps?.function.description).toContain('English brand names')
-    expect(listApps?.function.description).toContain('romanized or pinyin variants')
-    expect(listApps?.function.description).toContain('common abbreviations')
-
-    expect(launchApp?.function.description).toContain('Launch app original description')
-    expect(launchApp?.function.description).toContain('call list_apps first')
-    expect(launchApp?.function.description).toContain('prefer launching with bundle_id')
-
+    expect(listApps?.function.description).toBe('List apps original description')
+    expect(launchApp?.function.description).toBe('Launch app original description')
     expect(click?.function.description).toBe('Click original description')
-    expect(`${listApps?.function.description}\n${launchApp?.function.description}`).not.toMatch(
-      /NetEase|网易|com\.netease/i
-    )
   })
 
   it('leaves non Computer Use tool descriptions unchanged', async () => {

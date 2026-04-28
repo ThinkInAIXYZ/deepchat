@@ -45,8 +45,18 @@ describe('afterPack Computer Use isolation', () => {
       'runtime',
       'computer-use'
     )
+    const computerUseSkillPath = path.join(
+      tmpDir,
+      'resources',
+      'app.asar.unpacked',
+      'resources',
+      'skills',
+      'cua-driver'
+    )
     await mkdir(computerUsePath, { recursive: true })
+    await mkdir(computerUseSkillPath, { recursive: true })
     await writeFile(path.join(computerUsePath, 'helper.txt'), 'helper')
+    await writeFile(path.join(computerUseSkillPath, 'SKILL.md'), 'skill')
 
     await afterPack({
       targets: [],
@@ -55,6 +65,7 @@ describe('afterPack Computer Use isolation', () => {
     })
 
     await expect(stat(computerUsePath)).rejects.toThrow()
+    await expect(stat(computerUseSkillPath)).rejects.toThrow()
   })
 
   it('removes Computer Use runtime and keeps the Linux no-sandbox wrapper', async () => {
@@ -66,8 +77,18 @@ describe('afterPack Computer Use isolation', () => {
       'runtime',
       'computer-use'
     )
+    const computerUseSkillPath = path.join(
+      tmpDir,
+      'resources',
+      'app.asar.unpacked',
+      'resources',
+      'skills',
+      'cua-driver'
+    )
     await mkdir(computerUsePath, { recursive: true })
+    await mkdir(computerUseSkillPath, { recursive: true })
     await writeFile(path.join(computerUsePath, 'helper.txt'), 'helper')
+    await writeFile(path.join(computerUseSkillPath, 'SKILL.md'), 'skill')
     await writeFile(path.join(tmpDir, 'deepchat'), '#!/bin/bash\n')
 
     await afterPack({
@@ -77,6 +98,7 @@ describe('afterPack Computer Use isolation', () => {
     })
 
     await expect(stat(computerUsePath)).rejects.toThrow()
+    await expect(stat(computerUseSkillPath)).rejects.toThrow()
     await expect(stat(path.join(tmpDir, 'deepchat.bin'))).resolves.toBeTruthy()
     await expect(stat(path.join(tmpDir, 'deepchat'))).resolves.toBeTruthy()
   })

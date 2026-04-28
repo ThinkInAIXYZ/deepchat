@@ -237,7 +237,7 @@ public enum RightClickTool {
         if !DaemonClient.isDaemonListening(socketPath: socketPath) {
             return
                 "No cached AX state for pid \(pid). Start the daemon first: "
-                + "`open -n -g -a CuaDriver --args serve` "
+                + "`open -n -g -a \"DeepChat Computer Use\" --args serve` "
                 + "(or `cua-driver serve &` — the CLI auto-relaunches via "
                 + "`open` if your shell's TCC context is wrong). "
                 + "Element-indexed clicks read a cache populated by "

@@ -27,13 +27,13 @@ struct ServeCommand: ParsableCommand {
             Responses: {"ok":true,"result":...} or
                        {"ok":false,"error":"...","exitCode":64|65|70|1}.
 
-            TCC responsibility chain: when invoked via the `/usr/local/bin/cua-driver`
+            TCC responsibility chain: when invoked via the `~/.local/bin/cua-driver`
             symlink from a shell that itself lacks Accessibility + Screen Recording
             grants (any IDE terminal — Claude Code, Cursor, VS Code, Conductor),
             macOS attributes the serve process to the parent shell/IDE, not to
             DeepChat Computer Use.app. AX probes no-op silently and the daemon never becomes
             useful. To sidestep, `serve` detects that context and re-execs itself
-            via `open -n -g -a CuaDriver --args serve`, which relaunches under
+            via `open -n -g -a "DeepChat Computer Use" --args serve`, which relaunches under
             LaunchServices so TCC attributes the process to com.wefonk.deepchat.computeruse.
             Pass `--no-relaunch` (or set `CUA_DRIVER_NO_RELAUNCH=1`) to opt out
             and stay in the current process — useful when you know the caller
@@ -48,7 +48,8 @@ struct ServeCommand: ParsableCommand {
     @Flag(
         name: .long,
         help: """
-            Stay in the current process instead of re-execing via `open -n -g -a CuaDriver`. \
+            Stay in the current process instead of re-execing via \
+            `open -n -g -a "DeepChat Computer Use"`. \
             Use when the calling context already has the right TCC responsibility \
             (running inside DeepChat Computer Use.app directly, or from a shell that's been \
             granted Accessibility + Screen Recording itself). Also toggleable via \
@@ -146,14 +147,14 @@ struct ServeCommand: ParsableCommand {
 
 extension ServeCommand {
     /// Decide whether the current `serve` invocation should re-exec itself
-    /// via `/usr/bin/open -n -g -a CuaDriver --args serve`. True when all of
+    /// via `/usr/bin/open -n -g -a "DeepChat Computer Use" --args serve`. True when all of
     /// the following hold:
     ///
     ///   - `--no-relaunch` is NOT set and `CUA_DRIVER_NO_RELAUNCH` is not
     ///     truthy in the environment.
     ///   - `Bundle.main.bundlePath` does NOT end in `.app`. That's the
     ///     signal we were invoked as a bare binary — almost always the
-    ///     `/usr/local/bin/cua-driver` symlink from a shell — rather
+    ///     `~/.local/bin/cua-driver` symlink from a shell — rather
     ///     than as the main executable of a loaded `.app` bundle. The
     ///     `open -n -g -a` path always lands in the second form
     ///     (bundlePath ends in `/DeepChat Computer Use.app`), so checking for its
@@ -201,7 +202,7 @@ extension ServeCommand {
         return true
     }
 
-    /// Spawn `/usr/bin/open -n -g -a CuaDriver --args serve [--socket …]`,
+    /// Spawn `/usr/bin/open -n -g -a "DeepChat Computer Use" --args serve [--socket …]`,
     /// then wait (up to 5s) for the canonical daemon socket to accept a
     /// protocol-speaking probe. The `open` CLI returns immediately once
     /// LaunchServices accepts the request, which is well before the
@@ -214,7 +215,7 @@ extension ServeCommand {
     fileprivate func relaunchViaOpen(socketPath: String) throws {
         FileHandle.standardError.write(
             Data(
-                "cua-driver: relaunching via `open -n -g -a CuaDriver --args serve` for correct TCC context. Pass --no-relaunch to stay in this process.\n"
+                "cua-driver: relaunching via `open -n -g -a \"DeepChat Computer Use\" --args serve` for correct TCC context. Pass --no-relaunch to stay in this process.\n"
                     .utf8))
 
         // If --socket was ever passed through to `serve`, forward it to
@@ -256,7 +257,7 @@ extension ServeCommand {
         if process.terminationStatus != 0 {
             FileHandle.standardError.write(
                 Data(
-                    "cua-driver: `open -n -g -a CuaDriver --args serve` exited \(process.terminationStatus). Check that `/Applications/DeepChat Computer Use.app` is installed, or pass --no-relaunch to bypass.\n"
+                    "cua-driver: `open -n -g -a \"DeepChat Computer Use\" --args serve` exited \(process.terminationStatus). Check that `/Applications/DeepChat Computer Use.app` is installed, or pass --no-relaunch to bypass.\n"
                         .utf8))
             throw ExitCode(1)
         }

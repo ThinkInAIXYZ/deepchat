@@ -7,6 +7,11 @@ import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
 import type { IConfigPresenter } from '@shared/presenter'
 import {
+  COMPUTER_USE_ENABLED_KEY,
+  COMPUTER_USE_SKILL_NAME,
+  COMPUTER_USE_SOURCE_ID
+} from '@shared/types/computerUse'
+import {
   ISkillPresenter,
   SkillMetadata,
   SkillContent,
@@ -303,12 +308,7 @@ export class SkillPresenter implements ISkillPresenter {
       this.metadataCache.set(metadata.name, metadata)
     }
 
-    const skills = Array.from(this.metadataCache.values()).sort((left, right) => {
-      return (
-        (left.category ?? '').localeCompare(right.category ?? '') ||
-        left.name.localeCompare(right.name)
-      )
-    })
+    const skills = this.getVisibleMetadataFromCache()
     eventBus.sendToRenderer(SKILL_EVENTS.DISCOVERED, SendTarget.ALL_WINDOWS, skills)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'discovered',
@@ -411,7 +411,35 @@ export class SkillPresenter implements ISkillPresenter {
       }
       await this.discoveryPromise
     }
-    return Array.from(this.metadataCache.values()).sort((left, right) => {
+    return this.getVisibleMetadataFromCache()
+  }
+
+  private getVisibleMetadataFromCache(): SkillMetadata[] {
+    return this.sortSkillMetadata(
+      Array.from(this.metadataCache.values()).filter((skill) => this.isSkillVisible(skill))
+    )
+  }
+
+  private isSkillVisible(metadata: SkillMetadata): boolean {
+    if (!this.isComputerUseManagedSkill(metadata)) {
+      return true
+    }
+
+    return (
+      process.platform === 'darwin' &&
+      this.configPresenter.getSetting<boolean>(COMPUTER_USE_ENABLED_KEY) === true
+    )
+  }
+
+  private isComputerUseManagedSkill(metadata: SkillMetadata): boolean {
+    return (
+      metadata.name === COMPUTER_USE_SKILL_NAME &&
+      metadata.metadata?.deepchatFeature === COMPUTER_USE_SOURCE_ID
+    )
+  }
+
+  private sortSkillMetadata(skills: SkillMetadata[]): SkillMetadata[] {
+    return [...skills].sort((left, right) => {
       return (
         (left.category ?? '').localeCompare(right.category ?? '') ||
         left.name.localeCompare(right.name)
@@ -455,20 +483,20 @@ export class SkillPresenter implements ISkillPresenter {
    * Load full skill content (lazy loading)
    */
   async loadSkillContent(name: string): Promise<SkillContent | null> {
-    // Check content cache first
-    if (this.contentCache.has(name)) {
-      return this.contentCache.get(name)!
-    }
-
     if (this.metadataCache.size === 0) {
       await this.discoverSkills()
     }
 
     // Get metadata to find the path
     const metadata = this.metadataCache.get(name)
-    if (!metadata) {
+    if (!metadata || !this.isSkillVisible(metadata)) {
       console.warn(`[SkillPresenter] Skill not found: ${name}`)
       return null
+    }
+
+    // Check content cache after feature visibility so disabled managed skills stay hidden.
+    if (this.contentCache.has(name)) {
+      return this.contentCache.get(name)!
     }
 
     try {
@@ -511,7 +539,7 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     const metadata = this.metadataCache.get(name)
-    if (!metadata) {
+    if (!metadata || !this.isSkillVisible(metadata)) {
       return {
         success: false,
         error: `Skill "${name}" not found`
@@ -853,6 +881,11 @@ export class SkillPresenter implements ISkillPresenter {
       const skillMdPath = path.join(skillDir, 'SKILL.md')
       if (!fs.existsSync(skillMdPath)) continue
 
+      const metadata = await this.parseSkillMetadata(skillMdPath, entry.name)
+      if (!metadata || !this.supportsCurrentPlatform(metadata.platforms)) {
+        continue
+      }
+
       const result = await this.installFromDirectory(skillDir, { overwrite: false })
       if (!result.success && result.error?.includes('already exists')) {
         continue
@@ -860,6 +893,28 @@ export class SkillPresenter implements ISkillPresenter {
       if (!result.success) {
         console.warn('[SkillPresenter] Failed to install builtin skill:', result.error)
       }
+    }
+  }
+
+  private supportsCurrentPlatform(platforms?: string[]): boolean {
+    if (!platforms?.length) {
+      return true
+    }
+
+    const aliases = this.getCurrentPlatformAliases()
+    return platforms.some((platform) => aliases.has(platform.trim().toLowerCase()))
+  }
+
+  private getCurrentPlatformAliases(): Set<string> {
+    switch (process.platform) {
+      case 'darwin':
+        return new Set(['darwin', 'macos', 'mac'])
+      case 'win32':
+        return new Set(['win32', 'windows', 'win'])
+      case 'linux':
+        return new Set(['linux'])
+      default:
+        return new Set([process.platform])
     }
   }
 
@@ -1595,7 +1650,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     for (const skillName of activeSkills) {
       const metadata = this.metadataCache.get(skillName)
-      if (metadata?.allowedTools) {
+      if (metadata?.allowedTools && this.isSkillVisible(metadata)) {
         metadata.allowedTools.forEach((tool) => allowedTools.add(tool))
       }
     }

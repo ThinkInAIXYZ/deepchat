@@ -115,6 +115,7 @@ async function createDeltaPatch(oldSourceDir, currentSourceDir, patchPath) {
   run('git', ['init'], { cwd: patchRepo })
   run('git', ['config', 'user.email', 'deepchat@example.invalid'], { cwd: patchRepo })
   run('git', ['config', 'user.name', 'DeepChat CUA Vendor'], { cwd: patchRepo })
+  run('git', ['config', 'commit.gpgsign', 'false'], { cwd: patchRepo })
 
   await copySource(oldSourceDir, patchSource)
   run('git', ['add', 'source'], { cwd: patchRepo })
@@ -135,6 +136,7 @@ async function applyPatchToCandidate(oldSourceDir, newSourceDir, patchPath) {
   run('git', ['init'], { cwd: candidateRoot })
   run('git', ['config', 'user.email', 'deepchat@example.invalid'], { cwd: candidateRoot })
   run('git', ['config', 'user.name', 'DeepChat CUA Vendor'], { cwd: candidateRoot })
+  run('git', ['config', 'commit.gpgsign', 'false'], { cwd: candidateRoot })
   await copySource(oldSourceDir, candidateSource)
   run('git', ['add', 'source'], { cwd: candidateRoot })
   run('git', ['commit', '-m', 'upstream base'], { cwd: candidateRoot })
