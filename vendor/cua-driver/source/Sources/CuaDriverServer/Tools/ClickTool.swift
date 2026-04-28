@@ -146,23 +146,36 @@ public enum ClickTool {
             let rawWindowId = arguments?["window_id"]?.intValue
             let x = coerceDouble(arguments?["x"])
             let y = coerceDouble(arguments?["y"])
-            // Some MCP clients materialize optional numeric fields with
-            // zero values. The semantic addressing mode is selected by
-            // element_index first; pixel coordinates address a target when
-            // element_index is absent.
+            let fromZoom = arguments?["from_zoom"]?.boolValue ?? false
+            let debugImageOut = arguments?["debug_image_out"]?.stringValue.flatMap {
+                $0.isEmpty ? nil : $0
+            }
+            let rawHasXY = x != nil && y != nil
+            let rawHasPartialXY = (x != nil) != (y != nil)
+            let hasNonOriginXY = rawHasXY && ((x ?? 0) != 0 || (y ?? 0) != 0)
+            // Some MCP clients materialize optional fields with default values.
+            // Pixel-only fields and non-origin coordinates on a default zero
+            // element index indicate coordinate intent.
             let hasElementIndex = elementIndex != nil
-            let hasXY = !hasElementIndex && x != nil && y != nil
-            let hasPartialXY = !hasElementIndex && (x != nil) != (y != nil)
+            let hasCoordinateIntent =
+                !hasElementIndex
+                || fromZoom
+                || debugImageOut != nil
+                || (elementIndex == 0 && hasNonOriginXY)
 
-            if hasPartialXY {
+            if hasCoordinateIntent && rawHasPartialXY {
                 return errorResult(
                     "Provide both x and y together, not just one.")
             }
-            if !hasElementIndex && !hasXY {
+            if !hasElementIndex && !rawHasXY {
                 return errorResult(
                     "Provide element_index or (x, y) to address the click target.")
             }
-            if hasElementIndex && rawWindowId == nil {
+            if hasCoordinateIntent && !rawHasXY {
+                return errorResult(
+                    "Provide both x and y when using pixel click fields.")
+            }
+            if hasElementIndex && !hasCoordinateIntent && rawWindowId == nil {
                 return errorResult(
                     "window_id is required when element_index is used — the "
                     + "element_index cache is scoped per (pid, window_id). Pass "
@@ -170,7 +183,7 @@ public enum ClickTool {
             }
 
             let actionName = arguments?["action"]?.stringValue
-            if actionName != nil && !hasElementIndex {
+            if let actionName, hasCoordinateIntent && actionName != "press" {
                 return errorResult(
                     "action only applies with element_index, not (x, y).")
             }
@@ -179,12 +192,8 @@ public enum ClickTool {
                 $0.stringValue
             } ?? []
             let count = arguments?["count"]?.intValue ?? 1
-            let fromZoom = arguments?["from_zoom"]?.boolValue ?? false
-            let debugImageOut = arguments?["debug_image_out"]?.stringValue.flatMap {
-                $0.isEmpty ? nil : $0
-            }
 
-            if debugImageOut != nil && !hasElementIndex {
+            if debugImageOut != nil && hasCoordinateIntent {
                 if fromZoom {
                     return errorResult(
                         "debug_image_out is incompatible with from_zoom — "
@@ -209,7 +218,7 @@ public enum ClickTool {
                 windowId = nil
             }
 
-            if let index = elementIndex, let windowId {
+            if !hasCoordinateIntent, let index = elementIndex, let windowId {
                 return await performElementClick(
                     pid: pid,
                     windowId: windowId,

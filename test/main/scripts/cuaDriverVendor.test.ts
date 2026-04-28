@@ -148,8 +148,11 @@ describe('CUA Driver vendor scripts', () => {
     const clickTool = await readFile(clickToolPath, 'utf8')
 
     expect(clickTool).toContain('let hasElementIndex = elementIndex != nil')
-    expect(clickTool).toContain('let hasXY = !hasElementIndex && x != nil && y != nil')
-    expect(clickTool).toContain('let hasPartialXY = !hasElementIndex && (x != nil) != (y != nil)')
+    expect(clickTool).toContain('let hasCoordinateIntent =')
+    expect(clickTool).toContain('|| fromZoom')
+    expect(clickTool).toContain('|| debugImageOut != nil')
+    expect(clickTool).toContain('|| (elementIndex == 0 && hasNonOriginXY)')
+    expect(clickTool).toContain('if let actionName, hasCoordinateIntent && actionName != "press"')
     expect(clickTool).toContain('$0.isEmpty ? nil : $0')
     expect(clickTool).not.toContain('Provide either element_index or (x, y), not both.')
   })
