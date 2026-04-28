@@ -8,7 +8,8 @@ macOS 开发人员可以在 Mac 机器上继续实现，不需要重新调研 `t
 
 ## Current Decisions
 
-- 从 `trycua/cua` 的 `libs/cua-driver` 源码集成，不使用上游 release binary。
+- 从 `vendor/cua-driver/source` 的 vendored `trycua/cua/libs/cua-driver` 源码集成。
+- 上游基线记录在 `vendor/cua-driver/upstream.json`，同步通过 `pnpm run cua:update` 人工触发。
 - macOS-only；Windows/Linux 不打包、不注册、不展示可用能力。
 - 默认 opt-in；用户在设置中显式开启后才注册并启动 Computer Use。
 - 权限身份使用 DeepChat 自己的 helper：
@@ -34,4 +35,3 @@ macOS 开发人员可以在 Mac 机器上继续实现，不需要重新调研 `t
 
 本批文档不实现功能代码。后续实现时应按 SDD 流程保持 spec -> plan -> tasks -> PR 的可追踪性，
 并在每个 PR 中更新对应文档。
-

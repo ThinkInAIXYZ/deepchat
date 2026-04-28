@@ -45,6 +45,8 @@
     "build:cua-driver:mac": "node scripts/build-cua-driver.mjs",
     "build:cua-driver:mac:arm64": "node scripts/build-cua-driver.mjs --arch arm64",
     "build:cua-driver:mac:x64": "node scripts/build-cua-driver.mjs --arch x64",
+    "cua:update": "node scripts/update-cua-driver.mjs",
+    "cua:diff-upstream": "node scripts/update-cua-driver.mjs --diff-upstream",
     "build:mac": "pnpm run build:cua-driver:mac && pnpm run build && electron-builder --mac",
     "build:mac:arm64": "pnpm run build:cua-driver:mac:arm64 && pnpm run build && electron-builder --mac --arm64",
     "build:mac:x64": "pnpm run build:cua-driver:mac:x64 && pnpm run build && electron-builder --mac --x64",

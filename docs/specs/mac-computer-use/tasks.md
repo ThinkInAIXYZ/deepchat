@@ -5,9 +5,13 @@ order so packaging, permissions, and UI can be reviewed independently.
 
 ## Phase 1: Source and Build Scaffold
 
-- Add vendored CUA Driver source or reproducible source fetch pinned to `cua-driver-v0.0.5`.
-- Add DeepChat patch set for helper bundle identity, app name, relaunch behavior, self-update disablement,
-  and telemetry default disablement.
+- Add vendored CUA Driver source under `vendor/cua-driver/source`, pinned to `cua-driver-v0.0.5`
+  in `vendor/cua-driver/upstream.json`.
+- Commit DeepChat helper bundle identity, app name, relaunch behavior, self-update disablement,
+  permission probe, non-blocking permission startup, background click dispatch, and telemetry default
+  changes directly in vendored Swift source.
+- Add upstream update script that exports the DeepChat delta and applies it to a requested upstream
+  tag/commit with `git apply --3way`.
 - Add mac-only helper build script with `--arch arm64|x64`.
 - Stage helper into `runtime/computer-use/cua-driver/current/DeepChat Computer Use.app`.
 - Add architecture validation for staged helper.
@@ -108,4 +112,3 @@ Done when:
 
 - All acceptance criteria in `spec.md` pass.
 - Known macOS limitations are documented in release notes or user docs.
-

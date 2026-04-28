@@ -39,7 +39,8 @@ Key source facts from `libs/cua-driver`:
 Integration implication:
 
 - DeepChat should use `cua-driver mcp` for MCP.
-- DeepChat should patch the helper identity instead of exposing upstream `CuaDriver.app`.
+- DeepChat should maintain vendored helper source with DeepChat identity and ship the branded
+  `DeepChat Computer Use.app`.
 - DeepChat should build helper source for both `arm64` and `x86_64`.
 - DeepChat should disable helper self-update so app updates remain controlled by DeepChat releases.
 
@@ -83,4 +84,3 @@ Integration implication:
 - Runtime placement can reuse existing `runtime/` packaging behavior.
 - Signing should be added to the existing `afterPack` mac branch.
 - Computer Use should be represented as a DeepChat-owned built-in MCP server, not a user-editable custom server.
-

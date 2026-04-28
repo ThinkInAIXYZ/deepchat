@@ -7,11 +7,10 @@ Recommended source layout:
 ```text
 vendor/
   cua-driver/
-    upstream/
-      libs/cua-driver/...
-    patches/
-      0001-deepchat-helper-identity.patch
-      0002-disable-self-update-and-telemetry.patch
+    upstream.json
+    source/
+      Package.swift
+      Sources/...
 runtime/
   computer-use/
     cua-driver/
@@ -19,13 +18,27 @@ runtime/
         DeepChat Computer Use.app/
 ```
 
-The implementation can use a git subtree, vendored snapshot, or pinned source archive. The important
-requirements are:
+The implementation uses a vendored source snapshot. `vendor/cua-driver/source` is the build source of
+truth, with DeepChat changes committed directly in Swift source. `vendor/cua-driver/upstream.json`
+records the upstream location and base revision:
 
-- The source is present or reproducibly fetched during build.
-- The pinned upstream commit/tag is recorded.
-- DeepChat patches are reviewable.
-- Release builds never depend on upstream binary release assets.
+```json
+{
+  "upstreamRepo": "https://github.com/trycua/cua.git",
+  "upstreamSubdir": "libs/cua-driver",
+  "tag": "cua-driver-v0.0.5",
+  "commit": "1a53f4bc33075be1fac5fceee7c7214452d6fda1",
+  "version": "0.0.5",
+  "updatedAt": "2026-04-28"
+}
+```
+
+Build requirements:
+
+- The source snapshot is present in `vendor/cua-driver/source`.
+- The pinned upstream commit/tag is recorded in `upstream.json`.
+- DeepChat source changes are reviewed as normal repository diffs.
+- Release builds depend on local source and never on upstream binary release assets.
 
 ## Build Script
 
@@ -41,7 +54,8 @@ Responsibilities:
 - Verify host platform is macOS.
 - Verify Xcode/Swift toolchain is available.
 - Map `arm64 -> arm64`, `x64 -> x86_64`.
-- Build CUA Driver with Swift release configuration.
+- Build CUA Driver with Swift release configuration:
+  - `swift build -c release --arch <arch> --product cua-driver --package-path vendor/cua-driver/source --scratch-path <tmp>`
 - Wrap binary into `DeepChat Computer Use.app`.
 - Patch `Info.plist`:
   - `CFBundleIdentifier = com.wefonk.deepchat.computeruse`
@@ -53,20 +67,55 @@ Responsibilities:
 - Copy app resources/icons.
 - Remove stale staged helper before writing new one.
 - Verify binary architecture with `lipo -archs` or `file`.
+- Avoid `git clone`, `git fetch`, source copying, and runtime patching during normal builds.
 
 ## Upstream CUA Patch Requirements
 
-CUA Driver currently assumes `CuaDriver.app` in some relaunch paths. DeepChat needs a branded helper,
-so patches must cover:
+CUA Driver currently assumes `CuaDriver.app` in some relaunch paths. DeepChat maintains the vendored
+source with these local changes:
 
 - App name and bundle id used by LaunchServices relaunch.
 - Any hardcoded `CuaDriver` app lookup.
 - First-run permission UI labels.
 - Self-update command behavior.
 - Telemetry defaults.
+- DeepChat-specific permission probe command.
+- Non-blocking permission startup.
+- Background click dispatch behavior verified for DeepChat integration.
 
 The target behavior is that all macOS TCC prompts and System Settings rows display
 `DeepChat Computer Use`.
+
+## Upstream Updates
+
+Use the update helper only when a developer intentionally moves the upstream base:
+
+```text
+pnpm run cua:update -- --tag <tag> --commit <sha>
+pnpm run cua:update -- --tag <tag> --commit <sha> --dry-run
+pnpm run cua:diff-upstream
+```
+
+Update flow:
+
+1. Read the current base from `vendor/cua-driver/upstream.json`.
+2. Fetch the old base and target commit from upstream into a temporary clone.
+3. Generate a binary patch from old upstream `libs/cua-driver` to current
+   `vendor/cua-driver/source`.
+4. Build a temporary candidate repository with old upstream as the first commit and new upstream as
+   the second commit.
+5. Apply the DeepChat delta with `git apply --3way --whitespace=nowarn`.
+6. On success, copy the merged candidate source into `vendor/cua-driver/source` and update
+   `upstream.json`.
+7. On conflict, copy conflicted source files with conflict markers into `vendor/cua-driver/source`
+   during real update runs, print the conflict list, and leave manual resolution to the reviewer.
+
+Conflict handling rules:
+
+- Resolve conflicts in `vendor/cua-driver/source` as normal source conflicts.
+- Keep DeepChat identity, permission probe, non-blocking permission startup, telemetry defaults, and
+  background click dispatch behavior unless upstream adds an equivalent implementation.
+- Run the helper build and package validation after resolving conflicts.
 
 ## Runtime Placement
 
@@ -99,6 +148,8 @@ Extend `scripts/afterPack.js` for macOS:
 - Use a dedicated helper entitlements plist.
 - Fail fast if helper is missing on macOS release builds.
 - Skip helper validation on Windows/Linux.
+- Exclude `vendor/**` from Electron app files; packaged apps should receive the staged helper from
+  `runtime/` only.
 
 Recommended helper entitlements:
 
@@ -194,4 +245,3 @@ On macOS development machines:
   - `tccutil reset ScreenCapture com.wefonk.deepchat.computeruse`
 
 Use the reset commands only in manual developer docs, never inside app code.
-

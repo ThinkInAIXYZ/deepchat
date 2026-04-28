@@ -22,6 +22,10 @@ Tool permissions:
 
 Packaging script tests:
 
+- Build script reads `vendor/cua-driver/source` and does not run upstream clone/fetch during builds.
+- `vendor/cua-driver/upstream.json` missing required fields fails with a clear error.
+- Update script `--dry-run` generates the DeepChat delta and applies it to a local upstream test repo.
+- Update script `--dry-run` reports conflict files when upstream and DeepChat edit the same source.
 - `--arch arm64` maps to Swift arch `arm64`.
 - `--arch x64` maps to Swift arch `x86_64`.
 - Non-macOS build exits with clear unsupported message.
@@ -97,4 +101,3 @@ TCC reset regression:
 - Screen Recording permission may require app restart on some macOS versions.
 - Intel/x64 build may fail if Swift package or dependencies assume arm64-only paths.
 - Nested helper signing order can break notarization if helper is modified after signing.
-

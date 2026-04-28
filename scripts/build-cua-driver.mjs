@@ -6,16 +6,18 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const rootDir = path.resolve(__dirname, '..')
+const rootDir = process.env.DEEPCHAT_ROOT_DIR
+  ? path.resolve(process.env.DEEPCHAT_ROOT_DIR)
+  : path.resolve(__dirname, '..')
 
-const CUA_REPO_URL = 'https://github.com/trycua/cua.git'
-const CUA_TAG = 'cua-driver-v0.0.5'
-const CUA_COMMIT = '1a53f4bc33075be1fac5fceee7c7214452d6fda1'
-const HELPER_BUNDLE_ID = 'com.wefonk.deepchat.computeruse'
+const VENDOR_ROOT = process.env.DEEPCHAT_CUA_VENDOR_ROOT
+  ? path.resolve(process.env.DEEPCHAT_CUA_VENDOR_ROOT)
+  : path.join(rootDir, 'vendor', 'cua-driver')
+const VENDOR_SOURCE_DIR = path.join(VENDOR_ROOT, 'source')
+const UPSTREAM_METADATA_PATH = path.join(VENDOR_ROOT, 'upstream.json')
 const HELPER_APP_NAME = 'DeepChat Computer Use'
 const HELPER_APP_DIR_NAME = `${HELPER_APP_NAME}.app`
 const HELPER_BINARY_NAME = 'cua-driver'
-const CUA_VERSION = '0.0.5'
 
 const archMap = {
   arm64: {
@@ -81,322 +83,52 @@ async function pathExists(targetPath) {
   }
 }
 
-async function cloneOrUpdateSource(cacheRoot) {
-  if (!(await pathExists(path.join(cacheRoot, '.git')))) {
-    await fs.rm(cacheRoot, { recursive: true, force: true })
-    await fs.mkdir(path.dirname(cacheRoot), { recursive: true })
-    run('git', [
-      'clone',
-      '--filter=blob:none',
-      '--branch',
-      CUA_TAG,
-      '--single-branch',
-      CUA_REPO_URL,
-      cacheRoot
-    ])
-  } else {
-    run('git', ['fetch', '--tags', 'origin', CUA_TAG], { cwd: cacheRoot })
-    run('git', ['checkout', '--force', CUA_TAG], { cwd: cacheRoot })
+async function readUpstreamMetadata() {
+  let metadata
+  try {
+    metadata = JSON.parse(await fs.readFile(UPSTREAM_METADATA_PATH, 'utf8'))
+  } catch (error) {
+    throw new Error(
+      `Unable to read CUA upstream metadata at ${path.relative(rootDir, UPSTREAM_METADATA_PATH)}: ${error instanceof Error ? error.message : error}`
+    )
   }
 
-  const commit = read('git', ['rev-parse', 'HEAD'], { cwd: cacheRoot })
-  if (commit !== CUA_COMMIT) {
-    throw new Error(`CUA Driver commit mismatch. Expected ${CUA_COMMIT}, got ${commit}`)
+  const requiredFields = ['upstreamRepo', 'upstreamSubdir', 'tag', 'commit', 'version', 'updatedAt']
+  for (const field of requiredFields) {
+    if (typeof metadata[field] !== 'string' || metadata[field].length === 0) {
+      throw new Error(`CUA upstream metadata is missing required string field: ${field}`)
+    }
   }
+  return metadata
 }
 
-async function replaceInFile(filePath, replacements) {
-  let content = await fs.readFile(filePath, 'utf8')
-  const original = content
-  for (const [from, to] of replacements) {
-    content = content.split(from).join(to)
+async function validateVendorSource(metadata) {
+  const packagePath = path.join(VENDOR_SOURCE_DIR, 'Package.swift')
+  const sourcesPath = path.join(VENDOR_SOURCE_DIR, 'Sources')
+  if (!(await pathExists(packagePath))) {
+    throw new Error(`Vendored CUA Driver source is missing Package.swift at ${packagePath}`)
   }
-  if (content !== original) {
-    await fs.writeFile(filePath, content)
-  }
-}
-
-async function patchSource(sourceDir) {
-  const replacements = [
-    ['com.trycua.driver', HELPER_BUNDLE_ID],
-    ['CuaDriver.app', HELPER_APP_DIR_NAME],
-    ['Cua Driver', HELPER_APP_NAME],
-    ['"CuaDriver"', `"${HELPER_APP_NAME}"`],
-    ['CuaDriver Permissions', `${HELPER_APP_NAME} Permissions`],
-    ['CuaDriver is ready', `${HELPER_APP_NAME} is ready`],
-    ['CuaDriver needs your permission', `${HELPER_APP_NAME} needs your permission`],
-    ['CuaDriver can inspect', `${HELPER_APP_NAME} can inspect`],
-    ['CuaDriver read', `${HELPER_APP_NAME} read`],
-    ['CuaDriver capture', `${HELPER_APP_NAME} capture`],
-    ['CuaDriver.app', HELPER_APP_DIR_NAME]
-  ]
-
-  const swiftFiles = await collectFiles(path.join(sourceDir, 'Sources'), '.swift')
-  for (const filePath of swiftFiles) {
-    await replaceInFile(filePath, replacements)
+  if (!(await pathExists(sourcesPath))) {
+    throw new Error(`Vendored CUA Driver source is missing Sources at ${sourcesPath}`)
   }
 
-  await patchCommandEntrypoint(
-    path.join(sourceDir, 'Sources', 'CuaDriverCLI', 'CuaDriverCommand.swift')
-  )
-  await patchNonBlockingStartup(path.join(sourceDir, 'Sources', 'CuaDriverCLI'))
-  await patchBackgroundClickDispatch(
-    path.join(sourceDir, 'Sources', 'CuaDriverCore', 'Input', 'MouseInput.swift')
-  )
+  const packageContent = await fs.readFile(packagePath, 'utf8')
+  if (!packageContent.includes('name: "cua-driver"')) {
+    throw new Error('Vendored CUA Driver Package.swift does not look like the cua-driver package')
+  }
 
-  const configPath = path.join(sourceDir, 'Sources', 'CuaDriverCore', 'Config', 'CuaDriverConfig.swift')
-  await replaceInFile(configPath, [
-    ['telemetryEnabled: Bool = true', 'telemetryEnabled: Bool = false'],
-    ['autoUpdateEnabled: Bool = true', 'autoUpdateEnabled: Bool = false'],
-    [
-      '(try? container.decode(Bool.self, forKey: .telemetryEnabled)) ?? true',
-      '(try? container.decode(Bool.self, forKey: .telemetryEnabled)) ?? false'
-    ],
-    [
-      '(try? container.decode(Bool.self, forKey: .autoUpdateEnabled)) ?? true',
-      '(try? container.decode(Bool.self, forKey: .autoUpdateEnabled)) ?? false'
-    ]
-  ])
-
-  const telemetryPath = path.join(
-    sourceDir,
+  const commandPath = path.join(
+    VENDOR_SOURCE_DIR,
     'Sources',
-    'CuaDriverCore',
-    'Telemetry',
-    'TelemetryClient.swift'
+    'CuaDriverCLI',
+    'CuaDriverCommand.swift'
   )
-  const telemetryContent = await fs.readFile(telemetryPath, 'utf8')
-  if (!telemetryContent.includes('guard isEnabledSync() else { return }')) {
-    await replaceInFile(telemetryPath, [
-      [
-        'public func recordInstallation() {\n',
-        'public func recordInstallation() {\n        guard isEnabledSync() else { return }\n'
-      ]
-    ])
-  }
-}
-
-async function patchCommandEntrypoint(commandPath) {
-  let content = await fs.readFile(commandPath, 'utf8')
-  if (!content.includes('DeepChatPermissionProbeCommand.self')) {
-    content = content.replace(
-      'subcommands: [\n            MCPCommand.self,',
-      'subcommands: [\n            DeepChatPermissionProbeCommand.self,\n            MCPCommand.self,'
+  const commandContent = await fs.readFile(commandPath, 'utf8')
+  if (!commandContent.includes('DeepChatPermissionProbeCommand')) {
+    throw new Error(
+      `Vendored CUA Driver source is missing DeepChat permission probe patch for ${metadata.commit}`
     )
   }
-
-  if (!content.includes('"deepchat-permission-probe"')) {
-    content = content.replace(
-      'private static let managementSubcommands: Set<String> = [\n        "mcp",',
-      'private static let managementSubcommands: Set<String> = [\n        "deepchat-permission-probe",\n        "mcp",'
-    )
-  }
-
-  if (!content.includes('struct DeepChatPermissionProbeCommand')) {
-    content = content.replace(
-      '/// Top-level entry point. Before handing to ArgumentParser, rewrite\n',
-      `struct DeepChatPermissionProbeCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "deepchat-permission-probe",
-        abstract: "Prompt for and write DeepChat helper TCC permission status JSON."
-    )
-
-    @Option(name: .long, help: "Path to write the permission status JSON.")
-    var output: String
-
-    @Flag(name: .long, help: "Raise macOS permission prompts before checking.")
-    var prompt: Bool = false
-
-    func run() async throws {
-        if prompt {
-            _ = Permissions.requestAccessibility()
-            _ = Permissions.requestScreenRecording()
-            try? await Task.sleep(nanoseconds: 500_000_000)
-        }
-        let status = await Permissions.currentStatus()
-        let outputURL = URL(fileURLWithPath: output)
-        try FileManager.default.createDirectory(
-            at: outputURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
-        let data = try encoder.encode(status)
-        try data.write(to: outputURL, options: .atomic)
-    }
-}
-
-/// Top-level entry point. Before handing to ArgumentParser, rewrite
-`
-    )
-  }
-
-  await fs.writeFile(commandPath, content)
-}
-
-async function patchNonBlockingStartup(cliDir) {
-  const commandPath = path.join(cliDir, 'CuaDriverCommand.swift')
-  await replaceInFile(commandPath, [
-    [
-      `            // Preflight TCC grants. When both are already active this
-            // returns immediately; otherwise a small panel guides the
-            // user through granting them and we resume once everything
-            // flips green. User closing the panel without granting ->
-            // exit with a clear message.
-            let granted = await MainActor.run {
-                PermissionsGate.shared
-            }.ensureGranted()
-            if !granted {
-                FileHandle.standardError.write(
-                    Data(
-                        "cua-driver: required permissions (Accessibility + Screen Recording) not granted; MCP server exiting.\\n"
-                            .utf8))
-                throw AppKitBootstrapError.permissionsDenied
-            }
-
-`,
-      `            // Keep MCP startup non-blocking. Permission setup is handled by DeepChat's
-            // settings UI and individual tools report missing grants when invoked.
-`
-    ]
-  ])
-
-  const servePath = path.join(cliDir, 'ServeCommand.swift')
-  await replaceInFile(servePath, [
-    [
-      `            // Preflight TCC grants BEFORE we acquire the daemon lock —
-            // otherwise a first-run user who needs to grant perms would
-            // be blocked by "another daemon starting" if they ran
-            // \`serve\` once, saw the permissions panel, and triggered
-            // any sibling probe. Panel flow is idempotent and cheap
-            // (<50ms) when grants are already live.
-            let granted = await MainActor.run {
-                PermissionsGate.shared
-            }.ensureGranted()
-            if !granted {
-                FileHandle.standardError.write(
-                    Data(
-                        "cua-driver: required permissions (Accessibility + Screen Recording) not granted; daemon exiting.\\n"
-                            .utf8))
-                throw AppKitBootstrapError.permissionsDenied
-            }
-
-`,
-      `            // Keep daemon startup non-blocking. Tools surface permission errors at use time,
-            // while DeepChat settings owns the guided TCC setup flow.
-`
-    ]
-  ])
-}
-
-async function patchBackgroundClickDispatch(mouseInputPath) {
-  let content = await fs.readFile(mouseInputPath, 'utf8')
-  if (content.includes('clickViaBackgroundPidPost')) {
-    return
-  }
-
-  const routingNeedle = `        if button == .left, count == 1 || count == 2, modifiers.isEmpty {
-            try clickViaAuthSignedPost(
-                at: point, toPid: pid, count: count, modifiers: modifiers)
-            return
-        }
-`
-  if (!content.includes(routingNeedle)) {
-    throw new Error('Unable to patch background click route: routing block not found')
-  }
-  content = content.replace(
-    routingNeedle,
-    `        if button == .left, count == 1 || count == 2, modifiers.isEmpty {
-            try clickViaBackgroundPidPost(
-                at: point, toPid: pid, count: count, modifiers: modifiers)
-            return
-        }
-`
-  )
-
-  const helperNeedle = `    /// Left-click recipe — yabai focus-without-raise + off-screen
-`
-  if (!content.includes(helperNeedle)) {
-    throw new Error('Unable to patch background click route: helper insertion point not found')
-  }
-  content = content.replace(
-    helperNeedle,
-    `    /// Background pixel clicks use a pid-routed AppKit-shaped event.
-    /// The important fields are the bridged NSEvent payload, window id stamps,
-    /// window-local location, and Command flag. The Command flag is intentional:
-    /// WindowServer treats it as part of the background dispatch path.
-    private static func clickViaBackgroundPidPost(
-        at point: CGPoint,
-        toPid pid: pid_t,
-        count: Int = 1,
-        modifiers: [String]
-    ) throws {
-        let clickPairs = max(1, min(2, count))
-        let targetWindow = WindowEnumerator.frontmostWindow(forPid: pid)
-        let windowID = Int64(targetWindow.map { CGWindowID($0.id) } ?? 0)
-        let windowNumber = Int(windowID)
-        let cocoaPoint = cocoaLocation(fromScreenPoint: point)
-        let windowLocalPoint: CGPoint = {
-            guard let bounds = targetWindow?.bounds else { return point }
-            return CGPoint(x: point.x - bounds.x, y: point.y - bounds.y)
-        }()
-
-        var eventFlags = cgEventFlags(for: modifiers)
-        eventFlags.insert(.maskCommand)
-
-        func stamp(_ event: CGEvent, clickState: Int64) {
-            event.location = point
-            event.flags = eventFlags
-            event.setIntegerValueField(.mouseEventButtonNumber, value: 0)
-            event.setIntegerValueField(.mouseEventSubtype, value: 3)
-            event.setIntegerValueField(.mouseEventClickState, value: clickState)
-            if windowID != 0 {
-                event.setIntegerValueField(
-                    .mouseEventWindowUnderMousePointer, value: windowID)
-                event.setIntegerValueField(
-                    .mouseEventWindowUnderMousePointerThatCanHandleThisEvent,
-                    value: windowID)
-            }
-            _ = SkyLightEventPost.setWindowLocation(event, windowLocalPoint)
-        }
-
-        for pairIndex in 1...clickPairs {
-            let down = try buildCGEvent(
-                type: .leftMouseDown,
-                location: cocoaPoint,
-                modifierFlags: modifierMask(for: modifiers),
-                clickCount: pairIndex,
-                button: .left,
-                windowNumber: windowNumber
-            )
-            let up = try buildCGEvent(
-                type: .leftMouseUp,
-                location: cocoaPoint,
-                modifierFlags: modifierMask(for: modifiers),
-                clickCount: pairIndex,
-                button: .left,
-                windowNumber: windowNumber
-            )
-            let clickState = Int64(pairIndex)
-            stamp(down, clickState: clickState)
-            stamp(up, clickState: clickState)
-
-            down.timestamp = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
-            down.postToPid(pid)
-            usleep(1_000)
-            up.timestamp = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
-            up.postToPid(pid)
-            if pairIndex < clickPairs {
-                usleep(80_000)
-            }
-        }
-    }
-
-    /// Left-click recipe — yabai focus-without-raise + off-screen
-`
-  )
-
-  await fs.writeFile(mouseInputPath, content)
 }
 
 async function collectFiles(dir, extension) {
@@ -425,13 +157,13 @@ async function findBuiltBinary(scratchPath) {
   throw new Error('Built cua-driver binary was not found')
 }
 
-function plistXml() {
+function plistXml(version) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key>
-  <string>${HELPER_BUNDLE_ID}</string>
+  <string>com.wefonk.deepchat.computeruse</string>
   <key>CFBundleName</key>
   <string>${HELPER_APP_NAME}</string>
   <key>CFBundleDisplayName</key>
@@ -445,9 +177,9 @@ function plistXml() {
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>${CUA_VERSION}</string>
+  <string>${version}</string>
   <key>CFBundleVersion</key>
-  <string>${CUA_VERSION}</string>
+  <string>${version}</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
@@ -461,7 +193,7 @@ function plistXml() {
 `
 }
 
-async function stageApp(sourceDir, builtBinary, targetArch) {
+async function stageApp(sourceDir, builtBinary, targetArch, version) {
   const currentDir = path.join(rootDir, 'runtime', 'computer-use', 'cua-driver', 'current')
   const helperAppPath = path.join(currentDir, HELPER_APP_DIR_NAME)
   const contentsPath = path.join(helperAppPath, 'Contents')
@@ -474,7 +206,7 @@ async function stageApp(sourceDir, builtBinary, targetArch) {
   await fs.mkdir(resourcesPath, { recursive: true })
   await fs.copyFile(builtBinary, stagedBinary)
   await fs.chmod(stagedBinary, 0o755)
-  await fs.writeFile(path.join(contentsPath, 'Info.plist'), plistXml())
+  await fs.writeFile(path.join(contentsPath, 'Info.plist'), plistXml(version))
 
   const iconPath = path.join(sourceDir, 'App', 'CuaDriver', 'AppIcon.icns')
   if (await pathExists(iconPath)) {
@@ -524,31 +256,22 @@ async function main() {
     throw new Error(`Unsupported CUA Driver arch: ${requestedArch}`)
   }
 
-  ensureTool('git')
   ensureTool('swift')
   ensureTool('/usr/bin/lipo', ['-info', process.execPath])
   ensureTool('codesign', ['--version'])
 
-  const cacheRoot = path.join(
-    rootDir,
-    'node_modules',
-    '.cache',
-    'deepchat-cua-driver',
-    `${CUA_TAG}-${CUA_COMMIT}`
-  )
+  const metadata = await readUpstreamMetadata()
+  await validateVendorSource(metadata)
+
   const workRoot = path.join(
     os.tmpdir(),
     'deepchat-cua-driver-build',
-    `${CUA_TAG}-${requestedArch}-${process.pid}`
+    `${metadata.tag}-${requestedArch}-${process.pid}`
   )
-  const sourceDir = path.join(workRoot, 'cua-driver')
   const scratchPath = path.join(workRoot, '.build', requestedArch)
 
-  await cloneOrUpdateSource(cacheRoot)
   await fs.rm(workRoot, { recursive: true, force: true })
   await fs.mkdir(workRoot, { recursive: true })
-  await fs.cp(path.join(cacheRoot, 'libs', 'cua-driver'), sourceDir, { recursive: true })
-  await patchSource(sourceDir)
 
   run(
     'swift',
@@ -560,11 +283,12 @@ async function main() {
       archMap[requestedArch].swift,
       '--product',
       HELPER_BINARY_NAME,
+      '--package-path',
+      VENDOR_SOURCE_DIR,
       '--scratch-path',
       scratchPath
     ],
     {
-      cwd: sourceDir,
       env: {
         ...process.env,
         CUA_DRIVER_TELEMETRY_ENABLED: '0',
@@ -574,7 +298,12 @@ async function main() {
   )
 
   const builtBinary = await findBuiltBinary(scratchPath)
-  const helperAppPath = await stageApp(sourceDir, builtBinary, requestedArch)
+  const helperAppPath = await stageApp(
+    VENDOR_SOURCE_DIR,
+    builtBinary,
+    requestedArch,
+    metadata.version
+  )
   const relativeHelperPath = path.relative(rootDir, helperAppPath)
   const stat = await fs.stat(path.join(helperAppPath, 'Contents', 'MacOS', HELPER_BINARY_NAME))
 
@@ -582,7 +311,7 @@ async function main() {
     throw new Error('Staged helper app is invalid')
   }
 
-  console.log(`CUA Driver ${CUA_TAG} staged at ${relativeHelperPath}`)
+  console.log(`CUA Driver ${metadata.tag} staged at ${relativeHelperPath}`)
 }
 
 main().catch((error) => {
