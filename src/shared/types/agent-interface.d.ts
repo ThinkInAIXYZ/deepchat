@@ -41,6 +41,7 @@ export type PendingInputEnqueueSource = 'send' | 'queue'
 
 export interface QueuePendingInputOptions {
   source?: PendingInputEnqueueSource
+  projectDir?: string | null
 }
 
 export interface IAgentImplementation {
@@ -146,6 +147,9 @@ export interface IAgentImplementation {
 
   /** Set provider/model for this session (takes effect on next user message) */
   setSessionModel?(sessionId: string, providerId: string, modelId: string): Promise<void>
+
+  /** Set project/workspace directory for this session (takes effect on next user message) */
+  setSessionProjectDir?(sessionId: string, projectDir: string | null): Promise<void>
 
   /** Get permission mode for this session */
   getPermissionMode?(sessionId: string): Promise<PermissionMode>

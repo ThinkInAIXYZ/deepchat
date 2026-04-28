@@ -69,6 +69,7 @@ function createMockDeepChatAgent() {
     getMessageIds: vi.fn().mockResolvedValue([]),
     getMessage: vi.fn().mockResolvedValue(null),
     setSessionModel: vi.fn().mockResolvedValue(undefined),
+    setSessionProjectDir: vi.fn().mockResolvedValue(undefined),
     getGenerationSettings: vi.fn().mockResolvedValue({
       systemPrompt: 'Default prompt',
       temperature: 0.7,
@@ -347,6 +348,34 @@ describe('AgentSessionPresenter', () => {
           projectDir: null
         }
       )
+    })
+
+    it('passes project directory to queued first messages', async () => {
+      const queuePendingInput = vi.fn().mockResolvedValue({
+        id: 'q1',
+        sessionId: 'mock-session-id',
+        mode: 'queue',
+        state: 'claimed',
+        payload: { text: 'Hello', files: [] },
+        queueOrder: 1,
+        claimedAt: 1,
+        consumedAt: null,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      ;(deepChatAgent as any).queuePendingInput = queuePendingInput
+
+      await presenter.createSession(
+        { agentId: 'deepchat', message: 'Hello', projectDir: '/tmp/proj' },
+        1
+      )
+
+      expect(queuePendingInput).toHaveBeenCalledWith(
+        'mock-session-id',
+        { text: 'Hello', files: [] },
+        { source: 'send', projectDir: '/tmp/proj' }
+      )
+      expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
     })
 
     it('emits ACTIVATED and LIST_UPDATED events', async () => {
@@ -887,8 +916,37 @@ describe('AgentSessionPresenter', () => {
       expect(queuePendingInput).toHaveBeenCalledWith(
         's1',
         { text: 'Later', files: [] },
-        { source: 'queue' }
+        { source: 'queue', projectDir: '/tmp/workspace' }
       )
+    })
+  })
+
+  describe('setSessionProjectDir', () => {
+    it('syncs workspace changes into the active agent runtime', async () => {
+      const row = {
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null as string | null,
+        is_pinned: 0,
+        is_draft: 0,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation(() => row)
+      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
+        if (fields.project_dir !== undefined) {
+          row.project_dir = fields.project_dir
+        }
+      })
+
+      await presenter.setSessionProjectDir('s1', '/tmp/workspace')
+
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+        project_dir: '/tmp/workspace'
+      })
+      expect(deepChatAgent.setSessionProjectDir).toHaveBeenCalledWith('s1', '/tmp/workspace')
+      expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/workspace')
     })
   })
 
