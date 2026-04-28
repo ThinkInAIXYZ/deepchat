@@ -107,6 +107,37 @@ describe('AcpProvider runDebugAction error handling', () => {
     ).rejects.toThrow('boom')
   })
 
+  it('does not let undefined debug payload cwd overwrite the resolved workdir', async () => {
+    const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/debug-workdir',
+        connection: {
+          newSession
+        }
+      })
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'newSession',
+      payload: {
+        cwd: undefined,
+        mcpServers: []
+      }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(newSession).toHaveBeenCalledWith({
+      cwd: '/tmp/debug-workdir',
+      mcpServers: []
+    })
+  })
+
   it('returns cached ACP session commands', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
     provider.sessionManager = {
