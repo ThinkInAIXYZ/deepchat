@@ -662,9 +662,18 @@ export class AcpProvider extends BaseLLMProvider {
             cwd: resolveWorkdir() ?? process.cwd(),
             mcpServers: []
           }
-          const body = isPlainObject(request.payload)
-            ? { ...basePayload, ...request.payload }
-            : basePayload
+          const body = { ...basePayload }
+          if (isPlainObject(request.payload)) {
+            if (typeof request.payload.cwd === 'string' && request.payload.cwd.trim()) {
+              body.cwd = request.payload.cwd
+            }
+            if (Array.isArray(request.payload.mcpServers)) {
+              body.mcpServers = request.payload.mcpServers as schema.McpServer[]
+            }
+            if (isPlainObject(request.payload._meta)) {
+              body._meta = request.payload._meta
+            }
+          }
           pushEvent({ kind: 'request', action: 'newSession', payload: body })
           const response = await connection.newSession(body)
           activeSessionId = response.sessionId

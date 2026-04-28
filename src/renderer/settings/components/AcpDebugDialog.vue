@@ -339,11 +339,14 @@ const templateForMethod = (method: AcpDebugRequest['action']) => {
       }
     case 'newSession':
       return {
-        cwd: workdirPath.value || undefined,
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
         mcpServers: []
       }
     case 'loadSession':
-      return { sessionId: debugSessionId.value, cwd: workdirPath.value || undefined }
+      return {
+        sessionId: debugSessionId.value,
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {})
+      }
     case 'prompt':
       return {
         prompt: [{ type: 'text', text: 'ping' }]
