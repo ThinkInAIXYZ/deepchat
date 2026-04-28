@@ -98,6 +98,16 @@ async function createHelper(appPath: string) {
   return { helperAppPath, helperBinaryPath }
 }
 
+async function writePermissionProbeOutput(
+  args: string[] = [],
+  content = JSON.stringify({ accessibility: true, screen_recording: false })
+) {
+  const outputIndex = args.indexOf('--output')
+  if (outputIndex >= 0) {
+    await writeFile(args[outputIndex + 1], content)
+  }
+}
+
 describe('ComputerUsePresenter', () => {
   let tmpDir: string
 
@@ -108,13 +118,7 @@ describe('ComputerUsePresenter', () => {
         return { stdout: 'arm64\n', stderr: '' }
       }
       if (file === '/usr/bin/open') {
-        const outputIndex = args.indexOf('--output')
-        if (outputIndex >= 0) {
-          await writeFile(
-            args[outputIndex + 1],
-            JSON.stringify({ accessibility: true, screen_recording: false })
-          )
-        }
+        await writePermissionProbeOutput(args)
         return { stdout: '', stderr: '' }
       }
       return {
@@ -172,7 +176,17 @@ describe('ComputerUsePresenter', () => {
     })
 
     expect(presenter.resolveHelperPaths().helperBinaryPath).toBe(
-      '/Applications/DeepChat.app/Contents/Resources/app.asar.unpacked/runtime/computer-use/cua-driver/current/DeepChat Computer Use.app/Contents/MacOS/cua-driver'
+      path.join(
+        '/Applications/DeepChat.app/Contents/Resources/app.asar.unpacked',
+        'runtime',
+        'computer-use',
+        'cua-driver',
+        'current',
+        'DeepChat Computer Use.app',
+        'Contents',
+        'MacOS',
+        'cua-driver'
+      )
     )
   })
 
@@ -277,6 +291,208 @@ describe('ComputerUsePresenter', () => {
       })
     )
     expect(mocks.startServer).toHaveBeenCalledWith(COMPUTER_USE_SERVER_NAME)
+  })
+
+  it('reports lipo failures as architecture check failures', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      execFileAsyncMock.mockImplementation(async (file: string, args: string[] = []) => {
+        if (file === '/usr/bin/lipo') {
+          throw new Error('lipo failed')
+        }
+        if (file === '/usr/bin/open') {
+          await writePermissionProbeOutput(args)
+          return { stdout: '', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      const { ComputerUsePresenter } =
+        await import('../../../src/main/presenter/computerUsePresenter')
+      const mocks = createPresenterMocks(true)
+      await createHelper(tmpDir)
+      const presenter = new ComputerUsePresenter({
+        configPresenter: mocks.configPresenter,
+        mcpPresenter: mocks.mcpPresenter,
+        platform: 'darwin',
+        arch: 'arm64',
+        isPackaged: true,
+        appPath: tmpDir
+      })
+
+      const status = await presenter.setEnabled(true)
+
+      expect(status.enabled).toBe(true)
+      expect(status.available).toBe(false)
+      expect(status.mcpServer).toBe('error')
+      expect(status.lastError).toBe('archCheckFailed')
+      expect(mocks.addMcpServer).not.toHaveBeenCalled()
+      expect(mocks.startServer).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[ComputerUse] Failed to validate helper architecture:',
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it('keeps architecture mismatches distinct from lipo failures', async () => {
+    execFileAsyncMock.mockImplementation(async (file: string, args: string[] = []) => {
+      if (file === '/usr/bin/lipo') {
+        return { stdout: 'x86_64\n', stderr: '' }
+      }
+      if (file === '/usr/bin/open') {
+        await writePermissionProbeOutput(args)
+        return { stdout: '', stderr: '' }
+      }
+      return { stdout: '', stderr: '' }
+    })
+
+    const { ComputerUsePresenter } =
+      await import('../../../src/main/presenter/computerUsePresenter')
+    const mocks = createPresenterMocks(true)
+    await createHelper(tmpDir)
+    const presenter = new ComputerUsePresenter({
+      configPresenter: mocks.configPresenter,
+      mcpPresenter: mocks.mcpPresenter,
+      platform: 'darwin',
+      arch: 'arm64',
+      isPackaged: true,
+      appPath: tmpDir
+    })
+
+    const status = await presenter.setEnabled(true)
+
+    expect(status.available).toBe(false)
+    expect(status.lastError).toBe('archMismatch')
+    expect(mocks.addMcpServer).not.toHaveBeenCalled()
+    expect(mocks.startServer).not.toHaveBeenCalled()
+  })
+
+  it('reports permission probe launch failures with unknown permissions', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      execFileAsyncMock.mockImplementation(async (file: string) => {
+        if (file === '/usr/bin/lipo') {
+          return { stdout: 'arm64\n', stderr: '' }
+        }
+        if (file === '/usr/bin/open') {
+          throw new Error('open failed')
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      const { ComputerUsePresenter } =
+        await import('../../../src/main/presenter/computerUsePresenter')
+      const mocks = createPresenterMocks(true)
+      await createHelper(tmpDir)
+      const presenter = new ComputerUsePresenter({
+        configPresenter: mocks.configPresenter,
+        mcpPresenter: mocks.mcpPresenter,
+        platform: 'darwin',
+        arch: 'arm64',
+        isPackaged: true,
+        appPath: tmpDir
+      })
+
+      const status = await presenter.setEnabled(true)
+
+      expect(status.available).toBe(true)
+      expect(status.permissions).toEqual({
+        accessibility: 'unknown',
+        screenRecording: 'unknown'
+      })
+      expect(status.lastError).toBe('permissionProbeLaunchFailed')
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[ComputerUse] Failed to launch permission probe:',
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it('reports missing permission probe output with unknown permissions', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      execFileAsyncMock.mockImplementation(async (file: string) => {
+        if (file === '/usr/bin/lipo') {
+          return { stdout: 'arm64\n', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      const { ComputerUsePresenter } =
+        await import('../../../src/main/presenter/computerUsePresenter')
+      const mocks = createPresenterMocks(true)
+      await createHelper(tmpDir)
+      const presenter = new ComputerUsePresenter({
+        configPresenter: mocks.configPresenter,
+        mcpPresenter: mocks.mcpPresenter,
+        platform: 'darwin',
+        arch: 'arm64',
+        isPackaged: true,
+        appPath: tmpDir
+      })
+
+      const status = await presenter.setEnabled(true)
+
+      expect(status.permissions).toEqual({
+        accessibility: 'unknown',
+        screenRecording: 'unknown'
+      })
+      expect(status.lastError).toBe('permissionProbeOutputMissing')
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[ComputerUse] Failed to read permission probe output:',
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it('reports invalid permission probe output with unknown permissions', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      execFileAsyncMock.mockImplementation(async (file: string, args: string[] = []) => {
+        if (file === '/usr/bin/lipo') {
+          return { stdout: 'arm64\n', stderr: '' }
+        }
+        if (file === '/usr/bin/open') {
+          await writePermissionProbeOutput(args, '{bad-json')
+          return { stdout: '', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      const { ComputerUsePresenter } =
+        await import('../../../src/main/presenter/computerUsePresenter')
+      const mocks = createPresenterMocks(true)
+      await createHelper(tmpDir)
+      const presenter = new ComputerUsePresenter({
+        configPresenter: mocks.configPresenter,
+        mcpPresenter: mocks.mcpPresenter,
+        platform: 'darwin',
+        arch: 'arm64',
+        isPackaged: true,
+        appPath: tmpDir
+      })
+
+      const status = await presenter.setEnabled(true)
+
+      expect(status.permissions).toEqual({
+        accessibility: 'unknown',
+        screenRecording: 'unknown'
+      })
+      expect(status.lastError).toBe('permissionProbeOutputInvalid')
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[ComputerUse] Failed to parse permission probe output:',
+        expect.any(Error)
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   it('prompts through the helper app when opening the permission guide', async () => {

@@ -210,6 +210,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     ISkillPresenter,
     'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
   >
+  private readonly platform: NodeJS.Platform
   private nextRunSequence = 0
 
   constructor(
@@ -226,6 +227,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         ISkillPresenter,
         'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
       >
+      platform?: NodeJS.Platform
     }
   ) {
     this.llmProviderPresenter = llmProviderPresenter
@@ -259,6 +261,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
     this.sessionUiPort = runtimePorts?.sessionUiPort
     this.skillPresenter = runtimePorts?.skillPresenter
+    this.platform = runtimePorts?.platform ?? process.platform
 
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
@@ -2674,7 +2677,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     availableSkillNames: string[],
     toolDefinitions: MCPToolDefinition[]
   ): Promise<boolean> {
-    if (!skillsEnabled || process.platform !== 'darwin') {
+    if (!skillsEnabled || this.platform !== 'darwin') {
       return false
     }
 

@@ -392,8 +392,9 @@ export class ComputerUsePresenter {
         return { ok: true }
       }
       return { ok: false, error: 'archMismatch' }
-    } catch {
-      return { ok: true }
+    } catch (error) {
+      console.warn('[ComputerUse] Failed to validate helper architecture:', error)
+      return { ok: false, error: 'archCheckFailed' }
     }
   }
 
@@ -468,32 +469,56 @@ export class ComputerUsePresenter {
     const outputPath = path.join(tempDir, 'permissions.json')
 
     try {
-      await execFileAsync(
-        '/usr/bin/open',
-        [
-          '-W',
-          '-n',
-          ...(options.background ? ['-g'] : []),
-          helper.helperAppPath,
-          '--args',
-          'deepchat-permission-probe',
-          ...(options.prompt ? ['--prompt'] : []),
-          '--output',
-          outputPath
-        ],
-        {
-          timeout: 10000,
-          env: this.buildHelperEnv()
-        }
-      )
+      try {
+        await execFileAsync(
+          '/usr/bin/open',
+          [
+            '-W',
+            '-n',
+            ...(options.background ? ['-g'] : []),
+            helper.helperAppPath,
+            '--args',
+            'deepchat-permission-probe',
+            ...(options.prompt ? ['--prompt'] : []),
+            '--output',
+            outputPath
+          ],
+          {
+            timeout: 10000,
+            env: this.buildHelperEnv()
+          }
+        )
+      } catch (error) {
+        console.warn('[ComputerUse] Failed to launch permission probe:', error)
+        throw new Error('permissionProbeLaunchFailed')
+      }
 
-      const raw = await fs.readFile(outputPath, 'utf8')
-      const parsed = JSON.parse(raw) as {
+      let raw: string
+      try {
+        raw = await fs.readFile(outputPath, 'utf8')
+      } catch (error) {
+        console.warn('[ComputerUse] Failed to read permission probe output:', error)
+        throw new Error('permissionProbeOutputMissing')
+      }
+
+      let parsed: {
         accessibility?: boolean
         screen_recording?: boolean
         screenRecording?: boolean
       }
+      try {
+        parsed = JSON.parse(raw) as typeof parsed
+      } catch (error) {
+        console.warn('[ComputerUse] Failed to parse permission probe output:', error)
+        throw new Error('permissionProbeOutputInvalid')
+      }
+
       const screenRecording = parsed.screen_recording ?? parsed.screenRecording
+      if (typeof parsed.accessibility !== 'boolean' || typeof screenRecording !== 'boolean') {
+        console.warn('[ComputerUse] Permission probe output is missing required fields:', parsed)
+        throw new Error('permissionProbeOutputInvalid')
+      }
+
       return {
         stdout: [
           `Accessibility: ${parsed.accessibility === true ? 'granted' : 'NOT granted'}.`,
@@ -502,7 +527,11 @@ export class ComputerUsePresenter {
         stderr: ''
       }
     } finally {
-      await fs.rm(tempDir, { recursive: true, force: true })
+      try {
+        await fs.rm(tempDir, { recursive: true, force: true })
+      } catch (error) {
+        console.warn('[ComputerUse] Failed to cleanup permission probe temp directory:', error)
+      }
     }
   }
 
