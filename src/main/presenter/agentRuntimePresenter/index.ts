@@ -62,6 +62,14 @@ import {
   createUserChatMessage,
   fitMessagesToContextWindow
 } from './contextBuilder'
+import {
+  buildRequestContextBudget,
+  capAgentDefaultMaxTokens,
+  capAgentRequestMaxTokens,
+  estimateToolReserveTokens,
+  fitRequestMessagesToContextWindow,
+  resolveEffectiveRequestMaxTokens
+} from './contextBudget'
 import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
@@ -488,8 +496,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         state.modelId,
         generationSettings
       )
-      const maxTokens = generationSettings.maxTokens
+      const maxTokens = capAgentRequestMaxTokens(
+        generationSettings.maxTokens,
+        generationSettings.contextLength
+      )
       const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
+      const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
@@ -515,6 +527,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         systemPrompt: baseSystemPrompt,
         contextLength: generationSettings.contextLength,
         reserveTokens: maxTokens,
+        extraReserveTokens: toolReserveTokens,
         supportsVision,
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
         newUserContent: normalizedInput,
@@ -579,6 +592,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           historyRecords,
+          extraReserveTokens: toolReserveTokens,
           preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
         }
       )
@@ -1539,7 +1553,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       ...baseModelConfig,
       temperature: generationSettings.temperature,
       contextLength: generationSettings.contextLength,
-      maxTokens: generationSettings.maxTokens,
+      maxTokens: capAgentRequestMaxTokens(
+        generationSettings.maxTokens,
+        generationSettings.contextLength
+      ),
       timeout: generationSettings.timeout,
       thinkingBudget: generationSettings.thinkingBudget,
       reasoningEffort: generationSettings.reasoningEffort,
@@ -1579,7 +1596,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const temperature = generationSettings.temperature
-    const maxTokens = generationSettings.maxTokens
+    const maxTokens = capAgentRequestMaxTokens(
+      generationSettings.maxTokens,
+      generationSettings.contextLength
+    )
 
     const tools = providedTools ?? (await this.loadToolDefinitionsForSession(sessionId, projectDir))
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
@@ -1626,6 +1646,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           let queuedForRateLimit = false
 
           try {
+            const requestBudget = buildRequestContextBudget(
+              requestMaxTokens,
+              requestModelConfig.contextLength,
+              requestTools
+            )
+            const protectedSteerTailCount =
+              claimedSteerBatch.length > 0
+                ? claimedSteerBatch.length + (requestMessages.at(-1)?.role === 'user' ? 1 : 0)
+                : 0
+            const fittedMessages = fitRequestMessagesToContextWindow({
+              messages: injectedMessages,
+              contextLength: requestModelConfig.contextLength,
+              reserveTokens: requestBudget.totalReserveTokens,
+              minimumProtectedTailCount: protectedSteerTailCount
+            })
             await llmProviderPresenter.executeWithRateLimit(state.providerId, {
               signal: abortController.signal,
               onQueued: (snapshot) => {
@@ -1647,11 +1682,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             }
 
             for await (const event of provider.coreStream(
-              injectedMessages,
+              fittedMessages,
               requestModelId,
               requestModelConfig,
               requestTemperature,
-              requestMaxTokens,
+              resolveEffectiveRequestMaxTokens({
+                messages: fittedMessages,
+                toolReserveTokens: requestBudget.toolReserveTokens,
+                contextLength: requestModelConfig.contextLength,
+                requestedMaxTokens: requestMaxTokens
+              }),
               requestTools
             )) {
               if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
@@ -2069,9 +2109,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         state.modelId,
         generationSettings
       )
-      const maxTokens = generationSettings.maxTokens
+      const maxTokens = capAgentRequestMaxTokens(
+        generationSettings.maxTokens,
+        generationSettings.contextLength
+      )
       const projectDir = this.resolveProjectDir(sessionId)
       const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
+      const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
@@ -2087,6 +2131,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         systemPrompt: baseSystemPrompt,
         contextLength: generationSettings.contextLength,
         reserveTokens: maxTokens,
+        extraReserveTokens: toolReserveTokens,
         supportsVision: this.supportsVision(state.providerId, state.modelId),
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
         signal: preStreamAbortSignal
@@ -2104,6 +2149,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           fallbackProtectedTurnCount: 1,
+          extraReserveTokens: toolReserveTokens,
           preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
         }
       )
@@ -2741,8 +2787,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       : true
     const defaultSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
     const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
-    const maxTokensDefault =
-      toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
+    const rawProviderMaxTokensDefault = toValidNonNegativeInteger(modelConfig.maxTokens)
+    const providerMaxTokensDefault =
+      rawProviderMaxTokensDefault && rawProviderMaxTokensDefault > 0
+        ? rawProviderMaxTokensDefault
+        : Math.min(4096, contextLengthDefault)
+    const maxTokensDefault = capAgentDefaultMaxTokens(
+      providerMaxTokensDefault,
+      contextLengthDefault
+    )
     const timeoutDefault = toValidNonNegativeInteger(modelConfig.timeout) ?? DEFAULT_MODEL_TIMEOUT
 
     const defaults: SessionGenerationSettings = {
@@ -4110,6 +4163,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     systemPrompt: string
     contextLength: number
     reserveTokens: number
+    extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
     signal?: AbortSignal

@@ -231,6 +231,7 @@ export class CompactionService {
     systemPrompt: string
     contextLength: number
     reserveTokens: number
+    extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
     newUserContent: string | SendMessageInput
@@ -265,6 +266,7 @@ export class CompactionService {
     systemPrompt: string
     contextLength: number
     reserveTokens: number
+    extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
     signal?: AbortSignal
@@ -361,6 +363,7 @@ export class CompactionService {
     systemPrompt: string
     contextLength: number
     reserveTokens: number
+    extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
     records: ChatMessageRecord[]
@@ -397,7 +400,10 @@ export class CompactionService {
       ...projectedHistory,
       ...params.projectedMessages
     ]
-    const requestBudget = Math.floor((params.contextLength - params.reserveTokens) / SAFETY_MARGIN)
+    const requestBudget = Math.floor(
+      (params.contextLength - params.reserveTokens - (params.extraReserveTokens ?? 0)) /
+        SAFETY_MARGIN
+    )
     const triggerBudget = Math.max(0, Math.floor((requestBudget * params.triggerThreshold) / 100))
     if (estimateMessagesTokens(projectedPrompt) <= triggerBudget) {
       return null

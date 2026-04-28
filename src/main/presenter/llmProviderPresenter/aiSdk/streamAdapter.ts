@@ -23,6 +23,9 @@ function mapFinishReason(
 ): 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' {
   switch (reason) {
     case 'tool-calls':
+    case 'tool_calls':
+    case 'tool-call':
+    case 'tool_use':
       return 'tool_use'
     case 'length':
       return 'max_tokens'
@@ -103,6 +106,22 @@ export async function* adaptAiSdkStream(
 
       const endIndex = bufferedLegacyText.indexOf(FUNCTION_CALL_CLOSE_TAG)
       if (endIndex === -1) {
+        if (flushAll) {
+          const block = bufferedLegacyText
+          bufferedLegacyText = ''
+          const toolCalls = parseLegacyFunctionCalls(block)
+          if (!toolCalls.length) {
+            yield createStreamEvent.text(block)
+            return
+          }
+
+          legacyToolUseDetected = true
+          for (const toolCall of toolCalls) {
+            yield createStreamEvent.toolCallStart(toolCall.id, toolCall.function.name)
+            yield createStreamEvent.toolCallChunk(toolCall.id, toolCall.function.arguments)
+            yield createStreamEvent.toolCallEnd(toolCall.id, toolCall.function.arguments)
+          }
+        }
         return
       }
 

@@ -1,5 +1,6 @@
 import { approximateTokenSize } from 'tokenx'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -16,6 +17,7 @@ export type ContextBuildOptions = {
   historyRecords?: ChatMessageRecord[]
   fallbackProtectedTurnCount?: number
   preserveInterleavedReasoning?: boolean
+  extraReserveTokens?: number
 }
 
 type TokenizedTurn = {
@@ -236,6 +238,13 @@ function estimateMessageTokens(message: ChatMessage): number {
 
 export function estimateMessagesTokens(messages: ChatMessage[]): number {
   return messages.reduce((total, message) => total + estimateMessageTokens(message), 0)
+}
+
+export function estimateToolDefinitionTokens(toolDefinitions: MCPToolDefinition[]): number {
+  return toolDefinitions.reduce(
+    (total, tool) => total + approximateTokenSize(JSON.stringify(tool)),
+    0
+  )
 }
 
 /**
@@ -526,7 +535,12 @@ export function buildContext(
   const newUserMessage = createUserChatMessage(newUserContent, supportsVision)
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
   const newUserTokens = estimateMessageTokens(newUserMessage)
-  const available = contextLength - systemPromptTokens - newUserTokens - reserveTokens
+  const available =
+    contextLength -
+    systemPromptTokens -
+    newUserTokens -
+    reserveTokens -
+    (options.extraReserveTokens ?? 0)
   const selectedHistory = selectTurnHistory(
     historyTurns,
     available,
@@ -617,7 +631,8 @@ export function buildResumeContext(
     options.preserveInterleavedReasoning ?? false
   )
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
-  const available = contextLength - systemPromptTokens - reserveTokens
+  const available =
+    contextLength - systemPromptTokens - reserveTokens - (options.extraReserveTokens ?? 0)
   const selectedHistory = selectTurnHistory(
     historyTurns,
     available,
