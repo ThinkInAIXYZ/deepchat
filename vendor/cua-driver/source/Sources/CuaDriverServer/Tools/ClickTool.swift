@@ -20,12 +20,13 @@ import MCP
 ///   CGEvent / SkyLight unconditionally. Supports `modifier` for
 ///   ctrl / cmd-click sequences.
 ///
-/// `element_index` selects AX mode when present. Pixel coordinates
-/// select CGEvent mode when no element index is present. Missing pid
-/// or no addressing mode returns `isError` before any AX / event work
-/// happens. `action` is only valid in the AX path; `count` and
-/// `modifier` only take effect in the pixel path (AX actions have
-/// no "double" concept and don't propagate modifier keys).
+/// Pixel intent (`from_zoom`, debug image output, or non-origin x/y with
+/// placeholder element_index 0) selects CGEvent mode. Otherwise
+/// `element_index` selects AX mode when present. Missing pid or no
+/// addressing mode returns `isError` before any AX / event work happens.
+/// `action` is only valid in the AX path except the default `press` value;
+/// `count` and `modifier` only take effect in the pixel path (AX actions
+/// have no "double" concept and don't propagate modifier keys).
 public enum ClickTool {
     public static let handler = ToolHandler(
         tool: Tool(
@@ -58,13 +59,14 @@ public enum ClickTool {
                   `modifier` holds cmd/shift/option/ctrl during the
                   click (e.g. ["cmd"] for cmd-click).
 
-                `element_index` selects AX mode when present. `x`, `y`,
-                `count`, `modifier`, `from_zoom`, and `debug_image_out`
-                are pixel-mode fields. `pid` is required in both modes.
+                Pixel intent (`from_zoom`, non-empty `debug_image_out`,
+                or non-origin `x`,`y` with placeholder `element_index: 0`)
+                selects the pixel path. Otherwise `element_index` selects
+                AX mode when present. `pid` is required in both modes.
                 `window_id` is required when `element_index` is used
                 (scopes the cache lookup). `action` is only valid with
-                `element_index`; `count` and `modifier` are ignored in
-                the AX path.
+                `element_index` except the default `press` value; `count`
+                and `modifier` are ignored in the AX path.
                 """,
             inputSchema: [
                 "type": "object",
@@ -77,7 +79,7 @@ public enum ClickTool {
                     "element_index": [
                         "type": "integer",
                         "description":
-                            "Element index from the last get_window_state for the same (pid, window_id). Routes through the AX action path. Requires window_id.",
+                            "Element index from the last get_window_state for the same (pid, window_id). Routes through the AX action path unless pixel-intent fields are present. Requires window_id.",
                     ],
                     "window_id": [
                         "type": "integer",
@@ -98,7 +100,7 @@ public enum ClickTool {
                         "type": "string",
                         "enum": ["press", "show_menu", "pick", "confirm", "cancel", "open"],
                         "description":
-                            "AX action name (element_index path only). Default: press.",
+                            "AX action name. Default press is accepted on both addressing modes; other actions require element_index mode.",
                     ],
                     "modifier": [
                         "type": "array",

@@ -467,17 +467,21 @@ signal from each:
   visible in pixels often don't show up in the AX tree at all
   (especially in Chromium / Electron / web content).
 
-Canonical pattern: look at the screenshot to decide "the blue
+Canonical AX pattern: look at the screenshot to decide "the blue
 Subscribe button on the top-right of the video card", then walk the
 tree to find the matching `AXButton` and dispatch by its
-`element_index`. Don't try to do it from just the tree — you'll
-pick the wrong element when labels repeat. Don't try to do it from
-just the screenshot — you lose the reliable AX-action path and the
-safe backgrounded-dispatch.
+`element_index`. This is the preferred path when the target is
+present in the AX tree.
 
-Reach for pixel coordinates only when the target is a canvas /
-video / WebGL / custom-drawn surface that isn't in the AX tree
-(see Pixel-coordinate clicks below).
+Canonical visual fallback: if the requested control is visible in
+the screenshot and the AX tree is sparse, generic, or missing that
+control, click the window-local screenshot coordinates in the same
+turn. Use `click({pid, window_id, x, y})`; after a `zoom` call use
+`click({pid, window_id, x, y, from_zoom: true})`. Re-snapshot after
+the click to verify. Continue without asking for an extra "go ahead"
+when the user already requested the action and the target is visible
+and unambiguous. Pause only when the target is visually ambiguous,
+off-screen, destructive, or would require foregrounding the app.
 
 The `actions=[...]` list on each element is **advisory**, not
 authoritative. cua-driver does not pre-flight check against it —
@@ -514,8 +518,9 @@ user's foreground app.
 
 **Why `element_index` is the primary path:** works on hidden /
 occluded / off-Space windows, no focus steal, stable across
-rebuilds, labels tell you what you're clicking. Reach for pixel
-coordinates only when AX can't.
+rebuilds, labels tell you what you're clicking. Use pixel
+coordinates as the active fallback for visible self-drawn controls,
+canvas/video/WebGL surfaces, and sparse AX trees.
 
 ### Pixel-coordinate clicks
 
