@@ -421,7 +421,7 @@ const confirmProviderImport = async () => {
   } catch (error) {
     console.error('Failed to import provider from deeplink:', error)
     toast({
-      title: t('common.error'),
+      title: t('common.error.operationFailed'),
       description: error instanceof Error ? error.message : String(error),
       variant: 'destructive'
     })
