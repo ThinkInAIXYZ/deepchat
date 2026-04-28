@@ -8,6 +8,16 @@ const repoRoot = process.cwd()
 const buildScriptPath = path.join(repoRoot, 'scripts', 'build-cua-driver.mjs')
 const updateScriptPath = path.join(repoRoot, 'scripts', 'update-cua-driver.mjs')
 const electronBuilderConfigPath = path.join(repoRoot, 'electron-builder.yml')
+const clickToolPath = path.join(
+  repoRoot,
+  'vendor',
+  'cua-driver',
+  'source',
+  'Sources',
+  'CuaDriverServer',
+  'Tools',
+  'ClickTool.swift'
+)
 
 const packageSwift = `// swift-tools-version: 5.9
 import PackageDescription
@@ -132,6 +142,16 @@ describe('CUA Driver vendor scripts', () => {
       'node scripts/update-cua-driver.mjs --diff-upstream'
     )
     expect(electronBuilderConfig).toContain("- '!vendor/**'")
+  })
+
+  it('keeps element-indexed click arguments resilient to placeholder pixel fields', async () => {
+    const clickTool = await readFile(clickToolPath, 'utf8')
+
+    expect(clickTool).toContain('let hasElementIndex = elementIndex != nil')
+    expect(clickTool).toContain('let hasXY = !hasElementIndex && x != nil && y != nil')
+    expect(clickTool).toContain('let hasPartialXY = !hasElementIndex && (x != nil) != (y != nil)')
+    expect(clickTool).toContain('$0.isEmpty ? nil : $0')
+    expect(clickTool).not.toContain('Provide either element_index or (x, y), not both.')
   })
 
   it('reports missing upstream metadata fields clearly', async () => {

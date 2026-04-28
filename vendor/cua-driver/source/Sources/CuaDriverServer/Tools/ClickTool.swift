@@ -20,8 +20,9 @@ import MCP
 ///   CGEvent / SkyLight unconditionally. Supports `modifier` for
 ///   ctrl / cmd-click sequences.
 ///
-/// Exactly one mode must be supplied. Missing pid, both modes, or
-/// neither mode returns `isError` before any AX / event work
+/// `element_index` selects AX mode when present. Pixel coordinates
+/// select CGEvent mode when no element index is present. Missing pid
+/// or no addressing mode returns `isError` before any AX / event work
 /// happens. `action` is only valid in the AX path; `count` and
 /// `modifier` only take effect in the pixel path (AX actions have
 /// no "double" concept and don't propagate modifier keys).
@@ -57,10 +58,11 @@ public enum ClickTool {
                   `modifier` holds cmd/shift/option/ctrl during the
                   click (e.g. ["cmd"] for cmd-click).
 
-                Exactly one of `element_index` or (`x` AND `y`) must be
-                provided. `pid` is required in both modes. `window_id`
-                is required when `element_index` is used (scopes the
-                cache lookup). `action` is only valid with
+                `element_index` selects AX mode when present. `x`, `y`,
+                `count`, `modifier`, `from_zoom`, and `debug_image_out`
+                are pixel-mode fields. `pid` is required in both modes.
+                `window_id` is required when `element_index` is used
+                (scopes the cache lookup). `action` is only valid with
                 `element_index`; `count` and `modifier` are ignored in
                 the AX path.
                 """,
@@ -144,22 +146,23 @@ public enum ClickTool {
             let rawWindowId = arguments?["window_id"]?.intValue
             let x = coerceDouble(arguments?["x"])
             let y = coerceDouble(arguments?["y"])
-            let hasXY = x != nil && y != nil
-            let hasPartialXY = (x != nil) != (y != nil)
+            // Some MCP clients materialize optional numeric fields with
+            // zero values. The semantic addressing mode is selected by
+            // element_index first; pixel coordinates address a target when
+            // element_index is absent.
+            let hasElementIndex = elementIndex != nil
+            let hasXY = !hasElementIndex && x != nil && y != nil
+            let hasPartialXY = !hasElementIndex && (x != nil) != (y != nil)
 
             if hasPartialXY {
                 return errorResult(
                     "Provide both x and y together, not just one.")
             }
-            if elementIndex != nil && hasXY {
-                return errorResult(
-                    "Provide either element_index or (x, y), not both.")
-            }
-            if elementIndex == nil && !hasXY {
+            if !hasElementIndex && !hasXY {
                 return errorResult(
                     "Provide element_index or (x, y) to address the click target.")
             }
-            if elementIndex != nil && rawWindowId == nil {
+            if hasElementIndex && rawWindowId == nil {
                 return errorResult(
                     "window_id is required when element_index is used — the "
                     + "element_index cache is scoped per (pid, window_id). Pass "
@@ -167,7 +170,7 @@ public enum ClickTool {
             }
 
             let actionName = arguments?["action"]?.stringValue
-            if actionName != nil && hasXY {
+            if actionName != nil && !hasElementIndex {
                 return errorResult(
                     "action only applies with element_index, not (x, y).")
             }
@@ -177,14 +180,11 @@ public enum ClickTool {
             } ?? []
             let count = arguments?["count"]?.intValue ?? 1
             let fromZoom = arguments?["from_zoom"]?.boolValue ?? false
-            let debugImageOut = arguments?["debug_image_out"]?.stringValue
+            let debugImageOut = arguments?["debug_image_out"]?.stringValue.flatMap {
+                $0.isEmpty ? nil : $0
+            }
 
-            if debugImageOut != nil {
-                if elementIndex != nil {
-                    return errorResult(
-                        "debug_image_out only applies to pixel clicks (x, y); "
-                        + "element_index clicks don't have a coordinate to verify.")
-                }
+            if debugImageOut != nil && !hasElementIndex {
                 if fromZoom {
                     return errorResult(
                         "debug_image_out is incompatible with from_zoom — "
