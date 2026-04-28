@@ -53,6 +53,7 @@ export interface AcpProcessHandle extends AgentProcessHandle {
   currentModeId?: string
   mcpCapabilities?: schema.McpCapabilities
   supportsLoadSession?: boolean
+  launchSignature: string
 }
 
 interface AcpProcessManagerOptions {
@@ -101,6 +102,17 @@ export const parseLoadSessionCapability = (initializeResult: unknown): boolean |
   }
   return Boolean(loadSession)
 }
+
+const createLaunchSignature = (launchSpec: AcpResolvedLaunchSpec): string =>
+  JSON.stringify({
+    command: launchSpec.command,
+    args: launchSpec.args ?? [],
+    env: launchSpec.env ?? {},
+    cwd: launchSpec.cwd ?? null,
+    distributionType: launchSpec.distributionType,
+    version: launchSpec.version ?? null,
+    installDir: launchSpec.installDir ?? null
+  })
 
 export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, AcpAgentConfig> {
   private readonly providerId: string
@@ -246,6 +258,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const releaseLock = await this.acquireAgentLock(agent.id)
 
     try {
+      const launchSpec = await this.resolveLaunchSpec(agent.id, resolvedWorkdir)
+      const launchSignature = createLaunchSignature(launchSpec)
       const warmupCount = this.getHandlesByAgent(agent.id).filter((handle) =>
         this.isHandleAlive(handle)
       ).length
@@ -254,11 +268,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       )
       const reusable = this.findReusableHandle(agent.id, resolvedWorkdir)
       if (reusable && this.isHandleAlive(reusable)) {
-        console.info(
-          `[ACP] Reusing warmup process for agent ${agent.id} (pid=${reusable.pid}, workdir=${resolvedWorkdir})`
-        )
-        this.applyPreferredMode(reusable, preferredModeId)
-        return reusable
+        if (reusable.launchSignature !== launchSignature) {
+          console.info(
+            `[ACP] Discarding warmup process for agent ${agent.id} because launch spec changed (pid=${reusable.pid}, workdir=${resolvedWorkdir})`
+          )
+          await this.disposeHandle(reusable)
+        } else {
+          console.info(
+            `[ACP] Reusing warmup process for agent ${agent.id} (pid=${reusable.pid}, workdir=${resolvedWorkdir})`
+          )
+          this.applyPreferredMode(reusable, preferredModeId)
+          return reusable
+        }
       }
 
       const inflight = this.pendingHandles.get(warmupKey)
@@ -267,7 +288,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         if (
           this.isHandleAlive(inflightHandle) &&
           inflightHandle.workdir === resolvedWorkdir &&
-          inflightHandle.state === 'warmup'
+          inflightHandle.state === 'warmup' &&
+          inflightHandle.launchSignature === launchSignature
         ) {
           console.info(
             `[ACP] Awaiting inflight warmup for agent ${agent.id} (pid=${inflightHandle.pid}, workdir=${resolvedWorkdir})`
@@ -287,7 +309,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         )
       }
 
-      const handlePromise = this.spawnProcess(agent, resolvedWorkdir)
+      const handlePromise = this.spawnProcess(agent, resolvedWorkdir, launchSpec, launchSignature)
       this.pendingHandles.set(warmupKey, handlePromise)
 
       try {
@@ -592,8 +614,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     void this.terminalManager.releaseSessionTerminals(sessionId)
   }
 
-  private async spawnProcess(agent: AcpAgentConfig, workdir: string): Promise<AcpProcessHandle> {
-    const child = await this.spawnAgentProcess(agent, workdir)
+  private async spawnProcess(
+    agent: AcpAgentConfig,
+    workdir: string,
+    launchSpec: AcpResolvedLaunchSpec,
+    launchSignature: string
+  ): Promise<AcpProcessHandle> {
+    const child = await this.spawnAgentProcess(agent, workdir, launchSpec)
     const stream = this.createAgentStream(child)
     const client = this.createClientProxy()
     const connection = new ClientSideConnection(() => client, stream)
@@ -715,7 +742,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       availableModes: handleSeed.availableModes,
       currentModeId: handleSeed.currentModeId,
       mcpCapabilities: handleSeed.mcpCapabilities,
-      supportsLoadSession: handleSeed.supportsLoadSession
+      supportsLoadSession: handleSeed.supportsLoadSession,
+      launchSignature
     }
 
     child.on('exit', (code, signal) => {
@@ -752,11 +780,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
   private async spawnAgentProcess(
     agent: AcpAgentConfig,
-    workdir: string
+    workdir: string,
+    launchSpec: AcpResolvedLaunchSpec
   ): Promise<ChildProcessWithoutNullStreams> {
     // Initialize runtime paths if not already done
     this.runtimeHelper.initializeRuntimes()
-    const launchSpec = await this.resolveLaunchSpec(agent.id, workdir)
     const agentState = await this.getAgentState?.(agent.id)
 
     // Validate command

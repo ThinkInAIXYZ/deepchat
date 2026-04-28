@@ -257,6 +257,7 @@ declare module 'vue-i18n' {
       systemPrompt: string
       systemPromptPlaceholder: string
       temperature: string
+      temperatureFixedMoonshotKimi: string
       contextLength: string
       maxTokens: string
       thinkingBudget: string
@@ -634,6 +635,17 @@ declare module 'vue-i18n' {
     close: string
     open: string
     image: string
+    noContent: string
+    source: string
+    more: string
+    decrease: string
+    increase: string
+    fontSmaller: string
+    fontReset: string
+    fontLarger: string
+    zoomIn: string
+    zoomOut: string
+    resetZoom: string
     error: string
     resetDataConfirmTitle: string
     resetDataConfirmDescription: string
@@ -820,6 +832,7 @@ declare module 'vue-i18n' {
       }
       confirmEnable: string
     }
+    loadError: string
     enabledTitle: string
     enabledDescription: string
     enableToAccess: string
@@ -1280,6 +1293,14 @@ declare module 'vue-i18n' {
       searchEngineSelect: string
       searchPreview: string
       autoScrollEnabled: string
+      privacyMode: string
+      privacyModeDescription: string
+      privacyModeAutoUpdate: string
+      privacyModeProviderDb: string
+      privacyModeAcpRegistry: string
+      privacyModeNpmRegistry: string
+      privacyModeManualActions: string
+      privacyModeIntegrations: string
       autoCompaction: {
         title: string
         enabled: string
