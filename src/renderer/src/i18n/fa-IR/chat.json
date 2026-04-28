@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
     "attach": "پیوست",
     "voiceInput": "ورودی صوتی",
+    "send": "ارسال",
+    "steer": "هدایت",
     "queue": "افزودن به صف",
     "stop": "توقف",
     "mcp": {

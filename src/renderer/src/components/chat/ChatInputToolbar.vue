@@ -36,6 +36,24 @@
         </TooltipContent>
       </Tooltip>
 
+      <Tooltip v-if="isGenerating && hasActiveInput">
+        <TooltipTrigger as-child>
+          <Button
+            data-testid="chat-queue-button"
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+            :disabled="queueDisabled"
+            @click="emit('queue')"
+          >
+            <Icon icon="lucide:list-plus" class="w-4 h-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{{ t('chat.input.queue') }}</p>
+        </TooltipContent>
+      </Tooltip>
+
       <!-- Primary action button -->
       <Tooltip :key="buttonMode">
         <TooltipTrigger as-child>
@@ -55,7 +73,7 @@
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{{ buttonMode === 'stop' ? t('chat.input.stop') : t('chat.input.queue') }}</p>
+          <p>{{ primaryTooltip }}</p>
         </TooltipContent>
       </Tooltip>
     </div>
@@ -75,6 +93,7 @@ const props = withDefaults(
     hasInput?: boolean
     hasText?: boolean
     sendDisabled?: boolean
+    queueDisabled?: boolean
     showVoiceInput?: boolean
   }>(),
   {
@@ -82,12 +101,14 @@ const props = withDefaults(
     hasInput: false,
     hasText: false,
     sendDisabled: false,
+    queueDisabled: false,
     showVoiceInput: false
   }
 )
 
 const emit = defineEmits<{
   send: []
+  queue: []
   attach: []
   stop: []
 }>()
@@ -97,6 +118,12 @@ const hasActiveInput = computed(() => props.hasInput || props.hasText)
 const buttonMode = computed<'send' | 'stop'>(() =>
   props.isGenerating && !hasActiveInput.value ? 'stop' : 'send'
 )
+const primaryTooltip = computed(() => {
+  if (buttonMode.value === 'stop') {
+    return t('chat.input.stop')
+  }
+  return props.isGenerating ? t('chat.input.steer') : t('chat.input.send')
+})
 
 function handlePrimaryAction() {
   if (buttonMode.value === 'stop') {

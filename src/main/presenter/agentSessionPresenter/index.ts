@@ -411,18 +411,12 @@ export class AgentSessionPresenter {
       modelId: state?.modelId ?? modelId
     }
 
-    // Queue the first message (non-blocking) after returning session ID
+    // Start the first message (non-blocking) after returning session ID.
     if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
-      console.log(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
-      if (agent.queuePendingInput) {
-        agent.queuePendingInput(sessionId, normalizedInput, { source: 'send' }).catch((err) => {
-          console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
-        })
-      } else {
-        agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
-          console.error('[AgentSessionPresenter] processMessage failed:', err)
-        })
-      }
+      console.log(`[AgentSessionPresenter] firing processMessage (non-blocking)`)
+      agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
+        console.error('[AgentSessionPresenter] processMessage failed:', err)
+      })
     }
     void this.generateSessionTitle(sessionId, title, providerId, modelId)
 
@@ -731,16 +725,69 @@ export class AgentSessionPresenter {
       session.agentId,
       session.projectDir ?? null
     )
-    if (agent.queuePendingInput) {
-      await agent.queuePendingInput(sessionId, normalizedInput, { source: 'send' })
+    if (state?.status === 'generating' && agent.steerActiveTurn) {
+      await agent.steerActiveTurn(sessionId, normalizedInput)
+      return
+    }
+    agent
+      .processMessage(sessionId, normalizedInput, {
+        projectDir: session.projectDir ?? null
+      })
+      .catch((error) => {
+        console.error('[AgentSessionPresenter] processMessage failed:', error)
+      })
+    if (!hadMessages && !wasDraft) {
+      void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
+    }
+  }
+
+  async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
+    let session = this.sessionManager.get(sessionId)
+    if (!session) throw new Error(`Session not found: ${sessionId}`)
+    const wasDraft = session.isDraft
+    const normalizedInput = this.normalizeSendMessageInput(content)
+
+    if (session.isDraft) {
+      const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
+      this.sessionManager.update(sessionId, { isDraft: false, title })
+      this.emitSessionListUpdated({
+        sessionIds: [sessionId],
+        reason: 'updated'
+      })
+      session = this.sessionManager.get(sessionId)
+      if (!session) throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    const hadMessages = (await agent.getMessages(sessionId)).length > 0
+    let providerId = state?.providerId ?? ''
+    if (!providerId && (await this.getAgentType(session.agentId)) === 'acp') {
+      providerId = 'acp'
+    }
+    this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      session.agentId,
+      session.projectDir ?? null
+    )
+
+    if (agent.steerActiveTurn) {
+      await agent.steerActiveTurn(sessionId, normalizedInput)
       if (!hadMessages && !wasDraft) {
         void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
       }
       return
     }
-    await agent.processMessage(sessionId, normalizedInput, {
-      projectDir: session.projectDir ?? null
-    })
+
+    agent
+      .processMessage(sessionId, normalizedInput, {
+        projectDir: session.projectDir ?? null
+      })
+      .catch((error) => {
+        console.error('[AgentSessionPresenter] processMessage failed:', error)
+      })
     if (!hadMessages && !wasDraft) {
       void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
     }

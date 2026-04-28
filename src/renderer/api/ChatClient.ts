@@ -8,6 +8,7 @@ import {
 import type { DeepchatRouteInput } from '@shared/contracts/routes'
 import {
   chatSendMessageRoute,
+  chatSteerActiveTurnRoute,
   chatStopStreamRoute,
   chatRespondToolInteractionRoute
 } from '@shared/contracts/routes'
@@ -22,6 +23,15 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     } as DeepchatRouteInput<typeof chatSendMessageRoute.name>
 
     return await bridge.invoke(chatSendMessageRoute.name, input)
+  }
+
+  async function steerActiveTurn(sessionId: string, content: string | SendMessageInput) {
+    const input = {
+      sessionId,
+      content
+    } as DeepchatRouteInput<typeof chatSteerActiveTurnRoute.name>
+
+    return await bridge.invoke(chatSteerActiveTurnRoute.name, input)
   }
 
   async function stopStream(input: { sessionId?: string; requestId?: string }) {
@@ -58,6 +68,7 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
 
   return {
     sendMessage,
+    steerActiveTurn,
     stopStream,
     respondToolInteraction,
     onStreamUpdated,

@@ -58,6 +58,7 @@ function createMockDeepChatAgent() {
       permissionMode: 'full_access'
     }),
     processMessage: vi.fn().mockResolvedValue(undefined),
+    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
@@ -846,6 +847,33 @@ describe('AgentSessionPresenter', () => {
           projectDir: '/tmp/workspace'
         }
       )
+    })
+
+    it('routes active generation submissions to steer', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+
+      await presenter.sendMessage('s1', 'Refine this')
+
+      expect(deepChatAgent.steerActiveTurn).toHaveBeenCalledWith('s1', {
+        text: 'Refine this',
+        files: []
+      })
+      expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
     })
 
     it('throws for unknown session', async () => {

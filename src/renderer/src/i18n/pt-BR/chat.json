@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
     "attach": "Anexar",
     "voiceInput": "Entrada de voz",
+    "send": "Enviar",
+    "steer": "Direcionar",
     "queue": "Enfileirar",
     "stop": "Parar",
     "mcp": {

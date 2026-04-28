@@ -131,6 +131,7 @@ describe('renderer api clients', () => {
     await sessionClient.getActive()
     sessionClient.onUpdated(vi.fn())
     await chatClient.sendMessage('session-1', 'follow up')
+    await chatClient.steerActiveTurn('session-1', 'refine active answer')
     await chatClient.stopStream({ requestId: 'message-1' })
     await chatClient.respondToolInteraction({
       sessionId: 'session-1',
@@ -169,10 +170,14 @@ describe('renderer api clients', () => {
       sessionId: 'session-1',
       content: 'follow up'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'chat.stopStream', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'chat.steerActiveTurn', {
+      sessionId: 'session-1',
+      content: 'refine active answer'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'chat.stopStream', {
       requestId: 'message-1'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'chat.respondToolInteraction', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'chat.respondToolInteraction', {
       sessionId: 'session-1',
       messageId: 'message-1',
       toolCallId: 'tool-1',
@@ -181,10 +186,10 @@ describe('renderer api clients', () => {
         granted: true
       }
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'providers.listModels', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'providers.listModels', {
       providerId: 'openai'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'providers.testConnection', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'providers.testConnection', {
       providerId: 'openai',
       modelId: 'gpt-5.4'
     })

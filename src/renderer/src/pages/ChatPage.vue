@@ -67,7 +67,6 @@
             class="mb-1.5"
             @update-queue="onPendingInputUpdate"
             @move-queue="onPendingInputMove"
-            @convert-queue-to-steer="onPendingInputConvert"
             @delete-queue="onPendingInputDelete"
             @resume-queue="onResumePendingQueue"
           />
@@ -81,16 +80,21 @@
               :workspace-path="sessionStore.activeSession?.projectDir ?? null"
               :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
               :submit-disabled="isInputSubmitDisabled"
+              :queue-submit-enabled="isGenerating && hasDraftInput"
+              :queue-submit-disabled="isQueueSubmitDisabled"
               @update:files="onFilesChange"
               @command-submit="onCommandSubmit"
+              @queue-submit="onQueueSubmit"
               @submit="onSubmit"
             >
               <template #toolbar>
                 <ChatInputToolbar
                   :is-generating="isGenerating"
                   :has-input="hasDraftInput"
-                  :send-disabled="isQueueSubmitDisabled"
+                  :send-disabled="isInputSubmitDisabled"
+                  :queue-disabled="isQueueSubmitDisabled"
                   @attach="onAttach"
+                  @queue="onQueueSubmit"
                   @send="onSubmit"
                   @stop="onStop"
                 />
@@ -869,7 +873,6 @@ const isInputSubmitDisabled = computed(
     isAcpWorkdirMissing.value ||
     Boolean(activePendingInteraction.value) ||
     isHandlingInteraction.value ||
-    pendingInputStore.isAtCapacity ||
     !hasDraftInput.value
 )
 const showResumePendingQueue = computed(
@@ -887,7 +890,11 @@ async function onSubmit() {
   const text = message.value.trim()
   const files = [...attachedFiles.value].map((f) => toRaw(f))
   if (!text && files.length === 0) return
-  await pendingInputStore.queueInput(props.sessionId, { text, files })
+  if (isGenerating.value) {
+    await chatClient.steerActiveTurn(props.sessionId, { text, files })
+  } else {
+    await chatClient.sendMessage(props.sessionId, { text, files })
+  }
   message.value = ''
   attachedFiles.value = []
 }
@@ -900,7 +907,23 @@ async function onCommandSubmit(command: string) {
   if (!text) return
 
   const files = [...attachedFiles.value]
+  if (isGenerating.value) {
+    await chatClient.steerActiveTurn(props.sessionId, { text, files })
+  } else {
+    await chatClient.sendMessage(props.sessionId, { text, files })
+  }
+  attachedFiles.value = []
+}
+
+async function onQueueSubmit() {
+  if (isReadOnlySession.value) return
+  if (isAcpWorkdirMissing.value) return
+  if (activePendingInteraction.value || isHandlingInteraction.value) return
+  const text = message.value.trim()
+  const files = [...attachedFiles.value].map((f) => toRaw(f))
+  if (!text && files.length === 0) return
   await pendingInputStore.queueInput(props.sessionId, { text, files })
+  message.value = ''
   attachedFiles.value = []
 }
 
@@ -1031,11 +1054,6 @@ async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
 async function onPendingInputMove(payload: { itemId: string; toIndex: number }) {
   if (isReadOnlySession.value) return
   await pendingInputStore.moveQueueInput(props.sessionId, payload.itemId, payload.toIndex)
-}
-
-async function onPendingInputConvert(itemId: string) {
-  if (isReadOnlySession.value) return
-  await pendingInputStore.convertToSteer(props.sessionId, itemId)
 }
 
 async function onPendingInputDelete(itemId: string) {

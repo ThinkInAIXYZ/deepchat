@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
     "attach": "添付",
     "voiceInput": "音声入力",
+    "send": "送信",
+    "steer": "誘導",
     "queue": "キューに追加",
     "stop": "停止",
     "mcp": {

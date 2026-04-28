@@ -86,9 +86,26 @@ describe('ChatInputToolbar', () => {
     })
 
     await wrapper.setProps({ hasInput: true })
-    await wrapper.findAll('button')[1].trigger('click')
+    await wrapper.get('[data-testid="chat-send-button"]').trigger('click')
 
     expect(wrapper.emitted('send')).toEqual([[]])
     expect(wrapper.emitted('stop')).toBeUndefined()
+  })
+
+  it('shows an explicit queue action while steering is available', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        isGenerating: true,
+        hasInput: true,
+        sendDisabled: false,
+        queueDisabled: false
+      }
+    })
+
+    await wrapper.get('[data-testid="chat-queue-button"]').trigger('click')
+
+    expect(wrapper.find('[data-icon="lucide:list-plus"]').exists()).toBe(true)
+    expect(wrapper.emitted('queue')).toEqual([[]])
   })
 })

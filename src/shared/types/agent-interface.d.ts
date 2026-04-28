@@ -78,6 +78,9 @@ export interface IAgentImplementation {
     }
   ): Promise<void>
 
+  /** Steer an active turn, or start a normal turn if the session is idle */
+  steerActiveTurn?(sessionId: string, content: string | SendMessageInput): Promise<void>
+
   /** Manage waiting lane inputs */
   listPendingInputs?(sessionId: string): Promise<PendingSessionInputRecord[]>
   queuePendingInput?(

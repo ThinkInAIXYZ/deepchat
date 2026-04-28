@@ -280,6 +280,8 @@ describe('AgentRuntimePresenter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(processStream as ReturnType<typeof vi.fn>).mockReset()
+    ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'completed' })
     const skillPresenter = getSkillPresenterMock()
     skillPresenter.getMetadataList.mockResolvedValue([])
     skillPresenter.getActiveSkills.mockResolvedValue([])
@@ -556,6 +558,148 @@ describe('AgentRuntimePresenter', () => {
           })
         })
       )
+    })
+
+    it('steers during pre-stream setup without starting a parallel turn', async () => {
+      let releaseTools: (() => void) | null = null
+      toolPresenter.getAllToolDefinitions.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseTools = () => resolve([])
+          })
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const firstProcess = agent.processMessage('s1', 'First prompt')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      await agent.steerActiveTurn('s1', 'Refine before stream')
+      expect(processStream).not.toHaveBeenCalled()
+
+      releaseTools?.()
+      await firstProcess
+
+      let steeredUserInsert: any = null
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        steeredUserInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.find(
+          ([row]) => row.role === 'user'
+        )?.[0]
+        if (steeredUserInsert) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      expect(steeredUserInsert).toBeTruthy()
+      expect(JSON.parse(steeredUserInsert.content).text).toBe('Refine before stream')
+      expect(processStream).toHaveBeenCalledTimes(1)
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((await agent.getSessionState('s1'))?.status === 'idle') {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('interrupts an active stream for steer without marking the partial assistant as error', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(
+          async (params: { io: { abortSignal: AbortSignal } }) =>
+            await new Promise((resolve) => {
+              params.io.abortSignal.addEventListener(
+                'abort',
+                () => {
+                  resolve({
+                    status: 'aborted',
+                    stopReason: 'user_stop',
+                    errorMessage: 'common.error.userCanceledGeneration'
+                  })
+                },
+                { once: true }
+              )
+            })
+        )
+        .mockResolvedValueOnce({
+          status: 'completed',
+          stopReason: 'complete'
+        })
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'mock-msg-id',
+        session_id: 's1',
+        order_seq: 2,
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'content',
+            content: 'partial',
+            status: 'pending',
+            timestamp: 1
+          },
+          {
+            type: 'error',
+            content: 'common.error.userCanceledGeneration',
+            status: 'error',
+            timestamp: 2
+          }
+        ]),
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: null,
+        created_at: 1,
+        updated_at: 1
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const firstProcess = agent.processMessage('s1', 'First prompt')
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      await agent.steerActiveTurn('s1', 'Refine active stream')
+      await firstProcess
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
+        'mock-msg-id',
+        'sent'
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledWith(
+        'mock-msg-id',
+        JSON.stringify([
+          {
+            type: 'content',
+            content: 'partial',
+            status: 'success',
+            timestamp: 1
+          }
+        ])
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalledWith(
+        'mock-msg-id',
+        expect.any(String),
+        'error'
+      )
+      expect(processStream).toHaveBeenCalledTimes(2)
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((await agent.getSessionState('s1'))?.status === 'idle') {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
     it('dispatches lifecycle hooks through new session bridge', async () => {
