@@ -1,0 +1,79 @@
+{
+  "id": "com.deepchat.plugins.cua",
+  "name": "CUA Computer Use Runtime",
+  "version": "1.0.0",
+  "publisher": "DeepChat",
+  "engines": {
+    "deepchat": ">=1.1.0",
+    "platforms": ["darwin"]
+  },
+  "activationEvents": ["onEnable"],
+  "capabilities": [
+    "runtime.manage",
+    "mcp.register",
+    "skills.register",
+    "settings.contribute",
+    "shell.openExternal",
+    "process.execDeclared"
+  ],
+  "source": {
+    "type": "deepchat-official",
+    "url": "https://deepchat.thinkinai.xyz/plugins/com.deepchat.plugins.cua/1.0.0/deepchat-plugin-cua-1.0.0.dcplugin",
+    "publisher": "DeepChat"
+  },
+  "runtime": {
+    "id": "cua-driver",
+    "type": "external-helper",
+    "displayName": "Cua Driver",
+    "detect": [
+      "/Applications/CuaDriver.app/Contents/MacOS/cua-driver",
+      "~/.local/bin/cua-driver",
+      "PATH:cua-driver"
+    ],
+    "install": {
+      "mode": "user-confirmed",
+      "provider": "trycua",
+      "strategy": "official-installer-or-signed-release",
+      "minVersion": "0.1.0"
+    }
+  },
+  "mcpServers": [
+    {
+      "id": "cua-driver",
+      "displayName": "CUA Driver",
+      "transport": "stdio",
+      "command": "${runtime.cua-driver.command}",
+      "args": ["mcp"],
+      "autoApprove": []
+    }
+  ],
+  "skills": [
+    {
+      "id": "cua-driver",
+      "path": "skills/cua-driver/SKILL.md",
+      "scope": "agent"
+    }
+  ],
+  "settingsContributions": [
+    {
+      "id": "cua-runtime-settings",
+      "title": "CUA Computer Use Runtime",
+      "placement": "plugins",
+      "entry": "settings/index.html",
+      "preloadTypes": "types/settings-preload.d.ts"
+    }
+  ],
+  "toolPolicies": [
+    {
+      "serverId": "cua-driver",
+      "tools": {
+        "click": "ask",
+        "type_text": "ask",
+        "hotkey": "ask",
+        "screenshot": "allow",
+        "get_window_state": "allow",
+        "check_permissions": "allow"
+      }
+    }
+  ]
+}

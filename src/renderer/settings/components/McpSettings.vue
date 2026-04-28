@@ -148,8 +148,6 @@
       <Separator class="mt-2" />
     </div>
 
-    <ComputerUseSettingsCard />
-
     <!-- 服务器列表 -->
     <div class="flex-1 overflow-y-auto">
       <div v-if="mcpEnabled" class="h-full">
@@ -167,7 +165,6 @@ import { useI18n } from 'vue-i18n'
 import { computed, ref, onMounted } from 'vue'
 import McpServers from '@/components/mcp-config/components/McpServers.vue'
 import McpBuiltinMarket from './McpBuiltinMarket.vue'
-import ComputerUseSettingsCard from './ComputerUseSettingsCard.vue'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'

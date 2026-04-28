@@ -7,11 +7,6 @@ import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
 import type { IConfigPresenter } from '@shared/presenter'
 import {
-  COMPUTER_USE_ENABLED_KEY,
-  COMPUTER_USE_SKILL_NAME,
-  COMPUTER_USE_SOURCE_ID
-} from '@shared/types/computerUse'
-import {
   ISkillPresenter,
   SkillMetadata,
   SkillContent,
@@ -205,6 +200,8 @@ export class SkillPresenter implements ISkillPresenter {
   private draftsRoot: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
+  private pluginSkillContributions: Map<string, { ownerPluginId: string; skillRoot: string }> =
+    new Map()
   private watcher: FSWatcher | null = null
   private initialized: boolean = false
   // Prevent concurrent discovery calls (race condition protection)
@@ -304,7 +301,17 @@ export class SkillPresenter implements ISkillPresenter {
       discoveredSkills = await this.discoverSkillsOnMainThread()
     }
 
-    for (const metadata of discoveredSkills) {
+    for (const metadata of [
+      ...discoveredSkills,
+      ...(await this.discoverPluginSkillsOnMainThread())
+    ]) {
+      if (this.metadataCache.has(metadata.name)) {
+        logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+          name: metadata.name,
+          path: metadata.path
+        })
+        continue
+      }
       this.metadataCache.set(metadata.name, metadata)
     }
 
@@ -351,12 +358,35 @@ export class SkillPresenter implements ISkillPresenter {
     return Array.from(discovered.values())
   }
 
+  private async discoverPluginSkillsOnMainThread(): Promise<SkillMetadata[]> {
+    const discovered: SkillMetadata[] = []
+    for (const contribution of this.pluginSkillContributions.values()) {
+      const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
+      const dirName = path.basename(contribution.skillRoot)
+      if (!fs.existsSync(skillPath)) {
+        logger.warn('[SkillPresenter] Plugin skill contribution is missing SKILL.md.', {
+          ownerPluginId: contribution.ownerPluginId,
+          skillRoot: contribution.skillRoot
+        })
+        continue
+      }
+
+      const metadata = await this.parseSkillMetadata(skillPath, dirName, contribution.ownerPluginId)
+      if (metadata) {
+        discovered.push(metadata)
+      }
+    }
+
+    return discovered
+  }
+
   /**
    * Parse SKILL.md frontmatter to extract metadata
    */
   private async parseSkillMetadata(
     skillPath: string,
-    dirName: string
+    dirName: string,
+    ownerPluginId?: string
   ): Promise<SkillMetadata | null> {
     try {
       const content = fs.readFileSync(skillPath, 'utf-8')
@@ -390,7 +420,8 @@ export class SkillPresenter implements ISkillPresenter {
             : undefined,
         allowedTools: Array.isArray(data.allowedTools)
           ? data.allowedTools.filter((t): t is string => typeof t === 'string')
-          : undefined
+          : undefined,
+        ownerPluginId
       }
     } catch (error) {
       console.error(`[SkillPresenter] Error parsing skill metadata at ${skillPath}:`, error)
@@ -421,21 +452,7 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private isSkillVisible(metadata: SkillMetadata): boolean {
-    if (!this.isComputerUseManagedSkill(metadata)) {
-      return true
-    }
-
-    return (
-      process.platform === 'darwin' &&
-      this.configPresenter.getSetting<boolean>(COMPUTER_USE_ENABLED_KEY) === true
-    )
-  }
-
-  private isComputerUseManagedSkill(metadata: SkillMetadata): boolean {
-    return (
-      metadata.name === COMPUTER_USE_SKILL_NAME &&
-      metadata.metadata?.deepchatFeature === COMPUTER_USE_SOURCE_ID
-    )
+    return Boolean(metadata)
   }
 
   private sortSkillMetadata(skills: SkillMetadata[]): SkillMetadata[] {
@@ -991,6 +1008,44 @@ export class SkillPresenter implements ISkillPresenter {
       if (fs.existsSync(tempZipPath)) {
         fs.rmSync(tempZipPath, { force: true })
       }
+    }
+  }
+
+  async registerPluginSkill(input: {
+    ownerPluginId: string
+    id: string
+    skillRoot: string
+  }): Promise<void> {
+    const skillRoot = path.resolve(input.skillRoot)
+    const skillPath = path.join(skillRoot, 'SKILL.md')
+    if (!fs.existsSync(skillPath)) {
+      throw new Error(`Plugin skill "${input.id}" is missing SKILL.md`)
+    }
+
+    this.pluginSkillContributions.set(`${input.ownerPluginId}:${input.id}`, {
+      ownerPluginId: input.ownerPluginId,
+      skillRoot
+    })
+    if (this.initialized) {
+      this.metadataCache.clear()
+      this.contentCache.clear()
+      await this.discoverSkills()
+    }
+  }
+
+  async unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> {
+    let changed = false
+    for (const [key, contribution] of this.pluginSkillContributions.entries()) {
+      if (contribution.ownerPluginId === ownerPluginId) {
+        this.pluginSkillContributions.delete(key)
+        changed = true
+      }
+    }
+
+    if (changed && this.initialized) {
+      this.metadataCache.clear()
+      this.contentCache.clear()
+      await this.discoverSkills()
     }
   }
 
@@ -1931,6 +1986,13 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private deriveSkillCategory(skillRoot: string): string | null {
+    const pluginContribution = Array.from(this.pluginSkillContributions.values()).find(
+      (contribution) => path.resolve(contribution.skillRoot) === path.resolve(skillRoot)
+    )
+    if (pluginContribution) {
+      return `plugin/${pluginContribution.ownerPluginId}`
+    }
+
     const relative = path.relative(this.skillsDir, skillRoot)
     if (!relative || relative === '.' || path.isAbsolute(relative)) {
       return null

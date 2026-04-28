@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CUA Computer Use Runtime</title>
+    <link rel="stylesheet" href="./assets/index.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Official Runtime Plugin</p>
+          <h1>CUA Computer Use Runtime</h1>
+        </div>
+        <span id="plugin-state" class="state state-muted">Loading</span>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <span>Runtime</span>
+          <strong id="runtime-state">Unknown</strong>
+        </div>
+        <div class="row">
+          <span>Version</span>
+          <strong id="runtime-version">Unknown</strong>
+        </div>
+        <div class="row">
+          <span>Command</span>
+          <code id="runtime-command">Unknown</code>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="row">
+          <span>Accessibility</span>
+          <strong id="permission-accessibility">Unknown</strong>
+        </div>
+        <div class="row">
+          <span>Screen Recording</span>
+          <strong id="permission-screen-recording">Unknown</strong>
+        </div>
+      </section>
+
+      <footer class="actions">
+        <button id="check">Check</button>
+        <button id="guide">Permission Guide</button>
+        <button id="disable" class="danger">Disable Plugin</button>
+      </footer>
+
+      <p id="message" class="message" role="status"></p>
+    </main>
+    <script src="./assets/index.js"></script>
+  </body>
+</html>

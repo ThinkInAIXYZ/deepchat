@@ -1,0 +1,11 @@
+{
+  "serverId": "cua-driver",
+  "tools": {
+    "click": "ask",
+    "type_text": "ask",
+    "hotkey": "ask",
+    "screenshot": "allow",
+    "get_window_state": "allow",
+    "check_permissions": "allow"
+  }
+}

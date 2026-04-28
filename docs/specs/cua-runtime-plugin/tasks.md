@@ -22,14 +22,14 @@ Plan: [plan.md](./plan.md)
 
 ## M1 Core Plugin Contracts
 
-- [ ] Add shared plugin manifest types and schema.
-- [ ] Add official plugin source trust policy:
+- [x] Add shared plugin manifest types and schema.
+- [~] Add official plugin source trust policy:
   - source URL allowlist
   - publisher identity
   - plugin id reservation
   - checksum verification
   - signature metadata verification
-- [ ] Add plugin lifecycle route contracts:
+- [x] Add plugin lifecycle route contracts:
   - `plugins.list`
   - `plugins.get`
   - `plugins.install`
@@ -37,8 +37,8 @@ Plan: [plan.md](./plan.md)
   - `plugins.disable`
   - `plugins.delete`
   - `plugins.invokeAction`
-- [ ] Add renderer API client for generic plugin routes.
-- [ ] Add package path validation that rejects absolute paths, `..`, drive-letter paths, and unsafe
+- [x] Add renderer API client for generic plugin routes.
+- [~] Add package path validation that rejects absolute paths, `..`, drive-letter paths, and unsafe
   symlinks inside plugin packages.
 - [ ] Reject arbitrary local `.dcplugin` install in production builds.
 - [ ] Gate local plugin development behind development builds or explicit developer mode.
@@ -54,13 +54,13 @@ Validation:
 
 ## M2 Plugin Installation And Resource Store
 
-- [ ] Add `PluginHost` initialization in main presenter startup.
-- [ ] Add `PluginInstallationRecord` persistence.
-- [ ] Add `PluginResourceRecord` persistence.
-- [ ] Add `RuntimeDependencyRecord` persistence or store abstraction.
-- [ ] Implement `disableByOwner(pluginId)`.
-- [ ] Implement `removeByOwner(pluginId)`.
-- [ ] Implement startup repair for resources whose owning plugin is missing.
+- [x] Add `PluginHost` initialization in main presenter startup.
+- [x] Add `PluginInstallationRecord` persistence.
+- [x] Add `PluginResourceRecord` persistence.
+- [x] Add `RuntimeDependencyRecord` persistence or store abstraction.
+- [x] Implement `disableByOwner(pluginId)`.
+- [x] Implement `removeByOwner(pluginId)`.
+- [x] Implement startup repair for resources whose owning plugin is missing.
 - [ ] Add tests for disable, delete, update, and startup repair.
 
 Validation:
@@ -73,14 +73,14 @@ Validation:
 
 - [ ] Add `RuntimeRegistry.register`.
 - [ ] Add `RuntimeRegistry.unregisterByOwner`.
-- [ ] Add runtime status refresh support.
+- [x] Add runtime status refresh support.
 - [ ] Add declared command execution API:
   - command id
   - executable/path arguments
   - timeout
   - stdout/stderr size limit
   - environment allowlist
-- [ ] Add shell open API for declared external URLs or system settings URLs.
+- [~] Add shell open API for declared external URLs or system settings URLs.
 - [ ] Add tests for declared command allow/deny behavior.
 - [ ] Add minimal main SDK capability gate for plugin storage, declared process execution, shell
   opening, and registry access.
@@ -95,12 +95,12 @@ Validation:
 
 ## M4 Managed MCP Registry
 
-- [ ] Add `ownerPluginId` to plugin-owned MCP server records without breaking user MCP config.
+- [x] Add `ownerPluginId` to plugin-owned MCP server records without breaking user MCP config.
 - [ ] Add `ManagedMcpRegistry.register`.
 - [ ] Add `ManagedMcpRegistry.unregisterByOwner`.
-- [ ] Stop running plugin-owned MCP servers before unregistering them.
+- [x] Stop running plugin-owned MCP servers before unregistering them.
 - [ ] Refresh MCP clients and tool caches after managed changes.
-- [ ] Add conflict handling for user-owned server names.
+- [x] Add conflict handling for user-owned server names.
 - [ ] Add tests that user-owned MCP servers survive plugin disable/delete.
 
 Validation:
@@ -111,13 +111,13 @@ Validation:
 
 ## M5 Tool Policy Registry
 
-- [ ] Add `ToolPolicyRegistry.register`.
-- [ ] Add `ToolPolicyRegistry.unregisterByOwner`.
-- [ ] Add exact policy lookup by server id and original tool name.
-- [ ] Evaluate policy in MCP permission pre-check before fallback heuristics.
-- [ ] Evaluate policy in MCP execution path before fallback heuristics.
+- [x] Add `ToolPolicyRegistry.register`.
+- [x] Add `ToolPolicyRegistry.unregisterByOwner`.
+- [x] Add exact policy lookup by server id and original tool name.
+- [x] Evaluate policy in MCP permission pre-check before fallback heuristics.
+- [x] Evaluate policy in MCP execution path before fallback heuristics.
 - [ ] Add `allow`, `ask`, and `deny` behavior tests.
-- [ ] Remove CUA-specific read/write tool sets from core.
+- [x] Remove CUA-specific read/write tool sets from core.
 
 Validation:
 
@@ -128,17 +128,17 @@ Validation:
 
 ## M6 Skill Registry Contributions
 
-- [ ] Add `SkillRegistry.register`.
-- [ ] Add `SkillRegistry.unregisterByOwner`.
-- [ ] Extend SkillPresenter discovery to merge plugin-owned skill roots.
-- [ ] Hide plugin-owned skills when owner plugin is disabled.
+- [x] Add `SkillRegistry.register`.
+- [x] Add `SkillRegistry.unregisterByOwner`.
+- [x] Extend SkillPresenter discovery to merge plugin-owned skill roots.
+- [x] Hide plugin-owned skills when owner plugin is disabled.
 - [ ] Filter disabled plugin-owned skills from:
   - metadata list
   - `skill_view`
   - active skill validation
   - prompt content loading
   - allowed tools lookup
-- [ ] Remove CUA-specific skill visibility and auto-pin logic from core.
+- [x] Remove CUA-specific skill visibility and auto-pin logic from core.
 - [ ] Add tests for plugin-owned skill enable/disable/delete behavior.
 
 Validation:
@@ -149,24 +149,24 @@ Validation:
 
 ## M7 Isolated Settings Contribution Host
 
-- [ ] Add Settings > Plugins page or section.
-- [ ] Add generic plugin list UI.
-- [ ] Add settings contribution registry.
+- [x] Add Settings > Plugins page or section.
+- [x] Add generic plugin list UI.
+- [x] Add settings contribution registry.
 - [ ] Define settings contribution metadata:
   - standalone HTML entry
   - settings asset root
   - dedicated preload path
   - preload type declaration path
-- [ ] Load plugin settings as a standalone web bundle in an isolated renderer/webContents.
-- [ ] Enable `contextIsolation` for plugin settings renderers.
-- [ ] Disable Node integration for plugin settings renderers.
-- [ ] Add a dedicated plugin settings preload that exposes only plugin-scoped typed APIs.
-- [ ] Add generated or checked `settings-preload.d.ts` support for plugin developers.
-- [ ] Add generic plugin action bridge for settings UI actions.
-- [ ] Add plugin-owned typed API bridge for CUA settings actions.
+- [x] Load plugin settings as a standalone web bundle in an isolated renderer/webContents.
+- [x] Enable `contextIsolation` for plugin settings renderers.
+- [x] Disable Node integration for plugin settings renderers.
+- [x] Add a dedicated plugin settings preload that exposes only plugin-scoped typed APIs.
+- [x] Add generated or checked `settings-preload.d.ts` support for plugin developers.
+- [x] Add generic plugin action bridge for settings UI actions.
+- [x] Add plugin-owned typed API bridge for CUA settings actions.
 - [ ] Block plugin settings access to DeepChat renderer stores, global IPC, Vue app state, and raw
   Electron APIs.
-- [ ] Remove CUA-specific settings card from core MCP settings.
+- [x] Remove CUA-specific settings card from core MCP settings.
 - [ ] Add renderer tests for plugin list and settings contribution states.
 
 Validation:
@@ -181,13 +181,13 @@ Validation:
 
 ## M8 Plugin Packaging Toolchain
 
-- [ ] Add top-level `plugins/` workspace support if needed.
-- [ ] Add `.dcplugin` package builder.
-- [ ] Add `.dcplugin` validator.
-- [ ] Add checksum generation.
+- [x] Add top-level `plugins/` workspace support if needed.
+- [x] Add `.dcplugin` package builder.
+- [x] Add `.dcplugin` validator.
+- [x] Add checksum generation.
 - [ ] Add signature metadata handling.
-- [ ] Add official-source metadata validation.
-- [ ] Require settings HTML and preload type declarations when `settings.contribute` is declared.
+- [x] Add official-source metadata validation.
+- [x] Require settings HTML and preload type declarations when `settings.contribute` is declared.
 - [ ] Add package fixture tests.
 - [ ] Add scripts:
   - `plugin:cua:build`
@@ -206,19 +206,19 @@ Validation:
 
 ## M9 CUA Plugin Source
 
-- [ ] Add `plugins/cua/plugin.json`.
-- [ ] Add CUA runtime locator.
-- [ ] Add CUA helper version/status checks.
-- [ ] Add CUA permission status checks.
-- [ ] Add CUA install guide action.
+- [x] Add `plugins/cua/plugin.json`.
+- [x] Add CUA runtime locator.
+- [x] Add CUA helper version/status checks.
+- [x] Add CUA permission status checks.
+- [x] Add CUA install guide action.
 - [ ] Add optional CUA helper uninstall action with confirmation.
-- [ ] Add `mcp/cua-driver.json`.
-- [ ] Add `policies/tool-policy.json`.
-- [ ] Add `skills/cua-driver/SKILL.md` and related upstream skill docs.
-- [ ] Add CUA settings standalone web bundle for missing helper, installed helper, permissions, MCP,
+- [x] Add `mcp/cua-driver.json`.
+- [x] Add `policies/tool-policy.json`.
+- [x] Add `skills/cua-driver/SKILL.md` and related upstream skill docs.
+- [x] Add CUA settings standalone web bundle for missing helper, installed helper, permissions, MCP,
   and skill state.
-- [ ] Add CUA plugin settings preload `.d.ts`.
-- [ ] Add CUA plugin-specific typed settings API implementation:
+- [x] Add CUA plugin settings preload `.d.ts`.
+- [x] Add CUA plugin-specific typed settings API implementation:
   - `getRuntimeStatus`
   - `checkPermissions`
   - `openPermissionGuide`
@@ -240,13 +240,13 @@ Validation:
 - [ ] Remove `src/shared/contracts/routes/computerUse.routes.ts`.
 - [ ] Remove `src/shared/types/computerUse.ts`.
 - [ ] Remove `src/renderer/settings/components/ComputerUseSettingsCard.vue`.
-- [ ] Remove `resources/skills/cua-driver`.
+- [x] Remove `resources/skills/cua-driver`.
 - [ ] Remove `vendor/cua-driver`.
 - [ ] Remove `scripts/build-cua-driver.mjs`.
 - [ ] Remove `scripts/update-cua-driver.mjs`.
 - [ ] Remove `build/entitlements.computer-use.plist`.
-- [ ] Remove CUA helper handling from `scripts/afterPack.js`.
-- [ ] Remove CUA helper steps from build and release workflows.
+- [x] Remove CUA helper handling from `scripts/afterPack.js`.
+- [x] Remove CUA helper steps from build and release workflows.
 - [ ] Remove CUA-specific tests or convert them into plugin/generic infrastructure tests.
 
 Validation:
@@ -257,9 +257,9 @@ Validation:
 
 ## M11 CI And Release
 
-- [ ] Add plugin build job to build workflow.
-- [ ] Add plugin build job to release workflow.
-- [ ] Upload `.dcplugin` as a separate artifact.
+- [x] Add plugin build job to build workflow.
+- [x] Add plugin build job to release workflow.
+- [x] Upload `.dcplugin` as a separate artifact.
 - [ ] Publish or attach official-source metadata for the CUA plugin artifact.
 - [ ] Keep core app artifact naming unchanged.
 - [ ] Ensure app release jobs do not depend on plugin jobs unless publishing requires all artifacts.

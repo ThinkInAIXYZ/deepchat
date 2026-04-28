@@ -187,9 +187,9 @@ jobs:
 
       - name: Build Mac
         run: |
-          pnpm run build:cua-driver:mac:${{ matrix.arch }}
           pnpm run build
           pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
+          pnpm run plugin:cua:pack
         env:
           CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}

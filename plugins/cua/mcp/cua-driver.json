@@ -1,0 +1,8 @@
+{
+  "id": "cua-driver",
+  "displayName": "CUA Driver",
+  "transport": "stdio",
+  "command": "${runtime.cua-driver.command}",
+  "args": ["mcp"],
+  "autoApprove": []
+}

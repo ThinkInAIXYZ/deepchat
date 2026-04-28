@@ -1850,5 +1850,30 @@
       "loginTimedOut": "等待微信 iLink 授权超时，请重新打开登录窗口后再试。",
       "loginConnected": "微信 iLink 账号已连接。"
     }
+  },
+  "plugins": {
+    "title": "插件",
+    "officialOnly": "仅允许官方插件源",
+    "refresh": "刷新",
+    "empty": "暂无可用官方插件",
+    "loadFailed": "插件加载失败",
+    "actionFailed": "插件操作失败",
+    "install": "安装",
+    "enable": "启用",
+    "disable": "停用",
+    "openSettings": "设置",
+    "runtime": "运行时",
+    "version": "版本",
+    "command": "命令",
+    "status": {
+      "enabled": "已启用",
+      "disabled": "已停用"
+    },
+    "runtimeStates": {
+      "missing": "未安装",
+      "installed": "已安装",
+      "running": "运行中",
+      "error": "错误"
+    }
   }
 }

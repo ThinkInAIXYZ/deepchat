@@ -287,9 +287,9 @@ jobs:
 
       - name: Build Mac
         run: |
-          pnpm run build:cua-driver:mac:${{ matrix.arch }}
           pnpm run build
           pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
+          pnpm run plugin:cua:pack
         env:
           CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
@@ -400,6 +400,7 @@ jobs:
             cp artifacts/deepchat-mac-x64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-x64/*.zip release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-x64/*.blockmap release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-x64/plugins/*.dcplugin release_assets/ 2>/dev/null || true
           fi
 
           # Process Mac arm64 artifacts
@@ -407,6 +408,7 @@ jobs:
             cp artifacts/deepchat-mac-arm64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/*.zip release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/*.blockmap release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-arm64/plugins/*.dcplugin release_assets/ 2>/dev/null || true
           fi
 
           merge_mac_yml() {

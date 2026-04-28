@@ -6,7 +6,6 @@ import ElectronStore from 'electron-store'
 // import { app } from 'electron'
 import { compare } from 'compare-versions'
 import { presenter } from '..'
-import { COMPUTER_USE_SERVER_NAME } from '@shared/types/computerUse'
 
 // NPM Registry cache interface
 export interface INpmRegistryCache {
@@ -564,9 +563,6 @@ export class McpConfHelper {
         // if (serverName === 'deepchat-inmemory/linux-server' && !isLinux()) {
         //   serversToRemove.push(serverName)
         // }
-      }
-      if (serverName === COMPUTER_USE_SERVER_NAME && !isMacOS()) {
-        serversToRemove.push(serverName)
       }
     }
 

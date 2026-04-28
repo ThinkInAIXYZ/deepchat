@@ -10,6 +10,7 @@ export interface SettingsNavigationItem {
     | 'settings-acp'
     | 'settings-remote'
     | 'settings-notifications-hooks'
+    | 'settings-plugins'
     | 'settings-skills'
     | 'settings-prompt'
     | 'settings-knowledge-base'
@@ -109,6 +110,14 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     icon: 'lucide:bell',
     position: 5.5,
     keywords: ['notification', 'hook', 'webhook', '通知']
+  },
+  {
+    routeName: 'settings-plugins',
+    path: '/plugins',
+    titleKey: 'routes.settings-plugins',
+    icon: 'lucide:puzzle',
+    position: 5.75,
+    keywords: ['plugin', 'plugins', 'extension', 'runtime', '插件', '扩展', '运行时']
   },
   {
     routeName: 'settings-skills',

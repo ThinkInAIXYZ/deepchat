@@ -14,41 +14,7 @@ import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
-import { COMPUTER_USE_SERVER_NAME } from '@shared/types/computerUse'
-
-const COMPUTER_USE_READ_TOOLS = new Set([
-  'check_permissions',
-  'list_apps',
-  'list_windows',
-  'get_screen_size',
-  'get_window_state',
-  'get_accessibility_tree',
-  'get_cursor_position',
-  'get_agent_cursor_state',
-  'get_config',
-  'get_recording_state',
-  'screenshot'
-])
-
-const COMPUTER_USE_ACTION_TOOLS = new Set([
-  'launch_app',
-  'click',
-  'right_click',
-  'double_click',
-  'scroll',
-  'move_cursor',
-  'type_text',
-  'type_text_chars',
-  'press_key',
-  'hotkey',
-  'set_value',
-  'set_agent_cursor_enabled',
-  'set_agent_cursor_motion',
-  'set_recording',
-  'set_config',
-  'replay_trajectory',
-  'zoom'
-])
+import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
 
 export class ToolManager {
   private configPresenter: IConfigPresenter
@@ -259,17 +225,7 @@ export class ToolManager {
   }
 
   // 确定权限类型的新方法
-  private determinePermissionType(toolName: string, serverName?: string): 'read' | 'write' | 'all' {
-    if (serverName === COMPUTER_USE_SERVER_NAME) {
-      if (COMPUTER_USE_READ_TOOLS.has(toolName)) {
-        return 'read'
-      }
-      if (COMPUTER_USE_ACTION_TOOLS.has(toolName)) {
-        return 'write'
-      }
-      return 'write'
-    }
-
+  private determinePermissionType(toolName: string): 'read' | 'write' | 'all' {
     const lowerToolName = toolName.toLowerCase()
 
     // Read operations
@@ -357,7 +313,7 @@ export class ToolManager {
       `conversationId: ${conversationId}`
     )
 
-    const permissionType = this.determinePermissionType(originalToolName, serverName)
+    const permissionType = this.determinePermissionType(originalToolName)
     console.log(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
 
     // 1. 优先检查 session 级别的内存权限（当前会话自动执行）
@@ -368,13 +324,28 @@ export class ToolManager {
       return true
     }
 
-    // 2. 检查持久化的 'all' 权限
+    // 2. Plugin-owned exact policies override persisted server auto-approve settings.
+    const pluginPolicy = getPluginToolPolicy(serverName, originalToolName)
+    if (pluginPolicy === 'allow') {
+      console.log(
+        `[ToolManager] Permission granted by plugin tool policy: ${serverName}.${originalToolName}`
+      )
+      return true
+    }
+    if (pluginPolicy === 'ask' || pluginPolicy === 'deny') {
+      console.log(
+        `[ToolManager] Permission blocked by plugin tool policy '${pluginPolicy}': ${serverName}.${originalToolName}`
+      )
+      return false
+    }
+
+    // 3. 检查持久化的 'all' 权限
     if (autoApprove.includes('all')) {
       console.log(`[ToolManager] Permission granted: server '${serverName}' has 'all' permissions`)
       return true
     }
 
-    // 3. 检查持久化的特定权限类型
+    // 4. 检查持久化的特定权限类型
     if (autoApprove.includes(permissionType)) {
       console.log(
         `[ToolManager] Permission granted: server '${serverName}' has '${permissionType}' permission`
@@ -432,6 +403,11 @@ export class ToolManager {
     const servers = await this.configPresenter.getMcpServers()
     const serverConfig = servers[toolServerName]
     const autoApprove = serverConfig?.autoApprove || []
+    const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
+
+    if (pluginPolicy === 'deny') {
+      return null
+    }
 
     // Check permission using existing logic
     const hasPermission = this.checkToolPermission(
@@ -445,7 +421,7 @@ export class ToolManager {
       return null // Already has permission
     }
 
-    const permissionType = this.determinePermissionType(originalName, toolServerName)
+    const permissionType = this.determinePermissionType(originalName)
     return {
       needsPermission: true,
       toolName: originalName,
@@ -562,6 +538,14 @@ export class ToolManager {
         }
       }
       const autoApprove = serverConfig?.autoApprove || []
+      const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
+      if (pluginPolicy === 'deny') {
+        return {
+          toolCallId: toolCall.id,
+          content: `Tool '${originalName}' on server '${toolServerName}' is blocked by plugin policy.`,
+          isError: true
+        }
+      }
       console.log(
         `Checking permissions for tool '${originalName}' on server '${toolServerName}' with autoApprove:`,
         autoApprove
@@ -579,7 +563,7 @@ export class ToolManager {
           `Permission required for tool '${originalName}' on server '${toolServerName}'.`
         )
 
-        const permissionType = this.determinePermissionType(originalName, toolServerName)
+        const permissionType = this.determinePermissionType(originalName)
 
         // Return permission request instead of error
         return {

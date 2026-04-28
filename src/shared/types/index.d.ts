@@ -16,5 +16,6 @@ export type {
 export * from './browser'
 export * from './chatSettings'
 export * from './computerUse'
+export * from './plugin'
 export * from './skill'
 export * from './skillSync'

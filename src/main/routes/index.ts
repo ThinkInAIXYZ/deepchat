@@ -76,6 +76,13 @@ import {
   mcpSubmitSamplingDecisionRoute,
   mcpUpdateServerRoute,
   modelsGetProviderCatalogRoute,
+  pluginsDeleteRoute,
+  pluginsDisableRoute,
+  pluginsEnableRoute,
+  pluginsGetRoute,
+  pluginsInstallRoute,
+  pluginsInvokeActionRoute,
+  pluginsListRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
@@ -196,6 +203,7 @@ import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { ComputerUsePresenter } from '@/presenter/computerUsePresenter'
+import type { PluginPresenter } from '@/presenter/pluginPresenter'
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -220,6 +228,7 @@ export type MainKernelRouteRuntime = {
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   computerUsePresenter: ComputerUsePresenter
+  pluginPresenter: PluginPresenter
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -241,6 +250,7 @@ export function createMainKernelRouteRuntime(deps: {
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   computerUsePresenter: ComputerUsePresenter
+  pluginPresenter: PluginPresenter
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -288,7 +298,8 @@ export function createMainKernelRouteRuntime(deps: {
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
-    computerUsePresenter: deps.computerUsePresenter
+    computerUsePresenter: deps.computerUsePresenter,
+    pluginPresenter: deps.pluginPresenter
   }
 }
 
@@ -652,6 +663,59 @@ export async function dispatchDeepchatRoute(
       computerUseRestartMcpServerRoute.input.parse(rawInput)
       return computerUseRestartMcpServerRoute.output.parse({
         status: await runtime.computerUsePresenter.restartMcpServer()
+      })
+    }
+
+    case pluginsListRoute.name: {
+      pluginsListRoute.input.parse(rawInput)
+      return pluginsListRoute.output.parse({
+        plugins: await runtime.pluginPresenter.listPlugins()
+      })
+    }
+
+    case pluginsGetRoute.name: {
+      const input = pluginsGetRoute.input.parse(rawInput)
+      return pluginsGetRoute.output.parse({
+        plugin: await runtime.pluginPresenter.getPlugin(input.pluginId)
+      })
+    }
+
+    case pluginsInstallRoute.name: {
+      const input = pluginsInstallRoute.input.parse(rawInput)
+      return pluginsInstallRoute.output.parse({
+        result: await runtime.pluginPresenter.installOfficialPlugin(input.pluginId)
+      })
+    }
+
+    case pluginsEnableRoute.name: {
+      const input = pluginsEnableRoute.input.parse(rawInput)
+      return pluginsEnableRoute.output.parse({
+        result: await runtime.pluginPresenter.enablePlugin(input.pluginId)
+      })
+    }
+
+    case pluginsDisableRoute.name: {
+      const input = pluginsDisableRoute.input.parse(rawInput)
+      return pluginsDisableRoute.output.parse({
+        result: await runtime.pluginPresenter.disablePlugin(input.pluginId)
+      })
+    }
+
+    case pluginsDeleteRoute.name: {
+      const input = pluginsDeleteRoute.input.parse(rawInput)
+      return pluginsDeleteRoute.output.parse({
+        result: await runtime.pluginPresenter.deletePlugin(input.pluginId)
+      })
+    }
+
+    case pluginsInvokeActionRoute.name: {
+      const input = pluginsInvokeActionRoute.input.parse(rawInput)
+      return pluginsInvokeActionRoute.output.parse({
+        result: await runtime.pluginPresenter.invokeAction(
+          input.pluginId,
+          input.actionId,
+          input.payload
+        )
       })
     }
 

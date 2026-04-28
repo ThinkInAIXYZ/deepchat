@@ -11,6 +11,7 @@ files:
   - '!test/*'
   - '!vendor/**'
   - '!docs/*'
+  - '!plugins/**'
   - '!keys/*'
   - '!scripts/*'
   - '!.github/*'
@@ -38,6 +39,9 @@ extraResources:
     filter: ['**/*']
   - from: ./resources/skills/
     to: app.asar.unpacked/resources/skills
+    filter: ['**/*']
+  - from: ./plugins/
+    to: app.asar.unpacked/plugins
     filter: ['**/*']
 electronLanguages:
   - zh-CN

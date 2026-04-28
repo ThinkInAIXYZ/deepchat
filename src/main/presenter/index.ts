@@ -70,6 +70,7 @@ import { ProjectPresenter } from './projectPresenter'
 import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
 import { ComputerUsePresenter } from './computerUsePresenter'
+import { PluginPresenter } from './pluginPresenter'
 import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
@@ -188,6 +189,7 @@ export class Presenter implements IPresenter {
   agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
   computerUsePresenter: ComputerUsePresenter
+  pluginPresenter: PluginPresenter
   hooksNotifications: HooksNotificationsService
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
@@ -426,6 +428,14 @@ export class Presenter implements IPresenter {
 
     // Initialize Skill presenter
     this.skillPresenter = new SkillPresenter(this.configPresenter, skillSessionStatePort)
+
+    // Initialize official plugin host. Plugins are activated before MCP startup so managed
+    // MCP servers are present when the regular MCP presenter starts enabled servers.
+    this.pluginPresenter = new PluginPresenter({
+      configPresenter: this.configPresenter,
+      mcpPresenter: this.mcpPresenter,
+      skillPresenter: this.skillPresenter
+    })
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
@@ -787,7 +797,7 @@ export class Presenter implements IPresenter {
 
   private async initializeMcp() {
     try {
-      await this.computerUsePresenter.initialize()
+      await this.pluginPresenter.initialize()
       await this.mcpPresenter.initialize()
     } catch (error) {
       console.error('Failed to initialize McpPresenter:', error)
@@ -918,7 +928,8 @@ registerMainKernelRoutes(ipcMain, () =>
         yoBrowserPresenter: presenter.yoBrowserPresenter,
         tabPresenter: presenter.tabPresenter,
         startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
-        computerUsePresenter: presenter.computerUsePresenter
+        computerUsePresenter: presenter.computerUsePresenter,
+        pluginPresenter: presenter.pluginPresenter
       }))
     : undefined
 )
