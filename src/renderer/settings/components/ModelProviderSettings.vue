@@ -1,6 +1,6 @@
 <template>
   <div v-if="showProviderSkeleton" class="w-full h-full flex flex-row animate-pulse">
-    <div class="w-64 h-full border-r p-4 space-y-3">
+    <div class="w-80 h-full border-r p-4 space-y-3">
       <div class="h-9 rounded-md bg-muted/60"></div>
       <div
         v-for="index in 8"
@@ -22,7 +22,7 @@
     </div>
   </div>
   <div v-else data-testid="settings-provider-page" class="w-full h-full flex flex-row">
-    <ScrollArea class="w-64 border-r h-full">
+    <ScrollArea class="w-80 border-r h-full">
       <div class="space-y-4 p-4">
         <!-- 搜索框 -->
         <div class="sticky top-4 z-10">
@@ -91,9 +91,11 @@
                   @click.stop
                 />
                 <template v-else>
-                  <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
-                    t(provider.name)
-                  }}</span>
+                  <span
+                    class="text-sm font-medium flex-1 min-w-0 truncate"
+                    :dir="languageStore.dir"
+                    >{{ t(provider.name) }}</span
+                  >
                   <Icon
                     v-if="provider.custom"
                     icon="lucide:pencil"
@@ -153,9 +155,11 @@
                   @click.stop
                 />
                 <template v-else>
-                  <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
-                    t(provider.name)
-                  }}</span>
+                  <span
+                    class="text-sm font-medium flex-1 min-w-0 truncate"
+                    :dir="languageStore.dir"
+                    >{{ t(provider.name) }}</span
+                  >
                   <Icon
                     v-if="provider.custom"
                     icon="lucide:pencil"

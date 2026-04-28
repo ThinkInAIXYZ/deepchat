@@ -397,6 +397,33 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       ...OPENAI_BASE,
       modelSource: 'astraflow'
     })
+  ],
+  [
+    'xiaomi-token-plan-cn',
+    createDefinition({
+      ...CHINESE_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'xiaomi-token-plan-cn',
+      providerDbGroup: 'token-plan'
+    })
+  ],
+  [
+    'xiaomi-token-plan-sgp',
+    createDefinition({
+      ...CHINESE_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'xiaomi-token-plan-sgp',
+      providerDbGroup: 'token-plan'
+    })
+  ],
+  [
+    'xiaomi-token-plan-ams',
+    createDefinition({
+      ...CHINESE_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'xiaomi-token-plan-ams',
+      providerDbGroup: 'token-plan'
+    })
   ]
 ])
 
