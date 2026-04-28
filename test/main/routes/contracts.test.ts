@@ -11,6 +11,8 @@ import {
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatStopStreamRoute,
+  computerUseGetStatusRoute,
+  computerUseOpenPermissionGuideRoute,
   providersListModelsRoute,
   providersListSummariesRoute,
   providersTestConnectionRoute,
@@ -110,6 +112,68 @@ describe('main kernel contracts', () => {
       ])
     )
     expect(new Set(routeKeys).size).toBe(routeKeys.length)
+  })
+
+  it('validates computer use route payloads through concrete schemas', () => {
+    expect(
+      computerUseOpenPermissionGuideRoute.input.parse({
+        target: 'screenRecording'
+      })
+    ).toEqual({
+      target: 'screenRecording'
+    })
+
+    expect(() =>
+      computerUseOpenPermissionGuideRoute.input.parse({
+        target: 'invalidTarget'
+      })
+    ).toThrow()
+
+    expect(
+      computerUseGetStatusRoute.output.parse({
+        status: {
+          platform: 'darwin',
+          available: true,
+          enabled: true,
+          arch: 'arm64',
+          helperPath: '/tmp/DeepChat Computer Use.app',
+          permissions: {
+            accessibility: 'granted',
+            screenRecording: 'missing'
+          },
+          mcpServer: 'running'
+        }
+      })
+    ).toEqual({
+      status: {
+        platform: 'darwin',
+        available: true,
+        enabled: true,
+        arch: 'arm64',
+        helperPath: '/tmp/DeepChat Computer Use.app',
+        permissions: {
+          accessibility: 'granted',
+          screenRecording: 'missing'
+        },
+        mcpServer: 'running'
+      }
+    })
+
+    expect(() =>
+      computerUseGetStatusRoute.output.parse({
+        status: {
+          platform: 'darwin',
+          available: true,
+          enabled: true,
+          arch: 'arm64',
+          permissions: {
+            accessibility: 'granted',
+            screenRecording: 'allowed'
+          },
+          mcpServer: 'running'
+        }
+      })
+    ).toThrow()
   })
 
   it('validates typed settings updates through the shared route contract', () => {

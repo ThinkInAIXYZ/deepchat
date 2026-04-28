@@ -36,8 +36,9 @@ vi.mock('@/presenter', () => ({
 }))
 
 import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
+import { COMPUTER_USE_SERVER_NAME } from '@shared/types/computerUse'
 
-describe('ToolManager ACP MCP access control', () => {
+describe('ToolManager', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
@@ -49,23 +50,26 @@ describe('ToolManager ACP MCP access control', () => {
     warnSpy.mockRestore()
   })
 
-  function createClient(serverName: string) {
+  function createClient(
+    serverName: string,
+    tools = [
+      {
+        name: 'echo',
+        description: 'Echo tool',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ]
+  ) {
     return {
       serverName,
       serverConfig: {
         icons: '',
         descriptions: ''
       },
-      listTools: vi.fn().mockResolvedValue([
-        {
-          name: 'echo',
-          description: 'Echo tool',
-          inputSchema: {
-            properties: {},
-            required: []
-          }
-        }
-      ]),
+      listTools: vi.fn().mockResolvedValue(tools),
       callTool: vi.fn().mockResolvedValue({
         content: 'ok',
         isError: false
@@ -88,6 +92,101 @@ describe('ToolManager ACP MCP access control', () => {
       getLanguage: vi.fn().mockReturnValue('en-US')
     }
   }
+
+  it('enhances Computer Use app-name matching tool descriptions', async () => {
+    const client = createClient(COMPUTER_USE_SERVER_NAME, [
+      {
+        name: 'list_apps',
+        description: 'List apps original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'launch_app',
+        description: 'Launch app original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'click',
+        description: 'Click original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ])
+    const configPresenter = createConfigPresenter(COMPUTER_USE_SERVER_NAME)
+    const manager = new ToolManager(
+      configPresenter as never,
+      {
+        getRunningClients: vi.fn().mockResolvedValue([client])
+      } as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions()
+    const listApps = definitions.find((tool) => tool.function.name === 'list_apps')
+    const launchApp = definitions.find((tool) => tool.function.name === 'launch_app')
+    const click = definitions.find((tool) => tool.function.name === 'click')
+
+    expect(listApps?.function.description).toContain('List apps original description')
+    expect(listApps?.function.description).toContain("user's language")
+    expect(listApps?.function.description).toContain('system language')
+    expect(listApps?.function.description).toContain('English product names')
+    expect(listApps?.function.description).toContain('English brand names')
+    expect(listApps?.function.description).toContain('romanized or pinyin variants')
+    expect(listApps?.function.description).toContain('common abbreviations')
+
+    expect(launchApp?.function.description).toContain('Launch app original description')
+    expect(launchApp?.function.description).toContain('call list_apps first')
+    expect(launchApp?.function.description).toContain('prefer launching with bundle_id')
+
+    expect(click?.function.description).toBe('Click original description')
+    expect(`${listApps?.function.description}\n${launchApp?.function.description}`).not.toMatch(
+      /NetEase|网易|com\.netease/i
+    )
+  })
+
+  it('leaves non Computer Use tool descriptions unchanged', async () => {
+    const client = createClient('regular-server', [
+      {
+        name: 'list_apps',
+        description: 'Regular list apps description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'launch_app',
+        description: 'Regular launch app description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ])
+    const configPresenter = createConfigPresenter('regular-server')
+    const manager = new ToolManager(
+      configPresenter as never,
+      {
+        getRunningClients: vi.fn().mockResolvedValue([client])
+      } as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions()
+
+    expect(
+      definitions.find((tool) => tool.function.name === 'list_apps')?.function.description
+    ).toBe('Regular list apps description')
+    expect(
+      definitions.find((tool) => tool.function.name === 'launch_app')?.function.description
+    ).toBe('Regular launch app description')
+  })
 
   it('uses new session ACP context instead of global chat mode', async () => {
     const client = createClient('blocked-server')

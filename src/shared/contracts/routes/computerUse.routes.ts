@@ -6,9 +6,27 @@ import type {
   ComputerUseStatus
 } from '@shared/types/computerUse'
 
-const ComputerUseStatusSchema = z.custom<ComputerUseStatus>()
-const ComputerUsePermissionStatusSchema = z.custom<ComputerUsePermissionStatus>()
-const ComputerUsePermissionTargetSchema = z.custom<ComputerUsePermissionTarget>()
+const ComputerUsePermissionStateSchema = z.enum(['granted', 'missing', 'unknown'])
+const ComputerUsePermissionStatusSchema: z.ZodType<ComputerUsePermissionStatus> = z.object({
+  accessibility: ComputerUsePermissionStateSchema,
+  screenRecording: ComputerUsePermissionStateSchema
+})
+const ComputerUsePermissionTargetSchema: z.ZodType<ComputerUsePermissionTarget> = z.enum([
+  'all',
+  'accessibility',
+  'screenRecording'
+])
+const ComputerUseStatusSchema: z.ZodType<ComputerUseStatus> = z.object({
+  platform: z.enum(['darwin', 'unsupported']),
+  available: z.boolean(),
+  enabled: z.boolean(),
+  arch: z.enum(['arm64', 'x64', 'unknown']),
+  helperPath: z.string().optional(),
+  helperVersion: z.string().optional(),
+  permissions: ComputerUsePermissionStatusSchema,
+  mcpServer: z.enum(['notRegistered', 'registered', 'running', 'error']),
+  lastError: z.string().optional()
+})
 
 export const computerUseGetStatusRoute = defineRouteContract({
   name: 'computerUse.getStatus',

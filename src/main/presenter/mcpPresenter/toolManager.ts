@@ -50,6 +50,31 @@ const COMPUTER_USE_ACTION_TOOLS = new Set([
   'zoom'
 ])
 
+function enhanceComputerUseToolDescription(
+  serverName: string,
+  toolName: string,
+  description: string | undefined
+): string {
+  const baseDescription = description ?? ''
+  if (serverName !== COMPUTER_USE_SERVER_NAME) {
+    return baseDescription
+  }
+
+  if (toolName === 'list_apps') {
+    return `${baseDescription}
+
+DeepChat app-name resolution guidance: when matching a user request to an app, compare the request with each returned name and bundle_id. Consider the user's language, the system language, English product names, English brand names, romanized or pinyin variants, and common abbreviations. Treat bundle_id as the strongest identity signal.`
+  }
+
+  if (toolName === 'launch_app') {
+    return `${baseDescription}
+
+DeepChat app-name resolution guidance: when the requested app name is ambiguous, localized, translated, abbreviated, or written in another script, call list_apps first. Resolve the most credible bundle_id from app names and bundle identifiers, then prefer launching with bundle_id.`
+  }
+
+  return baseDescription
+}
+
 export class ToolManager {
   private configPresenter: IConfigPresenter
   private serverManager: ServerManager
@@ -187,6 +212,12 @@ export class ToolManager {
             finalName = `${client.serverName}_${originalName}`
             finalDescription = `[${client.serverName}] ${tool.description}`
           }
+
+          finalDescription = enhanceComputerUseToolDescription(
+            client.serverName,
+            originalName,
+            finalDescription
+          )
 
           // Validate the final name against the allowed pattern
           const namePattern = /^[a-zA-Z0-9_-]+$/
