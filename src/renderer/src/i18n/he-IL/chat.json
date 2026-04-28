@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
     "attach": "צרף",
     "voiceInput": "קלט קולי",
+    "send": "שלח",
+    "steer": "כוון",
     "queue": "הוסף לתור",
     "stop": "עצור",
     "mcp": {

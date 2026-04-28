@@ -20,6 +20,17 @@ export const chatSendMessageRoute = defineRouteContract({
   })
 })
 
+export const chatSteerActiveTurnRoute = defineRouteContract({
+  name: 'chat.steerActiveTurn',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    content: z.union([z.string(), SendMessageInputSchema])
+  }),
+  output: z.object({
+    accepted: z.boolean()
+  })
+})
+
 export const chatStopStreamRoute = defineRouteContract({
   name: 'chat.stopStream',
   input: z

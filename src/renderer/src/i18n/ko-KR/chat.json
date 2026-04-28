@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
     "attach": "첨부",
     "voiceInput": "음성 입력",
+    "send": "보내기",
+    "steer": "유도",
     "queue": "대기열에 추가",
     "stop": "중지",
     "mcp": {

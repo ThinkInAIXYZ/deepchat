@@ -6,6 +6,8 @@
     "functionSwitch": "功能开关",
     "attach": "添加附件",
     "voiceInput": "语音输入",
+    "send": "发送",
+    "steer": "引导",
     "queue": "加入队列",
     "stop": "停止",
     "fileSelect": "选择文件",

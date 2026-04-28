@@ -278,4 +278,37 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     expect((wrapper.vm as any).getPendingSkillsSnapshot()).toEqual(['review', 'commit'])
   })
+
+  it('emits queue-submit on Tab only when queue submit is available', async () => {
+    const wrapper = await mountComponent()
+
+    await wrapper.setProps({
+      queueSubmitEnabled: true,
+      queueSubmitDisabled: false
+    })
+    await wrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+      key: 'Tab'
+    })
+
+    expect(wrapper.emitted('queue-submit')).toEqual([[]])
+
+    await wrapper.setProps({
+      queueSubmitDisabled: false
+    })
+    await wrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+      key: 'Tab',
+      shiftKey: true
+    })
+
+    expect(wrapper.emitted('queue-submit')).toEqual([[]])
+
+    await wrapper.setProps({
+      queueSubmitDisabled: true
+    })
+    await wrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+      key: 'Tab'
+    })
+
+    expect(wrapper.emitted('queue-submit')).toEqual([[]])
+  })
 })

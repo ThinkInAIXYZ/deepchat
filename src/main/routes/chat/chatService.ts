@@ -127,6 +127,29 @@ export class ChatService {
     }
   }
 
+  async steerActiveTurn(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<{ accepted: true }> {
+    const session = await this.deps.scheduler.timeout({
+      task: this.deps.sessionRepository.get(sessionId),
+      ms: CHAT_LOOKUP_TIMEOUT_MS,
+      reason: `chat.steerActiveTurn:${sessionId}:session`
+    })
+
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    await this.deps.scheduler.timeout({
+      task: this.deps.providerExecutionPort.steerActiveTurn(sessionId, content),
+      ms: CHAT_SEND_TIMEOUT_MS,
+      reason: `chat.steerActiveTurn:${sessionId}`
+    })
+
+    return { accepted: true }
+  }
+
   async stopStream(input: {
     sessionId?: string
     requestId?: string

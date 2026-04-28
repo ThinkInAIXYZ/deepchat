@@ -35,6 +35,8 @@
     "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
     "attach": "Vedhæft",
     "voiceInput": "Stemmeinput",
+    "send": "Send",
+    "steer": "Styr",
     "queue": "Læg i kø",
     "stop": "Stop",
     "mcp": {

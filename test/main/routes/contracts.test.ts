@@ -10,6 +10,7 @@ import {
   DEEPCHAT_ROUTE_CATALOG,
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
+  chatSteerActiveTurnRoute,
   chatStopStreamRoute,
   providersListModelsRoute,
   providersListSummariesRoute,
@@ -37,6 +38,7 @@ describe('main kernel contracts', () => {
       expect.arrayContaining([
         'browser.attachCurrentWindow',
         'chat.sendMessage',
+        'chat.steerActiveTurn',
         'config.resolveDeepChatAgentConfig',
         'dialog.error',
         'dialog.respond',
@@ -243,6 +245,22 @@ describe('main kernel contracts', () => {
       sessionId: 'session-1',
       content: {
         text: 'summarize this',
+        files: [pdfAttachment]
+      }
+    })
+
+    expect(
+      chatSteerActiveTurnRoute.input.parse({
+        sessionId: 'session-1',
+        content: {
+          text: 'actually, focus on risks',
+          files: [pdfAttachment]
+        }
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      content: {
+        text: 'actually, focus on risks',
         files: [pdfAttachment]
       }
     })

@@ -6,6 +6,8 @@
     "functionSwitch": "Function Switch",
     "attach": "Attach",
     "voiceInput": "Voice input",
+    "send": "Send",
+    "steer": "Steer",
     "queue": "Queue",
     "stop": "Stop",
     "fileSelect": "Select File",

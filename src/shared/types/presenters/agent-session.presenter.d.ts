@@ -72,6 +72,7 @@ export interface IAgentSessionPresenter {
   deletePendingInput(sessionId: string, itemId: string): Promise<void>
   resumePendingQueue(sessionId: string): Promise<void>
   sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void>
+  steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
   retryMessage(sessionId: string, messageId: string): Promise<void>
   deleteMessage(sessionId: string, messageId: string): Promise<void>
   editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>

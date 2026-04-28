@@ -141,6 +141,14 @@ const setup = async (options: SetupOptions = {}) => {
     forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
   }
   const chatClient = {
+    sendMessage: vi.fn().mockResolvedValue({
+      accepted: true,
+      requestId: null,
+      messageId: null
+    }),
+    steerActiveTurn: vi.fn().mockResolvedValue({
+      accepted: true
+    }),
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
     respondToolInteraction: vi.fn().mockResolvedValue({ accepted: true })
   }
@@ -262,8 +270,17 @@ const setup = async (options: SetupOptions = {}) => {
         submitDisabled: {
           type: Boolean,
           default: false
+        },
+        queueSubmitEnabled: {
+          type: Boolean,
+          default: false
+        },
+        queueSubmitDisabled: {
+          type: Boolean,
+          default: false
         }
       },
+      emits: ['update:modelValue', 'update:files', 'command-submit', 'queue-submit', 'submit'],
       template: '<div class="chat-input-box-stub"><slot name="toolbar" /></div>'
     })
   }))
@@ -282,8 +299,13 @@ const setup = async (options: SetupOptions = {}) => {
         sendDisabled: {
           type: Boolean,
           default: false
+        },
+        queueDisabled: {
+          type: Boolean,
+          default: false
         }
       },
+      emits: ['attach', 'queue', 'send', 'stop'],
       template: '<div class="chat-input-toolbar-stub" />'
     })
   }))
@@ -630,8 +652,8 @@ describe('ChatPage', () => {
     expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(false)
   })
 
-  it('allows queueing attachment-only drafts', async () => {
-    const { wrapper, pendingInputStore } = await setup()
+  it('allows sending attachment-only drafts', async () => {
+    const { wrapper, chatClient } = await setup()
     const file = { name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }
 
     const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
@@ -646,10 +668,74 @@ describe('ChatPage', () => {
     inputBox.vm.$emit('submit')
     await flushPromises()
 
-    expect(pendingInputStore.queueInput).toHaveBeenCalledWith('s1', {
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('s1', {
       text: '',
       files: [file]
     })
+  })
+
+  it('queues active draft on submit while generating', async () => {
+    const { wrapper, pendingInputStore, chatClient } = await setup({
+      isStreaming: true
+    })
+
+    const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
+    await inputBox.vm.$emit('update:modelValue', 'tighten the answer')
+    await flushPromises()
+
+    expect(inputBox.props('queueSubmitEnabled')).toBe(true)
+    expect(inputBox.props('queueSubmitDisabled')).toBe(false)
+
+    inputBox.vm.$emit('submit')
+    await flushPromises()
+
+    expect(pendingInputStore.queueInput).toHaveBeenCalledWith('s1', {
+      text: 'tighten the answer',
+      files: []
+    })
+    expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
+    expect(chatClient.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('disables queue submit when the waiting queue is full but keeps steer button available', async () => {
+    const { wrapper } = await setup({
+      isStreaming: true,
+      pendingInputStorePatch: {
+        isAtCapacity: true
+      }
+    })
+
+    const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
+    await inputBox.vm.$emit('update:modelValue', 'tighten the answer')
+    await flushPromises()
+
+    const toolbar = wrapper.findComponent({ name: 'ChatInputToolbar' })
+    expect(inputBox.props('submitDisabled')).toBe(true)
+    expect(inputBox.props('queueSubmitDisabled')).toBe(true)
+    expect(toolbar.props('sendDisabled')).toBe(true)
+    expect(toolbar.props('queueDisabled')).toBe(true)
+    // Steer button is always available when generating with input
+    const steerButton = toolbar.find('[data-testid="chat-steer-button"]')
+    expect(steerButton.exists()).toBe(true)
+  })
+
+  it('queues drafts explicitly while a generation is running', async () => {
+    const { wrapper, pendingInputStore, chatClient } = await setup({
+      isStreaming: true
+    })
+
+    const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
+    await inputBox.vm.$emit('update:modelValue', 'do this next')
+    await flushPromises()
+
+    inputBox.vm.$emit('queue-submit')
+    await flushPromises()
+
+    expect(pendingInputStore.queueInput).toHaveBeenCalledWith('s1', {
+      text: 'do this next',
+      files: []
+    })
+    expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
   })
 
   it('opens the inline search with Ctrl+F and closes it with Escape', async () => {
