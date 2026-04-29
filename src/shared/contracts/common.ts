@@ -20,6 +20,14 @@ export type JsonValue =
 export const EntityIdSchema = z.string().min(1)
 export const TimestampMsSchema = z.number().int().nonnegative()
 
+export const ToolCallImagePreviewSchema = z.object({
+  id: z.string().min(1),
+  data: z.string().min(1),
+  mimeType: z.string().min(1),
+  title: z.string().optional(),
+  source: z.enum(['tool_output', 'file_read', 'screenshot', 'mcp_image'])
+})
+
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([
     z.string(),
@@ -261,6 +269,7 @@ export const AssistantMessageBlockSchema = z.object({
       rtkApplied: z.boolean().optional(),
       rtkMode: z.enum(['rewrite', 'direct', 'bypass']).optional(),
       rtkFallbackReason: z.string().optional(),
+      imagePreviews: z.array(ToolCallImagePreviewSchema).optional(),
       server_name: z.string().optional(),
       server_icons: z.string().optional(),
       server_description: z.string().optional()

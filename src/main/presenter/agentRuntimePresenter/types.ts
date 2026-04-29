@@ -106,6 +106,7 @@ export interface ProcessHooks {
     content: MCPToolResponse['content']
     isError: boolean
   }) => Promise<MCPToolResponse['content']>
+  cacheImage?: (data: string) => Promise<string>
 }
 
 export interface PendingToolInteraction {

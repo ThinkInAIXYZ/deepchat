@@ -9,6 +9,8 @@
   "permission": "Requesting permission...",
   "params": "Function Parameters",
   "responseData": "Response",
+  "imagePreview": "Image Preview",
+  "imagePreviewCount": "{count} image preview(s)",
   "terminalOutput": "Terminal Output",
   "badge": {
     "rtk": "RTK"

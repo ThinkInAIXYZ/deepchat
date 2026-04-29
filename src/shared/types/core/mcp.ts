@@ -48,6 +48,16 @@ export interface MCPImageContent {
   mimeType: string
 }
 
+export type ToolCallImagePreviewSource = 'tool_output' | 'file_read' | 'screenshot' | 'mcp_image'
+
+export interface ToolCallImagePreview {
+  id: string
+  data: string
+  mimeType: string
+  title?: string
+  source: ToolCallImagePreviewSource
+}
+
 export interface MCPResourceContent {
   type: 'resource'
   resource: {
@@ -67,6 +77,7 @@ export interface MCPToolResponse {
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
+  imagePreviews?: ToolCallImagePreview[]
   requiresPermission?: boolean
   permissionRequest?: {
     toolName: string

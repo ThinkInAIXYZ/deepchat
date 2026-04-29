@@ -65,6 +65,7 @@ export interface AgentToolRuntimePort {
     ILlmProviderPresenter,
     'executeWithRateLimit' | 'generateCompletionStandalone'
   >
+  cacheImage?(data: string): Promise<string>
   createSettingsWindow(): ReturnType<IWindowPresenter['createSettingsWindow']>
   sendToWindow(
     windowId: number,

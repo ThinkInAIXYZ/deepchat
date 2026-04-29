@@ -13,6 +13,8 @@
   "response": "Выполняется...",
   "permission": "Запрос разрешения",
   "responseData": "ответ функции",
+  "imagePreview": "Предпросмотр изображения",
+  "imagePreviewCount": "{count} предпросмотров изображений",
   "success": "успех",
   "title": "Вызов инструмента",
   "terminalOutput": "Выходной терминал",

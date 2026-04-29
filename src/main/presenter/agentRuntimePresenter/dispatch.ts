@@ -4,7 +4,8 @@ import type {
   MCPToolCall,
   MCPContentItem,
   MCPResourceContent,
-  MCPToolResponse
+  MCPToolResponse,
+  ToolCallImagePreview
 } from '@shared/types/core/mcp'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { SearchResult } from '@shared/types/core/search'
@@ -33,6 +34,7 @@ import {
   extractWaitingInteraction
 } from './internalSessionEvents'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -49,6 +51,7 @@ type StagedToolResult = {
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
+  imagePreviews?: ToolCallImagePreview[]
   postHookKind: 'success' | 'failure'
 }
 
@@ -271,7 +274,8 @@ function updateToolCallBlock(
     rtkApplied?: boolean
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
-  }
+  },
+  imagePreviews?: ToolCallImagePreview[]
 ): void {
   const block = blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === toolCallId)
   if (block?.tool_call) {
@@ -284,6 +288,11 @@ function updateToolCallBlock(
     }
     if (rtkMetadata?.rtkFallbackReason) {
       block.tool_call.rtkFallbackReason = rtkMetadata.rtkFallbackReason
+    }
+    if (imagePreviews && imagePreviews.length > 0) {
+      block.tool_call.imagePreviews = imagePreviews
+    } else if (imagePreviews) {
+      delete block.tool_call.imagePreviews
     }
     block.status = isError ? 'error' : 'success'
   }
@@ -447,7 +456,8 @@ function applyFinalizedToolResults(params: {
             rtkApplied: stagedResult.rtkApplied,
             rtkMode: stagedResult.rtkMode,
             rtkFallbackReason: stagedResult.rtkFallbackReason
-          }
+          },
+      stagedResult.imagePreviews
     )
 
     if (fittedResult.isError) {
@@ -899,6 +909,15 @@ export async function executeTools(
         )
       }
 
+      const imagePreviews =
+        toolRawData.imagePreviews ??
+        (await extractToolCallImagePreviews({
+          toolName: tc.name,
+          toolArgs: tc.arguments,
+          content: toolRawData.content,
+          cacheImage: hooks?.cacheImage
+        }))
+
       if (hooks?.normalizeToolResult) {
         toolRawData = {
           ...toolRawData,
@@ -945,6 +964,7 @@ export async function executeTools(
         rtkApplied: toolRawData.rtkApplied,
         rtkMode: toolRawData.rtkMode,
         rtkFallbackReason: toolRawData.rtkFallbackReason,
+        imagePreviews,
         postHookKind: stagedIsError ? 'failure' : 'success'
       })
       executed += 1

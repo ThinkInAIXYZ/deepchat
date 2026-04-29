@@ -974,6 +974,54 @@ describe('dispatch', () => {
       expect(io.messageStore.updateAssistantContent).toHaveBeenCalled()
     })
 
+    it('stores image previews from structured tool output', async () => {
+      const tools = [makeTool('tool_image')]
+      const toolPresenter = {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        callTool: vi.fn(async (request) => ({
+          content: '[image]',
+          rawData: {
+            toolCallId: request.id,
+            content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
+            isError: false
+          }
+        })),
+        buildToolSystemPrompt: vi.fn().mockReturnValue('')
+      } as unknown as IToolPresenter
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'tool_image', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'tool_image', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(state.blocks[0].tool_call?.imagePreviews).toEqual([
+        {
+          id: 'mcp_image-1',
+          data: 'data:image/png;base64,AAAA',
+          mimeType: 'image/png',
+          source: 'mcp_image'
+        }
+      ])
+    })
+
     it('offloads large yo_browser responses into a stub', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)

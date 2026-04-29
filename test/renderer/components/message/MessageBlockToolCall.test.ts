@@ -145,6 +145,48 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.find('pre').text()).toContain('plain output')
   })
 
+  it('renders image previews below params and response only after expansion', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"path":"/tmp/screenshot.png"}',
+            response: 'vision analysis',
+            imagePreviews: [
+              {
+                id: 'file_read-1',
+                data: 'imgcache://screenshot.png',
+                mimeType: 'image/png',
+                title: 'screenshot.png',
+                source: 'file_read'
+              }
+            ]
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-image-badge"]').text()).toContain('1')
+    expect(wrapper.find('[data-testid="tool-call-image-preview"]').exists()).toBe(false)
+
+    await wrapper.find('div.inline-flex').trigger('click')
+
+    const params = wrapper.get('[data-testid="tool-call-params"]')
+    const response = wrapper.get('pre')
+    const preview = wrapper.get('[data-testid="tool-call-image-preview"]')
+    const paramsBeforeResponse = Boolean(
+      params.element.compareDocumentPosition(response.element) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    const responseBeforePreview = Boolean(
+      response.element.compareDocumentPosition(preview.element) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
+
+    expect(paramsBeforeResponse).toBe(true)
+    expect(responseBeforePreview).toBe(true)
+    expect(preview.get('img').attributes('src')).toBe('imgcache://screenshot.png')
+  })
+
   it('shows the first string parameter value as summary text', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {

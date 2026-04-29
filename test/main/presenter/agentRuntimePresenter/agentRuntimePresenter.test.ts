@@ -4228,6 +4228,61 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('returns image previews from deferred tool execution', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'view_image',
+            description: 'view image',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: 'analysis',
+        rawData: {
+          toolCallId: 'tc1',
+          content: 'analysis',
+          isError: false,
+          imagePreviews: [
+            {
+              id: 'file_read-1',
+              data: 'imgcache://preview.png',
+              mimeType: 'image/png',
+              title: 'preview.png',
+              source: 'file_read'
+            }
+          ]
+        }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'view_image',
+        params: '{}'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: false,
+          responseText: 'analysis',
+          imagePreviews: [
+            {
+              id: 'file_read-1',
+              data: 'imgcache://preview.png',
+              mimeType: 'image/png',
+              title: 'preview.png',
+              source: 'file_read'
+            }
+          ]
+        })
+      )
+    })
+
     it('publishes typed stream failure when deferred tool execution returns a terminal error', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const row = {
