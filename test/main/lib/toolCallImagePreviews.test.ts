@@ -23,7 +23,7 @@ describe('extractToolCallImagePreviews', () => {
     ])
   })
 
-  it('drops CDP screenshot preview when image caching is unavailable', async () => {
+  it('preserves CDP screenshot metadata when image caching is unavailable', async () => {
     const previews = await extractToolCallImagePreviews({
       toolName: 'cdp_send',
       toolArgs: JSON.stringify({
@@ -33,7 +33,14 @@ describe('extractToolCallImagePreviews', () => {
       content: JSON.stringify({ data: 'BBBB' })
     })
 
-    expect(previews).toEqual([])
+    expect(previews).toEqual([
+      {
+        id: 'screenshot-1',
+        mimeType: 'image/jpeg',
+        title: 'Page.captureScreenshot',
+        source: 'screenshot'
+      }
+    ])
   })
 
   it('extracts explicit image references from JSON output', async () => {
@@ -59,29 +66,41 @@ describe('extractToolCallImagePreviews', () => {
     ])
   })
 
-  it('drops previews when image caching fails', async () => {
+  it('preserves preview metadata when image caching fails', async () => {
     const cacheImage = vi.fn(async () => {
       throw new Error('cache failed')
     })
 
     const previews = await extractToolCallImagePreviews({
-      content: 'data:image/png;base64,AAAA',
+      content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
       cacheImage
     })
 
     expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
-    expect(previews).toEqual([])
+    expect(previews).toEqual([
+      {
+        id: 'mcp_image-1',
+        mimeType: 'image/png',
+        source: 'mcp_image'
+      }
+    ])
   })
 
-  it('drops previews when image caching returns the original data URL', async () => {
+  it('preserves preview metadata when image caching returns the original data URL', async () => {
     const cacheImage = vi.fn(async (data: string) => data)
 
     const previews = await extractToolCallImagePreviews({
-      content: 'data:image/png;base64,AAAA',
+      content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
       cacheImage
     })
 
     expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
-    expect(previews).toEqual([])
+    expect(previews).toEqual([
+      {
+        id: 'mcp_image-1',
+        mimeType: 'image/png',
+        source: 'mcp_image'
+      }
+    ])
   })
 })

@@ -187,6 +187,32 @@ describe('MessageBlockToolCall', () => {
     expect(preview.get('img').attributes('src')).toBe('imgcache://screenshot.png')
   })
 
+  it('sanitizes unsafe deepchat image URLs', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            response: 'vision analysis',
+            imagePreviews: [
+              {
+                id: 'unsafe-url-1',
+                data: 'javascript:alert(1)',
+                mimeType: 'deepchat/image-url',
+                title: 'unsafe.png',
+                source: 'tool_output'
+              }
+            ]
+          }
+        })
+      }
+    })
+
+    await wrapper.find('div.inline-flex').trigger('click')
+
+    expect(wrapper.get('[data-testid="tool-call-image-preview"] img').attributes('src')).toBe('')
+  })
+
   it('shows the first string parameter value as summary text', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {

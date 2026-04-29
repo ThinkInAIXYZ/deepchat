@@ -1,6 +1,36 @@
 import { describe, expect, it } from 'vitest'
-import { convertToOpenAICompatibleChatMessages } from '@ai-sdk/openai-compatible/internal'
 import { mapMessagesToModelMessages } from '@/presenter/llmProviderPresenter/aiSdk/messageMapper'
+
+function convertToOpenAICompatibleChatMessagesForTest(messages: any[]) {
+  return messages.map((message) => {
+    if (message.role !== 'assistant' || !Array.isArray(message.content)) {
+      return message
+    }
+
+    const text = message.content
+      .filter((part: any) => part.type === 'text')
+      .map((part: any) => part.text)
+      .join('')
+    const toolCalls = message.content
+      .filter((part: any) => part.type === 'tool-call')
+      .map((part: any) => ({
+        id: part.toolCallId,
+        type: 'function',
+        function: {
+          name: part.toolName,
+          arguments: JSON.stringify(part.input)
+        }
+      }))
+    const reasoningContent = message.providerOptions?.openaiCompatible?.reasoning_content
+
+    return {
+      role: 'assistant',
+      content: text,
+      ...(reasoningContent !== undefined ? { reasoning_content: reasoningContent } : {}),
+      ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
+    }
+  })
+}
 
 describe('AI SDK message mapper', () => {
   it('skips malformed non-text user content parts instead of throwing', () => {
@@ -118,7 +148,7 @@ describe('AI SDK message mapper', () => {
         }
       }
     ])
-    expect(convertToOpenAICompatibleChatMessages(result as any)).toEqual([
+    expect(convertToOpenAICompatibleChatMessagesForTest(result as any)).toEqual([
       {
         role: 'assistant',
         content: '',

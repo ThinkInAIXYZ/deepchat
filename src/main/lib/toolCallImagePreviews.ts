@@ -16,7 +16,6 @@ type ExtractToolCallImagePreviewsParams = {
 
 const DATA_IMAGE_URL_PATTERN = /data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=\r\n]+/g
 const IMAGE_URL_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|ico|avif|svg)(?:[?#].*)?$/i
-const SAFE_PREVIEW_DATA_FALLBACK = ''
 
 function parseJsonRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -90,16 +89,16 @@ function normalizeImagePayload(data: string, mimeType: string): string {
 async function cachePreviewData(
   data: string,
   cacheImage?: (data: string) => Promise<string>
-): Promise<string> {
+): Promise<string | undefined> {
   if (!cacheImage) {
-    return SAFE_PREVIEW_DATA_FALLBACK
+    return undefined
   }
 
   try {
     const cachedData = await cacheImage(data)
-    return cachedData.startsWith('data:image/') ? SAFE_PREVIEW_DATA_FALLBACK : cachedData
+    return cachedData && !cachedData.startsWith('data:image/') ? cachedData : undefined
   } catch {
-    return SAFE_PREVIEW_DATA_FALLBACK
+    return undefined
   }
 }
 
@@ -236,14 +235,16 @@ export async function extractToolCallImagePreviews(
   const seen = new Set<string>()
   for (const input of inputs) {
     const data = await cachePreviewData(input.data, params.cacheImage)
-    if (!data || seen.has(data)) {
+    if (data && seen.has(data)) {
       continue
     }
-    seen.add(data)
+    if (data) {
+      seen.add(data)
+    }
     previews.push({
       id: `${input.source}-${previews.length + 1}`,
-      data,
-      mimeType: inferMimeType(data, input.mimeType),
+      ...(data ? { data } : {}),
+      mimeType: data ? inferMimeType(data, input.mimeType) : input.mimeType,
       ...(input.title ? { title: input.title } : {}),
       source: input.source
     })

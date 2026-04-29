@@ -55,5 +55,4 @@ export const pluralRules = {
   }
 }
 
-console.log('locales', locales)
 export default locales
