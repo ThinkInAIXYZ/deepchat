@@ -32,6 +32,15 @@
       >
         {{ t('toolCall.badge.rtk') }}
       </span>
+      <span
+        v-if="hasImagePreviews"
+        data-testid="tool-call-image-badge"
+        class="inline-flex shrink-0 items-center gap-1 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300"
+        :title="t('toolCall.imagePreviewCount', { count: imagePreviews.length })"
+      >
+        <Icon icon="lucide:image" class="h-3 w-3" />
+        {{ imagePreviews.length }}
+      </span>
     </div>
 
     <!-- 详细内容区域 -->
@@ -167,6 +176,8 @@
               >{{ responseText }}</pre
             >
           </div>
+
+          <MessageBlockToolCallImagePreview v-if="hasImagePreviews" :previews="imagePreviews" />
         </div>
       </div>
     </transition>
@@ -184,6 +195,7 @@ import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import { createDeviceClient } from '@api/DeviceClient'
+import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
 
 const { t } = useI18n()
 
@@ -253,6 +265,16 @@ const paramsText = computed(() => props.block.tool_call?.params ?? '')
 const responseText = computed(() => props.block.tool_call?.response ?? '')
 const hasParams = computed(() => paramsText.value.trim().length > 0)
 const hasResponse = computed(() => responseText.value.trim().length > 0)
+const imagePreviews = computed(() =>
+  (props.block.tool_call?.imagePreviews ?? []).filter(
+    (preview) =>
+      typeof preview.data === 'string' &&
+      preview.data.trim().length > 0 &&
+      typeof preview.mimeType === 'string' &&
+      preview.mimeType.trim().length > 0
+  )
+)
+const hasImagePreviews = computed(() => imagePreviews.value.length > 0)
 
 const parsedParams = computed(() => {
   const raw = paramsText.value.trim()

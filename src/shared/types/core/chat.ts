@@ -1,5 +1,7 @@
 // Core chat types (strong-typed UI blocks)
 
+import type { ToolCallImagePreview } from './mcp'
+
 export type Message = {
   id: string
   content: UserMessageContent | AssistantMessageBlock[]
@@ -90,6 +92,7 @@ export type AssistantMessageBlock = {
     rtkApplied?: boolean
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
+    imagePreviews?: ToolCallImagePreview[]
     server_name?: string
     server_icons?: string
     server_description?: string

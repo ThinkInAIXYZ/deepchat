@@ -7,6 +7,7 @@ import path from 'path'
 import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
@@ -43,6 +44,7 @@ export interface AgentToolCallResult {
     rtkApplied?: boolean
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
+    imagePreviews?: ToolCallImagePreview[]
     requiresPermission?: boolean
     permissionRequest?: {
       toolName: string
@@ -898,13 +900,18 @@ export class AgentToolManager {
           }
 
           if (this.isImageMimeType(mimeType)) {
+            const imageResult = await this.readImageWithVisionFallback(
+              validPath,
+              mimeType,
+              conversationId,
+              options?.signal
+            )
             return {
-              content: await this.readImageWithVisionFallback(
-                validPath,
-                mimeType,
-                conversationId,
-                options?.signal
-              )
+              content: imageResult.content,
+              rawData: {
+                content: imageResult.content,
+                imagePreviews: imageResult.imagePreviews
+              }
             }
           }
 
@@ -1303,11 +1310,32 @@ export class AgentToolManager {
     mimeType: string,
     conversationId?: string,
     signal?: AbortSignal
-  ): Promise<string> {
+  ): Promise<{ content: string; imagePreviews: ToolCallImagePreview[] }> {
     throwIfAbortRequested(signal)
     const fileBuffer = await fs.promises.readFile(filePath)
     throwIfAbortRequested(signal)
     const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
+    const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
+    let previewData: string | undefined
+    if (this.runtimePort.cacheImage) {
+      try {
+        const cachedPreviewData = await this.runtimePort.cacheImage(dataUrl)
+        if (cachedPreviewData && !cachedPreviewData.startsWith('data:image/')) {
+          previewData = cachedPreviewData
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to cache image preview', { filePath, error })
+      }
+    }
+    const imagePreviews: ToolCallImagePreview[] = [
+      {
+        id: 'file_read-1',
+        ...(previewData ? { data: previewData } : {}),
+        mimeType,
+        title: path.basename(filePath),
+        source: 'file_read'
+      }
+    ]
     let visionTarget: Awaited<ReturnType<typeof this.resolveVisionTargetForConversation>>
 
     try {
@@ -1322,12 +1350,14 @@ export class AgentToolManager {
     }
 
     if (!visionTarget) {
-      return `${metadata}\n\nImage analysis unavailable because neither the current session model nor the agent vision model can analyze images.`
+      return {
+        content: `${metadata}\n\nImage analysis unavailable because neither the current session model nor the agent vision model can analyze images.`,
+        imagePreviews
+      }
     }
 
     try {
       throwIfAbortRequested(signal)
-      const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
       const messages: ChatMessage[] = [
         {
           role: 'user',
@@ -1374,15 +1404,21 @@ export class AgentToolManager {
 
       const normalized = (response || '').trim()
       if (!normalized) {
-        return `${metadata}\n\nImage analysis returned no usable description.`
+        return {
+          content: `${metadata}\n\nImage analysis returned no usable description.`,
+          imagePreviews
+        }
       }
-      return normalized
+      return { content: normalized, imagePreviews }
     } catch (error) {
       if (isAbortError(error)) {
         throw error
       }
       const message = error instanceof Error ? error.message : String(error)
-      return `${metadata}\n\nVision analysis failed, downgraded to metadata.\nerror: ${message}`
+      return {
+        content: `${metadata}\n\nVision analysis failed, downgraded to metadata.\nerror: ${message}`,
+        imagePreviews
+      }
     }
   }
 

@@ -15,7 +15,7 @@ import type {
   ToolInteractionResult,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { MCPToolCall, MCPToolResponse } from '@shared/types/core/mcp'
+import type { MCPToolCall, MCPToolResponse, ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type {
   IConfigPresenter,
@@ -86,6 +86,7 @@ import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
 import type { ProviderCatalogPort, SessionPermissionPort, SessionUiPort } from '../runtimePorts'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import {
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
@@ -105,6 +106,7 @@ type DeferredToolExecutionResult = {
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
+  imagePreviews?: ToolCallImagePreview[]
   requiresPermission?: boolean
   permissionRequest?: PendingToolInteraction['permission']
   terminalError?: string
@@ -210,6 +212,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   >
   private readonly sessionPermissionPort?: SessionPermissionPort
   private readonly sessionUiPort?: SessionUiPort
+  private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
     'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
@@ -226,6 +229,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       providerCatalogPort?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
       sessionPermissionPort?: SessionPermissionPort
       sessionUiPort?: SessionUiPort
+      cacheImage?: (data: string) => Promise<string>
       skillPresenter?: Pick<
         ISkillPresenter,
         'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
@@ -262,6 +266,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
     this.sessionUiPort = runtimePorts?.sessionUiPort
+    this.cacheImage = runtimePorts?.cacheImage
     this.skillPresenter = runtimePorts?.skillPresenter
 
     const recovered = this.messageStore.recoverPendingMessages()
@@ -599,6 +604,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         extraReserveTokens: toolReserveTokens,
         supportsVision,
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+        preserveEmptyInterleavedReasoning:
+          interleavedReasoning.preserveEmptyReasoningContent === true,
         newUserContent: normalizedInput,
         signal: preStreamAbortSignal
       })
@@ -662,7 +669,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           historyRecords,
           extraReserveTokens: toolReserveTokens,
-          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
+          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+          preserveEmptyInterleavedReasoning:
+            interleavedReasoning.preserveEmptyReasoningContent === true
         }
       )
 
@@ -959,7 +968,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             {
               rtkApplied: execution.rtkApplied,
               rtkMode: execution.rtkMode,
-              rtkFallbackReason: execution.rtkFallbackReason
+              rtkFallbackReason: execution.rtkFallbackReason,
+              imagePreviews: execution.imagePreviews
             }
           )
           resumeBudgetToolCall = {
@@ -1913,7 +1923,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               content: tool.content,
               isError: tool.isError,
               abortSignal: abortController.signal
-            })
+            }),
+          cacheImage: this.cacheImage
         },
         io: {
           sessionId,
@@ -2248,6 +2259,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         extraReserveTokens: toolReserveTokens,
         supportsVision: this.supportsVision(state.providerId, state.modelId),
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+        preserveEmptyInterleavedReasoning:
+          interleavedReasoning.preserveEmptyReasoningContent === true,
         signal: preStreamAbortSignal
       })
       this.throwIfAbortRequested(preStreamAbortSignal)
@@ -2264,7 +2277,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           fallbackProtectedTurnCount: 1,
           extraReserveTokens: toolReserveTokens,
-          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
+          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+          preserveEmptyInterleavedReasoning:
+            interleavedReasoning.preserveEmptyReasoningContent === true
         }
       )
       if (budgetToolCall?.id && budgetToolCall.name) {
@@ -3231,10 +3246,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const portraitInterleaved = portrait?.interleaved === true
     const reasoningSupported =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
+    const preserveReasoningContent =
+      explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved
 
     return {
-      preserveReasoningContent:
-        explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved,
+      preserveReasoningContent,
+      preserveEmptyReasoningContent:
+        preserveReasoningContent && modelId.toLowerCase().includes('deepseek'),
       forcedBySessionSetting,
       portraitInterleaved,
       reasoningSupported,
@@ -3788,6 +3806,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       rtkApplied?: boolean
       rtkMode?: 'rewrite' | 'direct' | 'bypass'
       rtkFallbackReason?: string
+      imagePreviews?: ToolCallImagePreview[]
     }
   ): void {
     const toolBlock = blocks.find(
@@ -3803,6 +3822,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     if (rtkMetadata?.rtkFallbackReason) {
       toolBlock.tool_call.rtkFallbackReason = rtkMetadata.rtkFallbackReason
+    }
+    if (rtkMetadata?.imagePreviews && rtkMetadata.imagePreviews.length > 0) {
+      toolBlock.tool_call.imagePreviews = rtkMetadata.imagePreviews
+    } else if (rtkMetadata?.imagePreviews) {
+      delete toolBlock.tool_call.imagePreviews
     }
     toolBlock.status = isError ? 'error' : 'success'
   }
@@ -4025,6 +4049,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           subagentToolResult.subagentFinal
         )
       }
+      const imagePreviews =
+        rawData.imagePreviews ??
+        (await extractToolCallImagePreviews({
+          toolName,
+          toolArgs: toolCall.params || '{}',
+          content: rawData.content,
+          cacheImage: this.cacheImage
+        }))
       const normalizedContent = await this.normalizeToolResultContent({
         sessionId,
         toolCallId: toolCall.id || '',
@@ -4053,7 +4085,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         offloadPath: prepared.offloadPath,
         rtkApplied: rawData.rtkApplied,
         rtkMode: rawData.rtkMode,
-        rtkFallbackReason: rawData.rtkFallbackReason
+        rtkFallbackReason: rawData.rtkFallbackReason,
+        imagePreviews
       }
     } catch (error) {
       const errorText = error instanceof Error ? error.message : String(error)
@@ -4461,6 +4494,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
+    preserveEmptyInterleavedReasoning?: boolean
     signal?: AbortSignal
   }): Promise<SessionSummaryState> {
     const intent = await this.compactionService.prepareForResumeTurn(params)

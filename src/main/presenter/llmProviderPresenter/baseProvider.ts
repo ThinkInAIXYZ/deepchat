@@ -235,7 +235,8 @@ export abstract class BaseLLMProvider {
    * 获取提供商的模型列表
    * @returns 模型列表
    */
-  public async fetchModels(): Promise<MODEL_META[]> {
+  public async fetchModels(options?: { suppressErrors?: boolean }): Promise<MODEL_META[]> {
+    const suppressErrors = options?.suppressErrors ?? true
     try {
       return this.fetchProviderModels().then((models) => {
         logger.info(
@@ -260,6 +261,9 @@ export abstract class BaseLLMProvider {
         `[Provider] fetchModels: Failed to fetch models for provider "${this.provider.id}":`,
         e
       )
+      if (!suppressErrors) {
+        throw e
+      }
       if (!this.models) {
         this.models = []
       }
@@ -276,7 +280,7 @@ export abstract class BaseLLMProvider {
     logger.info(
       `[Provider] refreshModels: force refreshing models for provider "${this.provider.id}" (${this.provider.name})`
     )
-    await this.fetchModels()
+    await this.fetchModels({ suppressErrors: false })
     await this.autoEnableModelsIfNeeded()
     logger.info(
       `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
