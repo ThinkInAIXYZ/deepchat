@@ -154,9 +154,7 @@ export async function buildSystemEnvPrompt(
     `Is directory a git repo: ${isGitRepository(workdir) ? 'yes' : 'no'}`,
     `Platform: ${platform}`,
     `Today's date: ${now.toDateString()}`,
-    '</env>',
-    '<files>',
-    '</files>'
+    '</env>'
   ]
 
   if (agentsContent.trim().length > 0) {
