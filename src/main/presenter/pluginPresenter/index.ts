@@ -62,6 +62,17 @@ type OfficialPluginCatalogEntry = {
   manifest: DeepChatPluginManifest
 }
 
+type RuntimePermissionState = 'granted' | 'missing' | 'unknown'
+
+type RuntimePermissionCheckResult = {
+  accessibility: RuntimePermissionState
+  screenRecording: RuntimePermissionState
+  error?: string
+  command?: string
+  stdout?: string
+  stderr?: string
+}
+
 type SkillContributionPort = ISkillPresenter & {
   registerPluginSkill?: (input: {
     ownerPluginId: string
@@ -259,6 +270,9 @@ export class PluginPresenter {
         case 'runtime.openPermissionGuide':
           await this.openRuntimeGuide(pluginId)
           return { ok: true }
+        case 'runtime.openProject':
+          await shell.openExternal('https://github.com/trycua/cua')
+          return { ok: true }
         case 'runtime.uninstallHelper':
           return {
             ok: false,
@@ -269,6 +283,11 @@ export class PluginPresenter {
           throw new Error(`Unsupported plugin action: ${actionId}`)
       }
     } catch (error) {
+      console.warn('[PluginHost] Plugin action failed:', {
+        pluginId,
+        actionId,
+        error
+      })
       return this.errorResult(error)
     }
   }
@@ -573,32 +592,159 @@ export class PluginPresenter {
     }
   }
 
-  private async checkRuntimePermissions(pluginId: string) {
+  private async checkRuntimePermissions(pluginId: string): Promise<RuntimePermissionCheckResult> {
     const runtime = await this.refreshRuntime(pluginId)
     if (!runtime.command) {
+      console.warn('[PluginHost] Runtime permission check skipped because runtime is missing:', {
+        pluginId,
+        runtimeId: runtime.runtimeId,
+        state: runtime.state,
+        lastError: runtime.lastError
+      })
       return {
         accessibility: 'unknown',
         screenRecording: 'unknown',
-        error: 'missingRuntime'
+        error: runtime.lastError || 'Runtime is missing'
       }
     }
 
     try {
-      const { stdout, stderr } = await execFileAsync(runtime.command, ['check_permissions'], {
+      return await this.runRuntimePermissionProbe(pluginId, runtime.command)
+    } catch (probeError) {
+      console.warn('[PluginHost] Runtime permission probe failed, falling back to tool call:', {
+        pluginId,
+        command: runtime.command,
+        error: probeError
+      })
+      return await this.runRuntimePermissionToolFallback(pluginId, runtime.command, probeError)
+    }
+  }
+
+  private async runRuntimePermissionProbe(
+    pluginId: string,
+    command: string
+  ): Promise<RuntimePermissionCheckResult> {
+    const tempRoot = fs.mkdtempSync(path.join(app.getPath('temp'), 'deepchat-cua-permissions-'))
+    const outputPath = path.join(tempRoot, 'status.json')
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        command,
+        ['deepchat-permission-probe', '--output', outputPath, '--prompt'],
+        {
+          timeout: 15000,
+          windowsHide: true
+        }
+      )
+      if (!fs.existsSync(outputPath)) {
+        throw new Error('Permission probe did not write a status file')
+      }
+
+      const status = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as {
+        accessibility?: unknown
+        screen_recording?: unknown
+        screenRecording?: unknown
+      }
+      const result: RuntimePermissionCheckResult = {
+        accessibility: this.toPermissionState(status.accessibility),
+        screenRecording: this.toPermissionState(status.screen_recording ?? status.screenRecording),
+        command
+      }
+      if (stdout.trim()) {
+        result.stdout = this.truncateOutput(stdout)
+      }
+      if (stderr.trim()) {
+        result.stderr = this.truncateOutput(stderr)
+      }
+      console.info('[PluginHost] Runtime permission probe completed:', {
+        pluginId,
+        command,
+        accessibility: result.accessibility,
+        screenRecording: result.screenRecording
+      })
+      return result
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true })
+    }
+  }
+
+  private async runRuntimePermissionToolFallback(
+    pluginId: string,
+    command: string,
+    probeError: unknown
+  ): Promise<RuntimePermissionCheckResult> {
+    try {
+      const { stdout, stderr } = await execFileAsync(command, ['check_permissions'], {
         timeout: 10000,
         windowsHide: true
       })
+      const output = `${stdout}\n${stderr}`
       return {
-        accessibility: this.parsePermissionState(`${stdout}\n${stderr}`, 'Accessibility'),
-        screenRecording: this.parsePermissionState(`${stdout}\n${stderr}`, 'Screen Recording')
+        accessibility: this.parsePermissionState(output, 'Accessibility'),
+        screenRecording: this.parsePermissionState(output, 'Screen Recording'),
+        command,
+        stdout: this.truncateOutput(stdout),
+        stderr: this.truncateOutput(stderr),
+        error: `Permission probe failed; used fallback. ${this.describeError(probeError)}`
       }
     } catch (error) {
+      console.warn('[PluginHost] Runtime permission fallback failed:', {
+        pluginId,
+        command,
+        error
+      })
       return {
         accessibility: 'unknown',
         screenRecording: 'unknown',
-        error: error instanceof Error ? error.message : String(error)
+        command,
+        error: `Permission check failed. Probe: ${this.describeError(probeError)}. Fallback: ${this.describeExecError(error)}`,
+        stdout: this.extractExecOutput(error, 'stdout'),
+        stderr: this.extractExecOutput(error, 'stderr')
       }
     }
+  }
+
+  private toPermissionState(value: unknown): RuntimePermissionState {
+    if (value === true) {
+      return 'granted'
+    }
+    if (value === false) {
+      return 'missing'
+    }
+    return 'unknown'
+  }
+
+  private describeError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error)
+  }
+
+  private describeExecError(error: unknown): string {
+    const message = this.describeError(error)
+    const stdout = this.extractExecOutput(error, 'stdout')
+    const stderr = this.extractExecOutput(error, 'stderr')
+    const parts = [message]
+    if (stdout) {
+      parts.push(`stdout: ${stdout}`)
+    }
+    if (stderr) {
+      parts.push(`stderr: ${stderr}`)
+    }
+    return parts.join(' | ')
+  }
+
+  private extractExecOutput(error: unknown, key: 'stdout' | 'stderr'): string | undefined {
+    if (!error || typeof error !== 'object') {
+      return undefined
+    }
+    const value = (error as { stdout?: unknown; stderr?: unknown })[key]
+    if (typeof value !== 'string' || !value.trim()) {
+      return undefined
+    }
+    return this.truncateOutput(value)
+  }
+
+  private truncateOutput(value: string): string {
+    const normalized = value.trim()
+    return normalized.length > 1200 ? `${normalized.slice(0, 1200)}...` : normalized
   }
 
   private parsePermissionState(output: string, label: string): 'granted' | 'missing' | 'unknown' {

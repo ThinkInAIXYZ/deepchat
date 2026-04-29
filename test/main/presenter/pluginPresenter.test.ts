@@ -10,4 +10,11 @@ describe('PluginPresenter', () => {
     expect(presenterSource).toContain('../preload/pluginSettings.mjs')
     expect(presenterSource).not.toContain('../preload/plugin-settings-preload.mjs')
   })
+
+  it('uses the CUA permission probe for runtime checks', async () => {
+    const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
+
+    expect(presenterSource).toContain('deepchat-permission-probe')
+    expect(presenterSource).toContain('Runtime permission probe failed')
+  })
 })

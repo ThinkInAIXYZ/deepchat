@@ -55,6 +55,7 @@ const setup = async (options?: {
   disabledAgentTools?: string[]
   showSubagentToggle?: boolean
   subagentEnabled?: boolean
+  pluginEnabled?: boolean
 }) => {
   vi.resetModules()
   let skillSessionChangedHandler:
@@ -83,11 +84,18 @@ const setup = async (options?: {
     }
   }
 
+  const pluginTools = options?.pluginEnabled
+    ? [buildTool('check_permissions', 'cua-driver', 'mcp')]
+    : []
   const mcpStore = reactive({
     enabledServers: [{ name: 'demo-server', icons: 'D', enabled: true }],
+    enabledPluginServers: options?.pluginEnabled
+      ? [{ name: 'cua-driver', icons: 'plugin', descriptions: 'CUA Driver', enabled: true }]
+      : [],
     enabledServerCount: 1,
     tools: [buildTool('mcp_tool', 'demo-server', 'mcp')],
-    visibleTools: [buildTool('mcp_tool', 'demo-server', 'mcp')]
+    visibleTools: [buildTool('mcp_tool', 'demo-server', 'mcp')],
+    pluginTools
   })
 
   const sessionStore = reactive({
@@ -215,6 +223,7 @@ const setup = async (options?: {
           'chat.input.tools.badge': 'Tools',
           'chat.input.tools.title': 'Tools',
           'chat.input.tools.mcpSection': 'MCP',
+          'chat.input.tools.pluginSection': 'Plugins',
           'chat.input.tools.loading': 'Loading tools...',
           'chat.input.tools.builtinEmpty': 'No built-in tools available',
           'chat.input.tools.groups.agentFilesystem': 'Agent Filesystem',
@@ -342,6 +351,21 @@ describe('McpIndicator', () => {
     expect(buttons[0].text()).toContain('MCP 1')
     expect(wrapper.text()).not.toContain('Tools')
     expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+  })
+
+  it('renders plugin-owned MCP tools in a separate plugin section', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'acp-coder',
+      pluginEnabled: true
+    })
+
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].text()).toContain('MCP 1')
+    expect(wrapper.text()).toContain('MCP')
+    expect(wrapper.text()).toContain('demo-server')
+    expect(wrapper.text()).toContain('Plugins')
+    expect(wrapper.text()).toContain('CUA Driver')
   })
 
   it('updates draft disabled tools for deepchat new thread mode', async () => {

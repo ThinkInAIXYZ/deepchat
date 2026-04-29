@@ -221,6 +221,10 @@ export const useMcpStore = defineStore('mcp', () => {
     tools.value.filter((tool) => isVisibleServerName(tool.server.name))
   )
 
+  const pluginTools = computed(() =>
+    tools.value.filter((tool) => isPluginOwnedServerName(tool.server.name))
+  )
+
   const visibleResources = computed(() =>
     resources.value.filter((resource) => isVisibleServerName(resource.client.name))
   )
@@ -394,15 +398,13 @@ export const useMcpStore = defineStore('mcp', () => {
   )
   // ==================== 计算属性 ====================
   // 服务器列表
-  const serverList = computed(() => {
-    const servers = Object.entries(config.value.mcpServers ?? {})
-      .filter(([, serverConfig]) => !isPluginOwnedServerConfig(serverConfig))
-      .map(([name, serverConfig]) => ({
-        name,
-        ...serverConfig,
-        isRunning: serverStatuses.value[name] || false,
-        isLoading: serverLoadingStates.value[name] || false
-      }))
+  const allServerList = computed(() => {
+    const servers = Object.entries(config.value.mcpServers ?? {}).map(([name, serverConfig]) => ({
+      name,
+      ...serverConfig,
+      isRunning: serverStatuses.value[name] || false,
+      isLoading: serverLoadingStates.value[name] || false
+    }))
 
     // 按照特定顺序排序：
     // 1. 启用的inmemory服务
@@ -420,8 +422,17 @@ export const useMcpStore = defineStore('mcp', () => {
       return 0 // 保持原有顺序
     })
   })
+  const serverList = computed(() =>
+    allServerList.value.filter((server) => !isPluginOwnedServerConfig(server))
+  )
+  const pluginServerList = computed(() =>
+    allServerList.value.filter((server) => isPluginOwnedServerConfig(server))
+  )
   const enabledServers = computed(() =>
     config.value.mcpEnabled ? serverList.value.filter((server) => server.enabled) : []
+  )
+  const enabledPluginServers = computed(() =>
+    config.value.mcpEnabled ? pluginServerList.value.filter((server) => server.enabled) : []
   )
   const enabledServerCount = computed(() => enabledServers.value.length)
 
@@ -1042,6 +1053,7 @@ export const useMcpStore = defineStore('mcp', () => {
     configLoading,
     tools,
     visibleTools,
+    pluginTools,
     toolsLoading,
     toolsError,
     toolsErrorMessage,
@@ -1058,7 +1070,9 @@ export const useMcpStore = defineStore('mcp', () => {
 
     // 计算属性
     serverList,
+    pluginServerList,
     enabledServers,
+    enabledPluginServers,
     enabledServerCount,
     toolCount,
     hasTools,

@@ -193,7 +193,9 @@ describe('useMcpStore toggleServer rollback', () => {
     }
 
     expect(store.serverList.map((server) => server.name)).toEqual(['demo'])
+    expect(store.pluginServerList.map((server) => server.name)).toEqual(['cua-driver'])
     expect(store.enabledServers.map((server) => server.name)).toEqual(['demo'])
+    expect(store.enabledPluginServers.map((server) => server.name)).toEqual(['cua-driver'])
     expect(store.enabledServerCount).toBe(1)
     expect(store.config.mcpServers['cua-driver']).toBeDefined()
   })

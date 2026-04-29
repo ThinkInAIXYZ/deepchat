@@ -109,6 +109,34 @@ h1 {
   font-size: 13px;
 }
 
+.permission-pill {
+  width: fit-content;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.permission-ok {
+  border-color: #16a34a;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.permission-denied {
+  border-color: #dc2626;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.permission-muted {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #475569;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -145,6 +173,22 @@ button.danger:hover {
   font-size: 13px;
 }
 
+.source {
+  margin: -2px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.source a {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.source a:hover {
+  text-decoration: underline;
+}
+
 @media (prefers-color-scheme: dark) {
   .panel {
     border-color: #3f3f46;
@@ -157,7 +201,8 @@ button.danger:hover {
 
   .row span,
   .message,
-  .eyebrow {
+  .eyebrow,
+  .source {
     color: #a1a1aa;
   }
 
@@ -169,5 +214,25 @@ button.danger:hover {
 
   .state-ok {
     color: #86efac;
+  }
+
+  .permission-ok {
+    background: rgba(22, 163, 74, 0.16);
+    color: #86efac;
+  }
+
+  .permission-denied {
+    background: rgba(220, 38, 38, 0.16);
+    color: #fca5a5;
+  }
+
+  .permission-muted {
+    border-color: #52525b;
+    background: #27272a;
+    color: #d4d4d8;
+  }
+
+  .source a {
+    color: #93c5fd;
   }
 }

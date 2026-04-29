@@ -130,7 +130,7 @@
             </div>
           </div>
 
-          <div class="px-3 py-3">
+          <div :class="enabledPluginServers.length > 0 ? 'border-b px-3 py-3' : 'px-3 py-3'">
             <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {{ t('chat.input.tools.mcpSection') }}
             </div>
@@ -158,6 +158,33 @@
               </div>
             </div>
           </div>
+
+          <div v-if="enabledPluginServers.length > 0" class="px-3 py-3">
+            <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {{ t('chat.input.tools.pluginSection') }}
+            </div>
+
+            <div class="space-y-1">
+              <div
+                v-for="server in enabledPluginServers"
+                :key="server.name"
+                class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+              >
+                <Icon
+                  v-if="server.icons === 'plugin'"
+                  icon="lucide:puzzle"
+                  class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                />
+                <span v-else class="shrink-0">{{ server.icons }}</span>
+                <span class="min-w-0 flex-1 truncate" :title="getPluginServerLabel(server)">
+                  {{ getPluginServerLabel(server) }}
+                </span>
+                <span class="shrink-0 text-muted-foreground">
+                  {{ getPluginServerToolsCount(server.name) }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </template>
 
@@ -180,23 +207,60 @@
           </div>
         </div>
 
-        <div v-if="enabledServers.length === 0" class="px-3 py-4 text-xs text-muted-foreground">
+        <div
+          v-if="enabledServers.length === 0 && enabledPluginServers.length === 0"
+          class="px-3 py-4 text-xs text-muted-foreground"
+        >
           {{ t('chat.input.mcp.empty') }}
         </div>
 
-        <div v-else class="max-h-64 space-y-1 overflow-y-auto px-2 py-2">
-          <div
-            v-for="server in enabledServers"
-            :key="server.name"
-            class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
-          >
-            <span class="shrink-0">{{ server.icons }}</span>
-            <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
-              {{ getServerLabel(server.name) }}
-            </span>
-            <span class="shrink-0 text-muted-foreground">
-              {{ getServerToolsCount(server.name) }}
-            </span>
+        <div v-else class="max-h-64 space-y-3 overflow-y-auto px-2 py-2">
+          <div v-if="enabledServers.length > 0" class="space-y-1">
+            <div
+              v-if="enabledPluginServers.length > 0"
+              class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              {{ t('chat.input.tools.mcpSection') }}
+            </div>
+            <div
+              v-for="server in enabledServers"
+              :key="server.name"
+              class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+            >
+              <span class="shrink-0">{{ server.icons }}</span>
+              <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
+                {{ getServerLabel(server.name) }}
+              </span>
+              <span class="shrink-0 text-muted-foreground">
+                {{ getServerToolsCount(server.name) }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="enabledPluginServers.length > 0" class="space-y-1">
+            <div
+              class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              {{ t('chat.input.tools.pluginSection') }}
+            </div>
+            <div
+              v-for="server in enabledPluginServers"
+              :key="server.name"
+              class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+            >
+              <Icon
+                v-if="server.icons === 'plugin'"
+                icon="lucide:puzzle"
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
+              <span v-else class="shrink-0">{{ server.icons }}</span>
+              <span class="min-w-0 flex-1 truncate" :title="getPluginServerLabel(server)">
+                {{ getPluginServerLabel(server) }}
+              </span>
+              <span class="shrink-0 text-muted-foreground">
+                {{ getPluginServerToolsCount(server.name) }}
+              </span>
+            </div>
           </div>
         </div>
       </template>
@@ -309,6 +373,7 @@ let latestLoadToken = 0
 let unsubscribeSkillSessionChanged: (() => void) | null = null
 
 const enabledServers = computed(() => mcpStore.enabledServers)
+const enabledPluginServers = computed(() => mcpStore.enabledPluginServers)
 const enabledServerCount = computed(() => mcpStore.enabledServerCount)
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
 const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
@@ -468,6 +533,14 @@ const getServerLabel = (serverName: string) => {
 
 const getServerToolsCount = (serverName: string) => {
   return mcpStore.visibleTools.filter((tool) => tool.server.name === serverName).length
+}
+
+const getPluginServerLabel = (server: { name: string; descriptions?: string }) => {
+  return server.descriptions || getServerLabel(server.name)
+}
+
+const getPluginServerToolsCount = (serverName: string) => {
+  return mcpStore.pluginTools.filter((tool) => tool.server.name === serverName).length
 }
 
 const setToolsPending = (toolNames: string[], pending: boolean) => {

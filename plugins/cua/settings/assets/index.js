@@ -5,6 +5,7 @@ const runtimeCommandNode = document.getElementById('runtime-command')
 const accessibilityNode = document.getElementById('permission-accessibility')
 const screenRecordingNode = document.getElementById('permission-screen-recording')
 const messageNode = document.getElementById('message')
+const projectLinkNode = document.getElementById('project-link')
 
 function setText(node, value) {
   if (node) {
@@ -22,6 +23,28 @@ function setState(enabled) {
   }
   stateNode.textContent = enabled ? 'Enabled' : 'Disabled'
   stateNode.className = enabled ? 'state state-ok' : 'state state-muted'
+}
+
+function setPermissionStatus(node, value) {
+  if (!node) {
+    return
+  }
+
+  const normalized = String(value || '').toLowerCase()
+  if (normalized === 'granted') {
+    node.textContent = 'Granted'
+    node.className = 'permission-pill permission-ok'
+    return
+  }
+
+  if (normalized === 'missing' || normalized === 'denied' || normalized === 'deny') {
+    node.textContent = 'Denied'
+    node.className = 'permission-pill permission-denied'
+    return
+  }
+
+  node.textContent = 'Unavailable'
+  node.className = 'permission-pill permission-muted'
 }
 
 function getPluginApi() {
@@ -46,12 +69,18 @@ async function checkPermissions() {
   setMessage('Checking permissions...')
   const result = await getPluginApi().invokeAction('runtime.checkPermissions')
   if (!result.ok || !result.data) {
+    console.error('[CUA Settings] Permission check failed:', result)
     setMessage(result.error || 'Permission check failed')
     return
   }
 
-  setText(accessibilityNode, result.data.accessibility)
-  setText(screenRecordingNode, result.data.screenRecording)
+  setPermissionStatus(accessibilityNode, result.data.accessibility)
+  setPermissionStatus(screenRecordingNode, result.data.screenRecording)
+  if (result.data.error) {
+    console.warn('[CUA Settings] Permission check returned diagnostics:', result.data)
+    setMessage(result.data.error)
+    return
+  }
   setMessage('')
 }
 
@@ -60,6 +89,7 @@ document.getElementById('check')?.addEventListener('click', async () => {
     await refreshStatus()
     await checkPermissions()
   } catch (error) {
+    console.error('[CUA Settings] Check failed:', error)
     setMessage(error instanceof Error ? error.message : String(error))
   }
 })
@@ -69,6 +99,18 @@ document.getElementById('guide')?.addEventListener('click', async () => {
     const result = await getPluginApi().invokeAction('runtime.openPermissionGuide')
     if (!result.ok) {
       setMessage(result.error || 'Failed to open permission guide')
+    }
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : String(error))
+  }
+})
+
+projectLinkNode?.addEventListener('click', async (event) => {
+  event.preventDefault()
+  try {
+    const result = await getPluginApi().invokeAction('runtime.openProject')
+    if (!result.ok) {
+      setMessage(result.error || 'Failed to open project')
     }
   } catch (error) {
     setMessage(error instanceof Error ? error.message : String(error))

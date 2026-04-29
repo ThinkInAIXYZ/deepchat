@@ -46,7 +46,7 @@ export function useAgentMcpData() {
   })
 
   const tools = computed(() => {
-    if (!isAcpMode.value) return mcpStore.visibleTools
+    if (!isAcpMode.value) return [...mcpStore.visibleTools, ...mcpStore.pluginTools]
     const set = selectionSet.value
     if (!set) return []
     return mcpStore.visibleTools.filter((tool) => set.has(tool.server.name))

@@ -224,6 +224,16 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     }
 
+    for (const tool of mcpStore.pluginTools) {
+      items.push({
+        id: `plugin-tool:${tool.server.name}:${tool.function.name ?? ''}`,
+        category: 'tool',
+        label: tool.function.name ?? '',
+        description: tool.function.description || '',
+        payload: tool
+      })
+    }
+
     return sortSlashSuggestionItems(items)
   })
 
