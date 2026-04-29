@@ -12,8 +12,9 @@ import {
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
   chatStopStreamRoute,
-  computerUseGetStatusRoute,
-  computerUseOpenPermissionGuideRoute,
+  pluginsGetRoute,
+  pluginsInstallRoute,
+  pluginsInvokeActionRoute,
   providersListModelsRoute,
   providersListSummariesRoute,
   providersTestConnectionRoute,
@@ -41,7 +42,6 @@ describe('main kernel contracts', () => {
         'browser.attachCurrentWindow',
         'chat.sendMessage',
         'chat.steerActiveTurn',
-        'computerUse.getStatus',
         'config.resolveDeepChatAgentConfig',
         'dialog.error',
         'dialog.respond',
@@ -54,6 +54,11 @@ describe('main kernel contracts', () => {
         'mcp.readResource',
         'mcp.submitSamplingDecision',
         'mcp.updateServer',
+        'plugins.get',
+        'plugins.install',
+        'plugins.installFromFile',
+        'plugins.invokeAction',
+        'plugins.openOfficialRelease',
         'providers.getAcpProcessConfigOptions',
         'providers.listSummaries',
         'providers.pullOllamaModel',
@@ -116,64 +121,70 @@ describe('main kernel contracts', () => {
     expect(new Set(routeKeys).size).toBe(routeKeys.length)
   })
 
-  it('validates computer use route payloads through concrete schemas', () => {
+  it('validates plugin route payloads through concrete schemas', () => {
     expect(
-      computerUseOpenPermissionGuideRoute.input.parse({
-        target: 'screenRecording'
+      pluginsInstallRoute.input.parse({
+        pluginId: 'com.deepchat.plugins.fixture',
+        source: 'deepchat-official'
       })
     ).toEqual({
-      target: 'screenRecording'
+      pluginId: 'com.deepchat.plugins.fixture',
+      source: 'deepchat-official'
     })
 
     expect(() =>
-      computerUseOpenPermissionGuideRoute.input.parse({
-        target: 'invalidTarget'
+      pluginsInstallRoute.input.parse({
+        pluginId: 'com.deepchat.plugins.fixture',
+        source: 'local-file'
       })
     ).toThrow()
 
     expect(
-      computerUseGetStatusRoute.output.parse({
-        status: {
-          platform: 'darwin',
-          available: true,
+      pluginsGetRoute.output.parse({
+        plugin: {
+          id: 'com.deepchat.plugins.fixture',
+          name: 'Fixture Runtime',
+          version: '1.0.0',
+          publisher: 'DeepChat',
+          installed: true,
           enabled: true,
-          arch: 'arm64',
-          helperPath: '/tmp/DeepChat Computer Use.app',
-          permissions: {
-            accessibility: 'granted',
-            screenRecording: 'missing'
-          },
-          mcpServer: 'running'
+          trusted: true,
+          trustState: 'trusted',
+          official: true,
+          capabilities: ['runtime.manage'],
+          runtime: {
+            runtimeId: 'fixture-runtime',
+            displayName: 'Fixture Runtime',
+            state: 'installed',
+            command: '/usr/local/bin/fixture-runtime'
+          }
         }
       })
     ).toEqual({
-      status: {
-        platform: 'darwin',
-        available: true,
+      plugin: {
+        id: 'com.deepchat.plugins.fixture',
+        name: 'Fixture Runtime',
+        version: '1.0.0',
+        publisher: 'DeepChat',
+        installed: true,
         enabled: true,
-        arch: 'arm64',
-        helperPath: '/tmp/DeepChat Computer Use.app',
-        permissions: {
-          accessibility: 'granted',
-          screenRecording: 'missing'
-        },
-        mcpServer: 'running'
+        trusted: true,
+        trustState: 'trusted',
+        official: true,
+        capabilities: ['runtime.manage'],
+        runtime: {
+          runtimeId: 'fixture-runtime',
+          displayName: 'Fixture Runtime',
+          state: 'installed',
+          command: '/usr/local/bin/fixture-runtime'
+        }
       }
     })
 
     expect(() =>
-      computerUseGetStatusRoute.output.parse({
-        status: {
-          platform: 'darwin',
-          available: true,
-          enabled: true,
-          arch: 'arm64',
-          permissions: {
-            accessibility: 'granted',
-            screenRecording: 'allowed'
-          },
-          mcpServer: 'running'
-        }
+      pluginsInvokeActionRoute.input.parse({
+        pluginId: '',
+        actionId: 'runtime.getStatus'
       })
     ).toThrow()
   })

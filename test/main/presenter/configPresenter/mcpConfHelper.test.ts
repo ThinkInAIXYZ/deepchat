@@ -139,25 +139,45 @@ describe('McpConfHelper', () => {
     expect(mcpStore.get('mcpServers')['deepchat/apple-server']).toBeUndefined()
   })
 
-  it('removes the Computer Use managed server on unsupported platforms', async () => {
-    const { McpConfHelper } = await loadHelper('win32')
+  it('removes legacy computer use MCP server configs', async () => {
+    const { McpConfHelper } = await loadHelper('darwin')
     const helper = new McpConfHelper()
     const mcpStore = (helper as any).mcpStore
+    const legacyServer = {
+      command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
+      args: ['mcp'],
+      env: {},
+      descriptions: 'Computer Use',
+      icons: 'computer-use',
+      autoApprove: [],
+      disable: false,
+      type: 'stdio',
+      enabled: true
+    }
 
     mcpStore.set('mcpServers', {
-      'deepchat/computer-use': {
+      'deepchat/computer-use': legacyServer,
+      'deepchat-inmemory/computer-use': legacyServer,
+      demo: {
+        command: 'demo',
+        args: [],
+        env: {},
+        descriptions: 'Demo',
+        icons: 'D',
+        autoApprove: [],
+        disable: false,
         type: 'stdio',
-        command: '/helper/cua-driver',
-        args: ['mcp'],
-        enabled: true,
-        source: 'deepchat',
-        sourceId: 'computer-use'
+        enabled: true
       }
     })
+    mcpStore.set('removedBuiltInServers', ['deepchat/computer-use', 'demo'])
 
     const servers = await helper.getMcpServers()
 
     expect(servers['deepchat/computer-use']).toBeUndefined()
+    expect(servers['deepchat-inmemory/computer-use']).toBeUndefined()
+    expect(servers.demo).toBeDefined()
+    expect(mcpStore.get('removedBuiltInServers')).toEqual(['demo'])
   })
 
   it('migrates legacy builtin knowledge configs out of MCP env', async () => {

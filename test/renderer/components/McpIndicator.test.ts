@@ -86,7 +86,8 @@ const setup = async (options?: {
   const mcpStore = reactive({
     enabledServers: [{ name: 'demo-server', icons: 'D', enabled: true }],
     enabledServerCount: 1,
-    tools: [buildTool('mcp_tool', 'demo-server', 'mcp')]
+    tools: [buildTool('mcp_tool', 'demo-server', 'mcp')],
+    visibleTools: [buildTool('mcp_tool', 'demo-server', 'mcp')]
   })
 
   const sessionStore = reactive({

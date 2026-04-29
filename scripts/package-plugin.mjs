@@ -14,7 +14,11 @@ function parseArgs(argv) {
   const args = {
     validateOnly: false,
     outDir: path.resolve('dist', 'plugins'),
-    pluginDir: null
+    pluginDir: null,
+    releaseVersionFromRoot: false,
+    version: null,
+    targetPlatform: process.env.TARGET_PLATFORM ?? null,
+    targetArch: process.env.TARGET_ARCH ?? process.arch
   }
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -28,6 +32,25 @@ function parseArgs(argv) {
       index += 1
       continue
     }
+    if (arg === '--release-version-from-root') {
+      args.releaseVersionFromRoot = true
+      continue
+    }
+    if (arg === '--version') {
+      args.version = argv[index + 1] || ''
+      index += 1
+      continue
+    }
+    if (arg === '--target-platform') {
+      args.targetPlatform = argv[index + 1] || ''
+      index += 1
+      continue
+    }
+    if (arg === '--target-arch') {
+      args.targetArch = argv[index + 1] || ''
+      index += 1
+      continue
+    }
     if (!args.pluginDir) {
       args.pluginDir = path.resolve(arg)
     }
@@ -37,6 +60,10 @@ function parseArgs(argv) {
     throw new Error('Usage: node scripts/package-plugin.mjs [--validate] [--out <dir>] <pluginDir>')
   }
   return args
+}
+
+function readRootPackageVersion() {
+  return JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')).version
 }
 
 function assertSafeRelativePath(relativePath, label) {
@@ -101,7 +128,14 @@ function validateManifest(pluginDir, manifest) {
 
 function collectFiles(pluginDir, currentDir = pluginDir, files = {}) {
   for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
-    if (entry.isSymbolicLink() || entry.name === '.DS_Store') {
+    if (
+      entry.isSymbolicLink() ||
+      entry.name === '.DS_Store' ||
+      entry.name === 'vendor' ||
+      entry.name === 'build' ||
+      entry.name === 'node_modules' ||
+      entry.name === '.build'
+    ) {
       continue
     }
 
@@ -117,6 +151,56 @@ function collectFiles(pluginDir, currentDir = pluginDir, files = {}) {
   return files
 }
 
+function artifactBaseName(manifest) {
+  return manifest.id.startsWith('com.deepchat.plugins.')
+    ? `deepchat-plugin-${manifest.id.slice('com.deepchat.plugins.'.length)}`
+    : manifest.id
+}
+
+function artifactFileName(manifest, targetPlatform, targetArch) {
+  const safeId = artifactBaseName(manifest).replace(/[^a-zA-Z0-9._-]/g, '-')
+  const targetSuffix = targetPlatform && targetArch ? `-${targetPlatform}-${targetArch}` : ''
+  return `${safeId}-${manifest.version}${targetSuffix}.dcplugin`
+}
+
+function releaseTag(version) {
+  return version.startsWith('v') ? version : `v${version}`
+}
+
+function createPackageManifest(manifest, args) {
+  const version = args.version || (args.releaseVersionFromRoot ? readRootPackageVersion() : manifest.version)
+  const next = JSON.parse(
+    JSON.stringify({ ...manifest, version })
+      .replaceAll('${app.version}', version)
+      .replaceAll('${arch}', args.targetArch)
+      .replaceAll('${target.platform}', args.targetPlatform ?? '')
+      .replaceAll(
+        '${github.release.download}',
+        `https://github.com/ThinkInAIXYZ/deepchat/releases/download/${releaseTag(version)}`
+      )
+  )
+  if (next.source?.type === OFFICIAL_PLUGIN_SOURCE) {
+    const assetName = artifactFileName(next, args.targetPlatform, args.targetArch)
+    next.source.url = `https://github.com/ThinkInAIXYZ/deepchat/releases/download/${releaseTag(version)}/${assetName}`
+  }
+  return next
+}
+
+function validateCuaRuntime(pluginDir, manifest, args) {
+  if (manifest.id !== 'com.deepchat.plugins.cua') {
+    return
+  }
+  const targetPlatform = args.targetPlatform ?? 'darwin'
+  if (targetPlatform !== 'darwin') {
+    throw new Error('CUA plugin packaging currently supports darwin runtime packages only')
+  }
+  assertFile(
+    pluginDir,
+    `runtime/darwin/${args.targetArch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver`,
+    `CUA runtime binary ${targetPlatform}/${args.targetArch}`
+  )
+}
+
 function buildChecksums(files) {
   return Object.fromEntries(
     Object.entries(files)
@@ -128,30 +212,29 @@ function buildChecksums(files) {
   )
 }
 
-function packagePlugin(pluginDir, outDir, manifest) {
+function packagePlugin(pluginDir, outDir, manifest, args) {
   const files = collectFiles(pluginDir)
+  files['plugin.json'] = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
   files['checksums.json'] = new TextEncoder().encode(
     `${JSON.stringify(buildChecksums(files), null, 2)}\n`
   )
 
   fs.mkdirSync(outDir, { recursive: true })
-  const artifactBaseName = manifest.id.startsWith('com.deepchat.plugins.')
-    ? `deepchat-plugin-${manifest.id.slice('com.deepchat.plugins.'.length)}`
-    : manifest.id
-  const safeId = artifactBaseName.replace(/[^a-zA-Z0-9._-]/g, '-')
-  const outPath = path.join(outDir, `${safeId}-${manifest.version}.dcplugin`)
+  const outPath = path.join(outDir, artifactFileName(manifest, args.targetPlatform, args.targetArch))
   fs.writeFileSync(outPath, Buffer.from(zipSync(files, { level: 6 })))
   return outPath
 }
 
 try {
   const args = parseArgs(process.argv.slice(2))
-  const manifest = readManifest(args.pluginDir)
+  const sourceManifest = readManifest(args.pluginDir)
+  const manifest = createPackageManifest(sourceManifest, args)
   validateManifest(args.pluginDir, manifest)
+  validateCuaRuntime(args.pluginDir, manifest, args)
   if (args.validateOnly) {
     console.log(`Plugin ${manifest.id}@${manifest.version} is valid`)
   } else {
-    const outPath = packagePlugin(args.pluginDir, args.outDir, manifest)
+    const outPath = packagePlugin(args.pluginDir, args.outDir, manifest, args)
     console.log(`Packaged ${manifest.id}@${manifest.version}: ${outPath}`)
   }
 } catch (error) {

@@ -6,7 +6,6 @@ import { app } from 'electron'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
-import { COMPUTER_USE_SERVER_NAME, COMPUTER_USE_SKILL_NAME } from '@shared/types/computerUse'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -1556,143 +1555,7 @@ describe('AgentRuntimePresenter', () => {
       expect(secondCallArgs.messages[0].content).toContain('Skill A instructions')
     })
 
-    it('auto-pins cua-driver when the macOS Computer Use MCP is enabled', async () => {
-      const skillPresenter = presenter.skillPresenter as {
-        getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
-        loadSkillContent: ReturnType<typeof vi.fn>
-      }
-      agent = new AgentRuntimePresenter(
-        llmProvider,
-        configPresenter,
-        sqlitePresenter,
-        toolPresenter,
-        new NewSessionHooksBridge(hookDispatcher),
-        {
-          skillPresenter,
-          sessionPermissionPort,
-          platform: 'darwin'
-        }
-      )
-
-      configPresenter.getSetting.mockImplementation((key: string) =>
-        key === 'computerUseEnabled' ? true : undefined
-      )
-      configPresenter.getMcpEnabled.mockResolvedValue(true)
-      configPresenter.getMcpServers.mockResolvedValue({
-        [COMPUTER_USE_SERVER_NAME]: {
-          command: '/helper/cua-driver',
-          args: ['mcp'],
-          env: {},
-          descriptions: '',
-          icons: '',
-          autoApprove: [],
-          enabled: true,
-          type: 'stdio'
-        }
-      })
-      skillPresenter.getMetadataList.mockResolvedValue([
-        {
-          name: COMPUTER_USE_SKILL_NAME,
-          description: 'Drive native macOS apps',
-          platforms: ['darwin']
-        }
-      ])
-      skillPresenter.getActiveSkills.mockResolvedValue([])
-      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'CUA driver instructions' })
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
-        {
-          type: 'function',
-          source: 'mcp',
-          function: {
-            name: 'get_window_state',
-            description: 'snapshot',
-            parameters: { type: 'object', properties: {} }
-          },
-          server: { name: COMPUTER_USE_SERVER_NAME, icons: '', description: '' }
-        }
-      ])
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      await agent.processMessage('s1', 'Click a native app button')
-
-      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.messages[0].content)
-
-      expect(systemPrompt).toContain('## Pinned Skills')
-      expect(systemPrompt).toContain(`### ${COMPUTER_USE_SKILL_NAME}`)
-      expect(systemPrompt).toContain('CUA driver instructions')
-      expect(skillPresenter.loadSkillContent).toHaveBeenCalledWith(COMPUTER_USE_SKILL_NAME)
-    })
-
-    it('does not auto-pin cua-driver when the injected platform is not macOS', async () => {
-      const skillPresenter = presenter.skillPresenter as {
-        getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
-        loadSkillContent: ReturnType<typeof vi.fn>
-      }
-      agent = new AgentRuntimePresenter(
-        llmProvider,
-        configPresenter,
-        sqlitePresenter,
-        toolPresenter,
-        new NewSessionHooksBridge(hookDispatcher),
-        {
-          skillPresenter,
-          sessionPermissionPort,
-          platform: 'win32'
-        }
-      )
-
-      configPresenter.getSetting.mockImplementation((key: string) =>
-        key === 'computerUseEnabled' ? true : undefined
-      )
-      configPresenter.getMcpEnabled.mockResolvedValue(true)
-      configPresenter.getMcpServers.mockResolvedValue({
-        [COMPUTER_USE_SERVER_NAME]: {
-          command: '/helper/cua-driver',
-          args: ['mcp'],
-          env: {},
-          descriptions: '',
-          icons: '',
-          autoApprove: [],
-          enabled: true,
-          type: 'stdio'
-        }
-      })
-      skillPresenter.getMetadataList.mockResolvedValue([
-        {
-          name: COMPUTER_USE_SKILL_NAME,
-          description: 'Drive native macOS apps',
-          platforms: ['darwin']
-        }
-      ])
-      skillPresenter.getActiveSkills.mockResolvedValue([])
-      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'CUA driver instructions' })
-      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
-        {
-          type: 'function',
-          source: 'mcp',
-          function: {
-            name: 'get_window_state',
-            description: 'snapshot',
-            parameters: { type: 'object', properties: {} }
-          },
-          server: { name: COMPUTER_USE_SERVER_NAME, icons: '', description: '' }
-        }
-      ])
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      await agent.processMessage('s1', 'Click a native app button')
-
-      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const systemPrompt = String(callArgs.messages[0].content)
-
-      expect(systemPrompt).not.toContain(`### ${COMPUTER_USE_SKILL_NAME}`)
-      expect(skillPresenter.loadSkillContent).not.toHaveBeenCalled()
-    })
-
-    it('does not load stale cua-driver pins when the skill is absent from available metadata', async () => {
+    it('does not load stale skill pins when the skill is absent from available metadata', async () => {
       const skillPresenter = presenter.skillPresenter as {
         getMetadataList: ReturnType<typeof vi.fn>
         getActiveSkills: ReturnType<typeof vi.fn>
@@ -1700,7 +1563,7 @@ describe('AgentRuntimePresenter', () => {
       }
 
       skillPresenter.getMetadataList.mockResolvedValue([])
-      skillPresenter.getActiveSkills.mockResolvedValue([COMPUTER_USE_SKILL_NAME])
+      skillPresenter.getActiveSkills.mockResolvedValue(['plugin-skill'])
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Click a native app button')

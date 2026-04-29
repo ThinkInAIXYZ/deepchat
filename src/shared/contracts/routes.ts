@@ -66,13 +66,6 @@ import {
   configUpdateSystemPromptRoute,
   configUpdateVoiceAiConfigRoute
 } from './routes/config.routes'
-import {
-  computerUseCheckPermissionsRoute,
-  computerUseGetStatusRoute,
-  computerUseOpenPermissionGuideRoute,
-  computerUseRestartMcpServerRoute,
-  computerUseSetEnabledRoute
-} from './routes/computerUse.routes'
 import { dialogErrorRoute, dialogRespondRoute } from './routes/dialog.routes'
 import {
   deviceGetAppVersionRoute,
@@ -162,9 +155,11 @@ import {
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
+  pluginsInstallFromFileRoute,
   pluginsInstallRoute,
   pluginsInvokeActionRoute,
-  pluginsListRoute
+  pluginsListRoute,
+  pluginsOpenOfficialReleaseRoute
 } from './routes/plugins.routes'
 import {
   settingsGetSnapshotRoute,
@@ -286,7 +281,6 @@ import {
 export * from './routes/browser.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
-export * from './routes/computerUse.routes'
 export * from './routes/dialog.routes'
 export * from './routes/device.routes'
 export * from './routes/file.routes'
@@ -326,6 +320,8 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsInstallRoute.name]: pluginsInstallRoute,
+  [pluginsInstallFromFileRoute.name]: pluginsInstallFromFileRoute,
+  [pluginsOpenOfficialReleaseRoute.name]: pluginsOpenOfficialReleaseRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,
   [pluginsDisableRoute.name]: pluginsDisableRoute,
   [pluginsDeleteRoute.name]: pluginsDeleteRoute,
@@ -409,11 +405,6 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [configSetAzureApiVersionRoute.name]: configSetAzureApiVersionRoute,
   [configGetAwsBedrockCredentialRoute.name]: configGetAwsBedrockCredentialRoute,
   [configSetAwsBedrockCredentialRoute.name]: configSetAwsBedrockCredentialRoute,
-  [computerUseGetStatusRoute.name]: computerUseGetStatusRoute,
-  [computerUseSetEnabledRoute.name]: computerUseSetEnabledRoute,
-  [computerUseOpenPermissionGuideRoute.name]: computerUseOpenPermissionGuideRoute,
-  [computerUseCheckPermissionsRoute.name]: computerUseCheckPermissionsRoute,
-  [computerUseRestartMcpServerRoute.name]: computerUseRestartMcpServerRoute,
   [settingsGetSnapshotRoute.name]: settingsGetSnapshotRoute,
   [settingsListSystemFontsRoute.name]: settingsListSystemFontsRoute,
   [settingsUpdateRoute.name]: settingsUpdateRoute,

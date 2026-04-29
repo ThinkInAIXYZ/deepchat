@@ -69,7 +69,6 @@ import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { ProjectPresenter } from './projectPresenter'
 import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
-import { ComputerUsePresenter } from './computerUsePresenter'
 import { PluginPresenter } from './pluginPresenter'
 import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
@@ -188,7 +187,6 @@ export class Presenter implements IPresenter {
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
-  computerUsePresenter: ComputerUsePresenter
   pluginPresenter: PluginPresenter
   hooksNotifications: HooksNotificationsService
   commandPermissionService: CommandPermissionService
@@ -242,10 +240,6 @@ export class Presenter implements IPresenter {
       configPresenter: this.configPresenter
     })
     this.mcpPresenter = new McpPresenter(this.configPresenter)
-    this.computerUsePresenter = new ComputerUsePresenter({
-      configPresenter: this.configPresenter,
-      mcpPresenter: this.mcpPresenter
-    })
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
     this.filePresenter = new FilePresenter(this.configPresenter)
@@ -928,7 +922,6 @@ registerMainKernelRoutes(ipcMain, () =>
         yoBrowserPresenter: presenter.yoBrowserPresenter,
         tabPresenter: presenter.tabPresenter,
         startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
-        computerUsePresenter: presenter.computerUsePresenter,
         pluginPresenter: presenter.pluginPresenter
       }))
     : undefined

@@ -1,10 +1,10 @@
 {
   "id": "com.deepchat.plugins.cua",
   "name": "CUA Computer Use Runtime",
-  "version": "1.0.0",
+  "version": "1.0.4-beta.3",
   "publisher": "DeepChat",
   "engines": {
-    "deepchat": ">=1.1.0",
+    "deepchat": ">=${app.version}",
     "platforms": ["darwin"]
   },
   "activationEvents": ["onEnable"],
@@ -18,7 +18,7 @@
   ],
   "source": {
     "type": "deepchat-official",
-    "url": "https://deepchat.thinkinai.xyz/plugins/com.deepchat.plugins.cua/1.0.0/deepchat-plugin-cua-1.0.0.dcplugin",
+    "url": "${github.release.download}/deepchat-plugin-cua-${app.version}-darwin-${arch}.dcplugin",
     "publisher": "DeepChat"
   },
   "runtime": {
@@ -26,6 +26,8 @@
     "type": "external-helper",
     "displayName": "Cua Driver",
     "detect": [
+      "plugin:runtime/darwin/arm64/DeepChat Computer Use.app/Contents/MacOS/cua-driver",
+      "plugin:runtime/darwin/x64/DeepChat Computer Use.app/Contents/MacOS/cua-driver",
       "/Applications/CuaDriver.app/Contents/MacOS/cua-driver",
       "~/.local/bin/cua-driver",
       "PATH:cua-driver"
@@ -33,8 +35,9 @@
     "install": {
       "mode": "user-confirmed",
       "provider": "trycua",
-      "strategy": "official-installer-or-signed-release",
-      "minVersion": "0.1.0"
+      "strategy": "bundled-plugin-helper",
+      "minVersion": "0.1.0",
+      "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },
   "mcpServers": [
@@ -67,12 +70,36 @@
     {
       "serverId": "cua-driver",
       "tools": {
-        "click": "ask",
-        "type_text": "ask",
-        "hotkey": "ask",
-        "screenshot": "allow",
+        "check_permissions": "allow",
+        "list_apps": "allow",
+        "list_windows": "allow",
+        "get_screen_size": "allow",
         "get_window_state": "allow",
-        "check_permissions": "allow"
+        "get_accessibility_tree": "allow",
+        "get_cursor_position": "allow",
+        "get_config": "allow",
+        "get_recording_state": "allow",
+        "get_agent_cursor_state": "allow",
+        "screenshot": "allow",
+        "launch_app": "ask",
+        "click": "ask",
+        "right_click": "ask",
+        "double_click": "ask",
+        "drag": "ask",
+        "scroll": "ask",
+        "move_cursor": "ask",
+        "type_text": "ask",
+        "type_text_chars": "ask",
+        "press_key": "ask",
+        "hotkey": "ask",
+        "set_value": "ask",
+        "set_config": "ask",
+        "set_recording": "ask",
+        "set_agent_cursor_enabled": "ask",
+        "set_agent_cursor_motion": "ask",
+        "replay_trajectory": "ask",
+        "zoom": "ask",
+        "page": "ask"
       }
     }
   ]

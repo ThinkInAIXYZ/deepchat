@@ -204,7 +204,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     }
 
-    for (const prompt of mcpStore.prompts) {
+    for (const prompt of mcpStore.visiblePrompts) {
       items.push({
         id: `prompt:${prompt.client?.name || 'unknown'}:${prompt.name}`,
         category: 'prompt',
@@ -214,7 +214,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     }
 
-    for (const tool of mcpStore.tools) {
+    for (const tool of mcpStore.visibleTools) {
       items.push({
         id: `tool:${tool.server.name}:${tool.function.name ?? ''}`,
         category: 'tool',

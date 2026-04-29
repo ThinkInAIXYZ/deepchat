@@ -33,9 +33,11 @@ Plan: [plan.md](./plan.md)
   - `plugins.list`
   - `plugins.get`
   - `plugins.install`
+  - `plugins.installFromFile`
   - `plugins.enable`
   - `plugins.disable`
   - `plugins.delete`
+  - `plugins.openOfficialRelease`
   - `plugins.invokeAction`
 - [x] Add renderer API client for generic plugin routes.
 - [~] Add package path validation that rejects absolute paths, `..`, drive-letter paths, and unsafe
@@ -185,11 +187,12 @@ Validation:
 - [x] Add `.dcplugin` package builder.
 - [x] Add `.dcplugin` validator.
 - [x] Add checksum generation.
+- [x] Package the macOS CUA helper binary into the plugin artifact.
 - [ ] Add signature metadata handling.
 - [x] Add official-source metadata validation.
 - [x] Require settings HTML and preload type declarations when `settings.contribute` is declared.
 - [ ] Add package fixture tests.
-- [ ] Add scripts:
+- [x] Add scripts:
   - `plugin:cua:build`
   - `plugin:cua:package`
   - `plugin:cua:validate`
@@ -218,6 +221,7 @@ Validation:
 - [x] Add CUA settings standalone web bundle for missing helper, installed helper, permissions, MCP,
   and skill state.
 - [x] Add CUA plugin settings preload `.d.ts`.
+- [x] Add GitHub Release install fallback and local `.dcplugin` picker in Settings > Plugins.
 - [x] Add CUA plugin-specific typed settings API implementation:
   - `getRuntimeStatus`
   - `checkPermissions`
@@ -235,24 +239,24 @@ Validation:
 
 ## M10 Remove Built-In CUA Demo Code
 
-- [ ] Remove `src/main/presenter/computerUsePresenter`.
-- [ ] Remove `src/renderer/api/ComputerUseClient.ts`.
-- [ ] Remove `src/shared/contracts/routes/computerUse.routes.ts`.
-- [ ] Remove `src/shared/types/computerUse.ts`.
-- [ ] Remove `src/renderer/settings/components/ComputerUseSettingsCard.vue`.
+- [x] Remove `src/main/presenter/computerUsePresenter`.
+- [x] Remove `src/renderer/api/ComputerUseClient.ts`.
+- [x] Remove `src/shared/contracts/routes/computerUse.routes.ts`.
+- [x] Remove `src/shared/types/computerUse.ts`.
+- [x] Remove `src/renderer/settings/components/ComputerUseSettingsCard.vue`.
 - [x] Remove `resources/skills/cua-driver`.
-- [ ] Remove `vendor/cua-driver`.
-- [ ] Remove `scripts/build-cua-driver.mjs`.
-- [ ] Remove `scripts/update-cua-driver.mjs`.
-- [ ] Remove `build/entitlements.computer-use.plist`.
+- [x] Remove `vendor/cua-driver`.
+- [x] Remove `scripts/build-cua-driver.mjs`.
+- [x] Remove `scripts/update-cua-driver.mjs`.
+- [x] Remove `build/entitlements.computer-use.plist`.
 - [x] Remove CUA helper handling from `scripts/afterPack.js`.
 - [x] Remove CUA helper steps from build and release workflows.
-- [ ] Remove CUA-specific tests or convert them into plugin/generic infrastructure tests.
+- [x] Remove CUA-specific tests or convert them into plugin/generic infrastructure tests.
 
 Validation:
 
-- [ ] Core grep acceptance passes.
-- [ ] macOS app packaging no longer contains CUA helper or vendored source.
+- [x] Core grep acceptance passes.
+- [x] macOS app packaging no longer contains CUA helper or vendored source.
 - [ ] Existing MCP, skills, and settings tests still pass.
 
 ## M11 CI And Release
@@ -263,7 +267,7 @@ Validation:
 - [ ] Publish or attach official-source metadata for the CUA plugin artifact.
 - [ ] Keep core app artifact naming unchanged.
 - [ ] Ensure app release jobs do not depend on plugin jobs unless publishing requires all artifacts.
-- [ ] Document plugin artifact installation path and manual QA flow.
+- [x] Document plugin artifact installation path and manual QA flow.
 
 Validation:
 

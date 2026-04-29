@@ -85,17 +85,17 @@ const regularServers = computed(() => {
 
 // 计算属性：获取每个服务器的工具数量
 const getServerToolsCount = (serverName: string) => {
-  return mcpStore.tools.filter((tool) => tool.server.name === serverName).length
+  return mcpStore.visibleTools.filter((tool) => tool.server.name === serverName).length
 }
 
 // 计算属性：获取每个服务器的prompts数量
 const getServerPromptsCount = (serverName: string) => {
-  return mcpStore.prompts.filter((prompt) => prompt.client.name === serverName).length
+  return mcpStore.visiblePrompts.filter((prompt) => prompt.client.name === serverName).length
 }
 
 // 计算属性：获取每个服务器的resources数量
 const getServerResourcesCount = (serverName: string) => {
-  return mcpStore.resources.filter((resource) => resource.client.name === serverName).length
+  return mcpStore.visibleResources.filter((resource) => resource.client.name === serverName).length
 }
 
 // 事件处理函数

@@ -1,23 +1,25 @@
-import { execFileSync, spawnSync } from 'child_process'
-import fs from 'fs/promises'
-import fsSync from 'fs'
-import os from 'os'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { execFileSync, spawnSync } from 'node:child_process'
+import fs from 'node:fs/promises'
+import fsSync from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = process.env.DEEPCHAT_ROOT_DIR
   ? path.resolve(process.env.DEEPCHAT_ROOT_DIR)
   : path.resolve(__dirname, '..')
-
-const VENDOR_ROOT = process.env.DEEPCHAT_CUA_VENDOR_ROOT
+const pluginDir = process.env.DEEPCHAT_CUA_PLUGIN_DIR
+  ? path.resolve(process.env.DEEPCHAT_CUA_PLUGIN_DIR)
+  : path.join(rootDir, 'plugins', 'cua')
+const vendorRoot = process.env.DEEPCHAT_CUA_VENDOR_ROOT
   ? path.resolve(process.env.DEEPCHAT_CUA_VENDOR_ROOT)
-  : path.join(rootDir, 'vendor', 'cua-driver')
-const VENDOR_SOURCE_DIR = path.join(VENDOR_ROOT, 'source')
-const UPSTREAM_METADATA_PATH = path.join(VENDOR_ROOT, 'upstream.json')
-const HELPER_APP_NAME = 'DeepChat Computer Use'
-const HELPER_APP_DIR_NAME = `${HELPER_APP_NAME}.app`
-const HELPER_BINARY_NAME = 'cua-driver'
+  : path.join(pluginDir, 'vendor', 'cua-driver')
+const vendorSourceDir = path.join(vendorRoot, 'source')
+const upstreamMetadataPath = path.join(vendorRoot, 'upstream.json')
+const helperAppName = 'DeepChat Computer Use'
+const helperAppDirName = `${helperAppName}.app`
+const helperBinaryName = 'cua-driver'
 
 const archMap = {
   arm64: {
@@ -86,10 +88,10 @@ async function pathExists(targetPath) {
 async function readUpstreamMetadata() {
   let metadata
   try {
-    metadata = JSON.parse(await fs.readFile(UPSTREAM_METADATA_PATH, 'utf8'))
+    metadata = JSON.parse(await fs.readFile(upstreamMetadataPath, 'utf8'))
   } catch (error) {
     throw new Error(
-      `Unable to read CUA upstream metadata at ${path.relative(rootDir, UPSTREAM_METADATA_PATH)}: ${error instanceof Error ? error.message : error}`
+      `Unable to read CUA upstream metadata at ${path.relative(rootDir, upstreamMetadataPath)}: ${error instanceof Error ? error.message : error}`
     )
   }
 
@@ -103,8 +105,8 @@ async function readUpstreamMetadata() {
 }
 
 async function validateVendorSource(metadata) {
-  const packagePath = path.join(VENDOR_SOURCE_DIR, 'Package.swift')
-  const sourcesPath = path.join(VENDOR_SOURCE_DIR, 'Sources')
+  const packagePath = path.join(vendorSourceDir, 'Package.swift')
+  const sourcesPath = path.join(vendorSourceDir, 'Sources')
   if (!(await pathExists(packagePath))) {
     throw new Error(`Vendored CUA Driver source is missing Package.swift at ${packagePath}`)
   }
@@ -118,7 +120,7 @@ async function validateVendorSource(metadata) {
   }
 
   const commandPath = path.join(
-    VENDOR_SOURCE_DIR,
+    vendorSourceDir,
     'Sources',
     'CuaDriverCLI',
     'CuaDriverCommand.swift'
@@ -147,7 +149,7 @@ async function collectFiles(dir, extension) {
 
 async function findBuiltBinary(scratchPath) {
   const candidates = await collectFiles(scratchPath, '')
-  const binaries = candidates.filter((candidate) => path.basename(candidate) === HELPER_BINARY_NAME)
+  const binaries = candidates.filter((candidate) => path.basename(candidate) === helperBinaryName)
   for (const candidate of binaries) {
     const stat = await fs.stat(candidate)
     if ((stat.mode & 0o111) !== 0 && candidate.includes(`${path.sep}release${path.sep}`)) {
@@ -165,11 +167,11 @@ function plistXml(version) {
   <key>CFBundleIdentifier</key>
   <string>com.wefonk.deepchat.computeruse</string>
   <key>CFBundleName</key>
-  <string>${HELPER_APP_NAME}</string>
+  <string>${helperAppName}</string>
   <key>CFBundleDisplayName</key>
-  <string>${HELPER_APP_NAME}</string>
+  <string>${helperAppName}</string>
   <key>CFBundleExecutable</key>
-  <string>${HELPER_BINARY_NAME}</string>
+  <string>${helperBinaryName}</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleIconName</key>
@@ -194,14 +196,14 @@ function plistXml(version) {
 }
 
 async function stageApp(sourceDir, builtBinary, targetArch, version) {
-  const currentDir = path.join(rootDir, 'runtime', 'computer-use', 'cua-driver', 'current')
-  const helperAppPath = path.join(currentDir, HELPER_APP_DIR_NAME)
+  const runtimeDir = path.join(pluginDir, 'runtime', 'darwin', targetArch)
+  const helperAppPath = path.join(runtimeDir, helperAppDirName)
   const contentsPath = path.join(helperAppPath, 'Contents')
   const macosPath = path.join(contentsPath, 'MacOS')
   const resourcesPath = path.join(contentsPath, 'Resources')
-  const stagedBinary = path.join(macosPath, HELPER_BINARY_NAME)
+  const stagedBinary = path.join(macosPath, helperBinaryName)
 
-  await fs.rm(currentDir, { recursive: true, force: true })
+  await fs.rm(runtimeDir, { recursive: true, force: true })
   await fs.mkdir(macosPath, { recursive: true })
   await fs.mkdir(resourcesPath, { recursive: true })
   await fs.copyFile(builtBinary, stagedBinary)
@@ -227,7 +229,7 @@ function validateArchitecture(binaryPath, targetArch) {
 }
 
 function signHelper(helperAppPath) {
-  const entitlementsPath = path.join(rootDir, 'build', 'entitlements.computer-use.plist')
+  const entitlementsPath = path.join(pluginDir, 'build', 'entitlements.plist')
   run('codesign', [
     '--force',
     '--deep',
@@ -248,8 +250,7 @@ async function main() {
   const requestedArch = args.get('arch') ?? process.env.TARGET_ARCH ?? process.arch
 
   if (process.platform !== 'darwin') {
-    console.log('Skipping CUA Driver build: macOS is required.')
-    return
+    throw new Error('CUA plugin runtime build requires macOS.')
   }
 
   if (!archMap[requestedArch]) {
@@ -265,7 +266,7 @@ async function main() {
 
   const workRoot = path.join(
     os.tmpdir(),
-    'deepchat-cua-driver-build',
+    'deepchat-cua-plugin-build',
     `${metadata.tag}-${requestedArch}-${process.pid}`
   )
   const scratchPath = path.join(workRoot, '.build', requestedArch)
@@ -282,9 +283,9 @@ async function main() {
       '--arch',
       archMap[requestedArch].swift,
       '--product',
-      HELPER_BINARY_NAME,
+      helperBinaryName,
       '--package-path',
-      VENDOR_SOURCE_DIR,
+      vendorSourceDir,
       '--scratch-path',
       scratchPath
     ],
@@ -298,14 +299,9 @@ async function main() {
   )
 
   const builtBinary = await findBuiltBinary(scratchPath)
-  const helperAppPath = await stageApp(
-    VENDOR_SOURCE_DIR,
-    builtBinary,
-    requestedArch,
-    metadata.version
-  )
+  const helperAppPath = await stageApp(vendorSourceDir, builtBinary, requestedArch, metadata.version)
   const relativeHelperPath = path.relative(rootDir, helperAppPath)
-  const stat = await fs.stat(path.join(helperAppPath, 'Contents', 'MacOS', HELPER_BINARY_NAME))
+  const stat = await fs.stat(path.join(helperAppPath, 'Contents', 'MacOS', helperBinaryName))
 
   if (!fsSync.existsSync(helperAppPath) || stat.size === 0) {
     throw new Error('Staged helper app is invalid')

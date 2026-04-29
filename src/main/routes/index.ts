@@ -32,11 +32,6 @@ import {
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
   chatStopStreamRoute,
-  computerUseCheckPermissionsRoute,
-  computerUseGetStatusRoute,
-  computerUseOpenPermissionGuideRoute,
-  computerUseRestartMcpServerRoute,
-  computerUseSetEnabledRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -80,9 +75,11 @@ import {
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
+  pluginsInstallFromFileRoute,
   pluginsInstallRoute,
   pluginsInvokeActionRoute,
   pluginsListRoute,
+  pluginsOpenOfficialReleaseRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
@@ -202,7 +199,6 @@ import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
-import type { ComputerUsePresenter } from '@/presenter/computerUsePresenter'
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 
 export type MainKernelRouteRuntime = {
@@ -227,7 +223,6 @@ export type MainKernelRouteRuntime = {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
-  computerUsePresenter: ComputerUsePresenter
   pluginPresenter: PluginPresenter
 }
 
@@ -249,7 +244,6 @@ export function createMainKernelRouteRuntime(deps: {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
-  computerUsePresenter: ComputerUsePresenter
   pluginPresenter: PluginPresenter
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
@@ -298,7 +292,6 @@ export function createMainKernelRouteRuntime(deps: {
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
-    computerUsePresenter: deps.computerUsePresenter,
     pluginPresenter: deps.pluginPresenter
   }
 }
@@ -449,9 +442,7 @@ function resolveTrackedRouteTask(
     routeName === mcpGetServersRoute.name ||
     routeName === mcpGetEnabledRoute.name ||
     routeName === mcpGetClientsRoute.name ||
-    routeName === mcpGetNpmRegistryStatusRoute.name ||
-    routeName === computerUseGetStatusRoute.name ||
-    routeName === computerUseCheckPermissionsRoute.name
+    routeName === mcpGetNpmRegistryStatusRoute.name
 
   if (isSettings && isSettingsMcpRuntimeRoute) {
     return {
@@ -632,40 +623,6 @@ export async function dispatchDeepchatRoute(
       })
     }
 
-    case computerUseGetStatusRoute.name: {
-      computerUseGetStatusRoute.input.parse(rawInput)
-      return computerUseGetStatusRoute.output.parse({
-        status: await runtime.computerUsePresenter.getStatus()
-      })
-    }
-
-    case computerUseSetEnabledRoute.name: {
-      const input = computerUseSetEnabledRoute.input.parse(rawInput)
-      return computerUseSetEnabledRoute.output.parse({
-        status: await runtime.computerUsePresenter.setEnabled(input.enabled)
-      })
-    }
-
-    case computerUseOpenPermissionGuideRoute.name: {
-      const input = computerUseOpenPermissionGuideRoute.input.parse(rawInput)
-      await runtime.computerUsePresenter.openPermissionGuide(input.target)
-      return computerUseOpenPermissionGuideRoute.output.parse({ opened: true })
-    }
-
-    case computerUseCheckPermissionsRoute.name: {
-      computerUseCheckPermissionsRoute.input.parse(rawInput)
-      return computerUseCheckPermissionsRoute.output.parse({
-        permissions: await runtime.computerUsePresenter.checkPermissions()
-      })
-    }
-
-    case computerUseRestartMcpServerRoute.name: {
-      computerUseRestartMcpServerRoute.input.parse(rawInput)
-      return computerUseRestartMcpServerRoute.output.parse({
-        status: await runtime.computerUsePresenter.restartMcpServer()
-      })
-    }
-
     case pluginsListRoute.name: {
       pluginsListRoute.input.parse(rawInput)
       return pluginsListRoute.output.parse({
@@ -684,6 +641,20 @@ export async function dispatchDeepchatRoute(
       const input = pluginsInstallRoute.input.parse(rawInput)
       return pluginsInstallRoute.output.parse({
         result: await runtime.pluginPresenter.installOfficialPlugin(input.pluginId)
+      })
+    }
+
+    case pluginsInstallFromFileRoute.name: {
+      const input = pluginsInstallFromFileRoute.input.parse(rawInput)
+      return pluginsInstallFromFileRoute.output.parse({
+        result: await runtime.pluginPresenter.installPluginFromFile(input.filePath)
+      })
+    }
+
+    case pluginsOpenOfficialReleaseRoute.name: {
+      const input = pluginsOpenOfficialReleaseRoute.input.parse(rawInput)
+      return pluginsOpenOfficialReleaseRoute.output.parse({
+        result: await runtime.pluginPresenter.openOfficialPluginRelease(input.pluginId)
       })
     }
 

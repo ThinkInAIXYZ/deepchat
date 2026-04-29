@@ -289,7 +289,7 @@ jobs:
         run: |
           pnpm run build
           pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
-          pnpm run plugin:cua:pack
+          TARGET_ARCH=${{ matrix.arch }} pnpm run plugin:cua:package
         env:
           CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}

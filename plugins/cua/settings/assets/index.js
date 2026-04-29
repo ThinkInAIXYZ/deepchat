@@ -24,8 +24,18 @@ function setState(enabled) {
   stateNode.className = enabled ? 'state state-ok' : 'state state-muted'
 }
 
+function getPluginApi() {
+  const api = window.deepchatPlugin
+  if (!api) {
+    throw new Error(
+      'DeepChat plugin settings bridge is unavailable. Restart DeepChat and reopen this page.'
+    )
+  }
+  return api
+}
+
 async function refreshStatus() {
-  const status = await window.deepchatPlugin.getStatus()
+  const status = await getPluginApi().getStatus()
   setState(status.enabled)
   setText(runtimeStateNode, status.runtime?.state)
   setText(runtimeVersionNode, status.runtime?.version)
@@ -34,7 +44,7 @@ async function refreshStatus() {
 
 async function checkPermissions() {
   setMessage('Checking permissions...')
-  const result = await window.deepchatPlugin.invokeAction('runtime.checkPermissions')
+  const result = await getPluginApi().invokeAction('runtime.checkPermissions')
   if (!result.ok || !result.data) {
     setMessage(result.error || 'Permission check failed')
     return
@@ -55,19 +65,27 @@ document.getElementById('check')?.addEventListener('click', async () => {
 })
 
 document.getElementById('guide')?.addEventListener('click', async () => {
-  const result = await window.deepchatPlugin.invokeAction('runtime.openPermissionGuide')
-  if (!result.ok) {
-    setMessage(result.error || 'Failed to open permission guide')
+  try {
+    const result = await getPluginApi().invokeAction('runtime.openPermissionGuide')
+    if (!result.ok) {
+      setMessage(result.error || 'Failed to open permission guide')
+    }
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : String(error))
   }
 })
 
 document.getElementById('disable')?.addEventListener('click', async () => {
-  const result = await window.deepchatPlugin.disable()
-  if (!result.ok) {
-    setMessage(result.error || 'Failed to disable plugin')
-    return
+  try {
+    const result = await getPluginApi().disable()
+    if (!result.ok) {
+      setMessage(result.error || 'Failed to disable plugin')
+      return
+    }
+    await refreshStatus()
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : String(error))
   }
-  await refreshStatus()
 })
 
 refreshStatus().catch((error) => {

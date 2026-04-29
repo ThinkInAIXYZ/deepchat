@@ -1119,36 +1119,8 @@
     "viewLogs": "ログを表示",
     "starting": "起動中",
     "error": "エラー",
-    "computerUse": {
-      "title": "Computer Use",
-      "description": "Lets agents read the screen and operate this Mac after permission is granted.",
-      "helper": "Helper",
-      "accessibility": "Accessibility",
-      "screenRecording": "Screen Recording",
-      "mcpServer": "MCP service",
-      "openPermissions": "Open Permissions",
-      "checkAgain": "Check Again",
-      "restart": "Restart Service",
-      "mcpDisabledNotice": "Computer Use is enabled. Turn on MCP to start the service.",
-      "loadFailed": "Failed to load Computer Use status",
-      "updateFailed": "Failed to update Computer Use settings",
-      "openPermissionsFailed": "Failed to open permissions",
-      "restartFailed": "Failed to restart Computer Use service",
-      "status": {
-        "ready": "Ready",
-        "missingHelper": "Missing helper",
-        "granted": "Granted",
-        "missing": "Missing",
-        "unknown": "Unknown",
-        "running": "Running",
-        "registered": "Registered",
-        "notRegistered": "Pending registration",
-        "error": "Error",
-        "disabled": "Disabled"
-      }
-    },
     "managedServerReadOnly": "DeepChat managed service",
-    "managedServerReadOnlyDesc": "Manage enablement and permissions from the Computer Use card."
+    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings."
   },
   "about": {
     "title": "私たちについて",
@@ -1876,13 +1848,18 @@
     "command": "Command",
     "status": {
       "enabled": "Enabled",
-      "disabled": "Disabled"
+      "disabled": "Disabled",
+      "available": "Available"
     },
     "runtimeStates": {
       "missing": "Missing",
       "installed": "Installed",
       "running": "Running",
       "error": "Error"
-    }
+    },
+    "emptyTitle": "Install official plugins",
+    "emptyDescription": "Open the current GitHub Release to download a .dcplugin, or choose a package already on disk.",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release"
   }
 }

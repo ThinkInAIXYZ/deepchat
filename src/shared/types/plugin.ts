@@ -45,6 +45,7 @@ export interface PluginRuntimeManifest {
     provider: string
     strategy: string
     minVersion?: string
+    guideUrl?: string
   }
 }
 
@@ -156,6 +157,7 @@ export interface PluginListItem {
   trustState: PluginTrustState
   official: boolean
   capabilities: PluginCapability[]
+  releaseUrl?: string
   runtime?: PluginRuntimeStatus
   settings?: PluginSettingsContribution
 }
@@ -170,6 +172,14 @@ export interface PluginActionResult {
 export interface PluginInstallRequest {
   pluginId: string
   source: typeof OFFICIAL_PLUGIN_SOURCE
+}
+
+export interface PluginInstallFromFileRequest {
+  filePath?: string
+}
+
+export interface PluginOpenOfficialReleaseRequest {
+  pluginId?: string
 }
 
 export interface PluginInvokeActionRequest {

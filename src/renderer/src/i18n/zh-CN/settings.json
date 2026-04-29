@@ -1181,36 +1181,8 @@
       "redetectFailed": "重新检测失败",
       "redetectFailedDesc": "无法重新检测最优源，将使用默认配置"
     },
-    "computerUse": {
-      "title": "Computer Use",
-      "description": "允许 Agent 在授权后读取屏幕并操作这台 Mac。",
-      "helper": "Helper",
-      "accessibility": "辅助功能",
-      "screenRecording": "屏幕录制",
-      "mcpServer": "MCP服务",
-      "openPermissions": "打开权限",
-      "checkAgain": "重新检查",
-      "restart": "重启服务",
-      "mcpDisabledNotice": "Computer Use 已启用。打开 MCP 后服务会启动。",
-      "loadFailed": "Computer Use 状态加载失败",
-      "updateFailed": "Computer Use 设置更新失败",
-      "openPermissionsFailed": "权限引导打开失败",
-      "restartFailed": "Computer Use 服务重启失败",
-      "status": {
-        "ready": "就绪",
-        "missingHelper": "缺少 Helper",
-        "granted": "已授权",
-        "missing": "待授权",
-        "unknown": "待检测",
-        "running": "运行中",
-        "registered": "已注册",
-        "notRegistered": "待注册",
-        "error": "异常",
-        "disabled": "已关闭"
-      }
-    },
     "managedServerReadOnly": "DeepChat托管服务",
-    "managedServerReadOnlyDesc": "请在 Computer Use 卡片中管理启用和权限"
+    "managedServerReadOnlyDesc": "请在对应插件设置中管理启用和权限"
   },
   "about": {
     "title": "关于我们",
@@ -1853,12 +1825,16 @@
   },
   "plugins": {
     "title": "插件",
-    "officialOnly": "仅允许官方插件源",
+    "officialOnly": "从当前 DeepChat 版本的 GitHub Release 自动安装官方插件，也可以手动选择 .dcplugin 文件",
     "refresh": "刷新",
     "empty": "暂无可用官方插件",
+    "emptyTitle": "安装官方插件",
+    "emptyDescription": "打开当前版本 GitHub Release 下载 .dcplugin，或选择已经下载好的插件包。",
     "loadFailed": "插件加载失败",
     "actionFailed": "插件操作失败",
     "install": "安装",
+    "installFromFile": "选择 .dcplugin",
+    "openRelease": "GitHub Release",
     "enable": "启用",
     "disable": "停用",
     "openSettings": "设置",
@@ -1867,7 +1843,8 @@
     "command": "命令",
     "status": {
       "enabled": "已启用",
-      "disabled": "已停用"
+      "disabled": "已停用",
+      "available": "可安装"
     },
     "runtimeStates": {
       "missing": "未安装",

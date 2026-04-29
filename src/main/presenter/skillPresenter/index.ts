@@ -1026,9 +1026,9 @@ export class SkillPresenter implements ISkillPresenter {
       ownerPluginId: input.ownerPluginId,
       skillRoot
     })
+    this.metadataCache.clear()
+    this.contentCache.clear()
     if (this.initialized) {
-      this.metadataCache.clear()
-      this.contentCache.clear()
       await this.discoverSkills()
     }
   }
@@ -1046,6 +1046,9 @@ export class SkillPresenter implements ISkillPresenter {
       this.metadataCache.clear()
       this.contentCache.clear()
       await this.discoverSkills()
+    } else if (changed) {
+      this.metadataCache.clear()
+      this.contentCache.clear()
     }
   }
 

@@ -467,7 +467,7 @@ const getServerLabel = (serverName: string) => {
 }
 
 const getServerToolsCount = (serverName: string) => {
-  return mcpStore.tools.filter((tool) => tool.server.name === serverName).length
+  return mcpStore.visibleTools.filter((tool) => tool.server.name === serverName).length
 }
 
 const setToolsPending = (toolNames: string[], pending: boolean) => {

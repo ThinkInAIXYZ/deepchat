@@ -39,14 +39,14 @@ Installed Plugin: com.deepchat.plugins.cua
     |
     | detects / opens / executes declared helper commands
     v
-External Helper
-+-- /Applications/CuaDriver.app
+Bundled Plugin Helper
++-- <installed-plugin>/runtime/darwin/<arch>/DeepChat Computer Use.app
     +-- Contents/MacOS/cua-driver
 ```
 
 Core owns the registries, official-source trust policy, lifecycle, and renderer isolation. The
-plugin owns CUA-specific runtime detection, status, settings web bundle, typed preload API, MCP
-contribution, skill content, tool policy, and helper guidance.
+plugin owns CUA-specific runtime detection, bundled helper runtime, status, settings web bundle,
+typed preload API, MCP contribution, skill content, tool policy, and helper guidance.
 
 ## Key Decisions
 

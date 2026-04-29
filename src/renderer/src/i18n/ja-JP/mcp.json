@@ -198,10 +198,6 @@
     "deepchat/apple-server": {
       "desc": "モデルがカレンダー、連絡先、電子メール、マップ、メモ、リマインダー、その他のシステムなどのMacOSのシステム機能を動作させます",
       "name": "MACOSシステムアシスタント"
-    },
-    "deepchat/computer-use": {
-      "name": "Computer Use",
-      "desc": "Lets agents read the screen and operate this Mac after permission is granted"
     }
   },
   "prompts": {

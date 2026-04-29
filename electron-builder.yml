@@ -40,9 +40,6 @@ extraResources:
   - from: ./resources/skills/
     to: app.asar.unpacked/resources/skills
     filter: ['**/*']
-  - from: ./plugins/
-    to: app.asar.unpacked/plugins
-    filter: ['**/*']
 electronLanguages:
   - zh-CN
   - zh-TW

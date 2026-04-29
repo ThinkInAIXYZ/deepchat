@@ -158,10 +158,6 @@ import logger from '@shared/logger'
 import { eventBus } from '../../../../src/main/eventbus'
 import { SKILL_EVENTS } from '../../../../src/main/events'
 import { SKILL_CONFIG, SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
-import {
-  COMPUTER_USE_ENABLED_KEY,
-  COMPUTER_USE_SKILL_NAME
-} from '../../../../src/shared/types/computerUse'
 
 function createDirEntry(name: string) {
   return {
@@ -565,59 +561,46 @@ describe('SkillPresenter', () => {
       expect(first).toEqual(second)
     })
 
-    it('shows the managed cua-driver skill only while Computer Use is enabled on macOS', async () => {
-      const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
-      Object.defineProperty(process, 'platform', {
-        ...platformDescriptor,
-        value: 'darwin'
-      })
-
-      try {
-        mockSkillTree([COMPUTER_USE_SKILL_NAME, 'regular-skill'])
-        ;(fs.existsSync as Mock).mockReturnValue(true)
-        ;(fs.readFileSync as Mock).mockImplementation((target: string) =>
-          target.includes(COMPUTER_USE_SKILL_NAME) ? 'cua-driver' : 'regular-skill'
-        )
-        ;(matter as unknown as Mock).mockImplementation((content: string) => {
-          if (content === 'cua-driver') {
-            return {
-              data: {
-                name: COMPUTER_USE_SKILL_NAME,
-                description: 'CUA',
-                platforms: ['darwin'],
-                metadata: { deepchatFeature: 'computer-use' }
-              },
-              content: ''
-            }
-          }
-
+    it('shows plugin-owned skills after registration and hides them after unregistering owner', async () => {
+      mockSkillTree(['regular-skill'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) =>
+        target.includes('plugin-skill') ? 'plugin-skill' : 'regular-skill'
+      )
+      ;(matter as unknown as Mock).mockImplementation((content: string) => {
+        if (content === 'plugin-skill') {
           return {
-            data: { name: 'regular-skill', description: 'Regular' },
+            data: { name: 'plugin-skill', description: 'Plugin skill' },
             content: ''
           }
-        })
-
-        ;(mockConfigPresenter.getSetting as Mock).mockImplementation((key: string) =>
-          key === COMPUTER_USE_ENABLED_KEY ? false : undefined
-        )
-        await skillPresenter.discoverSkills()
-        expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
-          'regular-skill'
-        ])
-        expect(await skillPresenter.loadSkillContent(COMPUTER_USE_SKILL_NAME)).toBeNull()
-
-        ;(mockConfigPresenter.getSetting as Mock).mockImplementation((key: string) =>
-          key === COMPUTER_USE_ENABLED_KEY ? true : undefined
-        )
-        expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
-          COMPUTER_USE_SKILL_NAME,
-          'regular-skill'
-        ])
-      } finally {
-        if (platformDescriptor) {
-          Object.defineProperty(process, 'platform', platformDescriptor)
         }
-      }
+
+        return {
+          data: { name: 'regular-skill', description: 'Regular' },
+          content: ''
+        }
+      })
+
+      await skillPresenter.registerPluginSkill({
+        ownerPluginId: 'com.deepchat.plugins.fixture',
+        id: 'plugin-skill',
+        skillRoot: '/plugins/fixture/plugin-skill'
+      })
+
+      expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
+        'regular-skill',
+        'plugin-skill'
+      ])
+      const pluginSkillContent = await skillPresenter.loadSkillContent('plugin-skill')
+      expect(pluginSkillContent?.name).toBe('plugin-skill')
+      expect(pluginSkillContent?.content).toContain('Skill root: `/plugins/fixture/plugin-skill`')
+
+      await skillPresenter.unregisterPluginSkillsByOwner('com.deepchat.plugins.fixture')
+
+      expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
+        'regular-skill'
+      ])
+      expect(await skillPresenter.loadSkillContent('plugin-skill')).toBeNull()
     })
   })
 

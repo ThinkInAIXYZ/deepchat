@@ -4,9 +4,11 @@ import {
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
+  pluginsInstallFromFileRoute,
   pluginsInstallRoute,
   pluginsInvokeActionRoute,
-  pluginsListRoute
+  pluginsListRoute,
+  pluginsOpenOfficialReleaseRoute
 } from '@shared/contracts/routes'
 import { OFFICIAL_PLUGIN_SOURCE } from '@shared/types/plugin'
 import type { PluginInvokeActionRequest } from '@shared/types/plugin'
@@ -27,6 +29,20 @@ export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge())
     const result = await bridge.invoke(pluginsInstallRoute.name, {
       pluginId,
       source: OFFICIAL_PLUGIN_SOURCE
+    })
+    return result.result
+  }
+
+  async function installPluginFromFile(filePath?: string) {
+    const result = await bridge.invoke(pluginsInstallFromFileRoute.name, {
+      filePath
+    })
+    return result.result
+  }
+
+  async function openOfficialRelease(pluginId?: string) {
+    const result = await bridge.invoke(pluginsOpenOfficialReleaseRoute.name, {
+      pluginId
     })
     return result.result
   }
@@ -55,6 +71,8 @@ export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge())
     listPlugins,
     getPlugin,
     installOfficialPlugin,
+    installPluginFromFile,
+    openOfficialRelease,
     enablePlugin,
     disablePlugin,
     deletePlugin,

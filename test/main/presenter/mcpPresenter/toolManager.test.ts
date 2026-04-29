@@ -36,7 +36,6 @@ vi.mock('@/presenter', () => ({
 }))
 
 import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
-import { COMPUTER_USE_SERVER_NAME } from '@shared/types/computerUse'
 
 describe('ToolManager', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>
@@ -93,8 +92,9 @@ describe('ToolManager', () => {
     }
   }
 
-  it('leaves Computer Use tool descriptions unchanged', async () => {
-    const client = createClient(COMPUTER_USE_SERVER_NAME, [
+  it('leaves plugin runtime tool descriptions unchanged', async () => {
+    const serverName = 'plugin-runtime'
+    const client = createClient(serverName, [
       {
         name: 'list_apps',
         description: 'List apps original description',
@@ -120,7 +120,7 @@ describe('ToolManager', () => {
         }
       }
     ])
-    const configPresenter = createConfigPresenter(COMPUTER_USE_SERVER_NAME)
+    const configPresenter = createConfigPresenter(serverName)
     const manager = new ToolManager(
       configPresenter as never,
       {
@@ -138,7 +138,7 @@ describe('ToolManager', () => {
     expect(click?.function.description).toBe('Click original description')
   })
 
-  it('leaves non Computer Use tool descriptions unchanged', async () => {
+  it('leaves regular tool descriptions unchanged', async () => {
     const client = createClient('regular-server', [
       {
         name: 'list_apps',

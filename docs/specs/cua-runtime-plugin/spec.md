@@ -57,12 +57,13 @@ Treat `origin/dev` as the production baseline:
 - Let the CUA plugin own its skills, settings UI, runtime detection, MCP contribution, and tool
   permission policy.
 - Ensure disabling or deleting the plugin removes all DeepChat-side CUA capabilities.
-- Keep the external `CuaDriver.app` installation and macOS TCC grants outside DeepChat core.
+- Keep the CUA helper runtime and macOS TCC grants outside DeepChat core.
 
 ## Non-Goals
 
 - Do not merge the current built-in CUA helper as a core feature.
 - Do not package `vendor/cua-driver` or `DeepChat Computer Use.app` inside DeepChat app artifacts.
+- Package the signed `DeepChat Computer Use.app` helper inside the CUA `.dcplugin` artifact.
 - Do not add DeepChat-owned Accessibility or Screen Recording permissions for CUA.
 - Do not add Windows or Linux Computer Use support in this feature.
 - Do not create a public third-party plugin marketplace in the first increment.
@@ -331,7 +332,7 @@ dist/plugins/deepchat-plugin-cua-<version>.dcplugin
 ```
 
 - The `.dcplugin` package must contain manifest, compiled plugin code, settings bundle, skills,
-  preload type definitions, checksums, and signature metadata.
+  preload type definitions, bundled helper runtime, checksums, and signature metadata.
 - DeepChat app packaging must not include CUA Driver binaries or vendored CUA source.
 - Release CI must upload the CUA plugin as a separate artifact.
 

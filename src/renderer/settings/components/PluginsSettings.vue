@@ -7,10 +7,29 @@
           {{ t('settings.plugins.officialOnly') }}
         </p>
       </div>
-      <Button variant="outline" size="sm" :disabled="loading" @click="loadPlugins">
-        <Icon icon="lucide:refresh-cw" class="w-4 h-4 mr-2" />
-        {{ t('settings.plugins.refresh') }}
-      </Button>
+      <div class="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="loading || installingFromFile"
+          @click="installFromFile"
+        >
+          <Icon icon="lucide:file-up" class="w-4 h-4 mr-2" />
+          {{ t('settings.plugins.installFromFile') }}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="openingRelease"
+          @click="openOfficialRelease()"
+        >
+          <Icon icon="lucide:external-link" class="w-4 h-4 mr-2" />
+          {{ t('settings.plugins.openRelease') }}
+        </Button>
+        <Button variant="outline" size="icon" :disabled="loading" @click="loadPlugins">
+          <Icon icon="lucide:refresh-cw" class="w-4 h-4" />
+        </Button>
+      </div>
     </header>
 
     <div
@@ -21,8 +40,34 @@
     </div>
 
     <div class="flex-1 overflow-y-auto space-y-3 pr-1">
-      <div v-if="!loading && plugins.length === 0" class="text-sm text-muted-foreground">
-        {{ t('settings.plugins.empty') }}
+      <div
+        v-if="!loading && plugins.length === 0"
+        class="border border-dashed border-border rounded-lg p-6 flex flex-col gap-4 bg-background"
+      >
+        <div class="flex items-start gap-3">
+          <Icon icon="lucide:puzzle" class="w-5 h-5 mt-0.5 text-muted-foreground" />
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold">{{ t('settings.plugins.emptyTitle') }}</h3>
+            <p class="text-sm text-muted-foreground mt-1">
+              {{ t('settings.plugins.emptyDescription') }}
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <Button size="sm" :disabled="installingFromFile" @click="installFromFile">
+            <Icon icon="lucide:file-up" class="w-4 h-4 mr-2" />
+            {{ t('settings.plugins.installFromFile') }}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            :disabled="openingRelease"
+            @click="openOfficialRelease()"
+          >
+            <Icon icon="lucide:external-link" class="w-4 h-4 mr-2" />
+            {{ t('settings.plugins.openRelease') }}
+          </Button>
+        </div>
       </div>
 
       <article
@@ -49,13 +94,17 @@
             :class="
               plugin.enabled
                 ? 'border-emerald-500/40 text-emerald-600'
-                : 'border-border text-muted-foreground'
+                : plugin.installed
+                  ? 'border-border text-muted-foreground'
+                  : 'border-border text-muted-foreground'
             "
           >
             {{
               plugin.enabled
                 ? t('settings.plugins.status.enabled')
-                : t('settings.plugins.status.disabled')
+                : plugin.installed
+                  ? t('settings.plugins.status.disabled')
+                  : t('settings.plugins.status.available')
             }}
           </span>
         </div>
@@ -82,6 +131,16 @@
           >
             <Icon icon="lucide:download" class="w-4 h-4 mr-2" />
             {{ t('settings.plugins.install') }}
+          </Button>
+          <Button
+            v-if="!plugin.installed"
+            size="sm"
+            variant="outline"
+            :disabled="isPending(plugin.id) || openingRelease"
+            @click="openOfficialRelease(plugin.id)"
+          >
+            <Icon icon="lucide:external-link" class="w-4 h-4 mr-2" />
+            {{ t('settings.plugins.openRelease') }}
           </Button>
           <Button
             v-if="plugin.installed && !plugin.enabled"
@@ -142,6 +201,8 @@ const plugins = ref<PluginListItem[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
 const pendingPluginId = ref<string | null>(null)
+const installingFromFile = ref(false)
+const openingRelease = ref(false)
 
 function isPending(pluginId: string): boolean {
   return pendingPluginId.value === pluginId
@@ -187,6 +248,40 @@ async function runPluginAction(
 
 async function installPlugin(pluginId: string): Promise<void> {
   await runPluginAction(pluginId, () => pluginClient.installOfficialPlugin(pluginId))
+}
+
+async function installFromFile(): Promise<void> {
+  installingFromFile.value = true
+  errorMessage.value = ''
+  try {
+    const result = await pluginClient.installPluginFromFile()
+    if (!result.ok) {
+      throw new Error(result.error || t('settings.plugins.actionFailed'))
+    }
+    const data = result.data as { canceled?: boolean } | undefined
+    if (!data?.canceled) {
+      await loadPlugins()
+    }
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
+  } finally {
+    installingFromFile.value = false
+  }
+}
+
+async function openOfficialRelease(pluginId?: string): Promise<void> {
+  openingRelease.value = true
+  errorMessage.value = ''
+  try {
+    const result = await pluginClient.openOfficialRelease(pluginId)
+    if (!result.ok) {
+      throw new Error(result.error || t('settings.plugins.actionFailed'))
+    }
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
+  } finally {
+    openingRelease.value = false
+  }
 }
 
 async function enablePlugin(pluginId: string): Promise<void> {

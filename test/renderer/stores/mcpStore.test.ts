@@ -156,4 +156,45 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(store.enabledServers).toEqual([])
     expect(store.enabledServerCount).toBe(0)
   })
+
+  it('hides plugin-owned servers from MCP UI lists', async () => {
+    const store = await setupStore()
+
+    store.config = {
+      mcpServers: {
+        demo: {
+          command: 'demo-command',
+          args: [],
+          env: {},
+          descriptions: 'Demo server',
+          icons: 'D',
+          autoApprove: [],
+          disable: false,
+          type: 'stdio',
+          enabled: true
+        },
+        'cua-driver': {
+          command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
+          args: ['mcp'],
+          env: {},
+          descriptions: 'Computer Use',
+          icons: 'plugin',
+          autoApprove: [],
+          disable: false,
+          type: 'stdio',
+          enabled: true,
+          source: 'plugin',
+          sourceId: 'com.deepchat.plugins.cua',
+          ownerPluginId: 'com.deepchat.plugins.cua'
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+
+    expect(store.serverList.map((server) => server.name)).toEqual(['demo'])
+    expect(store.enabledServers.map((server) => server.name)).toEqual(['demo'])
+    expect(store.enabledServerCount).toBe(1)
+    expect(store.config.mcpServers['cua-driver']).toBeDefined()
+  })
 })
