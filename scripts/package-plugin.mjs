@@ -199,6 +199,32 @@ function validateCuaRuntime(pluginDir, manifest, args) {
     `runtime/darwin/${args.targetArch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver`,
     `CUA runtime binary ${targetPlatform}/${args.targetArch}`
   )
+  const expectedDetect = [
+    `plugin:runtime/darwin/${args.targetArch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver`,
+    '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
+  ]
+  if (JSON.stringify(manifest.runtime?.detect ?? []) !== JSON.stringify(expectedDetect)) {
+    throw new Error('CUA runtime detect paths must point to the bundled helper app first')
+  }
+
+  const cuaServer = (manifest.mcpServers ?? []).find((server) => server.id === 'cua-driver')
+  if (!cuaServer) {
+    throw new Error('CUA plugin must declare the cua-driver MCP server')
+  }
+  if (cuaServer.command !== '${runtime.cua-driver.command}') {
+    throw new Error('CUA MCP server command must reference ${runtime.cua-driver.command}')
+  }
+  const env = cuaServer.env ?? {}
+  const requiredEnv = {
+    CUA_DRIVER_MCP_MODE: '1',
+    DEEPCHAT_COMPUTER_USE_APP_PATH: '${runtime.cua-driver.helperAppPath}',
+    DEEPCHAT_COMPUTER_USE_BINARY_PATH: '${runtime.cua-driver.command}'
+  }
+  for (const [key, expected] of Object.entries(requiredEnv)) {
+    if (env[key] !== expected) {
+      throw new Error(`CUA MCP server env ${key} must be ${expected}`)
+    }
+  }
 }
 
 function buildChecksums(files) {

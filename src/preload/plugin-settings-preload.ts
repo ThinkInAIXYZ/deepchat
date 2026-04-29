@@ -29,7 +29,8 @@ const deepchatPluginApi = Object.freeze({
     return {
       pluginId,
       enabled: Boolean(result.plugin?.enabled),
-      runtime: result.plugin?.runtime
+      runtime: result.plugin?.runtime,
+      mcpServers: result.plugin?.mcpServers
     }
   },
   async enable() {

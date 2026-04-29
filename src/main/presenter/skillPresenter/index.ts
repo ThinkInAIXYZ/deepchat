@@ -200,8 +200,10 @@ export class SkillPresenter implements ISkillPresenter {
   private draftsRoot: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
-  private pluginSkillContributions: Map<string, { ownerPluginId: string; skillRoot: string }> =
-    new Map()
+  private pluginSkillContributions: Map<
+    string,
+    { ownerPluginId: string; skillRoot: string; pluginRoot?: string }
+  > = new Map()
   private watcher: FSWatcher | null = null
   private initialized: boolean = false
   // Prevent concurrent discovery calls (race condition protection)
@@ -851,9 +853,16 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private replacePathVariables(content: string, metadata: SkillMetadata): string {
+    const pluginContribution = this.getPluginContributionForSkillRoot(metadata.skillRoot)
     return content
       .replace(/\$\{SKILL_ROOT\}/g, metadata.skillRoot)
       .replace(/\$\{SKILLS_DIR\}/g, this.skillsDir)
+      .replace(/\$\{PLUGIN_ROOT\}/g, pluginContribution?.pluginRoot ?? '')
+      .replace(/\$\{PROCESS_ARCH\}/g, process.arch)
+      .replace(
+        /\$\{OWNER_PLUGIN_ID\}/g,
+        metadata.ownerPluginId ?? pluginContribution?.ownerPluginId ?? ''
+      )
   }
 
   private async buildRuntimeInstructions(metadata: SkillMetadata): Promise<string> {
@@ -1015,6 +1024,7 @@ export class SkillPresenter implements ISkillPresenter {
     ownerPluginId: string
     id: string
     skillRoot: string
+    pluginRoot?: string
   }): Promise<void> {
     const skillRoot = path.resolve(input.skillRoot)
     const skillPath = path.join(skillRoot, 'SKILL.md')
@@ -1024,7 +1034,8 @@ export class SkillPresenter implements ISkillPresenter {
 
     this.pluginSkillContributions.set(`${input.ownerPluginId}:${input.id}`, {
       ownerPluginId: input.ownerPluginId,
-      skillRoot
+      skillRoot,
+      pluginRoot: input.pluginRoot ? path.resolve(input.pluginRoot) : undefined
     })
     this.metadataCache.clear()
     this.contentCache.clear()
@@ -1989,9 +2000,7 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private deriveSkillCategory(skillRoot: string): string | null {
-    const pluginContribution = Array.from(this.pluginSkillContributions.values()).find(
-      (contribution) => path.resolve(contribution.skillRoot) === path.resolve(skillRoot)
-    )
+    const pluginContribution = this.getPluginContributionForSkillRoot(skillRoot)
     if (pluginContribution) {
       return `plugin/${pluginContribution.ownerPluginId}`
     }
@@ -2003,6 +2012,14 @@ export class SkillPresenter implements ISkillPresenter {
 
     const segments = relative.split(path.sep).filter(Boolean)
     return segments.length > 1 ? segments.slice(0, -1).join('/') : null
+  }
+
+  private getPluginContributionForSkillRoot(
+    skillRoot: string
+  ): { ownerPluginId: string; skillRoot: string; pluginRoot?: string } | undefined {
+    return Array.from(this.pluginSkillContributions.values()).find(
+      (contribution) => path.resolve(contribution.skillRoot) === path.resolve(skillRoot)
+    )
   }
 
   private listSkillLinkedFiles(skillRoot: string): SkillLinkedFile[] {

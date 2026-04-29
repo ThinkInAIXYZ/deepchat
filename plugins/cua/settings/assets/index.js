@@ -2,6 +2,8 @@ const stateNode = document.getElementById('plugin-state')
 const runtimeStateNode = document.getElementById('runtime-state')
 const runtimeVersionNode = document.getElementById('runtime-version')
 const runtimeCommandNode = document.getElementById('runtime-command')
+const runtimeHelperAppNode = document.getElementById('runtime-helper-app')
+const mcpStateNode = document.getElementById('mcp-state')
 const accessibilityNode = document.getElementById('permission-accessibility')
 const screenRecordingNode = document.getElementById('permission-screen-recording')
 const messageNode = document.getElementById('message')
@@ -63,6 +65,18 @@ async function refreshStatus() {
   setText(runtimeStateNode, status.runtime?.state)
   setText(runtimeVersionNode, status.runtime?.version)
   setText(runtimeCommandNode, status.runtime?.command)
+  setText(runtimeHelperAppNode, status.runtime?.helperAppPath)
+
+  const cuaMcp = status.mcpServers?.find((server) => server.serverId === 'cua-driver')
+  if (!cuaMcp) {
+    setText(mcpStateNode, 'Unavailable')
+  } else if (cuaMcp.running) {
+    setText(mcpStateNode, 'Running')
+  } else if (cuaMcp.enabled) {
+    setText(mcpStateNode, 'Stopped')
+  } else {
+    setText(mcpStateNode, 'Disabled')
+  }
 }
 
 async function checkPermissions() {

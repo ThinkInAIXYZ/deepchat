@@ -233,6 +233,13 @@ public enum RightClickTool {
     /// just needs a `get_window_state` refresh. Mirrors
     /// `ClickTool.noCachedStateMessage`.
     private static func noCachedStateMessage(pid: Int32, windowId: UInt32) -> String {
+        if ProcessInfo.processInfo.environment["CUA_DRIVER_MCP_MODE"] == "1" {
+            return
+                "No cached AX state for pid \(pid) and window_id \(windowId). "
+                + "Call get_window_state with the same pid and window_id before "
+                + "using element_index actions, then retry with an index from "
+                + "that latest snapshot."
+        }
         let socketPath = DaemonPaths.defaultSocketPath()
         if !DaemonClient.isDaemonListening(socketPath: socketPath) {
             return

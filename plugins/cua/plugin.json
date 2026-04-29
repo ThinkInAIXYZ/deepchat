@@ -26,11 +26,8 @@
     "type": "external-helper",
     "displayName": "Cua Driver",
     "detect": [
-      "plugin:runtime/darwin/arm64/DeepChat Computer Use.app/Contents/MacOS/cua-driver",
-      "plugin:runtime/darwin/x64/DeepChat Computer Use.app/Contents/MacOS/cua-driver",
-      "/Applications/CuaDriver.app/Contents/MacOS/cua-driver",
-      "~/.local/bin/cua-driver",
-      "PATH:cua-driver"
+      "plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver",
+      "/Applications/CuaDriver.app/Contents/MacOS/cua-driver"
     ],
     "install": {
       "mode": "user-confirmed",
@@ -47,6 +44,11 @@
       "transport": "stdio",
       "command": "${runtime.cua-driver.command}",
       "args": ["mcp"],
+      "env": {
+        "CUA_DRIVER_MCP_MODE": "1",
+        "DEEPCHAT_COMPUTER_USE_APP_PATH": "${runtime.cua-driver.helperAppPath}",
+        "DEEPCHAT_COMPUTER_USE_BINARY_PATH": "${runtime.cua-driver.command}"
+      },
       "autoApprove": []
     }
   ],

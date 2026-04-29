@@ -78,6 +78,7 @@ type SkillContributionPort = ISkillPresenter & {
     ownerPluginId: string
     id: string
     skillRoot: string
+    pluginRoot?: string
   }) => Promise<void> | void
   unregisterPluginSkillsByOwner?: (ownerPluginId: string) => Promise<void> | void
 }
@@ -315,9 +316,10 @@ export class PluginPresenter {
       return
     }
 
-    await this.registerMcpServers(plugin, runtime)
+    const registeredServerNames = await this.registerMcpServers(plugin, runtime)
     await this.registerSkills(plugin)
     this.registerToolPolicies(plugin)
+    await this.startPluginMcpServersIfReady(pluginId, registeredServerNames)
   }
 
   private async disableByOwner(pluginId: string): Promise<void> {
@@ -348,10 +350,11 @@ export class PluginPresenter {
   private async registerMcpServers(
     plugin: ResolvedOfficialPlugin,
     runtime: PluginRuntimeStatus
-  ): Promise<void> {
+  ): Promise<string[]> {
     const servers = plugin.manifest.mcpServers ?? []
+    const registeredServerNames: string[] = []
     for (const server of servers) {
-      const command = this.resolveRuntimeTemplate(server.command, runtime)
+      const command = this.resolvePluginTemplate(server.command, plugin, runtime)
       const serverName = server.id
       const existingServers = await this.configPresenter.getMcpServers()
       const existing = existingServers[serverName]
@@ -359,11 +362,13 @@ export class PluginPresenter {
         throw new Error(`MCP server "${serverName}" already exists and is not owned by this plugin`)
       }
 
+      const serverEnv = this.resolvePluginTemplateRecord(server.env ?? {}, plugin, runtime)
       const config: MCPServerConfig = {
         type: 'stdio',
         command,
-        args: server.args,
+        args: server.args.map((arg) => this.resolvePluginTemplate(arg, plugin, runtime)),
         env: {
+          ...serverEnv,
           DEEPCHAT_PLUGIN_ID: plugin.manifest.id
         },
         descriptions: server.displayName,
@@ -389,7 +394,9 @@ export class PluginPresenter {
         payload: this.toJsonPayload(config),
         enabled: true
       })
+      registeredServerNames.push(serverName)
     }
+    return registeredServerNames
   }
 
   private async registerSkills(plugin: ResolvedOfficialPlugin): Promise<void> {
@@ -403,7 +410,8 @@ export class PluginPresenter {
       await this.skillPresenter.registerPluginSkill?.({
         ownerPluginId: plugin.manifest.id,
         id: skill.id,
-        skillRoot
+        skillRoot,
+        pluginRoot: plugin.root
       })
       this.upsertResource({
         pluginId: plugin.manifest.id,
@@ -533,6 +541,7 @@ export class PluginPresenter {
       runtimeId: runtimeManifest.id,
       provider: runtimeManifest.install?.provider ?? plugin.manifest.publisher,
       command: status.command,
+      helperAppPath: status.helperAppPath,
       version: status.version,
       installSource: runtimeManifest.install?.strategy,
       state: status.state,
@@ -562,21 +571,25 @@ export class PluginPresenter {
           timeout: 5000,
           windowsHide: true
         })
+        const helperAppPath = this.resolveHelperAppPath(command)
         return {
           runtimeId: runtime.id,
           displayName: runtime.displayName,
           state: 'installed',
           command,
+          helperAppPath,
           version: stdout.trim() || undefined,
           checkedAt
         }
       } catch (error) {
         if (path.isAbsolute(command)) {
+          const helperAppPath = this.resolveHelperAppPath(command)
           return {
             runtimeId: runtime.id,
             displayName: runtime.displayName,
             state: 'error',
             command,
+            helperAppPath,
             lastError: error instanceof Error ? error.message : String(error),
             checkedAt
           }
@@ -894,12 +907,7 @@ export class PluginPresenter {
 
   private hydrateCatalogManifest(entry: OfficialPluginCatalogEntry): DeepChatPluginManifest {
     const version = app.getVersion()
-    const manifest = JSON.parse(
-      JSON.stringify(entry.manifest)
-        .replaceAll('${app.version}', version)
-        .replaceAll('${arch}', process.arch)
-        .replaceAll('${github.release.download}', this.getOfficialPluginReleaseDownloadBase())
-    ) as DeepChatPluginManifest
+    const manifest = this.hydrateManifestPlaceholders(entry.manifest)
 
     if (entry.assetBaseName) {
       manifest.source.url = `${this.getOfficialPluginReleaseDownloadBase()}/${this.getOfficialPluginAssetName(
@@ -918,7 +926,9 @@ export class PluginPresenter {
   }
 
   private readManifest(manifestPath: string): DeepChatPluginManifest {
-    const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as DeepChatPluginManifest
+    const parsed = this.hydrateManifestPlaceholders(
+      JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as DeepChatPluginManifest
+    )
     if (!parsed.id || !parsed.name || !parsed.version || !parsed.source) {
       throw new Error(`Invalid plugin manifest: ${manifestPath}`)
     }
@@ -931,9 +941,9 @@ export class PluginPresenter {
     if (!manifestFile) {
       throw new Error(`Plugin package is missing plugin.json: ${packagePath}`)
     }
-    const manifest = JSON.parse(
-      Buffer.from(manifestFile).toString('utf8')
-    ) as DeepChatPluginManifest
+    const manifest = this.hydrateManifestPlaceholders(
+      JSON.parse(Buffer.from(manifestFile).toString('utf8')) as DeepChatPluginManifest
+    )
     if (!manifest.id || !manifest.name || !manifest.version || !manifest.source) {
       throw new Error(`Invalid plugin package manifest: ${packagePath}`)
     }
@@ -1220,6 +1230,7 @@ export class PluginPresenter {
           displayName: plugin.manifest.runtime.displayName,
           state: runtimeRecord?.state ?? 'missing',
           command: runtimeRecord?.command,
+          helperAppPath: runtimeRecord?.helperAppPath,
           version: runtimeRecord?.version,
           lastError: runtimeRecord?.lastError,
           checkedAt: runtimeRecord?.checkedAt
@@ -1239,6 +1250,7 @@ export class PluginPresenter {
       capabilities: plugin.manifest.capabilities,
       releaseUrl: this.getOfficialPluginReleaseUrl(plugin.manifest.id),
       runtime,
+      mcpServers: await this.getPluginMcpRuntimeStatuses(plugin.manifest),
       settings
     }
   }
@@ -1354,11 +1366,20 @@ export class PluginPresenter {
     return record?.payload as unknown as PluginSettingsContribution | undefined
   }
 
-  private resolveRuntimeTemplate(template: string, runtime: PluginRuntimeStatus): string {
-    return template.replace(`\${runtime.${runtime.runtimeId}.command}`, runtime.command ?? '')
+  private resolvePluginTemplate(
+    template: string,
+    plugin: ResolvedOfficialPlugin,
+    runtime: PluginRuntimeStatus
+  ): string {
+    return template
+      .replaceAll(`\${runtime.${runtime.runtimeId}.command}`, runtime.command ?? '')
+      .replaceAll(`\${runtime.${runtime.runtimeId}.helperAppPath}`, runtime.helperAppPath ?? '')
+      .replaceAll('${plugin.root}', plugin.root)
+      .replaceAll('${plugin.id}', plugin.manifest.id)
   }
 
   private resolveRuntimeCandidate(candidate: string, pluginRoot: string): string | null {
+    candidate = candidate.replaceAll('${arch}', process.arch)
     if (candidate.startsWith('plugin:')) {
       return this.resolvePluginRelativePath(pluginRoot, candidate.slice('plugin:'.length))
     }
@@ -1369,6 +1390,87 @@ export class PluginPresenter {
       return path.join(app.getPath('home'), candidate.slice(2))
     }
     return candidate
+  }
+
+  private resolvePluginTemplateRecord(
+    input: Record<string, string>,
+    plugin: ResolvedOfficialPlugin,
+    runtime: PluginRuntimeStatus
+  ): Record<string, string> {
+    return Object.fromEntries(
+      Object.entries(input).map(([key, value]) => [
+        key,
+        this.resolvePluginTemplate(value, plugin, runtime)
+      ])
+    )
+  }
+
+  private resolveHelperAppPath(command: string): string | undefined {
+    if (!path.isAbsolute(command)) {
+      return undefined
+    }
+
+    let current = path.dirname(path.normalize(command))
+    while (current && current !== path.dirname(current)) {
+      if (current.endsWith('.app')) {
+        return current
+      }
+      current = path.dirname(current)
+    }
+    return undefined
+  }
+
+  private async startPluginMcpServersIfReady(
+    pluginId: string,
+    serverNames: string[]
+  ): Promise<void> {
+    if (serverNames.length === 0 || !this.mcpPresenter.isReady()) {
+      return
+    }
+
+    if (!(await this.configPresenter.getMcpEnabled())) {
+      return
+    }
+
+    for (const serverName of serverNames) {
+      try {
+        if (!(await this.mcpPresenter.isServerRunning(serverName))) {
+          await this.mcpPresenter.startServer(serverName)
+        }
+      } catch (error) {
+        console.warn('[PluginHost] Failed to auto-start plugin MCP server:', {
+          pluginId,
+          serverName,
+          error
+        })
+      }
+    }
+  }
+
+  private async getPluginMcpRuntimeStatuses(
+    manifest: DeepChatPluginManifest
+  ): Promise<NonNullable<PluginListItem['mcpServers']>> {
+    const servers = await this.configPresenter.getMcpServers()
+    const statuses: NonNullable<PluginListItem['mcpServers']> = []
+    for (const server of manifest.mcpServers ?? []) {
+      const serverConfig = servers[server.id]
+      statuses.push({
+        serverId: server.id,
+        enabled: Boolean(serverConfig?.enabled),
+        running: await this.mcpPresenter.isServerRunning(server.id)
+      })
+    }
+    return statuses
+  }
+
+  private hydrateManifestPlaceholders(manifest: DeepChatPluginManifest): DeepChatPluginManifest {
+    return JSON.parse(
+      JSON.stringify(manifest)
+        .replaceAll('${app.version}', app.getVersion())
+        .replaceAll('${arch}', process.arch)
+        .replaceAll('${target.platform}', this.platform)
+        .replaceAll('${github.release.download}', this.getOfficialPluginReleaseDownloadBase())
+    ) as DeepChatPluginManifest
   }
 
   private getOfficialPluginReleaseUrl(_pluginId?: string): string {

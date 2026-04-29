@@ -17,4 +17,79 @@ describe('PluginPresenter', () => {
     expect(presenterSource).toContain('deepchat-permission-probe')
     expect(presenterSource).toContain('Runtime permission probe failed')
   })
+
+  it('resolves CUA helper paths, MCP env, and runtime auto-start hooks', async () => {
+    const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
+
+    expect(presenterSource).toContain('helperAppPath')
+    expect(presenterSource).toContain('resolveHelperAppPath')
+    expect(presenterSource).toContain('resolvePluginTemplateRecord')
+    expect(presenterSource).toContain('startPluginMcpServersIfReady')
+    expect(presenterSource).toContain('this.mcpPresenter.startServer(serverName)')
+    expect(presenterSource).toContain('this.configPresenter.getMcpEnabled()')
+  })
+
+  it('declares the CUA MCP server with plugin helper context', async () => {
+    const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
+    const catalog = JSON.parse(await readFile('resources/plugins/official-catalog.json', 'utf8'))
+    const mcpConfig = JSON.parse(await readFile('plugins/cua/mcp/cua-driver.json', 'utf8'))
+    const catalogManifest = catalog.plugins[0].manifest
+    const server = manifest.mcpServers.find((item: { id: string }) => item.id === 'cua-driver')
+    const catalogServer = catalogManifest.mcpServers.find(
+      (item: { id: string }) => item.id === 'cua-driver'
+    )
+
+    expect(manifest.runtime.detect[0]).toBe(
+      'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver'
+    )
+    expect(manifest.runtime.detect).toEqual([
+      'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
+      '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
+    ])
+    expect(server.env).toEqual({
+      CUA_DRIVER_MCP_MODE: '1',
+      DEEPCHAT_COMPUTER_USE_APP_PATH: '${runtime.cua-driver.helperAppPath}',
+      DEEPCHAT_COMPUTER_USE_BINARY_PATH: '${runtime.cua-driver.command}'
+    })
+    expect(catalogManifest.runtime.detect[0]).toBe(manifest.runtime.detect[0])
+    expect(catalogManifest.runtime.detect).toEqual(manifest.runtime.detect)
+    expect(catalogServer.env).toEqual(server.env)
+    expect(mcpConfig.env).toEqual(server.env)
+  })
+
+  it('keeps the CUA skill instructions MCP-only', async () => {
+    const files = ['SKILL.md', 'README.md', 'WEB_APPS.md', 'RECORDING.md', 'TESTS.md']
+    const contents = await Promise.all(
+      files.map((file) => readFile(`plugins/cua/skills/cua-driver/${file}`, 'utf8'))
+    )
+    const combined = contents.join('\n')
+
+    expect(combined).toContain('list_apps')
+    expect(combined).toContain('launch_app')
+    expect(combined).toContain('get_window_state')
+    expect(combined).toContain('check_permissions')
+    expect(combined).toContain('DeepChat Computer Use.app')
+    expect(combined).not.toContain('Bash')
+    expect(combined).not.toContain('cua-driver <tool')
+    expect(combined).not.toContain('PATH')
+    expect(combined).not.toMatch(/\bserve\b/)
+    expect(combined).not.toContain('open -n -g -a')
+    expect(combined).not.toContain('daemon')
+  })
+
+  it('uses MCP-mode cache guidance in the CUA driver vendor source', async () => {
+    const clickTool = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ClickTool.swift',
+      'utf8'
+    )
+    const rightClickTool = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/RightClickTool.swift',
+      'utf8'
+    )
+
+    for (const source of [clickTool, rightClickTool]) {
+      expect(source).toContain('CUA_DRIVER_MCP_MODE')
+      expect(source).toContain('Call get_window_state with the same pid and window_id')
+    }
+  })
 })

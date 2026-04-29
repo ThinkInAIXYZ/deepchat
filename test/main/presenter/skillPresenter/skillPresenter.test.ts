@@ -571,7 +571,8 @@ describe('SkillPresenter', () => {
         if (content === 'plugin-skill') {
           return {
             data: { name: 'plugin-skill', description: 'Plugin skill' },
-            content: ''
+            content:
+              'Plugin root: `${PLUGIN_ROOT}`. Arch: `${PROCESS_ARCH}`. Owner: `${OWNER_PLUGIN_ID}`.'
           }
         }
 
@@ -584,7 +585,8 @@ describe('SkillPresenter', () => {
       await skillPresenter.registerPluginSkill({
         ownerPluginId: 'com.deepchat.plugins.fixture',
         id: 'plugin-skill',
-        skillRoot: '/plugins/fixture/plugin-skill'
+        skillRoot: '/plugins/fixture/plugin-skill',
+        pluginRoot: '/plugins/fixture'
       })
 
       expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
@@ -594,6 +596,13 @@ describe('SkillPresenter', () => {
       const pluginSkillContent = await skillPresenter.loadSkillContent('plugin-skill')
       expect(pluginSkillContent?.name).toBe('plugin-skill')
       expect(pluginSkillContent?.content).toContain('Skill root: `/plugins/fixture/plugin-skill`')
+      expect(pluginSkillContent?.content).toContain('Plugin root: `/plugins/fixture`')
+      expect(pluginSkillContent?.content).toContain(`Arch: \`${process.arch}\``)
+      expect(pluginSkillContent?.content).toContain('Owner: `com.deepchat.plugins.fixture`')
+
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      await skillPresenter.setActiveSkills('plugin-conv', ['plugin-skill'])
+      expect(await skillPresenter.getActiveSkills('plugin-conv')).toEqual(['plugin-skill'])
 
       await skillPresenter.unregisterPluginSkillsByOwner('com.deepchat.plugins.fixture')
 
@@ -601,6 +610,7 @@ describe('SkillPresenter', () => {
         'regular-skill'
       ])
       expect(await skillPresenter.loadSkillContent('plugin-skill')).toBeNull()
+      expect(await skillPresenter.getActiveSkills('plugin-conv')).toEqual([])
     })
   })
 

@@ -55,6 +55,7 @@ export interface PluginMcpServerManifest {
   transport: 'stdio'
   command: string
   args: string[]
+  env?: Record<string, string>
   autoApprove: string[]
 }
 
@@ -120,6 +121,7 @@ export interface RuntimeDependencyRecord {
   runtimeId: string
   provider: string
   command?: string
+  helperAppPath?: string
   version?: string
   installSource?: string
   state: PluginRuntimeState
@@ -132,9 +134,16 @@ export interface PluginRuntimeStatus {
   displayName: string
   state: PluginRuntimeState
   command?: string
+  helperAppPath?: string
   version?: string
   lastError?: string
   checkedAt?: number
+}
+
+export interface PluginMcpRuntimeStatus {
+  serverId: string
+  enabled: boolean
+  running: boolean
 }
 
 export interface PluginSettingsContribution {
@@ -159,6 +168,7 @@ export interface PluginListItem {
   capabilities: PluginCapability[]
   releaseUrl?: string
   runtime?: PluginRuntimeStatus
+  mcpServers?: PluginMcpRuntimeStatus[]
   settings?: PluginSettingsContribution
 }
 
@@ -192,4 +202,5 @@ export interface PluginSettingsApiStatus {
   pluginId: string
   enabled: boolean
   runtime?: PluginRuntimeStatus
+  mcpServers?: PluginMcpRuntimeStatus[]
 }

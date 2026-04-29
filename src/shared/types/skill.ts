@@ -193,6 +193,7 @@ export interface ISkillPresenter {
     ownerPluginId: string
     id: string
     skillRoot: string
+    pluginRoot?: string
   }): Promise<void> | void
   unregisterPluginSkillsByOwner?(ownerPluginId: string): Promise<void> | void
 

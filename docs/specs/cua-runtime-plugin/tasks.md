@@ -134,14 +134,14 @@ Validation:
 - [x] Add `SkillRegistry.unregisterByOwner`.
 - [x] Extend SkillPresenter discovery to merge plugin-owned skill roots.
 - [x] Hide plugin-owned skills when owner plugin is disabled.
-- [ ] Filter disabled plugin-owned skills from:
+- [x] Filter disabled plugin-owned skills from:
   - metadata list
   - `skill_view`
   - active skill validation
   - prompt content loading
   - allowed tools lookup
 - [x] Remove CUA-specific skill visibility and auto-pin logic from core.
-- [ ] Add tests for plugin-owned skill enable/disable/delete behavior.
+- [x] Add tests for plugin-owned skill enable/disable behavior.
 
 Validation:
 
@@ -215,9 +215,14 @@ Validation:
 - [x] Add CUA permission status checks.
 - [x] Add CUA install guide action.
 - [ ] Add optional CUA helper uninstall action with confirmation.
+- [x] Resolve bundled helper app paths from plugin runtime records.
 - [x] Add `mcp/cua-driver.json`.
+- [x] Inject CUA MCP env from plugin runtime template values.
 - [x] Add `policies/tool-policy.json`.
 - [x] Add `skills/cua-driver/SKILL.md` and related upstream skill docs.
+- [x] Rewrite CUA skill docs to guide model actions through MCP tools only.
+- [x] Inject plugin root, process architecture, and owner plugin context into plugin-owned skills.
+- [x] Keep CUA driver MCP-mode cache errors focused on `get_window_state` ordering.
 - [x] Add CUA settings standalone web bundle for missing helper, installed helper, permissions, MCP,
   and skill state.
 - [x] Add CUA plugin settings preload `.d.ts`.
@@ -227,14 +232,15 @@ Validation:
   - `checkPermissions`
   - `openPermissionGuide`
   - `uninstallHelper`
-- [ ] Add CUA plugin tests with mocked runtime detection.
+- [~] Add CUA plugin tests with mocked runtime detection and static package assertions.
 
 Validation:
 
 - [ ] Missing helper shows install guidance.
-- [ ] Installed helper shows version and path.
-- [ ] Plugin enable registers CUA MCP, skill, settings, and policy resources.
-- [ ] Plugin disable unregisters CUA MCP, skill, settings, and policy resources.
+- [x] Installed helper shows version and path.
+- [x] Plugin enable registers CUA MCP, skill, settings, and policy resources.
+- [x] Plugin enable starts the CUA MCP server when global MCP is ready and enabled.
+- [x] Plugin disable unregisters CUA MCP, skill, settings, and policy resources.
 - [ ] CUA settings UI works through only the plugin-specific preload API.
 
 ## M10 Remove Built-In CUA Demo Code
