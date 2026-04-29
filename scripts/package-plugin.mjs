@@ -126,7 +126,20 @@ function validateManifest(pluginDir, manifest) {
   }
 }
 
-function collectFiles(pluginDir, currentDir = pluginDir, files = {}) {
+function shouldSkipPackageEntry(relativePath, manifest, args) {
+  if (manifest?.id !== 'com.deepchat.plugins.cua') {
+    return false
+  }
+
+  const parts = relativePath.split('/')
+  if (parts[0] === 'runtime' && parts[1] === 'darwin' && parts[2]) {
+    return parts[2] !== args.targetArch
+  }
+
+  return false
+}
+
+function collectFiles(pluginDir, currentDir = pluginDir, files = {}, manifest, args) {
   for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
     if (
       entry.isSymbolicLink() ||
@@ -140,12 +153,16 @@ function collectFiles(pluginDir, currentDir = pluginDir, files = {}) {
     }
 
     const absolutePath = path.join(currentDir, entry.name)
-    if (entry.isDirectory()) {
-      collectFiles(pluginDir, absolutePath, files)
+    const relativePath = path.relative(pluginDir, absolutePath).replace(/\\/g, '/')
+    if (shouldSkipPackageEntry(relativePath, manifest, args)) {
       continue
     }
 
-    const relativePath = path.relative(pluginDir, absolutePath).replace(/\\/g, '/')
+    if (entry.isDirectory()) {
+      collectFiles(pluginDir, absolutePath, files, manifest, args)
+      continue
+    }
+
     files[relativePath] = new Uint8Array(fs.readFileSync(absolutePath))
   }
   return files
@@ -239,7 +256,7 @@ function buildChecksums(files) {
 }
 
 function packagePlugin(pluginDir, outDir, manifest, args) {
-  const files = collectFiles(pluginDir)
+  const files = collectFiles(pluginDir, pluginDir, {}, manifest, args)
   files['plugin.json'] = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
   files['checksums.json'] = new TextEncoder().encode(
     `${JSON.stringify(buildChecksums(files), null, 2)}\n`

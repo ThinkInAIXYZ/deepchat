@@ -35,6 +35,7 @@ Renderer
 | [architecture/session-management.md](./architecture/session-management.md) | 新会话管理与 legacy 数据平面边界 |
 | [guides/code-navigation.md](./guides/code-navigation.md) | 当前代码导航入口 |
 | [guides/getting-started.md](./guides/getting-started.md) | 新开发者快速上手 |
+| [guides/plugin-packaging.md](./guides/plugin-packaging.md) | `.dcplugin` 打包、架构产物和 release 上传规则 |
 | [architecture/baselines/dependency-report.md](./architecture/baselines/dependency-report.md) | 当前依赖与耦合基线 |
 | [architecture/baselines/main-kernel-boundary-baseline.md](./architecture/baselines/main-kernel-boundary-baseline.md) | main kernel refactor 当前阶段的边界指标与 hot path 快照 |
 | [architecture/baselines/main-kernel-bridge-register.md](./architecture/baselines/main-kernel-bridge-register.md) | main kernel refactor 的临时 bridge 登记表 |
@@ -112,6 +113,7 @@ docs/
 ├── guides/
 │   ├── getting-started.md
 │   ├── code-navigation.md
+│   ├── plugin-packaging.md
 │   └── debugging.md
 ├── specs/
 │   ├── agent-cleanup/
@@ -151,4 +153,3 @@ docs/
    - 工具与权限： [architecture/tool-system.md](./architecture/tool-system.md)
    - 会话与兼容边界： [architecture/session-management.md](./architecture/session-management.md)
 4. 如果需要对照旧实现，再去看 `archives/` 历史文档，不要依赖已经移除的历史源码快照。
-

@@ -92,4 +92,27 @@ describe('PluginPresenter', () => {
       expect(source).toContain('Call get_window_state with the same pid and window_id')
     }
   })
+
+  it('wires CUA plugin packaging docs and release gates for both mac architectures', async () => {
+    const packageJson = JSON.parse(await readFile('package.json', 'utf8'))
+    const buildWorkflow = await readFile('.github/workflows/build.yml', 'utf8')
+    const releaseWorkflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const packageScript = await readFile('scripts/package-plugin.mjs', 'utf8')
+    const guide = await readFile('docs/guides/plugin-packaging.md', 'utf8')
+
+    expect(packageJson.scripts['plugin:cua:package:mac:arm64']).toContain('--target-arch arm64')
+    expect(packageJson.scripts['plugin:cua:package:mac:x64']).toContain('--target-arch x64')
+    expect(packageJson.scripts['plugin:cua:build:mac:x64']).toContain('--arch x64')
+    expect(buildWorkflow).toContain('pnpm run plugin:cua:package:mac:${{ matrix.arch }}')
+    expect(buildWorkflow).toContain('Verify CUA plugin artifact')
+    expect(releaseWorkflow).toContain('require_cua_plugin_asset x64')
+    expect(releaseWorkflow).toContain('require_cua_plugin_asset arm64')
+    expect(releaseWorkflow).toContain('deepchat-plugin-cua-${VERSION}-darwin-${arch}.dcplugin')
+    expect(releaseWorkflow).toContain('cp "${dir}/${asset}" release_assets/')
+    expect(packageScript).toContain("parts[0] === 'runtime'")
+    expect(packageScript).toContain('parts[2] !== args.targetArch')
+    expect(guide).toContain('deepchat-plugin-cua-<version>-darwin-arm64.dcplugin')
+    expect(guide).toContain('deepchat-plugin-cua-<version>-darwin-x64.dcplugin')
+    expect(guide).toContain('Each `.dcplugin` contains only the runtime directory')
+  })
 })

@@ -196,6 +196,8 @@ Validation:
   - `plugin:cua:build`
   - `plugin:cua:package`
   - `plugin:cua:validate`
+  - `plugin:cua:package:mac:arm64`
+  - `plugin:cua:package:mac:x64`
 
 Validation:
 
@@ -270,16 +272,19 @@ Validation:
 - [x] Add plugin build job to build workflow.
 - [x] Add plugin build job to release workflow.
 - [x] Upload `.dcplugin` as a separate artifact.
+- [x] Require both macOS CUA plugin architecture assets before release upload.
+- [x] Keep each CUA `.dcplugin` limited to its target runtime architecture.
 - [ ] Publish or attach official-source metadata for the CUA plugin artifact.
-- [ ] Keep core app artifact naming unchanged.
+- [x] Keep core app artifact naming unchanged.
 - [ ] Ensure app release jobs do not depend on plugin jobs unless publishing requires all artifacts.
 - [x] Document plugin artifact installation path and manual QA flow.
 
 Validation:
 
 - [ ] Core app CI succeeds without CUA helper build.
-- [ ] Plugin CI produces `deepchat-plugin-cua-<version>.dcplugin`.
-- [ ] Release assets include app artifacts and plugin artifact separately.
+- [x] Plugin CI produces `deepchat-plugin-cua-<version>-darwin-x64.dcplugin`.
+- [x] Plugin CI produces `deepchat-plugin-cua-<version>-darwin-arm64.dcplugin`.
+- [x] Release assets include app artifacts and plugin artifacts separately.
 - [ ] Production install validates the released CUA plugin as official-source trusted.
 
 ## M12 End-To-End QA

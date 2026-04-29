@@ -13,15 +13,18 @@ validated locally, while macOS runtime behavior still needs a Mac pass.
 - Plugin-owned skill contribution support.
 - Isolated plugin settings renderer preload API exposed as `window.deepchatPlugin`.
 - Official `plugins/cua` package with a bundled macOS `DeepChat Computer Use.app` helper runtime.
-- CI/package scripts for `deepchat-plugin-cua.dcplugin`.
+- CI/package scripts for architecture-specific
+  `deepchat-plugin-cua-<version>-darwin-<arch>.dcplugin` artifacts.
 - App packaging no longer embeds the CUA helper inside the DeepChat app bundle.
 - App packaging no longer embeds the CUA plugin source; the app and plugin artifacts are built
   independently.
 
 ## Manual Install Flow
 
-1. Build the plugin package:
+1. Build the plugin package for the current Mac:
    `pnpm run plugin:cua:package`
+   - Apple Silicon explicit package: `pnpm run plugin:cua:package:mac:arm64`
+   - Intel explicit package: `pnpm run plugin:cua:package:mac:x64`
 2. Open Settings > Plugins.
 3. Click Install on `com.deepchat.plugins.cua`.
    - DeepChat first downloads
