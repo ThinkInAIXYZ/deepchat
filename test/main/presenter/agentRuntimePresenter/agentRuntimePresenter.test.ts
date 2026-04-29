@@ -2255,6 +2255,23 @@ describe('AgentRuntimePresenter', () => {
         disabled
       )
       expect(interleavedConfig.preserveReasoningContent).toBe(false)
+      expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
+
+      const deepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'deepseek',
+        'deepseek-v4',
+        defaults
+      )
+      expect(deepseekInterleavedConfig.preserveReasoningContent).toBe(true)
+      expect(deepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(true)
+
+      const nonDeepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'openai',
+        'gpt-4',
+        defaults
+      )
+      expect(nonDeepseekInterleavedConfig.preserveReasoningContent).toBe(true)
+      expect(nonDeepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',

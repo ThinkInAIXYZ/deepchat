@@ -17,6 +17,7 @@ export type ContextBuildOptions = {
   historyRecords?: ChatMessageRecord[]
   fallbackProtectedTurnCount?: number
   preserveInterleavedReasoning?: boolean
+  preserveEmptyInterleavedReasoning?: boolean
   extraReserveTokens?: number
 }
 
@@ -254,7 +255,8 @@ export function estimateToolDefinitionTokens(toolDefinitions: MCPToolDefinition[
 export function recordToChatMessages(
   record: ChatMessageRecord,
   supportsVision: boolean,
-  preserveInterleavedReasoning: boolean = false
+  preserveInterleavedReasoning: boolean = false,
+  preserveEmptyInterleavedReasoning: boolean = false
 ): ChatMessage[] {
   if (isCompactionRecord(record)) {
     return []
@@ -278,6 +280,8 @@ export function recordToChatMessages(
     .filter((block) => block.type === 'reasoning_content')
     .map((block) => block.content)
     .join('')
+  const shouldPreserveReasoning =
+    preserveInterleavedReasoning && (Boolean(reasoning) || preserveEmptyInterleavedReasoning)
   const contentParts = blocks
     .filter(
       (block): block is AssistantMessageBlock & { content: string } =>
@@ -293,7 +297,7 @@ export function recordToChatMessages(
     })
   const assistantContent = contentParts.some((part) => part.provider_options) ? contentParts : text
   const applyReasoningContent = (assistantMessage: ChatMessage): ChatMessage => {
-    if (preserveInterleavedReasoning) {
+    if (shouldPreserveReasoning) {
       assistantMessage.reasoning_content = reasoning
       const reasoningProviderOptions = blocks
         .filter((block) => block.type === 'reasoning_content')
@@ -317,7 +321,7 @@ export function recordToChatMessages(
   )
 
   if (toolCallBlocks.length === 0) {
-    if (preserveInterleavedReasoning) {
+    if (shouldPreserveReasoning) {
       return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
     }
     return [{ role: 'assistant', content: combinedText }]
@@ -340,7 +344,7 @@ export function recordToChatMessages(
   }
 
   if (toolCalls.length === 0) {
-    if (preserveInterleavedReasoning) {
+    if (shouldPreserveReasoning) {
       return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
     }
     return [{ role: 'assistant', content: combinedText }]
@@ -368,7 +372,8 @@ export function recordToChatMessages(
 export function buildHistoryTurns(
   records: ChatMessageRecord[],
   supportsVision: boolean,
-  preserveInterleavedReasoning: boolean = false
+  preserveInterleavedReasoning: boolean = false,
+  preserveEmptyInterleavedReasoning: boolean = false
 ): HistoryTurn[] {
   const sortedRecords = [...records].sort((a, b) => a.orderSeq - b.orderSeq)
   const turns: ChatMessageRecord[][] = []
@@ -395,7 +400,12 @@ export function buildHistoryTurns(
 
   return turns.map((turnRecords) => {
     const messages = turnRecords.flatMap((record) =>
-      recordToChatMessages(record, supportsVision, preserveInterleavedReasoning)
+      recordToChatMessages(
+        record,
+        supportsVision,
+        preserveInterleavedReasoning,
+        preserveEmptyInterleavedReasoning
+      )
     )
     return {
       records: turnRecords,
@@ -529,7 +539,8 @@ export function buildContext(
   const historyTurns = buildHistoryTurns(
     historyRecords,
     supportsVision,
-    options.preserveInterleavedReasoning ?? false
+    options.preserveInterleavedReasoning ?? false,
+    options.preserveEmptyInterleavedReasoning ?? false
   )
 
   const newUserMessage = createUserChatMessage(newUserContent, supportsVision)
@@ -628,7 +639,8 @@ export function buildResumeContext(
   const historyTurns = buildHistoryTurns(
     historyRecords,
     supportsVision,
-    options.preserveInterleavedReasoning ?? false
+    options.preserveInterleavedReasoning ?? false,
+    options.preserveEmptyInterleavedReasoning ?? false
   )
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
   const available =

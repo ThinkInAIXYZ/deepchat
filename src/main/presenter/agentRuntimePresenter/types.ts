@@ -14,6 +14,7 @@ import type { ToolOutputGuard } from './toolOutputGuard'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
+  preserveEmptyReasoningContent?: boolean
   forcedBySessionSetting: boolean
   portraitInterleaved: boolean
   reasoningSupported: boolean

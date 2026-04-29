@@ -418,14 +418,15 @@ describe('buildContext', () => {
     ])
   })
 
-  it('adds empty reasoning_content for settled tool calls when interleaved thinking is enabled', () => {
+  it('adds empty reasoning_content for settled tool calls when empty interleaved preservation is enabled', () => {
     const messages = [
       makeUserRecord(1, 'Use a tool'),
       makeAssistantWithToolRecord(2, '', 'All good')
     ]
     const store = createMockMessageStore(messages)
     const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
-      preserveInterleavedReasoning: true
+      preserveInterleavedReasoning: true,
+      preserveEmptyInterleavedReasoning: true
     })
 
     expect(result).toEqual([
@@ -445,6 +446,29 @@ describe('buildContext', () => {
       { role: 'tool', tool_call_id: 'tc-2', content: 'All good' },
       { role: 'user', content: 'next' }
     ])
+  })
+
+  it('does not add empty reasoning_content when empty interleaved preservation is disabled', () => {
+    const messages = [
+      makeUserRecord(1, 'Use a tool'),
+      makeAssistantWithToolRecord(2, '', 'All good')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+      preserveInterleavedReasoning: true
+    })
+
+    expect(result[1]).toEqual({
+      role: 'assistant',
+      content: '',
+      tool_calls: [
+        {
+          id: 'tc-2',
+          type: 'function',
+          function: { name: 'example_tool', arguments: '{"foo":"bar"}' }
+        }
+      ]
+    })
   })
 
   it('does not preserve reasoning_content separately for settled tool calls when disabled', () => {

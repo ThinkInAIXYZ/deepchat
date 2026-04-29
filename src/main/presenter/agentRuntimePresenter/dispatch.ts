@@ -713,7 +713,10 @@ export async function executeTools(
   }
 
   const reasoning = extractReasoningFromBlocks(iterationBlocks)
-  if (interleavedReasoning.preserveReasoningContent) {
+  const shouldPreserveReasoning =
+    interleavedReasoning.preserveReasoningContent &&
+    (Boolean(reasoning) || interleavedReasoning.preserveEmptyReasoningContent === true)
+  if (shouldPreserveReasoning) {
     assistantMessage.reasoning_content = reasoning
     const reasoningProviderOptions = extractReasoningProviderOptions(iterationBlocks)
     if (reasoningProviderOptions) {

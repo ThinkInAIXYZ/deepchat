@@ -587,6 +587,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         extraReserveTokens: toolReserveTokens,
         supportsVision,
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+        preserveEmptyInterleavedReasoning:
+          interleavedReasoning.preserveEmptyReasoningContent === true,
         newUserContent: normalizedInput,
         signal: preStreamAbortSignal
       })
@@ -650,7 +652,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           historyRecords,
           extraReserveTokens: toolReserveTokens,
-          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
+          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+          preserveEmptyInterleavedReasoning:
+            interleavedReasoning.preserveEmptyReasoningContent === true
         }
       )
 
@@ -2230,6 +2234,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         extraReserveTokens: toolReserveTokens,
         supportsVision: this.supportsVision(state.providerId, state.modelId),
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+        preserveEmptyInterleavedReasoning:
+          interleavedReasoning.preserveEmptyReasoningContent === true,
         signal: preStreamAbortSignal
       })
       this.throwIfAbortRequested(preStreamAbortSignal)
@@ -2246,7 +2252,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           fallbackProtectedTurnCount: 1,
           extraReserveTokens: toolReserveTokens,
-          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
+          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+          preserveEmptyInterleavedReasoning:
+            interleavedReasoning.preserveEmptyReasoningContent === true
         }
       )
       if (budgetToolCall?.id && budgetToolCall.name) {
@@ -3157,10 +3165,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const portraitInterleaved = portrait?.interleaved === true
     const reasoningSupported =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
+    const preserveReasoningContent =
+      explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved
 
     return {
-      preserveReasoningContent:
-        explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved,
+      preserveReasoningContent,
+      preserveEmptyReasoningContent:
+        preserveReasoningContent && modelId.toLowerCase().includes('deepseek'),
       forcedBySessionSetting,
       portraitInterleaved,
       reasoningSupported,
@@ -4340,6 +4351,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
+    preserveEmptyInterleavedReasoning?: boolean
     signal?: AbortSignal
   }): Promise<SessionSummaryState> {
     const intent = await this.compactionService.prepareForResumeTurn(params)
