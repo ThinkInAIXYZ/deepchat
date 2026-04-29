@@ -148,6 +148,14 @@ type SystemPromptCacheEntry = {
   fingerprint: string
 }
 
+type ToolProfileKind = 'code' | 'research' | 'analysis' | 'general'
+
+type ToolProfileCacheEntry = {
+  profile: ToolProfileKind
+  fingerprint: string
+  tools: MCPToolDefinition[]
+}
+
 type ActiveGeneration = {
   runId: string
   messageId: string
@@ -187,6 +195,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionAgentIds: Map<string, string> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
+  private readonly toolProfileCache: Map<string, ToolProfileCacheEntry> = new Map()
   private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
@@ -319,6 +328,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     })
     this.sessionCompactionStates.set(sessionId, this.buildIdleCompactionState())
     this.invalidateSystemPromptCache(sessionId)
+    this.invalidateToolProfileCache(sessionId)
   }
 
   async destroySession(sessionId: string): Promise<void> {
@@ -342,6 +352,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.sessionGenerationSettings.delete(sessionId)
     this.sessionProjectDirs.delete(sessionId)
     this.systemPromptCache.delete(sessionId)
+    this.toolProfileCache.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
     this.drainingPendingQueues.delete(sessionId)
   }
@@ -552,13 +563,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         generationSettings.maxTokens,
         generationSettings.contextLength
       )
-      const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
+      const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
+      const tools = await this.loadToolDefinitionsForSession(
+        sessionId,
+        projectDir,
+        activeSkillNames
+      )
       const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
         generationSettings.systemPrompt,
-        tools
+        tools,
+        activeSkillNames
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
       const historyRecords = this.messageStore
@@ -1080,6 +1097,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     )
     this.sessionGenerationSettings.set(sessionId, sanitized)
     this.invalidateSystemPromptCache(sessionId)
+    this.invalidateToolProfileCache(sessionId)
   }
 
   async setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
@@ -1090,6 +1108,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.sessionProjectDirs.set(sessionId, normalized)
     if (previous !== normalized) {
       this.invalidateSystemPromptCache(sessionId)
+      this.invalidateToolProfileCache(sessionId)
     }
   }
 
@@ -2203,13 +2222,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         generationSettings.contextLength
       )
       const projectDir = this.resolveProjectDir(sessionId)
-      const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
+      const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
+      const tools = await this.loadToolDefinitionsForSession(
+        sessionId,
+        projectDir,
+        activeSkillNames
+      )
       const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
         generationSettings.systemPrompt,
-        tools
+        tools,
+        activeSkillNames
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
       const summaryState = await this.resolveCompactionStateForResumeTurn({
@@ -2336,7 +2361,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private async buildSystemPromptWithSkills(
     sessionId: string,
     basePrompt: string,
-    toolDefinitions: MCPToolDefinition[]
+    toolDefinitions: MCPToolDefinition[],
+    activeSkillNamesOverride?: string[]
   ): Promise<string> {
     const normalizedBase = basePrompt?.trim() ?? ''
     const state = this.runtimeState.get(sessionId)
@@ -2358,7 +2384,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       category?: string | null
       platforms?: string[]
     }> = []
-    const activeSkillNames: string[] = []
+    const activeSkillNames: string[] = activeSkillNamesOverride ? [...activeSkillNamesOverride] : []
     const skillDraftSuggestionsEnabled =
       this.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false
 
@@ -2385,7 +2411,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         }
       }
 
-      if (skillPresenter.getActiveSkills) {
+      if (!activeSkillNamesOverride && skillPresenter.getActiveSkills) {
         try {
           const activeSkills = await skillPresenter.getActiveSkills(sessionId)
           for (const skillName of activeSkills) {
@@ -2496,12 +2522,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const composedPrompt = this.composePromptSections([
+      normalizedBase,
       runtimePrompt,
+      envPrompt,
       skillsMetadataPrompt,
       skillsPrompt,
-      envPrompt,
       toolingPrompt,
-      normalizedBase
+      this.buildPermissionRulesPrompt(agentToolNames),
+      this.buildVerificationPolicyPrompt(workdir)
     ])
 
     this.systemPromptCache.set(sessionId, {
@@ -2518,6 +2546,54 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       .map((section) => section.trim())
       .filter((section) => section.length > 0)
       .join('\n\n')
+  }
+
+  private buildPermissionRulesPrompt(agentToolNames: Set<string>): string {
+    const readOnlyTools = ['read', 'ls', 'find', 'grep'].filter((toolName) =>
+      agentToolNames.has(toolName)
+    )
+    const serializedTools = ['write', 'edit', 'exec', 'process'].filter((toolName) =>
+      agentToolNames.has(toolName)
+    )
+
+    if (readOnlyTools.length === 0 && serializedTools.length === 0) {
+      return ''
+    }
+
+    const lines = ['## Permission Rules']
+    if (readOnlyTools.length > 0) {
+      lines.push(
+        `Read-only Agent tools may be batched in parallel when useful: ${readOnlyTools
+          .map((toolName) => `\`${toolName}\``)
+          .join(', ')}.`
+      )
+    }
+    if (serializedTools.length > 0) {
+      lines.push(
+        `Mutating and runtime tools stay serialized or permission-gated: ${serializedTools
+          .map((toolName) => `\`${toolName}\``)
+          .join(', ')}.`
+      )
+    }
+    lines.push('Do not assume approval for file writes or commands when the session asks for it.')
+
+    return lines.join('\n')
+  }
+
+  private buildVerificationPolicyPrompt(workdir: string | null): string {
+    const lines = [
+      '## Verification Policy',
+      'After changing code, configuration, tests, docs that affect behavior, or generated assets, check verification status before the final response.',
+      'If verification was not run, state the reason explicitly in the final response.'
+    ]
+
+    if (workdir?.trim()) {
+      lines.push(
+        'In the DeepChat repository, prioritize `pnpm run format`, `pnpm run i18n`, and `pnpm run lint` after feature work.'
+      )
+    }
+
+    return lines.join('\n')
   }
 
   private buildSkillsMetadataPrompt(
@@ -2700,10 +2776,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   public invalidateSessionSystemPromptCache(sessionId: string): void {
     this.invalidateSystemPromptCache(sessionId)
+    this.invalidateToolProfileCache(sessionId)
   }
 
   private invalidateSystemPromptCache(sessionId: string): void {
     this.systemPromptCache.delete(sessionId)
+  }
+
+  private invalidateToolProfileCache(sessionId: string): void {
+    this.toolProfileCache.delete(sessionId)
   }
 
   private async getEffectiveSessionGenerationSettings(
@@ -3993,7 +4074,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private async loadToolDefinitionsForSession(
     sessionId: string,
-    projectDir: string | null
+    projectDir: string | null,
+    activeSkillNamesOverride?: string[]
   ): Promise<MCPToolDefinition[]> {
     if (!this.toolPresenter) {
       return []
@@ -4005,14 +4087,75 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     try {
-      return await this.toolPresenter.getAllToolDefinitions({
+      const profile = await this.resolveToolProfile(sessionId, projectDir, activeSkillNamesOverride)
+      const cachedProfile = this.toolProfileCache.get(sessionId)
+      if (
+        cachedProfile &&
+        cachedProfile.profile === profile.kind &&
+        cachedProfile.fingerprint === profile.fingerprint
+      ) {
+        return cachedProfile.tools
+      }
+
+      const tools = await this.toolPresenter.getAllToolDefinitions({
         disabledAgentTools: this.getDisabledAgentTools(sessionId),
         chatMode: 'agent',
         conversationId: sessionId,
         agentWorkspacePath: projectDir
       })
+
+      this.toolProfileCache.set(sessionId, {
+        profile: profile.kind,
+        fingerprint: profile.fingerprint,
+        tools
+      })
+
+      return tools
     } catch (error) {
       console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
+      return []
+    }
+  }
+
+  private async resolveToolProfile(
+    sessionId: string,
+    projectDir: string | null,
+    activeSkillNamesOverride?: string[]
+  ): Promise<{ kind: ToolProfileKind; fingerprint: string }> {
+    const normalizedProjectDir = projectDir?.trim() || null
+    const activeSkillNames =
+      activeSkillNamesOverride ?? (await this.resolveActiveSkillNamesForToolProfile(sessionId))
+    const disabledAgentTools = this.getDisabledAgentTools(sessionId)
+    const state = this.runtimeState.get(sessionId)
+    const kind: ToolProfileKind = normalizedProjectDir ? 'code' : 'general'
+
+    return {
+      kind,
+      fingerprint: JSON.stringify({
+        kind,
+        projectDir: normalizedProjectDir ?? '',
+        providerId: state?.providerId ?? '',
+        modelId: state?.modelId ?? '',
+        disabledAgentTools: [...disabledAgentTools].sort((left, right) =>
+          left.localeCompare(right)
+        ),
+        activeSkillNames
+      })
+    }
+  }
+
+  private async resolveActiveSkillNamesForToolProfile(sessionId: string): Promise<string[]> {
+    if (!this.configPresenter.getSkillsEnabled() || !this.skillPresenter?.getActiveSkills) {
+      return []
+    }
+
+    try {
+      return this.normalizeSkillNames(await this.skillPresenter.getActiveSkills(sessionId))
+    } catch (error) {
+      console.warn(
+        `[DeepChatAgent] Failed to load active skills for tool profile in session ${sessionId}:`,
+        error
+      )
       return []
     }
   }
@@ -4530,6 +4673,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.sessionProjectDirs.set(sessionId, normalized)
       if (previous !== normalized) {
         this.invalidateSystemPromptCache(sessionId)
+        this.invalidateToolProfileCache(sessionId)
       }
       return normalized
     }

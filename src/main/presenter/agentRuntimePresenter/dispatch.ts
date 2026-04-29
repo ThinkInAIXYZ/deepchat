@@ -37,6 +37,19 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
 type ExtractedSearchPayload = ReturnType<typeof extractSearchPayload>
+type ToolExecutionContext = {
+  toolDef?: MCPToolDefinition
+  toolCall: MCPToolCall
+  toolContext: {
+    id: string
+    name: string
+    args: string
+    serverName?: string
+    serverIcons?: string
+    serverDescription?: string
+  }
+  completedToolCall: StreamState['completedToolCalls'][number]
+}
 
 type StagedToolResult = {
   toolCallId: string
@@ -51,6 +64,18 @@ type StagedToolResult = {
   rtkFallbackReason?: string
   postHookKind: 'success' | 'failure'
 }
+
+type ToolRunOutcome =
+  | {
+      kind: 'staged'
+      stagedResult: StagedToolResult
+      toolsChanged: boolean
+    }
+  | {
+      kind: 'permission'
+      permission: NonNullable<PendingToolInteraction['permission']>
+      toolContext: ToolExecutionContext['toolContext']
+    }
 
 type PermissionRequestLike = {
   toolName?: string
@@ -73,6 +98,8 @@ type PermissionRequestLike = {
 }
 
 type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
+
+const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read', 'ls', 'find', 'grep'])
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
@@ -342,6 +369,49 @@ function shouldRefreshToolsAfterCall(toolName: string, rawData: MCPToolResponse)
   return toolResult?.activationApplied === true
 }
 
+function isParallelReadOnlyToolCall(
+  toolCall: StreamState['completedToolCalls'][number],
+  tools: MCPToolDefinition[]
+): boolean {
+  if (!PARALLEL_READ_ONLY_AGENT_TOOLS.has(toolCall.name)) {
+    return false
+  }
+
+  const toolDef = tools.find((tool) => tool.function.name === toolCall.name)
+  return toolDef?.source === 'agent'
+}
+
+function buildToolExecutionContext(
+  toolCallResult: StreamState['completedToolCalls'][number],
+  tools: MCPToolDefinition[],
+  sessionId: string,
+  providerId?: string
+): ToolExecutionContext {
+  const toolDef = tools.find((tool) => tool.function.name === toolCallResult.name)
+  const toolCall: MCPToolCall = {
+    id: toolCallResult.id,
+    type: 'function',
+    function: { name: toolCallResult.name, arguments: toolCallResult.arguments },
+    server: toolDef?.server,
+    conversationId: sessionId,
+    providerId: providerId?.trim() || undefined
+  }
+
+  return {
+    toolDef,
+    toolCall,
+    completedToolCall: toolCallResult,
+    toolContext: {
+      id: toolCallResult.id,
+      name: toolCallResult.name,
+      args: toolCallResult.arguments,
+      serverName: toolDef?.server.name,
+      serverIcons: toolDef?.server.icons,
+      serverDescription: toolDef?.server.description
+    }
+  }
+}
+
 function scheduleRendererFlush(
   state: StreamState,
   rendererFlushHandle?: Pick<RendererFlushHandle, 'schedule'>
@@ -481,7 +551,7 @@ function normalizePermissionRequest(
     serverName?: string
     description: string
   }
-): PendingToolInteraction['permission'] {
+): NonNullable<PendingToolInteraction['permission']> {
   const permissionType = isPermissionType(request?.permissionType)
     ? request.permissionType
     : 'write'
@@ -653,6 +723,163 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
   })
 }
 
+async function runToolCall(params: {
+  execution: ToolExecutionContext
+  toolPresenter: IToolPresenter
+  permissionMode: PermissionMode
+  hooks?: ProcessHooks
+  io: IoParams
+  state: StreamState
+  rendererFlushHandle: RendererFlushHandle
+  toolOutputGuard: ToolOutputGuard
+  allowProgressUpdates: boolean
+}): Promise<ToolRunOutcome> {
+  const {
+    execution,
+    toolPresenter,
+    permissionMode,
+    hooks,
+    io,
+    state,
+    rendererFlushHandle,
+    toolOutputGuard,
+    allowProgressUpdates
+  } = params
+  const { completedToolCall, toolCall, toolContext } = execution
+
+  try {
+    const applyProgressUpdate = (update: AgentToolProgressUpdate) => {
+      if (
+        !allowProgressUpdates ||
+        update.kind !== 'subagent_orchestrator' ||
+        update.toolCallId !== completedToolCall.id
+      ) {
+        return
+      }
+
+      updateSubagentToolCallBlock(
+        state.blocks,
+        completedToolCall.id,
+        update.responseMarkdown,
+        update.progressJson
+      )
+      state.dirty = true
+      scheduleRendererFlush(state, rendererFlushHandle)
+    }
+
+    const callTool = async () =>
+      await toolPresenter.callTool(toolCall, {
+        onProgress: applyProgressUpdate,
+        signal: io.abortSignal
+      })
+
+    let toolCallResult = await callTool()
+    let toolRawData = toolCallResult.rawData
+
+    if (toolRawData?.requiresPermission) {
+      const pendingPermission = normalizePermissionRequest(
+        toolRawData.permissionRequest as PermissionRequestLike | undefined,
+        {
+          toolName: toolContext.name,
+          serverName: toolContext.serverName,
+          description: `Permission required for ${toolContext.name}`
+        }
+      )
+
+      if (pendingPermission) {
+        if (permissionMode === 'full_access') {
+          await autoGrantPermission(hooks, io.sessionId, pendingPermission)
+          toolCallResult = await callTool()
+          toolRawData = toolCallResult.rawData
+        } else {
+          return {
+            kind: 'permission',
+            permission: pendingPermission,
+            toolContext
+          }
+        }
+      }
+    }
+
+    const subagentState = extractSubagentToolState(toolRawData)
+    if (allowProgressUpdates && (subagentState.subagentProgress || subagentState.subagentFinal)) {
+      updateSubagentToolCallBlock(
+        state.blocks,
+        completedToolCall.id,
+        typeof toolRawData.content === 'string'
+          ? toolRawData.content
+          : toolResponseToText(toolRawData.content),
+        subagentState.subagentProgress,
+        subagentState.subagentFinal
+      )
+    }
+
+    if (hooks?.normalizeToolResult) {
+      toolRawData = {
+        ...toolRawData,
+        content: await hooks.normalizeToolResult({
+          sessionId: io.sessionId,
+          toolCallId: completedToolCall.id,
+          toolName: completedToolCall.name,
+          toolArgs: completedToolCall.arguments,
+          content: toolRawData.content,
+          isError: toolRawData.isError === true
+        })
+      }
+    }
+
+    const searchPayload = extractSearchPayload(
+      toolRawData.content,
+      toolContext.name,
+      toolContext.serverName
+    )
+
+    const responseText = toolResponseToText(toolRawData.content)
+    const preparedResult = await toolOutputGuard.prepareToolOutput({
+      sessionId: io.sessionId,
+      toolCallId: completedToolCall.id,
+      toolName: toolContext.name,
+      rawContent: responseText
+    })
+    const stagedResponseText =
+      preparedResult.kind === 'tool_error' ? preparedResult.message : preparedResult.content
+    const stagedIsError = preparedResult.kind === 'tool_error' || toolRawData.isError === true
+
+    return {
+      kind: 'staged',
+      stagedResult: {
+        toolCallId: completedToolCall.id,
+        toolName: completedToolCall.name,
+        toolArgs: completedToolCall.arguments,
+        responseText: stagedResponseText,
+        isError: stagedIsError,
+        offloadPath: preparedResult.kind === 'ok' ? preparedResult.offloadPath : undefined,
+        searchPayload,
+        rtkApplied: toolRawData.rtkApplied,
+        rtkMode: toolRawData.rtkMode,
+        rtkFallbackReason: toolRawData.rtkFallbackReason,
+        postHookKind: stagedIsError ? 'failure' : 'success'
+      },
+      toolsChanged: shouldRefreshToolsAfterCall(completedToolCall.name, toolRawData)
+    }
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err)
+    return {
+      kind: 'staged',
+      stagedResult: {
+        toolCallId: completedToolCall.id,
+        toolName: completedToolCall.name,
+        toolArgs: completedToolCall.arguments,
+        responseText: `Error: ${errorText}`,
+        isError: true,
+        searchPayload: null,
+        postHookKind: 'failure'
+      },
+      toolsChanged: false
+    }
+  }
+}
+
 export async function executeTools(
   state: StreamState,
   conversation: ChatMessage[],
@@ -735,27 +962,127 @@ export async function executeTools(
   const pendingInteractions: PendingToolInteraction[] = []
   const stagedResults: StagedToolResult[] = []
 
+  const canRunReadOnlyBatchInParallel =
+    permissionMode === 'full_access' &&
+    state.completedToolCalls.length > 1 &&
+    state.completedToolCalls.every((tc) => isParallelReadOnlyToolCall(tc, tools))
+
+  if (canRunReadOnlyBatchInParallel) {
+    const executions = state.completedToolCalls.map((tc) =>
+      buildToolExecutionContext(tc, tools, io.sessionId, providerId)
+    )
+
+    for (const execution of executions) {
+      if (io.abortSignal.aborted) break
+
+      if (toolPresenter.preCheckToolPermission) {
+        const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall)
+        if (preChecked?.needsPermission) {
+          const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
+            toolName: execution.toolContext.name,
+            serverName: execution.toolContext.serverName,
+            description: `Permission required for ${execution.toolContext.name}`
+          })
+          await autoGrantPermission(hooks, io.sessionId, permission)
+        }
+      }
+
+      hooks?.onPreToolUse?.({
+        callId: execution.completedToolCall.id,
+        name: execution.completedToolCall.name,
+        params: execution.completedToolCall.arguments
+      })
+    }
+
+    const outcomes = await Promise.all(
+      executions.map((execution) =>
+        runToolCall({
+          execution,
+          toolPresenter,
+          permissionMode,
+          hooks,
+          io,
+          state,
+          rendererFlushHandle,
+          toolOutputGuard,
+          allowProgressUpdates: false
+        })
+      )
+    )
+
+    for (const outcome of outcomes) {
+      if (outcome.kind === 'permission') {
+        hooks?.onPermissionRequest?.(outcome.permission, {
+          callId: outcome.toolContext.id,
+          name: outcome.toolContext.name,
+          params: outcome.toolContext.args
+        })
+        const interaction = appendPermissionActionBlock(
+          state,
+          io,
+          outcome.toolContext,
+          outcome.permission
+        )
+        pendingInteractions.push(interaction)
+        updateToolCallBlock(state.blocks, outcome.toolContext.id, '', false)
+        rescheduleRendererFlush(state, rendererFlushHandle)
+        continue
+      }
+
+      stagedResults.push(outcome.stagedResult)
+      toolsChanged = toolsChanged || outcome.toolsChanged
+      executed += 1
+    }
+
+    if (stagedResults.length > 0) {
+      const fittedResults = await toolOutputGuard.fitToolBatchOutputs({
+        conversationMessages: conversation,
+        results: stagedResults.map((result) => ({
+          toolCallId: result.toolCallId,
+          toolName: result.toolName,
+          responseText: result.responseText,
+          isError: result.isError,
+          offloadPath: result.offloadPath
+        })),
+        toolDefinitions: tools,
+        contextLength,
+        maxTokens
+      })
+
+      applyFinalizedToolResults({
+        stagedResults,
+        fittedResults: fittedResults.results,
+        conversation,
+        state,
+        io,
+        hooks,
+        appendToConversation: fittedResults.kind === 'ok'
+      })
+      persistToolExecutionState(io, state, rendererFlushHandle)
+
+      if (fittedResults.kind === 'terminal_error') {
+        return {
+          executed,
+          pendingInteractions,
+          toolsChanged,
+          terminalError: fittedResults.message
+        }
+      }
+    }
+
+    persistToolExecutionState(io, state, rendererFlushHandle)
+    return { executed, pendingInteractions, toolsChanged }
+  }
+
   for (const tc of state.completedToolCalls) {
     if (io.abortSignal.aborted) break
 
-    const toolDef = tools.find((t) => t.function.name === tc.name)
-    const toolCall: MCPToolCall = {
-      id: tc.id,
-      type: 'function',
-      function: { name: tc.name, arguments: tc.arguments },
-      server: toolDef?.server,
-      conversationId: io.sessionId,
-      providerId: providerId?.trim() || undefined
-    }
-
-    const toolContext = {
-      id: tc.id,
-      name: tc.name,
-      args: tc.arguments,
-      serverName: toolDef?.server.name,
-      serverIcons: toolDef?.server.icons,
-      serverDescription: toolDef?.server.description
-    }
+    const { toolCall, toolContext, completedToolCall } = buildToolExecutionContext(
+      tc,
+      tools,
+      io.sessionId,
+      providerId
+    )
 
     try {
       if (toolCall.function.name === QUESTION_TOOL_NAME) {
@@ -827,126 +1154,39 @@ export async function executeTools(
         params: tc.arguments
       })
 
-      const applyProgressUpdate = (update: AgentToolProgressUpdate) => {
-        if (update.kind !== 'subagent_orchestrator' || update.toolCallId !== tc.id) {
-          return
-        }
-
-        updateSubagentToolCallBlock(
-          state.blocks,
-          tc.id,
-          update.responseMarkdown,
-          update.progressJson
-        )
-        state.dirty = true
-        scheduleRendererFlush(state, rendererFlushHandle)
-      }
-
-      const toolCallResult = await toolPresenter.callTool(toolCall, {
-        onProgress: applyProgressUpdate,
-        signal: io.abortSignal
+      const outcome = await runToolCall({
+        execution: {
+          toolCall,
+          toolContext,
+          completedToolCall
+        },
+        toolPresenter,
+        permissionMode,
+        hooks,
+        io,
+        state,
+        rendererFlushHandle,
+        toolOutputGuard,
+        allowProgressUpdates: true
       })
-      let toolRawData = toolCallResult.rawData
 
-      if (toolRawData?.requiresPermission) {
-        const pendingPermission = normalizePermissionRequest(
-          toolRawData.permissionRequest as PermissionRequestLike | undefined,
-          {
-            toolName: toolContext.name,
-            serverName: toolContext.serverName,
-            description: `Permission required for ${toolContext.name}`
-          }
-        )
-
-        if (pendingPermission) {
-          if (permissionMode === 'full_access') {
-            await autoGrantPermission(hooks, io.sessionId, pendingPermission)
-            const retryCallResult = await toolPresenter.callTool(toolCall, {
-              onProgress: applyProgressUpdate,
-              signal: io.abortSignal
-            })
-            toolRawData = retryCallResult.rawData
-          } else {
-            hooks?.onPermissionRequest?.(pendingPermission, {
-              callId: tc.id,
-              name: tc.name,
-              params: tc.arguments
-            })
-            const interaction = appendPermissionActionBlock(
-              state,
-              io,
-              toolContext,
-              pendingPermission
-            )
-            pendingInteractions.push(interaction)
-            updateToolCallBlock(state.blocks, tc.id, '', false)
-            rescheduleRendererFlush(state, rendererFlushHandle)
-            continue
-          }
-        }
+      if (outcome.kind === 'permission') {
+        hooks?.onPermissionRequest?.(outcome.permission, {
+          callId: tc.id,
+          name: tc.name,
+          params: tc.arguments
+        })
+        const interaction = appendPermissionActionBlock(state, io, toolContext, outcome.permission)
+        pendingInteractions.push(interaction)
+        updateToolCallBlock(state.blocks, tc.id, '', false)
+        rescheduleRendererFlush(state, rendererFlushHandle)
+        continue
       }
 
-      const subagentState = extractSubagentToolState(toolRawData)
-      if (subagentState.subagentProgress || subagentState.subagentFinal) {
-        updateSubagentToolCallBlock(
-          state.blocks,
-          tc.id,
-          typeof toolRawData.content === 'string'
-            ? toolRawData.content
-            : toolResponseToText(toolRawData.content),
-          subagentState.subagentProgress,
-          subagentState.subagentFinal
-        )
-      }
-
-      if (hooks?.normalizeToolResult) {
-        toolRawData = {
-          ...toolRawData,
-          content: await hooks.normalizeToolResult({
-            sessionId: io.sessionId,
-            toolCallId: tc.id,
-            toolName: tc.name,
-            toolArgs: tc.arguments,
-            content: toolRawData.content,
-            isError: toolRawData.isError === true
-          })
-        }
-      }
-
-      if (shouldRefreshToolsAfterCall(tc.name, toolRawData)) {
+      if (outcome.toolsChanged) {
         toolsChanged = true
       }
-
-      const searchPayload = extractSearchPayload(
-        toolRawData.content,
-        toolContext.name,
-        toolContext.serverName
-      )
-
-      const responseText = toolResponseToText(toolRawData.content)
-      const preparedResult = await toolOutputGuard.prepareToolOutput({
-        sessionId: io.sessionId,
-        toolCallId: tc.id,
-        toolName: toolContext.name,
-        rawContent: responseText
-      })
-      const stagedResponseText =
-        preparedResult.kind === 'tool_error' ? preparedResult.message : preparedResult.content
-      const stagedIsError = preparedResult.kind === 'tool_error' || toolRawData.isError === true
-
-      stagedResults.push({
-        toolCallId: tc.id,
-        toolName: tc.name,
-        toolArgs: tc.arguments,
-        responseText: stagedResponseText,
-        isError: stagedIsError,
-        offloadPath: preparedResult.kind === 'ok' ? preparedResult.offloadPath : undefined,
-        searchPayload,
-        rtkApplied: toolRawData.rtkApplied,
-        rtkMode: toolRawData.rtkMode,
-        rtkFallbackReason: toolRawData.rtkFallbackReason,
-        postHookKind: stagedIsError ? 'failure' : 'success'
-      })
+      stagedResults.push(outcome.stagedResult)
       executed += 1
     } catch (err) {
       const errorText = err instanceof Error ? err.message : String(err)

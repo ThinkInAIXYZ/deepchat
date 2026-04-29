@@ -80,6 +80,13 @@ function makeTool(name: string): MCPToolDefinition {
   }
 }
 
+function makeAgentTool(name: string): MCPToolDefinition {
+  return {
+    ...makeTool(name),
+    source: 'agent'
+  }
+}
+
 function createMockToolPresenter(responses: Record<string, string> = {}): IToolPresenter {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
@@ -258,6 +265,167 @@ describe('dispatch', () => {
       const toolBlock = state.blocks.find((b) => b.type === 'tool_call')
       expect(toolBlock!.tool_call!.response).toBe('Sunny, 72F')
       expect(toolBlock!.status).toBe('success')
+    })
+
+    it('runs all-read-only Agent tool batches in parallel and preserves result order', async () => {
+      const tools = [makeAgentTool('read'), makeAgentTool('grep')]
+      const started: string[] = []
+      let releaseRead: (() => void) | null = null
+      let readStarted: (() => void) | null = null
+      const readStartedPromise = new Promise<void>((resolve) => {
+        readStarted = resolve
+      })
+      const readReleasePromise = new Promise<void>((resolve) => {
+        releaseRead = resolve
+      })
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn(async (request) => {
+          const name = request.function.name
+          started.push(name)
+          if (name === 'read') {
+            readStarted?.()
+            await readReleasePromise
+            return {
+              content: 'read result',
+              rawData: {
+                toolCallId: request.id,
+                content: 'read result',
+                isError: false
+              }
+            }
+          }
+
+          return {
+            content: 'grep result',
+            rawData: {
+              toolCallId: request.id,
+              content: 'grep result',
+              isError: false
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+      const conversation = [{ role: 'user' as const, content: 'Hello' }]
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-read', name: 'read', params: '{}', response: '' }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-grep', name: 'grep', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-read', name: 'read', arguments: '{}' },
+        { id: 'tc-grep', name: 'grep', arguments: '{}' }
+      ]
+
+      const execution = executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+      await readStartedPromise
+      await Promise.resolve()
+      const grepStartedBeforeReadResolved = started.includes('grep')
+      releaseRead?.()
+      const executed = await execution
+
+      expect(grepStartedBeforeReadResolved).toBe(true)
+      expect(executed.executed).toBe(2)
+      expect(conversation.slice(-2)).toEqual([
+        { role: 'tool', tool_call_id: 'tc-read', content: 'read result' },
+        { role: 'tool', tool_call_id: 'tc-grep', content: 'grep result' }
+      ])
+    })
+
+    it('keeps mixed read/write Agent tool batches serialized', async () => {
+      const tools = [makeAgentTool('write'), makeAgentTool('read')]
+      const started: string[] = []
+      let releaseWrite: (() => void) | null = null
+      let writeStarted: (() => void) | null = null
+      const writeStartedPromise = new Promise<void>((resolve) => {
+        writeStarted = resolve
+      })
+      const writeReleasePromise = new Promise<void>((resolve) => {
+        releaseWrite = resolve
+      })
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn(async (request) => {
+          const name = request.function.name
+          started.push(name)
+          if (name === 'write') {
+            writeStarted?.()
+            await writeReleasePromise
+          }
+
+          return {
+            content: `${name} result`,
+            rawData: {
+              toolCallId: request.id,
+              content: `${name} result`,
+              isError: false
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-write', name: 'write', params: '{}', response: '' }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-read', name: 'read', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-write', name: 'write', arguments: '{}' },
+        { id: 'tc-read', name: 'read', arguments: '{}' }
+      ]
+
+      const execution = executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+      await writeStartedPromise
+      await Promise.resolve()
+      const readStartedBeforeWriteResolved = started.includes('read')
+      releaseWrite?.()
+      await execution
+
+      expect(readStartedBeforeWriteResolved).toBe(false)
+      expect(started).toEqual(['write', 'read'])
     })
 
     it('persists final-only subagent tool payloads', async () => {

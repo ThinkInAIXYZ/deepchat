@@ -21,6 +21,12 @@
         title="函数调用能力"
       />
       <Icon
+        v-else-if="type === ModelType.Chat"
+        icon="lucide:triangle-alert"
+        class="h-4 w-4 shrink-0 text-amber-500"
+        title="弱 Agent 能力：仅支持 legacy fallback 工具调用"
+      />
+      <Icon
         v-if="reasoning"
         icon="lucide:brain"
         class="h-4 w-4 shrink-0 text-purple-500"

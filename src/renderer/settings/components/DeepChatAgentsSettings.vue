@@ -649,7 +649,7 @@ import type {
 import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import {
   DEEPCHAT_SUBAGENT_SLOT_LIMIT,
-  createDefaultDeepChatSelfSubagentSlot,
+  createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentSlots
 } from '@shared/lib/deepchatSubagents'
 
@@ -755,8 +755,8 @@ const form = reactive<FormState>({
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
-  subagentEnabled: false,
-  subagents: normalizeDeepChatSubagentSlots([createDefaultDeepChatSelfSubagentSlot()]),
+  subagentEnabled: true,
+  subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
@@ -985,8 +985,8 @@ const emptyForm = (): FormState => ({
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
-  subagentEnabled: false,
-  subagents: normalizeDeepChatSubagentSlots([createDefaultDeepChatSelfSubagentSlot()]),
+  subagentEnabled: true,
+  subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',

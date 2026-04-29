@@ -148,11 +148,15 @@ export async function buildSystemEnvPrompt(
   const promptLines = [
     `You are powered by the model named ${modelName}.`,
     `The exact model ID is ${exactModelId}`,
-    `## Here is some useful information about the environment you are running in:`,
+    `Here is some useful information about the environment you are running in:`,
+    '<env>',
     `Working directory: ${workdir}`,
     `Is directory a git repo: ${isGitRepository(workdir) ? 'yes' : 'no'}`,
     `Platform: ${platform}`,
-    `Today's date: ${now.toDateString()}`
+    `Today's date: ${now.toDateString()}`,
+    '</env>',
+    '<files>',
+    '</files>'
   ]
 
   if (agentsContent.trim().length > 0) {

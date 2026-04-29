@@ -151,7 +151,7 @@ describe('ToolPresenter', () => {
     const callToolSpy = vi.fn().mockResolvedValue('ok')
     agentToolManager.callTool = callToolSpy
 
-    await toolPresenter.callTool({
+    const result = await toolPresenter.callTool({
       id: 'tool-1',
       type: 'function',
       function: {
@@ -161,6 +161,13 @@ describe('ToolPresenter', () => {
       conversationId: 'conv-1'
     })
 
+    expect(result.rawData.toolResult).toMatchObject({
+      ok: true,
+      data: {
+        content: 'ok',
+        source: 'agent'
+      }
+    })
     expect(callToolSpy).toHaveBeenCalledWith(
       'read',
       { path: 'foo' },
@@ -584,6 +591,6 @@ describe('ToolPresenter', () => {
     expect(prompt).toContain(
       'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
     )
-    expect(prompt).not.toContain('Use `read`/`find`/`grep`/`ls` for file inspection')
+    expect(prompt).toContain('Use `find`/`grep`/`ls` for focused inspection')
   })
 })

@@ -138,4 +138,75 @@ describe('SubagentOrchestratorTool', () => {
     expect(handoffMessage).not.toContain(childSession.projectDir as string)
     expect(result.content).toContain('Inspect auth flow')
   })
+
+  it('starts background runs and supports list, info, and kill operations', async () => {
+    const parentSession = buildSessionInfo()
+    const childSession = buildSessionInfo({
+      sessionId: 'child-session',
+      agentName: 'Reviewer Clone',
+      sessionKind: 'subagent',
+      parentSessionId: parentSession.sessionId,
+      subagentEnabled: false,
+      availableSubagentSlots: []
+    })
+    const createSubagentSession = vi.fn().mockResolvedValue(childSession)
+    const cancelConversation = vi.fn().mockResolvedValue(undefined)
+
+    const tool = new SubagentOrchestratorTool({
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
+      createSubagentSession,
+      sendConversationMessage: vi.fn().mockResolvedValue(undefined),
+      cancelConversation,
+      subscribeDeepChatSessionUpdates: vi.fn(() => () => undefined),
+      getSkillPresenter: vi.fn(() => ({})),
+      getYoBrowserToolHandler: vi.fn(() => ({})),
+      getFilePresenter: vi.fn(() => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      })),
+      getLlmProviderPresenter: vi.fn(() => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+        generateCompletionStandalone: vi.fn()
+      })),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn(),
+      getApprovedFilePaths: vi.fn(() => []),
+      consumeSettingsApproval: vi.fn(() => false)
+    } as any)
+
+    const started = await tool.call(
+      {
+        mode: 'parallel',
+        background: true,
+        tasks: [
+          {
+            slotId: 'reviewer',
+            title: 'Keep running',
+            prompt: 'Stay active until cancelled.'
+          }
+        ]
+      },
+      parentSession.sessionId
+    )
+    const progress = JSON.parse((started.rawData?.toolResult as any).subagentProgress)
+    const runId = progress.runId
+
+    expect(started.content).toContain('Subagent run started')
+    expect(runId).toMatch(/\S+/)
+
+    for (let index = 0; index < 10 && createSubagentSession.mock.calls.length === 0; index += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    const listed = await tool.call({ operation: 'list' }, parentSession.sessionId)
+    expect(listed.content).toContain(runId)
+
+    const info = await tool.call({ operation: 'info', runId }, parentSession.sessionId)
+    expect(info.content).toContain('Keep running')
+
+    const killed = await tool.call({ operation: 'kill', runId }, parentSession.sessionId)
+    expect(killed.content).toContain('cancelled')
+    expect(cancelConversation).toHaveBeenCalledWith(childSession.sessionId)
+  })
 })

@@ -11,6 +11,10 @@ import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from './agentTools'
 import type { AgentToolRuntimePort } from './runtimePorts'
+import {
+  createAgentToolErrorResult,
+  createAgentToolSuccessResult
+} from '@shared/lib/agentToolResultEnvelope'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 import { YO_BROWSER_TOOL_NAMES } from '../browser/YoBrowserToolDefinitions'
@@ -71,7 +75,7 @@ interface ToolPresenterOptions {
   agentToolRuntime: AgentToolRuntimePort
 }
 
-const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'exec', 'process']
+const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'find', 'grep', 'ls', 'exec', 'process']
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>(YO_BROWSER_TOOL_NAMES)
 
@@ -232,12 +236,29 @@ export class ToolPresenter implements IToolPresenter {
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)
       const rawData = resolvedResponse.rawData ?? {}
+      const content = rawData.content ?? resolvedResponse.content
       return {
         content: resolvedResponse.content,
         rawData: {
           ...rawData,
           toolCallId: request.id,
-          content: rawData.content ?? resolvedResponse.content
+          content,
+          toolResult:
+            rawData.toolResult ??
+            (rawData.isError === true
+              ? createAgentToolErrorResult(toolName, String(content), {
+                  recoverable: true,
+                  data: {
+                    content,
+                    source: 'agent'
+                  }
+                })
+              : createAgentToolSuccessResult(toolName, content, {
+                  data: {
+                    content,
+                    source: 'agent'
+                  }
+                }))
         }
       }
     }
@@ -404,9 +425,18 @@ export class ToolPresenter implements IToolPresenter {
         'When `read` targets an image file, it returns an English description of the visible content and any legible text.'
       )
     }
+    if (
+      toolNames.has('find') ||
+      toolNames.has('grep') ||
+      toolNames.has('ls') ||
+      toolNames.has('read')
+    ) {
+      lines.push('Use `find`/`grep`/`ls` for focused inspection before reading large files.')
+      lines.push('Read-only inspection tools can be called together when their inputs are known.')
+    }
     if (toolNames.has('exec') && toolNames.has('read') && toolNames.has('edit')) {
       lines.push(
-        'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'
+        'Recommended file task flow: `find`/`grep`/`ls` or `exec` for discovery/search -> `read` -> `edit`/`write`.'
       )
     }
     if (toolNames.has('process')) {
