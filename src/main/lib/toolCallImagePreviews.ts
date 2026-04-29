@@ -96,7 +96,8 @@ async function cachePreviewData(
 
   try {
     const cachedData = await cacheImage(data)
-    return cachedData && !cachedData.startsWith('data:image/') ? cachedData : undefined
+    const cachedDataTrimmed = cachedData.trim().toLowerCase()
+    return cachedDataTrimmed.startsWith('data:image/') ? undefined : cachedData
   } catch {
     return undefined
   }

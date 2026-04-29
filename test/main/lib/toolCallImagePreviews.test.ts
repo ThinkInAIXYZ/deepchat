@@ -103,4 +103,22 @@ describe('extractToolCallImagePreviews', () => {
       }
     ])
   })
+
+  it('preserves preview metadata when image caching returns a normalized data URL', async () => {
+    const cacheImage = vi.fn(async () => '  DATA:IMAGE/PNG;base64,AAAA  ')
+
+    const previews = await extractToolCallImagePreviews({
+      content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
+      cacheImage
+    })
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+    expect(previews).toEqual([
+      {
+        id: 'mcp_image-1',
+        mimeType: 'image/png',
+        source: 'mcp_image'
+      }
+    ])
+  })
 })
