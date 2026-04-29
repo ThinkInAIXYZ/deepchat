@@ -2255,6 +2255,23 @@ describe('AgentRuntimePresenter', () => {
         disabled
       )
       expect(interleavedConfig.preserveReasoningContent).toBe(false)
+      expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
+
+      const deepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'deepseek',
+        'deepseek-v4',
+        defaults
+      )
+      expect(deepseekInterleavedConfig.preserveReasoningContent).toBe(true)
+      expect(deepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(true)
+
+      const nonDeepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'openai',
+        'gpt-4',
+        defaults
+      )
+      expect(nonDeepseekInterleavedConfig.preserveReasoningContent).toBe(true)
+      expect(nonDeepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',
@@ -4224,6 +4241,61 @@ describe('AgentRuntimePresenter', () => {
         expect.objectContaining({
           isError: true,
           responseText: "Tool 'exec' is disabled for the current session."
+        })
+      )
+    })
+
+    it('returns image previews from deferred tool execution', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'view_image',
+            description: 'view image',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: 'analysis',
+        rawData: {
+          toolCallId: 'tc1',
+          content: 'analysis',
+          isError: false,
+          imagePreviews: [
+            {
+              id: 'file_read-1',
+              data: 'imgcache://preview.png',
+              mimeType: 'image/png',
+              title: 'preview.png',
+              source: 'file_read'
+            }
+          ]
+        }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'view_image',
+        params: '{}'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: false,
+          responseText: 'analysis',
+          imagePreviews: [
+            {
+              id: 'file_read-1',
+              data: 'imgcache://preview.png',
+              mimeType: 'image/png',
+              title: 'preview.png',
+              source: 'file_read'
+            }
+          ]
         })
       )
     })

@@ -234,6 +234,7 @@ export class CompactionService {
     extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
+    preserveEmptyInterleavedReasoning?: boolean
     newUserContent: string | SendMessageInput
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
@@ -269,6 +270,7 @@ export class CompactionService {
     extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
+    preserveEmptyInterleavedReasoning?: boolean
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
     throwIfAbortRequested(params.signal)
@@ -366,6 +368,7 @@ export class CompactionService {
     extraReserveTokens?: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
+    preserveEmptyInterleavedReasoning?: boolean
     records: ChatMessageRecord[]
     protectedTurnCount: number
     triggerThreshold: number
@@ -382,7 +385,8 @@ export class CompactionService {
     const turns = buildHistoryTurns(
       scopedRecords,
       params.supportsVision,
-      params.preserveInterleavedReasoning
+      params.preserveInterleavedReasoning,
+      params.preserveEmptyInterleavedReasoning === true
     )
     if (turns.length === 0) {
       return null

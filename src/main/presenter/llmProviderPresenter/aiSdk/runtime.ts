@@ -207,7 +207,8 @@ async function buildPromptRuntime(
   const mappedMessages = mapMessagesToModelMessages(messages, {
     tools,
     supportsNativeTools,
-    buildLegacyFunctionCallPrompt: context.buildLegacyFunctionCallPrompt
+    buildLegacyFunctionCallPrompt: context.buildLegacyFunctionCallPrompt,
+    preserveOpenAICompatibleReasoningContent: context.providerKind === 'openai-compatible'
   })
   const toolsMap = supportsNativeTools ? mcpToolsToAISDKTools(tools) : {}
   const providerOptionResult = buildProviderOptions({
