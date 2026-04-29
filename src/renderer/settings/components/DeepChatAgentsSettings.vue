@@ -1081,8 +1081,10 @@ const fromAgent = (agent?: Agent | null): FormState => {
     defaultProjectPath: normalizePath(config.defaultProjectPath) ?? '',
     systemPrompt: config.systemPrompt ?? '',
     permissionMode: config.permissionMode === 'default' ? 'default' : 'full_access',
-    subagentEnabled: config.subagentEnabled === true,
-    subagents: normalizeDeepChatSubagentSlots(config.subagents),
+    subagentEnabled: config.subagentEnabled ?? true,
+    subagents: normalizeDeepChatSubagentSlots(
+      config.subagents ?? createDefaultDeepChatSubagentSlots()
+    ),
     disabledAgentTools: [...(config.disabledAgentTools ?? [])],
     autoCompactionEnabled: config.autoCompactionEnabled ?? true,
     autoCompactionTriggerThreshold: numText(

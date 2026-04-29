@@ -416,6 +416,9 @@
     },
     "unavailable": "N/A"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Weak Agent capability: only supports legacy fallback tool calls"
+  },
   "model": {
     "title": "Model Settings",
     "systemPrompt": {

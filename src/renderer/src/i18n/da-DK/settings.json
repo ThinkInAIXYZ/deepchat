@@ -287,6 +287,9 @@
     },
     "unavailable": "Ikke tilgængelig"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Svag Agent-kapacitet: understøtter kun legacy fallback-værktøjskald"
+  },
   "model": {
     "title": "Modelindstillinger",
     "systemPrompt": {

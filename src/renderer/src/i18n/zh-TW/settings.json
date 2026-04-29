@@ -354,6 +354,9 @@
     },
     "unavailable": "暫無"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "弱 Agent 能力：僅支援 legacy fallback 工具呼叫"
+  },
   "model": {
     "title": "模型設定",
     "systemPrompt": {

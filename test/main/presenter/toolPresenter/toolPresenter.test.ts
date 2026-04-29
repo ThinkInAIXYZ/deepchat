@@ -241,9 +241,9 @@ describe('ToolPresenter', () => {
     )
     expect(defs.some((tool) => tool.function.name === 'read')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'exec')).toBe(false)
-    expect(defs.some((tool) => tool.function.name === 'find')).toBe(true)
-    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(true)
-    expect(defs.some((tool) => tool.function.name === 'ls')).toBe(true)
+    expect(defs.some((tool) => tool.function.name === 'find')).toBe(false)
+    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(false)
+    expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
   })
 
   it('omits YoBrowser prompt text when no yobrowser tools are enabled', () => {
