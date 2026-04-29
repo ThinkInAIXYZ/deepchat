@@ -10,7 +10,7 @@
   "params": "函数参数",
   "responseData": "函数响应",
   "imagePreview": "图片预览",
-  "imagePreviewCount": "{count} 张图片预览",
+  "imagePreviewCount": "无图片预览 | {count} 张图片预览 | {count} 张图片预览",
   "terminalOutput": "终端输出",
   "badge": {
     "rtk": "RTK"

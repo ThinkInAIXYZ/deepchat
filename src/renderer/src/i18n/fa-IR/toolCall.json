@@ -14,7 +14,7 @@
   "permission": "درخواست اجازه",
   "responseData": "پاسخ تابع",
   "imagePreview": "پیش‌نمایش تصویر",
-  "imagePreviewCount": "{count} پیش‌نمایش تصویر",
+  "imagePreviewCount": "بدون پیش‌نمایش تصویر | {count} پیش‌نمایش تصویر | {count} پیش‌نمایش تصویر",
   "success": "موفقیت",
   "title": "تماس ابزار",
   "terminalOutput": "خروجی ترمینال",

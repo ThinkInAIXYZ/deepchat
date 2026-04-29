@@ -52,7 +52,7 @@ export type ToolCallImagePreviewSource = 'tool_output' | 'file_read' | 'screensh
 
 export interface ToolCallImagePreview {
   id: string
-  data: string
+  data?: string | null
   mimeType: string
   title?: string
   source: ToolCallImagePreviewSource

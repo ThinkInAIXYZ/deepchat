@@ -14,7 +14,7 @@
   "permission": "Anmoder om tilladelse",
   "responseData": "funktionsrespons",
   "imagePreview": "Billedforhåndsvisning",
-  "imagePreviewCount": "{count} billedforhåndsvisninger",
+  "imagePreviewCount": "Ingen billedforhåndsvisninger | Én billedforhåndsvisning | {count} billedforhåndsvisninger",
   "success": "succes",
   "title": "Værktøjskald",
   "terminalOutput": "Terminaludgang",

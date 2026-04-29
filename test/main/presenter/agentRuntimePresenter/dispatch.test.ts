@@ -1016,6 +1016,7 @@ describe('dispatch', () => {
 
     it('stores image previews from structured tool output', async () => {
       const tools = [makeTool('tool_image')]
+      const cacheImage = vi.fn(async () => 'imgcache://cached.png')
       const toolPresenter = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         callTool: vi.fn(async (request) => ({
@@ -1049,13 +1050,15 @@ describe('dispatch', () => {
         'full_access',
         new ToolOutputGuard(),
         32000,
-        1024
+        1024,
+        { cacheImage }
       )
 
+      expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
       expect(state.blocks[0].tool_call?.imagePreviews).toEqual([
         {
           id: 'mcp_image-1',
-          data: 'data:image/png;base64,AAAA',
+          data: 'imgcache://cached.png',
           mimeType: 'image/png',
           source: 'mcp_image'
         }

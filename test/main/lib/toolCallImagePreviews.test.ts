@@ -23,7 +23,7 @@ describe('extractToolCallImagePreviews', () => {
     ])
   })
 
-  it('extracts CDP screenshot output from Page.captureScreenshot', async () => {
+  it('drops CDP screenshot preview when image caching is unavailable', async () => {
     const previews = await extractToolCallImagePreviews({
       toolName: 'cdp_send',
       toolArgs: JSON.stringify({
@@ -33,33 +33,55 @@ describe('extractToolCallImagePreviews', () => {
       content: JSON.stringify({ data: 'BBBB' })
     })
 
-    expect(previews).toEqual([
-      {
-        id: 'screenshot-1',
-        data: 'data:image/jpeg;base64,BBBB',
-        mimeType: 'image/jpeg',
-        title: 'Page.captureScreenshot',
-        source: 'screenshot'
-      }
-    ])
+    expect(previews).toEqual([])
   })
 
   it('extracts explicit image references from JSON output', async () => {
+    const cacheImage = vi.fn(async () => 'imgcache://output.webp')
+
     const previews = await extractToolCallImagePreviews({
       content: JSON.stringify({
         result: {
           imageUrl: 'https://example.com/output.webp'
         }
-      })
+      }),
+      cacheImage
     })
 
+    expect(cacheImage).toHaveBeenCalledWith('https://example.com/output.webp')
     expect(previews).toEqual([
       {
         id: 'tool_output-1',
-        data: 'https://example.com/output.webp',
+        data: 'imgcache://output.webp',
         mimeType: 'image/webp',
         source: 'tool_output'
       }
     ])
+  })
+
+  it('drops previews when image caching fails', async () => {
+    const cacheImage = vi.fn(async () => {
+      throw new Error('cache failed')
+    })
+
+    const previews = await extractToolCallImagePreviews({
+      content: 'data:image/png;base64,AAAA',
+      cacheImage
+    })
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+    expect(previews).toEqual([])
+  })
+
+  it('drops previews when image caching returns the original data URL', async () => {
+    const cacheImage = vi.fn(async (data: string) => data)
+
+    const previews = await extractToolCallImagePreviews({
+      content: 'data:image/png;base64,AAAA',
+      cacheImage
+    })
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+    expect(previews).toEqual([])
   })
 })

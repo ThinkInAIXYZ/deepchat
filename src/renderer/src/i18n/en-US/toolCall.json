@@ -10,7 +10,7 @@
   "params": "Function Parameters",
   "responseData": "Response",
   "imagePreview": "Image Preview",
-  "imagePreviewCount": "{count} image preview(s)",
+  "imagePreviewCount": "No image previews | One image preview | {count} image previews",
   "terminalOutput": "Terminal Output",
   "badge": {
     "rtk": "RTK"

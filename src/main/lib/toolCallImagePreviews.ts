@@ -16,6 +16,7 @@ type ExtractToolCallImagePreviewsParams = {
 
 const DATA_IMAGE_URL_PATTERN = /data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=\r\n]+/g
 const IMAGE_URL_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|ico|avif|svg)(?:[?#].*)?$/i
+const SAFE_PREVIEW_DATA_FALLBACK = ''
 
 function parseJsonRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -91,13 +92,14 @@ async function cachePreviewData(
   cacheImage?: (data: string) => Promise<string>
 ): Promise<string> {
   if (!cacheImage) {
-    return data
+    return SAFE_PREVIEW_DATA_FALLBACK
   }
 
   try {
-    return await cacheImage(data)
+    const cachedData = await cacheImage(data)
+    return cachedData.startsWith('data:image/') ? SAFE_PREVIEW_DATA_FALLBACK : cachedData
   } catch {
-    return data
+    return SAFE_PREVIEW_DATA_FALLBACK
   }
 }
 

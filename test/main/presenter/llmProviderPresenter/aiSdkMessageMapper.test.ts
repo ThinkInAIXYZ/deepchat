@@ -133,4 +133,44 @@ describe('AI SDK message mapper', () => {
       }
     ])
   })
+
+  it('skips assistant messages with no content or reasoning', () => {
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'assistant',
+          content: ''
+        }
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true
+      }
+    )
+
+    expect(result).toEqual([])
+  })
+
+  it('keeps assistant messages that only contain reasoning', () => {
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'assistant',
+          content: '',
+          reasoning_content: 'Think before answering.'
+        }
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true
+      }
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Think before answering.' }]
+      }
+    ])
+  })
 })

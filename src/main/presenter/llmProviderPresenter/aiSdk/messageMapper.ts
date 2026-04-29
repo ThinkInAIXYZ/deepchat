@@ -255,7 +255,9 @@ export function mapMessagesToModelMessages(
         return acc
       }
 
-      acc.push(buildAssistantModelMessage(message, assistantContent, options))
+      if (assistantContent.length > 0) {
+        acc.push(buildAssistantModelMessage(message, assistantContent, options))
+      }
       return acc
     }
 

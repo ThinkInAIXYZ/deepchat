@@ -14,7 +14,7 @@
   "permission": "권한 요청 중",
   "responseData": "기능 응답",
   "imagePreview": "이미지 미리보기",
-  "imagePreviewCount": "이미지 미리보기 {count}개",
+  "imagePreviewCount": "이미지 미리보기 없음 | 이미지 미리보기 {count}개 | 이미지 미리보기 {count}개",
   "success": "성공",
   "title": "도구 호출",
   "terminalOutput": "터미널 출력",

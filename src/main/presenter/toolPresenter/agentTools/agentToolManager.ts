@@ -1262,10 +1262,13 @@ export class AgentToolManager {
     throwIfAbortRequested(signal)
     const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
     const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
-    let previewData = dataUrl
+    let previewData: string | undefined
     if (this.runtimePort.cacheImage) {
       try {
-        previewData = await this.runtimePort.cacheImage(dataUrl)
+        const cachedPreviewData = await this.runtimePort.cacheImage(dataUrl)
+        if (cachedPreviewData && !cachedPreviewData.startsWith('data:image/')) {
+          previewData = cachedPreviewData
+        }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to cache image preview', { filePath, error })
       }
@@ -1273,7 +1276,7 @@ export class AgentToolManager {
     const imagePreviews: ToolCallImagePreview[] = [
       {
         id: 'file_read-1',
-        data: previewData,
+        ...(previewData ? { data: previewData } : {}),
         mimeType,
         title: path.basename(filePath),
         source: 'file_read'

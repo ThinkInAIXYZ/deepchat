@@ -22,7 +22,7 @@ export const TimestampMsSchema = z.number().int().nonnegative()
 
 export const ToolCallImagePreviewSchema = z.object({
   id: z.string().min(1),
-  data: z.string().min(1),
+  data: z.string().min(1).nullable().optional(),
   mimeType: z.string().min(1),
   title: z.string().optional(),
   source: z.enum(['tool_output', 'file_read', 'screenshot', 'mcp_image'])

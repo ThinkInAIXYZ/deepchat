@@ -77,7 +77,7 @@ const selectedPreview = computed(() =>
 )
 
 const resolveImageSrc = (preview: ToolCallImagePreview): string => {
-  const data = preview.data.trim()
+  const data = preview.data?.trim() ?? ''
   if (
     preview.mimeType === 'deepchat/image-url' ||
     data.startsWith('data:image/') ||
