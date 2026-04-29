@@ -241,9 +241,9 @@ describe('ToolPresenter', () => {
     )
     expect(defs.some((tool) => tool.function.name === 'read')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'exec')).toBe(false)
-    expect(defs.some((tool) => tool.function.name === 'find')).toBe(false)
-    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(false)
-    expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
+    expect(defs.some((tool) => tool.function.name === 'find')).toBe(true)
+    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(true)
+    expect(defs.some((tool) => tool.function.name === 'ls')).toBe(true)
   })
 
   it('omits YoBrowser prompt text when no yobrowser tools are enabled', () => {
@@ -559,7 +559,7 @@ describe('ToolPresenter', () => {
       } as any
     })
 
-    const prompt = toolPresenter.buildToolSystemPrompt({
+    const promptWithoutFocusedTools = toolPresenter.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -584,13 +584,54 @@ describe('ToolPresenter', () => {
         }
       ]
     })
+    const promptWithFocusedTools = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('read', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('edit', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('write', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('find', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('grep', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('ls', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('exec', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('process', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
 
-    expect(prompt).toContain(
+    expect(promptWithoutFocusedTools).toContain(
       'Use canonical Agent tool names only: read, write, edit, exec, process.'
     )
-    expect(prompt).toContain(
+    expect(promptWithoutFocusedTools).toContain(
       'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
     )
-    expect(prompt).toContain('Use `find`/`grep`/`ls` for focused inspection')
+    expect(promptWithoutFocusedTools).not.toContain('Use `find`/`grep`/`ls` for focused inspection')
+    expect(promptWithFocusedTools).toContain(
+      'Use canonical Agent tool names only: read, write, edit, find, grep, ls, exec, process.'
+    )
+    expect(promptWithFocusedTools).toContain('Use `find`/`grep`/`ls` for focused inspection')
   })
 })

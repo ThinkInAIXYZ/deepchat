@@ -566,6 +566,60 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
+          name: 'find',
+          description:
+            'Find files under the workspace using a glob pattern. Use this for focused file discovery before reading large files.',
+          parameters: zodToJsonSchema(schemas.find) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'grep',
+          description:
+            'Search file contents under the workspace with a regular expression. Supports file patterns, context lines, and result limits.',
+          parameters: zodToJsonSchema(schemas.grep) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'ls',
+          description:
+            'List files in a directory, or return a shallow directory tree when depth is greater than 1.',
+          parameters: zodToJsonSchema(schemas.ls) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
           name: 'exec',
           description:
             'Execute a shell command in the workspace directory. Use background: true when you know the command should detach immediately. Otherwise foreground exec waits briefly, and long-running commands may auto-background and return a session ID for use with the process tool.',

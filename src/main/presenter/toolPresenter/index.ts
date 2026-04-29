@@ -425,14 +425,16 @@ export class ToolPresenter implements IToolPresenter {
         'When `read` targets an image file, it returns an English description of the visible content and any legible text.'
       )
     }
-    if (
-      toolNames.has('find') ||
-      toolNames.has('grep') ||
-      toolNames.has('ls') ||
-      toolNames.has('read')
-    ) {
-      lines.push('Use `find`/`grep`/`ls` for focused inspection before reading large files.')
-      lines.push('Read-only inspection tools can be called together when their inputs are known.')
+    const focusedInspectionTools = ['find', 'grep', 'ls'].filter((toolName) =>
+      toolNames.has(toolName)
+    )
+    if (focusedInspectionTools.length > 0) {
+      lines.push(
+        `Use ${focusedInspectionTools.map((toolName) => `\`${toolName}\``).join('/')} for focused inspection before reading large files.`
+      )
+      if (toolNames.has('read')) {
+        lines.push('Read-only inspection tools can be called together when their inputs are known.')
+      }
     }
     if (toolNames.has('exec') && toolNames.has('read') && toolNames.has('edit')) {
       lines.push(
