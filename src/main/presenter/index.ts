@@ -239,7 +239,9 @@ export class Presenter implements IPresenter {
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
     })
-    this.mcpPresenter = new McpPresenter(this.configPresenter)
+    this.mcpPresenter = new McpPresenter(this.configPresenter, (data) =>
+      this.devicePresenter.cacheImage(data)
+    )
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
     this.filePresenter = new FilePresenter(this.configPresenter)
@@ -375,6 +377,7 @@ export class Presenter implements IPresenter {
             options
           )
       }),
+      cacheImage: (data) => this.devicePresenter.cacheImage(data),
       createSettingsWindow: () => this.windowPresenter.createSettingsWindow(),
       sendToWindow: (windowId, channel, ...args) =>
         this.windowPresenter.sendToWindow(windowId, channel, ...args),
@@ -525,6 +528,7 @@ export class Presenter implements IPresenter {
         providerCatalogPort,
         sessionPermissionPort,
         sessionUiPort,
+        cacheImage: (data) => this.devicePresenter.cacheImage(data),
         skillPresenter: this.skillPresenter
       }
     )

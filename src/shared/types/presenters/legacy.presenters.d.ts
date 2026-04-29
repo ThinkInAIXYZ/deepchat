@@ -1709,6 +1709,9 @@ export interface MCPToolResponse {
   /** When using compatibility mode, may directly return tool results */
   toolResult?: unknown
 
+  /** Image previews extracted from tool output for renderer display */
+  imagePreviews?: import('../core/mcp').ToolCallImagePreview[]
+
   /** Whether permission is required */
   requiresPermission?: boolean
 

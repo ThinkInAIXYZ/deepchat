@@ -13,6 +13,8 @@
   "response": "Correndo",
   "permission": "Solicitando permissão",
   "responseData": "resposta da função",
+  "imagePreview": "Pré-visualização da imagem",
+  "imagePreviewCount": "Nenhuma pré-visualização de imagem | Uma pré-visualização de imagem | {count} pré-visualizações de imagem",
   "success": "sucesso",
   "title": "Chamada de ferramenta",
   "terminalOutput": "Saída terminal",
