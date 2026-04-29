@@ -416,6 +416,9 @@
     },
     "unavailable": "暂无"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "弱 Agent 能力：仅支持 legacy fallback 工具调用"
+  },
   "model": {
     "title": "模型设置",
     "systemPrompt": {

@@ -21,6 +21,7 @@ import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
 // Complete McpPresenter implementation
 export class McpPresenter implements IMCPPresenter {
@@ -30,15 +31,17 @@ export class McpPresenter implements IMCPPresenter {
   private isInitialized: boolean = false
   // McpRouter
   private mcprouter?: McpRouterManager
+  private cacheImage?: (data: string) => Promise<string>
   private pendingSamplingRequests = new Map<
     string,
     { resolve: (decision: McpSamplingDecision) => void; reject: (error: Error) => void }
   >()
 
-  constructor(configPresenter?: IConfigPresenter) {
+  constructor(configPresenter?: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
     console.log('Initializing MCP Presenter')
 
     this.configPresenter = configPresenter || presenter.configPresenter
+    this.cacheImage = cacheImage
     this.serverManager = new ServerManager(this.configPresenter)
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
     // init mcprouter manager
@@ -498,6 +501,12 @@ export class McpPresenter implements IMCPPresenter {
 
   async callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }> {
     const toolCallResult = await this.toolManager.callTool(request)
+    const imagePreviews = await extractToolCallImagePreviews({
+      toolName: request.function.name,
+      toolArgs: request.function.arguments,
+      content: toolCallResult.content,
+      cacheImage: this.cacheImage
+    })
 
     // Format tool call results into strings that are easy for large models to parse
     let formattedContent = ''
@@ -539,7 +548,13 @@ export class McpPresenter implements IMCPPresenter {
       formattedContent = `Error: ${formattedContent}`
     }
 
-    return { content: formattedContent, rawData: toolCallResult }
+    return {
+      content: formattedContent,
+      rawData: {
+        ...toolCallResult,
+        ...(imagePreviews.length > 0 ? { imagePreviews } : {})
+      }
+    }
   }
 
   /**

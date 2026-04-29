@@ -5,7 +5,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import { createI18n } from 'vue-i18n'
-import locales from './i18n'
+import locales, { pluralRules } from './i18n'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import 'katex/dist/katex.min.css'
 import {
@@ -50,6 +50,7 @@ const i18n = createI18n({
   locale: 'zh-CN',
   fallbackLocale: 'en-US',
   legacy: false,
+  pluralRules,
   messages: locales
 })
 // Icons will be loaded asynchronously on app mount to improve startup performance

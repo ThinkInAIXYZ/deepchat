@@ -369,11 +369,41 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     return models
   }
 
-  private formatMessages(messages: ChatMessage[]): Array<{ role: string; content: string }> {
-    return messages.map((msg) => ({
-      role: msg.role,
-      content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-    }))
+  private formatMessages(messages: ChatMessage[]): Array<{
+    role: string
+    content: string
+    tool_calls?: ChatMessage['tool_calls']
+    reasoning_content?: string
+  }> {
+    return messages.map((msg) => {
+      const formatted: {
+        role: string
+        content: string
+        tool_calls?: ChatMessage['tool_calls']
+        reasoning_content?: string
+      } = {
+        role: msg.role,
+        content:
+          typeof msg.content === 'string'
+            ? msg.content
+            : msg.content === undefined
+              ? ''
+              : JSON.stringify(msg.content)
+      }
+
+      if (msg.role === 'assistant' && msg.tool_calls?.length) {
+        formatted.tool_calls = msg.tool_calls
+      }
+
+      if (
+        msg.role === 'assistant' &&
+        Object.prototype.hasOwnProperty.call(msg, 'reasoning_content')
+      ) {
+        formatted.reasoning_content = msg.reasoning_content ?? ''
+      }
+
+      return formatted
+    })
   }
 
   async *coreStream(

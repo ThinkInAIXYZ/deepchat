@@ -6,7 +6,7 @@ import App from './App.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 import { createI18n } from 'vue-i18n'
-import locales from '@/i18n'
+import locales, { pluralRules } from '@/i18n'
 import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
 import { preloadIcons } from '../src/lib/iconLoader'
 
@@ -34,6 +34,7 @@ const i18n = createI18n({
   locale: 'zh-CN',
   fallbackLocale: 'en-US',
   legacy: false,
+  pluralRules,
   messages: locales
 })
 

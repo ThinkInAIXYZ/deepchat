@@ -368,8 +368,8 @@ describe('CompactionService', () => {
       newUserContent: 'next turn'
     })
 
-    expect(buildHistoryTurns).toHaveBeenNthCalledWith(1, expect.any(Array), false, false)
-    expect(buildHistoryTurns).toHaveBeenNthCalledWith(2, expect.any(Array), false, true)
+    expect(buildHistoryTurns).toHaveBeenNthCalledWith(1, expect.any(Array), false, false, false)
+    expect(buildHistoryTurns).toHaveBeenNthCalledWith(2, expect.any(Array), false, true, false)
   })
 
   it('retains the configured recent pairs plus the resume target turn', async () => {

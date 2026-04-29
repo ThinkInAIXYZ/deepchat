@@ -354,6 +354,9 @@
     },
     "unavailable": "該当なし"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Agent 能力が弱い：レガシーフォールバックのツール呼び出しのみをサポート"
+  },
   "model": {
     "title": "モデル設定",
     "systemPrompt": {

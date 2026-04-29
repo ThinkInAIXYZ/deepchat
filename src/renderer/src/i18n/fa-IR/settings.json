@@ -354,6 +354,9 @@
     },
     "unavailable": "ناموجود"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "قابلیت ضعیف Agent: فقط از تماس‌های ابزار fallback قدیمی پشتیبانی می‌کند"
+  },
   "model": {
     "title": "تنظیمات مدل",
     "systemPrompt": {

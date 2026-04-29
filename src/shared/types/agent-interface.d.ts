@@ -1,4 +1,5 @@
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
+import type { ToolCallImagePreview } from './core/mcp'
 
 /**
  * Agent Interface Protocol
@@ -246,6 +247,7 @@ export interface ToolCallBlockData {
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
+  imagePreviews?: ToolCallImagePreview[]
   server_name?: string
   server_icons?: string
   server_description?: string

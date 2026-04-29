@@ -354,6 +354,9 @@
     },
     "unavailable": "Indisponible"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Capacité Agent faible : prend uniquement en charge les appels d'outils de secours hérités"
+  },
   "model": {
     "title": "Paramètres du modèle",
     "systemPrompt": {

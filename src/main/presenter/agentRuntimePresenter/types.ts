@@ -14,6 +14,7 @@ import type { ToolOutputGuard } from './toolOutputGuard'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
+  preserveEmptyReasoningContent?: boolean
   forcedBySessionSetting: boolean
   portraitInterleaved: boolean
   reasoningSupported: boolean
@@ -106,6 +107,7 @@ export interface ProcessHooks {
     content: MCPToolResponse['content']
     isError: boolean
   }) => Promise<MCPToolResponse['content']>
+  cacheImage?: (data: string) => Promise<string>
 }
 
 export interface PendingToolInteraction {

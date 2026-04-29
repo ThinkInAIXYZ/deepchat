@@ -1,4 +1,5 @@
 import { FileMetaData } from './presenter'
+import type { ToolCallImagePreview } from './types/core/mcp'
 
 export type Message = {
   id: string
@@ -124,6 +125,7 @@ export type AssistantMessageBlock = {
     name?: string
     params?: string
     response?: string
+    imagePreviews?: ToolCallImagePreview[]
     server_name?: string
     server_icons?: string
     server_description?: string

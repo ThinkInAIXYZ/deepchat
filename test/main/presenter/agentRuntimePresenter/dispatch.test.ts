@@ -810,6 +810,88 @@ describe('dispatch', () => {
       expect(assistantMsg.reasoning_content).toBe('Let me think...')
     })
 
+    it('adds empty reasoning_content for DeepSeek tool-only assistant messages when enabled', async () => {
+      const tools = [makeTool('search')]
+      const toolPresenter = createMockToolPresenter({ search: 'result' })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'search', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'search', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'deepseek-v4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        undefined,
+        undefined,
+        {
+          ...DEFAULT_INTERLEAVED_REASONING,
+          preserveReasoningContent: true,
+          preserveEmptyReasoningContent: true,
+          portraitInterleaved: true
+        }
+      )
+
+      const assistantMsg = conversation.find((m: any) => m.role === 'assistant')
+      expect(assistantMsg.reasoning_content).toBe('')
+      expect(assistantMsg.tool_calls).toHaveLength(1)
+    })
+
+    it('does not add empty reasoning_content for non-DeepSeek tool-only assistant messages', async () => {
+      const tools = [makeTool('search')]
+      const toolPresenter = createMockToolPresenter({ search: 'result' })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'search', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'search', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        undefined,
+        undefined,
+        {
+          ...DEFAULT_INTERLEAVED_REASONING,
+          preserveReasoningContent: true,
+          preserveEmptyReasoningContent: false,
+          portraitInterleaved: true
+        }
+      )
+
+      const assistantMsg = conversation.find((m: any) => m.role === 'assistant')
+      expect(assistantMsg.reasoning_content).toBeUndefined()
+      expect(assistantMsg.tool_calls).toHaveLength(1)
+    })
+
     it('preserves tool call provider options in the follow-up assistant message', async () => {
       const tools = [makeTool('exec')]
       const toolPresenter = createMockToolPresenter({ exec: 'done' })
@@ -1140,6 +1222,57 @@ describe('dispatch', () => {
         })
       )
       expect(io.messageStore.updateAssistantContent).toHaveBeenCalled()
+    })
+
+    it('stores image previews from structured tool output', async () => {
+      const tools = [makeTool('tool_image')]
+      const cacheImage = vi.fn(async () => 'imgcache://cached.png')
+      const toolPresenter = {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        callTool: vi.fn(async (request) => ({
+          content: '[image]',
+          rawData: {
+            toolCallId: request.id,
+            content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
+            isError: false
+          }
+        })),
+        buildToolSystemPrompt: vi.fn().mockReturnValue('')
+      } as unknown as IToolPresenter
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'tool_image', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'tool_image', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        { cacheImage }
+      )
+
+      expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+      expect(state.blocks[0].tool_call?.imagePreviews).toEqual([
+        {
+          id: 'mcp_image-1',
+          data: 'imgcache://cached.png',
+          mimeType: 'image/png',
+          source: 'mcp_image'
+        }
+      ])
     })
 
     it('offloads large yo_browser responses into a stub', async () => {

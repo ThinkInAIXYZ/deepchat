@@ -209,7 +209,7 @@ interface ProviderWebsites {
 }
 
 const { t } = useI18n()
-const llmProviderPresenter = useLegacyPresenter('llmproviderPresenter')
+const llmProviderPresenter = useLegacyPresenter('llmproviderPresenter', { safeCall: false })
 const modelCheckStore = useModelCheckStore()
 const { toast } = useToast()
 
@@ -325,6 +325,34 @@ const openModelCheckDialog = () => {
   modelCheckStore.openDialog(props.provider.id)
 }
 
+const extractRefreshErrorMessage = (error: unknown): string | null => {
+  const rawMessage = error instanceof Error ? error.message : String(error)
+  const normalizedMessage = rawMessage.trim()
+
+  if (!normalizedMessage) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(normalizedMessage) as {
+      error?: { message?: string }
+      message?: string
+    }
+
+    if (typeof parsed.error?.message === 'string' && parsed.error.message.trim()) {
+      return parsed.error.message.trim()
+    }
+
+    if (typeof parsed.message === 'string' && parsed.message.trim()) {
+      return parsed.message.trim()
+    }
+  } catch {
+    // ignore JSON parse errors and fall back to the original message
+  }
+
+  return normalizedMessage
+}
+
 const getKeyStatus = async () => {
   if (
     ['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek', '302ai', 'cherryin'].includes(
@@ -358,13 +386,15 @@ const refreshModels = async () => {
     })
   } catch (error) {
     console.error('Failed to refresh models:', error)
+    const fallbackDescription = t(
+      shouldRefreshProviderDbFirst.value
+        ? 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
+        : 'settings.provider.toast.refreshModelsFailedDescription'
+    )
+    const errorMessage = extractRefreshErrorMessage(error)
     toast({
       title: t('settings.provider.toast.refreshModelsFailedTitle'),
-      description: t(
-        shouldRefreshProviderDbFirst.value
-          ? 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
-          : 'settings.provider.toast.refreshModelsFailedDescription'
-      ),
+      description: errorMessage ? `${fallbackDescription}: ${errorMessage}` : fallbackDescription,
       variant: 'destructive',
       duration: 4000
     })

@@ -98,7 +98,7 @@ async function setup(options?: {
   }))
 
   vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: (name: string) => {
+    useLegacyPresenter: (name: string, options?: { safeCall?: boolean }) => {
       if (name === 'llmproviderPresenter') return llmproviderPresenter
       throw new Error(`Unexpected presenter: ${name}`)
     }
@@ -306,9 +306,100 @@ describe('ProviderApiConfig', () => {
     expect(llmproviderPresenter.refreshModels).toHaveBeenCalledWith('doubao')
     expect(toast).toHaveBeenCalledWith({
       title: 'settings.provider.toast.refreshModelsFailedTitle',
-      description: 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata',
+      description:
+        'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata: network down',
       variant: 'destructive',
       duration: 4000
     })
+  })
+
+  it('extracts nested API error messages for refresh failures', async () => {
+    const { wrapper, toast, llmproviderPresenter } = await setup({
+      provider: createProvider({
+        id: 'custom-anthropic',
+        name: 'Custom Anthropic',
+        apiType: 'anthropic',
+        custom: true,
+        baseUrl: 'https://anthropic-proxy.example.com'
+      })
+    })
+    llmproviderPresenter.refreshModels.mockRejectedValueOnce(
+      new Error('{"error":{"type":"Unauthorized","message":"Invalid API key"}}')
+    )
+
+    const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
+    expect(refreshButton).toBeDefined()
+
+    await refreshButton!.trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.provider.toast.refreshModelsFailedTitle',
+      description: 'settings.provider.toast.refreshModelsFailedDescription: Invalid API key',
+      variant: 'destructive',
+      duration: 4000
+    })
+  })
+
+  it('requests the presenter with safeCall disabled so refresh errors can surface', async () => {
+    const useLegacyPresenter = vi.fn((name: string) => {
+      if (name === 'llmproviderPresenter') return { getKeyStatus: vi.fn(), refreshModels: vi.fn() }
+      throw new Error(`Unexpected presenter: ${name}`)
+    })
+
+    vi.resetModules()
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter
+    }))
+    vi.doMock('@/stores/modelCheck', () => ({
+      useModelCheckStore: () => ({ openDialog: vi.fn() })
+    }))
+    vi.doMock('@/components/use-toast', () => ({
+      useToast: () => ({ toast: vi.fn() })
+    }))
+    vi.doMock('@shadcn/components/ui/input', () => ({ Input: createInputStub() }))
+    vi.doMock('@shadcn/components/ui/button', () => ({ Button: buttonStub }))
+    vi.doMock('@shadcn/components/ui/label', () => ({ Label: labelStub }))
+    vi.doMock('@shadcn/components/ui/tooltip', () => ({
+      Tooltip: passthrough('Tooltip'),
+      TooltipContent: passthrough('TooltipContent'),
+      TooltipProvider: passthrough('TooltipProvider'),
+      TooltipTrigger: passthrough('TooltipTrigger')
+    }))
+    vi.doMock('@iconify/vue', () => ({
+      Icon: defineComponent({
+        name: 'Icon',
+        template: '<i />'
+      })
+    }))
+
+    const ProviderApiConfig = (
+      await import('../../../src/renderer/settings/components/ProviderApiConfig.vue')
+    ).default
+
+    mount(ProviderApiConfig, {
+      props: {
+        provider: createProvider(),
+        providerWebsites: {
+          official: 'https://example.com',
+          apiKey: 'https://example.com/key',
+          docs: 'https://example.com/docs',
+          models: 'https://example.com/models',
+          defaultBaseUrl: 'https://api.deepseek.com/v1'
+        }
+      },
+      global: {
+        stubs: {
+          GitHubCopilotOAuth: true
+        }
+      }
+    })
+
+    expect(useLegacyPresenter).toHaveBeenCalledWith('llmproviderPresenter', { safeCall: false })
   })
 })
