@@ -15,6 +15,12 @@ type PendingToolCall = {
   args?: string
 }
 
+type AssistantProviderOptions = Record<string, Record<string, unknown>>
+
+function hasOwnReasoningContent(message: ChatMessage): boolean {
+  return Object.prototype.hasOwnProperty.call(message, 'reasoning_content')
+}
+
 function resolveBinaryData(value: string): string | URL {
   if (value.startsWith('data:')) {
     return value
@@ -91,10 +97,10 @@ function mapUserContent(content: ChatMessage['content']): any[] {
 function mapAssistantTextAndReasoning(message: ChatMessage): any[] {
   const content: any[] = []
 
-  if (message.reasoning_content) {
+  if (hasOwnReasoningContent(message)) {
     content.push({
       type: 'reasoning',
-      text: message.reasoning_content,
+      text: message.reasoning_content ?? '',
       ...(message.reasoning_provider_options
         ? { providerOptions: message.reasoning_provider_options }
         : {})
@@ -133,6 +139,37 @@ export interface MapMessagesToModelMessagesOptions {
   tools: MCPToolDefinition[]
   supportsNativeTools: boolean
   buildLegacyFunctionCallPrompt?: (tools: MCPToolDefinition[]) => string
+  preserveOpenAICompatibleReasoningContent?: boolean
+}
+
+function buildAssistantProviderOptions(
+  message: ChatMessage,
+  options: MapMessagesToModelMessagesOptions
+): AssistantProviderOptions | undefined {
+  if (!options.preserveOpenAICompatibleReasoningContent || !hasOwnReasoningContent(message)) {
+    return undefined
+  }
+
+  return {
+    ...message.provider_options,
+    openaiCompatible: {
+      ...message.provider_options?.openaiCompatible,
+      reasoning_content: message.reasoning_content ?? ''
+    }
+  }
+}
+
+function buildAssistantModelMessage(
+  message: ChatMessage,
+  content: any[],
+  options: MapMessagesToModelMessagesOptions
+): ModelMessage {
+  const providerOptions = buildAssistantProviderOptions(message, options)
+  return {
+    role: 'assistant',
+    content,
+    ...(providerOptions ? { providerOptions } : {})
+  } as ModelMessage
 }
 
 export function mapMessagesToModelMessages(
@@ -200,16 +237,10 @@ export function mapMessagesToModelMessages(
             })
           }
 
-          acc.push({
-            role: 'assistant',
-            content: assistantContent
-          } as ModelMessage)
+          acc.push(buildAssistantModelMessage(message, assistantContent, options))
         } else {
           if (assistantContent.length > 0) {
-            acc.push({
-              role: 'assistant',
-              content: assistantContent
-            } as ModelMessage)
+            acc.push(buildAssistantModelMessage(message, assistantContent, options))
           }
 
           for (const toolCall of message.tool_calls) {
@@ -224,10 +255,7 @@ export function mapMessagesToModelMessages(
         return acc
       }
 
-      acc.push({
-        role: 'assistant',
-        content: assistantContent
-      } as ModelMessage)
+      acc.push(buildAssistantModelMessage(message, assistantContent, options))
       return acc
     }
 

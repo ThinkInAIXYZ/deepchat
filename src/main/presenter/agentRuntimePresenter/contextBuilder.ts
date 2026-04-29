@@ -293,7 +293,7 @@ export function recordToChatMessages(
     })
   const assistantContent = contentParts.some((part) => part.provider_options) ? contentParts : text
   const applyReasoningContent = (assistantMessage: ChatMessage): ChatMessage => {
-    if (preserveInterleavedReasoning && reasoning) {
+    if (preserveInterleavedReasoning) {
       assistantMessage.reasoning_content = reasoning
       const reasoningProviderOptions = blocks
         .filter((block) => block.type === 'reasoning_content')
@@ -317,7 +317,7 @@ export function recordToChatMessages(
   )
 
   if (toolCallBlocks.length === 0) {
-    if (preserveInterleavedReasoning && reasoning) {
+    if (preserveInterleavedReasoning) {
       return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
     }
     return [{ role: 'assistant', content: combinedText }]
@@ -340,7 +340,7 @@ export function recordToChatMessages(
   }
 
   if (toolCalls.length === 0) {
-    if (preserveInterleavedReasoning && reasoning) {
+    if (preserveInterleavedReasoning) {
       return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
     }
     return [{ role: 'assistant', content: combinedText }]

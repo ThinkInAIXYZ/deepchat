@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { convertToOpenAICompatibleChatMessages } from '@ai-sdk/openai-compatible/internal'
 import { mapMessagesToModelMessages } from '@/presenter/llmProviderPresenter/aiSdk/messageMapper'
 
 describe('AI SDK message mapper', () => {
@@ -69,6 +70,64 @@ describe('AI SDK message mapper', () => {
             toolCallId: 'tc1',
             toolName: 'search',
             input: { query: 'weather' }
+          }
+        ]
+      }
+    ])
+  })
+
+  it('preserves empty interleaved reasoning for openai-compatible native tool calls', () => {
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'assistant',
+          content: '',
+          reasoning_content: '',
+          tool_calls: [
+            {
+              id: 'tc1',
+              type: 'function',
+              function: { name: 'search', arguments: '{"query":"weather"}' }
+            }
+          ]
+        }
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true,
+        preserveOpenAICompatibleReasoningContent: true
+      }
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'reasoning', text: '' },
+          {
+            type: 'tool-call',
+            toolCallId: 'tc1',
+            toolName: 'search',
+            input: { query: 'weather' }
+          }
+        ],
+        providerOptions: {
+          openaiCompatible: {
+            reasoning_content: ''
+          }
+        }
+      }
+    ])
+    expect(convertToOpenAICompatibleChatMessages(result as any)).toEqual([
+      {
+        role: 'assistant',
+        content: '',
+        reasoning_content: '',
+        tool_calls: [
+          {
+            id: 'tc1',
+            type: 'function',
+            function: { name: 'search', arguments: '{"query":"weather"}' }
           }
         ]
       }

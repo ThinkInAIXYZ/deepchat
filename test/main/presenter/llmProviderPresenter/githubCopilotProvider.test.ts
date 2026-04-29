@@ -150,6 +150,40 @@ describe('GithubCopilotProvider request timeout', () => {
     expect(getGlobalGitHubCopilotDeviceFlow).toHaveBeenCalledWith('new-client')
   })
 
+  it('preserves assistant tool calls and empty reasoning_content when formatting messages', () => {
+    const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider
+
+    const result = (provider as any).formatMessages([
+      {
+        role: 'assistant',
+        content: '',
+        reasoning_content: '',
+        tool_calls: [
+          {
+            id: 'tc1',
+            type: 'function',
+            function: { name: 'search', arguments: '{"query":"weather"}' }
+          }
+        ]
+      }
+    ])
+
+    expect(result).toEqual([
+      {
+        role: 'assistant',
+        content: '',
+        reasoning_content: '',
+        tool_calls: [
+          {
+            id: 'tc1',
+            type: 'function',
+            function: { name: 'search', arguments: '{"query":"weather"}' }
+          }
+        ]
+      }
+    ])
+  })
+
   it('preserves cached auth state when acquiring a new device flow fails', () => {
     const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
       provider: Record<string, unknown>
