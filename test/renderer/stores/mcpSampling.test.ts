@@ -22,11 +22,10 @@ describe('resolveSamplingDefaultModel', () => {
     const claudeModel = makeModel('claude-sonnet', 'anthropic')
 
     const result = resolveSamplingDefaultModel({
-      enabledModels: [
+      modelGroups: [
         { providerId: 'openai', models: [openaiModel] },
         { providerId: 'anthropic', models: [claudeModel] }
       ],
-      providerOrder: ['openai', 'anthropic'],
       requiresVision: false,
       activeSelection: { providerId: 'openai', modelId: 'gpt-4o' },
       draftSelection: { providerId: 'anthropic', modelId: 'claude-sonnet' }
@@ -40,8 +39,7 @@ describe('resolveSamplingDefaultModel', () => {
     const claudeModel = makeModel('claude-sonnet', 'anthropic')
 
     const result = resolveSamplingDefaultModel({
-      enabledModels: [{ providerId: 'anthropic', models: [claudeModel] }],
-      providerOrder: ['anthropic'],
+      modelGroups: [{ providerId: 'anthropic', models: [claudeModel] }],
       requiresVision: false,
       activeSelection: { providerId: 'openai', modelId: 'gpt-4o' },
       draftSelection: { providerId: 'anthropic', modelId: 'claude-sonnet' }
@@ -57,11 +55,10 @@ describe('resolveSamplingDefaultModel', () => {
     const claudeVision = makeModel('claude-3.7-sonnet', 'anthropic', { vision: true })
 
     const result = resolveSamplingDefaultModel({
-      enabledModels: [
+      modelGroups: [
         { providerId: 'openai', models: [openaiText, openaiVision] },
         { providerId: 'anthropic', models: [claudeVision] }
       ],
-      providerOrder: ['openai', 'anthropic'],
       requiresVision: true,
       activeSelection: { providerId: 'openai', modelId: 'gpt-4.1' },
       draftSelection: null
@@ -80,10 +77,33 @@ const setupSamplingStore = async (options?: {
   vi.resetModules()
 
   let samplingRequestListener: ((payload: { request: unknown }) => void) | undefined
+  const getChatSelectableModelGroups = () => modelStore.enabledModels
 
   const modelStore = reactive({
     initialized: options?.initialized ?? false,
     enabledModels: options?.initialEnabledModels ?? [],
+    get chatSelectableModelGroups() {
+      return getChatSelectableModelGroups()
+    },
+    findChatSelectableModel: vi.fn((providerId: string, modelId: string) => {
+      const group = getChatSelectableModelGroups().find((entry) => entry.providerId === providerId)
+      const model = group?.models.find((entry) => entry.id === modelId)
+      if (!group || !model) {
+        return null
+      }
+      return { providerId, providerName: providerId, model }
+    }),
+    pickFirstChatSelectableModel: vi.fn(() => {
+      const firstGroup = getChatSelectableModelGroups()[0]
+      const firstModel = firstGroup?.models[0]
+      return firstGroup && firstModel
+        ? {
+            providerId: firstGroup.providerId,
+            providerName: firstGroup.providerId,
+            model: firstModel
+          }
+        : null
+    }),
     initialize: vi.fn().mockImplementation(async () => {
       if (options?.initializeModels) {
         await options.initializeModels()

@@ -1,9 +1,9 @@
-import { computed, type ComputedRef, readonly, ref } from 'vue'
+import { computed, type ComputedRef, readonly, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
 import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/presenter'
-import { ModelType } from '@shared/model'
+import { isChatSelectableModelType, ModelType } from '@shared/model'
 import {
   resolveDerivedModelMaxTokens,
   resolveModelContextLength,
@@ -27,6 +27,12 @@ type ModelQueryHandle<TData> = {
   data: ComputedRef<TData | undefined>
   refresh: (throwOnError?: boolean) => Promise<DataState<TData, unknown, TData | undefined>>
   refetch: (throwOnError?: boolean) => Promise<DataState<TData, unknown, TData | undefined>>
+}
+
+type ChatSelectableModelGroup = {
+  providerId: string
+  providerName: string
+  models: RENDERER_MODEL_META[]
 }
 
 export const useModelStore = defineStore('model', () => {
@@ -67,6 +73,10 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const getModelStatusKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
+
+  const getProviderState = (providerId: string) => {
+    return providerStore.providers.find((provider) => provider.id === providerId) ?? null
+  }
 
   const markProviderModelsReady = (providerId: string) => {
     providerModelsReadyAt.set(providerId, Date.now())
@@ -356,7 +366,8 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const updateEnabledState = (providerId: string, models: RENDERER_MODEL_META[]) => {
-    const enabledModelsList = models.filter((model) => model.enabled)
+    const providerState = getProviderState(providerId)
+    const enabledModelsList = providerState?.enable ? models.filter((model) => model.enabled) : []
     const idx = enabledModels.value.findIndex((item) => item.providerId === providerId)
     if (idx !== -1) {
       if (enabledModelsList.length > 0) {
@@ -369,6 +380,16 @@ export const useModelStore = defineStore('model', () => {
     }
 
     enabledModels.value = [...enabledModels.value]
+  }
+
+  const pruneModelState = (providerIds: Set<string>, enabledProviderIds: Set<string>) => {
+    enabledModels.value = enabledModels.value.filter((group) =>
+      enabledProviderIds.has(group.providerId)
+    )
+    allProviderModels.value = allProviderModels.value.filter((group) =>
+      providerIds.has(group.providerId)
+    )
+    customModels.value = customModels.value.filter((group) => providerIds.has(group.providerId))
   }
 
   const updateEnabledStateFromLocalProvider = (providerId: string) => {
@@ -773,6 +794,74 @@ export const useModelStore = defineStore('model', () => {
 
   const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, true)
 
+  const chatSelectableModelGroups = computed<ChatSelectableModelGroup[]>(() => {
+    const orderedProviders =
+      providerStore.sortedProviders?.length > 0
+        ? providerStore.sortedProviders
+        : providerStore.providers
+    const modelsByProviderId = new Map(
+      enabledModels.value
+        .filter((group) => group.providerId !== 'acp')
+        .map(
+          (group) =>
+            [
+              group.providerId,
+              group.models.filter((model) => isChatSelectableModelType(model.type))
+            ] as const
+        )
+        .filter(([, models]) => models.length > 0)
+    )
+
+    const result: ChatSelectableModelGroup[] = []
+
+    for (const provider of orderedProviders) {
+      if (!provider.enable || provider.id === 'acp') {
+        continue
+      }
+
+      const models = modelsByProviderId.get(provider.id)
+      if (!models || models.length === 0) {
+        continue
+      }
+
+      result.push({
+        providerId: provider.id,
+        providerName: provider.name,
+        models
+      })
+    }
+
+    return result
+  })
+
+  const findChatSelectableModel = (providerId: string, modelId: string) => {
+    const group = chatSelectableModelGroups.value.find((entry) => entry.providerId === providerId)
+    const model = group?.models.find((entry) => entry.id === modelId)
+    if (!group || !model) {
+      return null
+    }
+
+    return {
+      providerId: group.providerId,
+      providerName: group.providerName,
+      model
+    }
+  }
+
+  const pickFirstChatSelectableModel = () => {
+    const firstGroup = chatSelectableModelGroups.value[0]
+    const firstModel = firstGroup?.models[0]
+    if (!firstGroup || !firstModel) {
+      return null
+    }
+
+    return {
+      providerId: firstGroup.providerId,
+      providerName: firstGroup.providerName,
+      model: firstModel
+    }
+  }
+
   const searchModels = (query: string) => {
     const normalized = query.toLowerCase()
     return enabledModels.value
@@ -799,6 +888,11 @@ export const useModelStore = defineStore('model', () => {
     }
     if (customModel) {
       customModel.enabled = enabled
+    }
+
+    if (!getProviderState(providerId)?.enable) {
+      enabledModels.value = enabledModels.value.filter((entry) => entry.providerId !== providerId)
+      return
     }
 
     let enabledProvider = enabledModels.value.find((p) => p.providerId === providerId)
@@ -1081,6 +1175,43 @@ export const useModelStore = defineStore('model', () => {
     return null
   }
 
+  watch(
+    () =>
+      providerStore.providers.map((provider) => ({
+        id: provider.id,
+        enable: provider.enable
+      })),
+    (nextProviders, previousProviders) => {
+      const providerIds = new Set(nextProviders.map((provider) => provider.id))
+      const enabledProviderIds = new Set(
+        nextProviders.filter((provider) => provider.enable).map((provider) => provider.id)
+      )
+      const previousEnabledProviderIds = new Set(
+        (previousProviders ?? [])
+          .filter((provider) => provider.enable)
+          .map((provider) => provider.id)
+      )
+
+      pruneModelState(providerIds, enabledProviderIds)
+
+      for (const provider of previousProviders ?? []) {
+        if (provider.enable && !enabledProviderIds.has(provider.id)) {
+          clearProviderModelsReady(provider.id)
+        }
+      }
+
+      for (const providerId of providerIds) {
+        if (enabledProviderIds.has(providerId) && !previousEnabledProviderIds.has(providerId)) {
+          updateEnabledStateFromLocalProvider(providerId)
+          if (initialized.value) {
+            void refreshProviderModels(providerId)
+          }
+        }
+      }
+    },
+    { immediate: true }
+  )
+
   const setupModelListeners = () => {
     if (listenersRegistered.value) return
     listenersRegistered.value = true
@@ -1256,6 +1387,9 @@ export const useModelStore = defineStore('model', () => {
     disableAllModels,
     searchModels,
     findModelByIdOrName,
+    chatSelectableModelGroups,
+    findChatSelectableModel,
+    pickFirstChatSelectableModel,
     applyUserDefinedModelConfig,
     addCustomModelMutation,
     removeCustomModelMutation,

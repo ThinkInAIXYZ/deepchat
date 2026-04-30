@@ -894,7 +894,6 @@ import type {
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import {
-  isChatSelectableModelType,
   isNewApiEndpointType,
   resolveProviderCapabilityProviderId
 } from '@shared/model'
@@ -1213,49 +1212,12 @@ const showModelOptionsLoading = computed(
 const resolveProviderApiType = (providerId: string): string | undefined =>
   providerStore.sortedProviders.find((provider) => provider.id === providerId)?.apiType
 
-const getChatSelectableModels = (models: RENDERER_MODEL_META[]): RENDERER_MODEL_META[] =>
-  models.filter((model) => isChatSelectableModelType(model.type))
-
 const modelGroups = computed<GroupedModelList[]>(() => {
   if (!isModelOptionsReady.value) {
     return []
   }
 
-  const groupsById = new Map(
-    modelStore.enabledModels
-      .filter((group) => group.providerId !== 'acp')
-      .map((group) => [group.providerId, getChatSelectableModels(group.models)] as const)
-      .filter(([, models]) => models.length > 0)
-  )
-
-  const result: GroupedModelList[] = []
-
-  providerStore.sortedProviders
-    .filter((provider) => provider.enable && provider.id !== 'acp')
-    .forEach((provider) => {
-      const models = groupsById.get(provider.id)
-      if (!models || models.length === 0) {
-        return
-      }
-      result.push({
-        providerId: provider.id,
-        providerName: provider.name,
-        models
-      })
-      groupsById.delete(provider.id)
-    })
-
-  Array.from(groupsById.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .forEach(([providerId, models]) => {
-      result.push({
-        providerId,
-        providerName: providerNameMap.value.get(providerId) ?? providerId,
-        models
-      })
-    })
-
-  return result
+  return modelStore.chatSelectableModelGroups
 })
 
 const filteredModelGroups = computed<GroupedModelList[]>(() => {
@@ -1609,11 +1571,7 @@ const getAcpOptionDisplayValue = (option: AcpConfigOption): string => {
 }
 
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
-  const group = modelStore.enabledModels.find((item) => item.providerId === providerId)
-  return (
-    group?.models.find((model) => model.id === modelId && isChatSelectableModelType(model.type)) ??
-    null
-  )
+  return modelStore.findChatSelectableModel(providerId, modelId)?.model ?? null
 }
 
 const resolveCapabilityProviderIdForSelection = (
@@ -1762,18 +1720,9 @@ const findEnabledModel = (providerId: string, modelId: string): ModelSelection |
 }
 
 const pickFirstEnabledModel = (): ModelSelection | null => {
-  for (const group of modelStore.enabledModels) {
-    if (group.providerId === 'acp') continue
-    const firstModel = group.models.find((model) => isChatSelectableModelType(model.type))
-    if (firstModel) {
-      return { providerId: group.providerId, modelId: firstModel.id }
-    }
-  }
-  for (const group of modelStore.enabledModels) {
-    const firstModel = group.models.find((model) => isChatSelectableModelType(model.type))
-    if (firstModel) {
-      return { providerId: group.providerId, modelId: firstModel.id }
-    }
+  const firstSelectableModel = modelStore.pickFirstChatSelectableModel()
+  if (firstSelectableModel) {
+    return { providerId: firstSelectableModel.providerId, modelId: firstSelectableModel.model.id }
   }
   return null
 }
@@ -2584,7 +2533,7 @@ watch(
     isAcpAgent,
     () => agentStore.selectedAgentId,
     () => modelStore.initialized,
-    () => modelStore.enabledModels
+    () => modelStore.chatSelectableModelGroups
   ],
   () => {
     if (hasActiveSession.value) return
