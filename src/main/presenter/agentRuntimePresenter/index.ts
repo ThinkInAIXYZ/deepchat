@@ -53,7 +53,7 @@ import {
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
-import { SESSION_EVENTS, STREAM_EVENTS } from '@/events'
+import { MCP_EVENTS, SESSION_EVENTS, STREAM_EVENTS } from '@/events'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
@@ -256,6 +256,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     ISkillPresenter,
     'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
   >
+  private toolRegistryRevision = 0
   private nextRunSequence = 0
 
   constructor(
@@ -319,6 +320,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         `DeepChatAgent: recovered ${recoveredPendingInputs} sessions with claimed pending inputs`
       )
     }
+
+    eventBus.on(MCP_EVENTS.CONFIG_CHANGED, this.handleToolRegistryChanged)
+    eventBus.on(MCP_EVENTS.SERVER_STARTED, this.handleToolRegistryChanged)
+    eventBus.on(MCP_EVENTS.SERVER_STOPPED, this.handleToolRegistryChanged)
+    eventBus.on(MCP_EVENTS.SERVER_STATUS_CHANGED, this.handleToolRegistryChanged)
+    eventBus.on(MCP_EVENTS.INITIALIZED, this.handleToolRegistryChanged)
   }
 
   private requireSessionPermissionPort(): SessionPermissionPort {
@@ -399,6 +406,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.toolProfileCache.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
     this.drainingPendingQueues.delete(sessionId)
+    this.toolPresenter?.clearConversationToolMapping?.(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
@@ -2857,6 +2865,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.toolProfileCache.delete(sessionId)
   }
 
+  private readonly handleToolRegistryChanged = (): void => {
+    this.toolRegistryRevision += 1
+    this.toolProfileCache.clear()
+  }
+
   private async getEffectiveSessionGenerationSettings(
     sessionId: string
   ): Promise<SessionGenerationSettings> {
@@ -4224,6 +4237,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         projectDir: normalizedProjectDir ?? '',
         providerId: state?.providerId ?? '',
         modelId: state?.modelId ?? '',
+        toolRegistryRevision: this.toolRegistryRevision,
         disabledAgentTools: [...disabledAgentTools].sort((left, right) =>
           left.localeCompare(right)
         ),

@@ -72,6 +72,11 @@ export interface IToolPresenter {
   } | null>
 
   /**
+   * Release any cached tool mapping for a conversation.
+   */
+  clearConversationToolMapping?(conversationId: string): void
+
+  /**
    * Build system prompt section for tool-related behavior.
    */
   buildToolSystemPrompt(context: {

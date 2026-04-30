@@ -376,7 +376,10 @@ export class SubagentOrchestratorTool {
 
   private async handleRunOperation(
     args: SubagentOrchestratorArgs,
-    conversationId: string
+    conversationId: string,
+    options?: {
+      signal?: AbortSignal
+    }
   ): Promise<AgentToolCallResult> {
     if (args.operation === 'list') {
       const content = this.renderRunListMarkdown(conversationId)
@@ -425,12 +428,7 @@ export class SubagentOrchestratorTool {
     if (args.operation === 'wait') {
       const timeoutMs = args.timeoutMs ?? 60000
       if (!isTerminalStatus(run.status)) {
-        await Promise.race([
-          run.completion,
-          new Promise<void>((resolve) => {
-            setTimeout(resolve, timeoutMs)
-          })
-        ])
+        await this.waitForRunCompletion(run, timeoutMs, options?.signal)
       }
       return isTerminalStatus(run.status)
         ? this.buildRunFinalResult(run)
@@ -442,6 +440,43 @@ export class SubagentOrchestratorTool {
     }
 
     return this.buildRunProgressResult(run)
+  }
+
+  private async waitForRunCompletion(
+    run: MutableRunState,
+    timeoutMs: number,
+    signal?: AbortSignal
+  ): Promise<void> {
+    let abortListener: (() => void) | undefined
+    const pending = [
+      run.completion,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, timeoutMs)
+      })
+    ]
+
+    if (signal) {
+      if (signal.aborted) {
+        throw new Error('subagent_orchestrator cancelled.')
+      }
+
+      pending.push(
+        new Promise<void>((_, reject) => {
+          abortListener = () => {
+            reject(new Error('subagent_orchestrator cancelled.'))
+          }
+          signal.addEventListener('abort', abortListener, { once: true })
+        })
+      )
+    }
+
+    try {
+      await Promise.race(pending)
+    } finally {
+      if (signal && abortListener) {
+        signal.removeEventListener('abort', abortListener)
+      }
+    }
   }
 
   private async getAvailableSession(
@@ -631,7 +666,7 @@ export class SubagentOrchestratorTool {
     }
 
     if (args.operation !== 'run') {
-      return this.handleRunOperation(args, conversationId)
+      return this.handleRunOperation(args, conversationId, options)
     }
 
     const mode = args.mode ?? 'parallel'
