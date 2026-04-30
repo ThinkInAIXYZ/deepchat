@@ -48,6 +48,7 @@ import {
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
+import { isDeepSeekSeriesModelId } from '@shared/model'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -3157,6 +3158,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     generationSettings: SessionGenerationSettings
   ): InterleavedReasoningConfig {
     const portrait = this.getReasoningPortrait(providerId, modelId)
+    const isDeepSeekSeries = isDeepSeekSeriesModelId(modelId)
     const explicitSessionSetting =
       typeof generationSettings.forceInterleavedThinkingCompat === 'boolean'
         ? generationSettings.forceInterleavedThinkingCompat
@@ -3166,12 +3168,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const reasoningSupported =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
     const preserveReasoningContent =
-      explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved
+      isDeepSeekSeries ||
+      (explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved)
 
     return {
       preserveReasoningContent,
-      preserveEmptyReasoningContent:
-        preserveReasoningContent && modelId.toLowerCase().includes('deepseek'),
+      preserveEmptyReasoningContent: isDeepSeekSeries,
       forcedBySessionSetting,
       portraitInterleaved,
       reasoningSupported,

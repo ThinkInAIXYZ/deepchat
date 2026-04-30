@@ -74,6 +74,10 @@ export function isClaudeOpus47FamilyModelId(modelId: string | undefined): boolea
   return normalizedModelId === 'claude-opus-4-7' || normalizedModelId === 'claude-opus-4-7-think'
 }
 
+export function isDeepSeekSeriesModelId(modelId: string | undefined): boolean {
+  return normalizeModelId(modelId).includes('deepseek')
+}
+
 export const resolveNewApiCapabilityProviderId = (
   endpointType: NewApiEndpointType
 ): NewApiCapabilityProviderId => {

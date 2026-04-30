@@ -2257,6 +2257,14 @@ describe('AgentRuntimePresenter', () => {
       expect(interleavedConfig.preserveReasoningContent).toBe(false)
       expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
+      const deepseekDisabledConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'openai',
+        'deepseek-v4',
+        disabled
+      )
+      expect(deepseekDisabledConfig.preserveReasoningContent).toBe(true)
+      expect(deepseekDisabledConfig.preserveEmptyReasoningContent).toBe(true)
+
       const deepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
         'deepseek',
         'deepseek-v4',
