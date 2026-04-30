@@ -8,6 +8,7 @@
     "searchEngine": "Mecanismo de Busca",
     "searchEngineSelect": "Selecionar mecanismo de busca",
     "searchPreview": "Pré-visualização de Busca",
+    "launchAtLoginEnabled": "Iniciar o DeepChat ao entrar no sistema",
     "autoScrollEnabled": "Rolagem automática durante a geração",
     "privacyMode": "Modo de Privacidade",
     "privacyModeDescription": "Interrompe as solicitações automáticas de saída feitas pelo DeepChat:",

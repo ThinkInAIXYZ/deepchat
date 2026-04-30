@@ -8,6 +8,7 @@
     "searchEngine": "Search Engine",
     "searchEngineSelect": "Select search engine",
     "searchPreview": "Search Preview",
+    "launchAtLoginEnabled": "Start DeepChat at login",
     "autoScrollEnabled": "Auto-scroll while generating",
     "privacyMode": "Privacy Mode",
     "privacyModeDescription": "Stop automatic outbound requests owned by DeepChat:",

@@ -13,6 +13,7 @@ export const SETTINGS_KEYS = [
   'contentProtectionEnabled',
   'privacyModeEnabled',
   'notificationsEnabled',
+  'launchAtLoginEnabled',
   'traceDebugEnabled',
   'copyWithCotEnabled',
   'loggingEnabled'
@@ -32,6 +33,7 @@ export const SettingsSnapshotValuesSchema = z.object({
   contentProtectionEnabled: z.boolean(),
   privacyModeEnabled: z.boolean(),
   notificationsEnabled: z.boolean(),
+  launchAtLoginEnabled: z.boolean(),
   traceDebugEnabled: z.boolean(),
   copyWithCotEnabled: z.boolean(),
   loggingEnabled: z.boolean()
@@ -80,6 +82,10 @@ export const SettingsChangeSchema = z.discriminatedUnion('key', [
   }),
   z.object({
     key: z.literal('notificationsEnabled'),
+    value: z.boolean()
+  }),
+  z.object({
+    key: z.literal('launchAtLoginEnabled'),
     value: z.boolean()
   }),
   z.object({

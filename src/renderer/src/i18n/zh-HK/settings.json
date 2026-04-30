@@ -8,6 +8,7 @@
     "searchEngine": "搜索引擎",
     "searchEngineSelect": "選擇搜索引擎",
     "searchPreview": "搜索預覽",
+    "launchAtLoginEnabled": "開機時啟動 DeepChat",
     "autoScrollEnabled": "生成時自動滾動",
     "privacyMode": "隱私模式",
     "privacyModeDescription": "啟動隱私模式後，DeepChat 將不會自動發起如下請求：",

@@ -258,6 +258,8 @@ const setup = async (options: SetupOptions = {}) => {
       modelLookup.set(model.id, { model })
     })
   })
+  const isChatSelectableModel = (model: { type?: ExtraModelGroup['models'][number]['type'] }) =>
+    !model.type || model.type === 'chat' || model.type === 'imageGeneration'
   const getChatSelectableModelGroups = () =>
     modelStore.enabledModels
       .filter((group) => group.providerId !== 'acp')
@@ -271,8 +273,9 @@ const setup = async (options: SetupOptions = {}) => {
             : group.providerId === 'anthropic'
               ? 'Anthropic'
               : group.providerId),
-        models: group.models
+        models: group.models.filter(isChatSelectableModel)
       }))
+      .filter((group) => group.models.length > 0)
 
   const themeStore = reactive({
     isDark: false

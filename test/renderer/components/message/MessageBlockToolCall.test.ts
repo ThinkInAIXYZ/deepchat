@@ -374,6 +374,21 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
   })
 
+  it('prefers command over earlier boolean fields in exec summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: '{"background":true,"command":"pnpm run dev"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
+  })
+
   it('renders raw params in the expanded panel', async () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {

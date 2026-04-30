@@ -8,6 +8,7 @@
     "searchEngine": "מנוע חיפוש",
     "searchEngineSelect": "בחר מנוע חיפוש",
     "searchPreview": "תצוגה מקדימה של חיפוש",
+    "launchAtLoginEnabled": "הפעלת DeepChat בעת הכניסה למערכת",
     "autoScrollEnabled": "גלילה אוטומטית בזמן יצירה",
     "privacyMode": "מצב פרטיות",
     "privacyModeDescription": "עצירת בקשות יוצאות אוטומטיות שמנוהלות על ידי DeepChat:",

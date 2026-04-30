@@ -257,7 +257,10 @@ const buildStartMessage = (payload: StartDeeplinkPayload): string => {
 const resolveStartModelSelection = (
   requestedModelId: string | null
 ): { providerId: string; modelId: string } | null => {
-  const resolvedModel = resolveChatModelByQuery(modelStore.chatSelectableModelGroups, requestedModelId)
+  const resolvedModel = resolveChatModelByQuery(
+    modelStore.chatSelectableModelGroups,
+    requestedModelId
+  )
   return resolvedModel
     ? { providerId: resolvedModel.providerId, modelId: resolvedModel.model.id }
     : null

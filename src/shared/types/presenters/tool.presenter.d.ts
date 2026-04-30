@@ -4,6 +4,7 @@
  */
 
 import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
+import type { PermissionMode } from '../agent-interface'
 
 export interface AgentToolProgressUpdate {
   kind: 'subagent_orchestrator'
@@ -47,13 +48,19 @@ export interface IToolPresenter {
     options?: {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
+      permissionMode?: PermissionMode
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 
   /**
    * Pre-check tool permission without executing the tool.
    */
-  preCheckToolPermission?(request: MCPToolCall): Promise<{
+  preCheckToolPermission?(
+    request: MCPToolCall,
+    options?: {
+      permissionMode?: PermissionMode
+    }
+  ): Promise<{
     needsPermission: true
     toolName: string
     serverName: string

@@ -888,10 +888,7 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
-import {
-  isNewApiEndpointType,
-  resolveProviderCapabilityProviderId
-} from '@shared/model'
+import { isNewApiEndpointType, resolveProviderCapabilityProviderId } from '@shared/model'
 import {
   MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE,
   MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE,

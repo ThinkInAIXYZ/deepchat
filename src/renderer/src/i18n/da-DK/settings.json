@@ -8,6 +8,7 @@
     "searchEngine": "Søgemaskine",
     "searchEngineSelect": "Vælg søgemaskine",
     "searchPreview": "Søgeforhåndsvisning",
+    "launchAtLoginEnabled": "Start DeepChat ved indlogning",
     "autoScrollEnabled": "Automatisk rulning under generering",
     "privacyMode": "Privatlivstilstand",
     "privacyModeDescription": "Stop automatiske udgående forespørgsler, som DeepChat selv står for:",
