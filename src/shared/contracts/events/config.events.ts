@@ -66,6 +66,7 @@ export const configAgentsChangedEvent = defineEventContract({
   payload: z.object({
     enabled: z.boolean(),
     agents: z.array(AcpAgentConfigSchema),
+    agentIds: z.array(z.string()).optional(),
     version: TimestampMsSchema
   })
 })

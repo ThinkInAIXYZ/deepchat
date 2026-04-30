@@ -53,10 +53,11 @@ export function setupLegacyTypedEventBridge(deps: {
     })
   }
 
-  const publishAgentsChanged = async () => {
+  const publishAgentsChanged = async (agentIds?: string[]) => {
     const state = await readAcpState(configPresenter)
     publishDeepchatEvent('config.agents.changed', {
       ...state,
+      agentIds,
       version: Date.now()
     })
   }
@@ -173,8 +174,8 @@ export function setupLegacyTypedEventBridge(deps: {
     })
   })
 
-  eventBus.on(CONFIG_EVENTS.AGENTS_CHANGED, () => {
-    void publishAgentsChanged()
+  eventBus.on(CONFIG_EVENTS.AGENTS_CHANGED, (payload?: { agentIds?: string[] }) => {
+    void publishAgentsChanged(payload?.agentIds)
     publishDeepchatEvent('models.changed', {
       reason: 'agents',
       providerId: 'acp',
