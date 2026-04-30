@@ -508,6 +508,14 @@ export class ConfigPresenter implements IConfigPresenter {
       setModelStatus: this.modelStatusHelper.setModelStatus.bind(this.modelStatusHelper),
       deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper)
     })
+    this.providerHelper.setCleanupHooks({
+      deleteProviderModelStatuses: this.modelStatusHelper.deleteProviderModelStatuses.bind(
+        this.modelStatusHelper
+      ),
+      clearProviderModelStore: this.providerModelHelper.clearProviderModelStore.bind(
+        this.providerModelHelper
+      )
+    })
 
     // Initialize built-in ACP agents on first run or version upgrade
     // Initialize provider models directory
@@ -1989,7 +1997,7 @@ export class ConfigPresenter implements IConfigPresenter {
       error: null
     }
     this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, installingState)
-    this.notifyAcpAgentsChanged()
+    this.notifyAcpAgentsChanged([registryAgent.id])
 
     try {
       const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
@@ -1997,7 +2005,7 @@ export class ConfigPresenter implements IConfigPresenter {
         currentState
       )
       this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, installedState)
-      this.notifyAcpAgentsChanged()
+      this.handleAcpAgentsMutated([registryAgent.id])
       return installedState
     } catch (error) {
       const failedState: AcpAgentInstallState = {
@@ -2011,7 +2019,7 @@ export class ConfigPresenter implements IConfigPresenter {
         error: error instanceof Error ? error.message : String(error)
       }
       this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, failedState)
-      this.notifyAcpAgentsChanged()
+      this.notifyAcpAgentsChanged([registryAgent.id])
       throw error
     }
   }
@@ -2030,7 +2038,7 @@ export class ConfigPresenter implements IConfigPresenter {
       error: null
     }
     this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, repairingState)
-    this.notifyAcpAgentsChanged()
+    this.notifyAcpAgentsChanged([registryAgent.id])
 
     try {
       const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
@@ -2053,7 +2061,7 @@ export class ConfigPresenter implements IConfigPresenter {
         error: error instanceof Error ? error.message : String(error)
       }
       this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, failedState)
-      this.notifyAcpAgentsChanged()
+      this.notifyAcpAgentsChanged([registryAgent.id])
       throw error
     }
   }
@@ -2301,7 +2309,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private handleAcpAgentsMutated(agentIds?: string[]) {
     this.clearProviderModelStatusCache('acp')
-    this.notifyAcpAgentsChanged()
+    this.notifyAcpAgentsChanged(agentIds)
     this.refreshAcpProviderAgents(agentIds)
   }
 
@@ -2323,10 +2331,10 @@ export class ConfigPresenter implements IConfigPresenter {
     }
   }
 
-  private notifyAcpAgentsChanged() {
+  private notifyAcpAgentsChanged(agentIds?: string[]) {
     console.log('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
     eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
-    eventBus.send(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS)
+    eventBus.send(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS, { agentIds })
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
   }
 

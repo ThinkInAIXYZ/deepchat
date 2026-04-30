@@ -121,7 +121,11 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
-import { isChatSelectableModelType, type ModelType } from '@shared/model'
+import {
+  resolveChatModelByQuery,
+  resolvePreferredChatModel,
+  type ChatModelSelection
+} from '@/lib/chatModelSelection'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 const projectStore = useProjectStore()
@@ -132,9 +136,6 @@ const draftStore = useDraftStore()
 const configClient = createConfigClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
-const activeEnabledModelGroups = computed(
-  () => modelStore.activeEnabledModels ?? modelStore.enabledModels
-)
 
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
@@ -201,21 +202,6 @@ const isAcpWorkdirMissing = computed(() => {
   return !projectStore.selectedProject?.path?.trim()
 })
 
-const isChatSelectableModel = (model: { type?: ModelType }) => isChatSelectableModelType(model.type)
-
-const getEnabledModel = (
-  providerId?: string,
-  modelId?: string
-): { providerId: string; modelId: string } | null => {
-  if (!providerId || !modelId) return null
-  const matched = activeEnabledModelGroups.value.some(
-    (group) =>
-      group.providerId === providerId &&
-      group.models.some((model) => model.id === modelId && isChatSelectableModel(model))
-  )
-  return matched ? { providerId, modelId } : null
-}
-
 const ensureEnabledModelsReady = async (): Promise<boolean> => {
   if (modelStore.initialized) {
     return true
@@ -236,39 +222,23 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
     return null
   }
 
-  // 0. model manually selected in current NewThread page
-  const draftModel = getEnabledModel(draftStore.providerId, draftStore.modelId)
-  if (draftModel) {
-    return draftModel
-  }
+  const [preferredModel, defaultModel] = await Promise.all([
+    configClient.getSetting('preferredModel') as Promise<ChatModelSelection | undefined>,
+    configClient.getSetting('defaultModel') as Promise<ChatModelSelection | undefined>
+  ])
 
-  // 1. preferredModel (last user selection)
-  const preferredModel = (await configClient.getSetting('preferredModel')) as
-    | { providerId: string; modelId: string }
-    | undefined
-  const resolvedPreferredModel = getEnabledModel(
-    preferredModel?.providerId,
-    preferredModel?.modelId
-  )
-  if (resolvedPreferredModel) {
-    return resolvedPreferredModel
-  }
-
-  // 2. defaultModel from settings
-  const defaultModel = (await configClient.getSetting('defaultModel')) as
-    | { providerId: string; modelId: string }
-    | undefined
-  const resolvedDefaultModel = getEnabledModel(defaultModel?.providerId, defaultModel?.modelId)
-  if (resolvedDefaultModel) {
-    return resolvedDefaultModel
-  }
-
-  // 3. First available enabled model
-  for (const group of activeEnabledModelGroups.value) {
-    const firstChatSelectableModel = group.models.find(isChatSelectableModel)
-    if (firstChatSelectableModel) {
-      return { providerId: group.providerId, modelId: firstChatSelectableModel.id }
-    }
+  const resolvedModel = resolvePreferredChatModel({
+    modelGroups: modelStore.chatSelectableModelGroups,
+    selections: [
+      draftStore.providerId && draftStore.modelId
+        ? { providerId: draftStore.providerId, modelId: draftStore.modelId }
+        : null,
+      preferredModel,
+      defaultModel
+    ]
+  })
+  if (resolvedModel) {
+    return { providerId: resolvedModel.providerId, modelId: resolvedModel.model.id }
   }
 
   return null
@@ -287,30 +257,13 @@ const buildStartMessage = (payload: StartDeeplinkPayload): string => {
 const resolveStartModelSelection = (
   requestedModelId: string | null
 ): { providerId: string; modelId: string } | null => {
-  const normalizedModelId = requestedModelId?.trim().toLowerCase()
-  if (!normalizedModelId) {
-    return null
-  }
-
-  for (const group of activeEnabledModelGroups.value) {
-    const matched = group.models.find(
-      (model) => model.id.toLowerCase() === normalizedModelId && isChatSelectableModel(model)
-    )
-    if (matched) {
-      return { providerId: group.providerId, modelId: matched.id }
-    }
-  }
-
-  for (const group of activeEnabledModelGroups.value) {
-    const matched = group.models.find(
-      (model) => model.id.toLowerCase().includes(normalizedModelId) && isChatSelectableModel(model)
-    )
-    if (matched) {
-      return { providerId: group.providerId, modelId: matched.id }
-    }
-  }
-
-  return null
+  const resolvedModel = resolveChatModelByQuery(
+    modelStore.chatSelectableModelGroups,
+    requestedModelId
+  )
+  return resolvedModel
+    ? { providerId: resolvedModel.providerId, modelId: resolvedModel.model.id }
+    : null
 }
 
 const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {

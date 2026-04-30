@@ -51,8 +51,19 @@ const setupStore = async (overrides?: {
     onModelConfigChanged: vi.fn(() => vi.fn()),
     ...overrides?.modelClient
   }
+  const providerRecords = overrides?.providerStore?.providers ?? [
+    { id: 'openai', enable: true, name: 'OpenAI' },
+    { id: 'anthropic', enable: true, name: 'Anthropic' },
+    { id: 'acp', enable: true, name: 'ACP' }
+  ]
   const providerStore = reactive({
-    providers: [],
+    providers: providerRecords,
+    sortedProviders:
+      overrides?.providerStore?.sortedProviders ??
+      providerRecords.map((provider) => ({
+        ...provider,
+        apiType: provider.apiType ?? 'openai'
+      })),
     ensureInitialized: vi.fn(async () => undefined),
     ...overrides?.providerStore
   })
@@ -456,6 +467,9 @@ describe('modelStore.refreshProviderModels', () => {
       isCustom: false
     }
     const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'aihubmix', enable: true, name: 'AIHubMix' }]
+      },
       modelClient: {
         getDbProviderModels: vi.fn(async () => [dbEmbeddingModel]),
         getProviderModels: vi.fn(async () => []),

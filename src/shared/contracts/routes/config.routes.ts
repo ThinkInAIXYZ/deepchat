@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { TimestampMsSchema, defineRouteContract } from '../common'
+import { AgentBootstrapItemSchema, TimestampMsSchema, defineRouteContract } from '../common'
 import {
   AcpAgentConfigSchema,
   BuiltinKnowledgeConfigSchema,
@@ -13,6 +13,23 @@ import {
   SystemPromptSchema,
   ThemeModeSchema
 } from '../domainSchemas'
+
+const AgentInstallStateSchema = z
+  .object({
+    status: z.enum(['not_installed', 'installing', 'installed', 'error']),
+    distributionType: z.enum(['binary', 'npx', 'uvx', 'manual']).nullable().optional(),
+    version: z.string().nullable().optional(),
+    installedAt: TimestampMsSchema.nullable().optional(),
+    lastCheckedAt: TimestampMsSchema.nullable().optional(),
+    installDir: z.string().nullable().optional(),
+    error: z.string().nullable().optional()
+  })
+  .passthrough()
+
+const AgentSchema = AgentBootstrapItemSchema.extend({
+  config: DeepChatAgentConfigSchema.nullable().optional(),
+  installState: AgentInstallStateSchema.nullable().optional()
+})
 
 export const CONFIG_ENTRY_KEYS = [
   'init_complete',
@@ -410,6 +427,19 @@ export const configGetAcpStateRoute = defineRouteContract({
   output: z.object({
     enabled: z.boolean(),
     agents: z.array(AcpAgentConfigSchema)
+  })
+})
+
+export const configListAgentsRoute = defineRouteContract({
+  name: 'config.listAgents',
+  input: z
+    .object({
+      agentType: z.enum(['deepchat', 'acp']).optional(),
+      ids: z.array(z.string().min(1)).optional()
+    })
+    .default({}),
+  output: z.object({
+    agents: z.array(AgentSchema)
   })
 })
 

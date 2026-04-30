@@ -238,6 +238,22 @@ export class ProviderModelHelper {
     this.invalidateProviderModelsCache(providerId)
   }
 
+  clearProviderModelStore(providerId: string): void {
+    const store = this.getProviderModelStore(providerId) as ElectronStore<IModelStore> & {
+      clear?: () => void
+    }
+
+    if (typeof store.clear === 'function') {
+      store.clear()
+    } else {
+      store.set('models', [])
+      store.set('custom_models', [])
+    }
+
+    this.stores.delete(providerId)
+    this.invalidateProviderModelsCache(providerId)
+  }
+
   addCustomModel(providerId: string, model: MODEL_META): void {
     const models = this.getCustomModels(providerId)
     const existingIndex = models.findIndex((m) => m.id === model.id)

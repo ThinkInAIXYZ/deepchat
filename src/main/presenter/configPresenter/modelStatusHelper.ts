@@ -27,7 +27,7 @@ export class ModelStatusHelper {
     return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
   }
 
-  private buildStatusSnapshot(): Map<string, boolean> | null {
+  private getRawStoreEntries(): [string, unknown][] | null {
     const candidate = this.store as ElectronStore<any> & {
       store?: Record<string, unknown>
     }
@@ -36,8 +36,17 @@ export class ModelStatusHelper {
       return null
     }
 
+    return Object.entries(rawStore)
+  }
+
+  private buildStatusSnapshot(): Map<string, boolean> | null {
+    const rawEntries = this.getRawStoreEntries()
+    if (!rawEntries) {
+      return null
+    }
+
     const snapshot = new Map<string, boolean>()
-    for (const [key, value] of Object.entries(rawStore)) {
+    for (const [key, value] of rawEntries) {
       if (!key.startsWith(MODEL_STATUS_KEY_PREFIX)) {
         continue
       }
@@ -230,5 +239,40 @@ export class ModelStatusHelper {
     this.store.delete(statusKey)
     this.cache.delete(statusKey)
     this.statusSnapshot?.delete(statusKey)
+  }
+
+  deleteProviderModelStatuses(providerId: string): void {
+    const prefix = `${MODEL_STATUS_KEY_PREFIX}${providerId}_`
+    const keysToDelete = new Set<string>()
+
+    const rawEntries = this.getRawStoreEntries()
+    if (rawEntries) {
+      for (const [key] of rawEntries) {
+        if (key.startsWith(prefix)) {
+          keysToDelete.add(key)
+        }
+      }
+    }
+
+    const statusSnapshot = this.getStatusSnapshot()
+    if (statusSnapshot) {
+      for (const key of statusSnapshot.keys()) {
+        if (key.startsWith(prefix)) {
+          keysToDelete.add(key)
+        }
+      }
+    }
+
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) {
+        keysToDelete.add(key)
+      }
+    }
+
+    for (const key of keysToDelete) {
+      this.store.delete(key)
+    }
+
+    this.clearProviderModelStatusCache(providerId)
   }
 }

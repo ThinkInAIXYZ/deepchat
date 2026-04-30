@@ -91,6 +91,8 @@ const setup = async (options?: {
     selectedAgent: { id: 'acp-agent', name: 'ACP Agent', type: 'acp' as const, enabled: true }
   })
 
+  const getChatSelectableModelGroups = () => modelStore.enabledModels
+
   const modelStore = reactive({
     initialized: options?.modelStoreInitialized ?? true,
     initialize: vi.fn().mockImplementation(async () => {
@@ -99,7 +101,29 @@ const setup = async (options?: {
       }
       modelStore.initialized = true
     }),
-    enabledModels: []
+    enabledModels: [],
+    get chatSelectableModelGroups() {
+      return getChatSelectableModelGroups()
+    },
+    findChatSelectableModel: vi.fn((providerId: string, modelId: string) => {
+      const group = getChatSelectableModelGroups().find((entry) => entry.providerId === providerId)
+      const model = group?.models.find((entry) => entry.id === modelId)
+      if (!group || !model) {
+        return null
+      }
+      return { providerId, providerName: providerId, model }
+    }),
+    pickFirstChatSelectableModel: vi.fn(() => {
+      const firstGroup = getChatSelectableModelGroups()[0]
+      const firstModel = firstGroup?.models[0]
+      return firstGroup && firstModel
+        ? {
+            providerId: firstGroup.providerId,
+            providerName: firstGroup.providerId,
+            model: firstModel
+          }
+        : null
+    })
   })
 
   const draftStore = reactive({
