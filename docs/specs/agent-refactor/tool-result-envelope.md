@@ -98,11 +98,11 @@ When multiple tool calls are executed in one model round:
 
 The renderer should treat the envelope as the stable display protocol:
 
-- `ok` drives success/error styling.
-- `summary` drives collapsed text.
-- `data` drives rich tool-specific rendering.
-- `meta` drives pagination, truncation, and offload UI.
-- `error` drives retry hints and diagnostics.
+- `ok` controls success/error styling.
+- `summary` powers the collapsed text.
+- `data` feeds rich tool-specific rendering.
+- `meta` handles pagination, truncation, and offload UI.
+- `error` provides retry hints and diagnostics.
 
 ## Migration Notes
 

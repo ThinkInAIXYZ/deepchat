@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.4-beta.4 (2026-04-29)
+- Added model fetching fallbacks for Anthropic and Gemini so provider model lists recover more reliably
+- Added Xiaomi Token Plan providers for CN, SGP, and AMS regions
+- Enhanced DeepSeek V4 compatibility across provider and model workflows
+- Improved active chat input routing and tool-call image previews for clearer chat workflows
+- Fixed agent and ACP workspace propagation, interleaved tool streams, and context budgeting for tool schemas
+- 新增 Anthropic 与 Gemini 模型拉取 fallback，提升 Provider 模型列表恢复稳定性
+- 新增小米 Token Plan 的 CN、SGP 与 AMS 区域 Provider
+- 增强 DeepSeek V4 在 Provider 与模型流程中的兼容性
+- 优化当前聊天输入路由与工具调用图片预览，让聊天流程更清晰
+- 修复 Agent 与 ACP 工作区传递、交错工具流以及工具 schema 上下文预算处理
+
 ## v1.0.4-beta.3 (2026-04-27)
 - Fixed attachment date metadata transfer across IPC payloads so attachment records stay valid in chat flows
 - 修复附件日期元数据在 IPC 载荷中的传递，确保聊天流程中的附件记录保持有效

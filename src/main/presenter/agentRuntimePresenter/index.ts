@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
@@ -116,6 +118,43 @@ type ResumeBudgetToolCall = {
   id: string
   name: string
   offloadPath?: string
+}
+
+type PackageJsonManifest = {
+  name?: unknown
+  scripts?: Record<string, unknown>
+}
+
+function readPackageJsonManifest(workdir: string): PackageJsonManifest | null {
+  try {
+    const packageJsonPath = path.join(workdir, 'package.json')
+    if (!fs.existsSync(packageJsonPath)) {
+      return null
+    }
+
+    const parsed = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null
+    }
+
+    return parsed as PackageJsonManifest
+  } catch {
+    return null
+  }
+}
+
+function getVerificationScriptNames(workdir: string): string[] {
+  const manifest = readPackageJsonManifest(workdir)
+  const scripts = manifest?.scripts
+  if (!scripts || typeof scripts !== 'object') {
+    return []
+  }
+
+  return Object.entries(scripts)
+    .filter(
+      ([name, value]) => typeof name === 'string' && typeof value === 'string' && value.trim()
+    )
+    .map(([name]) => name)
 }
 
 type ActiveProviderPermission = {
@@ -2564,9 +2603,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private buildPermissionRulesPrompt(agentToolNames: Set<string>): string {
-    const readOnlyTools = ['read', 'ls', 'find', 'grep'].filter((toolName) =>
-      agentToolNames.has(toolName)
-    )
+    const readOnlyTools = ['read'].filter((toolName) => agentToolNames.has(toolName))
     const serializedTools = ['write', 'edit', 'exec', 'process'].filter((toolName) =>
       agentToolNames.has(toolName)
     )
@@ -2602,9 +2639,27 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       'If verification was not run, state the reason explicitly in the final response.'
     ]
 
-    if (workdir?.trim()) {
+    const normalizedWorkdir = workdir?.trim()
+    if (!normalizedWorkdir) {
+      return lines.join('\n')
+    }
+
+    const verificationScripts = getVerificationScriptNames(normalizedWorkdir)
+    const manifest = readPackageJsonManifest(normalizedWorkdir)
+    const isDeepChatWorkspace =
+      String(manifest?.name ?? '').toLowerCase() === 'deepchat' ||
+      ['format', 'i18n', 'lint'].every((scriptName) => verificationScripts.includes(scriptName))
+
+    if (isDeepChatWorkspace) {
       lines.push(
         'In the DeepChat repository, prioritize `pnpm run format`, `pnpm run i18n`, and `pnpm run lint` after feature work.'
+      )
+    } else if (verificationScripts.length > 0) {
+      const suggestedScripts = verificationScripts
+        .slice(0, 4)
+        .map((scriptName) => `\`${scriptName}\``)
+      lines.push(
+        `When relevant, prefer project-local verification scripts such as ${suggestedScripts.join(', ')}.`
       )
     }
 

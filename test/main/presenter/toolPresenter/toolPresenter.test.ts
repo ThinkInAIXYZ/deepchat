@@ -168,6 +168,22 @@ describe('ToolPresenter', () => {
         source: 'agent'
       }
     })
+    callToolSpy.mockResolvedValueOnce({
+      rawData: {
+        content: 'from-raw'
+      }
+    })
+    const rawOnlyResult = await toolPresenter.callTool({
+      id: 'tool-2',
+      type: 'function',
+      function: {
+        name: 'read',
+        arguments: '{"path":"bar"}'
+      },
+      conversationId: 'conv-1'
+    })
+
+    expect(rawOnlyResult.content).toBe('from-raw')
     expect(callToolSpy).toHaveBeenCalledWith(
       'read',
       { path: 'foo' },
@@ -584,54 +600,14 @@ describe('ToolPresenter', () => {
         }
       ]
     })
-    const promptWithFocusedTools = toolPresenter.buildToolSystemPrompt({
-      conversationId: 'conv-1',
-      toolDefinitions: [
-        {
-          ...buildToolDefinition('read', 'agent-filesystem'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('edit', 'agent-filesystem'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('write', 'agent-filesystem'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('find', 'agent-filesystem'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('grep', 'agent-filesystem'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('ls', 'agent-filesystem'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('exec', 'agent-filesystem'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('process', 'agent-filesystem'),
-          source: 'agent'
-        }
-      ]
-    })
-
     expect(promptWithoutFocusedTools).toContain(
       'Use canonical Agent tool names only: read, write, edit, exec, process.'
     )
     expect(promptWithoutFocusedTools).toContain(
-      'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
+      'Prefer shell-native discovery and search inside `exec`, such as `rg -n`, `rg --files`, `git status`, and project verification commands.'
     )
-    expect(promptWithoutFocusedTools).not.toContain('Use `find`/`grep`/`ls` for focused inspection')
-    expect(promptWithFocusedTools).toContain(
-      'Use canonical Agent tool names only: read, write, edit, find, grep, ls, exec, process.'
+    expect(promptWithoutFocusedTools).toContain(
+      'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'
     )
-    expect(promptWithFocusedTools).toContain('Use `find`/`grep`/`ls` for focused inspection')
   })
 })

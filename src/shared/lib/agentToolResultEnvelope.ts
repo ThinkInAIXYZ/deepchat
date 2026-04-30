@@ -18,6 +18,11 @@ export type AgentToolResult = {
 
 const DEFAULT_SUMMARY_LIMIT = 240
 
+const hasOwnOption = <Key extends string>(
+  value: object,
+  key: Key
+): value is object & Record<Key, unknown> => Object.prototype.hasOwnProperty.call(value, key)
+
 export const summarizeAgentToolContent = (
   toolName: string,
   content: unknown,
@@ -50,12 +55,17 @@ export const createAgentToolSuccessResult = (
     data?: unknown
     meta?: AgentToolResult['meta']
   } = {}
-): AgentToolResult => ({
-  ok: true,
-  summary: options.summary ?? summarizeAgentToolContent(toolName, content),
-  data: options.data ?? { content },
-  ...(options.meta ? { meta: options.meta } : {})
-})
+): AgentToolResult => {
+  const hasData = hasOwnOption(options, 'data')
+  const hasMeta = hasOwnOption(options, 'meta')
+
+  return {
+    ok: true,
+    summary: options.summary ?? summarizeAgentToolContent(toolName, content),
+    data: hasData ? options.data : { content },
+    ...(hasMeta ? { meta: options.meta } : {})
+  }
+}
 
 export const createAgentToolErrorResult = (
   toolName: string,
@@ -66,14 +76,19 @@ export const createAgentToolErrorResult = (
     data?: unknown
     meta?: AgentToolResult['meta']
   } = {}
-): AgentToolResult => ({
-  ok: false,
-  summary: summarizeAgentToolContent(toolName, message),
-  ...(options.data ? { data: options.data } : {}),
-  ...(options.meta ? { meta: options.meta } : {}),
-  error: {
-    code: options.code ?? 'TOOL_ERROR',
-    message,
-    recoverable: options.recoverable
+): AgentToolResult => {
+  const hasData = hasOwnOption(options, 'data')
+  const hasMeta = hasOwnOption(options, 'meta')
+
+  return {
+    ok: false,
+    summary: summarizeAgentToolContent(toolName, message),
+    ...(hasData ? { data: options.data } : {}),
+    ...(hasMeta ? { meta: options.meta } : {}),
+    error: {
+      code: options.code ?? 'TOOL_ERROR',
+      message,
+      recoverable: options.recoverable
+    }
   }
-})
+}

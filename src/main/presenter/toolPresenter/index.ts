@@ -75,7 +75,7 @@ interface ToolPresenterOptions {
   agentToolRuntime: AgentToolRuntimePort
 }
 
-const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'find', 'grep', 'ls', 'exec', 'process']
+const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'exec', 'process']
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>(YO_BROWSER_TOOL_NAMES)
 
@@ -238,7 +238,7 @@ export class ToolPresenter implements IToolPresenter {
       const rawData = resolvedResponse.rawData ?? {}
       const content = rawData.content ?? resolvedResponse.content
       return {
-        content: resolvedResponse.content,
+        content,
         rawData: {
           ...rawData,
           toolCallId: request.id,
@@ -414,7 +414,7 @@ export class ToolPresenter implements IToolPresenter {
         'Use `exec` for file discovery, content search, git, build, test, lint, package manager, and other CLI workflows.'
       )
       lines.push(
-        'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
+        'Prefer shell-native discovery and search inside `exec`, such as `rg -n`, `rg --files`, `git status`, and project verification commands.'
       )
       lines.push(
         'Use `background: true` when you know a command should detach immediately; otherwise a foreground `exec` may yield a running `sessionId` after `yieldMs`.'
@@ -425,20 +425,9 @@ export class ToolPresenter implements IToolPresenter {
         'When `read` targets an image file, it returns an English description of the visible content and any legible text.'
       )
     }
-    const focusedInspectionTools = ['find', 'grep', 'ls'].filter((toolName) =>
-      toolNames.has(toolName)
-    )
-    if (focusedInspectionTools.length > 0) {
-      lines.push(
-        `Use ${focusedInspectionTools.map((toolName) => `\`${toolName}\``).join('/')} for focused inspection before reading large files.`
-      )
-      if (toolNames.has('read')) {
-        lines.push('Read-only inspection tools can be called together when their inputs are known.')
-      }
-    }
     if (toolNames.has('exec') && toolNames.has('read') && toolNames.has('edit')) {
       lines.push(
-        'Recommended file task flow: `find`/`grep`/`ls` or `exec` for discovery/search -> `read` -> `edit`/`write`.'
+        'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'
       )
     }
     if (toolNames.has('process')) {

@@ -821,6 +821,17 @@ export class SubagentOrchestratorTool {
           throw new Error(`Failed to create subagent session for slot ${task.slotId}.`)
         }
 
+        if (options?.signal?.aborted || abortController.signal.aborted || task.cancelRequested) {
+          task.cancelRequested = true
+          task.updatedAt = Date.now()
+          task.status = 'cancelled'
+          task.resultSummary = task.resultSummary || 'Cancelled by parent session.'
+          maybeResolveTask(task)
+          await this.runtimePort.cancelConversation(child.sessionId).catch(() => undefined)
+          emitProgress()
+          return
+        }
+
         task.sessionId = child.sessionId
         task.targetAgentName = child.agentName || task.targetAgentName
         task.updatedAt = Date.now()

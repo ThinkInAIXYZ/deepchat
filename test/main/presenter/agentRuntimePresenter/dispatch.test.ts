@@ -268,39 +268,38 @@ describe('dispatch', () => {
     })
 
     it('runs all-read-only Agent tool batches in parallel and preserves result order', async () => {
-      const tools = [makeAgentTool('read'), makeAgentTool('grep')]
+      const tools = [makeAgentTool('read')]
       const started: string[] = []
-      let releaseRead: (() => void) | null = null
-      let readStarted: (() => void) | null = null
-      const readStartedPromise = new Promise<void>((resolve) => {
-        readStarted = resolve
+      let releaseFirstRead: (() => void) | null = null
+      let firstReadStarted: (() => void) | null = null
+      const firstReadStartedPromise = new Promise<void>((resolve) => {
+        firstReadStarted = resolve
       })
-      const readReleasePromise = new Promise<void>((resolve) => {
-        releaseRead = resolve
+      const firstReadReleasePromise = new Promise<void>((resolve) => {
+        releaseFirstRead = resolve
       })
       const toolPresenter = {
         ...createMockToolPresenter(),
         callTool: vi.fn(async (request) => {
-          const name = request.function.name
-          started.push(name)
-          if (name === 'read') {
-            readStarted?.()
-            await readReleasePromise
+          started.push(request.id)
+          if (request.id === 'tc-read-a') {
+            firstReadStarted?.()
+            await firstReadReleasePromise
             return {
-              content: 'read result',
+              content: 'read result a',
               rawData: {
                 toolCallId: request.id,
-                content: 'read result',
+                content: 'read result a',
                 isError: false
               }
             }
           }
 
           return {
-            content: 'grep result',
+            content: 'read result b',
             rawData: {
               toolCallId: request.id,
-              content: 'grep result',
+              content: 'read result b',
               isError: false
             }
           }
@@ -313,18 +312,18 @@ describe('dispatch', () => {
         content: '',
         status: 'pending',
         timestamp: Date.now(),
-        tool_call: { id: 'tc-read', name: 'read', params: '{}', response: '' }
+        tool_call: { id: 'tc-read-a', name: 'read', params: '{"path":"a.txt"}', response: '' }
       })
       state.blocks.push({
         type: 'tool_call',
         content: '',
         status: 'pending',
         timestamp: Date.now(),
-        tool_call: { id: 'tc-grep', name: 'grep', params: '{}', response: '' }
+        tool_call: { id: 'tc-read-b', name: 'read', params: '{"path":"b.txt"}', response: '' }
       })
       state.completedToolCalls = [
-        { id: 'tc-read', name: 'read', arguments: '{}' },
-        { id: 'tc-grep', name: 'grep', arguments: '{}' }
+        { id: 'tc-read-a', name: 'read', arguments: '{"path":"a.txt"}' },
+        { id: 'tc-read-b', name: 'read', arguments: '{"path":"b.txt"}' }
       ]
 
       const execution = executeTools(
@@ -340,18 +339,83 @@ describe('dispatch', () => {
         32000,
         1024
       )
-      await readStartedPromise
+      await firstReadStartedPromise
       await Promise.resolve()
-      const grepStartedBeforeReadResolved = started.includes('grep')
-      releaseRead?.()
+      const secondReadStartedBeforeFirstResolved = started.includes('tc-read-b')
+      releaseFirstRead?.()
       const executed = await execution
 
-      expect(grepStartedBeforeReadResolved).toBe(true)
+      expect(secondReadStartedBeforeFirstResolved).toBe(true)
       expect(executed.executed).toBe(2)
       expect(conversation.slice(-2)).toEqual([
-        { role: 'tool', tool_call_id: 'tc-read', content: 'read result' },
-        { role: 'tool', tool_call_id: 'tc-grep', content: 'grep result' }
+        { role: 'tool', tool_call_id: 'tc-read-a', content: 'read result a' },
+        { role: 'tool', tool_call_id: 'tc-read-b', content: 'read result b' }
       ])
+    })
+
+    it('isolates parallel pre-check failures to the affected tool call', async () => {
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        preCheckToolPermission: vi.fn(async (request) => {
+          if (request.id === 'tc-read-a') {
+            throw new Error('pre-check failed')
+          }
+          return null
+        }),
+        callTool: vi.fn(async (request) => ({
+          content: `result for ${request.id}`,
+          rawData: {
+            toolCallId: request.id,
+            content: `result for ${request.id}`,
+            isError: false
+          }
+        }))
+      } as unknown as IToolPresenter
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-read-a', name: 'read', params: '{"path":"a.txt"}', response: '' }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-read-b', name: 'read', params: '{"path":"b.txt"}', response: '' }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-read-a', name: 'read', arguments: '{"path":"a.txt"}' },
+        { id: 'tc-read-b', name: 'read', arguments: '{"path":"b.txt"}' }
+      ]
+
+      const executed = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(executed.executed).toBe(2)
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'tc-read-b' }),
+        expect.any(Object)
+      )
+      expect(state.blocks[0].tool_call?.response).toBe('Error: pre-check failed')
+      expect(state.blocks[0].status).toBe('error')
+      expect(state.blocks[1].tool_call?.response).toBe('result for tc-read-b')
+      expect(state.blocks[1].status).toBe('success')
     })
 
     it('keeps mixed read/write Agent tool batches serialized', async () => {

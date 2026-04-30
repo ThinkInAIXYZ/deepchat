@@ -102,7 +102,7 @@ type PermissionRequestLike = {
 
 type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 
-const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read', 'ls', 'find', 'grep'])
+const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read'])
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
@@ -418,6 +418,26 @@ function buildToolExecutionContext(
       serverIcons: toolDef?.server.icons,
       serverDescription: toolDef?.server.description
     }
+  }
+}
+
+function buildToolErrorOutcome(
+  execution: ToolExecutionContext,
+  error: unknown
+): Extract<ToolRunOutcome, { kind: 'staged' }> {
+  const errorText = error instanceof Error ? error.message : String(error)
+  return {
+    kind: 'staged',
+    stagedResult: {
+      toolCallId: execution.completedToolCall.id,
+      toolName: execution.completedToolCall.name,
+      toolArgs: execution.completedToolCall.arguments,
+      responseText: `Error: ${errorText}`,
+      isError: true,
+      searchPayload: null,
+      postHookKind: 'failure'
+    },
+    toolsChanged: false
   }
 }
 
@@ -824,6 +844,15 @@ async function runToolCall(params: {
       )
     }
 
+    const imagePreviews =
+      toolRawData.imagePreviews ??
+      (await extractToolCallImagePreviews({
+        toolName: completedToolCall.name,
+        toolArgs: completedToolCall.arguments,
+        content: toolRawData.content,
+        cacheImage: hooks?.cacheImage
+      }))
+
     if (hooks?.normalizeToolResult) {
       toolRawData = {
         ...toolRawData,
@@ -868,25 +897,13 @@ async function runToolCall(params: {
         rtkApplied: toolRawData.rtkApplied,
         rtkMode: toolRawData.rtkMode,
         rtkFallbackReason: toolRawData.rtkFallbackReason,
+        imagePreviews,
         postHookKind: stagedIsError ? 'failure' : 'success'
       },
       toolsChanged: shouldRefreshToolsAfterCall(completedToolCall.name, toolRawData)
     }
   } catch (err) {
-    const errorText = err instanceof Error ? err.message : String(err)
-    return {
-      kind: 'staged',
-      stagedResult: {
-        toolCallId: completedToolCall.id,
-        toolName: completedToolCall.name,
-        toolArgs: completedToolCall.arguments,
-        responseText: `Error: ${errorText}`,
-        isError: true,
-        searchPayload: null,
-        postHookKind: 'failure'
-      },
-      toolsChanged: false
-    }
+    return buildToolErrorOutcome(execution, err)
   }
 }
 
@@ -985,42 +1002,44 @@ export async function executeTools(
       buildToolExecutionContext(tc, tools, io.sessionId, providerId)
     )
 
-    for (const execution of executions) {
-      if (io.abortSignal.aborted) break
-
-      if (toolPresenter.preCheckToolPermission) {
-        const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall)
-        if (preChecked?.needsPermission) {
-          const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
-            toolName: execution.toolContext.name,
-            serverName: execution.toolContext.serverName,
-            description: `Permission required for ${execution.toolContext.name}`
-          })
-          await autoGrantPermission(hooks, io.sessionId, permission)
-        }
-      }
-
-      hooks?.onPreToolUse?.({
-        callId: execution.completedToolCall.id,
-        name: execution.completedToolCall.name,
-        params: execution.completedToolCall.arguments
-      })
-    }
-
     const outcomes = await Promise.all(
-      executions.map((execution) =>
-        runToolCall({
-          execution,
-          toolPresenter,
-          permissionMode,
-          hooks,
-          io,
-          state,
-          rendererFlushHandle,
-          toolOutputGuard,
-          allowProgressUpdates: false
-        })
-      )
+      executions.map(async (execution) => {
+        try {
+          if (toolPresenter.preCheckToolPermission) {
+            const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall)
+            if (preChecked?.needsPermission) {
+              const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
+                toolName: execution.toolContext.name,
+                serverName: execution.toolContext.serverName,
+                description: `Permission required for ${execution.toolContext.name}`
+              })
+              if (permission) {
+                await autoGrantPermission(hooks, io.sessionId, permission)
+              }
+            }
+          }
+
+          hooks?.onPreToolUse?.({
+            callId: execution.completedToolCall.id,
+            name: execution.completedToolCall.name,
+            params: execution.completedToolCall.arguments
+          })
+
+          return await runToolCall({
+            execution,
+            toolPresenter,
+            permissionMode,
+            hooks,
+            io,
+            state,
+            rendererFlushHandle,
+            toolOutputGuard,
+            allowProgressUpdates: false
+          })
+        } catch (error) {
+          return buildToolErrorOutcome(execution, error)
+        }
+      })
     )
 
     for (const outcome of outcomes) {
@@ -1196,10 +1215,8 @@ export async function executeTools(
         continue
       }
 
-      if (outcome.toolsChanged) {
-        toolsChanged = true
-      }
       stagedResults.push(outcome.stagedResult)
+      toolsChanged = toolsChanged || outcome.toolsChanged
       executed += 1
     } catch (err) {
       const errorText = err instanceof Error ? err.message : String(err)

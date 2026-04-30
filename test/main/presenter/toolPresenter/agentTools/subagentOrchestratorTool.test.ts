@@ -209,4 +209,77 @@ describe('SubagentOrchestratorTool', () => {
     expect(killed.content).toContain('cancelled')
     expect(cancelConversation).toHaveBeenCalledWith(childSession.sessionId)
   })
+
+  it('cancels a newly created child before handoff when the parent signal aborts', async () => {
+    const parentSession = buildSessionInfo()
+    const childSession = buildSessionInfo({
+      sessionId: 'child-session',
+      agentName: 'Reviewer Clone',
+      sessionKind: 'subagent',
+      parentSessionId: parentSession.sessionId,
+      subagentEnabled: false,
+      availableSubagentSlots: []
+    })
+    const abortController = new AbortController()
+    let resolveCreate: ((value: ConversationSessionInfo) => void) | null = null
+    const createSubagentSession = vi.fn(
+      () =>
+        new Promise<ConversationSessionInfo>((resolve) => {
+          resolveCreate = resolve
+        })
+    )
+    const sendConversationMessage = vi.fn().mockResolvedValue(undefined)
+    const cancelConversation = vi.fn().mockResolvedValue(undefined)
+
+    const tool = new SubagentOrchestratorTool({
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
+      createSubagentSession,
+      sendConversationMessage,
+      cancelConversation,
+      subscribeDeepChatSessionUpdates: vi.fn(() => () => undefined),
+      getSkillPresenter: vi.fn(() => ({})),
+      getYoBrowserToolHandler: vi.fn(() => ({})),
+      getFilePresenter: vi.fn(() => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      })),
+      getLlmProviderPresenter: vi.fn(() => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+        generateCompletionStandalone: vi.fn()
+      })),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn(),
+      getApprovedFilePaths: vi.fn(() => []),
+      consumeSettingsApproval: vi.fn(() => false)
+    } as any)
+
+    const runPromise = tool.call(
+      {
+        mode: 'chain',
+        tasks: [
+          {
+            slotId: 'reviewer',
+            title: 'Abort before handoff',
+            prompt: 'Cancel this before the handoff is sent.'
+          }
+        ]
+      },
+      parentSession.sessionId,
+      {
+        signal: abortController.signal
+      }
+    )
+
+    for (let index = 0; index < 10 && createSubagentSession.mock.calls.length === 0; index += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    abortController.abort()
+    resolveCreate?.(childSession)
+
+    await expect(runPromise).rejects.toThrow('subagent_orchestrator cancelled.')
+    expect(sendConversationMessage).not.toHaveBeenCalled()
+    expect(cancelConversation).toHaveBeenCalledWith(childSession.sessionId)
+  })
 })
