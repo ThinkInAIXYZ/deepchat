@@ -18,6 +18,7 @@ export type RENDERER_MODEL_META = {
   isCustom?: boolean
   vision?: boolean
   functionCall?: boolean
+  explicitFunctionCall?: boolean
   reasoning?: boolean
   enableSearch?: boolean
   type?: ModelType

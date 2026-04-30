@@ -110,6 +110,7 @@ const props = withDefaults(
     isCustomModel?: boolean
     vision?: boolean
     functionCall?: boolean
+    explicitFunctionCall?: boolean
     reasoning?: boolean
     enableSearch?: boolean
     type?: ModelType
@@ -157,7 +158,7 @@ const showWeakAgentWarning = computed(
         endpointType: props.endpointType,
         supportedEndpointTypes: props.supportedEndpointTypes
       },
-      props.functionCall
+      props.explicitFunctionCall
     )
 )
 
