@@ -139,7 +139,7 @@ describe('McpConfHelper', () => {
     expect(mcpStore.get('mcpServers')['deepchat/apple-server']).toBeUndefined()
   })
 
-  it('removes legacy computer use MCP server configs', async () => {
+  it('removes the unpublished Computer Use demo MCP server config', async () => {
     const { McpConfHelper } = await loadHelper('darwin')
     const helper = new McpConfHelper()
     const mcpStore = (helper as any).mcpStore
@@ -157,7 +157,6 @@ describe('McpConfHelper', () => {
 
     mcpStore.set('mcpServers', {
       'deepchat/computer-use': legacyServer,
-      'deepchat-inmemory/computer-use': legacyServer,
       demo: {
         command: 'demo',
         args: [],
@@ -175,7 +174,6 @@ describe('McpConfHelper', () => {
     const servers = await helper.getMcpServers()
 
     expect(servers['deepchat/computer-use']).toBeUndefined()
-    expect(servers['deepchat-inmemory/computer-use']).toBeUndefined()
     expect(servers.demo).toBeDefined()
     expect(mcpStore.get('removedBuiltInServers')).toEqual(['demo'])
   })

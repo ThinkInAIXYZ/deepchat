@@ -7,8 +7,10 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 
 import { createI18n } from 'vue-i18n'
 import locales, { pluralRules } from '@/i18n'
-import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
+import { getSettingsNavigationItems } from '@shared/settingsNavigation'
 import { preloadIcons } from '../src/lib/iconLoader'
+
+const settingsNavigationItems = getSettingsNavigationItems(window.electron?.process?.platform)
 
 const settingsRouteComponents = {
   'settings-common': () => import('./components/CommonSettings.vue'),
@@ -43,7 +45,7 @@ const i18n = createI18n({
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
-    ...SETTINGS_NAVIGATION_ITEMS.map((item) => ({
+    ...settingsNavigationItems.map((item) => ({
       path: item.path,
       name: item.routeName,
       component: settingsRouteComponents[item.routeName],

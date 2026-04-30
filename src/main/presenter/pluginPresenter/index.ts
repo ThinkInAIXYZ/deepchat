@@ -796,6 +796,9 @@ export class PluginPresenter {
       if (this.officialPlugins.has(plugin.manifest.id)) {
         continue
       }
+      if (!this.isPluginPlatformSupported(plugin.manifest)) {
+        continue
+      }
       this.assertTrustedOfficialPlugin(plugin.manifest)
       this.officialPlugins.set(plugin.manifest.id, plugin)
     }
@@ -920,9 +923,7 @@ export class PluginPresenter {
   }
 
   private isCatalogPlatformSupported(manifest: DeepChatPluginManifest): boolean {
-    const platforms = new Set(manifest.engines.platforms.map((platform) => platform.toLowerCase()))
-    const aliases = this.platform === 'darwin' ? ['darwin', 'macos', 'mac'] : [this.platform]
-    return aliases.some((platform) => platforms.has(platform))
+    return this.isPluginPlatformSupported(manifest)
   }
 
   private readManifest(manifestPath: string): DeepChatPluginManifest {
@@ -1059,11 +1060,15 @@ export class PluginPresenter {
   }
 
   private assertPlatformSupported(manifest: DeepChatPluginManifest): void {
-    const platforms = new Set(manifest.engines.platforms.map((platform) => platform.toLowerCase()))
-    const aliases = this.platform === 'darwin' ? ['darwin', 'macos', 'mac'] : [this.platform]
-    if (!aliases.some((platform) => platforms.has(platform))) {
+    if (!this.isPluginPlatformSupported(manifest)) {
       throw new Error(`Plugin ${manifest.id} does not support ${this.platform}`)
     }
+  }
+
+  private isPluginPlatformSupported(manifest: DeepChatPluginManifest): boolean {
+    const platforms = new Set(manifest.engines.platforms.map((platform) => platform.toLowerCase()))
+    const aliases = this.platform === 'darwin' ? ['darwin', 'macos', 'mac'] : [this.platform]
+    return aliases.some((platform) => platforms.has(platform))
   }
 
   private async installResolvedPlugin(plugin: ResolvedOfficialPlugin): Promise<string> {

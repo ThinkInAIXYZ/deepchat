@@ -22,6 +22,7 @@ export interface SettingsNavigationItem {
   icon: string
   position: number
   keywords: string[]
+  supportedPlatforms?: string[]
 }
 
 export interface SettingsNavigationPayload {
@@ -117,7 +118,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-plugins',
     icon: 'lucide:puzzle',
     position: 5.75,
-    keywords: ['plugin', 'plugins', 'extension', 'runtime', '插件', '扩展', '运行时']
+    keywords: ['plugin', 'plugins', 'extension', 'runtime', '插件', '扩展', '运行时'],
+    supportedPlatforms: ['darwin']
   },
   {
     routeName: 'settings-skills',
@@ -169,11 +171,48 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
   }
 ]
 
+const getPlatformAliases = (platform?: string): Set<string> => {
+  const normalized = platform?.trim().toLowerCase()
+  if (!normalized) {
+    return new Set()
+  }
+
+  if (normalized === 'darwin') {
+    return new Set(['darwin', 'macos', 'mac'])
+  }
+  if (normalized === 'win32') {
+    return new Set(['win32', 'windows', 'win'])
+  }
+
+  return new Set([normalized])
+}
+
+export const isSettingsNavigationItemSupported = (
+  item: SettingsNavigationItem,
+  platform?: string
+): boolean => {
+  if (!item.supportedPlatforms?.length) {
+    return true
+  }
+  if (!platform) {
+    return true
+  }
+
+  const aliases = getPlatformAliases(platform)
+  return item.supportedPlatforms.some((supportedPlatform) =>
+    aliases.has(supportedPlatform.trim().toLowerCase())
+  )
+}
+
+export const getSettingsNavigationItems = (platform?: string): SettingsNavigationItem[] =>
+  SETTINGS_NAVIGATION_ITEMS.filter((item) => isSettingsNavigationItemSupported(item, platform))
+
 export const resolveSettingsNavigationPath = (
   routeName: SettingsNavigationItem['routeName'],
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  platform?: string
 ): string => {
-  const item = SETTINGS_NAVIGATION_ITEMS.find(
+  const item = getSettingsNavigationItems(platform).find(
     (navigationItem) => navigationItem.routeName === routeName
   )
   if (!item) {

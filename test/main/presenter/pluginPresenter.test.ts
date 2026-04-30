@@ -1,7 +1,59 @@
 import { readFile } from 'node:fs/promises'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('electron-store', () => ({
+  default: class MockElectronStore {
+    private data: Record<string, unknown>
+
+    constructor(options?: { defaults?: Record<string, unknown> }) {
+      this.data = JSON.parse(JSON.stringify(options?.defaults ?? {}))
+    }
+
+    get(key: string) {
+      return this.data[key]
+    }
+
+    set(key: string, value: unknown) {
+      this.data[key] = value
+    }
+  }
+}))
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+  return {
+    ...actual,
+    default: actual
+  }
+})
+
+const createPluginPresenter = async (platform: NodeJS.Platform) => {
+  const { PluginPresenter } = await import('@/presenter/pluginPresenter')
+  return new PluginPresenter({
+    platform,
+    appPath: process.cwd(),
+    configPresenter: {
+      getMcpServers: vi.fn().mockResolvedValue({})
+    },
+    mcpPresenter: {
+      isServerRunning: vi.fn().mockResolvedValue(false)
+    },
+    skillPresenter: {}
+  } as any)
+}
 
 describe('PluginPresenter', () => {
+  it('hides the CUA official plugin on unsupported platforms', async () => {
+    const winPresenter = await createPluginPresenter('win32')
+    const linuxPresenter = await createPluginPresenter('linux')
+    const catalog = JSON.parse(await readFile('resources/plugins/official-catalog.json', 'utf8'))
+    const catalogManifest = catalog.plugins[0].manifest
+
+    expect(catalogManifest.engines.platforms).toEqual(['darwin'])
+    expect(await winPresenter.listPlugins()).toEqual([])
+    expect(await linuxPresenter.listPlugins()).toEqual([])
+  })
+
   it('loads the electron-vite plugin settings preload output', async () => {
     const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
     const viteConfigSource = await readFile('electron.vite.config.ts', 'utf8')
