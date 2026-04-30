@@ -313,9 +313,6 @@ export class AgentFileSystemHandler {
         if (enforceAllowed) {
           const isParentAllowed = this.isPathAllowed(normalizedParent)
           if (!isParentAllowed) {
-            if (options.accessType === 'write' && requestedPathAllowed) {
-              return normalizedRequested
-            }
             throw new Error('Access denied - parent directory outside allowed directories')
           }
         }

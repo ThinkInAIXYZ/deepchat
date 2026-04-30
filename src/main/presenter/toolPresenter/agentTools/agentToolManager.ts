@@ -33,7 +33,10 @@ import {
   CommandPermissionRequiredError,
   CommandPermissionService
 } from '../../permission/commandPermissionService'
-import { FilePermissionRequiredError } from '../../permission/filePermissionService'
+import {
+  FilePermissionRequiredError,
+  type FilePermissionLevel
+} from '../../permission/filePermissionService'
 
 export interface AgentToolCallResult {
   content: string
@@ -620,6 +623,12 @@ export class AgentToolManager {
     return toolName === 'process'
   }
 
+  private getRequiredFilePermission(toolName: string): FilePermissionLevel {
+    if (toolName === 'exec') return 'all'
+    if (toolName === 'write' || toolName === 'edit') return 'write'
+    return 'read'
+  }
+
   private async callProcessTool(
     _toolName: string,
     args: Record<string, unknown>,
@@ -758,7 +767,8 @@ export class AgentToolManager {
       dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
     const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
       includeSkillRoots: toolName !== 'exec',
-      includeRuntimeRoots: toolName !== 'exec'
+      includeRuntimeRoots: toolName !== 'exec',
+      requiredPermission: this.getRequiredFilePermission(toolName)
     })
 
     if (toolName === 'exec') {
@@ -822,7 +832,7 @@ export class AgentToolManager {
     try {
       switch (toolName) {
         case 'read': {
-          this.assertFileAccessPermission(
+          await this.assertFileAccessPermission(
             toolName,
             parsedArgs,
             baseDirectory,
@@ -894,7 +904,7 @@ export class AgentToolManager {
           }
         }
         case 'write':
-          this.assertFileAccessPermission(
+          await this.assertFileAccessPermission(
             toolName,
             parsedArgs,
             baseDirectory,
@@ -905,7 +915,7 @@ export class AgentToolManager {
           )
           return { content: await fileSystemHandler.writeFile(parsedArgs, baseDirectory) }
         case 'edit': {
-          this.assertFileAccessPermission(
+          await this.assertFileAccessPermission(
             toolName,
             parsedArgs,
             baseDirectory,
@@ -980,6 +990,7 @@ export class AgentToolManager {
     options: {
       includeSkillRoots?: boolean
       includeRuntimeRoots?: boolean
+      requiredPermission?: FilePermissionLevel
     } = {}
   ): Promise<string[]> {
     const includeSkillRoots = options.includeSkillRoots !== false
@@ -1012,7 +1023,10 @@ export class AgentToolManager {
     }
 
     if (conversationId) {
-      const approved = this.runtimePort.getApprovedFilePaths(conversationId)
+      const approved = this.runtimePort.getApprovedFilePaths(
+        conversationId,
+        options.requiredPermission ?? 'read'
+      )
       for (const approvedPath of approved) {
         addPath(approvedPath)
       }
@@ -1113,21 +1127,28 @@ export class AgentToolManager {
       throw new Error(`Access denied - path outside allowed directories: ${requestedPath}`)
     }
 
+    let pathForRead = resolvedPath
     try {
       const realPath = await fs.promises.realpath(resolvedPath)
       fileSystemHandler.assertReadAllowedAbsolute(realPath)
+      if (!allowExternalFileAccess && !fileSystemHandler.isPathAllowedAbsolute(realPath)) {
+        throw new Error(
+          `Access denied - symlink target outside allowed directories: ${requestedPath}`
+        )
+      }
+      pathForRead = realPath
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('Access denied')) {
         throw error
       }
     }
 
-    const stats = await fs.promises.stat(resolvedPath)
+    const stats = await fs.promises.stat(pathForRead)
     if (!stats.isFile()) {
       throw new Error(`Path is not a file: ${requestedPath}`)
     }
 
-    return resolvedPath
+    return pathForRead
   }
 
   private isImageMimeType(mimeType: string): boolean {
@@ -1364,7 +1385,7 @@ export class AgentToolManager {
     ].join('\n')
   }
 
-  private assertFileAccessPermission(
+  private async assertFileAccessPermission(
     toolName: string,
     args: Record<string, unknown>,
     baseDirectory: string | undefined,
@@ -1372,7 +1393,7 @@ export class AgentToolManager {
     conversationId: string | undefined,
     permissionType: 'read' | 'write',
     allowExternalFileAccess = false
-  ): void {
+  ): Promise<void> {
     if (!conversationId) return
     if (allowExternalFileAccess) return
 
@@ -1382,10 +1403,12 @@ export class AgentToolManager {
         : this.collectReadTargets(toolName, args)
     if (targets.length === 0) return
 
-    const denied = targets.flatMap((target) => {
-      const resolved = fileSystemHandler.resolvePath(target, baseDirectory)
-      return fileSystemHandler.isPathAllowedAbsolute(resolved) ? [] : [resolved]
-    })
+    const denied = await this.collectDeniedFileTargets(
+      targets,
+      baseDirectory,
+      fileSystemHandler,
+      permissionType
+    )
 
     if (denied.length === 0) return
 
@@ -1400,6 +1423,43 @@ export class AgentToolManager {
         conversationId
       }
     )
+  }
+
+  private async collectDeniedFileTargets(
+    targets: string[],
+    baseDirectory: string | undefined,
+    fileSystemHandler: AgentFileSystemHandler,
+    permissionType: FilePermissionLevel
+  ): Promise<string[]> {
+    const denied: string[] = []
+    for (const target of targets) {
+      const resolved = fileSystemHandler.resolvePath(target, baseDirectory)
+      const normalizedTarget = await this.resolvePermissionTarget(resolved, permissionType)
+      if (!fileSystemHandler.isPathAllowedAbsolute(normalizedTarget)) {
+        denied.push(normalizedTarget)
+      }
+    }
+    return denied
+  }
+
+  private async resolvePermissionTarget(
+    resolvedPath: string,
+    permissionType: FilePermissionLevel
+  ): Promise<string> {
+    try {
+      return await fs.promises.realpath(resolvedPath)
+    } catch {
+      if (permissionType === 'read') {
+        return resolvedPath
+      }
+
+      const parentDir = path.dirname(resolvedPath)
+      try {
+        return await fs.promises.realpath(parentDir)
+      } catch {
+        return resolvedPath
+      }
+    }
   }
 
   private collectWriteTargets(toolName: string, args: Record<string, unknown>): string[] {
@@ -1672,7 +1732,8 @@ export class AgentToolManager {
         dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
       const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
         includeSkillRoots: toolName !== 'exec',
-        includeRuntimeRoots: toolName !== 'exec'
+        includeRuntimeRoots: toolName !== 'exec',
+        requiredPermission: this.getRequiredFilePermission(toolName)
       })
       const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
         conversationId,
@@ -1750,20 +1811,20 @@ export class AgentToolManager {
         ? this.collectWriteTargets(toolName, args)
         : this.collectReadTargets(toolName, args)
 
-      const denied: string[] = []
-      for (const target of targets) {
-        const resolved = fileSystemHandler.resolvePath(target, baseDirectory)
-        if (!fileSystemHandler.isPathAllowedAbsolute(resolved)) {
-          denied.push(resolved)
-        }
-      }
+      const permissionType = isWriteOperation ? 'write' : 'read'
+      const denied = await this.collectDeniedFileTargets(
+        targets,
+        baseDirectory,
+        fileSystemHandler,
+        permissionType
+      )
 
       if (denied.length > 0) {
         return {
           needsPermission: true,
           toolName,
           serverName: 'agent-filesystem',
-          permissionType: isWriteOperation ? 'write' : 'read',
+          permissionType,
           description: `${isWriteOperation ? 'Write' : 'Read'} access requires approval for: ${denied.join(', ')}`,
           paths: denied,
           conversationId

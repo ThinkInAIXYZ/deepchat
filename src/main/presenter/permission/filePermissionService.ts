@@ -21,21 +21,37 @@ export class FilePermissionRequiredError extends Error {
   }
 }
 
-export class FilePermissionService {
-  private readonly approvals = new Map<string, Set<string>>()
+export type FilePermissionLevel = FilePermissionRequest['permissionType']
 
-  approve(conversationId: string, paths: string[], _remember: boolean): void {
+export class FilePermissionService {
+  private readonly approvals = new Map<string, Map<string, FilePermissionLevel>>()
+
+  approve(
+    conversationId: string,
+    paths: string[],
+    permissionType: FilePermissionLevel,
+    _remember: boolean
+  ): void {
     if (!conversationId || paths.length === 0) return
-    const existing = this.approvals.get(conversationId) ?? new Set<string>()
+    const existing = this.approvals.get(conversationId) ?? new Map<string, FilePermissionLevel>()
     for (const filePath of paths) {
-      existing.add(this.normalizePath(filePath))
+      const normalizedPath = this.normalizePath(filePath)
+      existing.set(
+        normalizedPath,
+        this.mergePermission(existing.get(normalizedPath), permissionType)
+      )
     }
     this.approvals.set(conversationId, existing)
   }
 
-  getApprovedPaths(conversationId?: string): string[] {
+  getApprovedPaths(
+    conversationId?: string,
+    requiredPermission: FilePermissionLevel = 'read'
+  ): string[] {
     if (!conversationId) return []
-    return Array.from(this.approvals.get(conversationId) ?? [])
+    return Array.from(this.approvals.get(conversationId)?.entries() ?? [])
+      .filter(([, permissionType]) => this.allows(permissionType, requiredPermission))
+      .map(([filePath]) => filePath)
   }
 
   clearConversation(conversationId: string): void {
@@ -49,5 +65,26 @@ export class FilePermissionService {
   private normalizePath(targetPath: string): string {
     const normalized = path.normalize(path.resolve(targetPath))
     return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+  }
+
+  private mergePermission(
+    existing: FilePermissionLevel | undefined,
+    next: FilePermissionLevel
+  ): FilePermissionLevel {
+    if (!existing) return next
+    return this.permissionRank(next) > this.permissionRank(existing) ? next : existing
+  }
+
+  private allows(granted: FilePermissionLevel, required: FilePermissionLevel): boolean {
+    return this.permissionRank(granted) >= this.permissionRank(required)
+  }
+
+  private permissionRank(permissionType: FilePermissionLevel): number {
+    const ranks: Record<FilePermissionLevel, number> = {
+      read: 1,
+      write: 2,
+      all: 3
+    }
+    return ranks[permissionType]
   }
 }

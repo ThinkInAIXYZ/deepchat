@@ -338,7 +338,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
 
   const setLaunchAtLoginEnabled = async (enabled: boolean) => {
     const nextValue = Boolean(enabled)
-    launchAtLoginEnabled.value = nextValue
 
     await updateSettings([
       {
@@ -346,6 +345,8 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
         value: nextValue
       }
     ])
+
+    launchAtLoginEnabled.value = nextValue
   }
 
   const setLoggingEnabled = async (enabled: boolean) => {

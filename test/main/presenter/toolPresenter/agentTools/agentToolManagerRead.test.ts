@@ -144,6 +144,34 @@ describe('AgentToolManager read routing', () => {
     )
   })
 
+  it('requests permission for workspace symlinks that point outside', async () => {
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-link-target-'))
+    const externalFile = path.join(externalDir, 'outside.txt')
+    const symlinkPath = path.join(workspaceDir, 'linked-outside.txt')
+    await fs.writeFile(externalFile, 'external text', 'utf-8')
+
+    try {
+      await fs.symlink(externalFile, symlinkPath, 'file')
+    } catch {
+      return
+    }
+
+    const realExternalFile = await fs.realpath(externalFile)
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: 'linked-outside.txt' },
+      'conv1'
+    )
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'read',
+        paths: [realExternalFile]
+      })
+    )
+  })
+
   it('does not request external read permission when full access is enabled', async () => {
     const externalFile = path.join(
       path.parse(workspaceDir).root,

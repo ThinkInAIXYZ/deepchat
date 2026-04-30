@@ -251,6 +251,22 @@ describe('AgentBashHandler', () => {
     )
   })
 
+  it('rejects an external cwd when external access is not enabled', async () => {
+    const externalCwd = path.resolve('/external/project')
+    const handler = new AgentBashHandler(['/workspace'])
+    const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
+
+    await expect(
+      handler.executeCommand({
+        command: 'pwd',
+        description: 'Print cwd',
+        cwd: externalCwd
+      })
+    ).rejects.toThrow('Working directory is not allowed')
+
+    expect(runShellProcess).not.toHaveBeenCalled()
+  })
+
   it('returns a running session when foreground exec exceeds yieldMs', async () => {
     const handler = new AgentBashHandler(['/workspace'])
 
