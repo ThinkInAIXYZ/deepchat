@@ -58,6 +58,11 @@ function hasNewApiRouteHints(route: NewApiRouteMeta | null | undefined): boolean
   )
 }
 
+export const hasNativeToolCapability = (
+  route: Pick<NewApiRouteMeta, 'endpointType' | 'supportedEndpointTypes'> | null | undefined,
+  functionCall?: boolean | null
+): boolean => Boolean(functionCall) || hasNewApiRouteHints(route)
+
 function hasZenmuxAnthropicRoute(providerId: string, modelId?: string): boolean {
   return (
     normalizeProviderValue(providerId) === 'zenmux' &&

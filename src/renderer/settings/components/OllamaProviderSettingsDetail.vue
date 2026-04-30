@@ -170,6 +170,8 @@
                   :function-call="model.functionCall"
                   :reasoning="model.reasoning"
                   :enable-search="model.enableSearch"
+                  :supported-endpoint-types="model.meta?.supportedEndpointTypes"
+                  :endpoint-type="model.meta?.endpointType"
                   :hide-enable-toggle="true"
                   @enabled-change="handleModelEnabledChange(model.name, $event)"
                   @config-changed="refreshModels"

@@ -275,6 +275,34 @@ export class AgentToolManager {
     }
   }
 
+  public syncContext(context: {
+    chatMode: 'agent' | 'acp agent'
+    agentWorkspacePath: string | null
+  }): void {
+    const isAgentMode = context.chatMode === 'agent'
+    const effectiveWorkspacePath = isAgentMode
+      ? context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
+      : null
+
+    if (effectiveWorkspacePath === this.agentWorkspacePath) {
+      return
+    }
+
+    if (effectiveWorkspacePath) {
+      this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
+      this.bashHandler = new AgentBashHandler(
+        [effectiveWorkspacePath],
+        this.commandPermissionHandler,
+        this.configPresenter
+      )
+    } else {
+      this.fileSystemHandler = null
+      this.bashHandler = null
+    }
+
+    this.agentWorkspacePath = effectiveWorkspacePath
+  }
+
   /**
    * Get all Agent tool definitions in MCP format
    */
@@ -286,25 +314,7 @@ export class AgentToolManager {
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
-    const effectiveWorkspacePath = isAgentMode
-      ? context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
-      : null
-
-    // Update filesystem handler if workspace path changed
-    if (effectiveWorkspacePath !== this.agentWorkspacePath) {
-      if (effectiveWorkspacePath) {
-        this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
-        this.bashHandler = new AgentBashHandler(
-          [effectiveWorkspacePath],
-          this.commandPermissionHandler,
-          this.configPresenter
-        )
-      } else {
-        this.fileSystemHandler = null
-        this.bashHandler = null
-      }
-      this.agentWorkspacePath = effectiveWorkspacePath
-    }
+    this.syncContext(context)
 
     // 1. FileSystem tools (agent mode only)
     if (isAgentMode && this.fileSystemHandler) {

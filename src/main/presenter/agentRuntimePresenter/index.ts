@@ -4195,6 +4195,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         cachedProfile.profile === profile.kind &&
         cachedProfile.fingerprint === profile.fingerprint
       ) {
+        this.toolPresenter.syncAgentToolContext?.({
+          chatMode: 'agent',
+          agentWorkspacePath: projectDir
+        })
         return cachedProfile.tools
       }
 
@@ -4224,6 +4228,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     activeSkillNamesOverride?: string[]
   ): Promise<{ kind: ToolProfileKind; fingerprint: string }> {
     const normalizedProjectDir = projectDir?.trim() || null
+    const skillsEnabled = this.configPresenter.getSkillsEnabled()
     const activeSkillNames =
       activeSkillNamesOverride ?? (await this.resolveActiveSkillNamesForToolProfile(sessionId))
     const disabledAgentTools = this.getDisabledAgentTools(sessionId)
@@ -4241,6 +4246,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         disabledAgentTools: [...disabledAgentTools].sort((left, right) =>
           left.localeCompare(right)
         ),
+        skillsEnabled,
         activeSkillNames
       })
     }

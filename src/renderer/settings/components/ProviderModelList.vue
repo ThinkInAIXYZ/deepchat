@@ -168,7 +168,11 @@
             model.vision,
             model.functionCall,
             model.reasoning,
-            model.enableSearch
+            model.enableSearch,
+            model.endpointType,
+            Array.isArray(model.supportedEndpointTypes)
+              ? model.supportedEndpointTypes.join(',')
+              : ''
           ]"
           :model-name="model.name"
           :model-id="model.id"
@@ -180,6 +184,8 @@
           :reasoning="model.reasoning"
           :enable-search="model.enableSearch"
           :type="model.type ?? ModelType.Chat"
+          :supported-endpoint-types="model.supportedEndpointTypes"
+          :endpoint-type="model.endpointType"
           @enabled-change="handleCustomModelEnabledChange(model, $event)"
           @delete-model="handleDeleteCustomModel(model)"
           @config-changed="emitConfigChanged"
@@ -283,6 +289,8 @@
               :reasoning="item.reasoning"
               :enable-search="item.enableSearch"
               :type="item.typeValue ?? ModelType.Chat"
+              :supported-endpoint-types="item.supportedEndpointTypes"
+              :endpoint-type="item.endpointType"
               @enabled-change="handleVirtualModelEnabledChange(item, $event)"
               @config-changed="emitConfigChanged"
             />

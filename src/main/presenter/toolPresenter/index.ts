@@ -54,6 +54,10 @@ export interface IToolPresenter {
     agentWorkspacePath?: string | null
     conversationId?: string
   }): Promise<MCPToolDefinition[]>
+  syncAgentToolContext?(context: {
+    chatMode?: 'agent' | 'acp agent'
+    agentWorkspacePath?: string | null
+  }): void
   callTool(
     request: MCPToolCall,
     options?: {
@@ -117,6 +121,19 @@ export class ToolPresenter implements IToolPresenter {
     this.conversationMappers = new Map()
   }
 
+  private ensureAgentToolManager(agentWorkspacePath: string | null): AgentToolManager {
+    if (!this.agentToolManager) {
+      this.agentToolManager = new AgentToolManager({
+        agentWorkspacePath,
+        configPresenter: this.options.configPresenter,
+        commandPermissionHandler: this.options.commandPermissionHandler,
+        runtimePort: this.options.agentToolRuntime
+      })
+    }
+
+    return this.agentToolManager
+  }
+
   /**
    * Get all tool definitions from all sources
    * Returns unified MCP-format tool definitions
@@ -151,19 +168,11 @@ export class ToolPresenter implements IToolPresenter {
     this.registerToolsForMapper(mapper, mcpDefs, 'mcp')
 
     // 2. Get Agent tools (always load in agent or acp agent mode)
-    // Initialize or update AgentToolManager if workspace path changed
-    if (!this.agentToolManager) {
-      this.agentToolManager = new AgentToolManager({
-        agentWorkspacePath,
-        configPresenter: this.options.configPresenter,
-        commandPermissionHandler: this.options.commandPermissionHandler,
-        runtimePort: this.options.agentToolRuntime
-      })
-    }
+    const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
 
     try {
       const agentDefs = withToolSource(
-        await this.agentToolManager.getAllToolDefinitions({
+        await agentToolManager.getAllToolDefinitions({
           chatMode,
           supportsVision,
           agentWorkspacePath,
@@ -189,6 +198,20 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     return defs
+  }
+
+  syncAgentToolContext(context: {
+    chatMode?: 'agent' | 'acp agent'
+    agentWorkspacePath?: string | null
+  }): void {
+    const chatMode = context.chatMode || 'agent'
+    const agentWorkspacePath = context.agentWorkspacePath || null
+    const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
+
+    agentToolManager.syncContext({
+      chatMode,
+      agentWorkspacePath
+    })
   }
 
   clearConversationToolMapping(conversationId: string): void {

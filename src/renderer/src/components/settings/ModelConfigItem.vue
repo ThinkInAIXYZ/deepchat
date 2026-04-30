@@ -21,7 +21,7 @@
         title="函数调用能力"
       />
       <Icon
-        v-if="type === ModelType.Chat"
+        v-if="showWeakAgentWarning"
         icon="lucide:triangle-alert"
         class="h-4 w-4 shrink-0 text-amber-500"
         :title="$t('settings.modelConfigItem.chatFallbackWarning')"
@@ -93,14 +93,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, toRefs } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Icon } from '@iconify/vue'
-import { ModelType } from '@shared/model'
+import { hasNativeToolCapability, ModelType, type NewApiEndpointType } from '@shared/model'
 import ModelConfigDialog from './ModelConfigDialog.vue'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelName: string
     modelId: string
@@ -113,6 +113,8 @@ withDefaults(
     reasoning?: boolean
     enableSearch?: boolean
     type?: ModelType
+    supportedEndpointTypes?: NewApiEndpointType[]
+    endpointType?: NewApiEndpointType
     changeable?: boolean
     hideEnableToggle?: boolean
   }>(),
@@ -123,6 +125,22 @@ withDefaults(
   }
 )
 
+const {
+  modelName,
+  modelId,
+  providerId,
+  group,
+  enabled,
+  isCustomModel,
+  vision,
+  functionCall,
+  reasoning,
+  enableSearch,
+  type,
+  changeable,
+  hideEnableToggle
+} = toRefs(props)
+
 const emit = defineEmits<{
   enabledChange: [boolean]
   deleteModel: []
@@ -131,6 +149,17 @@ const emit = defineEmits<{
 
 // 配置对话框状态
 const showConfigDialog = ref(false)
+const showWeakAgentWarning = computed(
+  () =>
+    type.value === ModelType.Chat &&
+    !hasNativeToolCapability(
+      {
+        endpointType: props.endpointType,
+        supportedEndpointTypes: props.supportedEndpointTypes
+      },
+      props.functionCall
+    )
+)
 
 const onEnabledChange = (enabled: boolean) => emit('enabledChange', enabled)
 const onDeleteModel = () => emit('deleteModel')
