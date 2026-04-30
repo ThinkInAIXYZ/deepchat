@@ -4,6 +4,13 @@
       <UploadFileSettingsSection />
       <ProxySettingsSection />
       <SettingToggleRow
+        id="launch-at-login-switch"
+        icon="lucide:power"
+        :label="t('settings.common.launchAtLoginEnabled')"
+        :model-value="launchAtLoginEnabled"
+        @update:model-value="handleLaunchAtLoginChange"
+      />
+      <SettingToggleRow
         id="auto-scroll-switch"
         icon="lucide:arrow-down"
         :label="t('settings.common.autoScrollEnabled')"
@@ -45,9 +52,14 @@ const uiSettingsStore = useUiSettingsStore()
 const autoScrollEnabled = computed(() => uiSettingsStore.autoScrollEnabled)
 const copyWithCotEnabled = computed(() => uiSettingsStore.copyWithCotEnabled)
 const traceDebugEnabled = computed(() => uiSettingsStore.traceDebugEnabled)
+const launchAtLoginEnabled = computed(() => uiSettingsStore.launchAtLoginEnabled)
 
 const handleAutoScrollChange = (value: boolean) => {
   uiSettingsStore.setAutoScrollEnabled(value)
+}
+
+const handleLaunchAtLoginChange = (value: boolean) => {
+  uiSettingsStore.setLaunchAtLoginEnabled(value)
 }
 
 const handleCopyWithCotChange = (value: boolean) => {

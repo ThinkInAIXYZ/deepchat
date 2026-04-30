@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
+import { AgentBashHandler } from '@/presenter/toolPresenter/agentTools/agentBashHandler'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -116,6 +117,10 @@ describe('AgentToolManager skill file access', () => {
     }
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('allows reading files under active skill roots', async () => {
     const manager = buildManager()
 
@@ -168,6 +173,24 @@ describe('AgentToolManager skill file access', () => {
   it('does not relax exec cwd rules for active skill roots', async () => {
     const manager = buildManager()
 
+    const permission = await manager.preCheckToolPermission(
+      'exec',
+      {
+        command: 'pwd',
+        description: 'Print cwd',
+        cwd: skillRoot
+      },
+      'conv1'
+    )
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'all',
+        paths: [skillRoot]
+      })
+    )
+
     await expect(
       manager.callTool(
         'exec',
@@ -179,5 +202,46 @@ describe('AgentToolManager skill file access', () => {
         'conv1'
       )
     ).rejects.toThrow(`Working directory is not allowed: ${skillRoot}`)
+  })
+
+  it('allows exec cwd under active skill roots in full access mode', async () => {
+    const manager = buildManager()
+    vi.spyOn(AgentBashHandler.prototype as never, 'prepareCommand' as never).mockResolvedValue({
+      originalCommand: 'pwd',
+      command: 'pwd',
+      env: { PATH: '/bin' },
+      rewritten: false,
+      rtkApplied: false,
+      rtkMode: 'bypass'
+    })
+    const runShellProcess = vi
+      .spyOn(AgentBashHandler.prototype as never, 'runShellProcess' as never)
+      .mockResolvedValue({
+        kind: 'completed',
+        output: skillRoot,
+        exitCode: 0,
+        timedOut: false,
+        offloaded: false
+      })
+
+    await manager.callTool(
+      'exec',
+      {
+        command: 'pwd',
+        description: 'Print cwd',
+        cwd: skillRoot
+      },
+      'conv1',
+      {
+        allowExternalFileAccess: true
+      }
+    )
+
+    expect(runShellProcess).toHaveBeenCalledWith(
+      'pwd',
+      skillRoot,
+      120000,
+      expect.objectContaining({ env: { PATH: '/bin' } })
+    )
   })
 })

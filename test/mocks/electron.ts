@@ -3,6 +3,8 @@ export const app = {
   getName: () => 'DeepChat',
   getVersion: () => '0.0.0-test',
   getPath: (_: string) => '/mock/path',
+  getLoginItemSettings: () => ({ openAtLogin: false }),
+  setLoginItemSettings: (_: { openAtLogin?: boolean }) => {},
   isReady: () => true,
   on: (_event: string, _cb: (...args: any[]) => void) => {},
   relaunch: () => {},

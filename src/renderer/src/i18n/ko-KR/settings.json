@@ -8,6 +8,7 @@
     "searchEngine": "검색 엔진",
     "searchEngineSelect": "검색 엔진 선택",
     "searchPreview": "검색 미리보기",
+    "launchAtLoginEnabled": "로그인 시 DeepChat 실행",
     "autoScrollEnabled": "생성 중 자동 스크롤",
     "privacyMode": "프라이버시 모드",
     "privacyModeDescription": "DeepChat이 관리하는 자동 외부 요청을 중지합니다:",

@@ -6,6 +6,7 @@ import type {
   MCPToolResponse
 } from '@shared/presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
+import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper } from './toolMapper'
@@ -55,9 +56,13 @@ export interface IToolPresenter {
     options?: {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
+      permissionMode?: PermissionMode
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
-  preCheckToolPermission?(request: MCPToolCall): Promise<PreCheckedPermissionResult | null>
+  preCheckToolPermission?(
+    request: MCPToolCall,
+    options?: { permissionMode?: PermissionMode }
+  ): Promise<PreCheckedPermissionResult | null>
   buildToolSystemPrompt(context: {
     conversationId?: string
     toolDefinitions?: MCPToolDefinition[]
@@ -188,6 +193,7 @@ export class ToolPresenter implements IToolPresenter {
     options?: {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
+      permissionMode?: PermissionMode
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
@@ -227,7 +233,8 @@ export class ToolPresenter implements IToolPresenter {
         {
           toolCallId: request.id,
           onProgress: options?.onProgress,
-          signal: options?.signal
+          signal: options?.signal,
+          allowExternalFileAccess: options?.permissionMode === 'full_access'
         }
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)
@@ -250,7 +257,10 @@ export class ToolPresenter implements IToolPresenter {
    * Pre-check tool permissions without executing the tool
    * Routes to the appropriate source based on tool mapping
    */
-  async preCheckToolPermission(request: MCPToolCall): Promise<PreCheckedPermissionResult | null> {
+  async preCheckToolPermission(
+    request: MCPToolCall,
+    options?: { permissionMode?: PermissionMode }
+  ): Promise<PreCheckedPermissionResult | null> {
     const toolName = request.function.name
     const source = this.mapper.getToolSource(toolName)
 
@@ -290,7 +300,10 @@ export class ToolPresenter implements IToolPresenter {
       const result = await this.agentToolManager.preCheckToolPermission(
         toolName,
         args,
-        request.conversationId
+        request.conversationId,
+        {
+          allowExternalFileAccess: options?.permissionMode === 'full_access'
+        }
       )
       if (!result) {
         return null
@@ -391,6 +404,9 @@ export class ToolPresenter implements IToolPresenter {
     if (toolNames.has('exec')) {
       lines.push(
         'Use `exec` for file discovery, content search, git, build, test, lint, package manager, and other CLI workflows.'
+      )
+      lines.push(
+        '`exec.cwd` may target paths outside the workspace in Full Access mode; default mode asks before using external paths.'
       )
       lines.push(
         'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'

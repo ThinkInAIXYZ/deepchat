@@ -569,6 +569,9 @@ export interface IConfigPresenter {
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void
   openLoggingFolder(): void
+  // Launch at login settings
+  getLaunchAtLoginEnabled(): boolean
+  setLaunchAtLoginEnabled(enabled: boolean): void
   // Custom model management
   getCustomModels(providerId: string): MODEL_META[]
   setCustomModels(providerId: string, models: MODEL_META[]): void

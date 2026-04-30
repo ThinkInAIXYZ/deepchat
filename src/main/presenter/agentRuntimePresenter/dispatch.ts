@@ -802,7 +802,9 @@ export async function executeTools(
 
       let preCheckedPermission: PendingToolInteraction['permission'] | null = null
       if (toolPresenter.preCheckToolPermission) {
-        const preChecked = await toolPresenter.preCheckToolPermission(toolCall)
+        const preChecked = await toolPresenter.preCheckToolPermission(toolCall, {
+          permissionMode
+        })
         if (preChecked?.needsPermission) {
           preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
             toolName: toolContext.name,
@@ -857,7 +859,8 @@ export async function executeTools(
 
       const toolCallResult = await toolPresenter.callTool(toolCall, {
         onProgress: applyProgressUpdate,
-        signal: io.abortSignal
+        signal: io.abortSignal,
+        permissionMode
       })
       let toolRawData = toolCallResult.rawData
 
@@ -876,7 +879,8 @@ export async function executeTools(
             await autoGrantPermission(hooks, io.sessionId, pendingPermission)
             const retryCallResult = await toolPresenter.callTool(toolCall, {
               onProgress: applyProgressUpdate,
-              signal: io.abortSignal
+              signal: io.abortSignal,
+              permissionMode
             })
             toolRawData = retryCallResult.rawData
           } else {

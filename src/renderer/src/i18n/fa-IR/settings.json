@@ -8,6 +8,7 @@
     "searchEngine": "موتور جستجو",
     "searchEngineSelect": "انتخاب موتور جستجو",
     "searchPreview": "پیش‌نمایش جستجو",
+    "launchAtLoginEnabled": "اجرای DeepChat هنگام ورود به سیستم",
     "autoScrollEnabled": "پیمایش خودکار هنگام تولید",
     "privacyMode": "حالت حریم خصوصی",
     "privacyModeDescription": "درخواست‌های خروجی خودکار متعلق به DeepChat را متوقف می‌کند:",

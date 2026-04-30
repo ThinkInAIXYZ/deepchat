@@ -3819,7 +3819,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     if (serverName === 'agent-filesystem' && Array.isArray(payload.paths) && payload.paths.length) {
       await sessionPermissionPort.approvePermission(sessionId, {
-        permissionType: 'write',
+        permissionType:
+          permissionType === 'read' || permissionType === 'write' || permissionType === 'all'
+            ? permissionType
+            : 'write',
         serverName,
         toolName,
         paths: payload.paths

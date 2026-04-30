@@ -209,6 +209,48 @@ describe('AgentBashHandler', () => {
     )
   })
 
+  it('allows an external cwd when explicitly enabled', async () => {
+    const externalCwd = path.resolve('/external/project')
+    const handler = new AgentBashHandler(['/workspace'])
+
+    vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
+      originalCommand: 'pwd',
+      command: 'pwd',
+      env: { PATH: '/bin' },
+      rewritten: false,
+      rtkApplied: false,
+      rtkMode: 'bypass'
+    })
+
+    const runShellProcess = vi
+      .spyOn(handler as never, 'runShellProcess' as never)
+      .mockResolvedValue({
+        kind: 'completed',
+        output: externalCwd,
+        exitCode: 0,
+        timedOut: false,
+        offloaded: false
+      })
+
+    await handler.executeCommand(
+      {
+        command: 'pwd',
+        description: 'Print cwd',
+        cwd: externalCwd
+      },
+      {
+        allowExternalCwd: true
+      }
+    )
+
+    expect(runShellProcess).toHaveBeenCalledWith(
+      'pwd',
+      externalCwd,
+      120000,
+      expect.objectContaining({ env: { PATH: '/bin' } })
+    )
+  })
+
   it('returns a running session when foreground exec exceeds yieldMs', async () => {
     const handler = new AgentBashHandler(['/workspace'])
 

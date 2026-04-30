@@ -8,6 +8,7 @@
     "searchEngine": "Поисковая система",
     "searchEngineSelect": "Выбрать поисковую систему",
     "searchPreview": "Предпросмотр поиска",
+    "launchAtLoginEnabled": "Запускать DeepChat при входе в систему",
     "autoScrollEnabled": "Автопрокрутка во время генерации",
     "privacyMode": "Режим конфиденциальности",
     "privacyModeDescription": "Останавливает автоматические исходящие запросы, которыми управляет DeepChat:",

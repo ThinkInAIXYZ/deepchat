@@ -3,7 +3,7 @@ import path from 'path'
 export interface FilePermissionRequest {
   toolName: string
   serverName: string
-  permissionType: 'write'
+  permissionType: 'read' | 'write' | 'all'
   description: string
   paths?: string[]
   conversationId?: string
