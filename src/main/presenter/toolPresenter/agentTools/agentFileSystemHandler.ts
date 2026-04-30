@@ -188,8 +188,12 @@ export class AgentFileSystemHandler {
   private readonly allowedDirectoryRoots: string[]
   private conversationId?: string
   private readonly sessionsRoot: string
+  private readonly allowExternalAccess: boolean
 
-  constructor(allowedDirectories: string[], options: { conversationId?: string } = {}) {
+  constructor(
+    allowedDirectories: string[],
+    options: { conversationId?: string; allowExternalAccess?: boolean } = {}
+  ) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
     }
@@ -211,6 +215,7 @@ export class AgentFileSystemHandler {
     )
     this.conversationId = options.conversationId
     this.sessionsRoot = this.normalizePath(getSessionsRoot())
+    this.allowExternalAccess = options.allowExternalAccess === true
   }
 
   private normalizePath(p: string): string {
@@ -272,14 +277,14 @@ export class AgentFileSystemHandler {
     baseDirectory?: string,
     options: PathValidationOptions = {}
   ): Promise<string> {
-    const enforceAllowed = options.enforceAllowed ?? true
+    const enforceAllowed = options.enforceAllowed ?? !this.allowExternalAccess
     const normalizedRequested = this.resolvePath(requestedPath, baseDirectory)
+    const requestedPathAllowed = !enforceAllowed || this.isPathAllowed(normalizedRequested)
     if (options.accessType === 'read') {
       this.assertSessionReadAllowed(normalizedRequested)
     }
     if (enforceAllowed) {
-      const isAllowed = this.isPathAllowed(normalizedRequested)
-      if (!isAllowed) {
+      if (!requestedPathAllowed) {
         throw new Error(
           `Access denied - path outside allowed directories: ${normalizedRequested} not in ${this.allowedDirectoryRoots.join(', ')}`
         )
@@ -348,6 +353,10 @@ export class AgentFileSystemHandler {
     if (!candidatePath.startsWith(sessionWithSeparator)) {
       throw new Error('Access denied - session files outside current conversation')
     }
+  }
+
+  assertReadAllowedAbsolute(candidatePath: string): void {
+    this.assertSessionReadAllowed(this.normalizePath(path.resolve(candidatePath)))
   }
 
   private countLines(value: string): number {
@@ -953,7 +962,9 @@ export class AgentFileSystemHandler {
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
     await fs.writeFile(validPath, parsed.data.content, 'utf-8')
     return `Successfully wrote to ${parsed.data.path}`
   }
@@ -982,7 +993,9 @@ export class AgentFileSystemHandler {
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
     await fs.mkdir(validPath, { recursive: true })
     return `Successfully created directory ${parsed.data.path}`
   }
@@ -994,10 +1007,15 @@ export class AgentFileSystemHandler {
     }
     const results = await Promise.all(
       parsed.data.sources.map(async (source) => {
-        const validSourcePath = await this.validatePath(source, baseDirectory)
+        const validSourcePath = await this.validatePath(source, baseDirectory, {
+          accessType: 'write'
+        })
         const validDestPath = await this.validatePath(
           path.join(parsed.data.destination, path.basename(source)),
-          baseDirectory
+          baseDirectory,
+          {
+            accessType: 'write'
+          }
         )
         try {
           await fs.rename(validSourcePath, validDestPath)
@@ -1015,7 +1033,9 @@ export class AgentFileSystemHandler {
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
     const content = await fs.readFile(validPath, 'utf-8')
     let modifiedContent = content
 
@@ -1108,7 +1128,9 @@ export class AgentFileSystemHandler {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
     const result = await this.replaceTextInFile(
       validPath,
       parsed.data.pattern,
@@ -1147,7 +1169,9 @@ export class AgentFileSystemHandler {
     }
 
     const { path: filePath, oldText, newText } = parsed.data
-    const validPath = await this.validatePath(filePath, baseDirectory)
+    const validPath = await this.validatePath(filePath, baseDirectory, {
+      accessType: 'write'
+    })
 
     const content = await fs.readFile(validPath, 'utf-8')
     const normalizedOldText = this.normalizeLineEndings(oldText)

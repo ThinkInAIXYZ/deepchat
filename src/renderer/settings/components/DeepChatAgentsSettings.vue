@@ -649,7 +649,7 @@ import type {
 import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import {
   DEEPCHAT_SUBAGENT_SLOT_LIMIT,
-  createDefaultDeepChatSelfSubagentSlot,
+  createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentSlots
 } from '@shared/lib/deepchatSubagents'
 
@@ -755,8 +755,8 @@ const form = reactive<FormState>({
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
-  subagentEnabled: false,
-  subagents: normalizeDeepChatSubagentSlots([createDefaultDeepChatSelfSubagentSlot()]),
+  subagentEnabled: true,
+  subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
@@ -985,8 +985,8 @@ const emptyForm = (): FormState => ({
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
-  subagentEnabled: false,
-  subagents: normalizeDeepChatSubagentSlots([createDefaultDeepChatSelfSubagentSlot()]),
+  subagentEnabled: true,
+  subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
@@ -1081,8 +1081,10 @@ const fromAgent = (agent?: Agent | null): FormState => {
     defaultProjectPath: normalizePath(config.defaultProjectPath) ?? '',
     systemPrompt: config.systemPrompt ?? '',
     permissionMode: config.permissionMode === 'default' ? 'default' : 'full_access',
-    subagentEnabled: config.subagentEnabled === true,
-    subagents: normalizeDeepChatSubagentSlots(config.subagents),
+    subagentEnabled: config.subagentEnabled ?? true,
+    subagents: normalizeDeepChatSubagentSlots(
+      config.subagents ?? createDefaultDeepChatSubagentSlots()
+    ),
     disabledAgentTools: [...(config.disabledAgentTools ?? [])],
     autoCompactionEnabled: config.autoCompactionEnabled ?? true,
     autoCompactionTriggerThreshold: numText(

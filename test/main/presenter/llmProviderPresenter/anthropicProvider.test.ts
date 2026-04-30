@@ -167,4 +167,63 @@ describe('AiSdkProvider anthropic', () => {
       })
     ])
   })
+
+  it('fetches remote models for custom anthropic-compatible providers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        data: [{ id: 'claude-3-7-sonnet-latest', display_name: 'Claude 3.7 Sonnet' }]
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'custom-anthropic',
+        name: 'Custom Anthropic',
+        custom: true
+      }),
+      createConfigPresenter()
+    )
+    const models = await provider.fetchModels()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.anthropic.com/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          'x-api-key': 'test-key',
+          'anthropic-version': '2023-06-01'
+        })
+      })
+    )
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'claude-3-7-sonnet-latest',
+        providerId: 'custom-anthropic',
+        name: 'Claude 3.7 Sonnet'
+      })
+    ])
+  })
+
+  it('throws refresh errors for custom anthropic-compatible providers when remote fetch fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      text: vi
+        .fn()
+        .mockResolvedValue('{"error":{"type":"Unauthorized","message":"Invalid API key"}}')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'custom-anthropic',
+        name: 'Custom Anthropic',
+        custom: true
+      }),
+      createConfigPresenter()
+    )
+
+    await expect(provider.refreshModels()).rejects.toThrow('Invalid API key')
+  })
 })

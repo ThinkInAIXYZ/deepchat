@@ -7,6 +7,9 @@
       :codeBlockDarkTheme="codeBlockDarkTheme"
       :codeBlockLightTheme="codeBlockLightTheme"
       :codeBlockMonacoOptions="codeBlockMonacoOption"
+      :final="!props.loading"
+      :typewriter="!!props.loading"
+      :codeBlockStream="!!props.loading"
       @copy="$emit('copy', $event)"
     />
   </div>
@@ -35,6 +38,7 @@ import type { MarkdownLinkContext } from './linkTypes'
 const props = defineProps<{
   content: string
   debug?: boolean
+  loading?: boolean
   messageId?: string
   threadId?: string
   linkContext?: MarkdownLinkContext

@@ -878,6 +878,181 @@ export class AiSdkProvider extends BaseLLMProvider {
     }))
   }
 
+  private async fetchAnthropicModelsWithFallback(): Promise<MODEL_META[]> {
+    const fallbackModels = this.mapConfigDbModels(this.definition.providerDbSourceId)
+    const apiKey = this.provider.apiKey?.trim()
+    if (!apiKey) {
+      return fallbackModels
+    }
+
+    const normalizedBaseUrl = (this.provider.baseUrl || 'https://api.anthropic.com')
+      .trim()
+      .replace(/\/+$/, '')
+    const modelsUrl = /\/v1$/i.test(normalizedBaseUrl)
+      ? `${normalizedBaseUrl}/models`
+      : `${normalizedBaseUrl}/v1/models`
+    const { signal, dispose } = this.createModelRequestSignal(null)
+
+    try {
+      const dispatcher = this.getFetchDispatcher()
+      const response = await fetch(modelsUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          'x-api-key': apiKey,
+          ...this.defaultHeaders,
+          ...this.definition.defaultHeadersPatch
+        },
+        signal,
+        ...(dispatcher ? ({ dispatcher } as Record<string, unknown>) : {})
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Failed to fetch Anthropic models: ${response.status}`)
+      }
+
+      const payload = (await response.json()) as {
+        data?: Array<{ id?: string; display_name?: string }>
+      }
+
+      const models = Array.isArray(payload.data)
+        ? payload.data
+            .filter((model): model is { id: string; display_name?: string } => !!model?.id)
+            .map((model) => {
+              const existingConfig = this.getProviderModelConfig(model.id)
+              return {
+                id: model.id,
+                name: model.display_name || model.id,
+                providerId: this.provider.id,
+                maxTokens: existingConfig.maxTokens || 64_000,
+                group: 'Claude',
+                isCustom: false,
+                contextLength: existingConfig.contextLength || 200_000,
+                vision: existingConfig.vision || false,
+                functionCall: existingConfig.functionCall || false,
+                reasoning: existingConfig.reasoning || false
+              }
+            })
+        : []
+
+      return models.length > 0 ? models : fallbackModels
+    } catch (error) {
+      console.error('Failed to fetch Anthropic models:', error)
+      if (fallbackModels.length > 0 && !this.provider.custom) {
+        return fallbackModels
+      }
+      throw error
+    } finally {
+      dispose()
+    }
+  }
+
+  private async fetchGeminiModelsWithFallback(): Promise<MODEL_META[]> {
+    const fallbackModels = this.mapConfigDbModels(this.definition.providerDbSourceId)
+    const apiKey = this.provider.apiKey?.trim()
+    if (!apiKey) {
+      return fallbackModels
+    }
+
+    const modelsUrl = `${normalizeGeminiBaseUrl(this.provider.baseUrl || undefined).replace(/\/+$/, '')}/models`
+    const { signal, dispose } = this.createModelRequestSignal(null)
+
+    try {
+      const dispatcher = this.getFetchDispatcher()
+      const response = await fetch(modelsUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+          ...this.defaultHeaders,
+          ...this.definition.defaultHeadersPatch
+        },
+        signal,
+        ...(dispatcher ? ({ dispatcher } as Record<string, unknown>) : {})
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Failed to fetch Gemini models: ${response.status}`)
+      }
+
+      const payload = (await response.json()) as {
+        models?: Array<{
+          name?: string
+          displayName?: string
+          inputTokenLimit?: number
+          outputTokenLimit?: number
+        }>
+      }
+
+      const models = Array.isArray(payload.models)
+        ? payload.models
+            .filter(
+              (
+                model
+              ): model is {
+                name: string
+                displayName?: string
+                inputTokenLimit?: number
+                outputTokenLimit?: number
+              } => !!model?.name
+            )
+            .filter((model) => {
+              const lowerName = model.name.toLowerCase()
+              return (
+                !lowerName.includes('embedding') &&
+                !lowerName.includes('aqa') &&
+                !lowerName.includes('text-embedding') &&
+                !lowerName.includes('gemma-3n-e4b-it')
+              )
+            })
+            .map((model) => ({
+              id: model.name,
+              name: model.displayName || model.name,
+              group: /\b(exp|preview)\b/i.test(model.name)
+                ? 'experimental'
+                : /\bgemma\b/i.test(model.name)
+                  ? 'gemma'
+                  : 'default',
+              providerId: this.provider.id,
+              isCustom: false,
+              contextLength: model.inputTokenLimit,
+              maxTokens: model.outputTokenLimit,
+              vision: false,
+              functionCall: false,
+              reasoning: false
+            }))
+        : []
+
+      return models.length > 0 ? models : fallbackModels
+    } catch (error) {
+      console.error('Failed to fetch Gemini models:', error)
+      if (fallbackModels.length > 0 && !this.provider.custom) {
+        return fallbackModels
+      }
+      throw error
+    } finally {
+      dispose()
+    }
+  }
+
+  private async fetchConfigDbModels(): Promise<MODEL_META[]> {
+    if (!this.provider.custom) {
+      return this.mapConfigDbModels(this.definition.providerDbSourceId)
+    }
+
+    switch (this.definition.runtimeKind) {
+      case 'anthropic':
+        return this.fetchAnthropicModelsWithFallback()
+      case 'gemini':
+        return this.fetchGeminiModelsWithFallback()
+      default:
+        return this.mapConfigDbModels(this.definition.providerDbSourceId)
+    }
+  }
+
   private mapProviderDbModels(group: string): MODEL_META[] {
     const resolvedId = modelCapabilities.resolveProviderId(this.provider.id) || this.provider.id
     const provider = providerDbLoader.getProvider(resolvedId)
@@ -930,7 +1105,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   ): Promise<MODEL_META[]> {
     switch (strategy) {
       case 'config-db':
-        return this.mapConfigDbModels(this.definition.providerDbSourceId)
+        return this.fetchConfigDbModels()
       case 'provider-db':
         return this.mapProviderDbModels(this.definition.providerDbGroup || 'default')
       case 'github': {

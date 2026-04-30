@@ -11,6 +11,9 @@ import 'katex/dist/katex.min.css'
 import {
   clearKaTeXWorker,
   clearMermaidWorker,
+  enableKatex,
+  enableMermaid,
+  preloadCodeBlockRuntime,
   setKaTeXWorker,
   setMermaidWorker,
   terminateWorker
@@ -34,6 +37,9 @@ if (!globalScope.__markdownWorkers) {
   setMermaidWorker(mermaid)
 }
 
+enableKatex()
+enableMermaid(() => import('mermaid'))
+
 window.addEventListener('beforeunload', () => {
   const workers = globalScope.__markdownWorkers
   if (workers) {
@@ -45,6 +51,82 @@ window.addEventListener('beforeunload', () => {
   clearMermaidWorker()
   terminateWorker()
 })
+
+const codeBlockThemes = ['vitesse-dark', 'vitesse-light']
+const codeBlockLanguages = [
+  'jsx',
+  'tsx',
+  'vue',
+  'csharp',
+  'python',
+  'java',
+  'c',
+  'cpp',
+  'rust',
+  'go',
+  'shell',
+  'shellscript',
+  'powershell',
+  'sql',
+  'json',
+  'html',
+  'javascript',
+  'typescript',
+  'css',
+  'markdown',
+  'xml',
+  'yaml',
+  'toml',
+  'dockerfile',
+  'kotlin',
+  'objective-c',
+  'objective-cpp',
+  'php',
+  'ruby',
+  'scala',
+  'svelte',
+  'swift',
+  'erlang',
+  'angular-html',
+  'angular-ts',
+  'dart',
+  'lua',
+  'mermaid',
+  'cmake',
+  'nginx',
+  'plaintext'
+]
+
+const preloadCodeBlockRuntimeAsync = async () => {
+  try {
+    const { registerMonacoThemes } = await import('stream-monaco')
+
+    await Promise.all([
+      preloadCodeBlockRuntime(),
+      registerMonacoThemes(codeBlockThemes, codeBlockLanguages)
+    ])
+  } catch (error) {
+    console.error('[deepchat] failed to preload code block runtime', error)
+  }
+}
+
+const scheduleCodeBlockRuntimePreload = () => {
+  const requestIdleCallback = window.requestIdleCallback
+
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(
+      () => {
+        void preloadCodeBlockRuntimeAsync()
+      },
+      { timeout: 1500 }
+    )
+    return
+  }
+
+  window.setTimeout(() => {
+    void preloadCodeBlockRuntimeAsync()
+  }, 0)
+}
 
 const i18n = createI18n({
   locale: 'zh-CN',
@@ -76,3 +158,5 @@ setTimeout(() => {
     console.error('Failed to preload icons:', error)
   })
 }, 0)
+
+scheduleCodeBlockRuntimePreload()

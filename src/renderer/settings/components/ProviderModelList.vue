@@ -168,7 +168,12 @@
             model.vision,
             model.functionCall,
             model.reasoning,
-            model.enableSearch
+            model.enableSearch,
+            String(model.explicitFunctionCall ?? ''),
+            model.endpointType,
+            Array.isArray(model.supportedEndpointTypes)
+              ? model.supportedEndpointTypes.join(',')
+              : ''
           ]"
           :model-name="model.name"
           :model-id="model.id"
@@ -177,9 +182,12 @@
           :is-custom-model="true"
           :vision="model.vision"
           :function-call="model.functionCall"
+          :explicit-function-call="model.explicitFunctionCall"
           :reasoning="model.reasoning"
           :enable-search="model.enableSearch"
           :type="model.type ?? ModelType.Chat"
+          :supported-endpoint-types="model.supportedEndpointTypes"
+          :endpoint-type="model.endpointType"
           @enabled-change="handleCustomModelEnabledChange(model, $event)"
           @delete-model="handleDeleteCustomModel(model)"
           @config-changed="emitConfigChanged"
@@ -280,9 +288,12 @@
               :is-custom-model="false"
               :vision="item.vision"
               :function-call="item.functionCall"
+              :explicit-function-call="item.explicitFunctionCall"
               :reasoning="item.reasoning"
               :enable-search="item.enableSearch"
               :type="item.typeValue ?? ModelType.Chat"
+              :supported-endpoint-types="item.supportedEndpointTypes"
+              :endpoint-type="item.endpointType"
               @enabled-change="handleVirtualModelEnabledChange(item, $event)"
               @config-changed="emitConfigChanged"
             />
@@ -688,6 +699,7 @@ type VirtualModelListItem =
       enabled: boolean
       vision: boolean
       functionCall: boolean
+      explicitFunctionCall: RENDERER_MODEL_META['explicitFunctionCall']
       reasoning: boolean
       enableSearch: boolean
       typeValue: ModelType
@@ -763,6 +775,7 @@ const createModelItem = (model: RENDERER_MODEL_META) =>
       enabled: model.enabled ?? false,
       vision: model.vision ?? false,
       functionCall: model.functionCall ?? false,
+      explicitFunctionCall: model.explicitFunctionCall,
       reasoning: model.reasoning ?? false,
       enableSearch: model.enableSearch ?? false,
       typeValue: model.type ?? ModelType.Chat,
@@ -781,6 +794,7 @@ const createModelItem = (model: RENDERER_MODEL_META) =>
       item.enabled = model.enabled ?? false
       item.vision = model.vision ?? false
       item.functionCall = model.functionCall ?? false
+      item.explicitFunctionCall = model.explicitFunctionCall
       item.reasoning = model.reasoning ?? false
       item.enableSearch = model.enableSearch ?? false
       item.typeValue = model.type ?? ModelType.Chat
@@ -913,6 +927,7 @@ const toRendererModel = (
   isCustom: item.isCustom,
   vision: item.vision,
   functionCall: item.functionCall,
+  explicitFunctionCall: item.explicitFunctionCall,
   reasoning: item.reasoning,
   enableSearch: item.enableSearch,
   type: item.typeValue,

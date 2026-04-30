@@ -1,10 +1,21 @@
 // Minimal Electron mock for Vitest in Node environment
+const defaultLoginItemSettings = { openAtLogin: false }
+let loginItemSettings = { ...defaultLoginItemSettings }
+
+export const __resetElectronMockState = () => {
+  loginItemSettings = { ...defaultLoginItemSettings }
+}
+
 export const app = {
   getName: () => 'DeepChat',
   getVersion: () => '0.0.0-test',
   getAppPath: () => '/mock/app',
   getPath: (_: string) => '/mock/path',
   isPackaged: false,
+  getLoginItemSettings: () => ({ ...loginItemSettings }),
+  setLoginItemSettings: (settings: { openAtLogin?: boolean }) => {
+    loginItemSettings = { ...loginItemSettings, ...settings }
+  },
   isReady: () => true,
   on: (_event: string, _cb: (...args: any[]) => void) => {},
   relaunch: () => {},

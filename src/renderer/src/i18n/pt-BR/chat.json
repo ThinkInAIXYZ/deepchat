@@ -53,7 +53,11 @@
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "Falha ao processar anexo",
+    "fileUploadFailedDesc": "Não foi possível processar {count} arquivos: {names}",
+    "fileUploadFailedMore": " e mais {count} arquivos",
+    "unnamedFile": "arquivo sem nome"
   },
   "pendingInput": {
     "steer": "Direcionamento",

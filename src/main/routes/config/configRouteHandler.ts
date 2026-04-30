@@ -24,6 +24,7 @@ import {
   configGetSystemPromptsRoute,
   configGetThemeRoute,
   configGetVoiceAiConfigRoute,
+  configListAgentsRoute,
   configListCustomPromptsRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
@@ -318,6 +319,25 @@ export async function dispatchConfigRoute(
     case configGetAcpStateRoute.name: {
       configGetAcpStateRoute.input.parse(rawInput)
       return configGetAcpStateRoute.output.parse(await readAcpState(configPresenter))
+    }
+
+    case configListAgentsRoute.name: {
+      const input = configListAgentsRoute.input.parse(rawInput)
+      const idSet = input.ids ? new Set(input.ids) : null
+      const agents = (await configPresenter.listAgents()).filter((agent) => {
+        const agentType = agent.agentType ?? agent.type
+        if (input.agentType && agentType !== input.agentType) {
+          return false
+        }
+
+        if (idSet && !idSet.has(agent.id)) {
+          return false
+        }
+
+        return true
+      })
+
+      return configListAgentsRoute.output.parse({ agents })
     }
 
     case configResolveDeepChatAgentConfigRoute.name: {

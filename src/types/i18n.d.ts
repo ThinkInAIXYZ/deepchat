@@ -98,6 +98,10 @@ declare module 'vue-i18n' {
       promptFilesAddedDesc: string
       promptFilesError: string
       promptFilesErrorDesc: string
+      fileUploadFailed: string
+      fileUploadFailedDesc: string
+      fileUploadFailedMore: string
+      unnamedFile: string
       historyPlaceholder: string
       rateLimitQueue: string
       rateLimitWait: string

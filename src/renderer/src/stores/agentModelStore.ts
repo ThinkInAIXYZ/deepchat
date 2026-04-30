@@ -51,6 +51,7 @@ export const useAgentModelStore = defineStore('agent-model', () => {
       description: agent.description,
       vision: false,
       functionCall: true,
+      explicitFunctionCall: true,
       reasoning: false,
       enableSearch: false,
       type: ModelType.Chat

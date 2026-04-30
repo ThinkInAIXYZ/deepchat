@@ -13,7 +13,10 @@ import type {
   CreateDeepChatAgentInput,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import {
+  createDefaultDeepChatSubagentSlots,
+  normalizeDeepChatSubagentConfig
+} from '@shared/lib/deepchatSubagents'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { AgentRow } from '../sqlitePresenter/tables/agents'
 
@@ -73,8 +76,9 @@ const mergeDeepChatConfig = (
     systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
     permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode ?? 'full_access',
     disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],
-    subagentEnabled: overrideConfig.subagentEnabled ?? baseConfig.subagentEnabled ?? false,
-    subagents: overrideConfig.subagents ?? baseConfig.subagents ?? [],
+    subagentEnabled: overrideConfig.subagentEnabled ?? baseConfig.subagentEnabled ?? true,
+    subagents:
+      overrideConfig.subagents ?? baseConfig.subagents ?? createDefaultDeepChatSubagentSlots(),
     autoCompactionEnabled:
       overrideConfig.autoCompactionEnabled ?? baseConfig.autoCompactionEnabled ?? true,
     autoCompactionTriggerThreshold:

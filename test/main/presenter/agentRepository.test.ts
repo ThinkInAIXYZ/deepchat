@@ -2,6 +2,48 @@ import { describe, expect, it } from 'vitest'
 import { AgentRepository } from '../../../src/main/presenter/agentRepository'
 
 describe('AgentRepository', () => {
+  it('resolves default DeepChat subagent slots for the builtin agent', () => {
+    const rows = new Map<string, any>()
+    const sqlitePresenter = {
+      agentsTable: {
+        get: (id: string) => rows.get(id),
+        create: (input: any) => {
+          rows.set(input.id, {
+            id: input.id,
+            agent_type: input.agentType,
+            source: input.source,
+            name: input.name,
+            enabled: input.enabled ? 1 : 0,
+            protected: input.protected ? 1 : 0,
+            description: null,
+            icon: input.icon ?? null,
+            avatar_json: input.avatarJson,
+            config_json: input.configJson,
+            state_json: null,
+            created_at: Date.now(),
+            updated_at: Date.now()
+          })
+        },
+        update: (id: string, input: any) => {
+          const row = rows.get(id)
+          rows.set(id, { ...row, ...input })
+        }
+      }
+    }
+    const repository = new AgentRepository(sqlitePresenter as never)
+
+    repository.ensureBuiltinDeepChatAgent({ name: 'DeepChat', config: {} })
+    const config = repository.resolveDeepChatAgentConfig('deepchat')
+
+    expect(config.subagentEnabled).toBe(true)
+    expect(config.subagents?.map((slot) => slot.id)).toEqual([
+      'explorer',
+      'implementer',
+      'reviewer'
+    ])
+    expect(config.subagents?.every((slot) => slot.targetType === 'self')).toBe(true)
+  })
+
   it('clears registry ACP installation state without deleting the row', () => {
     const row = {
       id: 'codex-acp',

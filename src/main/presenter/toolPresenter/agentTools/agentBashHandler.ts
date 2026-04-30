@@ -41,6 +41,7 @@ export interface ExecuteCommandOptions {
   env?: Record<string, string>
   stdin?: string
   outputPrefix?: string
+  allowExternalCwd?: boolean
 }
 
 interface PreparedCommand {
@@ -104,7 +105,7 @@ export class AgentBashHandler {
     }
 
     const { command, timeout, background, cwd: requestedCwd, yieldMs } = parsed.data
-    const cwd = this.resolveWorkingDirectory(requestedCwd)
+    const cwd = this.resolveWorkingDirectory(requestedCwd, options.allowExternalCwd)
 
     // Handle background execution
     if (background) {
@@ -226,7 +227,7 @@ export class AgentBashHandler {
     })
   }
 
-  private resolveWorkingDirectory(requestedCwd?: string): string {
+  private resolveWorkingDirectory(requestedCwd?: string, allowExternalCwd = false): string {
     const defaultCwd = this.allowedDirectories[0]
     const normalizedInput = requestedCwd?.trim()
     if (!normalizedInput) {
@@ -238,7 +239,7 @@ export class AgentBashHandler {
       ? this.normalizePath(path.resolve(expanded))
       : this.normalizePath(path.resolve(defaultCwd, expanded))
 
-    if (!this.isPathAllowed(resolved)) {
+    if (!allowExternalCwd && !this.isPathAllowed(resolved)) {
       throw new Error(`Working directory is not allowed: ${requestedCwd}`)
     }
 

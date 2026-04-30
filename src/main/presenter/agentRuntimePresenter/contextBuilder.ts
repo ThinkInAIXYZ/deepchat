@@ -280,8 +280,9 @@ export function recordToChatMessages(
     .filter((block) => block.type === 'reasoning_content')
     .map((block) => block.content)
     .join('')
-  const shouldPreserveReasoning =
-    preserveInterleavedReasoning && (Boolean(reasoning) || preserveEmptyInterleavedReasoning)
+  const shouldPreserveReasoning = preserveInterleavedReasoning && Boolean(reasoning)
+  const shouldPreserveEmptyReasoning =
+    preserveInterleavedReasoning && preserveEmptyInterleavedReasoning
   const contentParts = blocks
     .filter(
       (block): block is AssistantMessageBlock & { content: string } =>
@@ -296,8 +297,11 @@ export function recordToChatMessages(
       }
     })
   const assistantContent = contentParts.some((part) => part.provider_options) ? contentParts : text
-  const applyReasoningContent = (assistantMessage: ChatMessage): ChatMessage => {
-    if (shouldPreserveReasoning) {
+  const applyReasoningContent = (
+    assistantMessage: ChatMessage,
+    allowEmptyReasoning: boolean = false
+  ): ChatMessage => {
+    if (shouldPreserveReasoning || (allowEmptyReasoning && shouldPreserveEmptyReasoning)) {
       assistantMessage.reasoning_content = reasoning
       const reasoningProviderOptions = blocks
         .filter((block) => block.type === 'reasoning_content')
@@ -324,6 +328,9 @@ export function recordToChatMessages(
     if (shouldPreserveReasoning) {
       return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
     }
+    if (preserveEmptyInterleavedReasoning) {
+      return [{ role: 'assistant', content: assistantContent }]
+    }
     return [{ role: 'assistant', content: combinedText }]
   }
 
@@ -347,6 +354,9 @@ export function recordToChatMessages(
     if (shouldPreserveReasoning) {
       return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
     }
+    if (preserveEmptyInterleavedReasoning) {
+      return [{ role: 'assistant', content: assistantContent }]
+    }
     return [{ role: 'assistant', content: combinedText }]
   }
 
@@ -355,7 +365,7 @@ export function recordToChatMessages(
     content: assistantContent,
     tool_calls: toolCalls
   }
-  applyReasoningContent(assistantMessage)
+  applyReasoningContent(assistantMessage, true)
 
   const result: ChatMessage[] = [assistantMessage]
   for (const block of toolCallBlocks) {

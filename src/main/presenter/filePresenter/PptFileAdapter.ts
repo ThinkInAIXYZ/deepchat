@@ -27,7 +27,11 @@ export class PptFileAdapter extends BaseFileAdapter {
    */
   private async unzipPresentation(): Promise<Array<{ name: string; content: Uint8Array }>> {
     const fileBuffer = await fs.readFile(this.filePath)
-    const zipBuffer = new Uint8Array(fileBuffer.buffer)
+    const zipBuffer = new Uint8Array(
+      fileBuffer.buffer,
+      fileBuffer.byteOffset,
+      fileBuffer.byteLength
+    )
 
     return new Promise((resolve, reject) => {
       unzip(zipBuffer, (error, result) => {
@@ -126,6 +130,12 @@ export class PptFileAdapter extends BaseFileAdapter {
 
   public async getLLMContent(): Promise<string | undefined> {
     try {
+      const stats = await fs.stat(this.filePath)
+
+      if (stats.size > this.maxFileSize) {
+        return `File too large to process (${stats.size} bytes, max: ${this.maxFileSize} bytes)`
+      }
+
       const slideFiles = await this.unzipPresentation()
 
       const fileDescription = `

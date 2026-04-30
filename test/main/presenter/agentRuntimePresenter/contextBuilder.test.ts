@@ -389,6 +389,20 @@ describe('buildContext', () => {
     })
   })
 
+  it('does not add empty reasoning_content for non-tool assistant history', () => {
+    const messages = [makeUserRecord(1, 'Think about this'), makeAssistantRecord(2, 'Answer only')]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'Follow up', '', 10000, 4096, store, false, {
+      preserveInterleavedReasoning: true,
+      preserveEmptyInterleavedReasoning: true
+    })
+
+    expect(result[1]).toEqual({
+      role: 'assistant',
+      content: 'Answer only'
+    })
+  })
+
   it('preserves reasoning_content separately for settled tool calls when enabled', () => {
     const messages = [
       makeUserRecord(1, 'Use a tool'),

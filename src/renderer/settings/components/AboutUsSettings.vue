@@ -78,6 +78,8 @@
             <NodeRenderer
               :isDark="themeStore.isDark"
               :content="upgrade.updateInfo.releaseNotes"
+              :typewriter="false"
+              :codeBlockStream="false"
             ></NodeRenderer>
           </div>
         </div>
@@ -198,6 +200,8 @@
             class="max-h-[300px] overflow-y-auto"
             :isDark="themeStore.isDark"
             :content="t('searchDisclaimer')"
+            :typewriter="false"
+            :codeBlockStream="false"
           ></NodeRenderer>
         </DialogDescription>
       </DialogHeader>

@@ -72,6 +72,9 @@ export interface AgentToolRuntimePort {
     channel: string,
     ...args: unknown[]
   ): ReturnType<IWindowPresenter['sendToWindow']>
-  getApprovedFilePaths(conversationId: string): string[]
+  getApprovedFilePaths(
+    conversationId: string,
+    requiredPermission?: 'read' | 'write' | 'all'
+  ): string[]
   consumeSettingsApproval(conversationId: string, toolName: string): boolean
 }

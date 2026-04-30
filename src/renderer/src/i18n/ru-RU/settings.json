@@ -8,6 +8,7 @@
     "searchEngine": "Поисковая система",
     "searchEngineSelect": "Выбрать поисковую систему",
     "searchPreview": "Предпросмотр поиска",
+    "launchAtLoginEnabled": "Запускать DeepChat при входе в систему",
     "autoScrollEnabled": "Автопрокрутка во время генерации",
     "privacyMode": "Режим конфиденциальности",
     "privacyModeDescription": "Останавливает автоматические исходящие запросы, которыми управляет DeepChat:",
@@ -353,6 +354,9 @@
       }
     },
     "unavailable": "Недоступно"
+  },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Слабые возможности Agent: поддерживаются только устаревшие fallback-вызовы инструментов"
   },
   "model": {
     "title": "Настройки модели",

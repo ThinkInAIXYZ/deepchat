@@ -8,6 +8,7 @@
     "searchEngine": "Mecanismo de Busca",
     "searchEngineSelect": "Selecionar mecanismo de busca",
     "searchPreview": "Pré-visualização de Busca",
+    "launchAtLoginEnabled": "Iniciar o DeepChat ao entrar no sistema",
     "autoScrollEnabled": "Rolagem automática durante a geração",
     "privacyMode": "Modo de Privacidade",
     "privacyModeDescription": "Interrompe as solicitações automáticas de saída feitas pelo DeepChat:",
@@ -353,6 +354,9 @@
       }
     },
     "unavailable": "Indisponível"
+  },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Capacidade fraca de Agent: suporta apenas chamadas de ferramentas de fallback legadas"
   },
   "model": {
     "title": "Configurações do Modelo",

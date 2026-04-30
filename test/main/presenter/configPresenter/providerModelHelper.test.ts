@@ -10,6 +10,7 @@ const storeStates = vi.hoisted(
         data: Record<string, unknown>
         get: ReturnType<typeof vi.fn>
         set: ReturnType<typeof vi.fn>
+        clear: ReturnType<typeof vi.fn>
       }
     >()
 )
@@ -26,6 +27,7 @@ vi.mock('electron-store', () => ({
       data: Record<string, unknown>
       get: ReturnType<typeof vi.fn>
       set: ReturnType<typeof vi.fn>
+      clear: ReturnType<typeof vi.fn>
     }
 
     constructor(options: { name: string; defaults?: Record<string, unknown> }) {
@@ -41,6 +43,11 @@ vi.mock('electron-store', () => ({
         get: vi.fn((key: string) => data[key]),
         set: vi.fn((key: string, value: unknown) => {
           data[key] = value
+        }),
+        clear: vi.fn(() => {
+          Object.keys(data).forEach((key) => {
+            delete data[key]
+          })
         })
       }
       storeStates.set(options.name, state)
@@ -53,6 +60,10 @@ vi.mock('electron-store', () => ({
 
     set(key: string, value: unknown) {
       this.state.set(key, value)
+    }
+
+    clear() {
+      this.state.clear()
     }
   }
 }))
@@ -204,6 +215,31 @@ describe('ProviderModelHelper cache', () => {
     helper.getProviderModels('openai')
 
     expect(storeState.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears persisted provider models and custom models for a removed provider', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    helper.setProviderModels('openai', [createBaseModel('openai', 'gpt-5')])
+    helper.setCustomModels('openai', [
+      {
+        ...createBaseModel('openai', 'custom-gpt-5'),
+        isCustom: true
+      }
+    ])
+
+    helper.clearProviderModelStore('openai')
+
+    expect(helper.getProviderModels('openai')).toEqual([])
+    expect(helper.getCustomModels('openai')).toEqual([])
+    expect(storeStates.get('models_openai')?.clear).toHaveBeenCalledTimes(1)
   })
 
   it('encodes invalid provider id characters before creating store files', async () => {

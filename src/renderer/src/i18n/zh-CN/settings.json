@@ -8,6 +8,7 @@
     "searchEngine": "搜索引擎",
     "searchEngineSelect": "选择搜索引擎",
     "searchPreview": "搜索预览",
+    "launchAtLoginEnabled": "开机时启动 DeepChat",
     "autoScrollEnabled": "生成时自动滚动",
     "privacyMode": "隐私模式",
     "privacyModeDescription": "启动隐私模式后，DeepChat 将不会自动发起如下请求：",
@@ -415,6 +416,9 @@
       }
     },
     "unavailable": "暂无"
+  },
+  "modelConfigItem": {
+    "chatFallbackWarning": "弱 Agent 能力：仅支持 legacy fallback 工具调用"
   },
   "model": {
     "title": "模型设置",

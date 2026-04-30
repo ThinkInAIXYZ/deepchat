@@ -381,8 +381,8 @@ export class Presenter implements IPresenter {
       createSettingsWindow: () => this.windowPresenter.createSettingsWindow(),
       sendToWindow: (windowId, channel, ...args) =>
         this.windowPresenter.sendToWindow(windowId, channel, ...args),
-      getApprovedFilePaths: (conversationId) =>
-        this.filePermissionService.getApprovedPaths(conversationId),
+      getApprovedFilePaths: (conversationId, requiredPermission) =>
+        this.filePermissionService.getApprovedPaths(conversationId, requiredPermission),
       consumeSettingsApproval: (conversationId, toolName) =>
         this.settingsPermissionService.consumeApproval(conversationId, toolName)
     }
@@ -485,7 +485,7 @@ export class Presenter implements IPresenter {
           Array.isArray(permission.paths) &&
           permission.paths.length > 0
         ) {
-          this.filePermissionService.approve(sessionId, permission.paths, false)
+          this.filePermissionService.approve(sessionId, permission.paths, permissionType, false)
           return
         }
 

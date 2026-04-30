@@ -11,7 +11,7 @@ vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
 // Mock eventBus
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn() },
+  eventBus: { on: vi.fn(), sendToRenderer: vi.fn() },
   SendTarget: { ALL_WINDOWS: 'all' }
 }))
 
@@ -32,6 +32,13 @@ vi.mock('@/events', () => ({
     RESPONSE: 'stream:response',
     END: 'stream:end',
     ERROR: 'stream:error'
+  },
+  MCP_EVENTS: {
+    SERVER_STARTED: 'mcp:server-started',
+    SERVER_STOPPED: 'mcp:server-stopped',
+    CONFIG_CHANGED: 'mcp:config-changed',
+    SERVER_STATUS_CHANGED: 'mcp:server-status-changed',
+    INITIALIZED: 'mcp:initialized'
   }
 }))
 
@@ -1105,7 +1112,7 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.messages[0].role).toBe('system')
       expect(callArgs.messages[0].content).toContain('Custom system prompt')
-      expect(callArgs.messages[0].content.trim().endsWith('Custom system prompt')).toBe(true)
+      expect(callArgs.messages[0].content.trim().startsWith('Custom system prompt')).toBe(true)
       expect(callArgs.temperature).toBe(1.3)
       expect(callArgs.maxTokens).toBe(2048)
       expect(callArgs.modelConfig.contextLength).toBe(8192)
@@ -1442,6 +1449,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Second message')
 
       expect(envBuilder).toHaveBeenCalledTimes(1)
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
 
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
@@ -1575,7 +1583,7 @@ describe('AgentRuntimePresenter', () => {
       expect(skillPresenter.loadSkillContent).not.toHaveBeenCalled()
     })
 
-    it('keeps system prompt section order: runtime -> skills -> env -> tooling -> user prompt', async () => {
+    it('keeps system prompt section order: user prompt -> runtime -> env -> skills -> tooling -> permission -> verification', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const skillPresenter = presenter.skillPresenter as {
@@ -1584,6 +1592,16 @@ describe('AgentRuntimePresenter', () => {
         loadSkillContent: ReturnType<typeof vi.fn>
       }
       toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'read',
+            description: 'read',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        },
         {
           type: 'function',
           source: 'agent',
@@ -1620,19 +1638,26 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const systemPrompt = String(callArgs.messages[0].content)
 
+      expect(
+        callArgs.messages.filter((message: { role: string }) => message.role === 'system')
+      ).toHaveLength(1)
       const runtimeIndex = systemPrompt.indexOf('RUNTIME_CAPABILITIES')
       const skillsIndex = systemPrompt.indexOf('## Skills')
       const pinnedSkillsIndex = systemPrompt.indexOf('## Pinned Skills')
       const envIndex = systemPrompt.indexOf('ENV_BLOCK')
       const toolingIndex = systemPrompt.indexOf('TOOLING_BLOCK')
+      const permissionIndex = systemPrompt.indexOf('## Permission Rules')
+      const verificationIndex = systemPrompt.indexOf('## Verification Policy')
       const userPromptIndex = systemPrompt.indexOf('USER_CUSTOM_PROMPT')
 
-      expect(runtimeIndex).toBeGreaterThanOrEqual(0)
-      expect(skillsIndex).toBeGreaterThan(runtimeIndex)
+      expect(userPromptIndex).toBeGreaterThanOrEqual(0)
+      expect(runtimeIndex).toBeGreaterThan(userPromptIndex)
+      expect(envIndex).toBeGreaterThan(runtimeIndex)
+      expect(skillsIndex).toBeGreaterThan(envIndex)
       expect(pinnedSkillsIndex).toBeGreaterThan(skillsIndex)
-      expect(envIndex).toBeGreaterThan(pinnedSkillsIndex)
-      expect(toolingIndex).toBeGreaterThan(envIndex)
-      expect(userPromptIndex).toBeGreaterThan(toolingIndex)
+      expect(toolingIndex).toBeGreaterThan(pinnedSkillsIndex)
+      expect(permissionIndex).toBeGreaterThan(toolingIndex)
+      expect(verificationIndex).toBeGreaterThan(permissionIndex)
       expect(systemPrompt).toContain('- skill-a')
       expect(systemPrompt).toContain('`skill_view`')
       expect(systemPrompt).not.toContain('`skill_control`')
@@ -2278,6 +2303,14 @@ describe('AgentRuntimePresenter', () => {
       )
       expect(interleavedConfig.preserveReasoningContent).toBe(false)
       expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
+
+      const deepseekDisabledConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'openai',
+        'deepseek-v4',
+        disabled
+      )
+      expect(deepseekDisabledConfig.preserveReasoningContent).toBe(true)
+      expect(deepseekDisabledConfig.preserveEmptyReasoningContent).toBe(true)
 
       const deepseekInterleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
         'deepseek',

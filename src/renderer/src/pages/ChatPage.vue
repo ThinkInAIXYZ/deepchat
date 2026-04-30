@@ -28,7 +28,7 @@
           />
         </div>
       </div>
-      <div ref="messageSearchRoot">
+      <div ref="messageSearchRoot" class="min-h-[calc(100%-242px)]">
         <MessageList
           :messages="displayMessages"
           :conversation-id="props.sessionId"
@@ -1109,6 +1109,10 @@ onUnmounted(() => {
 </script>
 
 <style>
+.message-list-container {
+  scrollbar-gutter: stable both-edges;
+}
+
 .message-highlight {
   border-radius: 0.5rem;
   background: color-mix(in srgb, var(--primary) 14%, transparent);
