@@ -52,7 +52,11 @@
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "Attachment failed",
+    "fileUploadFailedDesc": "Could not process {count} files: {names}",
+    "fileUploadFailedMore": " and {count} more",
+    "unnamedFile": "unnamed file"
   },
   "pendingInput": {
     "steer": "Steer",
