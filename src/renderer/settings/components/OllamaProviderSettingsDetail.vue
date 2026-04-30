@@ -168,8 +168,11 @@
                   :enabled="model.enabled"
                   :vision="model.vision"
                   :function-call="model.functionCall"
+                  :explicit-function-call="model.explicitFunctionCall"
                   :reasoning="model.reasoning"
                   :enable-search="model.enableSearch"
+                  :supported-endpoint-types="model.meta?.supportedEndpointTypes"
+                  :endpoint-type="model.meta?.endpointType"
                   :hide-enable-toggle="true"
                   @enabled-change="handleModelEnabledChange(model.name, $event)"
                   @config-changed="refreshModels"
@@ -817,6 +820,8 @@ const displayLocalModels = computed(() => {
       enabled: meta?.enabled ?? true,
       vision: meta?.vision ?? capabilitySet.has('vision'),
       functionCall: meta?.functionCall ?? capabilitySet.has('tools'),
+      explicitFunctionCall:
+        meta?.explicitFunctionCall ?? (capabilitySet.has('tools') ? true : undefined),
       reasoning: meta?.reasoning ?? capabilitySet.has('thinking'),
       enableSearch: meta?.enableSearch ?? false,
       type: resolvedType
@@ -859,6 +864,8 @@ const displayLocalModels = computed(() => {
         enabled: meta?.enabled ?? true,
         vision: meta?.vision ?? capabilitySet.has('vision'),
         functionCall: meta?.functionCall ?? capabilitySet.has('tools'),
+        explicitFunctionCall:
+          meta?.explicitFunctionCall ?? (capabilitySet.has('tools') ? true : undefined),
         reasoning: meta?.reasoning ?? capabilitySet.has('thinking'),
         enableSearch: meta?.enableSearch ?? false,
         type: resolvedType

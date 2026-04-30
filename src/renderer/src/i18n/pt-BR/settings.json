@@ -354,6 +354,9 @@
     },
     "unavailable": "Indisponível"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Capacidade fraca de Agent: suporta apenas chamadas de ferramentas de fallback legadas"
+  },
   "model": {
     "title": "Configurações do Modelo",
     "systemPrompt": {

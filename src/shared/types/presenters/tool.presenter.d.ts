@@ -31,6 +31,14 @@ export interface IToolPresenter {
   }): Promise<MCPToolDefinition[]>
 
   /**
+   * Synchronize agent-tool runtime state without rebuilding tool schemas.
+   */
+  syncAgentToolContext?(context: {
+    chatMode?: 'agent' | 'acp agent'
+    agentWorkspacePath?: string | null
+  }): void
+
+  /**
    * Call a tool, routing to the appropriate source
    * @param request Tool call request
    */
@@ -70,6 +78,11 @@ export interface IToolPresenter {
     rememberable?: boolean
     [key: string]: unknown
   } | null>
+
+  /**
+   * Release any cached tool mapping for a conversation.
+   */
+  clearConversationToolMapping?(conversationId: string): void
 
   /**
    * Build system prompt section for tool-related behavior.

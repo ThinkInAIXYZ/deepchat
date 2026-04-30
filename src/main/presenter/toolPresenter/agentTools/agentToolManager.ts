@@ -134,11 +134,6 @@ export class AgentToolManager {
           'Base directory for resolving relative paths. Required when using skills with relative paths.'
         )
     }),
-    ls: z.object({
-      path: z.string(),
-      depth: z.number().int().min(0).max(3).default(1),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
     edit: z.object({
       path: z.string(),
       oldText: z
@@ -147,35 +142,6 @@ export class AgentToolManager {
         .describe('The exact text to find and replace (case-sensitive)'),
       newText: z.string().max(10000).describe('The replacement text'),
       replaceAll: z.boolean().default(true),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
-    find: z.object({
-      pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/**/*.js)'),
-      path: z
-        .string()
-        .optional()
-        .describe('Root directory for search (defaults to workspace root)'),
-      exclude: z
-        .array(z.string())
-        .optional()
-        .default([])
-        .describe('Patterns to exclude (e.g., ["node_modules", ".git"])'),
-      maxResults: z.number().default(1000).describe('Maximum number of results to return'),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
-    grep: z.object({
-      pattern: z
-        .string()
-        .max(1000)
-        .describe(
-          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
-        ),
-      path: z.string().optional().default('.'),
-      filePattern: z.string().optional(),
-      recursive: z.boolean().default(true),
-      caseSensitive: z.boolean().default(false),
-      contextLines: z.number().default(0),
-      maxResults: z.number().default(100),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
     exec: z.object({
@@ -309,6 +275,34 @@ export class AgentToolManager {
     }
   }
 
+  public syncContext(context: {
+    chatMode: 'agent' | 'acp agent'
+    agentWorkspacePath: string | null
+  }): void {
+    const isAgentMode = context.chatMode === 'agent'
+    const effectiveWorkspacePath = isAgentMode
+      ? context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
+      : null
+
+    if (effectiveWorkspacePath === this.agentWorkspacePath) {
+      return
+    }
+
+    if (effectiveWorkspacePath) {
+      this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
+      this.bashHandler = new AgentBashHandler(
+        [effectiveWorkspacePath],
+        this.commandPermissionHandler,
+        this.configPresenter
+      )
+    } else {
+      this.fileSystemHandler = null
+      this.bashHandler = null
+    }
+
+    this.agentWorkspacePath = effectiveWorkspacePath
+  }
+
   /**
    * Get all Agent tool definitions in MCP format
    */
@@ -320,25 +314,7 @@ export class AgentToolManager {
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
-    const effectiveWorkspacePath = isAgentMode
-      ? context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
-      : null
-
-    // Update filesystem handler if workspace path changed
-    if (effectiveWorkspacePath !== this.agentWorkspacePath) {
-      if (effectiveWorkspacePath) {
-        this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
-        this.bashHandler = new AgentBashHandler(
-          [effectiveWorkspacePath],
-          this.commandPermissionHandler,
-          this.configPresenter
-        )
-      } else {
-        this.fileSystemHandler = null
-        this.bashHandler = null
-      }
-      this.agentWorkspacePath = effectiveWorkspacePath
-    }
+    this.syncContext(context)
 
     // 1. FileSystem tools (agent mode only)
     if (isAgentMode && this.fileSystemHandler) {
@@ -629,7 +605,7 @@ export class AgentToolManager {
   }
 
   private isFileSystemTool(toolName: string): boolean {
-    const filesystemTools = ['read', 'write', 'ls', 'edit', 'find', 'grep', 'exec', 'process']
+    const filesystemTools = ['read', 'write', 'edit', 'exec', 'process']
     return filesystemTools.includes(toolName)
   }
 
@@ -897,26 +873,6 @@ export class AgentToolManager {
             conversationId
           )
           return { content: await fileSystemHandler.writeFile(parsedArgs, baseDirectory) }
-        case 'ls': {
-          const lsArgs = parsedArgs as {
-            path: string
-            depth?: number
-          }
-          if ((lsArgs.depth ?? 1) > 1) {
-            return {
-              content: await fileSystemHandler.directoryTree(
-                { path: lsArgs.path, depth: lsArgs.depth },
-                baseDirectory
-              )
-            }
-          }
-          return {
-            content: await fileSystemHandler.listDirectory(
-              { path: lsArgs.path, showDetails: false, sortBy: 'name' },
-              baseDirectory
-            )
-          }
-        }
         case 'edit': {
           this.assertWritePermission(
             toolName,
@@ -950,52 +906,6 @@ export class AgentToolManager {
                 path: editArgs.path,
                 oldText: editArgs.oldText,
                 newText: editArgs.newText
-              },
-              baseDirectory
-            )
-          }
-        }
-        case 'find': {
-          const findArgs = parsedArgs as {
-            pattern: string
-            path?: string
-            exclude?: string[]
-            maxResults?: number
-          }
-          return {
-            content: await fileSystemHandler.globSearch(
-              {
-                pattern: findArgs.pattern,
-                root: findArgs.path,
-                excludePatterns: findArgs.exclude,
-                maxResults: findArgs.maxResults,
-                sortBy: 'name'
-              },
-              baseDirectory
-            )
-          }
-        }
-        case 'grep': {
-          const grepArgs = parsedArgs as {
-            pattern: string
-            path?: string
-            filePattern?: string
-            recursive?: boolean
-            caseSensitive?: boolean
-            contextLines?: number
-            maxResults?: number
-          }
-          return {
-            content: await fileSystemHandler.grepSearch(
-              {
-                path: grepArgs.path ?? '.',
-                pattern: grepArgs.pattern,
-                filePattern: grepArgs.filePattern,
-                recursive: grepArgs.recursive ?? true,
-                caseSensitive: grepArgs.caseSensitive ?? false,
-                includeLineNumbers: true,
-                contextLines: grepArgs.contextLines ?? 0,
-                maxResults: grepArgs.maxResults ?? 100
               },
               baseDirectory
             )
@@ -1657,9 +1567,8 @@ export class AgentToolManager {
     }
     conversationId?: string
   } | null> {
-    // Only file system write operations and command execution need pre-check
     const writeTools = ['write', 'edit']
-    const readTools = ['read', 'ls', 'find', 'grep']
+    const readTools = ['read']
 
     // Check for file system write operations
     if (this.isFileSystemTool(toolName)) {
