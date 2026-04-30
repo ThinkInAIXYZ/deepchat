@@ -52,7 +52,11 @@
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "첨부 파일 처리 실패",
+    "fileUploadFailedDesc": "파일 {count}개를 처리할 수 없습니다: {names}",
+    "fileUploadFailedMore": " 외 {count}개",
+    "unnamedFile": "이름 없는 파일"
   },
   "pendingInput": {
     "steer": "유도",
