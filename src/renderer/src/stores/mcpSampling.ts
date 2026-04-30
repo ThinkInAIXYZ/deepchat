@@ -118,6 +118,9 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
 
   const requiresVision = computed(() => request.value?.requiresVision ?? false)
   const selectedModelSupportsVision = computed(() => selectedModel.value?.vision ?? false)
+  const activeEnabledModelGroups = computed(
+    () => modelStore.activeEnabledModels ?? modelStore.enabledModels
+  )
   const selectedProviderLabel = computed(() => {
     if (!selectedProviderId.value) {
       return null
@@ -177,7 +180,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
         : null
 
     const selection = resolveSamplingDefaultModel({
-      enabledModels: modelStore.enabledModels,
+      enabledModels: activeEnabledModelGroups.value,
       providerOrder,
       requiresVision: requiresVision.value,
       activeSelection,
@@ -194,7 +197,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     }
 
     const requiresVisionValue = requiresVision.value
-    return modelStore.enabledModels.some((entry) =>
+    return activeEnabledModelGroups.value.some((entry) =>
       entry.models.some((model) => !requiresVisionValue || model.vision)
     )
   })
@@ -250,7 +253,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return false
     }
 
-    const providerEntry = modelStore.enabledModels.find(
+    const providerEntry = activeEnabledModelGroups.value.find(
       (entry) => entry.providerId === sessionInfo.providerId
     )
 

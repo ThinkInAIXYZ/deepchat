@@ -1202,6 +1202,9 @@ const providerNameMap = computed(() => {
   })
   return map
 })
+const activeEnabledModelGroups = computed(
+  () => modelStore.activeEnabledModels ?? modelStore.enabledModels
+)
 const isModelOptionsReady = computed(() => isAcpAgent.value || modelStore.initialized)
 const hasModelOptionsError = computed(
   () => !isAcpAgent.value && !modelStore.initialized && Boolean(modelStore.initializationError)
@@ -1221,41 +1224,23 @@ const modelGroups = computed<GroupedModelList[]>(() => {
     return []
   }
 
-  const groupsById = new Map(
-    modelStore.enabledModels
-      .filter((group) => group.providerId !== 'acp')
-      .map((group) => [group.providerId, getChatSelectableModels(group.models)] as const)
-      .filter(([, models]) => models.length > 0)
-  )
-
-  const result: GroupedModelList[] = []
-
-  providerStore.sortedProviders
+  return providerStore.sortedProviders
     .filter((provider) => provider.enable && provider.id !== 'acp')
-    .forEach((provider) => {
-      const models = groupsById.get(provider.id)
-      if (!models || models.length === 0) {
-        return
+    .map((provider) => {
+      const enabledGroup = activeEnabledModelGroups.value.find(
+        (group) => group.providerId === provider.id
+      )
+      const models = enabledGroup ? getChatSelectableModels(enabledGroup.models) : []
+      if (models.length === 0) {
+        return null
       }
-      result.push({
+      return {
         providerId: provider.id,
         providerName: provider.name,
         models
-      })
-      groupsById.delete(provider.id)
+      }
     })
-
-  Array.from(groupsById.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .forEach(([providerId, models]) => {
-      result.push({
-        providerId,
-        providerName: providerNameMap.value.get(providerId) ?? providerId,
-        models
-      })
-    })
-
-  return result
+    .filter((group): group is GroupedModelList => group !== null)
 })
 
 const filteredModelGroups = computed<GroupedModelList[]>(() => {
@@ -1609,7 +1594,7 @@ const getAcpOptionDisplayValue = (option: AcpConfigOption): string => {
 }
 
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
-  const group = modelStore.enabledModels.find((item) => item.providerId === providerId)
+  const group = activeEnabledModelGroups.value.find((item) => item.providerId === providerId)
   return (
     group?.models.find((model) => model.id === modelId && isChatSelectableModelType(model.type)) ??
     null
@@ -1762,14 +1747,14 @@ const findEnabledModel = (providerId: string, modelId: string): ModelSelection |
 }
 
 const pickFirstEnabledModel = (): ModelSelection | null => {
-  for (const group of modelStore.enabledModels) {
+  for (const group of activeEnabledModelGroups.value) {
     if (group.providerId === 'acp') continue
     const firstModel = group.models.find((model) => isChatSelectableModelType(model.type))
     if (firstModel) {
       return { providerId: group.providerId, modelId: firstModel.id }
     }
   }
-  for (const group of modelStore.enabledModels) {
+  for (const group of activeEnabledModelGroups.value) {
     const firstModel = group.models.find((model) => isChatSelectableModelType(model.type))
     if (firstModel) {
       return { providerId: group.providerId, modelId: firstModel.id }
@@ -2584,7 +2569,7 @@ watch(
     isAcpAgent,
     () => agentStore.selectedAgentId,
     () => modelStore.initialized,
-    () => modelStore.enabledModels
+    () => activeEnabledModelGroups.value
   ],
   () => {
     if (hasActiveSession.value) return

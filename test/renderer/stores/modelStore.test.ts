@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { ModelType } from '../../../src/shared/model'
 
 const createQueryCache = () => {
@@ -51,11 +51,11 @@ const setupStore = async (overrides?: {
     onModelConfigChanged: vi.fn(() => vi.fn()),
     ...overrides?.modelClient
   }
-  const providerStore = {
+  const providerStore = reactive({
     providers: [],
     ensureInitialized: vi.fn(async () => undefined),
     ...overrides?.providerStore
-  }
+  })
 
   vi.doMock('pinia', async () => {
     const actual = await vi.importActual<typeof import('pinia')>('pinia')
@@ -95,7 +95,8 @@ const setupStore = async (overrides?: {
   return {
     store,
     agentModelStore,
-    modelClient
+    modelClient,
+    providerStore
   }
 }
 
@@ -194,6 +195,81 @@ describe('modelStore.refreshProviderModels', () => {
     expect(agentModelStore.refreshAgentModels).not.toHaveBeenCalled()
     expect(modelClient.getDbProviderModels).toHaveBeenCalledWith('openai')
     expect(modelClient.getProviderModels).toHaveBeenCalledWith('openai')
+  })
+
+  it('exposes only enabled provider groups through activeEnabledModels', async () => {
+    const { store } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'deepseek', enable: false }
+        ]
+      }
+    })
+
+    store.enabledModels.value = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-5', name: 'GPT-5', providerId: 'openai' } as any]
+      },
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-chat', name: 'DeepSeek Chat', providerId: 'deepseek' } as any]
+      }
+    ]
+
+    expect(store.activeEnabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+
+  it('purges deleted providers from local model state', async () => {
+    const { store, providerStore } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'deepseek', enable: true }
+        ]
+      }
+    })
+
+    store.enabledModels.value = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-5', name: 'GPT-5', providerId: 'openai' } as any]
+      },
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-chat', name: 'DeepSeek Chat', providerId: 'deepseek' } as any]
+      }
+    ]
+    store.allProviderModels.value = [...store.enabledModels.value]
+    store.customModels.value = [
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-custom', name: 'DeepSeek Custom', providerId: 'deepseek' } as any]
+      }
+    ]
+
+    providerStore.providers = [{ id: 'openai', enable: true }]
+    await flushMicrotasks()
+
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+    expect(store.customModels.value).toEqual([])
   })
 
   it('merges same-tick concurrent refreshes into a single provider fetch', async () => {

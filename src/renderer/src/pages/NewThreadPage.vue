@@ -132,6 +132,9 @@ const draftStore = useDraftStore()
 const configClient = createConfigClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
+const activeEnabledModelGroups = computed(
+  () => modelStore.activeEnabledModels ?? modelStore.enabledModels
+)
 
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
@@ -205,7 +208,7 @@ const getEnabledModel = (
   modelId?: string
 ): { providerId: string; modelId: string } | null => {
   if (!providerId || !modelId) return null
-  const matched = modelStore.enabledModels.some(
+  const matched = activeEnabledModelGroups.value.some(
     (group) =>
       group.providerId === providerId &&
       group.models.some((model) => model.id === modelId && isChatSelectableModel(model))
@@ -261,7 +264,7 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
   }
 
   // 3. First available enabled model
-  for (const group of modelStore.enabledModels) {
+  for (const group of activeEnabledModelGroups.value) {
     const firstChatSelectableModel = group.models.find(isChatSelectableModel)
     if (firstChatSelectableModel) {
       return { providerId: group.providerId, modelId: firstChatSelectableModel.id }
@@ -289,7 +292,7 @@ const resolveStartModelSelection = (
     return null
   }
 
-  for (const group of modelStore.enabledModels) {
+  for (const group of activeEnabledModelGroups.value) {
     const matched = group.models.find(
       (model) => model.id.toLowerCase() === normalizedModelId && isChatSelectableModel(model)
     )
@@ -298,7 +301,7 @@ const resolveStartModelSelection = (
     }
   }
 
-  for (const group of modelStore.enabledModels) {
+  for (const group of activeEnabledModelGroups.value) {
     const matched = group.models.find(
       (model) => model.id.toLowerCase().includes(normalizedModelId) && isChatSelectableModel(model)
     )
