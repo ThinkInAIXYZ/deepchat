@@ -927,6 +927,7 @@ import {
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
+import { resolvePreferredChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { createConfigClient } from '@api/ConfigClient'
@@ -1711,22 +1712,6 @@ const normalizeReasoningVisibility = (
   return normalizeAnthropicReasoningVisibilityValue(value) ?? 'omitted'
 }
 
-const findEnabledModel = (providerId: string, modelId: string): ModelSelection | null => {
-  const hit = findEnabledModelMeta(providerId, modelId)
-  if (!hit) {
-    return null
-  }
-  return { providerId, modelId: hit.id }
-}
-
-const pickFirstEnabledModel = (): ModelSelection | null => {
-  const firstSelectableModel = modelStore.pickFirstChatSelectableModel()
-  if (firstSelectableModel) {
-    return { providerId: firstSelectableModel.providerId, modelId: firstSelectableModel.model.id }
-  }
-  return null
-}
-
 const resolveModelName = (providerId?: string | null, modelId?: string | null): string => {
   if (!modelId) {
     return ''
@@ -2018,51 +2003,39 @@ const syncDraftModelSelection = async () => {
   }
 
   try {
-    const currentDraft = findEnabledModel(draftStore.providerId || '', draftStore.modelId || '')
-    if (currentDraft) {
-      applyDraftSelection(currentDraft)
-      return
-    }
-
     const deepChatAgentId = selectedDeepChatAgentId.value ?? 'deepchat'
-    const agentConfig = await resolveDeepChatAgentConfig(deepChatAgentId)
+    const [agentConfig, preferredModel, defaultModel] = await Promise.all([
+      resolveDeepChatAgentConfig(deepChatAgentId),
+      configClient.getSetting('preferredModel'),
+      configClient.getSetting('defaultModel')
+    ])
     if (token !== draftModelSyncToken) return
-    if (isModelSelection(agentConfig.defaultModelPreset)) {
-      const resolvedAgentDefault = findEnabledModel(
-        agentConfig.defaultModelPreset.providerId,
-        agentConfig.defaultModelPreset.modelId
-      )
-      if (resolvedAgentDefault) {
-        applyDraftSelection(resolvedAgentDefault)
-        return
-      }
-    }
 
-    const preferredModel = (await configClient.getSetting('preferredModel')) as unknown
-    if (token !== draftModelSyncToken) return
-    if (isModelSelection(preferredModel)) {
-      const resolvedPreferred = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
-      if (resolvedPreferred) {
-        applyDraftSelection(resolvedPreferred)
-        return
-      }
-    }
-
-    const defaultModel = (await configClient.getSetting('defaultModel')) as unknown
-    if (token !== draftModelSyncToken) return
-    if (isModelSelection(defaultModel)) {
-      const resolvedDefault = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
-      if (resolvedDefault) {
-        applyDraftSelection(resolvedDefault)
-        return
-      }
-    }
+    const resolvedModel = resolvePreferredChatModel({
+      modelGroups: modelStore.chatSelectableModelGroups,
+      selections: [
+        draftStore.providerId && draftStore.modelId
+          ? { providerId: draftStore.providerId, modelId: draftStore.modelId }
+          : null,
+        isModelSelection(agentConfig.defaultModelPreset)
+          ? (agentConfig.defaultModelPreset as ChatModelSelection)
+          : null,
+        isModelSelection(preferredModel) ? (preferredModel as ChatModelSelection) : null,
+        isModelSelection(defaultModel) ? (defaultModel as ChatModelSelection) : null
+      ]
+    })
+    applyDraftSelection(
+      resolvedModel
+        ? { providerId: resolvedModel.providerId, modelId: resolvedModel.model.id }
+        : null
+    )
+    return
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to resolve draft model:', error)
   }
 
   if (token !== draftModelSyncToken) return
-  applyDraftSelection(pickFirstEnabledModel())
+  applyDraftSelection(null)
 }
 
 const resolveDefaultGenerationSettings = async (
