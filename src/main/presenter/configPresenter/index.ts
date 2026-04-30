@@ -508,6 +508,14 @@ export class ConfigPresenter implements IConfigPresenter {
       setModelStatus: this.modelStatusHelper.setModelStatus.bind(this.modelStatusHelper),
       deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper)
     })
+    this.providerHelper.setCleanupHooks({
+      deleteProviderModelStatuses: this.modelStatusHelper.deleteProviderModelStatuses.bind(
+        this.modelStatusHelper
+      ),
+      clearProviderModelStore: this.providerModelHelper.clearProviderModelStore.bind(
+        this.providerModelHelper
+      )
+    })
 
     // Initialize built-in ACP agents on first run or version upgrade
     // Initialize provider models directory
