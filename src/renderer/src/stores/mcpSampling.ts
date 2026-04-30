@@ -6,6 +6,7 @@ import type {
   McpSamplingRequestPayload,
   RENDERER_MODEL_META
 } from '@shared/presenter'
+import { resolveSamplingChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useSessionStore } from '@/stores/ui/session'
@@ -20,72 +21,21 @@ interface ApprovedServerInfo {
 // Session timeout: 30 minutes
 const SESSION_TIMEOUT = 30 * 60 * 1000
 
-type ModelSelection = {
-  providerId: string
-  modelId?: string | null
-}
-
-const pickEligibleModel = (
-  providerEntry: { providerId: string; models: RENDERER_MODEL_META[] } | undefined,
-  requiresVision: boolean,
-  preferredModelId?: string | null
-): { providerId: string | null; model: RENDERER_MODEL_META | null } => {
-  if (!providerEntry) {
-    return { providerId: null, model: null }
-  }
-
-  const models = requiresVision
-    ? providerEntry.models.filter((model) => model.vision)
-    : providerEntry.models
-
-  if (models.length === 0) {
-    return { providerId: null, model: null }
-  }
-
-  if (preferredModelId) {
-    const preferredModel = models.find((model) => model.id === preferredModelId)
-    if (preferredModel) {
-      return { providerId: providerEntry.providerId, model: preferredModel }
-    }
-  }
-
-  return { providerId: providerEntry.providerId, model: models[0] }
-}
-
 export const resolveSamplingDefaultModel = (input: {
   modelGroups: Array<{ providerId: string; models: RENDERER_MODEL_META[] }>
   requiresVision: boolean
-  activeSelection?: ModelSelection | null
-  draftSelection?: ModelSelection | null
+  activeSelection?: ChatModelSelection | null
+  draftSelection?: ChatModelSelection | null
 }): { providerId: string | null; model: RENDERER_MODEL_META | null } => {
-  const selectFrom = (selection?: ModelSelection | null) => {
-    if (!selection?.providerId) {
-      return { providerId: null, model: null as RENDERER_MODEL_META | null }
-    }
-    const providerEntry = input.modelGroups.find(
-      (entry) => entry.providerId === selection.providerId
-    )
-    return pickEligibleModel(providerEntry, input.requiresVision, selection.modelId)
-  }
+  const resolvedModel = resolveSamplingChatModel({
+    modelGroups: input.modelGroups,
+    requiresVision: input.requiresVision,
+    selections: [input.activeSelection, input.draftSelection]
+  })
 
-  const activeMatch = selectFrom(input.activeSelection)
-  if (activeMatch.providerId && activeMatch.model) {
-    return activeMatch
-  }
-
-  const draftMatch = selectFrom(input.draftSelection)
-  if (draftMatch.providerId && draftMatch.model) {
-    return draftMatch
-  }
-
-  for (const providerEntry of input.modelGroups) {
-    const match = pickEligibleModel(providerEntry, input.requiresVision)
-    if (match.providerId && match.model) {
-      return match
-    }
-  }
-
-  return { providerId: null, model: null }
+  return resolvedModel
+    ? { providerId: resolvedModel.providerId, model: resolvedModel.model }
+    : { providerId: null, model: null }
 }
 
 export const useMcpSamplingStore = defineStore('mcpSampling', () => {
