@@ -1,4 +1,4 @@
-import { computed, type ComputedRef, readonly, ref } from 'vue'
+import { computed, type ComputedRef, readonly, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
@@ -55,6 +55,15 @@ export const useModelStore = defineStore('model', () => {
   const pendingRefreshStarts = new Set<string>()
   const pendingModelStatusEchoes = new Map<string, boolean>()
   const providerModelsReadyAt = new Map<string, number>()
+  const activeProviderIds = computed(
+    () =>
+      new Set(
+        providerStore.providers.filter((provider) => provider.enable).map((provider) => provider.id)
+      )
+  )
+  const activeEnabledModels = computed(() =>
+    enabledModels.value.filter((group) => activeProviderIds.value.has(group.providerId))
+  )
 
   const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
   const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
@@ -108,6 +117,43 @@ export const useModelStore = defineStore('model', () => {
       ])
     ).filter((providerId): providerId is string => Boolean(providerId))
   }
+
+  const removeProviderGroups = (
+    groups: { providerId: string; models: RENDERER_MODEL_META[] }[],
+    providerId: string
+  ) => {
+    return groups.filter((group) => group.providerId !== providerId)
+  }
+
+  const purgeRemovedProviderState = (providerId: string) => {
+    allProviderModels.value = removeProviderGroups(allProviderModels.value, providerId)
+    customModels.value = removeProviderGroups(customModels.value, providerId)
+    enabledModels.value = removeProviderGroups(enabledModels.value, providerId)
+    providerModelQueries.delete(providerId)
+    customModelQueries.delete(providerId)
+    enabledModelQueries.delete(providerId)
+    pendingRefreshStarts.delete(providerId)
+    rerunRequested.delete(providerId)
+    clearProviderModelsReady(providerId)
+
+    for (const statusKey of Array.from(pendingModelStatusEchoes.keys())) {
+      if (statusKey.startsWith(`${providerId}:`)) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }
+  }
+
+  watch(
+    () => providerStore.providers.map((provider) => provider.id),
+    (providerIds) => {
+      const providerIdSet = new Set(providerIds)
+      for (const materializedProviderId of getMaterializedProviderIds()) {
+        if (!providerIdSet.has(materializedProviderId)) {
+          purgeRemovedProviderState(materializedProviderId)
+        }
+      }
+    }
+  )
 
   const refreshMaterializedProviders = async () => {
     const providerIds = getMaterializedProviderIds()
@@ -775,7 +821,7 @@ export const useModelStore = defineStore('model', () => {
 
   const searchModels = (query: string) => {
     const normalized = query.toLowerCase()
-    return enabledModels.value
+    return activeEnabledModels.value
       .map((group) => ({
         providerId: group.providerId,
         models: group.models.filter(
@@ -1233,6 +1279,7 @@ export const useModelStore = defineStore('model', () => {
 
   return {
     enabledModels,
+    activeEnabledModels,
     allProviderModels,
     customModels,
     initialized: readonly(initialized),
