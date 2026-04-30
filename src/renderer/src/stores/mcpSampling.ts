@@ -53,8 +53,7 @@ const pickEligibleModel = (
 }
 
 export const resolveSamplingDefaultModel = (input: {
-  enabledModels: Array<{ providerId: string; models: RENDERER_MODEL_META[] }>
-  providerOrder: string[]
+  modelGroups: Array<{ providerId: string; models: RENDERER_MODEL_META[] }>
   requiresVision: boolean
   activeSelection?: ModelSelection | null
   draftSelection?: ModelSelection | null
@@ -63,7 +62,7 @@ export const resolveSamplingDefaultModel = (input: {
     if (!selection?.providerId) {
       return { providerId: null, model: null as RENDERER_MODEL_META | null }
     }
-    const providerEntry = input.enabledModels.find(
+    const providerEntry = input.modelGroups.find(
       (entry) => entry.providerId === selection.providerId
     )
     return pickEligibleModel(providerEntry, input.requiresVision, selection.modelId)
@@ -79,15 +78,7 @@ export const resolveSamplingDefaultModel = (input: {
     return draftMatch
   }
 
-  for (const providerId of input.providerOrder) {
-    const providerEntry = input.enabledModels.find((entry) => entry.providerId === providerId)
-    const match = pickEligibleModel(providerEntry, input.requiresVision)
-    if (match.providerId && match.model) {
-      return match
-    }
-  }
-
-  for (const providerEntry of input.enabledModels) {
+  for (const providerEntry of input.modelGroups) {
     const match = pickEligibleModel(providerEntry, input.requiresVision)
     if (match.providerId && match.model) {
       return match
@@ -163,9 +154,6 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return
     }
 
-    const providerOrder = providerStore.sortedProviders
-      .filter((provider) => provider.enable)
-      .map((provider) => provider.id)
     const activeSession = sessionStore.activeSession
     const activeSelection =
       activeSession?.providerId && activeSession?.modelId
@@ -177,8 +165,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
         : null
 
     const selection = resolveSamplingDefaultModel({
-      enabledModels: modelStore.enabledModels,
-      providerOrder,
+      modelGroups: modelStore.chatSelectableModelGroups,
       requiresVision: requiresVision.value,
       activeSelection,
       draftSelection
@@ -194,7 +181,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     }
 
     const requiresVisionValue = requiresVision.value
-    return modelStore.enabledModels.some((entry) =>
+    return modelStore.chatSelectableModelGroups.some((entry) =>
       entry.models.some((model) => !requiresVisionValue || model.vision)
     )
   })
@@ -250,29 +237,19 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return false
     }
 
-    const providerEntry = modelStore.enabledModels.find(
-      (entry) => entry.providerId === sessionInfo.providerId
-    )
-
-    if (!providerEntry) {
+    const match = modelStore.findChatSelectableModel(sessionInfo.providerId, sessionInfo.modelId)
+    if (!match) {
       approvedServers.value.delete(request.value.serverName)
       return false
     }
 
-    const model = providerEntry.models.find((m) => m.id === sessionInfo.modelId) || null
-
-    if (!model) {
+    if (requiresVision.value && !match.model.vision) {
       approvedServers.value.delete(request.value.serverName)
       return false
     }
 
-    if (requiresVision.value && !model.vision) {
-      approvedServers.value.delete(request.value.serverName)
-      return false
-    }
-
-    selectedProviderId.value = sessionInfo.providerId
-    selectedModel.value = model
+    selectedProviderId.value = match.providerId
+    selectedModel.value = match.model
     return true
   }
 

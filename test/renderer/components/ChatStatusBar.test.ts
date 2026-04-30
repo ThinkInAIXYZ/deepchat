@@ -258,6 +258,21 @@ const setup = async (options: SetupOptions = {}) => {
       modelLookup.set(model.id, { model })
     })
   })
+  const getChatSelectableModelGroups = () =>
+    modelStore.enabledModels
+      .filter((group) => group.providerId !== 'acp')
+      .map((group) => ({
+        providerId: group.providerId,
+        providerName:
+          normalizedExtraModelGroups.find((entry) => entry.providerId === group.providerId)
+            ?.providerName ??
+          (group.providerId === 'openai'
+            ? 'OpenAI'
+            : group.providerId === 'anthropic'
+              ? 'Anthropic'
+              : group.providerId),
+        models: group.models
+      }))
 
   const themeStore = reactive({
     isDark: false
@@ -284,6 +299,28 @@ const setup = async (options: SetupOptions = {}) => {
       }
     }),
     enabledModels: [...baseModelGroups, ...normalizedExtraModelGroups],
+    get chatSelectableModelGroups() {
+      return getChatSelectableModelGroups()
+    },
+    findChatSelectableModel: vi.fn((providerId: string, modelId: string) => {
+      const group = getChatSelectableModelGroups().find((entry) => entry.providerId === providerId)
+      const model = group?.models.find((entry) => entry.id === modelId)
+      if (!group || !model) {
+        return null
+      }
+      return { providerId, providerName: group.providerName, model }
+    }),
+    pickFirstChatSelectableModel: vi.fn(() => {
+      const firstGroup = getChatSelectableModelGroups()[0]
+      const firstModel = firstGroup?.models[0]
+      return firstGroup && firstModel
+        ? {
+            providerId: firstGroup.providerId,
+            providerName: firstGroup.providerName,
+            model: firstModel
+          }
+        : null
+    }),
     findModelByIdOrName: vi.fn((value: string) => modelLookup.get(value) ?? null)
   })
 

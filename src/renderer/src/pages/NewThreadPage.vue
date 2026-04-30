@@ -121,7 +121,6 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
-import { isChatSelectableModelType, type ModelType } from '@shared/model'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 
 const projectStore = useProjectStore()
@@ -198,19 +197,13 @@ const isAcpWorkdirMissing = computed(() => {
   return !projectStore.selectedProject?.path?.trim()
 })
 
-const isChatSelectableModel = (model: { type?: ModelType }) => isChatSelectableModelType(model.type)
-
 const getEnabledModel = (
   providerId?: string,
   modelId?: string
 ): { providerId: string; modelId: string } | null => {
   if (!providerId || !modelId) return null
-  const matched = modelStore.enabledModels.some(
-    (group) =>
-      group.providerId === providerId &&
-      group.models.some((model) => model.id === modelId && isChatSelectableModel(model))
-  )
-  return matched ? { providerId, modelId } : null
+  const matched = modelStore.findChatSelectableModel(providerId, modelId)
+  return matched ? { providerId: matched.providerId, modelId: matched.model.id } : null
 }
 
 const ensureEnabledModelsReady = async (): Promise<boolean> => {
@@ -261,11 +254,9 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
   }
 
   // 3. First available enabled model
-  for (const group of modelStore.enabledModels) {
-    const firstChatSelectableModel = group.models.find(isChatSelectableModel)
-    if (firstChatSelectableModel) {
-      return { providerId: group.providerId, modelId: firstChatSelectableModel.id }
-    }
+  const firstSelectableModel = modelStore.pickFirstChatSelectableModel()
+  if (firstSelectableModel) {
+    return { providerId: firstSelectableModel.providerId, modelId: firstSelectableModel.model.id }
   }
 
   return null
@@ -289,18 +280,16 @@ const resolveStartModelSelection = (
     return null
   }
 
-  for (const group of modelStore.enabledModels) {
-    const matched = group.models.find(
-      (model) => model.id.toLowerCase() === normalizedModelId && isChatSelectableModel(model)
-    )
+  for (const group of modelStore.chatSelectableModelGroups) {
+    const matched = group.models.find((model) => model.id.toLowerCase() === normalizedModelId)
     if (matched) {
       return { providerId: group.providerId, modelId: matched.id }
     }
   }
 
-  for (const group of modelStore.enabledModels) {
-    const matched = group.models.find(
-      (model) => model.id.toLowerCase().includes(normalizedModelId) && isChatSelectableModel(model)
+  for (const group of modelStore.chatSelectableModelGroups) {
+    const matched = group.models.find((model) =>
+      model.id.toLowerCase().includes(normalizedModelId)
     )
     if (matched) {
       return { providerId: group.providerId, modelId: matched.id }

@@ -64,6 +64,7 @@ const setup = async (pendingModelId: string) => {
     selectedAgent: null,
     agents: [{ id: 'deepchat', type: 'deepchat' }]
   })
+  const getChatSelectableModelGroups = () => modelStore.enabledModels
   const modelStore = reactive({
     initialized: true,
     initialize: vi.fn().mockImplementation(async () => {
@@ -78,7 +79,29 @@ const setup = async (pendingModelId: string) => {
         providerId: 'deepseek',
         models: [{ id: 'deepseek-chat' }]
       }
-    ]
+    ],
+    get chatSelectableModelGroups() {
+      return getChatSelectableModelGroups()
+    },
+    findChatSelectableModel: vi.fn((providerId: string, modelId: string) => {
+      const group = getChatSelectableModelGroups().find((entry) => entry.providerId === providerId)
+      const model = group?.models.find((entry) => entry.id === modelId)
+      if (!group || !model) {
+        return null
+      }
+      return { providerId, providerName: providerId, model }
+    }),
+    pickFirstChatSelectableModel: vi.fn(() => {
+      const firstGroup = getChatSelectableModelGroups()[0]
+      const firstModel = firstGroup?.models[0]
+      return firstGroup && firstModel
+        ? {
+            providerId: firstGroup.providerId,
+            providerName: firstGroup.providerId,
+            model: firstModel
+          }
+        : null
+    })
   })
   const configClient = {
     getSetting: vi.fn().mockResolvedValue(undefined),
