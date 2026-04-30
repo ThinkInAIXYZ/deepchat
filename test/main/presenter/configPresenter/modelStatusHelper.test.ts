@@ -42,6 +42,26 @@ class MockElectronStore {
   }
 }
 
+class MockElectronStoreWithoutSnapshot {
+  private readonly data = new Map<string, unknown>()
+
+  get(key: string) {
+    return this.data.get(key)
+  }
+
+  set(key: string, value: unknown) {
+    this.data.set(key, value)
+  }
+
+  delete(key: string) {
+    this.data.delete(key)
+  }
+
+  has(key: string) {
+    return this.data.has(key)
+  }
+}
+
 describe('ModelStatusHelper.ensureModelStatus', () => {
   beforeEach(() => {
     send.mockReset()
@@ -138,5 +158,22 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     expect(helper.getBatchModelStatus('anthropic', ['claude-3.5-sonnet'])).toEqual({
       'claude-3.5-sonnet': true
     })
+  })
+
+  it('removes cached provider status keys when a raw store snapshot is unavailable', () => {
+    const store = new MockElectronStoreWithoutSnapshot()
+    store.set('model_status_openai_gpt-5-4', true)
+    store.set('model_status_anthropic_claude-3-5-sonnet', true)
+
+    const helper = new ModelStatusHelper({
+      store: store as any,
+      setSetting: (key, value) => store.set(key, value)
+    })
+
+    expect(helper.getModelStatus('openai', 'gpt-5.4')).toBe(true)
+    helper.deleteProviderModelStatuses('openai')
+
+    expect(store.has('model_status_openai_gpt-5-4')).toBe(false)
+    expect(store.has('model_status_anthropic_claude-3-5-sonnet')).toBe(true)
   })
 })

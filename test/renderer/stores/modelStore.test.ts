@@ -62,7 +62,7 @@ const setupStore = async (overrides?: {
       overrides?.providerStore?.sortedProviders ??
       providerRecords.map((provider) => ({
         ...provider,
-        apiType: 'openai'
+        apiType: provider.apiType ?? 'openai'
       })),
     ensureInitialized: vi.fn(async () => undefined),
     ...overrides?.providerStore

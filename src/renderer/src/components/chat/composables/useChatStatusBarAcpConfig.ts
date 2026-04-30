@@ -70,8 +70,8 @@ const isAcpConfigState = (value: unknown): value is AcpConfigState => {
   )
 }
 
-const hasAcpConfigStateData = (state: AcpConfigState | null | undefined): state is AcpConfigState =>
-  Boolean(state?.options.length)
+const hasAcpConfigState = (state: AcpConfigState | null | undefined): state is AcpConfigState =>
+  Array.isArray(state?.options)
 
 const getAcpOptionCurrentLabel = (option?: AcpConfigOption | null): string | null => {
   if (!option || option.type !== 'select') {
@@ -88,15 +88,27 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
   const acpConfigLoadingRequestKey = ref<string | null>(null)
   const acpInlineOpenOptionId = ref<string | null>(null)
   const acpOptionSavingIds = ref<string[]>([])
-  const acpConfigCacheByAgent = new Map<string, AcpConfigState>()
+  const acpConfigCacheByKey = new Map<string, AcpConfigState>()
   let acpConfigSyncToken = 0
+
+  const getAcpProcessCacheKey = (
+    agentId?: string | null,
+    workdir?: string | null
+  ): string | null => {
+    if (!agentId) {
+      return null
+    }
+
+    const normalizedWorkdir = workdir?.trim()
+    return normalizedWorkdir ? `process:${agentId}::${normalizedWorkdir}` : `agent:${agentId}`
+  }
 
   const acpConfigCacheKey = computed(() => {
     if (!options.isAcpAgent.value || options.activeAcpSessionId.value) {
       return null
     }
 
-    return options.activeAcpAgentId.value
+    return getAcpProcessCacheKey(options.activeAcpAgentId.value, options.acpWorkspacePath.value)
   })
 
   const acpConfigRequestKey = computed(() => {
@@ -108,34 +120,26 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
       return `session:${options.activeAcpSessionId.value}`
     }
 
-    if (acpConfigCacheKey.value && options.acpWorkspacePath.value) {
-      return `process:${acpConfigCacheKey.value}::${options.acpWorkspacePath.value}`
-    }
-
-    if (acpConfigCacheKey.value) {
-      return `agent:${acpConfigCacheKey.value}`
-    }
-
-    return null
+    return acpConfigCacheKey.value
   })
 
-  const getCachedAcpConfigState = (agentId?: string | null): AcpConfigState | null => {
-    if (!agentId) {
+  const getCachedAcpConfigState = (cacheKey?: string | null): AcpConfigState | null => {
+    if (!cacheKey) {
       return null
     }
 
-    return acpConfigCacheByAgent.get(agentId) ?? null
+    return acpConfigCacheByKey.get(cacheKey) ?? null
   }
 
   const setCachedAcpConfigState = (
-    agentId: string | null | undefined,
+    cacheKey: string | null | undefined,
     state: AcpConfigState | null | undefined
   ): void => {
-    if (!agentId || !hasAcpConfigStateData(state)) {
+    if (!cacheKey || !hasAcpConfigState(state)) {
       return
     }
 
-    acpConfigCacheByAgent.set(agentId, state)
+    acpConfigCacheByKey.set(cacheKey, state)
   }
 
   const acpConfigOptions = computed(() => acpConfigState.value?.options ?? [])
@@ -201,11 +205,16 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
       return options.t(option.currentValue ? 'common.enabled' : 'common.disabled')
     }
 
+    const currentLabel = getAcpOptionCurrentLabel(option)
+    if (currentLabel?.trim()) {
+      return currentLabel
+    }
+
     if (typeof option.currentValue === 'string' && option.currentValue.trim()) {
       return option.currentValue
     }
 
-    return getAcpOptionCurrentLabel(option) ?? ''
+    return ''
   }
 
   const setAcpConfigLoadingRequest = (requestKey: string | null | undefined): void => {
@@ -267,7 +276,6 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
 
         acpConfigState.value = state
         acpConfigLoadedRequestKey.value = requestKey
-        setCachedAcpConfigState(agentId, state)
         clearAcpConfigLoadingRequest(requestKey)
         return
       } catch (error) {
@@ -284,10 +292,11 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
     }
 
     acpConfigLoadedRequestKey.value = null
-    const cachedState = getCachedAcpConfigState(agentId)
+    const cacheKey = acpConfigCacheKey.value
+    const cachedState = getCachedAcpConfigState(cacheKey)
     acpConfigState.value = cachedState
 
-    if (hasAcpConfigStateData(cachedState)) {
+    if (hasAcpConfigState(cachedState)) {
       clearAcpConfigLoadingRequest(requestKey)
     } else {
       setAcpConfigLoadingRequest(requestKey)
@@ -298,14 +307,12 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
     }
 
     try {
-      let warmupFailed = false
       try {
         await options.providerClient.warmupAcpProcess(
           agentId,
           options.acpWorkspacePath.value ?? undefined
         )
       } catch (error) {
-        warmupFailed = true
         console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
       }
 
@@ -317,15 +324,13 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
         return
       }
 
-      if (!hasAcpConfigStateData(state)) {
-        acpConfigState.value = getCachedAcpConfigState(agentId)
-        if (warmupFailed) {
-          clearAcpConfigLoadingRequest(requestKey)
-        }
+      if (!hasAcpConfigState(state)) {
+        acpConfigState.value = getCachedAcpConfigState(cacheKey)
+        clearAcpConfigLoadingRequest(requestKey)
         return
       }
 
-      setCachedAcpConfigState(agentId, state)
+      setCachedAcpConfigState(cacheKey, state)
       acpConfigState.value = state
       clearAcpConfigLoadingRequest(requestKey)
     } catch (error) {
@@ -334,14 +339,13 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
         return
       }
 
-      acpConfigState.value = getCachedAcpConfigState(agentId)
+      acpConfigState.value = getCachedAcpConfigState(cacheKey)
       clearAcpConfigLoadingRequest(requestKey)
     }
   }
 
   const updateAcpConfigOption = async (configId: string, value: string | boolean) => {
     const sessionId = options.activeAcpSessionId.value
-    const agentId = options.activeAcpAgentId.value
     if (!sessionId || !isAcpSessionConfigLoaded.value) {
       return
     }
@@ -357,7 +361,6 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
         configId,
         value
       )
-      setCachedAcpConfigState(agentId, updated)
       if (options.activeAcpSessionId.value !== sessionId) {
         return
       }
@@ -390,7 +393,6 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
         return
       }
 
-      setCachedAcpConfigState(agentId || options.activeAcpAgentId.value, payload.configState)
       acpConfigState.value = payload.configState
       acpConfigLoadedRequestKey.value = `session:${conversationId}`
       clearAcpConfigLoadingRequest(`session:${conversationId}`)
@@ -401,7 +403,7 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
       return
     }
 
-    setCachedAcpConfigState(agentId, payload.configState)
+    setCachedAcpConfigState(getAcpProcessCacheKey(agentId, workdir), payload.configState)
 
     if (!options.activeAcpSessionId.value) {
       acpConfigState.value = payload.configState

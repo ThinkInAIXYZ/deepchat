@@ -15,6 +15,7 @@ import {
   providersListModelsRoute,
   providersListSummariesRoute,
   providersTestConnectionRoute,
+  configListAgentsRoute,
   sessionsActivateRoute,
   sessionsGetGenerationSettingsRoute,
   settingsGetSnapshotRoute,
@@ -133,6 +134,56 @@ describe('main kernel contracts', () => {
         { key: 'fontSizeLevel', value: 3 },
         { key: 'privacyModeEnabled', value: true },
         { key: 'launchAtLoginEnabled', value: true }
+      ]
+    })
+  })
+
+  it('validates config list agent payloads structurally', () => {
+    expect(() =>
+      configListAgentsRoute.output.parse({
+        agents: [{ id: 'agent-1', enabled: true }]
+      })
+    ).toThrow()
+
+    expect(
+      configListAgentsRoute.output.parse({
+        agents: [
+          {
+            id: 'agent-1',
+            name: 'Agent One',
+            type: 'acp',
+            agentType: 'acp',
+            enabled: true,
+            source: 'registry',
+            installState: {
+              status: 'installed',
+              distributionType: 'binary',
+              installedAt: 1710000000000,
+              lastCheckedAt: 1710000000000,
+              installDir: 'C:/agents/agent-1',
+              error: null
+            }
+          }
+        ]
+      })
+    ).toEqual({
+      agents: [
+        {
+          id: 'agent-1',
+          name: 'Agent One',
+          type: 'acp',
+          agentType: 'acp',
+          enabled: true,
+          source: 'registry',
+          installState: {
+            status: 'installed',
+            distributionType: 'binary',
+            installedAt: 1710000000000,
+            lastCheckedAt: 1710000000000,
+            installDir: 'C:/agents/agent-1',
+            error: null
+          }
+        }
       ]
     })
   })

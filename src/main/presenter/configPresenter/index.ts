@@ -2005,7 +2005,7 @@ export class ConfigPresenter implements IConfigPresenter {
         currentState
       )
       this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, installedState)
-      this.notifyAcpAgentsChanged([registryAgent.id])
+      this.handleAcpAgentsMutated([registryAgent.id])
       return installedState
     } catch (error) {
       const failedState: AcpAgentInstallState = {

@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import type { Agent } from '@shared/types/agent-interface'
-import { TimestampMsSchema, defineRouteContract } from '../common'
+import { AgentBootstrapItemSchema, TimestampMsSchema, defineRouteContract } from '../common'
 import {
   AcpAgentConfigSchema,
   BuiltinKnowledgeConfigSchema,
@@ -15,7 +14,22 @@ import {
   ThemeModeSchema
 } from '../domainSchemas'
 
-const AgentSchema = z.custom<Agent>()
+const AgentInstallStateSchema = z
+  .object({
+    status: z.enum(['not_installed', 'installing', 'installed', 'error']),
+    distributionType: z.enum(['binary', 'npx', 'uvx', 'manual']).nullable().optional(),
+    version: z.string().nullable().optional(),
+    installedAt: TimestampMsSchema.nullable().optional(),
+    lastCheckedAt: TimestampMsSchema.nullable().optional(),
+    installDir: z.string().nullable().optional(),
+    error: z.string().nullable().optional()
+  })
+  .passthrough()
+
+const AgentSchema = AgentBootstrapItemSchema.extend({
+  config: DeepChatAgentConfigSchema.nullable().optional(),
+  installState: AgentInstallStateSchema.nullable().optional()
+})
 
 export const CONFIG_ENTRY_KEYS = [
   'init_complete',

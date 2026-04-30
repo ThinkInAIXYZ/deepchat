@@ -306,12 +306,16 @@ const setup = async (options: SetupOptions = {}) => {
       return getChatSelectableModelGroups()
     },
     findChatSelectableModel: vi.fn((providerId: string, modelId: string) => {
-      const group = getChatSelectableModelGroups().find((entry) => entry.providerId === providerId)
-      const model = group?.models.find((entry) => entry.id === modelId)
-      if (!group || !model) {
-        return null
+      const groups = getChatSelectableModelGroups().filter(
+        (entry) => entry.providerId === providerId
+      )
+      for (const group of groups) {
+        const model = group.models.find((entry) => entry.id === modelId)
+        if (model) {
+          return { providerId, providerName: group.providerName, model }
+        }
       }
-      return { providerId, providerName: group.providerName, model }
+      return null
     }),
     pickFirstChatSelectableModel: vi.fn(() => {
       const firstGroup = getChatSelectableModelGroups()[0]
@@ -2195,6 +2199,46 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
   })
 
+  it('treats empty ACP config options as a loaded state', async () => {
+    const emptyConfig: AcpConfigState = {
+      source: 'configOptions',
+      options: []
+    }
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: emptyConfig
+    })
+
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect((wrapper.vm as any).acpConfigState).toEqual(emptyConfig)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
+  })
+
+  it('renders ACP select option labels instead of raw values', async () => {
+    const processConfig = createAcpConfigState({}, 'gpt-5')
+    processConfig.options[0] = {
+      ...processConfig.options[0],
+      currentValue: 'gpt-5',
+      options: [
+        { value: 'gpt-5', label: 'GPT Five' },
+        { value: 'gpt-5-mini', label: 'GPT Five Mini' }
+      ]
+    }
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: processConfig
+    })
+
+    const modelOption = wrapper.find('.acp-inline-option[data-option-id="model"]')
+    expect(modelOption.text()).toContain('GPT Five')
+    expect(modelOption.attributes('title')).toBe('GPT Five')
+  })
+
   it('isolates warmup config cache by ACP agent id', async () => {
     const codexConfig = createAcpConfigState({}, 'gpt-5')
     const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
@@ -2254,6 +2298,30 @@ describe('ChatStatusBar model and session panels', () => {
 
     pendingWarmup.resolve(codexConfig)
     await flushPromises()
+  })
+
+  it('isolates warmup config cache by ACP workspace path', async () => {
+    const firstWorkspaceConfig = createAcpConfigState({}, 'gpt-5')
+    const { wrapper, llmproviderPresenter, projectStore } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace-one',
+      acpProcessConfig: firstWorkspaceConfig
+    })
+
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
+
+    llmproviderPresenter.getAcpProcessConfigOptions.mockRejectedValueOnce(new Error('boom'))
+    projectStore.selectedProject = { path: '/tmp/workspace-two' }
+    await flushPromises()
+
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenLastCalledWith(
+      'acp-agent',
+      '/tmp/workspace-two'
+    )
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
   })
 
   it('moves ACP overflow options into the gear popover', async () => {
