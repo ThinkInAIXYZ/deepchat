@@ -25,6 +25,35 @@ export function useChatInputFiles(
   const { toast } = useToast()
   const selectedFiles = ref<MessageFile[]>([])
 
+  const getDisplayFileName = (file: File): string => {
+    return file.name?.trim() || t('chat.input.unnamedFile')
+  }
+
+  const formatFailedFileNames = (fileNames: string[]): string => {
+    const visibleNames = fileNames.slice(0, 3).join(', ')
+    const remainingCount = fileNames.length - 3
+    if (remainingCount <= 0) {
+      return visibleNames
+    }
+
+    return `${visibleNames}${t('chat.input.fileUploadFailedMore', { count: remainingCount })}`
+  }
+
+  const showFileProcessingError = (fileNames: string[]) => {
+    if (fileNames.length === 0) {
+      return
+    }
+
+    toast({
+      title: t('chat.input.fileUploadFailed'),
+      description: t('chat.input.fileUploadFailedDesc', {
+        count: fileNames.length,
+        names: formatFailedFileNames(fileNames)
+      }),
+      variant: 'destructive'
+    })
+  }
+
   const processFile = async (file: File, isImage: boolean = false): Promise<MessageFile | null> => {
     try {
       if (isImage || file.type.startsWith('image/')) {
@@ -54,6 +83,9 @@ export function useChatInputFiles(
       }
 
       const path = fileClient.getPathForFile(file)
+      if (!path) {
+        throw new Error(`Cannot resolve file path for ${getDisplayFileName(file)}`)
+      }
       const mimeType = await fileClient.getMimeType(path)
       return await fileClient.prepareFile(path, mimeType)
     } catch (error) {
@@ -65,6 +97,9 @@ export function useChatInputFiles(
   const processDroppedFile = async (file: File): Promise<MessageFile | null> => {
     try {
       const path = fileClient.getPathForFile(file)
+      if (!path) {
+        throw new Error(`Cannot resolve file path for ${getDisplayFileName(file)}`)
+      }
 
       if (file.type === '') {
         const isDirectory = await fileClient.isDirectory(path)
@@ -83,20 +118,35 @@ export function useChatInputFiles(
 
   const emitFiles = () => emit('file-upload', selectedFiles.value)
 
+  const processIncomingFiles = async (
+    files: FileList,
+    processor: (file: File) => Promise<MessageFile | null>
+  ) => {
+    let addedCount = 0
+    const failedFileNames: string[] = []
+
+    for (const file of Array.from(files)) {
+      const fileInfo = await processor(file)
+      if (fileInfo) {
+        selectedFiles.value.push(fileInfo)
+        addedCount += 1
+      } else {
+        failedFileNames.push(getDisplayFileName(file))
+      }
+    }
+
+    if (addedCount > 0) {
+      emitFiles()
+    }
+
+    showFileProcessingError(failedFileNames)
+  }
+
   const handleFileSelect = async (e: Event) => {
     const files = (e.target as HTMLInputElement).files
 
     if (files && files.length > 0) {
-      for (const file of files) {
-        const fileInfo = await processFile(file)
-        if (fileInfo) {
-          selectedFiles.value.push(fileInfo)
-        }
-      }
-
-      if (selectedFiles.value.length > 0) {
-        emitFiles()
-      }
+      await processIncomingFiles(files, (file) => processFile(file))
     }
 
     if (e.target) {
@@ -110,30 +160,12 @@ export function useChatInputFiles(
 
     const files = e.clipboardData?.files
     if (files && files.length > 0) {
-      for (const file of files) {
-        const fileInfo = await processFile(file, file.type.startsWith('image/'))
-        if (fileInfo) {
-          selectedFiles.value.push(fileInfo)
-        }
-      }
-
-      if (selectedFiles.value.length > 0) {
-        emitFiles()
-      }
+      await processIncomingFiles(files, (file) => processFile(file, file.type.startsWith('image/')))
     }
   }
 
   const handleDrop = async (files: FileList) => {
-    for (const file of files) {
-      const fileInfo = await processDroppedFile(file)
-      if (fileInfo) {
-        selectedFiles.value.push(fileInfo)
-      }
-    }
-
-    if (selectedFiles.value.length > 0) {
-      emitFiles()
-    }
+    await processIncomingFiles(files, processDroppedFile)
   }
 
   const deleteFile = (idx: number) => {

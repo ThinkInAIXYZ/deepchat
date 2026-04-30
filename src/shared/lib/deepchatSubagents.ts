@@ -2,6 +2,9 @@ import type { DeepChatAgentConfig, DeepChatSubagentSlot } from '@shared/types/ag
 
 export const DEEPCHAT_SUBAGENT_SLOT_LIMIT = 5
 export const DEEPCHAT_SELF_SUBAGENT_SLOT_ID = 'self'
+export const DEEPCHAT_EXPLORER_SUBAGENT_SLOT_ID = 'explorer'
+export const DEEPCHAT_IMPLEMENTER_SUBAGENT_SLOT_ID = 'implementer'
+export const DEEPCHAT_REVIEWER_SUBAGENT_SLOT_ID = 'reviewer'
 
 export const createDefaultDeepChatSelfSubagentSlot = (): DeepChatSubagentSlot => ({
   id: DEEPCHAT_SELF_SUBAGENT_SLOT_ID,
@@ -9,6 +12,27 @@ export const createDefaultDeepChatSelfSubagentSlot = (): DeepChatSubagentSlot =>
   displayName: 'Self Clone',
   description: 'Inherit the current parent session agent logic with an isolated context.'
 })
+
+export const createDefaultDeepChatSubagentSlots = (): DeepChatSubagentSlot[] => [
+  {
+    id: DEEPCHAT_EXPLORER_SUBAGENT_SLOT_ID,
+    targetType: 'self',
+    displayName: 'Explorer',
+    description: 'Investigate code, requirements, or evidence in an isolated context.'
+  },
+  {
+    id: DEEPCHAT_IMPLEMENTER_SUBAGENT_SLOT_ID,
+    targetType: 'self',
+    displayName: 'Implementer',
+    description: 'Implement a bounded code or content change in an isolated context.'
+  },
+  {
+    id: DEEPCHAT_REVIEWER_SUBAGENT_SLOT_ID,
+    targetType: 'self',
+    displayName: 'Reviewer',
+    description: 'Review changes, risks, and verification gaps in an isolated context.'
+  }
+]
 
 const normalizeDisplayName = (value: string | undefined, fallback: string): string => {
   const normalized = value?.trim()
@@ -95,8 +119,14 @@ export const normalizeDeepChatSubagentSlots = (
 
 export const normalizeDeepChatSubagentConfig = (
   config?: DeepChatAgentConfig | null
-): DeepChatAgentConfig => ({
-  ...config,
-  subagentEnabled: config?.subagentEnabled === true,
-  subagents: normalizeDeepChatSubagentSlots(config?.subagents)
-})
+): DeepChatAgentConfig => {
+  const hasConfiguredSlots = config?.subagents !== undefined && config.subagents !== null
+
+  return {
+    ...config,
+    subagentEnabled: config?.subagentEnabled !== false,
+    subagents: hasConfiguredSlots
+      ? normalizeDeepChatSubagentSlots(config?.subagents)
+      : createDefaultDeepChatSubagentSlots()
+  }
+}

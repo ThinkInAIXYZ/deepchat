@@ -355,6 +355,9 @@
     },
     "unavailable": "해당 없음"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "약한 Agent 기능: 레거시 폴백 도구 호출만 지원"
+  },
   "model": {
     "title": "모델 설정",
     "systemPrompt": {

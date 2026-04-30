@@ -52,7 +52,11 @@
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "خطا در پردازش پیوست",
+    "fileUploadFailedDesc": "امکان پردازش {count} فایل وجود نداشت: {names}",
+    "fileUploadFailedMore": " و {count} مورد دیگر",
+    "unnamedFile": "فایل بدون نام"
   },
   "pendingInput": {
     "steer": "هدایت",

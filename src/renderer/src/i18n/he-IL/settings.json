@@ -355,6 +355,9 @@
     },
     "unavailable": "לא זמין"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "יכולת Agent חלשה: תומך רק בקריאות כלים של fallback מדור קודם"
+  },
   "model": {
     "title": "הגדרות מודל",
     "systemPrompt": {

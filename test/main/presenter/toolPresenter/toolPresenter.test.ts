@@ -151,7 +151,7 @@ describe('ToolPresenter', () => {
     const callToolSpy = vi.fn().mockResolvedValue('ok')
     agentToolManager.callTool = callToolSpy
 
-    await toolPresenter.callTool({
+    const result = await toolPresenter.callTool({
       id: 'tool-1',
       type: 'function',
       function: {
@@ -161,6 +161,29 @@ describe('ToolPresenter', () => {
       conversationId: 'conv-1'
     })
 
+    expect(result.rawData.toolResult).toMatchObject({
+      ok: true,
+      data: {
+        content: 'ok',
+        source: 'agent'
+      }
+    })
+    callToolSpy.mockResolvedValueOnce({
+      rawData: {
+        content: 'from-raw'
+      }
+    })
+    const rawOnlyResult = await toolPresenter.callTool({
+      id: 'tool-2',
+      type: 'function',
+      function: {
+        name: 'read',
+        arguments: '{"path":"bar"}'
+      },
+      conversationId: 'conv-1'
+    })
+
+    expect(rawOnlyResult.content).toBe('from-raw')
     expect(callToolSpy).toHaveBeenCalledWith(
       'read',
       { path: 'foo' },
@@ -552,7 +575,7 @@ describe('ToolPresenter', () => {
       } as any
     })
 
-    const prompt = toolPresenter.buildToolSystemPrompt({
+    const promptWithoutFocusedTools = toolPresenter.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -577,13 +600,14 @@ describe('ToolPresenter', () => {
         }
       ]
     })
-
-    expect(prompt).toContain(
+    expect(promptWithoutFocusedTools).toContain(
       'Use canonical Agent tool names only: read, write, edit, exec, process.'
     )
-    expect(prompt).toContain(
-      'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
+    expect(promptWithoutFocusedTools).toContain(
+      'Prefer shell-native discovery and search inside `exec`, such as `rg -n`, `rg --files`, `git status`, and project verification commands.'
     )
-    expect(prompt).not.toContain('Use `read`/`find`/`grep`/`ls` for file inspection')
+    expect(promptWithoutFocusedTools).toContain(
+      'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'
+    )
   })
 })

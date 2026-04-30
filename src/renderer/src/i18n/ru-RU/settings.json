@@ -355,6 +355,9 @@
     },
     "unavailable": "Недоступно"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Слабые возможности Agent: поддерживаются только устаревшие fallback-вызовы инструментов"
+  },
   "model": {
     "title": "Настройки модели",
     "systemPrompt": {

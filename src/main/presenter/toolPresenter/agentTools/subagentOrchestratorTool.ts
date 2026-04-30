@@ -22,10 +22,42 @@ export const subagentOrchestratorTaskSchema = z.object({
   expectedOutput: z.string().trim().min(1).optional()
 })
 
-export const subagentOrchestratorSchema = z.object({
-  mode: z.enum(['parallel', 'chain']),
-  tasks: z.array(subagentOrchestratorTaskSchema).min(1).max(5)
-})
+export const subagentOrchestratorSchema = z
+  .object({
+    operation: z.enum(['run', 'list', 'info', 'log', 'wait', 'kill']).default('run'),
+    mode: z.enum(['parallel', 'chain']).optional(),
+    tasks: z.array(subagentOrchestratorTaskSchema).min(1).max(5).optional(),
+    background: z.boolean().default(false).optional(),
+    runId: z.string().trim().min(1).optional(),
+    timeoutMs: z.number().int().min(0).max(300000).optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.operation === 'run') {
+      if (!value.mode) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['mode'],
+          message: 'mode is required when operation is run.'
+        })
+      }
+      if (!value.tasks?.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['tasks'],
+          message: 'tasks is required when operation is run.'
+        })
+      }
+      return
+    }
+
+    if (value.operation !== 'list' && !value.runId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['runId'],
+        message: `runId is required when operation is ${value.operation}.`
+      })
+    }
+  })
 
 type SubagentOrchestratorArgs = z.infer<typeof subagentOrchestratorSchema>
 type SubagentTerminalStatus =
@@ -66,6 +98,21 @@ type MutableTaskState = {
   }
 }
 
+type MutableRunState = {
+  runId: string
+  parentSessionId: string
+  mode: NonNullable<SubagentOrchestratorArgs['mode']>
+  background: boolean
+  toolCallId: string
+  tasks: MutableTaskState[]
+  status: SubagentTerminalStatus
+  createdAt: number
+  updatedAt: number
+  completion: Promise<void>
+  abortController: AbortController
+  error?: string
+}
+
 const createDeferred = (): MutableTaskState['completion'] => {
   let resolve = () => {}
   const promise = new Promise<void>((innerResolve) => {
@@ -96,7 +143,7 @@ const summarizeResult = (value: string): string | undefined => {
 }
 
 const renderProgressMarkdown = (
-  mode: SubagentOrchestratorArgs['mode'],
+  mode: NonNullable<SubagentOrchestratorArgs['mode']>,
   tasks: MutableTaskState[]
 ): string => {
   const lines: string[] = [`${mode} · ${tasks.length} subagents`, '']
@@ -128,7 +175,7 @@ const renderProgressMarkdown = (
 }
 
 const renderFinalMarkdown = (
-  mode: SubagentOrchestratorArgs['mode'],
+  mode: NonNullable<SubagentOrchestratorArgs['mode']>,
   tasks: MutableTaskState[]
 ): string => {
   const lines: string[] = [`${mode} · ${tasks.length} subagents`, '']
@@ -148,7 +195,7 @@ const renderFinalMarkdown = (
 
 const buildHandoffMessage = (params: {
   parent: ConversationSessionInfo
-  mode: SubagentOrchestratorArgs['mode']
+  mode: NonNullable<SubagentOrchestratorArgs['mode']>
   totalTasks: number
   task: MutableTaskState
   inheritedWorkspace: string | null
@@ -186,7 +233,251 @@ const isTerminalStatus = (status: SubagentTerminalStatus): boolean =>
   status === 'completed' || status === 'error' || status === 'cancelled'
 
 export class SubagentOrchestratorTool {
+  private readonly runs = new Map<string, MutableRunState>()
+
   constructor(private readonly runtimePort: AgentToolRuntimePort) {}
+
+  private resolveRunStatus(tasks: MutableTaskState[]): SubagentTerminalStatus {
+    if (tasks.some((task) => task.status === 'waiting_permission')) {
+      return 'waiting_permission'
+    }
+    if (tasks.some((task) => task.status === 'waiting_question')) {
+      return 'waiting_question'
+    }
+    if (tasks.some((task) => task.status === 'running')) {
+      return 'running'
+    }
+    if (tasks.some((task) => task.status === 'queued')) {
+      return 'queued'
+    }
+    if (tasks.some((task) => task.status === 'error')) {
+      return 'error'
+    }
+    if (tasks.some((task) => task.status === 'cancelled')) {
+      return 'cancelled'
+    }
+
+    return 'completed'
+  }
+
+  private updateRunStatus(run: MutableRunState): void {
+    run.status = this.resolveRunStatus(run.tasks)
+    run.updatedAt = Date.now()
+  }
+
+  private serializeRun(run: MutableRunState) {
+    return {
+      runId: run.runId,
+      mode: run.mode,
+      background: run.background,
+      parentSessionId: run.parentSessionId,
+      status: run.status,
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
+      error: run.error,
+      tasks: run.tasks.map((task) => ({
+        taskId: task.taskId,
+        title: task.title,
+        slotId: task.slotId,
+        sessionId: task.sessionId,
+        targetAgentId: task.targetAgentId,
+        targetAgentName: task.targetAgentName,
+        status: task.status,
+        previewMarkdown: task.previewMarkdown,
+        updatedAt: task.updatedAt,
+        waitingInteraction: task.waitingInteraction,
+        resultSummary: task.resultSummary
+      }))
+    }
+  }
+
+  private renderRunListMarkdown(parentSessionId: string): string {
+    const runs = [...this.runs.values()]
+      .filter((run) => run.parentSessionId === parentSessionId)
+      .sort((left, right) => right.createdAt - left.createdAt)
+
+    if (runs.length === 0) {
+      return 'No subagent runs found for this session.'
+    }
+
+    const lines = ['Subagent runs:', '']
+    for (const run of runs) {
+      lines.push(
+        `- \`${run.runId}\` · ${run.status} · ${run.mode} · ${run.tasks.length} task${run.tasks.length === 1 ? '' : 's'}`
+      )
+    }
+
+    return lines.join('\n')
+  }
+
+  private getRunForSession(parentSessionId: string, runId?: string): MutableRunState {
+    const normalizedRunId = runId?.trim()
+    if (!normalizedRunId) {
+      throw new Error('runId is required.')
+    }
+
+    const run = this.runs.get(normalizedRunId)
+    if (!run || run.parentSessionId !== parentSessionId) {
+      throw new Error(`Subagent run not found: ${normalizedRunId}`)
+    }
+
+    return run
+  }
+
+  private buildRunProgressResult(
+    run: MutableRunState,
+    label = 'Subagent run status'
+  ): AgentToolCallResult {
+    const content = [
+      `${label}: \`${run.runId}\``,
+      `Status: ${run.status}`,
+      '',
+      renderProgressMarkdown(run.mode, run.tasks)
+    ].join('\n')
+
+    return {
+      content,
+      rawData: {
+        content,
+        isError: run.status === 'error',
+        toolResult: {
+          subagentProgress: JSON.stringify(this.serializeRun(run))
+        }
+      }
+    }
+  }
+
+  private buildRunFinalResult(run: MutableRunState): AgentToolCallResult {
+    const finalProgress = this.serializeRun(run)
+    const finalMarkdown = renderFinalMarkdown(run.mode, run.tasks)
+
+    return {
+      content: finalMarkdown,
+      rawData: {
+        content: finalMarkdown,
+        isError: run.status === 'error',
+        toolResult: {
+          subagentFinal: JSON.stringify(finalProgress),
+          subagentProgress: JSON.stringify(finalProgress)
+        }
+      }
+    }
+  }
+
+  private pruneRuns(): void {
+    const completedRuns = [...this.runs.values()]
+      .filter((run) => isTerminalStatus(run.status))
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+
+    for (const run of completedRuns.slice(20)) {
+      this.runs.delete(run.runId)
+    }
+  }
+
+  private async handleRunOperation(
+    args: SubagentOrchestratorArgs,
+    conversationId: string,
+    options?: {
+      signal?: AbortSignal
+    }
+  ): Promise<AgentToolCallResult> {
+    if (args.operation === 'list') {
+      const content = this.renderRunListMarkdown(conversationId)
+      const runs = [...this.runs.values()]
+        .filter((run) => run.parentSessionId === conversationId)
+        .map((run) => this.serializeRun(run))
+
+      return {
+        content,
+        rawData: {
+          content,
+          isError: false,
+          toolResult: {
+            ok: true,
+            summary: `Found ${runs.length} subagent run${runs.length === 1 ? '' : 's'}.`,
+            data: { runs },
+            meta: { resultCount: runs.length }
+          }
+        }
+      }
+    }
+
+    const run = this.getRunForSession(conversationId, args.runId)
+
+    if (args.operation === 'kill') {
+      run.abortController.abort()
+      for (const task of run.tasks) {
+        if (isTerminalStatus(task.status)) {
+          continue
+        }
+
+        task.cancelRequested = true
+        task.status = 'cancelled'
+        task.resultSummary = task.resultSummary || 'Cancelled by parent session.'
+        task.updatedAt = Date.now()
+        task.completion.resolve()
+
+        if (task.sessionId) {
+          await this.runtimePort.cancelConversation(task.sessionId).catch(() => undefined)
+        }
+      }
+      this.updateRunStatus(run)
+      return this.buildRunProgressResult(run, 'Subagent run cancelled')
+    }
+
+    if (args.operation === 'wait') {
+      const timeoutMs = args.timeoutMs ?? 60000
+      if (!isTerminalStatus(run.status)) {
+        await this.waitForRunCompletion(run, timeoutMs, options?.signal)
+      }
+      return isTerminalStatus(run.status)
+        ? this.buildRunFinalResult(run)
+        : this.buildRunProgressResult(run, 'Subagent run still active')
+    }
+
+    if (args.operation === 'log') {
+      return this.buildRunFinalResult(run)
+    }
+
+    return this.buildRunProgressResult(run)
+  }
+
+  private async waitForRunCompletion(
+    run: MutableRunState,
+    timeoutMs: number,
+    signal?: AbortSignal
+  ): Promise<void> {
+    let abortListener: (() => void) | undefined
+    const pending = [
+      run.completion,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, timeoutMs)
+      })
+    ]
+
+    if (signal) {
+      if (signal.aborted) {
+        throw new Error('subagent_orchestrator cancelled.')
+      }
+
+      pending.push(
+        new Promise<void>((_, reject) => {
+          abortListener = () => {
+            reject(new Error('subagent_orchestrator cancelled.'))
+          }
+          signal.addEventListener('abort', abortListener, { once: true })
+        })
+      )
+    }
+
+    try {
+      await Promise.race(pending)
+    } finally {
+      if (signal && abortListener) {
+        signal.removeEventListener('abort', abortListener)
+      }
+    }
+  }
 
   private async getAvailableSession(
     conversationId?: string
@@ -275,19 +566,26 @@ export class SubagentOrchestratorTool {
       type: 'function',
       function: {
         name: SUBAGENT_ORCHESTRATOR_TOOL_NAME,
-        description: `Delegate up to 5 tasks to configured subagents, run them in parallel or in chain mode, and return a single aggregated markdown result after every child session finishes. ${SUBAGENT_WORKDIR_RULE}`,
+        description: `Delegate up to 5 tasks to configured subagents, run them in parallel or in chain mode, and return a single aggregated markdown result after every child session finishes. Use background=true for long-running subagent work, then use operation=list/info/log/wait/kill with the returned runId. ${SUBAGENT_WORKDIR_RULE}`,
         parameters: {
           type: 'object',
           properties: {
+            operation: {
+              type: 'string',
+              enum: ['run', 'list', 'info', 'log', 'wait', 'kill'],
+              description:
+                'Use run to start tasks. Use list/info/log/wait/kill to manage background runs.'
+            },
             mode: {
               type: 'string',
               enum: ['parallel', 'chain'],
-              description: 'Choose whether delegated tasks run concurrently or one by one.'
+              description:
+                'Required for operation=run. Choose whether delegated tasks run concurrently or one by one.'
             },
             tasks: {
               type: 'array',
               maxItems: 5,
-              description: `Ordered delegated subtasks. ${SUBAGENT_WORKDIR_RULE}`,
+              description: `Required for operation=run. Ordered delegated subtasks. ${SUBAGENT_WORKDIR_RULE}`,
               items: {
                 type: 'object',
                 properties: {
@@ -313,9 +611,21 @@ export class SubagentOrchestratorTool {
                 },
                 required: ['slotId', 'title', 'prompt']
               }
+            },
+            background: {
+              type: 'boolean',
+              description:
+                'When true, start operation=run in the background and return a runId immediately.'
+            },
+            runId: {
+              type: 'string',
+              description: 'Required for operation=info, log, wait, or kill.'
+            },
+            timeoutMs: {
+              type: 'number',
+              description: 'Maximum wait time for operation=wait. Defaults to 60000.'
             }
-          },
-          required: ['mode', 'tasks']
+          }
         }
       },
       server: {
@@ -355,6 +665,12 @@ export class SubagentOrchestratorTool {
       )
     }
 
+    if (args.operation !== 'run') {
+      return this.handleRunOperation(args, conversationId, options)
+    }
+
+    const mode = args.mode ?? 'parallel'
+    const taskSpecs = args.tasks ?? []
     const inheritedWorkspace =
       (await this.runtimePort.resolveConversationWorkdir(parent.sessionId))?.trim() ||
       parent.projectDir?.trim() ||
@@ -362,7 +678,7 @@ export class SubagentOrchestratorTool {
 
     const slotMap = new Map(parent.availableSubagentSlots.map((slot) => [slot.id, slot]))
     const now = Date.now()
-    const tasks = args.tasks.map((task, index): MutableTaskState => {
+    const tasks = taskSpecs.map((task, index): MutableTaskState => {
       const slot = slotMap.get(task.slotId)
       if (!slot) {
         throw new Error(`Subagent slot not found or not enabled: ${task.slotId}`)
@@ -398,35 +714,33 @@ export class SubagentOrchestratorTool {
     const runId = nanoid()
     const toolCallId = options?.toolCallId || ''
     const sessionTaskMap = new Map<string, MutableTaskState>()
+    const abortController = new AbortController()
+    const run: MutableRunState = {
+      runId,
+      parentSessionId: conversationId,
+      mode,
+      background: args.background === true,
+      toolCallId,
+      tasks,
+      status: 'queued',
+      createdAt: now,
+      updatedAt: now,
+      completion: Promise.resolve(),
+      abortController
+    }
+    this.runs.set(runId, run)
 
     const emitProgress = () => {
-      if (!options?.onProgress) {
+      this.updateRunStatus(run)
+      if (!options?.onProgress || run.background) {
         return
-      }
-
-      const progressPayload = {
-        runId,
-        mode: args.mode,
-        tasks: tasks.map((task) => ({
-          taskId: task.taskId,
-          title: task.title,
-          slotId: task.slotId,
-          sessionId: task.sessionId,
-          targetAgentId: task.targetAgentId,
-          targetAgentName: task.targetAgentName,
-          status: task.status,
-          previewMarkdown: task.previewMarkdown,
-          updatedAt: task.updatedAt,
-          waitingInteraction: task.waitingInteraction,
-          resultSummary: task.resultSummary
-        }))
       }
 
       options.onProgress({
         kind: 'subagent_orchestrator',
         toolCallId,
-        responseMarkdown: renderProgressMarkdown(args.mode, tasks),
-        progressJson: JSON.stringify(progressPayload)
+        responseMarkdown: renderProgressMarkdown(mode, tasks),
+        progressJson: JSON.stringify(this.serializeRun(run))
       })
     }
 
@@ -496,6 +810,7 @@ export class SubagentOrchestratorTool {
     })
 
     const abortListener = () => {
+      abortController.abort()
       for (const task of tasks) {
         if (isTerminalStatus(task.status)) {
           continue
@@ -516,7 +831,7 @@ export class SubagentOrchestratorTool {
     options?.signal?.addEventListener('abort', abortListener)
 
     const runTask = async (task: MutableTaskState): Promise<void> => {
-      if (options?.signal?.aborted) {
+      if (options?.signal?.aborted || abortController.signal.aborted) {
         abortListener()
         return
       }
@@ -541,6 +856,17 @@ export class SubagentOrchestratorTool {
           throw new Error(`Failed to create subagent session for slot ${task.slotId}.`)
         }
 
+        if (options?.signal?.aborted || abortController.signal.aborted || task.cancelRequested) {
+          task.cancelRequested = true
+          task.updatedAt = Date.now()
+          task.status = 'cancelled'
+          task.resultSummary = task.resultSummary || 'Cancelled by parent session.'
+          maybeResolveTask(task)
+          await this.runtimePort.cancelConversation(child.sessionId).catch(() => undefined)
+          emitProgress()
+          return
+        }
+
         task.sessionId = child.sessionId
         task.targetAgentName = child.agentName || task.targetAgentName
         task.updatedAt = Date.now()
@@ -549,7 +875,7 @@ export class SubagentOrchestratorTool {
 
         const handoff = buildHandoffMessage({
           parent,
-          mode: args.mode,
+          mode,
           totalTasks: tasks.length,
           task,
           inheritedWorkspace
@@ -573,54 +899,54 @@ export class SubagentOrchestratorTool {
       }
     }
 
-    emitProgress()
+    const runCompletion = (async () => {
+      emitProgress()
 
-    try {
-      if (args.mode === 'parallel') {
-        await Promise.all(tasks.map((task) => runTask(task)))
-      } else {
-        for (const task of tasks) {
-          await runTask(task)
+      try {
+        if (mode === 'parallel') {
+          await Promise.all(tasks.map((task) => runTask(task)))
+        } else {
+          for (const task of tasks) {
+            if (abortController.signal.aborted) {
+              abortListener()
+              break
+            }
+            await runTask(task)
+          }
         }
+      } catch (error) {
+        run.error = error instanceof Error ? error.message : String(error)
+        for (const task of tasks) {
+          if (isTerminalStatus(task.status)) {
+            continue
+          }
+          task.status = abortController.signal.aborted ? 'cancelled' : 'error'
+          task.resultSummary = run.error
+          task.updatedAt = Date.now()
+          task.completion.resolve()
+        }
+      } finally {
+        this.updateRunStatus(run)
+        emitProgress()
+        unsubscribe()
+        options?.signal?.removeEventListener('abort', abortListener)
+        this.pruneRuns()
       }
-    } finally {
-      unsubscribe()
-      options?.signal?.removeEventListener('abort', abortListener)
+    })()
+    run.completion = runCompletion
+
+    void runCompletion.catch(() => undefined)
+
+    if (run.background) {
+      return this.buildRunProgressResult(run, 'Subagent run started')
     }
+
+    await runCompletion
 
     if (options?.signal?.aborted) {
       throw new Error('subagent_orchestrator cancelled.')
     }
 
-    const finalProgress = {
-      runId,
-      mode: args.mode,
-      tasks: tasks.map((task) => ({
-        taskId: task.taskId,
-        title: task.title,
-        slotId: task.slotId,
-        sessionId: task.sessionId,
-        targetAgentId: task.targetAgentId,
-        targetAgentName: task.targetAgentName,
-        status: task.status,
-        previewMarkdown: task.previewMarkdown,
-        updatedAt: task.updatedAt,
-        waitingInteraction: task.waitingInteraction,
-        resultSummary: task.resultSummary
-      }))
-    }
-    const finalMarkdown = renderFinalMarkdown(args.mode, tasks)
-
-    return {
-      content: finalMarkdown,
-      rawData: {
-        content: finalMarkdown,
-        isError: tasks.some((task) => task.status === 'error'),
-        toolResult: {
-          subagentFinal: JSON.stringify(finalProgress),
-          subagentProgress: JSON.stringify(finalProgress)
-        }
-      }
-    }
+    return this.buildRunFinalResult(run)
   }
 }

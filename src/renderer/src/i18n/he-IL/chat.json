@@ -52,7 +52,11 @@
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "עיבוד הקובץ המצורף נכשל",
+    "fileUploadFailedDesc": "לא ניתן לעבד {count} קבצים: {names}",
+    "fileUploadFailedMore": " ועוד {count} נוספים",
+    "unnamedFile": "קובץ ללא שם"
   },
   "pendingInput": {
     "steer": "הכוונה",

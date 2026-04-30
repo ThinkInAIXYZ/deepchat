@@ -52,7 +52,11 @@
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "Не удалось обработать вложение",
+    "fileUploadFailedDesc": "Не удалось обработать {count} файлов: {names}",
+    "fileUploadFailedMore": " и ещё {count}",
+    "unnamedFile": "файл без имени"
   },
   "pendingInput": {
     "steer": "Направление",

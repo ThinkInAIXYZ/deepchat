@@ -9,9 +9,13 @@ import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.pres
 import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
-import { ToolMapper } from './toolMapper'
+import { ToolMapper, type ToolSource } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from './agentTools'
 import type { AgentToolRuntimePort } from './runtimePorts'
+import {
+  createAgentToolErrorResult,
+  createAgentToolSuccessResult
+} from '@shared/lib/agentToolResultEnvelope'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 import { YO_BROWSER_TOOL_NAMES } from '../browser/YoBrowserToolDefinitions'
@@ -51,6 +55,10 @@ export interface IToolPresenter {
     agentWorkspacePath?: string | null
     conversationId?: string
   }): Promise<MCPToolDefinition[]>
+  syncAgentToolContext?(context: {
+    chatMode?: 'agent' | 'acp agent'
+    agentWorkspacePath?: string | null
+  }): void
   callTool(
     request: MCPToolCall,
     options?: {
@@ -63,6 +71,7 @@ export interface IToolPresenter {
     request: MCPToolCall,
     options?: { permissionMode?: PermissionMode }
   ): Promise<PreCheckedPermissionResult | null>
+  clearConversationToolMapping?(conversationId: string): void
   buildToolSystemPrompt(context: {
     conversationId?: string
     toolDefinitions?: MCPToolDefinition[]
@@ -107,12 +116,27 @@ const normalizeToolNames = (toolNames?: string[]): string[] => {
  */
 export class ToolPresenter implements IToolPresenter {
   private readonly mapper: ToolMapper
+  private readonly conversationMappers: Map<string, ToolMapper>
   private readonly options: ToolPresenterOptions
   private agentToolManager: AgentToolManager | null = null
 
   constructor(options: ToolPresenterOptions) {
     this.options = options
     this.mapper = new ToolMapper()
+    this.conversationMappers = new Map()
+  }
+
+  private ensureAgentToolManager(agentWorkspacePath: string | null): AgentToolManager {
+    if (!this.agentToolManager) {
+      this.agentToolManager = new AgentToolManager({
+        agentWorkspacePath,
+        configPresenter: this.options.configPresenter,
+        commandPermissionHandler: this.options.commandPermissionHandler,
+        runtimePort: this.options.agentToolRuntime
+      })
+    }
+
+    return this.agentToolManager
   }
 
   /**
@@ -128,7 +152,11 @@ export class ToolPresenter implements IToolPresenter {
     conversationId?: string
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
+    const mapper = this.resolveMapper(context.conversationId)
     this.mapper.clear()
+    if (mapper !== this.mapper) {
+      mapper.clear()
+    }
 
     const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
@@ -142,22 +170,14 @@ export class ToolPresenter implements IToolPresenter {
       'mcp'
     )
     defs.push(...mcpDefs)
-    this.mapper.registerTools(mcpDefs, 'mcp')
+    this.registerToolsForMapper(mapper, mcpDefs, 'mcp')
 
     // 2. Get Agent tools (always load in agent or acp agent mode)
-    // Initialize or update AgentToolManager if workspace path changed
-    if (!this.agentToolManager) {
-      this.agentToolManager = new AgentToolManager({
-        agentWorkspacePath,
-        configPresenter: this.options.configPresenter,
-        commandPermissionHandler: this.options.commandPermissionHandler,
-        runtimePort: this.options.agentToolRuntime
-      })
-    }
+    const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
 
     try {
       const agentDefs = withToolSource(
-        await this.agentToolManager.getAllToolDefinitions({
+        await agentToolManager.getAllToolDefinitions({
           chatMode,
           supportsVision,
           agentWorkspacePath,
@@ -167,7 +187,7 @@ export class ToolPresenter implements IToolPresenter {
       )
       const disabledAgentToolSet = new Set(normalizeToolNames(context.disabledAgentTools))
       const dedupedAgentDefs = agentDefs.filter((tool) => {
-        if (!this.mapper.hasTool(tool.function.name)) return true
+        if (!mapper.hasTool(tool.function.name)) return true
         console.warn(
           `[ToolPresenter] Tool name conflict for '${tool.function.name}', preferring MCP tool.`
         )
@@ -177,12 +197,35 @@ export class ToolPresenter implements IToolPresenter {
         (tool) => !disabledAgentToolSet.has(tool.function.name)
       )
       defs.push(...filteredAgentDefs)
-      this.mapper.registerTools(filteredAgentDefs, 'agent')
+      this.registerToolsForMapper(mapper, filteredAgentDefs, 'agent')
     } catch (error) {
       console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
     }
 
     return defs
+  }
+
+  syncAgentToolContext(context: {
+    chatMode?: 'agent' | 'acp agent'
+    agentWorkspacePath?: string | null
+  }): void {
+    const chatMode = context.chatMode || 'agent'
+    const agentWorkspacePath = context.agentWorkspacePath || null
+    const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
+
+    agentToolManager.syncContext({
+      chatMode,
+      agentWorkspacePath
+    })
+  }
+
+  clearConversationToolMapping(conversationId: string): void {
+    const normalizedConversationId = conversationId.trim()
+    if (!normalizedConversationId) {
+      return
+    }
+
+    this.conversationMappers.delete(normalizedConversationId)
   }
 
   /**
@@ -197,7 +240,7 @@ export class ToolPresenter implements IToolPresenter {
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
-    const source = this.mapper.getToolSource(toolName)
+    const source = this.getToolSource(toolName, request.conversationId)
 
     if (!source) {
       throw new Error(`Tool ${toolName} not found in any source`)
@@ -239,12 +282,29 @@ export class ToolPresenter implements IToolPresenter {
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)
       const rawData = resolvedResponse.rawData ?? {}
+      const content = rawData.content ?? resolvedResponse.content
       return {
-        content: resolvedResponse.content,
+        content,
         rawData: {
           ...rawData,
           toolCallId: request.id,
-          content: rawData.content ?? resolvedResponse.content
+          content,
+          toolResult:
+            rawData.toolResult ??
+            (rawData.isError === true
+              ? createAgentToolErrorResult(toolName, String(content), {
+                  recoverable: true,
+                  data: {
+                    content,
+                    source: 'agent'
+                  }
+                })
+              : createAgentToolSuccessResult(toolName, content, {
+                  data: {
+                    content,
+                    source: 'agent'
+                  }
+                }))
         }
       }
     }
@@ -262,7 +322,7 @@ export class ToolPresenter implements IToolPresenter {
     options?: { permissionMode?: PermissionMode }
   ): Promise<PreCheckedPermissionResult | null> {
     const toolName = request.function.name
-    const source = this.mapper.getToolSource(toolName)
+    const source = this.getToolSource(toolName, request.conversationId)
 
     if (!source) {
       console.warn(`[ToolPresenter] Tool ${toolName} not found for permission check`)
@@ -325,6 +385,46 @@ export class ToolPresenter implements IToolPresenter {
       return { content: response }
     }
     return response
+  }
+
+  private resolveMapper(conversationId?: string): ToolMapper {
+    const normalizedConversationId = conversationId?.trim()
+    if (!normalizedConversationId) {
+      return this.mapper
+    }
+
+    const existingMapper = this.conversationMappers.get(normalizedConversationId)
+    if (existingMapper) {
+      return existingMapper
+    }
+
+    const mapper = new ToolMapper()
+    this.conversationMappers.set(normalizedConversationId, mapper)
+    return mapper
+  }
+
+  private registerToolsForMapper(
+    mapper: ToolMapper,
+    tools: MCPToolDefinition[],
+    source: ToolSource
+  ): void {
+    mapper.registerTools(tools, source)
+    if (mapper !== this.mapper) {
+      this.mapper.registerTools(tools, source)
+    }
+  }
+
+  private getToolSource(toolName: string, conversationId?: string): ToolSource | undefined {
+    const normalizedConversationId = conversationId?.trim()
+    if (normalizedConversationId) {
+      const mapper = this.conversationMappers.get(normalizedConversationId)
+      const mappedSource = mapper?.getToolSource(toolName)
+      if (mappedSource) {
+        return mappedSource
+      }
+    }
+
+    return this.mapper.getToolSource(toolName)
   }
 
   buildToolSystemPrompt(context: {
@@ -409,7 +509,7 @@ export class ToolPresenter implements IToolPresenter {
         '`exec.cwd` may target paths outside the workspace in Full Access mode; default mode asks before using external paths.'
       )
       lines.push(
-        'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
+        'Prefer shell-native discovery and search inside `exec`, such as `rg -n`, `rg --files`, `git status`, and project verification commands.'
       )
       lines.push(
         'Use `background: true` when you know a command should detach immediately; otherwise a foreground `exec` may yield a running `sessionId` after `yieldMs`.'

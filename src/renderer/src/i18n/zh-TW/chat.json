@@ -52,7 +52,11 @@
         "deepchatSettings": "DeepChat 設定",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "附件處理失敗",
+    "fileUploadFailedDesc": "無法處理 {count} 個檔案：{names}",
+    "fileUploadFailedMore": " 等 {count} 個",
+    "unnamedFile": "未命名檔案"
   },
   "pendingInput": {
     "steer": "引導",

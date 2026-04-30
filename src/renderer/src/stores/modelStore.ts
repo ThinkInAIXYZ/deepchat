@@ -161,6 +161,23 @@ export const useModelStore = defineStore('model', () => {
     )
   }
 
+  const resolveExplicitFunctionCall = (
+    ...values: Array<boolean | undefined | null>
+  ): boolean | undefined => {
+    for (const value of values) {
+      if (typeof value === 'boolean') {
+        return value
+      }
+    }
+
+    return undefined
+  }
+
+  const stripDerivedRendererModelFields = <T extends Partial<RENDERER_MODEL_META>>(model: T) => {
+    const { explicitFunctionCall: _explicitFunctionCall, ...persistedModel } = model
+    return persistedModel as Omit<T, 'explicitFunctionCall'>
+  }
+
   const normalizeRendererModel = (model: MODEL_META, providerId: string): RENDERER_MODEL_META => ({
     id: model.id,
     name: model.name || model.id,
@@ -172,6 +189,10 @@ export const useModelStore = defineStore('model', () => {
     isCustom: model.isCustom ?? false,
     vision: resolveModelVision(model.vision),
     functionCall: resolveModelFunctionCall(model.functionCall),
+    explicitFunctionCall: resolveExplicitFunctionCall(
+      model.functionCall,
+      (model as RENDERER_MODEL_META).explicitFunctionCall
+    ),
     reasoning: model.reasoning ?? false,
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
     type: (model.type ?? ModelType.Chat) as ModelType,
@@ -193,6 +214,10 @@ export const useModelStore = defineStore('model', () => {
     isCustom: model.isCustom ?? false,
     vision: resolveModelVision(model.vision),
     functionCall: resolveModelFunctionCall(model.functionCall),
+    explicitFunctionCall: resolveExplicitFunctionCall(
+      model.functionCall,
+      (model as RENDERER_MODEL_META).explicitFunctionCall
+    ),
     reasoning: model.reasoning ?? false,
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
     type: (model.type ?? ModelType.Chat) as ModelType,
@@ -294,6 +319,10 @@ export const useModelStore = defineStore('model', () => {
           maxTokens: resolvedMaxTokens,
           vision: resolveModelVision(config.vision ?? normalized.vision),
           functionCall: resolveModelFunctionCall(config.functionCall ?? normalized.functionCall),
+          explicitFunctionCall: resolveExplicitFunctionCall(
+            config.functionCall,
+            normalized.explicitFunctionCall
+          ),
           reasoning: model.isCustom
             ? (config.reasoning ?? normalized.reasoning ?? false)
             : normalized.reasoning,
@@ -556,6 +585,10 @@ export const useModelStore = defineStore('model', () => {
             maxTokens: resolveDerivedModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
             vision: resolveModelVision(model.vision ?? fallback?.vision),
             functionCall: resolveModelFunctionCall(model.functionCall ?? fallback?.functionCall),
+            explicitFunctionCall: resolveExplicitFunctionCall(
+              model.functionCall,
+              fallback?.explicitFunctionCall
+            ),
             // Standard models should keep DB-backed reasoning capability metadata.
             reasoning:
               fallback !== undefined ? (fallback.reasoning ?? false) : (model.reasoning ?? false),
@@ -885,7 +918,10 @@ export const useModelStore = defineStore('model', () => {
     model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
   ) => {
     try {
-      const newModel = await modelClient.addCustomModel(providerId, model)
+      const newModel = await modelClient.addCustomModel(
+        providerId,
+        stripDerivedRendererModelFields(model)
+      )
       await refreshCustomModels(providerId)
       return newModel
     } catch (error) {
@@ -913,7 +949,11 @@ export const useModelStore = defineStore('model', () => {
     updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
   ) => {
     try {
-      const success = await modelClient.updateCustomModel(providerId, modelId, updates)
+      const success = await modelClient.updateCustomModel(
+        providerId,
+        modelId,
+        stripDerivedRendererModelFields(updates)
+      )
       if (success) {
         await refreshCustomModels(providerId)
       }
@@ -1165,7 +1205,7 @@ export const useModelStore = defineStore('model', () => {
     mutation: (
       providerId: string,
       model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
-    ) => modelClient.addCustomModel(providerId, model),
+    ) => modelClient.addCustomModel(providerId, stripDerivedRendererModelFields(model)),
     invalidateQueries: (_, [providerId]) => [
       CUSTOM_MODELS_KEY(providerId),
       ENABLED_MODELS_KEY(providerId)
@@ -1186,7 +1226,8 @@ export const useModelStore = defineStore('model', () => {
       providerId: string,
       modelId: string,
       updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
-    ) => modelClient.updateCustomModel(providerId, modelId, updates),
+    ) =>
+      modelClient.updateCustomModel(providerId, modelId, stripDerivedRendererModelFields(updates)),
     invalidateQueries: (_, [providerId]) => [CUSTOM_MODELS_KEY(providerId)]
   })
 
