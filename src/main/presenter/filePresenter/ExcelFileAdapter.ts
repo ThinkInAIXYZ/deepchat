@@ -20,8 +20,13 @@ export class ExcelFileAdapter extends BaseFileAdapter {
     if (!this.workbook) {
       const stats = await fs.stat(this.filePath)
       if (stats.size <= this.maxFileSize) {
-        const buffer = await fs.readFile(this.filePath)
-        this.workbook = XLSX.read(buffer)
+        try {
+          const buffer = await fs.readFile(this.filePath)
+          this.workbook = XLSX.read(buffer)
+        } catch (error) {
+          console.error('Error reading spreadsheet file:', error)
+          this.fileContent = `Error processing spreadsheet file: ${(error as Error).message}`
+        }
       }
     }
     return this.workbook
@@ -62,7 +67,7 @@ export class ExcelFileAdapter extends BaseFileAdapter {
 
   public async getLLMContent(): Promise<string | undefined> {
     const workbook = await this.loadWorkbook()
-    if (!workbook) return undefined
+    if (!workbook) return this.fileContent
 
     // const stats = await fs.stat(this.filePath)
 

@@ -2,7 +2,6 @@ import * as fs from 'fs'
 import * as crypto from 'crypto'
 import { FileMetaData } from '@shared/presenter'
 import path from 'path'
-import { detectMimeType } from './mime'
 
 export abstract class BaseFileAdapter {
   filePath: string
@@ -37,6 +36,7 @@ export abstract class BaseFileAdapter {
   }
 
   protected async preprocessFile(): Promise<void> {
+    const { detectMimeType } = await import('./mime')
     this.mimeType = await detectMimeType(this.filePath)
   }
 

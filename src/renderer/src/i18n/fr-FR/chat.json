@@ -52,7 +52,11 @@
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "Échec du traitement de la pièce jointe",
+    "fileUploadFailedDesc": "Impossible de traiter {count} fichiers : {names}",
+    "fileUploadFailedMore": " et {count} de plus",
+    "unnamedFile": "fichier sans nom"
   },
   "pendingInput": {
     "steer": "Guidage",
