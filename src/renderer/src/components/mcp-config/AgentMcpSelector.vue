@@ -13,9 +13,15 @@ const { t } = useI18n()
 const { toast } = useToast()
 const configClient = createConfigClient()
 
+type AgentMcpServerConfig = {
+  type?: string
+  source?: string
+  ownerPluginId?: string
+}
+
 const loading = ref(false)
 const saving = ref(false)
-const availableServers = ref<Array<{ name: string; config: { type?: string } }>>([])
+const availableServers = ref<Array<{ name: string; config: AgentMcpServerConfig }>>([])
 const selections = ref<string[]>([])
 
 const selectableServers = computed(() =>
@@ -23,6 +29,9 @@ const selectableServers = computed(() =>
 )
 
 const selectionSet = computed(() => new Set(selections.value))
+
+const isPluginOwnedServerConfig = (config: AgentMcpServerConfig): boolean =>
+  Boolean(config.ownerPluginId || config.source === 'plugin')
 
 const load = async () => {
   loading.value = true
@@ -32,12 +41,17 @@ const load = async () => {
       configClient.getAcpSharedMcpSelections()
     ])
 
-    availableServers.value = Object.entries(servers ?? {}).map(([name, config]) => ({
-      name,
-      config
-    }))
+    availableServers.value = Object.entries(servers ?? {})
+      .filter(([, config]) => !isPluginOwnedServerConfig(config))
+      .map(([name, config]) => ({
+        name,
+        config
+      }))
 
-    selections.value = Array.isArray(currentSelections) ? currentSelections : []
+    const visibleServerNames = new Set(availableServers.value.map((server) => server.name))
+    selections.value = Array.isArray(currentSelections)
+      ? currentSelections.filter((serverName) => visibleServerNames.has(serverName))
+      : []
   } finally {
     loading.value = false
   }

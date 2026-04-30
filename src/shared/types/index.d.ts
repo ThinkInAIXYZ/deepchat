@@ -15,5 +15,6 @@ export type {
 } from '../providerDeeplink'
 export * from './browser'
 export * from './chatSettings'
+export * from './plugin'
 export * from './skill'
 export * from './skillSync'

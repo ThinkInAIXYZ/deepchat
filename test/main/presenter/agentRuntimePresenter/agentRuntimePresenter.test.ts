@@ -223,6 +223,8 @@ function createMockConfigPresenter() {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
     getSkillDraftSuggestionsEnabled: vi.fn().mockReturnValue(false),
+    getMcpEnabled: vi.fn().mockResolvedValue(false),
+    getMcpServers: vi.fn().mockResolvedValue({}),
     getReasoningPortrait: vi.fn().mockImplementation((providerId: string, modelId: string) => {
       if (providerId === 'gemini' && modelId === 'gemini-2.5-pro') {
         return {
@@ -1551,6 +1553,26 @@ describe('AgentRuntimePresenter', () => {
       expect(secondCallArgs.messages[0].content).toContain('## Pinned Skills')
       expect(secondCallArgs.messages[0].content).toContain('### skill-a')
       expect(secondCallArgs.messages[0].content).toContain('Skill A instructions')
+    })
+
+    it('does not load stale skill pins when the skill is absent from available metadata', async () => {
+      const skillPresenter = presenter.skillPresenter as {
+        getMetadataList: ReturnType<typeof vi.fn>
+        getActiveSkills: ReturnType<typeof vi.fn>
+        loadSkillContent: ReturnType<typeof vi.fn>
+      }
+
+      skillPresenter.getMetadataList.mockResolvedValue([])
+      skillPresenter.getActiveSkills.mockResolvedValue(['plugin-skill'])
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Click a native app button')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const systemPrompt = String(callArgs.messages[0].content)
+
+      expect(systemPrompt).not.toContain('## Pinned Skills')
+      expect(skillPresenter.loadSkillContent).not.toHaveBeenCalled()
     })
 
     it('keeps system prompt section order: runtime -> skills -> env -> tooling -> user prompt', async () => {

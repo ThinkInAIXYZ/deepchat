@@ -151,6 +151,17 @@ import {
   projectSelectDirectoryRoute
 } from './routes/project.routes'
 import {
+  pluginsDeleteRoute,
+  pluginsDisableRoute,
+  pluginsEnableRoute,
+  pluginsGetRoute,
+  pluginsInstallFromFileRoute,
+  pluginsInstallRoute,
+  pluginsInvokeActionRoute,
+  pluginsListRoute,
+  pluginsOpenOfficialReleaseRoute
+} from './routes/plugins.routes'
+import {
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute
@@ -275,6 +286,7 @@ export * from './routes/device.routes'
 export * from './routes/file.routes'
 export * from './routes/mcp.routes'
 export * from './routes/models.routes'
+export * from './routes/plugins.routes'
 export * from './routes/providers.routes'
 export * from './routes/project.routes'
 export * from './routes/settings.routes'
@@ -305,6 +317,15 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [projectListEnvironmentsRoute.name]: projectListEnvironmentsRoute,
   [projectOpenDirectoryRoute.name]: projectOpenDirectoryRoute,
   [projectSelectDirectoryRoute.name]: projectSelectDirectoryRoute,
+  [pluginsListRoute.name]: pluginsListRoute,
+  [pluginsGetRoute.name]: pluginsGetRoute,
+  [pluginsInstallRoute.name]: pluginsInstallRoute,
+  [pluginsInstallFromFileRoute.name]: pluginsInstallFromFileRoute,
+  [pluginsOpenOfficialReleaseRoute.name]: pluginsOpenOfficialReleaseRoute,
+  [pluginsEnableRoute.name]: pluginsEnableRoute,
+  [pluginsDisableRoute.name]: pluginsDisableRoute,
+  [pluginsDeleteRoute.name]: pluginsDeleteRoute,
+  [pluginsInvokeActionRoute.name]: pluginsInvokeActionRoute,
   [fileGetMimeTypeRoute.name]: fileGetMimeTypeRoute,
   [filePrepareFileRoute.name]: filePrepareFileRoute,
   [filePrepareDirectoryRoute.name]: filePrepareDirectoryRoute,

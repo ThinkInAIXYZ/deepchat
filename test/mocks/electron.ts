@@ -2,7 +2,9 @@
 export const app = {
   getName: () => 'DeepChat',
   getVersion: () => '0.0.0-test',
+  getAppPath: () => '/mock/app',
   getPath: (_: string) => '/mock/path',
+  isPackaged: false,
   isReady: () => true,
   on: (_event: string, _cb: (...args: any[]) => void) => {},
   relaunch: () => {},
@@ -23,7 +25,8 @@ export const ipcRenderer = {
 }
 
 export const shell = {
-  openExternal: async (_url: string) => {}
+  openExternal: async (_url: string) => {},
+  openPath: async (_path: string) => ''
 }
 
 export const dialog = {

@@ -1180,7 +1180,9 @@
       "redetectCompleteDesc": "已检测并设置当前最优的NPM源",
       "redetectFailed": "重新检测失败",
       "redetectFailedDesc": "无法重新检测最优源，将使用默认配置"
-    }
+    },
+    "managedServerReadOnly": "DeepChat托管服务",
+    "managedServerReadOnlyDesc": "请在对应插件设置中管理启用和权限"
   },
   "about": {
     "title": "关于我们",
@@ -1819,6 +1821,36 @@
       "loginResponseIncomplete": "微信 iLink 登录返回不完整，请重新尝试。",
       "loginTimedOut": "等待微信 iLink 授权超时，请重新打开登录窗口后再试。",
       "loginConnected": "微信 iLink 账号已连接。"
+    }
+  },
+  "plugins": {
+    "title": "插件",
+    "officialOnly": "从当前 DeepChat 版本的 GitHub Release 自动安装官方插件，也可以手动选择 .dcplugin 文件",
+    "refresh": "刷新",
+    "empty": "暂无可用官方插件",
+    "emptyTitle": "安装官方插件",
+    "emptyDescription": "打开当前版本 GitHub Release 下载 .dcplugin，或选择已经下载好的插件包。",
+    "loadFailed": "插件加载失败",
+    "actionFailed": "插件操作失败",
+    "install": "安装",
+    "installFromFile": "选择 .dcplugin",
+    "openRelease": "GitHub Release",
+    "enable": "启用",
+    "disable": "停用",
+    "openSettings": "设置",
+    "runtime": "运行时",
+    "version": "版本",
+    "command": "命令",
+    "status": {
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "available": "可安装"
+    },
+    "runtimeStates": {
+      "missing": "未安装",
+      "installed": "已安装",
+      "running": "运行中",
+      "error": "错误"
     }
   }
 }

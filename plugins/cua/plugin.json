@@ -1,0 +1,108 @@
+{
+  "id": "com.deepchat.plugins.cua",
+  "name": "CUA Computer Use Runtime",
+  "version": "1.0.4-beta.3",
+  "publisher": "DeepChat",
+  "engines": {
+    "deepchat": ">=${app.version}",
+    "platforms": ["darwin"]
+  },
+  "activationEvents": ["onEnable"],
+  "capabilities": [
+    "runtime.manage",
+    "mcp.register",
+    "skills.register",
+    "settings.contribute",
+    "shell.openExternal",
+    "process.execDeclared"
+  ],
+  "source": {
+    "type": "deepchat-official",
+    "url": "${github.release.download}/deepchat-plugin-cua-${app.version}-darwin-${arch}.dcplugin",
+    "publisher": "DeepChat"
+  },
+  "runtime": {
+    "id": "cua-driver",
+    "type": "external-helper",
+    "displayName": "Cua Driver",
+    "detect": [
+      "plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver",
+      "/Applications/CuaDriver.app/Contents/MacOS/cua-driver"
+    ],
+    "install": {
+      "mode": "user-confirmed",
+      "provider": "trycua",
+      "strategy": "bundled-plugin-helper",
+      "minVersion": "0.1.0",
+      "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
+    }
+  },
+  "mcpServers": [
+    {
+      "id": "cua-driver",
+      "displayName": "CUA Driver",
+      "transport": "stdio",
+      "command": "${runtime.cua-driver.command}",
+      "args": ["mcp"],
+      "env": {
+        "CUA_DRIVER_MCP_MODE": "1",
+        "DEEPCHAT_COMPUTER_USE_APP_PATH": "${runtime.cua-driver.helperAppPath}",
+        "DEEPCHAT_COMPUTER_USE_BINARY_PATH": "${runtime.cua-driver.command}"
+      },
+      "autoApprove": []
+    }
+  ],
+  "skills": [
+    {
+      "id": "cua-driver",
+      "path": "skills/cua-driver/SKILL.md",
+      "scope": "agent"
+    }
+  ],
+  "settingsContributions": [
+    {
+      "id": "cua-runtime-settings",
+      "title": "CUA Computer Use Runtime",
+      "placement": "plugins",
+      "entry": "settings/index.html",
+      "preloadTypes": "types/settings-preload.d.ts"
+    }
+  ],
+  "toolPolicies": [
+    {
+      "serverId": "cua-driver",
+      "tools": {
+        "check_permissions": "allow",
+        "list_apps": "allow",
+        "list_windows": "allow",
+        "get_screen_size": "allow",
+        "get_window_state": "allow",
+        "get_accessibility_tree": "allow",
+        "get_cursor_position": "allow",
+        "get_config": "allow",
+        "get_recording_state": "allow",
+        "get_agent_cursor_state": "allow",
+        "screenshot": "allow",
+        "launch_app": "ask",
+        "click": "ask",
+        "right_click": "ask",
+        "double_click": "ask",
+        "drag": "ask",
+        "scroll": "ask",
+        "move_cursor": "ask",
+        "type_text": "ask",
+        "type_text_chars": "ask",
+        "press_key": "ask",
+        "hotkey": "ask",
+        "set_value": "ask",
+        "set_config": "ask",
+        "set_recording": "ask",
+        "set_agent_cursor_enabled": "ask",
+        "set_agent_cursor_motion": "ask",
+        "replay_trajectory": "ask",
+        "zoom": "ask",
+        "page": "ask"
+      }
+    }
+  ]
+}

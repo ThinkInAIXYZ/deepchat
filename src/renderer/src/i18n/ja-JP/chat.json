@@ -42,6 +42,7 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "内蔵ツール",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",

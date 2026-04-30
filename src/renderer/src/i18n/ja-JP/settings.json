@@ -1118,7 +1118,9 @@
     "restartServer": "サーバーを再起動",
     "viewLogs": "ログを表示",
     "starting": "起動中",
-    "error": "エラー"
+    "error": "エラー",
+    "managedServerReadOnly": "DeepChat managed service",
+    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings."
   },
   "about": {
     "title": "私たちについて",
@@ -1829,5 +1831,35 @@
     "subagentTargetAgentLabel": "対象エージェント",
     "subagentLimit": "{count}/{max} スロット",
     "addSubagentSlot": "+ スロットを追加"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "officialOnly": "Official source only",
+    "refresh": "Refresh",
+    "empty": "No official plugins available",
+    "loadFailed": "Failed to load plugins",
+    "actionFailed": "Plugin operation failed",
+    "install": "Install",
+    "enable": "Enable",
+    "disable": "Disable",
+    "openSettings": "Settings",
+    "runtime": "Runtime",
+    "version": "Version",
+    "command": "Command",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "available": "Available"
+    },
+    "runtimeStates": {
+      "missing": "Missing",
+      "installed": "Installed",
+      "running": "Running",
+      "error": "Error"
+    },
+    "emptyTitle": "Install official plugins",
+    "emptyDescription": "Open the current GitHub Release to download a .dcplugin, or choose a package already on disk.",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release"
   }
 }

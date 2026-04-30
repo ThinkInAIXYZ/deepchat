@@ -1,0 +1,13 @@
+{
+  "id": "cua-driver",
+  "displayName": "CUA Driver",
+  "transport": "stdio",
+  "command": "${runtime.cua-driver.command}",
+  "args": ["mcp"],
+  "env": {
+    "CUA_DRIVER_MCP_MODE": "1",
+    "DEEPCHAT_COMPUTER_USE_APP_PATH": "${runtime.cua-driver.helperAppPath}",
+    "DEEPCHAT_COMPUTER_USE_BINARY_PATH": "${runtime.cua-driver.command}"
+  },
+  "autoApprove": []
+}

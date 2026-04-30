@@ -203,6 +203,36 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const prompts = computed(() => promptsQuery.data.value ?? [])
 
+  const isPluginOwnedServerConfig = (serverConfig?: Partial<MCPServerConfig> | null): boolean =>
+    Boolean(serverConfig?.ownerPluginId || serverConfig?.source === 'plugin')
+
+  const isPluginOwnedServerName = (serverName?: string | null): boolean => {
+    if (!serverName) {
+      return false
+    }
+
+    return isPluginOwnedServerConfig(config.value.mcpServers?.[serverName])
+  }
+
+  const isVisibleServerName = (serverName?: string | null): boolean =>
+    !isPluginOwnedServerName(serverName)
+
+  const visibleTools = computed(() =>
+    tools.value.filter((tool) => isVisibleServerName(tool.server.name))
+  )
+
+  const pluginTools = computed(() =>
+    tools.value.filter((tool) => isPluginOwnedServerName(tool.server.name))
+  )
+
+  const visibleResources = computed(() =>
+    resources.value.filter((resource) => isVisibleServerName(resource.client.name))
+  )
+
+  const visiblePrompts = computed(() =>
+    prompts.value.filter((prompt) => isVisibleServerName(prompt.client?.name))
+  )
+
   type CallToolRequest = Parameters<(typeof mcpClient)['callTool']>[0]
   type CallToolResult = Awaited<ReturnType<(typeof mcpClient)['callTool']>>
   type CallToolMutationVars = [request: CallToolRequest]
@@ -368,7 +398,7 @@ export const useMcpStore = defineStore('mcp', () => {
   )
   // ==================== 计算属性 ====================
   // 服务器列表
-  const serverList = computed(() => {
+  const allServerList = computed(() => {
     const servers = Object.entries(config.value.mcpServers ?? {}).map(([name, serverConfig]) => ({
       name,
       ...serverConfig,
@@ -382,8 +412,8 @@ export const useMcpStore = defineStore('mcp', () => {
     // 3. 未启用的inmemory服务
     // 4. 其他服务
     return servers.sort((a, b) => {
-      const aIsInmemory = a.type === 'inmemory'
-      const bIsInmemory = b.type === 'inmemory'
+      const aIsInmemory = a.type === 'inmemory' || a.source === 'deepchat'
+      const bIsInmemory = b.type === 'inmemory' || b.source === 'deepchat'
 
       // inmemory 都优先
       if (aIsInmemory && !bIsInmemory) return -1
@@ -392,13 +422,22 @@ export const useMcpStore = defineStore('mcp', () => {
       return 0 // 保持原有顺序
     })
   })
+  const serverList = computed(() =>
+    allServerList.value.filter((server) => !isPluginOwnedServerConfig(server))
+  )
+  const pluginServerList = computed(() =>
+    allServerList.value.filter((server) => isPluginOwnedServerConfig(server))
+  )
   const enabledServers = computed(() =>
     config.value.mcpEnabled ? serverList.value.filter((server) => server.enabled) : []
+  )
+  const enabledPluginServers = computed(() =>
+    config.value.mcpEnabled ? pluginServerList.value.filter((server) => server.enabled) : []
   )
   const enabledServerCount = computed(() => enabledServers.value.length)
 
   // 工具数量
-  const toolCount = computed(() => tools.value.length)
+  const toolCount = computed(() => visibleTools.value.length)
   const hasTools = computed(() => toolCount.value > 0)
 
   // ==================== Mutations ====================
@@ -1013,6 +1052,8 @@ export const useMcpStore = defineStore('mcp', () => {
     serverLoadingStates,
     configLoading,
     tools,
+    visibleTools,
+    pluginTools,
     toolsLoading,
     toolsError,
     toolsErrorMessage,
@@ -1021,13 +1062,17 @@ export const useMcpStore = defineStore('mcp', () => {
     toolResults,
     enabledToolNames,
     prompts,
+    visiblePrompts,
     resources,
+    visibleResources,
     mcpEnabled,
     mcpInstallCache,
 
     // 计算属性
     serverList,
+    pluginServerList,
     enabledServers,
+    enabledPluginServers,
     enabledServerCount,
     toolCount,
     hasTools,

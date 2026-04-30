@@ -2419,7 +2419,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const normalizedAvailableSkills = this.normalizeSkillMetadata(availableSkills)
-    const normalizedActiveSkills = this.normalizeSkillNames(activeSkillNames)
+    const availableSkillNames = new Set(normalizedAvailableSkills.map((skill) => skill.name))
+    const normalizedActiveSkills = this.normalizeSkillNames(
+      activeSkillNames.filter((skillName) => availableSkillNames.has(skillName))
+    )
     const agentToolNames = this.getAgentToolNames(toolDefinitions)
     const fingerprint = this.buildSystemPromptFingerprint({
       providerId,

@@ -18,5 +18,6 @@
   "settings-dashboard": "Dashboard",
   "settings-environments": "Ambientes",
   "settings-remote": "Remoto",
-  "settings-deepchat-agents": "Agentes do DeepChat"
+  "settings-deepchat-agents": "Agentes do DeepChat",
+  "settings-plugins": "Plugins"
 }

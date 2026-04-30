@@ -14,6 +14,7 @@ import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
+import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
 
 export class ToolManager {
   private configPresenter: IConfigPresenter
@@ -323,13 +324,28 @@ export class ToolManager {
       return true
     }
 
-    // 2. 检查持久化的 'all' 权限
+    // 2. Plugin-owned exact policies override persisted server auto-approve settings.
+    const pluginPolicy = getPluginToolPolicy(serverName, originalToolName)
+    if (pluginPolicy === 'allow') {
+      console.log(
+        `[ToolManager] Permission granted by plugin tool policy: ${serverName}.${originalToolName}`
+      )
+      return true
+    }
+    if (pluginPolicy === 'ask' || pluginPolicy === 'deny') {
+      console.log(
+        `[ToolManager] Permission blocked by plugin tool policy '${pluginPolicy}': ${serverName}.${originalToolName}`
+      )
+      return false
+    }
+
+    // 3. 检查持久化的 'all' 权限
     if (autoApprove.includes('all')) {
       console.log(`[ToolManager] Permission granted: server '${serverName}' has 'all' permissions`)
       return true
     }
 
-    // 3. 检查持久化的特定权限类型
+    // 4. 检查持久化的特定权限类型
     if (autoApprove.includes(permissionType)) {
       console.log(
         `[ToolManager] Permission granted: server '${serverName}' has '${permissionType}' permission`
@@ -387,6 +403,11 @@ export class ToolManager {
     const servers = await this.configPresenter.getMcpServers()
     const serverConfig = servers[toolServerName]
     const autoApprove = serverConfig?.autoApprove || []
+    const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
+
+    if (pluginPolicy === 'deny') {
+      return null
+    }
 
     // Check permission using existing logic
     const hasPermission = this.checkToolPermission(
@@ -517,6 +538,14 @@ export class ToolManager {
         }
       }
       const autoApprove = serverConfig?.autoApprove || []
+      const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
+      if (pluginPolicy === 'deny') {
+        return {
+          toolCallId: toolCall.id,
+          content: `Tool '${originalName}' on server '${toolServerName}' is blocked by plugin policy.`,
+          isError: true
+        }
+      }
       console.log(
         `Checking permissions for tool '${originalName}' on server '${toolServerName}' with autoApprove:`,
         autoApprove

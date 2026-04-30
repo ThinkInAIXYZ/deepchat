@@ -1640,6 +1640,7 @@ export interface MCPServerConfig {
   type: 'sse' | 'stdio' | 'inmemory' | 'http'
   source?: string // Source identifier: "mcprouter" | "modelscope" | undefined(for manual)
   sourceId?: string // Source ID: mcprouter uuid or modelscope mcpServer.id
+  ownerPluginId?: string // Plugin owner id for managed plugin MCP servers
 }
 
 export interface MCPConfig {

@@ -1118,7 +1118,9 @@
     "restartServer": "重新啟動伺服器",
     "viewLogs": "查看記錄",
     "starting": "啟動中",
-    "error": "錯誤"
+    "error": "錯誤",
+    "managedServerReadOnly": "DeepChat托管服务",
+    "managedServerReadOnlyDesc": "請在對應插件設定中管理啟用和權限"
   },
   "about": {
     "title": "關於我們",
@@ -1829,5 +1831,35 @@
     "subagentTargetAgentLabel": "目標智能體",
     "subagentLimit": "{count}/{max} 個槽位",
     "addSubagentSlot": "+ 新增槽位"
+  },
+  "plugins": {
+    "title": "插件",
+    "officialOnly": "仅允许官方插件源",
+    "refresh": "刷新",
+    "empty": "暂无可用官方插件",
+    "loadFailed": "插件加载失败",
+    "actionFailed": "插件操作失败",
+    "install": "安装",
+    "enable": "启用",
+    "disable": "停用",
+    "openSettings": "设置",
+    "runtime": "运行时",
+    "version": "版本",
+    "command": "命令",
+    "status": {
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "available": "Available"
+    },
+    "runtimeStates": {
+      "missing": "未安装",
+      "installed": "已安装",
+      "running": "运行中",
+      "error": "错误"
+    },
+    "emptyTitle": "Install official plugins",
+    "emptyDescription": "Open the current GitHub Release to download a .dcplugin, or choose a package already on disk.",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release"
   }
 }

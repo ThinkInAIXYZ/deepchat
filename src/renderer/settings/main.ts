@@ -7,8 +7,10 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 
 import { createI18n } from 'vue-i18n'
 import locales, { pluralRules } from '@/i18n'
-import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
+import { getSettingsNavigationItems } from '@shared/settingsNavigation'
 import { preloadIcons } from '../src/lib/iconLoader'
+
+const settingsNavigationItems = getSettingsNavigationItems(window.electron?.process?.platform)
 
 const settingsRouteComponents = {
   'settings-common': () => import('./components/CommonSettings.vue'),
@@ -21,6 +23,7 @@ const settingsRouteComponents = {
   'settings-acp': () => import('./components/AcpSettings.vue'),
   'settings-remote': () => import('./components/RemoteSettings.vue'),
   'settings-notifications-hooks': () => import('./components/NotificationsHooksSettings.vue'),
+  'settings-plugins': () => import('./components/PluginsSettings.vue'),
   'settings-skills': () => import('./components/skills/SkillsSettings.vue'),
   'settings-prompt': () => import('./components/PromptSetting.vue'),
   'settings-knowledge-base': () => import('./components/KnowledgeBaseSettings.vue'),
@@ -42,7 +45,7 @@ const i18n = createI18n({
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
-    ...SETTINGS_NAVIGATION_ITEMS.map((item) => ({
+    ...settingsNavigationItems.map((item) => ({
       path: item.path,
       name: item.routeName,
       component: settingsRouteComponents[item.routeName],

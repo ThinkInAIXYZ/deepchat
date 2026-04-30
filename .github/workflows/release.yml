@@ -289,6 +289,7 @@ jobs:
         run: |
           pnpm run build
           pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
+          pnpm run plugin:cua:package:mac:${{ matrix.arch }}
         env:
           CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
@@ -302,6 +303,16 @@ jobs:
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           NODE_OPTIONS: '--max-old-space-size=4096'
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Verify CUA plugin artifact
+        shell: bash
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          PLUGIN="dist/plugins/deepchat-plugin-cua-${VERSION}-darwin-${TARGET_ARCH}.dcplugin"
+          test -f "$PLUGIN"
+          ls -lh "$PLUGIN"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
@@ -374,6 +385,19 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release_assets
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          require_cua_plugin_asset() {
+            local arch="$1"
+            local dir="artifacts/deepchat-mac-${arch}/plugins"
+            local asset="deepchat-plugin-cua-${VERSION}-darwin-${arch}.dcplugin"
+            if [ ! -f "${dir}/${asset}" ]; then
+              echo "Error: Missing CUA plugin release asset ${dir}/${asset}"
+              find artifacts -maxdepth 5 -path "*plugins*" -type f -print 2>/dev/null || true
+              exit 1
+            fi
+            cp "${dir}/${asset}" release_assets/
+          }
 
           # Process Windows x64 artifacts
           if [ -d "artifacts/deepchat-win-x64" ]; then
@@ -407,6 +431,9 @@ jobs:
             cp artifacts/deepchat-mac-arm64/*.zip release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/*.blockmap release_assets/ 2>/dev/null || true
           fi
+
+          require_cua_plugin_asset x64
+          require_cua_plugin_asset arm64
 
           merge_mac_yml() {
             local name="$1"

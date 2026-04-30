@@ -46,25 +46,27 @@ export function useAgentMcpData() {
   })
 
   const tools = computed(() => {
-    if (!isAcpMode.value) return mcpStore.tools
+    if (!isAcpMode.value) return [...mcpStore.visibleTools, ...mcpStore.pluginTools]
     const set = selectionSet.value
     if (!set) return []
-    return mcpStore.tools.filter((tool) => set.has(tool.server.name))
+    return mcpStore.visibleTools.filter((tool) => set.has(tool.server.name))
   })
 
   const resources = computed(() => {
-    if (!isAcpMode.value) return mcpStore.resources
+    if (!isAcpMode.value) return mcpStore.visibleResources
     const set = selectionSet.value
     if (!set) return []
-    return mcpStore.resources.filter((resource) => set.has(resource.client.name))
+    return mcpStore.visibleResources.filter((resource) => set.has(resource.client.name))
   })
 
   const prompts = computed(() => {
-    if (!isAcpMode.value) return mcpStore.prompts
+    if (!isAcpMode.value) return mcpStore.visiblePrompts
     const set = selectionSet.value
     if (!set)
-      return mcpStore.prompts.filter((prompt) => prompt.client?.name === CUSTOM_PROMPTS_CLIENT)
-    return mcpStore.prompts.filter(
+      return mcpStore.visiblePrompts.filter(
+        (prompt) => prompt.client?.name === CUSTOM_PROMPTS_CLIENT
+      )
+    return mcpStore.visiblePrompts.filter(
       (prompt) => prompt.client?.name === CUSTOM_PROMPTS_CLIENT || set.has(prompt.client?.name)
     )
   })

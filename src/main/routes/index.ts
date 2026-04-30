@@ -71,6 +71,15 @@ import {
   mcpSubmitSamplingDecisionRoute,
   mcpUpdateServerRoute,
   modelsGetProviderCatalogRoute,
+  pluginsDeleteRoute,
+  pluginsDisableRoute,
+  pluginsEnableRoute,
+  pluginsGetRoute,
+  pluginsInstallFromFileRoute,
+  pluginsInstallRoute,
+  pluginsInvokeActionRoute,
+  pluginsListRoute,
+  pluginsOpenOfficialReleaseRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
@@ -190,6 +199,7 @@ import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
+import type { PluginPresenter } from '@/presenter/pluginPresenter'
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -213,6 +223,7 @@ export type MainKernelRouteRuntime = {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
+  pluginPresenter: PluginPresenter
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -233,6 +244,7 @@ export function createMainKernelRouteRuntime(deps: {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
+  pluginPresenter: PluginPresenter
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -279,7 +291,8 @@ export function createMainKernelRouteRuntime(deps: {
     workspacePresenter: deps.workspacePresenter,
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
-    startupWorkloadCoordinator: deps.startupWorkloadCoordinator
+    startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
+    pluginPresenter: deps.pluginPresenter
   }
 }
 
@@ -607,6 +620,73 @@ export async function dispatchDeepchatRoute(
       const input = deviceSanitizeSvgRoute.input.parse(rawInput)
       return deviceSanitizeSvgRoute.output.parse({
         content: await runtime.devicePresenter.sanitizeSvgContent(input.svgContent)
+      })
+    }
+
+    case pluginsListRoute.name: {
+      pluginsListRoute.input.parse(rawInput)
+      return pluginsListRoute.output.parse({
+        plugins: await runtime.pluginPresenter.listPlugins()
+      })
+    }
+
+    case pluginsGetRoute.name: {
+      const input = pluginsGetRoute.input.parse(rawInput)
+      return pluginsGetRoute.output.parse({
+        plugin: await runtime.pluginPresenter.getPlugin(input.pluginId)
+      })
+    }
+
+    case pluginsInstallRoute.name: {
+      const input = pluginsInstallRoute.input.parse(rawInput)
+      return pluginsInstallRoute.output.parse({
+        result: await runtime.pluginPresenter.installOfficialPlugin(input.pluginId)
+      })
+    }
+
+    case pluginsInstallFromFileRoute.name: {
+      const input = pluginsInstallFromFileRoute.input.parse(rawInput)
+      return pluginsInstallFromFileRoute.output.parse({
+        result: await runtime.pluginPresenter.installPluginFromFile(input.filePath)
+      })
+    }
+
+    case pluginsOpenOfficialReleaseRoute.name: {
+      const input = pluginsOpenOfficialReleaseRoute.input.parse(rawInput)
+      return pluginsOpenOfficialReleaseRoute.output.parse({
+        result: await runtime.pluginPresenter.openOfficialPluginRelease(input.pluginId)
+      })
+    }
+
+    case pluginsEnableRoute.name: {
+      const input = pluginsEnableRoute.input.parse(rawInput)
+      return pluginsEnableRoute.output.parse({
+        result: await runtime.pluginPresenter.enablePlugin(input.pluginId)
+      })
+    }
+
+    case pluginsDisableRoute.name: {
+      const input = pluginsDisableRoute.input.parse(rawInput)
+      return pluginsDisableRoute.output.parse({
+        result: await runtime.pluginPresenter.disablePlugin(input.pluginId)
+      })
+    }
+
+    case pluginsDeleteRoute.name: {
+      const input = pluginsDeleteRoute.input.parse(rawInput)
+      return pluginsDeleteRoute.output.parse({
+        result: await runtime.pluginPresenter.deletePlugin(input.pluginId)
+      })
+    }
+
+    case pluginsInvokeActionRoute.name: {
+      const input = pluginsInvokeActionRoute.input.parse(rawInput)
+      return pluginsInvokeActionRoute.output.parse({
+        result: await runtime.pluginPresenter.invokeAction(
+          input.pluginId,
+          input.actionId,
+          input.payload
+        )
       })
     }
 

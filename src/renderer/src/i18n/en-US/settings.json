@@ -1180,7 +1180,9 @@
       "redetectCompleteDesc": "Detected and set the current optimal NPM registry",
       "redetectFailed": "Re-detection failed",
       "redetectFailedDesc": "Unable to re-detect optimal registry, will use default configuration"
-    }
+    },
+    "managedServerReadOnly": "DeepChat managed service",
+    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings."
   },
   "about": {
     "title": "About Us",
@@ -1819,6 +1821,36 @@
       "loginResponseIncomplete": "The WeChat iLink login response was incomplete. Please try again.",
       "loginTimedOut": "Timed out waiting for WeChat iLink authorization. Reopen the login window and try again.",
       "loginConnected": "The WeChat iLink account has been connected."
+    }
+  },
+  "plugins": {
+    "title": "Plugins",
+    "officialOnly": "Install official plugins from this DeepChat version's GitHub Release, or choose a downloaded .dcplugin file.",
+    "refresh": "Refresh",
+    "empty": "No official plugins available",
+    "emptyTitle": "Install official plugins",
+    "emptyDescription": "Open the current GitHub Release to download a .dcplugin, or choose a package already on disk.",
+    "loadFailed": "Failed to load plugins",
+    "actionFailed": "Plugin operation failed",
+    "install": "Install",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release",
+    "enable": "Enable",
+    "disable": "Disable",
+    "openSettings": "Settings",
+    "runtime": "Runtime",
+    "version": "Version",
+    "command": "Command",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "available": "Available"
+    },
+    "runtimeStates": {
+      "missing": "Missing",
+      "installed": "Installed",
+      "running": "Running",
+      "error": "Error"
     }
   }
 }

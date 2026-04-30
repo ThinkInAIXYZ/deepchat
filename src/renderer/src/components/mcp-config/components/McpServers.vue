@@ -64,34 +64,38 @@ watch(isAddServerDialogOpen, (newIsAddServerDialogOpen) => {
     mcpStore.clearMcpInstallCache()
   }
 })
+const isDeepChatManagedServer = (config?: MCPServerConfig) => {
+  return config?.source === 'deepchat'
+}
+
 // 计算属性：区分内置服务和普通服务
-const inMemoryServers = computed(() => {
+const builtInServers = computed(() => {
   return mcpStore.serverList.filter((server) => {
     const config = mcpStore.config.mcpServers[server.name]
-    return config?.type === 'inmemory'
+    return config?.type === 'inmemory' || isDeepChatManagedServer(config)
   })
 })
 
 const regularServers = computed(() => {
   return mcpStore.serverList.filter((server) => {
     const config = mcpStore.config.mcpServers[server.name]
-    return config?.type !== 'inmemory'
+    return config?.type !== 'inmemory' && !isDeepChatManagedServer(config)
   })
 })
 
 // 计算属性：获取每个服务器的工具数量
 const getServerToolsCount = (serverName: string) => {
-  return mcpStore.tools.filter((tool) => tool.server.name === serverName).length
+  return mcpStore.visibleTools.filter((tool) => tool.server.name === serverName).length
 }
 
 // 计算属性：获取每个服务器的prompts数量
 const getServerPromptsCount = (serverName: string) => {
-  return mcpStore.prompts.filter((prompt) => prompt.client.name === serverName).length
+  return mcpStore.visiblePrompts.filter((prompt) => prompt.client.name === serverName).length
 }
 
 // 计算属性：获取每个服务器的resources数量
 const getServerResourcesCount = (serverName: string) => {
-  return mcpStore.resources.filter((resource) => resource.client.name === serverName).length
+  return mcpStore.visibleResources.filter((resource) => resource.client.name === serverName).length
 }
 
 // 事件处理函数
@@ -112,7 +116,7 @@ const handleEditServer = async (serverName: string, serverConfig: Partial<MCPSer
 
 const handleRemoveServer = async (serverName: string) => {
   const config = mcpStore.config.mcpServers[serverName]
-  if (config?.type === 'inmemory') {
+  if (config?.type === 'inmemory' || isDeepChatManagedServer(config)) {
     toast({
       title: t('settings.mcp.cannotRemoveBuiltIn'),
       description: t('settings.mcp.builtInServerCannotBeRemoved'),
@@ -131,6 +135,15 @@ const confirmRemoveServer = async () => {
 }
 
 const handleToggleServer = async (serverName: string) => {
+  const config = mcpStore.config.mcpServers[serverName]
+  if (isDeepChatManagedServer(config)) {
+    toast({
+      title: t('settings.mcp.managedServerReadOnly'),
+      description: t('settings.mcp.managedServerReadOnlyDesc')
+    })
+    return
+  }
+
   if (mcpStore.serverLoadingStates[serverName]) {
     return
   }
@@ -157,6 +170,15 @@ const openEditServerDialog = (serverName: string) => {
     router.push({
       name: 'settings-knowledge-base',
       query: { subtab: specialServers[serverName] }
+    })
+    return
+  }
+
+  const config = mcpStore.config.mcpServers[serverName]
+  if (isDeepChatManagedServer(config)) {
+    toast({
+      title: t('settings.mcp.managedServerReadOnly'),
+      description: t('settings.mcp.managedServerReadOnlyDesc')
     })
     return
   }
@@ -231,22 +253,23 @@ const openHigressMarket = () => {
 
       <div v-else class="space-y-4 py-3">
         <!-- 内置服务 -->
-        <div v-if="inMemoryServers.length > 0">
+        <div v-if="builtInServers.length > 0">
           <div class="flex items-center space-x-2 mb-3">
             <Icon icon="lucide:shield-check" class="h-4 w-4 text-blue-600" />
             <h3 class="text-sm font-semibold text-foreground">
               {{ t('settings.mcp.builtInServers') }}
             </h3>
             <div class="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded-full">
-              {{ inMemoryServers.length }}
+              {{ builtInServers.length }}
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <McpServerCard
-              v-for="server in inMemoryServers"
+              v-for="server in builtInServers"
               :key="server.name"
               :server="server"
               :is-built-in="true"
+              :is-managed="mcpStore.config.mcpServers[server.name]?.source === 'deepchat'"
               :is-loading="mcpStore.serverLoadingStates[server.name]"
               :disabled="mcpStore.configLoading"
               :tools-count="getServerToolsCount(server.name)"
