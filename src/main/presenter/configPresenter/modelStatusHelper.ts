@@ -231,4 +231,22 @@ export class ModelStatusHelper {
     this.cache.delete(statusKey)
     this.statusSnapshot?.delete(statusKey)
   }
+
+  deleteProviderModelStatuses(providerId: string): void {
+    const prefix = `${MODEL_STATUS_KEY_PREFIX}${providerId}_`
+    const candidate = this.store as ElectronStore<any> & {
+      store?: Record<string, unknown>
+    }
+    const rawStore = candidate.store
+
+    if (rawStore && typeof rawStore === 'object') {
+      for (const key of Object.keys(rawStore)) {
+        if (key.startsWith(prefix)) {
+          this.store.delete(key)
+        }
+      }
+    }
+
+    this.clearProviderModelStatusCache(providerId)
+  }
 }

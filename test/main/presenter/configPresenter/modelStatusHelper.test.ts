@@ -117,4 +117,26 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     })
     expect(store.snapshotReadCount).toBe(1)
   })
+
+  it('removes every persisted model status for a provider in one pass', () => {
+    const store = new MockElectronStore()
+    store.set('model_status_openai_gpt-5-4', true)
+    store.set('model_status_openai_gpt-4-1', false)
+    store.set('model_status_anthropic_claude-3-5-sonnet', true)
+
+    const helper = new ModelStatusHelper({
+      store: store as any,
+      setSetting: (key, value) => store.set(key, value)
+    })
+
+    helper.deleteProviderModelStatuses('openai')
+
+    expect(helper.getBatchModelStatus('openai', ['gpt-5.4', 'gpt-4.1'])).toEqual({
+      'gpt-5.4': false,
+      'gpt-4.1': false
+    })
+    expect(helper.getBatchModelStatus('anthropic', ['claude-3.5-sonnet'])).toEqual({
+      'claude-3.5-sonnet': true
+    })
+  })
 })
