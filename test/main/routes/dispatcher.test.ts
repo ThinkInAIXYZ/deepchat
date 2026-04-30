@@ -90,6 +90,7 @@ function createRuntime() {
     contentProtectionEnabled: false,
     privacyModeEnabled: false,
     notificationsEnabled: true,
+    launchAtLoginEnabled: false,
     traceDebugEnabled: false,
     copyWithCotEnabled: true,
     loggingEnabled: false
@@ -189,6 +190,10 @@ function createRuntime() {
     getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
     setNotificationsEnabled: vi.fn((value: boolean) => {
       settings.notificationsEnabled = value
+    }),
+    getLaunchAtLoginEnabled: vi.fn(() => settings.launchAtLoginEnabled),
+    setLaunchAtLoginEnabled: vi.fn((value: boolean) => {
+      settings.launchAtLoginEnabled = value
     }),
     getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono']),
     getProviderModels: vi.fn(() => [

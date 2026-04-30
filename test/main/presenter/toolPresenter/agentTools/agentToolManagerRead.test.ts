@@ -114,6 +114,135 @@ describe('AgentToolManager read routing', () => {
     expect(filePresenter.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
+  it('allows reading outside the workspace when external file access is enabled', async () => {
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-external-'))
+    const externalFile = path.join(externalDir, 'outside.txt')
+    await fs.writeFile(externalFile, 'external text', 'utf-8')
+    filePresenter.getMimeType.mockResolvedValue('text/plain')
+
+    const result = (await manager.callTool('read', { path: externalFile }, 'conv1', {
+      allowExternalFileAccess: true
+    })) as {
+      content: string
+    }
+
+    expect(result.content).toContain('outside.txt')
+    expect(result.content).toContain('external text')
+  })
+
+  it('requests permission for external reads in default access mode', async () => {
+    const externalFile = path.join(path.parse(workspaceDir).root, 'deepchat-outside-default.txt')
+
+    const permission = await manager.preCheckToolPermission('read', { path: externalFile }, 'conv1')
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'read',
+        paths: [externalFile]
+      })
+    )
+  })
+
+  it('requests permission for workspace symlinks that point outside', async () => {
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-link-target-'))
+    const externalFile = path.join(externalDir, 'outside.txt')
+    const symlinkPath = path.join(workspaceDir, 'linked-outside.txt')
+    await fs.writeFile(externalFile, 'external text', 'utf-8')
+
+    try {
+      await fs.symlink(externalFile, symlinkPath, 'file')
+    } catch (error) {
+      const errorCode =
+        error instanceof Error && 'code' in error
+          ? String((error as Error & { code?: string }).code)
+          : ''
+      if (['EPERM', 'EACCES', 'ENOTSUP', 'EINVAL'].includes(errorCode)) {
+        return
+      }
+      throw error
+    }
+
+    const realExternalFile = await fs.realpath(externalFile)
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: 'linked-outside.txt' },
+      'conv1'
+    )
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'read',
+        paths: [realExternalFile]
+      })
+    )
+  })
+
+  it('does not request external read permission when full access is enabled', async () => {
+    const externalFile = path.join(
+      path.parse(workspaceDir).root,
+      'deepchat-outside-full-access.txt'
+    )
+
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: externalFile },
+      'conv1',
+      {
+        allowExternalFileAccess: true
+      }
+    )
+
+    expect(permission).toBeNull()
+  })
+
+  it('allows writing outside the workspace when external file access is enabled', async () => {
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-write-external-'))
+    const externalFile = path.join(externalDir, 'created.txt')
+
+    const result = (await manager.callTool(
+      'write',
+      {
+        path: externalFile,
+        content: 'created outside'
+      },
+      'conv1',
+      {
+        allowExternalFileAccess: true
+      }
+    )) as {
+      content: string
+    }
+
+    await expect(fs.readFile(externalFile, 'utf-8')).resolves.toBe('created outside')
+    expect(result.content).toContain('Successfully wrote')
+  })
+
+  it('requests permission for new external writes without broadening to the parent directory', async () => {
+    const externalFile = path.join(
+      path.parse(workspaceDir).root,
+      `deepchat-write-target-${Date.now()}.txt`
+    )
+
+    const permission = await manager.preCheckToolPermission(
+      'write',
+      {
+        path: externalFile,
+        content: 'created outside'
+      },
+      'conv1'
+    )
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'write',
+        paths: [externalFile]
+      })
+    )
+  })
+
   it('uses filePresenter llm-friendly content for document files with offset/limit', async () => {
     const filePath = path.join(workspaceDir, 'report.pdf')
     await fs.writeFile(filePath, 'pdf-binary', 'utf-8')

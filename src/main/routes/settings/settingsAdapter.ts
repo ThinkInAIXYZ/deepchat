@@ -28,6 +28,7 @@ export const readSettingsSnapshot = (
   contentProtectionEnabled: configPresenter.getContentProtectionEnabled(),
   privacyModeEnabled: configPresenter.getPrivacyModeEnabled(),
   notificationsEnabled: configPresenter.getNotificationsEnabled(),
+  launchAtLoginEnabled: configPresenter.getLaunchAtLoginEnabled(),
   traceDebugEnabled: configPresenter.getSetting<boolean>('traceDebugEnabled') ?? false,
   copyWithCotEnabled: configPresenter.getCopyWithCotEnabled(),
   loggingEnabled: configPresenter.getLoggingEnabled()
@@ -85,6 +86,9 @@ export const applySettingChange = (
       return
     case 'notificationsEnabled':
       configPresenter.setNotificationsEnabled(change.value)
+      return
+    case 'launchAtLoginEnabled':
+      configPresenter.setLaunchAtLoginEnabled(change.value)
       return
     case 'traceDebugEnabled':
       configPresenter.setTraceDebugEnabled(change.value)

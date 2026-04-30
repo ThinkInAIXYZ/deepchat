@@ -1,4 +1,9 @@
 import { vi, beforeEach, afterEach } from 'vitest'
+import { __resetElectronMockState } from './mocks/electron'
+
+const electronMockState = vi.hoisted(() => ({
+  loginItemSettings: { openAtLogin: false }
+}))
 
 type DeepchatPayload = Record<string, unknown> | undefined
 
@@ -109,10 +114,20 @@ function installRendererTestGlobals(): void {
 
 // Mock Electron modules for testing
 vi.mock('electron', () => ({
+  __resetElectronMockState: vi.fn(() => {
+    electronMockState.loginItemSettings = { openAtLogin: false }
+  }),
   app: {
     getName: vi.fn(() => 'DeepChat'),
     getVersion: vi.fn(() => '0.2.3'),
     getPath: vi.fn(() => '/mock/path'),
+    getLoginItemSettings: vi.fn(() => ({ ...electronMockState.loginItemSettings })),
+    setLoginItemSettings: vi.fn((settings: { openAtLogin?: boolean }) => {
+      electronMockState.loginItemSettings = {
+        ...electronMockState.loginItemSettings,
+        ...settings
+      }
+    }),
     on: vi.fn(),
     quit: vi.fn(),
     isReady: vi.fn(() => true)
@@ -190,6 +205,8 @@ installRendererTestGlobals()
 beforeEach(() => {
   // Clear all mocks before each test
   vi.clearAllMocks()
+  electronMockState.loginItemSettings = { openAtLogin: false }
+  __resetElectronMockState()
   installRendererTestGlobals()
 })
 

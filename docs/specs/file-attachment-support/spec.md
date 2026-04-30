@@ -17,4 +17,3 @@ Users can attach common office, document, text, image, and audio files from the 
 
 - Full parsing support for legacy binary `.doc` and `.ppt` files is not introduced in this increment.
 - The file picker is not restricted to only known extensions; unsupported files should still fail with visible feedback.
-

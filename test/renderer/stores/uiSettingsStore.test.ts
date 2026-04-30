@@ -52,7 +52,8 @@ describe('uiSettingsStore', () => {
             codeFontFamily: 'JetBrains Mono',
             autoScrollEnabled: false,
             privacyModeEnabled: true,
-            notificationsEnabled: false
+            notificationsEnabled: false,
+            launchAtLoginEnabled: true
           }
         }
       }
@@ -108,6 +109,7 @@ describe('uiSettingsStore', () => {
     expect(store.autoScrollEnabled).toBe(false)
     expect(store.privacyModeEnabled).toBe(true)
     expect(store.notificationsEnabled).toBe(false)
+    expect(store.launchAtLoginEnabled).toBe(true)
 
     const listener = on.mock.calls[0]?.[1] as
       | ((payload: {
@@ -118,18 +120,25 @@ describe('uiSettingsStore', () => {
       | undefined
 
     listener?.({
-      changedKeys: ['fontSizeLevel', 'notificationsEnabled', 'privacyModeEnabled'],
+      changedKeys: [
+        'fontSizeLevel',
+        'notificationsEnabled',
+        'privacyModeEnabled',
+        'launchAtLoginEnabled'
+      ],
       version: 3,
       values: {
         fontSizeLevel: 4,
         notificationsEnabled: true,
-        privacyModeEnabled: false
+        privacyModeEnabled: false,
+        launchAtLoginEnabled: false
       }
     })
 
     expect(store.fontSizeLevel).toBe(4)
     expect(store.notificationsEnabled).toBe(true)
     expect(store.privacyModeEnabled).toBe(false)
+    expect(store.launchAtLoginEnabled).toBe(false)
     mountedWrappers = mountedWrappers.filter((candidate) => candidate !== wrapper)
     wrapper.unmount()
 
@@ -144,6 +153,7 @@ describe('uiSettingsStore', () => {
     await store.fetchSystemFonts()
     await store.updateFontSizeLevel(10)
     await store.setPrivacyModeEnabled(true)
+    await store.setLaunchAtLoginEnabled(false)
 
     expect(invoke).toHaveBeenNthCalledWith(2, 'settings.listSystemFonts', {})
     expect(invoke).toHaveBeenNthCalledWith(3, 'settings.update', {
@@ -151,6 +161,9 @@ describe('uiSettingsStore', () => {
     })
     expect(invoke).toHaveBeenNthCalledWith(4, 'settings.update', {
       changes: [{ key: 'privacyModeEnabled', value: true }]
+    })
+    expect(invoke).toHaveBeenNthCalledWith(5, 'settings.update', {
+      changes: [{ key: 'launchAtLoginEnabled', value: false }]
     })
     expect(store.systemFonts).toEqual(['Inter', 'JetBrains Mono'])
     expect(store.fontSizeLevel).toBe(4)

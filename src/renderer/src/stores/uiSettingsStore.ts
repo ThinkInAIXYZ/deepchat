@@ -30,6 +30,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const contentProtectionEnabled = ref(false)
   const privacyModeEnabled = ref(false)
   const copyWithCotEnabled = ref(true)
+  const launchAtLoginEnabled = ref(false)
   const autoCompactionEnabled = ref(true)
   const autoCompactionTriggerThreshold = ref(AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT)
   const autoCompactionRetainRecentPairs = ref(AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT)
@@ -93,6 +94,10 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
 
     if (typeof values.notificationsEnabled === 'boolean') {
       notificationsEnabled.value = values.notificationsEnabled
+    }
+
+    if (typeof values.launchAtLoginEnabled === 'boolean') {
+      launchAtLoginEnabled.value = values.launchAtLoginEnabled
     }
 
     if (typeof values.traceDebugEnabled === 'boolean') {
@@ -331,6 +336,19 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     ])
   }
 
+  const setLaunchAtLoginEnabled = async (enabled: boolean) => {
+    const nextValue = Boolean(enabled)
+
+    await updateSettings([
+      {
+        key: 'launchAtLoginEnabled',
+        value: nextValue
+      }
+    ])
+
+    launchAtLoginEnabled.value = nextValue
+  }
+
   const setLoggingEnabled = async (enabled: boolean) => {
     const nextValue = Boolean(enabled)
     loggingEnabled.value = nextValue
@@ -382,6 +400,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     copyWithCotEnabled,
     traceDebugEnabled,
     notificationsEnabled,
+    launchAtLoginEnabled,
     loggingEnabled,
     updateFontSizeLevel,
     setFontFamily,
@@ -398,6 +417,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     setCopyWithCotEnabled,
     setTraceDebugEnabled,
     setNotificationsEnabled,
+    setLaunchAtLoginEnabled,
     setLoggingEnabled,
     loadSettings
   }

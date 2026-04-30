@@ -9,6 +9,10 @@ const extractFirstSummaryValue = (value: unknown): unknown => {
   }
 
   if (isRecord(value)) {
+    if (typeof value.command === 'string' && value.command.trim().length > 0) {
+      return value.command
+    }
+
     const entries = Object.entries(value)
     return entries.length > 0 ? entries[0][1] : ''
   }

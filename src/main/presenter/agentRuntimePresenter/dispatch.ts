@@ -800,7 +800,8 @@ async function runToolCall(params: {
     const callTool = async () =>
       await toolPresenter.callTool(toolCall, {
         onProgress: applyProgressUpdate,
-        signal: io.abortSignal
+        signal: io.abortSignal,
+        permissionMode
       })
 
     let toolCallResult = await callTool()
@@ -1006,7 +1007,9 @@ export async function executeTools(
       executions.map(async (execution) => {
         try {
           if (toolPresenter.preCheckToolPermission) {
-            const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall)
+            const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall, {
+              permissionMode
+            })
             if (preChecked?.needsPermission) {
               const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
                 toolName: execution.toolContext.name,
@@ -1148,7 +1151,9 @@ export async function executeTools(
 
       let preCheckedPermission: PendingToolInteraction['permission'] | null = null
       if (toolPresenter.preCheckToolPermission) {
-        const preChecked = await toolPresenter.preCheckToolPermission(toolCall)
+        const preChecked = await toolPresenter.preCheckToolPermission(toolCall, {
+          permissionMode
+        })
         if (preChecked?.needsPermission) {
           preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
             toolName: toolContext.name,
