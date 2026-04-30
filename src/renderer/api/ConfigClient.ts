@@ -35,6 +35,7 @@ import {
   configGetSystemPromptsRoute,
   configGetThemeRoute,
   configGetVoiceAiConfigRoute,
+  configListAgentsRoute,
   configListCustomPromptsRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
@@ -66,6 +67,7 @@ import type {
   ShortcutKeySetting,
   SystemPrompt
 } from '@shared/presenter'
+import type { Agent } from '@shared/types/agent-interface'
 import { getDeepchatBridge } from './core'
 import { createSettingsClient } from './SettingsClient'
 
@@ -313,6 +315,14 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   type AcpAgents = Awaited<ReturnType<typeof getAcpAgents>>
 
+  async function listAgents(input?: {
+    agentType?: 'deepchat' | 'acp'
+    ids?: string[]
+  }): Promise<Agent[]> {
+    const result = await bridge.invoke(configListAgentsRoute.name, input ?? {})
+    return result.agents
+  }
+
   async function resolveDeepChatAgentConfig(agentId: string) {
     const result = await bridge.invoke(configResolveDeepChatAgentConfigRoute.name, {
       agentId
@@ -450,7 +460,12 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   }
 
   function onAgentsChanged(
-    listener: (payload: { enabled: boolean; agents: AcpAgents; version: number }) => void
+    listener: (payload: {
+      enabled: boolean
+      agents: AcpAgents
+      agentIds?: string[]
+      version: number
+    }) => void
   ) {
     return bridge.on(configAgentsChangedEvent.name, listener)
   }
@@ -524,6 +539,7 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     setDefaultSystemPromptId,
     getAcpEnabled,
     getAcpAgents,
+    listAgents,
     resolveDeepChatAgentConfig,
     getAgentMcpSelections,
     getAcpSharedMcpSelections,

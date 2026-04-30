@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { Agent } from '@shared/types/agent-interface'
 import { TimestampMsSchema, defineRouteContract } from '../common'
 import {
   AcpAgentConfigSchema,
@@ -13,6 +14,8 @@ import {
   SystemPromptSchema,
   ThemeModeSchema
 } from '../domainSchemas'
+
+const AgentSchema = z.custom<Agent>()
 
 export const CONFIG_ENTRY_KEYS = [
   'init_complete',
@@ -410,6 +413,19 @@ export const configGetAcpStateRoute = defineRouteContract({
   output: z.object({
     enabled: z.boolean(),
     agents: z.array(AcpAgentConfigSchema)
+  })
+})
+
+export const configListAgentsRoute = defineRouteContract({
+  name: 'config.listAgents',
+  input: z
+    .object({
+      agentType: z.enum(['deepchat', 'acp']).optional(),
+      ids: z.array(z.string().min(1)).optional()
+    })
+    .default({}),
+  output: z.object({
+    agents: z.array(AgentSchema)
   })
 })
 

@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { createConfigClient } from '../../../api/ConfigClient'
-import { createModelClient } from '../../../api/ModelClient'
 import { createSessionClient } from '../../../api/SessionClient'
 import type { Agent, AgentBootstrapItem } from '@shared/types/agent-interface'
 
@@ -27,7 +26,6 @@ export interface UIAgent {
 export const useAgentStore = defineStore('agent', () => {
   const sessionClient = createSessionClient()
   const configClient = createConfigClient()
-  const modelClient = createModelClient()
   let listenersRegistered = false
 
   // --- State ---
@@ -59,14 +57,115 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
+  function resolveAgentType(agent: Pick<UIAgent, 'type' | 'agentType'>): 'deepchat' | 'acp' {
+    return agent.agentType ?? agent.type
+  }
+
+  function syncSelectedAgent(): void {
+    if (selectedAgentId.value === null) {
+      return
+    }
+
+    const currentSelectedAgent = agents.value.find((agent) => agent.id === selectedAgentId.value)
+    if (!currentSelectedAgent || !currentSelectedAgent.enabled) {
+      selectedAgentId.value = null
+    }
+  }
+
   function applyAgents(nextAgents: Array<Agent | AgentBootstrapItem>): void {
     agents.value = nextAgents.map(mapAgentToUiAgent)
-    if (selectedAgentId.value !== null) {
-      const currentSelectedAgent = agents.value.find((agent) => agent.id === selectedAgentId.value)
-      if (!currentSelectedAgent || !currentSelectedAgent.enabled) {
-        selectedAgentId.value = null
+    syncSelectedAgent()
+  }
+
+  function mergeAgents(nextAgents: Agent[]): void {
+    const nextUiAgents = nextAgents.map(mapAgentToUiAgent)
+    const nextAgentIds = new Set(nextUiAgents.map((agent) => agent.id))
+    const currentAgentIds = new Set(agents.value.map((agent) => agent.id))
+    const nextAgentById = new Map(nextUiAgents.map((agent) => [agent.id, agent]))
+
+    const mergedAgents: UIAgent[] = agents.value.map((agent) =>
+      nextAgentIds.has(agent.id) ? (nextAgentById.get(agent.id) ?? agent) : agent
+    )
+
+    for (const agent of nextUiAgents) {
+      if (!currentAgentIds.has(agent.id)) {
+        mergedAgents.push(agent)
       }
     }
+
+    agents.value = mergedAgents
+    syncSelectedAgent()
+  }
+
+  function removeAgentsByIds(agentIds: string[]): void {
+    if (agentIds.length === 0) {
+      return
+    }
+
+    const agentIdSet = new Set(agentIds)
+    agents.value = agents.value.filter((agent) => !agentIdSet.has(agent.id))
+    syncSelectedAgent()
+  }
+
+  function removeAgentsByType(agentType: 'deepchat' | 'acp'): void {
+    agents.value = agents.value.filter((agent) => resolveAgentType(agent) !== agentType)
+    syncSelectedAgent()
+  }
+
+  function replaceAgentsByType(agentType: 'deepchat' | 'acp', nextAgents: Agent[]): void {
+    const firstTypeIndex = agents.value.findIndex((agent) => resolveAgentType(agent) === agentType)
+    const otherAgents = agents.value.filter((agent) => resolveAgentType(agent) !== agentType)
+    const nextUiAgents = nextAgents.map(mapAgentToUiAgent)
+
+    if (firstTypeIndex < 0) {
+      agents.value = [...otherAgents, ...nextUiAgents]
+      syncSelectedAgent()
+      return
+    }
+
+    const mergedAgents = [...otherAgents]
+    mergedAgents.splice(Math.min(firstTypeIndex, mergedAgents.length), 0, ...nextUiAgents)
+    agents.value = mergedAgents
+    syncSelectedAgent()
+  }
+
+  async function refreshAgentsByType(agentType: 'deepchat' | 'acp'): Promise<void> {
+    try {
+      const result = await configClient.listAgents({ agentType })
+      replaceAgentsByType(agentType, result)
+      error.value = null
+    } catch (e) {
+      error.value = `Failed to refresh ${agentType} agents: ${e}`
+    }
+  }
+
+  async function refreshAgentsByIds(
+    agentType: 'deepchat' | 'acp',
+    agentIds: string[]
+  ): Promise<void> {
+    if (agentIds.length === 0) {
+      return
+    }
+
+    try {
+      const result = await configClient.listAgents({ agentType, ids: agentIds })
+      const refreshedIds = new Set(result.map((agent) => agent.id))
+
+      removeAgentsByIds(agentIds.filter((agentId) => !refreshedIds.has(agentId)))
+      mergeAgents(result)
+      error.value = null
+    } catch (e) {
+      error.value = `Failed to refresh ${agentType} agents: ${e}`
+    }
+  }
+
+  function removeMissingAcpAgents(nextAgentIds: string[]): void {
+    const nextAgentIdSet = new Set(nextAgentIds)
+    const removedAgentIds = agents.value
+      .filter((agent) => resolveAgentType(agent) === 'acp' && !nextAgentIdSet.has(agent.id))
+      .map((agent) => agent.id)
+
+    removeAgentsByIds(removedAgentIds)
   }
 
   function applyBootstrapAgents(nextAgents: AgentBootstrapItem[]): void {
@@ -96,12 +195,22 @@ export const useAgentStore = defineStore('agent', () => {
 
   if (!listenersRegistered) {
     listenersRegistered = true
-    modelClient.onModelsChanged(({ providerId }) => {
-      if (providerId === 'acp') {
-        void fetchAgents()
+    configClient.onAgentsChanged(({ enabled, agents: nextAcpAgents, agentIds }) => {
+      if (!enabled) {
+        removeAgentsByType('acp')
+        if (!agentIds || agentIds.length === 0) {
+          void fetchAgents()
+        }
+        return
       }
-    })
-    configClient.onAgentsChanged(() => {
+
+      removeMissingAcpAgents(nextAcpAgents.map((agent) => agent.id))
+
+      if (agentIds && agentIds.length > 0) {
+        void refreshAgentsByIds('acp', agentIds)
+        return
+      }
+
       void fetchAgents()
     })
   }
@@ -116,6 +225,8 @@ export const useAgentStore = defineStore('agent', () => {
     applyBootstrapAgents,
     setSelectedAgent,
     fetchAgents,
+    refreshAgentsByType,
+    refreshAgentsByIds,
     selectAgent
   }
 })
