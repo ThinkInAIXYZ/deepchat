@@ -1403,12 +1403,7 @@ export class AgentToolManager {
         : this.collectReadTargets(toolName, args)
     if (targets.length === 0) return
 
-    const denied = await this.collectDeniedFileTargets(
-      targets,
-      baseDirectory,
-      fileSystemHandler,
-      permissionType
-    )
+    const denied = await this.collectDeniedFileTargets(targets, baseDirectory, fileSystemHandler)
 
     if (denied.length === 0) return
 
@@ -1428,34 +1423,34 @@ export class AgentToolManager {
   private async collectDeniedFileTargets(
     targets: string[],
     baseDirectory: string | undefined,
-    fileSystemHandler: AgentFileSystemHandler,
-    permissionType: FilePermissionLevel
+    fileSystemHandler: AgentFileSystemHandler
   ): Promise<string[]> {
     const denied: string[] = []
     for (const target of targets) {
       const resolved = fileSystemHandler.resolvePath(target, baseDirectory)
-      const normalizedTarget = await this.resolvePermissionTarget(resolved, permissionType)
-      if (!fileSystemHandler.isPathAllowedAbsolute(normalizedTarget)) {
-        denied.push(normalizedTarget)
+      const permissionTarget = await this.resolvePermissionTarget(resolved)
+      const containmentTarget = await this.resolveContainmentTarget(resolved)
+      if (!fileSystemHandler.isPathAllowedAbsolute(containmentTarget)) {
+        denied.push(permissionTarget)
       }
     }
     return denied
   }
 
-  private async resolvePermissionTarget(
-    resolvedPath: string,
-    permissionType: FilePermissionLevel
-  ): Promise<string> {
+  private async resolvePermissionTarget(resolvedPath: string): Promise<string> {
     try {
       return await fs.promises.realpath(resolvedPath)
     } catch {
-      if (permissionType === 'read') {
-        return resolvedPath
-      }
+      return resolvedPath
+    }
+  }
 
-      const parentDir = path.dirname(resolvedPath)
+  private async resolveContainmentTarget(resolvedPath: string): Promise<string> {
+    try {
+      return await fs.promises.realpath(resolvedPath)
+    } catch {
       try {
-        return await fs.promises.realpath(parentDir)
+        return await fs.promises.realpath(path.dirname(resolvedPath))
       } catch {
         return resolvedPath
       }
@@ -1812,12 +1807,7 @@ export class AgentToolManager {
         : this.collectReadTargets(toolName, args)
 
       const permissionType = isWriteOperation ? 'write' : 'read'
-      const denied = await this.collectDeniedFileTargets(
-        targets,
-        baseDirectory,
-        fileSystemHandler,
-        permissionType
-      )
+      const denied = await this.collectDeniedFileTargets(targets, baseDirectory, fileSystemHandler)
 
       if (denied.length > 0) {
         return {

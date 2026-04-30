@@ -1,4 +1,5 @@
 import { vi, beforeEach, afterEach } from 'vitest'
+import { __resetElectronMockState } from './mocks/electron'
 
 const electronMockState = vi.hoisted(() => ({
   loginItemSettings: { openAtLogin: false }
@@ -113,6 +114,9 @@ function installRendererTestGlobals(): void {
 
 // Mock Electron modules for testing
 vi.mock('electron', () => ({
+  __resetElectronMockState: vi.fn(() => {
+    electronMockState.loginItemSettings = { openAtLogin: false }
+  }),
   app: {
     getName: vi.fn(() => 'DeepChat'),
     getVersion: vi.fn(() => '0.2.3'),
@@ -202,6 +206,7 @@ beforeEach(() => {
   // Clear all mocks before each test
   vi.clearAllMocks()
   electronMockState.loginItemSettings = { openAtLogin: false }
+  __resetElectronMockState()
   installRendererTestGlobals()
 })
 

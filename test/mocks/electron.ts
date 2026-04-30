@@ -1,5 +1,10 @@
 // Minimal Electron mock for Vitest in Node environment
-let loginItemSettings = { openAtLogin: false }
+const defaultLoginItemSettings = { openAtLogin: false }
+let loginItemSettings = { ...defaultLoginItemSettings }
+
+export const __resetElectronMockState = () => {
+  loginItemSettings = { ...defaultLoginItemSettings }
+}
 
 export const app = {
   getName: () => 'DeepChat',

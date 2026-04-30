@@ -152,8 +152,15 @@ describe('AgentToolManager read routing', () => {
 
     try {
       await fs.symlink(externalFile, symlinkPath, 'file')
-    } catch {
-      return
+    } catch (error) {
+      const errorCode =
+        error instanceof Error && 'code' in error
+          ? String((error as Error & { code?: string }).code)
+          : ''
+      if (['EPERM', 'EACCES', 'ENOTSUP', 'EINVAL'].includes(errorCode)) {
+        return
+      }
+      throw error
     }
 
     const realExternalFile = await fs.realpath(externalFile)
@@ -210,6 +217,30 @@ describe('AgentToolManager read routing', () => {
 
     await expect(fs.readFile(externalFile, 'utf-8')).resolves.toBe('created outside')
     expect(result.content).toContain('Successfully wrote')
+  })
+
+  it('requests permission for new external writes without broadening to the parent directory', async () => {
+    const externalFile = path.join(
+      path.parse(workspaceDir).root,
+      `deepchat-write-target-${Date.now()}.txt`
+    )
+
+    const permission = await manager.preCheckToolPermission(
+      'write',
+      {
+        path: externalFile,
+        content: 'created outside'
+      },
+      'conv1'
+    )
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'write',
+        paths: [externalFile]
+      })
+    )
   })
 
   it('uses filePresenter llm-friendly content for document files with offset/limit', async () => {
