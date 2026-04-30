@@ -881,12 +881,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
-import type {
-  AcpConfigOption,
-  AcpConfigState,
-  RENDERER_MODEL_META,
-  SystemPrompt
-} from '@shared/presenter'
+import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import type {
   DeepChatAgentConfig,
   PermissionMode,
@@ -942,6 +937,7 @@ import { useDraftStore } from '@/stores/ui/draft'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+import { useChatStatusBarAcpConfig } from './composables/useChatStatusBarAcpConfig'
 
 const props = withDefaults(
   defineProps<{
@@ -979,7 +975,6 @@ const TIMEOUT_STEP = 1000
 const TIMEOUT_MIN = MODEL_TIMEOUT_MIN_MS
 const TIMEOUT_MAX = MODEL_TIMEOUT_MAX_MS
 const THINKING_BUDGET_STEP = 128
-const ACP_INLINE_OPTION_LIMIT = 3
 const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [
   'low',
   'medium',
@@ -1009,12 +1004,6 @@ const isModelPanelOpen = ref(false)
 const isModelSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
-const acpConfigState = ref<AcpConfigState | null>(null)
-const acpConfigLoadedRequestKey = ref<string | null>(null)
-const acpConfigLoadingRequestKey = ref<string | null>(null)
-const acpInlineOpenOptionId = ref<string | null>(null)
-const acpOptionSavingIds = ref<string[]>([])
-const acpConfigCacheByAgent = new Map<string, AcpConfigState>()
 const activeNumericInput = ref<GenerationNumericField | null>(null)
 const numericInputDrafts = ref<Record<GenerationNumericField, string>>({
   temperature: '',
@@ -1041,7 +1030,6 @@ const capabilityProviderId = ref('')
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
 let generationSyncToken = 0
-let acpConfigSyncToken = 0
 let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
@@ -1248,122 +1236,6 @@ const modelSettingsTarget = computed<ModelSelection | null>(() => {
   return modelSettingsSelection.value ?? effectiveModelSelection.value
 })
 
-const acpConfigCacheKey = computed(() => {
-  if (!isAcpAgent.value || activeAcpSessionId.value) {
-    return null
-  }
-  return activeAcpAgentId.value
-})
-
-const acpConfigRequestKey = computed(() => {
-  if (!isAcpAgent.value) {
-    return null
-  }
-  if (activeAcpSessionId.value) {
-    return `session:${activeAcpSessionId.value}`
-  }
-  if (acpConfigCacheKey.value && acpWorkspacePath.value) {
-    return `process:${acpConfigCacheKey.value}::${acpWorkspacePath.value}`
-  }
-  if (acpConfigCacheKey.value) {
-    return `agent:${acpConfigCacheKey.value}`
-  }
-  return null
-})
-
-const getCachedAcpConfigState = (agentId?: string | null): AcpConfigState | null => {
-  if (!agentId) {
-    return null
-  }
-  return acpConfigCacheByAgent.get(agentId) ?? null
-}
-
-const setCachedAcpConfigState = (
-  agentId: string | null | undefined,
-  state: AcpConfigState | null | undefined
-): void => {
-  if (!agentId || !hasAcpConfigStateData(state)) {
-    return
-  }
-  acpConfigCacheByAgent.set(agentId, state)
-}
-
-const acpConfigOptions = computed(() => acpConfigState.value?.options ?? [])
-const isAcpConfigLoading = computed(() => {
-  if (!isAcpAgent.value || activeAcpSessionId.value) {
-    return false
-  }
-
-  const requestKey = acpConfigRequestKey.value
-  return Boolean(requestKey && acpConfigLoadingRequestKey.value === requestKey)
-})
-const isAcpSessionConfigLoaded = computed(() => {
-  if (!activeAcpSessionId.value) {
-    return false
-  }
-
-  return acpConfigLoadedRequestKey.value === acpConfigRequestKey.value
-})
-
-const acpConfigReadOnly = computed(() => {
-  if (!isAcpAgent.value) {
-    return false
-  }
-
-  if (!activeAcpSessionId.value) {
-    return true
-  }
-
-  return !isAcpSessionConfigLoaded.value
-})
-const acpInlineOptions = computed(() =>
-  acpConfigOptions.value
-    .filter((option) => option.type === 'select')
-    .slice(0, ACP_INLINE_OPTION_LIMIT)
-)
-const acpOverflowOptions = computed(() => {
-  const inlineIds = new Set(acpInlineOptions.value.map((option) => option.id))
-  return acpConfigOptions.value.filter((option) => !inlineIds.has(option.id))
-})
-const acpAgentLabel = computed(() => {
-  const modelId = activeAcpAgentId.value ?? agentStore.selectedAgentId
-  return (
-    resolveModelName('acp', modelId) ||
-    agentStore.selectedAgent?.name ||
-    modelId ||
-    t('chat.mode.acpAgent')
-  )
-})
-const acpAgentIconId = computed(() =>
-  resolveModelIconId('acp', activeAcpAgentId.value ?? agentStore.selectedAgentId)
-)
-
-const setAcpConfigLoadingRequest = (requestKey: string | null | undefined): void => {
-  acpConfigLoadingRequestKey.value = requestKey?.trim() ? requestKey : null
-}
-
-const clearAcpConfigLoadingRequest = (requestKey?: string | null): void => {
-  if (!requestKey || acpConfigLoadingRequestKey.value === requestKey) {
-    acpConfigLoadingRequestKey.value = null
-  }
-}
-
-const matchesCurrentAcpWarmupTarget = (
-  agentId: string | null | undefined,
-  workdir: string | null | undefined
-): boolean => {
-  if (activeAcpSessionId.value || !agentId || activeAcpAgentId.value !== agentId) {
-    return false
-  }
-
-  const expectedWorkdir = acpWorkspacePath.value?.trim()
-  if (!expectedWorkdir) {
-    return true
-  }
-
-  return workdir?.trim() === expectedWorkdir
-}
-
 const permissionModeLabel = computed(() =>
   permissionMode.value === 'default'
     ? t('chat.permissionMode.default')
@@ -1500,75 +1372,6 @@ const getNumericInputErrorMessage = (field: GenerationNumericField): string => {
     case 'timeout_too_large':
       return t('settings.model.modelConfig.validation.timeoutMax')
   }
-}
-
-const isAcpConfigOptionValue = (
-  value: unknown
-): value is NonNullable<AcpConfigOption['options']>[number] => {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-  const candidate = value as Record<string, unknown>
-  return typeof candidate.value === 'string' && typeof candidate.label === 'string'
-}
-
-const isAcpConfigOption = (value: unknown): value is AcpConfigOption => {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-  const candidate = value as Record<string, unknown>
-  if (
-    typeof candidate.id !== 'string' ||
-    typeof candidate.label !== 'string' ||
-    (candidate.type !== 'select' && candidate.type !== 'boolean')
-  ) {
-    return false
-  }
-  if (!('currentValue' in candidate)) {
-    return false
-  }
-  if (candidate.type === 'select' && candidate.options !== undefined) {
-    return Array.isArray(candidate.options) && candidate.options.every(isAcpConfigOptionValue)
-  }
-  return true
-}
-
-const isAcpConfigState = (value: unknown): value is AcpConfigState => {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-  const candidate = value as Record<string, unknown>
-  return (
-    (candidate.source === 'configOptions' || candidate.source === 'legacy') &&
-    Array.isArray(candidate.options) &&
-    candidate.options.every(isAcpConfigOption)
-  )
-}
-
-const hasAcpConfigStateData = (state: AcpConfigState | null | undefined): state is AcpConfigState =>
-  Boolean(state?.options.length)
-
-const getAcpOptionCurrentLabel = (option?: AcpConfigOption | null): string | null => {
-  if (!option) {
-    return null
-  }
-  if (option.type !== 'select') {
-    return null
-  }
-  const currentValue = typeof option.currentValue === 'string' ? option.currentValue : ''
-  return option.options?.find((entry) => entry.value === currentValue)?.label ?? currentValue
-}
-
-const getAcpOptionDisplayValue = (option: AcpConfigOption): string => {
-  if (option.type === 'boolean') {
-    return t(option.currentValue ? 'common.enabled' : 'common.disabled')
-  }
-
-  if (typeof option.currentValue === 'string' && option.currentValue.trim()) {
-    return option.currentValue
-  }
-
-  return getAcpOptionCurrentLabel(option) ?? ''
 }
 
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
@@ -1733,6 +1536,36 @@ const resolveModelIconId = (providerId?: string | null, modelId?: string | null)
   }
   return providerId || 'anthropic'
 }
+
+const {
+  acpConfigState,
+  acpInlineOpenOptionId,
+  acpConfigReadOnly,
+  acpInlineOptions,
+  acpOverflowOptions,
+  acpAgentLabel,
+  acpAgentIconId,
+  isAcpConfigLoading,
+  getAcpOptionDisplayValue,
+  isAcpOptionSaving,
+  syncAcpConfigOptions,
+  handleAcpConfigOptionsReady,
+  onAcpInlineOptionOpenChange,
+  onAcpSelectOption,
+  onAcpBooleanOption
+} = useChatStatusBarAcpConfig({
+  t,
+  isAcpAgent,
+  activeAcpAgentId,
+  activeAcpSessionId,
+  acpWorkspacePath,
+  selectedAgentId: computed(() => agentStore.selectedAgentId),
+  selectedAgentName: computed(() => agentStore.selectedAgent?.name ?? null),
+  providerClient,
+  sessionClient,
+  resolveModelName,
+  resolveModelIconId
+})
 
 const clearPendingGenerationPersist = () => {
   if (generationPersistTimer) {
@@ -2336,167 +2169,12 @@ const syncGenerationSettings = async () => {
   loadedSettingsSelection.value = { ...selection }
 }
 
-const syncAcpConfigOptions = async () => {
-  const token = ++acpConfigSyncToken
-  const requestKey = acpConfigRequestKey.value
-  acpInlineOpenOptionId.value = null
-
-  if (!isAcpAgent.value || !requestKey) {
-    acpConfigState.value = null
-    acpConfigLoadedRequestKey.value = null
-    clearAcpConfigLoadingRequest()
-    return
-  }
-
-  const agentId = activeAcpAgentId.value
-
-  if (activeAcpSessionId.value) {
-    clearAcpConfigLoadingRequest()
-    acpConfigState.value = null
-    acpConfigLoadedRequestKey.value = null
-
-    try {
-      const state = await sessionClient.getAcpSessionConfigOptions(activeAcpSessionId.value)
-      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
-        return
-      }
-      acpConfigState.value = state
-      acpConfigLoadedRequestKey.value = requestKey
-      setCachedAcpConfigState(agentId, state)
-      clearAcpConfigLoadingRequest(requestKey)
-      return
-    } catch (error) {
-      console.warn('[ChatStatusBar] Failed to load ACP session config options:', error)
-      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
-        return
-      }
-      acpConfigState.value = null
-      acpConfigLoadedRequestKey.value = null
-      clearAcpConfigLoadingRequest(requestKey)
-      return
-    }
-  }
-
-  acpConfigLoadedRequestKey.value = null
-  const cachedState = getCachedAcpConfigState(agentId)
-  acpConfigState.value = cachedState
-
-  if (hasAcpConfigStateData(cachedState)) {
-    clearAcpConfigLoadingRequest(requestKey)
-  } else {
-    setAcpConfigLoadingRequest(requestKey)
-  }
-
-  if (agentId) {
-    try {
-      let warmupFailed = false
-      try {
-        await providerClient.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
-      } catch (error) {
-        warmupFailed = true
-        console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
-      }
-
-      const state = await providerClient.getAcpProcessConfigOptions(
-        agentId,
-        acpWorkspacePath.value ?? undefined
-      )
-      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
-        return
-      }
-
-      if (!hasAcpConfigStateData(state)) {
-        acpConfigState.value = getCachedAcpConfigState(agentId)
-        if (warmupFailed) {
-          clearAcpConfigLoadingRequest(requestKey)
-        }
-        return
-      }
-
-      setCachedAcpConfigState(agentId, state)
-      acpConfigState.value = state
-      clearAcpConfigLoadingRequest(requestKey)
-    } catch (error) {
-      console.warn('[ChatStatusBar] Failed to load ACP process config options:', error)
-      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
-        return
-      }
-      acpConfigState.value = getCachedAcpConfigState(agentId)
-      clearAcpConfigLoadingRequest(requestKey)
-    }
-  }
-}
-
-const updateAcpConfigOption = async (configId: string, value: string | boolean) => {
-  const sessionId = activeAcpSessionId.value
-  const agentId = activeAcpAgentId.value
-  if (!sessionId || !isAcpSessionConfigLoaded.value) {
-    return
-  }
-
-  if (acpOptionSavingIds.value.includes(configId)) {
-    return
-  }
-
-  acpOptionSavingIds.value = [...acpOptionSavingIds.value, configId]
-  try {
-    const updated = await sessionClient.setAcpSessionConfigOption(sessionId, configId, value)
-    setCachedAcpConfigState(agentId, updated)
-    if (activeAcpSessionId.value !== sessionId) {
-      return
-    }
-    acpConfigState.value = updated
-  } catch (error) {
-    console.warn('[ChatStatusBar] Failed to update ACP config option:', error)
-  } finally {
-    acpOptionSavingIds.value = acpOptionSavingIds.value.filter((id) => id !== configId)
-  }
-}
-
-const isAcpOptionSaving = (configId: string) => acpOptionSavingIds.value.includes(configId)
-
 const reloadSystemPrompts = async () => {
   try {
     systemPromptList.value = await configClient.getSystemPrompts()
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to load system prompt options:', error)
     systemPromptList.value = []
-  }
-}
-
-const handleAcpConfigOptionsReady = (payload?: Record<string, unknown>) => {
-  if (!payload || !isAcpAgent.value) {
-    return
-  }
-
-  const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : ''
-  const agentId = typeof payload.agentId === 'string' ? payload.agentId : ''
-  const workdir = typeof payload.workdir === 'string' ? payload.workdir : ''
-
-  if (!isAcpConfigState(payload.configState)) {
-    return
-  }
-
-  if (conversationId) {
-    if (activeAcpSessionId.value !== conversationId) {
-      return
-    }
-    setCachedAcpConfigState(agentId || activeAcpAgentId.value, payload.configState)
-    acpConfigState.value = payload.configState
-    acpConfigLoadedRequestKey.value = `session:${conversationId}`
-    clearAcpConfigLoadingRequest(`session:${conversationId}`)
-    return
-  }
-
-  if (!matchesCurrentAcpWarmupTarget(agentId, workdir)) {
-    return
-  }
-
-  setCachedAcpConfigState(agentId, payload.configState)
-
-  if (!activeAcpSessionId.value) {
-    acpConfigState.value = payload.configState
-    clearAcpConfigLoadingRequest(acpConfigRequestKey.value)
   }
 }
 
@@ -2598,15 +2276,6 @@ watch(
     })
   },
   { immediate: true }
-)
-
-watch(
-  () => acpInlineOptions.value.map((option) => option.id),
-  (optionIds) => {
-    if (acpInlineOpenOptionId.value && !optionIds.includes(acpInlineOpenOptionId.value)) {
-      acpInlineOpenOptionId.value = null
-    }
-  }
 )
 
 function getEffectiveModelSelectionSnapshot(): ModelSelection | null {
@@ -3050,29 +2719,6 @@ function onInterleavedThinkingToggle(enabled: boolean) {
   updateLocalGenerationSettings({
     forceInterleavedThinkingCompat: enabled
   })
-}
-
-function onAcpInlineOptionOpenChange(optionId: string, open: boolean) {
-  if (open) {
-    acpInlineOpenOptionId.value = optionId
-    return
-  }
-
-  if (acpInlineOpenOptionId.value === optionId) {
-    acpInlineOpenOptionId.value = null
-  }
-}
-
-function onAcpSelectOption(configId: string, value: string) {
-  if (!value) {
-    return
-  }
-  acpInlineOpenOptionId.value = null
-  void updateAcpConfigOption(configId, value)
-}
-
-function onAcpBooleanOption(configId: string, value: boolean) {
-  void updateAcpConfigOption(configId, value)
 }
 
 async function selectPermissionMode(mode: PermissionMode) {
