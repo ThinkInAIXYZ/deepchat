@@ -200,6 +200,10 @@ export class SkillPresenter implements ISkillPresenter {
   private draftsRoot: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
+  private pluginSkillContributions: Map<
+    string,
+    { ownerPluginId: string; skillRoot: string; pluginRoot?: string }
+  > = new Map()
   private watcher: FSWatcher | null = null
   private initialized: boolean = false
   // Prevent concurrent discovery calls (race condition protection)
@@ -299,16 +303,21 @@ export class SkillPresenter implements ISkillPresenter {
       discoveredSkills = await this.discoverSkillsOnMainThread()
     }
 
-    for (const metadata of discoveredSkills) {
+    for (const metadata of [
+      ...discoveredSkills,
+      ...(await this.discoverPluginSkillsOnMainThread())
+    ]) {
+      if (this.metadataCache.has(metadata.name)) {
+        logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+          name: metadata.name,
+          path: metadata.path
+        })
+        continue
+      }
       this.metadataCache.set(metadata.name, metadata)
     }
 
-    const skills = Array.from(this.metadataCache.values()).sort((left, right) => {
-      return (
-        (left.category ?? '').localeCompare(right.category ?? '') ||
-        left.name.localeCompare(right.name)
-      )
-    })
+    const skills = this.getVisibleMetadataFromCache()
     eventBus.sendToRenderer(SKILL_EVENTS.DISCOVERED, SendTarget.ALL_WINDOWS, skills)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'discovered',
@@ -351,12 +360,35 @@ export class SkillPresenter implements ISkillPresenter {
     return Array.from(discovered.values())
   }
 
+  private async discoverPluginSkillsOnMainThread(): Promise<SkillMetadata[]> {
+    const discovered: SkillMetadata[] = []
+    for (const contribution of this.pluginSkillContributions.values()) {
+      const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
+      const dirName = path.basename(contribution.skillRoot)
+      if (!fs.existsSync(skillPath)) {
+        logger.warn('[SkillPresenter] Plugin skill contribution is missing SKILL.md.', {
+          ownerPluginId: contribution.ownerPluginId,
+          skillRoot: contribution.skillRoot
+        })
+        continue
+      }
+
+      const metadata = await this.parseSkillMetadata(skillPath, dirName, contribution.ownerPluginId)
+      if (metadata) {
+        discovered.push(metadata)
+      }
+    }
+
+    return discovered
+  }
+
   /**
    * Parse SKILL.md frontmatter to extract metadata
    */
   private async parseSkillMetadata(
     skillPath: string,
-    dirName: string
+    dirName: string,
+    ownerPluginId?: string
   ): Promise<SkillMetadata | null> {
     try {
       const content = fs.readFileSync(skillPath, 'utf-8')
@@ -390,7 +422,8 @@ export class SkillPresenter implements ISkillPresenter {
             : undefined,
         allowedTools: Array.isArray(data.allowedTools)
           ? data.allowedTools.filter((t): t is string => typeof t === 'string')
-          : undefined
+          : undefined,
+        ownerPluginId
       }
     } catch (error) {
       console.error(`[SkillPresenter] Error parsing skill metadata at ${skillPath}:`, error)
@@ -411,7 +444,21 @@ export class SkillPresenter implements ISkillPresenter {
       }
       await this.discoveryPromise
     }
-    return Array.from(this.metadataCache.values()).sort((left, right) => {
+    return this.getVisibleMetadataFromCache()
+  }
+
+  private getVisibleMetadataFromCache(): SkillMetadata[] {
+    return this.sortSkillMetadata(
+      Array.from(this.metadataCache.values()).filter((skill) => this.isSkillVisible(skill))
+    )
+  }
+
+  private isSkillVisible(metadata: SkillMetadata): boolean {
+    return Boolean(metadata)
+  }
+
+  private sortSkillMetadata(skills: SkillMetadata[]): SkillMetadata[] {
+    return [...skills].sort((left, right) => {
       return (
         (left.category ?? '').localeCompare(right.category ?? '') ||
         left.name.localeCompare(right.name)
@@ -455,20 +502,20 @@ export class SkillPresenter implements ISkillPresenter {
    * Load full skill content (lazy loading)
    */
   async loadSkillContent(name: string): Promise<SkillContent | null> {
-    // Check content cache first
-    if (this.contentCache.has(name)) {
-      return this.contentCache.get(name)!
-    }
-
     if (this.metadataCache.size === 0) {
       await this.discoverSkills()
     }
 
     // Get metadata to find the path
     const metadata = this.metadataCache.get(name)
-    if (!metadata) {
+    if (!metadata || !this.isSkillVisible(metadata)) {
       console.warn(`[SkillPresenter] Skill not found: ${name}`)
       return null
+    }
+
+    // Check content cache after feature visibility so disabled managed skills stay hidden.
+    if (this.contentCache.has(name)) {
+      return this.contentCache.get(name)!
     }
 
     try {
@@ -511,7 +558,7 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     const metadata = this.metadataCache.get(name)
-    if (!metadata) {
+    if (!metadata || !this.isSkillVisible(metadata)) {
       return {
         success: false,
         error: `Skill "${name}" not found`
@@ -806,9 +853,16 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private replacePathVariables(content: string, metadata: SkillMetadata): string {
+    const pluginContribution = this.getPluginContributionForSkillRoot(metadata.skillRoot)
     return content
       .replace(/\$\{SKILL_ROOT\}/g, metadata.skillRoot)
       .replace(/\$\{SKILLS_DIR\}/g, this.skillsDir)
+      .replace(/\$\{PLUGIN_ROOT\}/g, pluginContribution?.pluginRoot ?? '')
+      .replace(/\$\{PROCESS_ARCH\}/g, process.arch)
+      .replace(
+        /\$\{OWNER_PLUGIN_ID\}/g,
+        metadata.ownerPluginId ?? pluginContribution?.ownerPluginId ?? ''
+      )
   }
 
   private async buildRuntimeInstructions(metadata: SkillMetadata): Promise<string> {
@@ -853,6 +907,11 @@ export class SkillPresenter implements ISkillPresenter {
       const skillMdPath = path.join(skillDir, 'SKILL.md')
       if (!fs.existsSync(skillMdPath)) continue
 
+      const metadata = await this.parseSkillMetadata(skillMdPath, entry.name)
+      if (!metadata || !this.supportsCurrentPlatform(metadata.platforms)) {
+        continue
+      }
+
       const result = await this.installFromDirectory(skillDir, { overwrite: false })
       if (!result.success && result.error?.includes('already exists')) {
         continue
@@ -860,6 +919,28 @@ export class SkillPresenter implements ISkillPresenter {
       if (!result.success) {
         console.warn('[SkillPresenter] Failed to install builtin skill:', result.error)
       }
+    }
+  }
+
+  private supportsCurrentPlatform(platforms?: string[]): boolean {
+    if (!platforms?.length) {
+      return true
+    }
+
+    const aliases = this.getCurrentPlatformAliases()
+    return platforms.some((platform) => aliases.has(platform.trim().toLowerCase()))
+  }
+
+  private getCurrentPlatformAliases(): Set<string> {
+    switch (process.platform) {
+      case 'darwin':
+        return new Set(['darwin', 'macos', 'mac'])
+      case 'win32':
+        return new Set(['win32', 'windows', 'win'])
+      case 'linux':
+        return new Set(['linux'])
+      default:
+        return new Set([process.platform])
     }
   }
 
@@ -936,6 +1017,49 @@ export class SkillPresenter implements ISkillPresenter {
       if (fs.existsSync(tempZipPath)) {
         fs.rmSync(tempZipPath, { force: true })
       }
+    }
+  }
+
+  async registerPluginSkill(input: {
+    ownerPluginId: string
+    id: string
+    skillRoot: string
+    pluginRoot?: string
+  }): Promise<void> {
+    const skillRoot = path.resolve(input.skillRoot)
+    const skillPath = path.join(skillRoot, 'SKILL.md')
+    if (!fs.existsSync(skillPath)) {
+      throw new Error(`Plugin skill "${input.id}" is missing SKILL.md`)
+    }
+
+    this.pluginSkillContributions.set(`${input.ownerPluginId}:${input.id}`, {
+      ownerPluginId: input.ownerPluginId,
+      skillRoot,
+      pluginRoot: input.pluginRoot ? path.resolve(input.pluginRoot) : undefined
+    })
+    this.metadataCache.clear()
+    this.contentCache.clear()
+    if (this.initialized) {
+      await this.discoverSkills()
+    }
+  }
+
+  async unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> {
+    let changed = false
+    for (const [key, contribution] of this.pluginSkillContributions.entries()) {
+      if (contribution.ownerPluginId === ownerPluginId) {
+        this.pluginSkillContributions.delete(key)
+        changed = true
+      }
+    }
+
+    if (changed && this.initialized) {
+      this.metadataCache.clear()
+      this.contentCache.clear()
+      await this.discoverSkills()
+    } else if (changed) {
+      this.metadataCache.clear()
+      this.contentCache.clear()
     }
   }
 
@@ -1595,7 +1719,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     for (const skillName of activeSkills) {
       const metadata = this.metadataCache.get(skillName)
-      if (metadata?.allowedTools) {
+      if (metadata?.allowedTools && this.isSkillVisible(metadata)) {
         metadata.allowedTools.forEach((tool) => allowedTools.add(tool))
       }
     }
@@ -1876,6 +2000,11 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private deriveSkillCategory(skillRoot: string): string | null {
+    const pluginContribution = this.getPluginContributionForSkillRoot(skillRoot)
+    if (pluginContribution) {
+      return `plugin/${pluginContribution.ownerPluginId}`
+    }
+
     const relative = path.relative(this.skillsDir, skillRoot)
     if (!relative || relative === '.' || path.isAbsolute(relative)) {
       return null
@@ -1883,6 +2012,14 @@ export class SkillPresenter implements ISkillPresenter {
 
     const segments = relative.split(path.sep).filter(Boolean)
     return segments.length > 1 ? segments.slice(0, -1).join('/') : null
+  }
+
+  private getPluginContributionForSkillRoot(
+    skillRoot: string
+  ): { ownerPluginId: string; skillRoot: string; pluginRoot?: string } | undefined {
+    return Array.from(this.pluginSkillContributions.values()).find(
+      (contribution) => path.resolve(contribution.skillRoot) === path.resolve(skillRoot)
+    )
   }
 
   private listSkillLinkedFiles(skillRoot: string): SkillLinkedFile[] {

@@ -37,7 +37,7 @@ vi.mock('@/presenter', () => ({
 
 import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
 
-describe('ToolManager ACP MCP access control', () => {
+describe('ToolManager', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
@@ -49,23 +49,26 @@ describe('ToolManager ACP MCP access control', () => {
     warnSpy.mockRestore()
   })
 
-  function createClient(serverName: string) {
+  function createClient(
+    serverName: string,
+    tools = [
+      {
+        name: 'echo',
+        description: 'Echo tool',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ]
+  ) {
     return {
       serverName,
       serverConfig: {
         icons: '',
         descriptions: ''
       },
-      listTools: vi.fn().mockResolvedValue([
-        {
-          name: 'echo',
-          description: 'Echo tool',
-          inputSchema: {
-            properties: {},
-            required: []
-          }
-        }
-      ]),
+      listTools: vi.fn().mockResolvedValue(tools),
       callTool: vi.fn().mockResolvedValue({
         content: 'ok',
         isError: false
@@ -88,6 +91,89 @@ describe('ToolManager ACP MCP access control', () => {
       getLanguage: vi.fn().mockReturnValue('en-US')
     }
   }
+
+  it('leaves plugin runtime tool descriptions unchanged', async () => {
+    const serverName = 'plugin-runtime'
+    const client = createClient(serverName, [
+      {
+        name: 'list_apps',
+        description: 'List apps original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'launch_app',
+        description: 'Launch app original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'click',
+        description: 'Click original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ])
+    const configPresenter = createConfigPresenter(serverName)
+    const manager = new ToolManager(
+      configPresenter as never,
+      {
+        getRunningClients: vi.fn().mockResolvedValue([client])
+      } as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions()
+    const listApps = definitions.find((tool) => tool.function.name === 'list_apps')
+    const launchApp = definitions.find((tool) => tool.function.name === 'launch_app')
+    const click = definitions.find((tool) => tool.function.name === 'click')
+
+    expect(listApps?.function.description).toBe('List apps original description')
+    expect(launchApp?.function.description).toBe('Launch app original description')
+    expect(click?.function.description).toBe('Click original description')
+  })
+
+  it('leaves regular tool descriptions unchanged', async () => {
+    const client = createClient('regular-server', [
+      {
+        name: 'list_apps',
+        description: 'Regular list apps description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'launch_app',
+        description: 'Regular launch app description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ])
+    const configPresenter = createConfigPresenter('regular-server')
+    const manager = new ToolManager(
+      configPresenter as never,
+      {
+        getRunningClients: vi.fn().mockResolvedValue([client])
+      } as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions()
+
+    expect(
+      definitions.find((tool) => tool.function.name === 'list_apps')?.function.description
+    ).toBe('Regular list apps description')
+    expect(
+      definitions.find((tool) => tool.function.name === 'launch_app')?.function.description
+    ).toBe('Regular launch app description')
+  })
 
   it('uses new session ACP context instead of global chat mode', async () => {
     const client = createClient('blocked-server')

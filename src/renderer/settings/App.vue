@@ -98,8 +98,8 @@ import type {
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
 import {
-  resolveSettingsNavigationPath,
-  SETTINGS_NAVIGATION_ITEMS
+  getSettingsNavigationItems,
+  resolveSettingsNavigationPath
 } from '@shared/settingsNavigation'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
@@ -446,7 +446,7 @@ const settings: Ref<
     path: string
   }[]
 > = ref(
-  SETTINGS_NAVIGATION_ITEMS.map((item) => ({
+  getSettingsNavigationItems(window.electron?.process?.platform).map((item) => ({
     title: item.titleKey,
     name: item.routeName,
     icon: item.icon,

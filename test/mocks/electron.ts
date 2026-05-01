@@ -9,7 +9,9 @@ export const __resetElectronMockState = () => {
 export const app = {
   getName: () => 'DeepChat',
   getVersion: () => '0.0.0-test',
+  getAppPath: () => '/mock/app',
   getPath: (_: string) => '/mock/path',
+  isPackaged: false,
   getLoginItemSettings: () => ({ ...loginItemSettings }),
   setLoginItemSettings: (settings: { openAtLogin?: boolean }) => {
     loginItemSettings = { ...loginItemSettings, ...settings }
@@ -34,7 +36,8 @@ export const ipcRenderer = {
 }
 
 export const shell = {
-  openExternal: async (_url: string) => {}
+  openExternal: async (_url: string) => {},
+  openPath: async (_path: string) => ''
 }
 
 export const dialog = {

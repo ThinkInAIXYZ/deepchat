@@ -239,7 +239,8 @@ describe('SkillPresenter', () => {
     ;(randomUUID as Mock).mockReturnValue('12345678-1234-1234-1234-123456789abc')
 
     mockConfigPresenter = {
-      getSkillsPath: vi.fn().mockReturnValue('')
+      getSkillsPath: vi.fn().mockReturnValue(''),
+      getSetting: vi.fn().mockReturnValue(undefined)
     } as unknown as IConfigPresenter
 
     // Setup default mocks
@@ -558,6 +559,58 @@ describe('SkillPresenter', () => {
       const second = await skillPresenter.getMetadataList()
 
       expect(first).toEqual(second)
+    })
+
+    it('shows plugin-owned skills after registration and hides them after unregistering owner', async () => {
+      mockSkillTree(['regular-skill'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) =>
+        target.includes('plugin-skill') ? 'plugin-skill' : 'regular-skill'
+      )
+      ;(matter as unknown as Mock).mockImplementation((content: string) => {
+        if (content === 'plugin-skill') {
+          return {
+            data: { name: 'plugin-skill', description: 'Plugin skill' },
+            content:
+              'Plugin root: `${PLUGIN_ROOT}`. Arch: `${PROCESS_ARCH}`. Owner: `${OWNER_PLUGIN_ID}`.'
+          }
+        }
+
+        return {
+          data: { name: 'regular-skill', description: 'Regular' },
+          content: ''
+        }
+      })
+
+      await skillPresenter.registerPluginSkill({
+        ownerPluginId: 'com.deepchat.plugins.fixture',
+        id: 'plugin-skill',
+        skillRoot: '/plugins/fixture/plugin-skill',
+        pluginRoot: '/plugins/fixture'
+      })
+
+      expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
+        'regular-skill',
+        'plugin-skill'
+      ])
+      const pluginSkillContent = await skillPresenter.loadSkillContent('plugin-skill')
+      expect(pluginSkillContent?.name).toBe('plugin-skill')
+      expect(pluginSkillContent?.content).toContain('Skill root: `/plugins/fixture/plugin-skill`')
+      expect(pluginSkillContent?.content).toContain('Plugin root: `/plugins/fixture`')
+      expect(pluginSkillContent?.content).toContain(`Arch: \`${process.arch}\``)
+      expect(pluginSkillContent?.content).toContain('Owner: `com.deepchat.plugins.fixture`')
+
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      await skillPresenter.setActiveSkills('plugin-conv', ['plugin-skill'])
+      expect(await skillPresenter.getActiveSkills('plugin-conv')).toEqual(['plugin-skill'])
+
+      await skillPresenter.unregisterPluginSkillsByOwner('com.deepchat.plugins.fixture')
+
+      expect((await skillPresenter.getMetadataList()).map((skill) => skill.name)).toEqual([
+        'regular-skill'
+      ])
+      expect(await skillPresenter.loadSkillContent('plugin-skill')).toBeNull()
+      expect(await skillPresenter.getActiveSkills('plugin-conv')).toEqual([])
     })
   })
 

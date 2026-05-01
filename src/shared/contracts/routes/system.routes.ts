@@ -12,6 +12,7 @@ export const SettingsRouteNameSchema = z.enum([
   'settings-acp',
   'settings-remote',
   'settings-notifications-hooks',
+  'settings-plugins',
   'settings-skills',
   'settings-prompt',
   'settings-knowledge-base',

@@ -71,6 +71,11 @@ import {
   mcpSubmitSamplingDecisionRoute,
   mcpUpdateServerRoute,
   modelsGetProviderCatalogRoute,
+  pluginsDisableRoute,
+  pluginsEnableRoute,
+  pluginsGetRoute,
+  pluginsInvokeActionRoute,
+  pluginsListRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
@@ -190,6 +195,7 @@ import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
+import type { PluginPresenter } from '@/presenter/pluginPresenter'
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -213,6 +219,7 @@ export type MainKernelRouteRuntime = {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
+  pluginPresenter: PluginPresenter
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -233,6 +240,7 @@ export function createMainKernelRouteRuntime(deps: {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
+  pluginPresenter: PluginPresenter
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -279,7 +287,8 @@ export function createMainKernelRouteRuntime(deps: {
     workspacePresenter: deps.workspacePresenter,
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
-    startupWorkloadCoordinator: deps.startupWorkloadCoordinator
+    startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
+    pluginPresenter: deps.pluginPresenter
   }
 }
 
@@ -607,6 +616,45 @@ export async function dispatchDeepchatRoute(
       const input = deviceSanitizeSvgRoute.input.parse(rawInput)
       return deviceSanitizeSvgRoute.output.parse({
         content: await runtime.devicePresenter.sanitizeSvgContent(input.svgContent)
+      })
+    }
+
+    case pluginsListRoute.name: {
+      pluginsListRoute.input.parse(rawInput)
+      return pluginsListRoute.output.parse({
+        plugins: await runtime.pluginPresenter.listPlugins()
+      })
+    }
+
+    case pluginsGetRoute.name: {
+      const input = pluginsGetRoute.input.parse(rawInput)
+      return pluginsGetRoute.output.parse({
+        plugin: await runtime.pluginPresenter.getPlugin(input.pluginId)
+      })
+    }
+
+    case pluginsEnableRoute.name: {
+      const input = pluginsEnableRoute.input.parse(rawInput)
+      return pluginsEnableRoute.output.parse({
+        result: await runtime.pluginPresenter.enablePlugin(input.pluginId)
+      })
+    }
+
+    case pluginsDisableRoute.name: {
+      const input = pluginsDisableRoute.input.parse(rawInput)
+      return pluginsDisableRoute.output.parse({
+        result: await runtime.pluginPresenter.disablePlugin(input.pluginId)
+      })
+    }
+
+    case pluginsInvokeActionRoute.name: {
+      const input = pluginsInvokeActionRoute.input.parse(rawInput)
+      return pluginsInvokeActionRoute.output.parse({
+        result: await runtime.pluginPresenter.invokeAction(
+          input.pluginId,
+          input.actionId,
+          input.payload
+        )
       })
     }
 

@@ -27,6 +27,8 @@ export interface SkillMetadata {
   metadata?: Record<string, unknown>
   /** Optional additional tools required by this skill */
   allowedTools?: string[]
+  /** Plugin owner id when the skill is contributed by a plugin */
+  ownerPluginId?: string
 }
 
 /**
@@ -187,6 +189,13 @@ export interface ISkillPresenter {
   installFromZip(zipPath: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
   installFromUrl(url: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
   uninstallSkill(name: string): Promise<SkillInstallResult>
+  registerPluginSkill?(input: {
+    ownerPluginId: string
+    id: string
+    skillRoot: string
+    pluginRoot?: string
+  }): Promise<void> | void
+  unregisterPluginSkillsByOwner?(ownerPluginId: string): Promise<void> | void
 
   // File operations
   readSkillFile(name: string): Promise<string>

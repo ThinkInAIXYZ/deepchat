@@ -12,6 +12,8 @@ import {
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
   chatStopStreamRoute,
+  pluginsGetRoute,
+  pluginsInvokeActionRoute,
   providersListModelsRoute,
   providersListSummariesRoute,
   providersTestConnectionRoute,
@@ -52,6 +54,8 @@ describe('main kernel contracts', () => {
         'mcp.readResource',
         'mcp.submitSamplingDecision',
         'mcp.updateServer',
+        'plugins.get',
+        'plugins.invokeAction',
         'providers.getAcpProcessConfigOptions',
         'providers.listSummaries',
         'providers.pullOllamaModel',
@@ -112,6 +116,57 @@ describe('main kernel contracts', () => {
       ])
     )
     expect(new Set(routeKeys).size).toBe(routeKeys.length)
+  })
+
+  it('validates plugin route payloads through concrete schemas', () => {
+    expect(
+      pluginsGetRoute.output.parse({
+        plugin: {
+          id: 'com.deepchat.plugins.fixture',
+          name: 'Fixture Runtime',
+          version: '1.0.0',
+          publisher: 'DeepChat',
+          installed: true,
+          enabled: true,
+          trusted: true,
+          trustState: 'trusted',
+          official: true,
+          capabilities: ['runtime.manage'],
+          runtime: {
+            runtimeId: 'fixture-runtime',
+            displayName: 'Fixture Runtime',
+            state: 'installed',
+            command: '/usr/local/bin/fixture-runtime'
+          }
+        }
+      })
+    ).toEqual({
+      plugin: {
+        id: 'com.deepchat.plugins.fixture',
+        name: 'Fixture Runtime',
+        version: '1.0.0',
+        publisher: 'DeepChat',
+        installed: true,
+        enabled: true,
+        trusted: true,
+        trustState: 'trusted',
+        official: true,
+        capabilities: ['runtime.manage'],
+        runtime: {
+          runtimeId: 'fixture-runtime',
+          displayName: 'Fixture Runtime',
+          state: 'installed',
+          command: '/usr/local/bin/fixture-runtime'
+        }
+      }
+    })
+
+    expect(() =>
+      pluginsInvokeActionRoute.input.parse({
+        pluginId: '',
+        actionId: 'runtime.getStatus'
+      })
+    ).toThrow()
   })
 
   it('validates typed settings updates through the shared route contract', () => {

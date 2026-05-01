@@ -49,6 +49,7 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "Indbyggede værktøjer",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",

@@ -9,7 +9,9 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!test/*'
+  - '!vendor/**'
   - '!docs/*'
+  - '!plugins/**'
   - '!keys/*'
   - '!scripts/*'
   - '!.github/*'
@@ -76,6 +78,10 @@ nsis:
 afterSign: scripts/notarize.js
 afterPack: scripts/afterPack.js
 mac:
+  extraResources:
+    - from: ./build/bundled-plugins/
+      to: app.asar.unpacked/plugins
+      filter: ['**/*.dcplugin']
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
