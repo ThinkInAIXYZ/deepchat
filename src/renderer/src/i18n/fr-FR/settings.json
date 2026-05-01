@@ -1838,7 +1838,7 @@
   },
   "plugins": {
     "title": "Plugins",
-    "officialOnly": "Official source only",
+    "officialOnly": "Manage built-in official plugins included with this DeepChat version.",
     "refresh": "Refresh",
     "empty": "No official plugins available",
     "loadFailed": "Failed to load plugins",
@@ -1861,8 +1861,8 @@
       "running": "Running",
       "error": "Error"
     },
-    "emptyTitle": "Install official plugins",
-    "emptyDescription": "Open the current GitHub Release to download a .dcplugin, or choose a package already on disk.",
+    "emptyTitle": "No built-in plugins available",
+    "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
     "openRelease": "GitHub Release"
   }

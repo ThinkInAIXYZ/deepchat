@@ -14,6 +14,7 @@ build/macarm.json
 build/macx64.json
 build/winarm.json
 build/winx64.json
+build/bundled-plugins/
 runtime/**/*
 plugins/*/runtime/**/*
 .eslintcache

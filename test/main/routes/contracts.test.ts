@@ -13,7 +13,6 @@ import {
   chatSteerActiveTurnRoute,
   chatStopStreamRoute,
   pluginsGetRoute,
-  pluginsInstallRoute,
   pluginsInvokeActionRoute,
   providersListModelsRoute,
   providersListSummariesRoute,
@@ -56,10 +55,7 @@ describe('main kernel contracts', () => {
         'mcp.submitSamplingDecision',
         'mcp.updateServer',
         'plugins.get',
-        'plugins.install',
-        'plugins.installFromFile',
         'plugins.invokeAction',
-        'plugins.openOfficialRelease',
         'providers.getAcpProcessConfigOptions',
         'providers.listSummaries',
         'providers.pullOllamaModel',
@@ -123,23 +119,6 @@ describe('main kernel contracts', () => {
   })
 
   it('validates plugin route payloads through concrete schemas', () => {
-    expect(
-      pluginsInstallRoute.input.parse({
-        pluginId: 'com.deepchat.plugins.fixture',
-        source: 'deepchat-official'
-      })
-    ).toEqual({
-      pluginId: 'com.deepchat.plugins.fixture',
-      source: 'deepchat-official'
-    })
-
-    expect(() =>
-      pluginsInstallRoute.input.parse({
-        pluginId: 'com.deepchat.plugins.fixture',
-        source: 'local-file'
-      })
-    ).toThrow()
-
     expect(
       pluginsGetRoute.output.parse({
         plugin: {

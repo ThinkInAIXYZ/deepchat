@@ -219,10 +219,9 @@ against the shipped `.d.ts` file, not against DeepChat renderer internals.
 Generic host APIs available through preload:
 
 - `plugins.list`
-- `plugins.getStatus`
+- `plugins.get`
 - `plugins.enable`
 - `plugins.disable`
-- `plugins.delete`
 - `plugins.invokeAction`
 
 Plugin-specific APIs available through preload are declared by the plugin and handled through the

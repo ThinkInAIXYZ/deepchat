@@ -2,13 +2,9 @@ import { z } from 'zod'
 import { defineRouteContract, JsonValueSchema } from '../common'
 import type {
   PluginActionResult,
-  PluginInstallFromFileRequest,
-  PluginInstallRequest,
   PluginInvokeActionRequest,
-  PluginListItem,
-  PluginOpenOfficialReleaseRequest
+  PluginListItem
 } from '@shared/types/plugin'
-import { OFFICIAL_PLUGIN_SOURCE } from '@shared/types/plugin'
 
 const PluginListItemSchema = z.custom<PluginListItem>()
 const PluginActionResultSchema = z.custom<PluginActionResult>()
@@ -31,37 +27,6 @@ export const pluginsGetRoute = defineRouteContract({
   })
 })
 
-export const pluginsInstallRoute = defineRouteContract({
-  name: 'plugins.install',
-  input: z.object({
-    pluginId: z.string().min(1),
-    source: z.literal(OFFICIAL_PLUGIN_SOURCE)
-  }) satisfies z.ZodType<PluginInstallRequest>,
-  output: z.object({
-    result: PluginActionResultSchema
-  })
-})
-
-export const pluginsInstallFromFileRoute = defineRouteContract({
-  name: 'plugins.installFromFile',
-  input: z.object({
-    filePath: z.string().min(1).optional()
-  }) satisfies z.ZodType<PluginInstallFromFileRequest>,
-  output: z.object({
-    result: PluginActionResultSchema
-  })
-})
-
-export const pluginsOpenOfficialReleaseRoute = defineRouteContract({
-  name: 'plugins.openOfficialRelease',
-  input: z.object({
-    pluginId: z.string().min(1).optional()
-  }) satisfies z.ZodType<PluginOpenOfficialReleaseRequest>,
-  output: z.object({
-    result: PluginActionResultSchema
-  })
-})
-
 export const pluginsEnableRoute = defineRouteContract({
   name: 'plugins.enable',
   input: z.object({
@@ -74,16 +39,6 @@ export const pluginsEnableRoute = defineRouteContract({
 
 export const pluginsDisableRoute = defineRouteContract({
   name: 'plugins.disable',
-  input: z.object({
-    pluginId: z.string().min(1)
-  }),
-  output: z.object({
-    result: PluginActionResultSchema
-  })
-})
-
-export const pluginsDeleteRoute = defineRouteContract({
-  name: 'plugins.delete',
   input: z.object({
     pluginId: z.string().min(1)
   }),

@@ -1,16 +1,11 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
-  pluginsDeleteRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
-  pluginsInstallFromFileRoute,
-  pluginsInstallRoute,
   pluginsInvokeActionRoute,
-  pluginsListRoute,
-  pluginsOpenOfficialReleaseRoute
+  pluginsListRoute
 } from '@shared/contracts/routes'
-import { OFFICIAL_PLUGIN_SOURCE } from '@shared/types/plugin'
 import type { PluginInvokeActionRequest } from '@shared/types/plugin'
 import { getDeepchatBridge } from './core'
 
@@ -25,28 +20,6 @@ export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.plugin
   }
 
-  async function installOfficialPlugin(pluginId: string) {
-    const result = await bridge.invoke(pluginsInstallRoute.name, {
-      pluginId,
-      source: OFFICIAL_PLUGIN_SOURCE
-    })
-    return result.result
-  }
-
-  async function installPluginFromFile(filePath?: string) {
-    const result = await bridge.invoke(pluginsInstallFromFileRoute.name, {
-      filePath
-    })
-    return result.result
-  }
-
-  async function openOfficialRelease(pluginId?: string) {
-    const result = await bridge.invoke(pluginsOpenOfficialReleaseRoute.name, {
-      pluginId
-    })
-    return result.result
-  }
-
   async function enablePlugin(pluginId: string) {
     const result = await bridge.invoke(pluginsEnableRoute.name, { pluginId })
     return result.result
@@ -54,11 +27,6 @@ export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function disablePlugin(pluginId: string) {
     const result = await bridge.invoke(pluginsDisableRoute.name, { pluginId })
-    return result.result
-  }
-
-  async function deletePlugin(pluginId: string) {
-    const result = await bridge.invoke(pluginsDeleteRoute.name, { pluginId })
     return result.result
   }
 
@@ -70,12 +38,8 @@ export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge())
   return {
     listPlugins,
     getPlugin,
-    installOfficialPlugin,
-    installPluginFromFile,
-    openOfficialRelease,
     enablePlugin,
     disablePlugin,
-    deletePlugin,
     invokeAction
   }
 }

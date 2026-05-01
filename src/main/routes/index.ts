@@ -71,15 +71,11 @@ import {
   mcpSubmitSamplingDecisionRoute,
   mcpUpdateServerRoute,
   modelsGetProviderCatalogRoute,
-  pluginsDeleteRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
-  pluginsInstallFromFileRoute,
-  pluginsInstallRoute,
   pluginsInvokeActionRoute,
   pluginsListRoute,
-  pluginsOpenOfficialReleaseRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
@@ -637,27 +633,6 @@ export async function dispatchDeepchatRoute(
       })
     }
 
-    case pluginsInstallRoute.name: {
-      const input = pluginsInstallRoute.input.parse(rawInput)
-      return pluginsInstallRoute.output.parse({
-        result: await runtime.pluginPresenter.installOfficialPlugin(input.pluginId)
-      })
-    }
-
-    case pluginsInstallFromFileRoute.name: {
-      const input = pluginsInstallFromFileRoute.input.parse(rawInput)
-      return pluginsInstallFromFileRoute.output.parse({
-        result: await runtime.pluginPresenter.installPluginFromFile(input.filePath)
-      })
-    }
-
-    case pluginsOpenOfficialReleaseRoute.name: {
-      const input = pluginsOpenOfficialReleaseRoute.input.parse(rawInput)
-      return pluginsOpenOfficialReleaseRoute.output.parse({
-        result: await runtime.pluginPresenter.openOfficialPluginRelease(input.pluginId)
-      })
-    }
-
     case pluginsEnableRoute.name: {
       const input = pluginsEnableRoute.input.parse(rawInput)
       return pluginsEnableRoute.output.parse({
@@ -669,13 +644,6 @@ export async function dispatchDeepchatRoute(
       const input = pluginsDisableRoute.input.parse(rawInput)
       return pluginsDisableRoute.output.parse({
         result: await runtime.pluginPresenter.disablePlugin(input.pluginId)
-      })
-    }
-
-    case pluginsDeleteRoute.name: {
-      const input = pluginsDeleteRoute.input.parse(rawInput)
-      return pluginsDeleteRoute.output.parse({
-        result: await runtime.pluginPresenter.deletePlugin(input.pluginId)
       })
     }
 

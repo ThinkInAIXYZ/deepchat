@@ -188,8 +188,8 @@ jobs:
       - name: Build Mac
         run: |
           pnpm run build
+          pnpm run plugin:cua:bundle:mac:${{ matrix.arch }}
           pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
-          pnpm run plugin:cua:package:mac:${{ matrix.arch }}
         env:
           CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
@@ -203,13 +203,17 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=4096'
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
-      - name: Verify CUA plugin artifact
+      - name: Verify bundled CUA plugin
         shell: bash
         env:
           TARGET_ARCH: ${{ matrix.arch }}
         run: |
           VERSION="$(node -p "require('./package.json').version")"
-          PLUGIN="dist/plugins/deepchat-plugin-cua-${VERSION}-darwin-${TARGET_ARCH}.dcplugin"
+          APP_DIR="dist/mac/DeepChat.app"
+          if [ "$TARGET_ARCH" = "arm64" ]; then
+            APP_DIR="dist/mac-arm64/DeepChat.app"
+          fi
+          PLUGIN="${APP_DIR}/Contents/Resources/app.asar.unpacked/plugins/deepchat-plugin-cua-${VERSION}-darwin-${TARGET_ARCH}.dcplugin"
           test -f "$PLUGIN"
           ls -lh "$PLUGIN"
 

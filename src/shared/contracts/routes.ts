@@ -152,15 +152,11 @@ import {
   projectSelectDirectoryRoute
 } from './routes/project.routes'
 import {
-  pluginsDeleteRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
-  pluginsInstallFromFileRoute,
-  pluginsInstallRoute,
   pluginsInvokeActionRoute,
-  pluginsListRoute,
-  pluginsOpenOfficialReleaseRoute
+  pluginsListRoute
 } from './routes/plugins.routes'
 import {
   settingsGetSnapshotRoute,
@@ -320,12 +316,8 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [projectSelectDirectoryRoute.name]: projectSelectDirectoryRoute,
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
-  [pluginsInstallRoute.name]: pluginsInstallRoute,
-  [pluginsInstallFromFileRoute.name]: pluginsInstallFromFileRoute,
-  [pluginsOpenOfficialReleaseRoute.name]: pluginsOpenOfficialReleaseRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,
   [pluginsDisableRoute.name]: pluginsDisableRoute,
-  [pluginsDeleteRoute.name]: pluginsDeleteRoute,
   [pluginsInvokeActionRoute.name]: pluginsInvokeActionRoute,
   [fileGetMimeTypeRoute.name]: fileGetMimeTypeRoute,
   [filePrepareFileRoute.name]: filePrepareFileRoute,

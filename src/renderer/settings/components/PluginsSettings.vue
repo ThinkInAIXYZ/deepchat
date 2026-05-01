@@ -8,24 +8,6 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="loading || installingFromFile"
-          @click="installFromFile"
-        >
-          <Icon icon="lucide:file-up" class="w-4 h-4 mr-2" />
-          {{ t('settings.plugins.installFromFile') }}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="openingRelease"
-          @click="openOfficialRelease()"
-        >
-          <Icon icon="lucide:external-link" class="w-4 h-4 mr-2" />
-          {{ t('settings.plugins.openRelease') }}
-        </Button>
         <Button variant="outline" size="icon" :disabled="loading" @click="loadPlugins">
           <Icon icon="lucide:refresh-cw" class="w-4 h-4" />
         </Button>
@@ -53,21 +35,6 @@
             </p>
           </div>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <Button size="sm" :disabled="installingFromFile" @click="installFromFile">
-            <Icon icon="lucide:file-up" class="w-4 h-4 mr-2" />
-            {{ t('settings.plugins.installFromFile') }}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            :disabled="openingRelease"
-            @click="openOfficialRelease()"
-          >
-            <Icon icon="lucide:external-link" class="w-4 h-4 mr-2" />
-            {{ t('settings.plugins.openRelease') }}
-          </Button>
-        </div>
       </div>
 
       <article
@@ -94,17 +61,13 @@
             :class="
               plugin.enabled
                 ? 'border-emerald-500/40 text-emerald-600'
-                : plugin.installed
-                  ? 'border-border text-muted-foreground'
-                  : 'border-border text-muted-foreground'
+                : 'border-border text-muted-foreground'
             "
           >
             {{
               plugin.enabled
                 ? t('settings.plugins.status.enabled')
-                : plugin.installed
-                  ? t('settings.plugins.status.disabled')
-                  : t('settings.plugins.status.available')
+                : t('settings.plugins.status.disabled')
             }}
           </span>
         </div>
@@ -124,26 +87,7 @@
 
         <div class="flex flex-wrap gap-2">
           <Button
-            v-if="!plugin.installed"
-            size="sm"
-            :disabled="isPending(plugin.id)"
-            @click="installPlugin(plugin.id)"
-          >
-            <Icon icon="lucide:download" class="w-4 h-4 mr-2" />
-            {{ t('settings.plugins.install') }}
-          </Button>
-          <Button
-            v-if="!plugin.installed"
-            size="sm"
-            variant="outline"
-            :disabled="isPending(plugin.id) || openingRelease"
-            @click="openOfficialRelease(plugin.id)"
-          >
-            <Icon icon="lucide:external-link" class="w-4 h-4 mr-2" />
-            {{ t('settings.plugins.openRelease') }}
-          </Button>
-          <Button
-            v-if="plugin.installed && !plugin.enabled"
+            v-if="!plugin.enabled"
             size="sm"
             :disabled="isPending(plugin.id)"
             @click="enablePlugin(plugin.id)"
@@ -171,16 +115,6 @@
             <Icon icon="lucide:power-off" class="w-4 h-4 mr-2" />
             {{ t('settings.plugins.disable') }}
           </Button>
-          <Button
-            v-if="plugin.installed"
-            size="sm"
-            variant="outline"
-            :disabled="isPending(plugin.id)"
-            @click="deletePlugin(plugin.id)"
-          >
-            <Icon icon="lucide:trash-2" class="w-4 h-4 mr-2" />
-            {{ t('common.delete') }}
-          </Button>
         </div>
       </article>
     </div>
@@ -201,8 +135,6 @@ const plugins = ref<PluginListItem[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
 const pendingPluginId = ref<string | null>(null)
-const installingFromFile = ref(false)
-const openingRelease = ref(false)
 
 function isPending(pluginId: string): boolean {
   return pendingPluginId.value === pluginId
@@ -246,54 +178,12 @@ async function runPluginAction(
   }
 }
 
-async function installPlugin(pluginId: string): Promise<void> {
-  await runPluginAction(pluginId, () => pluginClient.installOfficialPlugin(pluginId))
-}
-
-async function installFromFile(): Promise<void> {
-  installingFromFile.value = true
-  errorMessage.value = ''
-  try {
-    const result = await pluginClient.installPluginFromFile()
-    if (!result.ok) {
-      throw new Error(result.error || t('settings.plugins.actionFailed'))
-    }
-    const data = result.data as { canceled?: boolean } | undefined
-    if (!data?.canceled) {
-      await loadPlugins()
-    }
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
-  } finally {
-    installingFromFile.value = false
-  }
-}
-
-async function openOfficialRelease(pluginId?: string): Promise<void> {
-  openingRelease.value = true
-  errorMessage.value = ''
-  try {
-    const result = await pluginClient.openOfficialRelease(pluginId)
-    if (!result.ok) {
-      throw new Error(result.error || t('settings.plugins.actionFailed'))
-    }
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
-  } finally {
-    openingRelease.value = false
-  }
-}
-
 async function enablePlugin(pluginId: string): Promise<void> {
   await runPluginAction(pluginId, () => pluginClient.enablePlugin(pluginId))
 }
 
 async function disablePlugin(pluginId: string): Promise<void> {
   await runPluginAction(pluginId, () => pluginClient.disablePlugin(pluginId))
-}
-
-async function deletePlugin(pluginId: string): Promise<void> {
-  await runPluginAction(pluginId, () => pluginClient.deletePlugin(pluginId))
 }
 
 async function openSettings(pluginId: string): Promise<void> {

@@ -166,7 +166,6 @@ export interface PluginListItem {
   trustState: PluginTrustState
   official: boolean
   capabilities: PluginCapability[]
-  releaseUrl?: string
   runtime?: PluginRuntimeStatus
   mcpServers?: PluginMcpRuntimeStatus[]
   settings?: PluginSettingsContribution
@@ -177,19 +176,6 @@ export interface PluginActionResult {
   status?: PluginListItem
   data?: JsonValue
   error?: string
-}
-
-export interface PluginInstallRequest {
-  pluginId: string
-  source: typeof OFFICIAL_PLUGIN_SOURCE
-}
-
-export interface PluginInstallFromFileRequest {
-  filePath?: string
-}
-
-export interface PluginOpenOfficialReleaseRequest {
-  pluginId?: string
 }
 
 export interface PluginInvokeActionRequest {

@@ -1,5 +1,11 @@
-import { readFile } from 'node:fs/promises'
-import { describe, expect, it, vi } from 'vitest'
+import { createHash } from 'node:crypto'
+import fs from 'node:fs'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { app } from 'electron'
+import { zipSync } from 'fflate'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron-store', () => ({
   default: class MockElectronStore {
@@ -27,31 +33,167 @@ vi.mock('node:fs', async () => {
   }
 })
 
-const createPluginPresenter = async (platform: NodeJS.Platform) => {
+const tempRoots: string[] = []
+
+const createPluginPresenter = async (platform: NodeJS.Platform, appPath = process.cwd()) => {
   const { PluginPresenter } = await import('@/presenter/pluginPresenter')
+  const mcpServers: Record<string, unknown> = {}
+  const configPresenter = {
+    getMcpServers: vi.fn().mockImplementation(async () => mcpServers),
+    addMcpServer: vi.fn().mockImplementation(async (serverName: string, config: unknown) => {
+      mcpServers[serverName] = config
+    }),
+    updateMcpServer: vi.fn().mockImplementation(async (serverName: string, config: unknown) => {
+      mcpServers[serverName] = config
+    }),
+    removeMcpServer: vi.fn().mockImplementation(async (serverName: string) => {
+      delete mcpServers[serverName]
+    }),
+    getMcpEnabled: vi.fn().mockResolvedValue(true)
+  }
+  const mcpPresenter = {
+    isReady: vi.fn(() => true),
+    isServerRunning: vi.fn().mockResolvedValue(false),
+    startServer: vi.fn().mockResolvedValue(undefined),
+    stopServer: vi.fn().mockResolvedValue(undefined)
+  }
+  const skillPresenter = {
+    unregisterPluginSkillsByOwner: vi.fn().mockResolvedValue(undefined)
+  }
   return new PluginPresenter({
     platform,
-    appPath: process.cwd(),
-    configPresenter: {
-      getMcpServers: vi.fn().mockResolvedValue({})
-    },
-    mcpPresenter: {
-      isServerRunning: vi.fn().mockResolvedValue(false)
-    },
-    skillPresenter: {}
+    appPath,
+    configPresenter,
+    mcpPresenter,
+    skillPresenter
   } as any)
 }
 
+const createBundledFixture = async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-test-'))
+  tempRoots.push(root)
+  const appPath = path.join(root, 'app')
+  const userDataPath = path.join(root, 'userData')
+  const packageRoot = path.join(appPath, 'plugins')
+  const packagePath = path.join(packageRoot, 'deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin')
+  const runtimeRelativePath = `runtime/darwin/${process.arch}/fixture-runtime`
+  const manifest = {
+    id: 'com.deepchat.plugins.fixture',
+    name: 'Fixture Runtime',
+    version: '0.2.3',
+    publisher: 'DeepChat',
+    engines: {
+      deepchat: '>=0.2.3',
+      platforms: ['darwin']
+    },
+    activationEvents: ['onEnable'],
+    capabilities: ['runtime.manage', 'mcp.register'],
+    source: {
+      type: 'deepchat-official',
+      url: 'https://github.com/ThinkInAIXYZ/deepchat/releases/download/v0.2.3/deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin',
+      publisher: 'DeepChat'
+    },
+    runtime: {
+      id: 'fixture-runtime',
+      type: 'external-helper',
+      displayName: 'Fixture Runtime',
+      detect: [`plugin:${runtimeRelativePath}`]
+    },
+    mcpServers: [
+      {
+        id: 'fixture-runtime',
+        displayName: 'Fixture Runtime',
+        transport: 'stdio',
+        command: '${runtime.fixture-runtime.command}',
+        args: ['mcp'],
+        autoApprove: []
+      }
+    ]
+  }
+  const files: Record<string, Uint8Array> = {
+    'plugin.json': new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`),
+    [runtimeRelativePath]: new TextEncoder().encode('#!/bin/sh\necho fixture-runtime 1.0.0\n')
+  }
+  const checksums = Object.fromEntries(
+    Object.entries(files).map(([filePath, content]) => [
+      filePath,
+      createHash('sha256').update(Buffer.from(content)).digest('hex')
+    ])
+  )
+  files['checksums.json'] = new TextEncoder().encode(`${JSON.stringify(checksums, null, 2)}\n`)
+
+  await mkdir(packageRoot, { recursive: true })
+  await mkdir(userDataPath, { recursive: true })
+  await writeFile(packagePath, Buffer.from(zipSync(files, { level: 6 })))
+  vi.mocked(app.getPath).mockImplementation((name: string) => {
+    if (name === 'userData') {
+      return userDataPath
+    }
+    if (name === 'temp' || name === 'home') {
+      return root
+    }
+    return '/mock/path'
+  })
+
+  return {
+    appPath,
+    userDataPath,
+    pluginId: manifest.id
+  }
+}
+
 describe('PluginPresenter', () => {
+  afterEach(async () => {
+    vi.mocked(app.getPath).mockImplementation(() => '/mock/path')
+    await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  })
+
   it('hides the CUA official plugin on unsupported platforms', async () => {
     const winPresenter = await createPluginPresenter('win32')
     const linuxPresenter = await createPluginPresenter('linux')
-    const catalog = JSON.parse(await readFile('resources/plugins/official-catalog.json', 'utf8'))
-    const catalogManifest = catalog.plugins[0].manifest
+    const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
 
-    expect(catalogManifest.engines.platforms).toEqual(['darwin'])
+    expect(manifest.engines.platforms).toEqual(['darwin'])
     expect(await winPresenter.listPlugins()).toEqual([])
     expect(await linuxPresenter.listPlugins()).toEqual([])
+  })
+
+  it('lists bundled official plugins as installed and enables them by materializing the package', async () => {
+    const fixture = await createBundledFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+
+    const plugins = await presenter.listPlugins()
+    expect(plugins).toHaveLength(1)
+    expect(plugins[0]).toMatchObject({
+      id: fixture.pluginId,
+      installed: true,
+      enabled: false,
+      trusted: true,
+      trustState: 'trusted'
+    })
+
+    const result = await presenter.enablePlugin(fixture.pluginId)
+    expect(result.ok).toBe(true)
+    expect(result.status).toMatchObject({
+      id: fixture.pluginId,
+      installed: true,
+      enabled: true,
+      runtime: {
+        state: 'installed',
+        version: 'fixture-runtime 1.0.0'
+      }
+    })
+    expect(
+      fs.existsSync(path.join(fixture.userDataPath, 'plugins', fixture.pluginId, 'plugin.json'))
+    ).toBe(true)
+
+    const disabled = await presenter.disablePlugin(fixture.pluginId)
+    expect(disabled.ok).toBe(true)
+    expect(disabled.status).toMatchObject({
+      id: fixture.pluginId,
+      installed: true,
+      enabled: false
+    })
   })
 
   it('loads the electron-vite plugin settings preload output', async () => {
@@ -83,13 +225,8 @@ describe('PluginPresenter', () => {
 
   it('declares the CUA MCP server with plugin helper context', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
-    const catalog = JSON.parse(await readFile('resources/plugins/official-catalog.json', 'utf8'))
     const mcpConfig = JSON.parse(await readFile('plugins/cua/mcp/cua-driver.json', 'utf8'))
-    const catalogManifest = catalog.plugins[0].manifest
     const server = manifest.mcpServers.find((item: { id: string }) => item.id === 'cua-driver')
-    const catalogServer = catalogManifest.mcpServers.find(
-      (item: { id: string }) => item.id === 'cua-driver'
-    )
 
     expect(manifest.runtime.detect[0]).toBe(
       'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver'
@@ -103,9 +240,6 @@ describe('PluginPresenter', () => {
       DEEPCHAT_COMPUTER_USE_APP_PATH: '${runtime.cua-driver.helperAppPath}',
       DEEPCHAT_COMPUTER_USE_BINARY_PATH: '${runtime.cua-driver.command}'
     })
-    expect(catalogManifest.runtime.detect[0]).toBe(manifest.runtime.detect[0])
-    expect(catalogManifest.runtime.detect).toEqual(manifest.runtime.detect)
-    expect(catalogServer.env).toEqual(server.env)
     expect(mcpConfig.env).toEqual(server.env)
   })
 
@@ -155,16 +289,18 @@ describe('PluginPresenter', () => {
     expect(packageJson.scripts['plugin:cua:package:mac:arm64']).toContain('--target-arch arm64')
     expect(packageJson.scripts['plugin:cua:package:mac:x64']).toContain('--target-arch x64')
     expect(packageJson.scripts['plugin:cua:build:mac:x64']).toContain('--arch x64')
-    expect(buildWorkflow).toContain('pnpm run plugin:cua:package:mac:${{ matrix.arch }}')
-    expect(buildWorkflow).toContain('Verify CUA plugin artifact')
-    expect(releaseWorkflow).toContain('require_cua_plugin_asset x64')
-    expect(releaseWorkflow).toContain('require_cua_plugin_asset arm64')
-    expect(releaseWorkflow).toContain('deepchat-plugin-cua-${VERSION}-darwin-${arch}.dcplugin')
-    expect(releaseWorkflow).toContain('cp "${dir}/${asset}" release_assets/')
+    expect(packageJson.scripts['plugin:cua:bundle:mac:arm64']).toContain('--target-arch arm64')
+    expect(packageJson.scripts['plugin:cua:bundle:mac:x64']).toContain('--target-arch x64')
+    expect(packageJson.scripts['build:mac:arm64']).toContain('plugin:cua:bundle:mac:arm64')
+    expect(buildWorkflow).toContain('pnpm run plugin:cua:bundle:mac:${{ matrix.arch }}')
+    expect(buildWorkflow).toContain('Verify bundled CUA plugin')
+    expect(buildWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')
+    expect(releaseWorkflow).toContain('pnpm run plugin:cua:bundle:mac:${{ matrix.arch }}')
+    expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
+    expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')
     expect(packageScript).toContain("parts[0] === 'runtime'")
     expect(packageScript).toContain('parts[2] !== args.targetArch')
-    expect(guide).toContain('deepchat-plugin-cua-<version>-darwin-arm64.dcplugin')
-    expect(guide).toContain('deepchat-plugin-cua-<version>-darwin-x64.dcplugin')
-    expect(guide).toContain('Each `.dcplugin` contains only the runtime directory')
+    expect(guide).toContain('build/bundled-plugins/')
+    expect(guide).toContain('app.asar.unpacked/plugins/')
   })
 })

@@ -325,16 +325,16 @@ plugins/
     policies/tool-policy.json
 ```
 
-- Add plugin packaging scripts that produce:
+- Add plugin packaging scripts that produce bundled macOS plugin packages:
 
 ```text
-dist/plugins/deepchat-plugin-cua-<version>.dcplugin
+build/bundled-plugins/deepchat-plugin-cua-<version>-darwin-<arch>.dcplugin
 ```
 
 - The `.dcplugin` package must contain manifest, compiled plugin code, settings bundle, skills,
   preload type definitions, bundled helper runtime, checksums, and signature metadata.
-- DeepChat app packaging must not include CUA Driver binaries or vendored CUA source.
-- Release CI must upload the CUA plugin as a separate artifact.
+- DeepChat app packaging must include the bundled CUA plugin package inside the macOS app resources.
+- Release CI must upload DeepChat app artifacts without publishing `.dcplugin` files separately.
 
 ### Migration
 

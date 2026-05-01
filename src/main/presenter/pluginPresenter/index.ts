@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -6,7 +6,6 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import ElectronStore from 'electron-store'
 import { unzipSync } from 'fflate'
-import { fetch } from 'undici'
 import type {
   IConfigPresenter,
   IMCPPresenter,
@@ -29,12 +28,8 @@ import { registerPluginToolPolicy, unregisterPluginToolPolicies } from './toolPo
 
 const execFileAsync = promisify(execFile)
 
-const GITHUB_OWNER = 'ThinkInAIXYZ'
-const GITHUB_REPO = 'deepchat'
-const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
-const GITHUB_RELEASE_DOWNLOAD_PREFIX = `${GITHUB_RELEASES_URL}/download/`
+const GITHUB_RELEASE_DOWNLOAD_PREFIX = 'https://github.com/ThinkInAIXYZ/deepchat/releases/download/'
 const PLUGIN_PACKAGE_EXTENSION = '.dcplugin'
-const OFFICIAL_PLUGIN_CATALOG_PATH = path.join('resources', 'plugins', 'official-catalog.json')
 
 type PluginStoreShape = {
   installations: PluginInstallationRecord[]
@@ -54,12 +49,7 @@ type ResolvedOfficialPlugin = {
   manifest: DeepChatPluginManifest
   root: string
   sourcePath: string
-  sourceType: 'directory' | 'package' | 'remote'
-}
-
-type OfficialPluginCatalogEntry = {
-  assetBaseName?: string
-  manifest: DeepChatPluginManifest
+  sourceType: 'directory' | 'package'
 }
 
 type RuntimePermissionState = 'granted' | 'missing' | 'unknown'
@@ -143,49 +133,13 @@ export class PluginPresenter {
     return await this.buildPluginListItem(pluginId)
   }
 
-  async installOfficialPlugin(pluginId: string): Promise<PluginActionResult> {
+  async enablePlugin(pluginId: string): Promise<PluginActionResult> {
     try {
       await this.loadOfficialPlugins()
       const plugin = this.getOfficialPluginOrThrow(pluginId)
       this.assertTrustedOfficialPlugin(plugin.manifest)
       this.assertPlatformSupported(plugin.manifest)
-      return await this.installTrustedPlugin(plugin)
-    } catch (error) {
-      return this.errorResult(error)
-    }
-  }
-
-  async installPluginFromFile(filePath?: string): Promise<PluginActionResult> {
-    try {
-      const packagePath = filePath ?? (await this.selectPluginPackageFile())
-      if (!packagePath) {
-        return { ok: true, data: { canceled: true } }
-      }
-
-      const plugin = this.resolvePackagePlugin(packagePath)
-      this.assertTrustedOfficialPlugin(plugin.manifest)
-      this.assertPlatformSupported(plugin.manifest)
-      return await this.installTrustedPlugin(plugin)
-    } catch (error) {
-      return this.errorResult(error)
-    }
-  }
-
-  async openOfficialPluginRelease(pluginId?: string): Promise<PluginActionResult> {
-    try {
-      await shell.openExternal(this.getOfficialPluginReleaseUrl(pluginId))
-      return { ok: true }
-    } catch (error) {
-      return this.errorResult(error)
-    }
-  }
-
-  async enablePlugin(pluginId: string): Promise<PluginActionResult> {
-    try {
-      const installation = this.getInstallation(pluginId)
-      if (!installation) {
-        throw new Error(`Install plugin ${pluginId} before enabling it`)
-      }
+      const installation = this.ensureOfficialPluginInstallation(plugin)
 
       const nextInstallation: PluginInstallationRecord = {
         ...installation,
@@ -218,28 +172,6 @@ export class PluginPresenter {
         enabled: false,
         updatedAt: Date.now()
       })
-      return { ok: true, status: await this.buildPluginListItem(pluginId) }
-    } catch (error) {
-      return this.errorResult(error)
-    }
-  }
-
-  async deletePlugin(pluginId: string): Promise<PluginActionResult> {
-    try {
-      const installation = this.getInstallation(pluginId)
-      await this.disableByOwner(pluginId)
-      this.store.set(
-        'installations',
-        this.getInstallations().filter((installation) => installation.pluginId !== pluginId)
-      )
-      this.removeResourceRecordsByOwner(pluginId)
-      this.removeRuntimeRecordsByOwner(pluginId)
-      this.removeInstalledPluginFiles(installation?.path)
-      this.officialPlugins.clear()
-      await this.loadOfficialPlugins()
-      if (!this.officialPlugins.has(pluginId)) {
-        return { ok: true }
-      }
       return { ok: true, status: await this.buildPluginListItem(pluginId) }
     } catch (error) {
       return this.errorResult(error)
@@ -789,9 +721,8 @@ export class PluginPresenter {
     this.officialPlugins.clear()
 
     for (const plugin of [
-      ...this.resolveOfficialPluginDirectories(),
       ...this.resolveOfficialPluginPackages(),
-      ...this.resolveOfficialPluginCatalog()
+      ...this.resolveOfficialPluginDirectories()
     ]) {
       if (this.officialPlugins.has(plugin.manifest.id)) {
         continue
@@ -839,8 +770,8 @@ export class PluginPresenter {
 
   private resolveOfficialPluginPackages(): ResolvedOfficialPlugin[] {
     const packageRoots = [
-      this.getPluginInstallRoot(),
-      path.join(process.cwd(), 'dist', 'plugins'),
+      path.join(process.cwd(), 'build', 'bundled-plugins'),
+      path.join(this.appPath, 'build', 'bundled-plugins'),
       path.join(this.appPath, 'plugins'),
       path.join(process.resourcesPath ?? '', 'app.asar.unpacked', 'plugins'),
       path.join(process.resourcesPath ?? '', 'plugins')
@@ -870,62 +801,6 @@ export class PluginPresenter {
     })
   }
 
-  private resolveOfficialPluginCatalog(): ResolvedOfficialPlugin[] {
-    return this.readOfficialPluginCatalog().flatMap((entry) => {
-      const manifest = this.hydrateCatalogManifest(entry)
-      if (!this.isCatalogPlatformSupported(manifest)) {
-        return []
-      }
-      return [
-        {
-          manifest,
-          root: manifest.source.url,
-          sourcePath: manifest.source.url,
-          sourceType: 'remote' as const
-        }
-      ]
-    })
-  }
-
-  private readOfficialPluginCatalog(): OfficialPluginCatalogEntry[] {
-    const catalogPaths = [
-      path.join(process.cwd(), OFFICIAL_PLUGIN_CATALOG_PATH),
-      path.join(this.appPath, OFFICIAL_PLUGIN_CATALOG_PATH),
-      path.join(process.resourcesPath ?? '', OFFICIAL_PLUGIN_CATALOG_PATH),
-      path.join(process.resourcesPath ?? '', 'app.asar.unpacked', OFFICIAL_PLUGIN_CATALOG_PATH)
-    ]
-
-    for (const catalogPath of catalogPaths) {
-      if (!catalogPath || !fs.existsSync(catalogPath)) {
-        continue
-      }
-      const parsed = JSON.parse(fs.readFileSync(catalogPath, 'utf8')) as {
-        plugins?: OfficialPluginCatalogEntry[]
-      }
-      return parsed.plugins ?? []
-    }
-
-    return []
-  }
-
-  private hydrateCatalogManifest(entry: OfficialPluginCatalogEntry): DeepChatPluginManifest {
-    const version = app.getVersion()
-    const manifest = this.hydrateManifestPlaceholders(entry.manifest)
-
-    if (entry.assetBaseName) {
-      manifest.source.url = `${this.getOfficialPluginReleaseDownloadBase()}/${this.getOfficialPluginAssetName(
-        entry.assetBaseName,
-        version
-      )}`
-    }
-
-    return manifest
-  }
-
-  private isCatalogPlatformSupported(manifest: DeepChatPluginManifest): boolean {
-    return this.isPluginPlatformSupported(manifest)
-  }
-
   private readManifest(manifestPath: string): DeepChatPluginManifest {
     const parsed = this.hydrateManifestPlaceholders(
       JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as DeepChatPluginManifest
@@ -949,30 +824,6 @@ export class PluginPresenter {
       throw new Error(`Invalid plugin package manifest: ${packagePath}`)
     }
     return manifest
-  }
-
-  private resolvePackagePlugin(packagePath: string): ResolvedOfficialPlugin {
-    if (!packagePath.endsWith(PLUGIN_PACKAGE_EXTENSION)) {
-      throw new Error(`Plugin package must use the ${PLUGIN_PACKAGE_EXTENSION} extension`)
-    }
-    const manifest = this.readPackageManifest(packagePath)
-    return {
-      manifest,
-      root: packagePath,
-      sourcePath: packagePath,
-      sourceType: 'package'
-    }
-  }
-
-  private async selectPluginPackageFile(): Promise<string | null> {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [{ name: 'DeepChat Plugin Packages', extensions: ['dcplugin'] }]
-    })
-    if (result.canceled || result.filePaths.length === 0) {
-      return null
-    }
-    return result.filePaths[0]
   }
 
   private readPluginPackage(packagePath: string): Record<string, Uint8Array> {
@@ -1029,16 +880,31 @@ export class PluginPresenter {
     }
   }
 
-  private async installTrustedPlugin(plugin: ResolvedOfficialPlugin): Promise<PluginActionResult> {
-    const installRoot = await this.installResolvedPlugin(plugin)
+  private ensureOfficialPluginInstallation(
+    plugin: ResolvedOfficialPlugin
+  ): PluginInstallationRecord {
     const pluginId = plugin.manifest.id
+    const existing = this.getInstallation(pluginId)
+    const existingManifestPath = existing?.path
+      ? path.join(existing.path, 'plugin.json')
+      : undefined
+    if (existing && existingManifestPath && fs.existsSync(existingManifestPath)) {
+      const existingManifest = this.readManifest(existingManifestPath)
+      if (existingManifest.version === plugin.manifest.version) {
+        this.assertTrustedOfficialPlugin(existingManifest)
+        this.assertPlatformSupported(existingManifest)
+        this.applyDeclaredExecutablePermissions(existingManifest, existing.path)
+        return existing
+      }
+    }
+
+    const installRoot = this.installResolvedPlugin(plugin)
     const installedManifest = this.readManifest(path.join(installRoot, 'plugin.json'))
     this.assertTrustedOfficialPlugin(installedManifest)
     this.assertPlatformSupported(installedManifest)
     this.applyDeclaredExecutablePermissions(installedManifest, installRoot)
 
     const now = Date.now()
-    const existing = this.getInstallation(pluginId)
     const next: PluginInstallationRecord = {
       pluginId,
       version: installedManifest.version,
@@ -1056,7 +922,7 @@ export class PluginPresenter {
       sourcePath: installRoot,
       sourceType: 'directory'
     })
-    return { ok: true, status: await this.buildPluginListItem(pluginId) }
+    return next
   }
 
   private assertPlatformSupported(manifest: DeepChatPluginManifest): void {
@@ -1071,7 +937,7 @@ export class PluginPresenter {
     return aliases.some((platform) => platforms.has(platform))
   }
 
-  private async installResolvedPlugin(plugin: ResolvedOfficialPlugin): Promise<string> {
+  private installResolvedPlugin(plugin: ResolvedOfficialPlugin): string {
     const installRoot = this.getInstalledPluginRoot(plugin.manifest.id)
     if (plugin.sourceType === 'directory' && path.resolve(plugin.sourcePath) === installRoot) {
       return installRoot
@@ -1080,49 +946,13 @@ export class PluginPresenter {
     fs.rmSync(installRoot, { recursive: true, force: true })
     fs.mkdirSync(installRoot, { recursive: true })
 
-    if (plugin.sourceType === 'remote') {
-      const packagePath = await this.downloadOfficialPluginPackage(plugin)
-      this.extractPluginPackage(packagePath, installRoot)
-      fs.rmSync(path.dirname(packagePath), { recursive: true, force: true })
-    } else if (plugin.sourceType === 'package') {
+    if (plugin.sourceType === 'package') {
       this.extractPluginPackage(plugin.sourcePath, installRoot)
     } else {
       this.copyPluginDirectory(plugin.sourcePath, installRoot)
     }
 
     return installRoot
-  }
-
-  private async downloadOfficialPluginPackage(plugin: ResolvedOfficialPlugin): Promise<string> {
-    const url = plugin.manifest.source.url
-    const response = await fetch(url, { redirect: 'follow' })
-    if (response.status === 404) {
-      await shell.openExternal(this.getOfficialPluginReleaseUrl(plugin.manifest.id))
-      throw new Error(
-        `Official plugin package was not found for this DeepChat release. Opened GitHub Releases.`
-      )
-    }
-    if (!response.ok) {
-      throw new Error(`Official plugin download failed: HTTP ${response.status}`)
-    }
-
-    const content = Buffer.from(await response.arrayBuffer())
-    if (content.length === 0) {
-      throw new Error('Official plugin download returned an empty package')
-    }
-
-    const tempRoot = fs.mkdtempSync(path.join(app.getPath('temp'), 'deepchat-plugin-'))
-    const packagePath = path.join(tempRoot, path.basename(new URL(url).pathname))
-    fs.writeFileSync(packagePath, content)
-
-    const manifest = this.readPackageManifest(packagePath)
-    if (manifest.id !== plugin.manifest.id) {
-      throw new Error(
-        `Downloaded plugin id mismatch: expected ${plugin.manifest.id}, got ${manifest.id}`
-      )
-    }
-    this.assertTrustedOfficialPlugin(manifest)
-    return packagePath
   }
 
   private extractPluginPackage(packagePath: string, installRoot: string): void {
@@ -1182,24 +1012,6 @@ export class PluginPresenter {
     }
   }
 
-  private removeInstalledPluginFiles(pluginPath?: string): void {
-    if (!pluginPath) {
-      return
-    }
-
-    const installRoot = this.getPluginInstallRoot()
-    const relativeToInstallRoot = path.relative(installRoot, pluginPath)
-    if (
-      !relativeToInstallRoot ||
-      relativeToInstallRoot.startsWith('..') ||
-      path.isAbsolute(relativeToInstallRoot)
-    ) {
-      return
-    }
-
-    fs.rmSync(pluginPath, { recursive: true, force: true })
-  }
-
   private getPluginInstallRoot(): string {
     return path.join(app.getPath('userData'), 'plugins')
   }
@@ -1247,13 +1059,12 @@ export class PluginPresenter {
       name: plugin.manifest.name,
       version: plugin.manifest.version,
       publisher: plugin.manifest.publisher,
-      installed: Boolean(installation),
+      installed: true,
       enabled: Boolean(installation?.enabled),
-      trusted: Boolean(installation?.trusted),
-      trustState: installation?.trusted ? 'trusted' : 'untrusted',
+      trusted: true,
+      trustState: 'trusted',
       official: true,
       capabilities: plugin.manifest.capabilities,
-      releaseUrl: this.getOfficialPluginReleaseUrl(plugin.manifest.id),
       runtime,
       mcpServers: await this.getPluginMcpRuntimeStatuses(plugin.manifest),
       settings
@@ -1354,13 +1165,6 @@ export class PluginPresenter {
       ),
       record
     ])
-  }
-
-  private removeRuntimeRecordsByOwner(pluginId: string): void {
-    this.store.set(
-      'runtimes',
-      (this.store.get('runtimes') ?? []).filter((runtime) => runtime.pluginId !== pluginId)
-    )
   }
 
   private getSettingsContribution(pluginId: string): PluginSettingsContribution | undefined {
@@ -1474,26 +1278,16 @@ export class PluginPresenter {
         .replaceAll('${app.version}', app.getVersion())
         .replaceAll('${arch}', process.arch)
         .replaceAll('${target.platform}', this.platform)
-        .replaceAll('${github.release.download}', this.getOfficialPluginReleaseDownloadBase())
+        .replaceAll(
+          '${github.release.download}',
+          `${GITHUB_RELEASE_DOWNLOAD_PREFIX}${this.getReleaseTag()}`
+        )
     ) as DeepChatPluginManifest
-  }
-
-  private getOfficialPluginReleaseUrl(_pluginId?: string): string {
-    return `${GITHUB_RELEASES_URL}/tag/${this.getReleaseTag()}`
-  }
-
-  private getOfficialPluginReleaseDownloadBase(): string {
-    return `${GITHUB_RELEASE_DOWNLOAD_PREFIX}${this.getReleaseTag()}`
   }
 
   private getReleaseTag(): string {
     const version = app.getVersion()
     return version.startsWith('v') ? version : `v${version}`
-  }
-
-  private getOfficialPluginAssetName(assetBaseName: string, version = app.getVersion()): string {
-    const safeAssetBaseName = assetBaseName.replace(/[^a-zA-Z0-9._-]/g, '-')
-    return `${safeAssetBaseName}-${version}-${this.platform}-${process.arch}${PLUGIN_PACKAGE_EXTENSION}`
   }
 
   private assertSafeRelativePath(relativePath: string, label: string): string {

@@ -1829,11 +1829,11 @@
   },
   "plugins": {
     "title": "插件",
-    "officialOnly": "从当前 DeepChat 版本的 GitHub Release 自动安装官方插件，也可以手动选择 .dcplugin 文件",
+    "officialOnly": "管理当前 DeepChat 版本内置官方插件的启用状态",
     "refresh": "刷新",
     "empty": "暂无可用官方插件",
-    "emptyTitle": "安装官方插件",
-    "emptyDescription": "打开当前版本 GitHub Release 下载 .dcplugin，或选择已经下载好的插件包。",
+    "emptyTitle": "暂无内置插件",
+    "emptyDescription": "当前平台在此 DeepChat 版本中暂无内置官方插件。",
     "loadFailed": "插件加载失败",
     "actionFailed": "插件操作失败",
     "install": "安装",
@@ -1848,7 +1848,7 @@
     "status": {
       "enabled": "已启用",
       "disabled": "已停用",
-      "available": "可安装"
+      "available": "可用"
     },
     "runtimeStates": {
       "missing": "未安装",

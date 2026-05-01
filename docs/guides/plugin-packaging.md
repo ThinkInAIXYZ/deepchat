@@ -1,6 +1,7 @@
 # DeepChat Plugin Packaging
 
-This guide documents `.dcplugin` packaging for official DeepChat plugins.
+This guide documents `.dcplugin` packaging for official DeepChat plugins bundled with DeepChat
+release packages.
 
 ## Package Format
 
@@ -16,7 +17,7 @@ Required files:
 The packager excludes development-only sources such as `vendor/`, `build/`, `node_modules/`,
 `.build/`, `.DS_Store`, and symlinks.
 
-Official packages use release asset URLs:
+Official packages keep DeepChat release asset URLs in their manifest metadata:
 
 ```text
 https://github.com/ThinkInAIXYZ/deepchat/releases/download/v<version>/<asset-name>.dcplugin
@@ -24,16 +25,16 @@ https://github.com/ThinkInAIXYZ/deepchat/releases/download/v<version>/<asset-nam
 
 ## CUA Plugin Artifacts
 
-The CUA plugin ships one macOS helper app per CPU architecture. The package filename includes both
-platform and architecture:
+The CUA plugin ships one macOS helper app per CPU architecture. The bundled package filename
+includes both platform and architecture:
 
 ```text
 deepchat-plugin-cua-<version>-darwin-arm64.dcplugin
 deepchat-plugin-cua-<version>-darwin-x64.dcplugin
 ```
 
-The manifest inside each package points to the matching release asset. Runtime detection inside the
-package uses the same architecture-specific plugin path:
+The manifest inside each package keeps the official DeepChat release-download namespace for trust
+metadata. Runtime detection inside the package uses the same architecture-specific plugin path:
 
 ```text
 plugin:runtime/darwin/<arch>/DeepChat Computer Use.app/Contents/MacOS/cua-driver
@@ -69,6 +70,13 @@ pnpm run plugin:cua:package:mac:arm64
 pnpm run plugin:cua:package:mac:x64
 ```
 
+Build the package that will be embedded into the macOS app:
+
+```bash
+pnpm run plugin:cua:bundle:mac:arm64
+pnpm run plugin:cua:bundle:mac:x64
+```
+
 Validate explicit macOS architectures after their helper runtimes have been staged:
 
 ```bash
@@ -76,24 +84,36 @@ pnpm run plugin:cua:validate:mac:arm64
 pnpm run plugin:cua:validate:mac:x64
 ```
 
-Packages are written to:
+Standalone packages are written to:
 
 ```text
 dist/plugins/
 ```
 
-## CI And Release
-
-The macOS build matrix in `.github/workflows/build.yml` builds the app and then runs the matching
-CUA plugin package command for each architecture. Each matrix job verifies the expected `.dcplugin`
-exists before uploading artifacts.
-
-The release workflow repeats the same package step. The final release job requires both CUA plugin
-assets before creating the draft release:
+Bundled packages are written to:
 
 ```text
-release_assets/deepchat-plugin-cua-<version>-darwin-x64.dcplugin
-release_assets/deepchat-plugin-cua-<version>-darwin-arm64.dcplugin
+build/bundled-plugins/
 ```
 
-The draft release uploads app artifacts and plugin artifacts together through `release_assets/*`.
+## CI And Release
+
+The macOS build matrix in `.github/workflows/build.yml` builds the matching CUA plugin bundle before
+running `electron-builder`. Electron Builder embeds it into:
+
+```text
+DeepChat.app/Contents/Resources/app.asar.unpacked/plugins/
+```
+
+Each matrix job verifies the expected bundled `.dcplugin` exists inside the app before uploading
+artifacts.
+
+The release workflow repeats the same bundled package step. The final release uploads app artifacts
+only; `.dcplugin` files are not published as separate GitHub Release assets.
+
+Expected embedded files:
+
+```text
+app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-darwin-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-darwin-arm64.dcplugin
+```

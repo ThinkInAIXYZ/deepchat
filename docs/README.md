@@ -35,7 +35,7 @@ Renderer
 | [architecture/session-management.md](./architecture/session-management.md) | 新会话管理与 legacy 数据平面边界 |
 | [guides/code-navigation.md](./guides/code-navigation.md) | 当前代码导航入口 |
 | [guides/getting-started.md](./guides/getting-started.md) | 新开发者快速上手 |
-| [guides/plugin-packaging.md](./guides/plugin-packaging.md) | `.dcplugin` 打包、架构产物和 release 上传规则 |
+| [guides/plugin-packaging.md](./guides/plugin-packaging.md) | `.dcplugin` 打包、内置分发和 release 规则 |
 | [architecture/baselines/dependency-report.md](./architecture/baselines/dependency-report.md) | 当前依赖与耦合基线 |
 | [architecture/baselines/main-kernel-boundary-baseline.md](./architecture/baselines/main-kernel-boundary-baseline.md) | main kernel refactor 当前阶段的边界指标与 hot path 快照 |
 | [architecture/baselines/main-kernel-bridge-register.md](./architecture/baselines/main-kernel-bridge-register.md) | main kernel refactor 的临时 bridge 登记表 |

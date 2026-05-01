@@ -1838,7 +1838,7 @@
   },
   "plugins": {
     "title": "插件",
-    "officialOnly": "仅允许官方插件源",
+    "officialOnly": "管理当前 DeepChat 版本内置官方插件的启用状态",
     "refresh": "刷新",
     "empty": "暂无可用官方插件",
     "loadFailed": "插件加载失败",
@@ -1853,7 +1853,7 @@
     "status": {
       "enabled": "已启用",
       "disabled": "已停用",
-      "available": "Available"
+      "available": "可用"
     },
     "runtimeStates": {
       "missing": "未安装",
@@ -1861,8 +1861,8 @@
       "running": "运行中",
       "error": "错误"
     },
-    "emptyTitle": "Install official plugins",
-    "emptyDescription": "Open the current GitHub Release to download a .dcplugin, or choose a package already on disk.",
+    "emptyTitle": "No built-in plugins available",
+    "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
     "openRelease": "GitHub Release"
   }
