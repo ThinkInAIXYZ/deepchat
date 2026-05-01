@@ -120,7 +120,9 @@ vi.mock('electron', () => ({
   app: {
     getName: vi.fn(() => 'DeepChat'),
     getVersion: vi.fn(() => '0.2.3'),
+    getAppPath: vi.fn(() => '/mock/app'),
     getPath: vi.fn(() => '/mock/path'),
+    isPackaged: false,
     getLoginItemSettings: vi.fn(() => ({ ...electronMockState.loginItemSettings })),
     setLoginItemSettings: vi.fn((settings: { openAtLogin?: boolean }) => {
       electronMockState.loginItemSettings = {

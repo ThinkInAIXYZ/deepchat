@@ -34,8 +34,20 @@ vi.mock('node:fs', async () => {
 })
 
 const tempRoots: string[] = []
+const originalCwd = process.cwd()
 
-const createPluginPresenter = async (platform: NodeJS.Platform, appPath = process.cwd()) => {
+type CreatePluginPresenterOptions = {
+  appPath?: string
+  isPackaged?: boolean
+  resourcesPath?: string
+}
+
+const createPluginPresenter = async (
+  platform: NodeJS.Platform,
+  optionsOrAppPath: CreatePluginPresenterOptions | string = process.cwd()
+) => {
+  const options =
+    typeof optionsOrAppPath === 'string' ? { appPath: optionsOrAppPath } : optionsOrAppPath
   const { PluginPresenter } = await import('@/presenter/pluginPresenter')
   const mcpServers: Record<string, unknown> = {}
   const configPresenter = {
@@ -62,24 +74,34 @@ const createPluginPresenter = async (platform: NodeJS.Platform, appPath = proces
   }
   return new PluginPresenter({
     platform,
-    appPath,
+    appPath: options.appPath ?? process.cwd(),
+    isPackaged: options.isPackaged,
+    resourcesPath: options.resourcesPath,
     configPresenter,
     mcpPresenter,
     skillPresenter
   } as any)
 }
 
-const createBundledFixture = async () => {
+const createBundledFixture = async (
+  options: {
+    appPath?: string
+    packageRoot?: string
+    pluginId?: string
+    name?: string
+  } = {}
+) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-test-'))
   tempRoots.push(root)
-  const appPath = path.join(root, 'app')
+  const appPath = options.appPath ?? path.join(root, 'app')
   const userDataPath = path.join(root, 'userData')
-  const packageRoot = path.join(appPath, 'plugins')
+  const packageRoot = options.packageRoot ?? path.join(appPath, 'plugins')
   const packagePath = path.join(packageRoot, 'deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin')
   const runtimeRelativePath = `runtime/darwin/${process.arch}/fixture-runtime`
+  const pluginId = options.pluginId ?? 'com.deepchat.plugins.fixture'
   const manifest = {
-    id: 'com.deepchat.plugins.fixture',
-    name: 'Fixture Runtime',
+    id: pluginId,
+    name: options.name ?? 'Fixture Runtime',
     version: '0.2.3',
     publisher: 'DeepChat',
     engines: {
@@ -138,12 +160,14 @@ const createBundledFixture = async () => {
   return {
     appPath,
     userDataPath,
-    pluginId: manifest.id
+    pluginId: manifest.id,
+    packagePath
   }
 }
 
 describe('PluginPresenter', () => {
   afterEach(async () => {
+    process.chdir(originalCwd)
     vi.mocked(app.getPath).mockImplementation(() => '/mock/path')
     await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
   })
@@ -193,6 +217,39 @@ describe('PluginPresenter', () => {
       id: fixture.pluginId,
       installed: true,
       enabled: false
+    })
+  })
+
+  it('loads official packages only from resources roots in packaged mode', async () => {
+    const cwdRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-cwd-'))
+    tempRoots.push(cwdRoot)
+    const resourcesPath = path.join(cwdRoot, 'resources')
+    const pluginId = 'com.deepchat.plugins.fixture'
+    await createBundledFixture({
+      packageRoot: path.join(cwdRoot, 'build', 'bundled-plugins'),
+      pluginId,
+      name: 'Forged Runtime'
+    })
+    await createBundledFixture({
+      packageRoot: path.join(resourcesPath, 'plugins'),
+      pluginId,
+      name: 'Resource Runtime'
+    })
+    process.chdir(cwdRoot)
+    const presenter = await createPluginPresenter('darwin', {
+      appPath: path.join(cwdRoot, 'app'),
+      isPackaged: true,
+      resourcesPath
+    })
+
+    const plugins = await presenter.listPlugins()
+
+    expect(plugins).toHaveLength(1)
+    expect(plugins[0]).toMatchObject({
+      id: pluginId,
+      name: 'Resource Runtime',
+      trusted: true,
+      trustState: 'trusted'
     })
   })
 
@@ -277,6 +334,17 @@ describe('PluginPresenter', () => {
       expect(source).toContain('CUA_DRIVER_MCP_MODE')
       expect(source).toContain('Call get_window_state with the same pid and window_id')
     }
+  })
+
+  it('skips install telemetry in the bundled CUA CLI entrypoint', async () => {
+    const source = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCLI/CuaDriverCommand.swift',
+      'utf8'
+    )
+
+    expect(source).not.toContain('recordInstallation()')
+    expect(source).toContain('telemetryEntryEvent(for: original)')
+    expect(source).toContain('TelemetryClient.shared.record(event: entryEvent)')
   })
 
   it('wires CUA plugin packaging docs and release gates for both mac architectures', async () => {

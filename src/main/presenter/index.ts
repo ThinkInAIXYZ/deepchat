@@ -796,6 +796,11 @@ export class Presenter implements IPresenter {
   private async initializeMcp() {
     try {
       await this.pluginPresenter.initialize()
+    } catch (error) {
+      console.error('[PluginHost] Failed to initialize plugins:', error)
+    }
+
+    try {
       await this.mcpPresenter.initialize()
     } catch (error) {
       console.error('Failed to initialize McpPresenter:', error)

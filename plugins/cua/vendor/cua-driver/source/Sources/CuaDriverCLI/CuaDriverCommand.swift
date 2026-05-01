@@ -216,12 +216,6 @@ struct CuaDriverEntryPoint {
     static func main() async {
         let original = Array(CommandLine.arguments.dropFirst())
 
-        // First-run installation ping. Fires at most once per install
-        // (guarded by a marker file under ~/.cua-driver/) and bypasses
-        // the opt-out check so we can count adoption. Every subsequent
-        // event honors the opt-out flag.
-        TelemetryClient.shared.recordInstallation()
-
         // Per-entry-point event. Records which CLI surface (mcp /
         // serve / call / …) kicked off this process. Opt-out-respecting.
         let entryEvent = telemetryEntryEvent(for: original)

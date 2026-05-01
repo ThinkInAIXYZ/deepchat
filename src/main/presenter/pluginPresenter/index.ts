@@ -43,6 +43,8 @@ type PluginPresenterDeps = {
   skillPresenter: ISkillPresenter
   platform?: NodeJS.Platform
   appPath?: string
+  isPackaged?: boolean
+  resourcesPath?: string
 }
 
 type ResolvedOfficialPlugin = {
@@ -79,6 +81,8 @@ export class PluginPresenter {
   private readonly skillPresenter: SkillContributionPort
   private readonly platform: NodeJS.Platform
   private readonly appPath: string
+  private readonly isPackaged: boolean
+  private readonly resourcesPath: string
   private readonly settingsWindows = new Map<string, BrowserWindow>()
   private readonly store = new ElectronStore<PluginStoreShape>({
     name: 'plugin-settings',
@@ -96,6 +100,8 @@ export class PluginPresenter {
     this.skillPresenter = deps.skillPresenter as SkillContributionPort
     this.platform = deps.platform ?? process.platform
     this.appPath = deps.appPath ?? app.getAppPath()
+    this.isPackaged = deps.isPackaged ?? app.isPackaged
+    this.resourcesPath = deps.resourcesPath ?? process.resourcesPath ?? ''
   }
 
   async initialize(): Promise<void> {
@@ -769,13 +775,20 @@ export class PluginPresenter {
   }
 
   private resolveOfficialPluginPackages(): ResolvedOfficialPlugin[] {
-    const packageRoots = [
-      path.join(process.cwd(), 'build', 'bundled-plugins'),
-      path.join(this.appPath, 'build', 'bundled-plugins'),
-      path.join(this.appPath, 'plugins'),
-      path.join(process.resourcesPath ?? '', 'app.asar.unpacked', 'plugins'),
-      path.join(process.resourcesPath ?? '', 'plugins')
-    ]
+    const resourceRoots = this.resourcesPath
+      ? [
+          path.join(this.resourcesPath, 'app.asar.unpacked', 'plugins'),
+          path.join(this.resourcesPath, 'plugins')
+        ]
+      : []
+    const packageRoots = this.isPackaged
+      ? resourceRoots
+      : [
+          path.join(process.cwd(), 'build', 'bundled-plugins'),
+          path.join(this.appPath, 'build', 'bundled-plugins'),
+          path.join(this.appPath, 'plugins'),
+          ...resourceRoots
+        ]
     const packagePaths = new Set<string>()
 
     for (const packageRoot of packageRoots) {
