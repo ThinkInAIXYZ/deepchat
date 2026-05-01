@@ -137,7 +137,7 @@ public enum MouseInput {
         // Modifier-held and triple+ clicks stay on the NSEvent-bridge
         // double-post path below.
         if button == .left, count == 1 || count == 2, modifiers.isEmpty {
-            try clickViaBackgroundPidPost(
+            try clickViaAuthSignedPost(
                 at: point, toPid: pid, count: count, modifiers: modifiers)
             return
         }
@@ -192,77 +192,6 @@ public enum MouseInput {
             if clickIndex < clamped {
                 // ~80ms between pairs — under the system
                 // double-click threshold but clear of coalescing.
-                usleep(80_000)
-            }
-        }
-    }
-
-    /// Background pixel clicks use a pid-routed AppKit-shaped event.
-    /// The important fields are the bridged NSEvent payload, window id stamps,
-    /// window-local location, and Command flag. The Command flag is intentional:
-    /// WindowServer treats it as part of the background dispatch path.
-    private static func clickViaBackgroundPidPost(
-        at point: CGPoint,
-        toPid pid: pid_t,
-        count: Int = 1,
-        modifiers: [String]
-    ) throws {
-        let clickPairs = max(1, min(2, count))
-        let targetWindow = WindowEnumerator.frontmostWindow(forPid: pid)
-        let windowID = Int64(targetWindow.map { CGWindowID($0.id) } ?? 0)
-        let windowNumber = Int(windowID)
-        let cocoaPoint = cocoaLocation(fromScreenPoint: point)
-        let windowLocalPoint: CGPoint = {
-            guard let bounds = targetWindow?.bounds else { return point }
-            return CGPoint(x: point.x - bounds.x, y: point.y - bounds.y)
-        }()
-
-        var eventFlags = cgEventFlags(for: modifiers)
-        eventFlags.insert(.maskCommand)
-
-        func stamp(_ event: CGEvent, clickState: Int64) {
-            event.location = point
-            event.flags = eventFlags
-            event.setIntegerValueField(.mouseEventButtonNumber, value: 0)
-            event.setIntegerValueField(.mouseEventSubtype, value: 3)
-            event.setIntegerValueField(.mouseEventClickState, value: clickState)
-            if windowID != 0 {
-                event.setIntegerValueField(
-                    .mouseEventWindowUnderMousePointer, value: windowID)
-                event.setIntegerValueField(
-                    .mouseEventWindowUnderMousePointerThatCanHandleThisEvent,
-                    value: windowID)
-            }
-            _ = SkyLightEventPost.setWindowLocation(event, windowLocalPoint)
-        }
-
-        for pairIndex in 1...clickPairs {
-            let down = try buildCGEvent(
-                type: .leftMouseDown,
-                location: cocoaPoint,
-                modifierFlags: modifierMask(for: modifiers),
-                clickCount: pairIndex,
-                button: .left,
-                windowNumber: windowNumber
-            )
-            let up = try buildCGEvent(
-                type: .leftMouseUp,
-                location: cocoaPoint,
-                modifierFlags: modifierMask(for: modifiers),
-                clickCount: pairIndex,
-                button: .left,
-                windowNumber: windowNumber
-            )
-            let clickState = Int64(pairIndex)
-            stamp(down, clickState: clickState)
-            stamp(up, clickState: clickState)
-
-            down.timestamp = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
-            down.postToPid(pid)
-            usleep(1_000)
-            up.timestamp = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
-            up.postToPid(pid)
-            if pairIndex < clickPairs {
                 usleep(80_000)
             }
         }

@@ -357,6 +357,17 @@ describe('PluginPresenter', () => {
     expect(commandSource).not.toContain('Checking for updates')
   })
 
+  it('keeps CUA default pixel clicks on the upstream auth-signed path', async () => {
+    const mouseInput = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCore/Input/MouseInput.swift',
+      'utf8'
+    )
+
+    expect(mouseInput).toContain('try clickViaAuthSignedPost(')
+    expect(mouseInput).toContain('private static func clickViaAuthSignedPost')
+    expect(mouseInput).not.toContain('clickViaBackgroundPidPost')
+  })
+
   it('scopes CUA zoom contexts to pid and window_id', async () => {
     const registrySource = await readFile(
       'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ImageResizeRegistry.swift',
