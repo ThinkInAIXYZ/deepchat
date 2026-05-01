@@ -39,10 +39,12 @@ Key source facts from `libs/cua-driver`:
 Integration implication:
 
 - DeepChat should use `cua-driver mcp` for MCP.
-- DeepChat should maintain vendored helper source with DeepChat identity and ship the branded
+- DeepChat should maintain a local DeepChat-owned driver fork with DeepChat identity and ship the branded
   `DeepChat Computer Use.app`.
 - DeepChat should build helper source for both `arm64` and `x86_64`.
 - DeepChat should disable helper self-update so app updates remain controlled by DeepChat releases.
+- DeepChat should cherry-pick upstream changes only when they directly improve bundled helper
+  reliability, macOS compatibility, or security.
 
 ## Permiso
 

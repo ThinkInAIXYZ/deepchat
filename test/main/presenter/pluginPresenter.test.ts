@@ -321,6 +321,106 @@ describe('PluginPresenter', () => {
     expect(policy.tools.set_agent_cursor_style).toBe('ask')
   })
 
+  it('tracks CUA vendor source as a DeepChat-owned fork', async () => {
+    const metadata = JSON.parse(
+      await readFile('plugins/cua/vendor/cua-driver/upstream.json', 'utf8')
+    )
+    const buildScript = await readFile('scripts/build-cua-plugin-runtime.mjs', 'utf8')
+
+    expect(metadata).toMatchObject({
+      sourceKind: 'deepchat-owned-fork',
+      upstreamRepo: 'https://github.com/trycua/cua.git',
+      upstreamSubdir: 'libs/cua-driver'
+    })
+    expect(metadata.forkPolicy).toContain('Cherry-pick upstream fixes')
+    expect(metadata.lastCherryPick).toMatchObject({
+      sourceTag: metadata.tag,
+      sourceCommit: metadata.commit
+    })
+    expect(buildScript).toContain('vendorSourceDir')
+    expect(buildScript).toContain('sourceKind')
+    expect(buildScript).toContain('deepchat-owned-fork')
+    expect(buildScript).toContain('--package-path')
+    expect(buildScript).toContain('vendorSourceDir')
+  })
+
+  it('keeps CUA updates managed by DeepChat instead of upstream release checks', async () => {
+    const commandSource = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCLI/CuaDriverCommand.swift',
+      'utf8'
+    )
+
+    expect(commandSource).toContain('DeepChat packages this cua-driver fork with the app.')
+    expect(commandSource).toContain('Update DeepChat to receive newer Computer Use helper builds.')
+    expect(commandSource).not.toContain('VersionCheck.fetchLatest')
+    expect(commandSource).not.toContain('Could not reach GitHub')
+    expect(commandSource).not.toContain('Checking for updates')
+  })
+
+  it('scopes CUA zoom contexts to pid and window_id', async () => {
+    const registrySource = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ImageResizeRegistry.swift',
+      'utf8'
+    )
+    const zoomTool = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ZoomTool.swift',
+      'utf8'
+    )
+    const clickTool = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ClickTool.swift',
+      'utf8'
+    )
+    const dragTool = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/DragTool.swift',
+      'utf8'
+    )
+    const stateTool = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/GetWindowStateTool.swift',
+      'utf8'
+    )
+
+    expect(registrySource).toContain('public struct ImageContextKey')
+    expect(registrySource).toContain('private var ratios: [ImageContextKey: Double]')
+    expect(registrySource).toContain('private var zooms: [ImageContextKey: ZoomContext]')
+    expect(zoomTool).toContain('"window_id"')
+    expect(zoomTool).toContain('capture.captureWindow')
+    expect(zoomTool).toContain('windowId: windowId')
+    expect(stateTool).toContain('setRatio(')
+    expect(stateTool).toContain('windowId: windowId')
+    for (const source of [clickTool, dragTool]) {
+      expect(source).toContain('from_zoom=true but no zoom context for pid')
+      expect(source).toContain('Call `zoom` with the same pid and window_id first.')
+      expect(source).toContain('windowId: windowId')
+    }
+  })
+
+  it('keeps Electron AX enablement internal instead of adding a public tool', async () => {
+    const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
+    const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
+    const registrySource = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/ToolRegistry.swift',
+      'utf8'
+    )
+    const stateSource = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCore/AppState/AppState.swift',
+      'utf8'
+    )
+    const enablementSource = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCore/Focus/AXEnablementAssertion.swift',
+      'utf8'
+    )
+    const manifestTools = manifest.toolPolicies.find(
+      (item: { serverId: string }) => item.serverId === 'cua-driver'
+    ).tools
+
+    expect(registrySource).not.toContain('SetElectronAccessibilityTool')
+    expect(manifestTools.set_electron_accessibility).toBeUndefined()
+    expect(policy.tools.set_electron_accessibility).toBeUndefined()
+    expect(stateSource).toContain('activateAccessibilityIfNeeded')
+    expect(enablementSource).toContain('AXManualAccessibility')
+    expect(enablementSource).toContain('AXEnhancedUserInterface')
+  })
+
   it('keeps the CUA skill instructions MCP-only', async () => {
     const files = ['SKILL.md', 'README.md', 'WEB_APPS.md', 'RECORDING.md', 'TESTS.md']
     const contents = await Promise.all(
@@ -334,6 +434,11 @@ describe('PluginPresenter', () => {
     expect(combined).toContain('check_permissions')
     expect(combined).toContain('set_agent_cursor_style')
     expect(combined).toContain('DeepChat Computer Use.app')
+    expect(combined).toContain('AXManualAccessibility')
+    expect(combined).toContain('electron_debugging_port: 9222')
+    expect(combined).toContain('screenshot({ window_id })')
+    expect(combined).toContain('zoom({ pid, window_id')
+    expect(combined).toContain('Repeated zoom calls are a failure signal')
     expect(combined).not.toContain('Bash')
     expect(combined).not.toContain('cua-driver <tool')
     expect(combined).not.toContain('PATH')

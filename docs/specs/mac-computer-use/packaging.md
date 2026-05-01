@@ -22,29 +22,36 @@ resources/
       SKILL.md
 ```
 
-The implementation uses a vendored source snapshot. `vendor/cua-driver/source` is the build source of
-truth, with DeepChat changes committed directly in Swift source. `vendor/cua-driver/upstream.json`
-records the upstream location and base revision:
+The implementation uses a DeepChat-owned vendored source snapshot. `vendor/cua-driver/source` is the
+build source of truth, with DeepChat changes committed directly in Swift source.
+`vendor/cua-driver/upstream.json` records the upstream base and cherry-pick policy:
 
 ```json
 {
+  "sourceKind": "deepchat-owned-fork",
   "upstreamRepo": "https://github.com/trycua/cua.git",
   "upstreamSubdir": "libs/cua-driver",
-  "tag": "cua-driver-v0.0.13",
-  "commit": "cc69f9eee7f30c1c8728f73ba91736488f1fb32e",
-  "version": "0.0.13",
-  "updatedAt": "2026-04-28"
+  "tag": "cua-driver-v0.0.15",
+  "commit": "8a4c51337cfdc91a1818ee2f92ceb427272a6247",
+  "version": "0.0.15",
+  "updatedAt": "2026-05-01",
+  "forkPolicy": "Build from the DeepChat-maintained local source snapshot. Cherry-pick upstream fixes only when they directly improve the bundled DeepChat Computer Use helper.",
+  "lastCherryPick": {
+    "sourceTag": "cua-driver-v0.0.15",
+    "sourceCommit": "8a4c51337cfdc91a1818ee2f92ceb427272a6247",
+    "appliedAt": "2026-05-01"
+  }
 }
 ```
 
 Build requirements:
 
 - The source snapshot is present in `vendor/cua-driver/source`.
-- The pinned upstream commit/tag is recorded in `upstream.json`.
+- The upstream commit/tag, fork policy, and last cherry-pick source are recorded in `upstream.json`.
 - DeepChat source changes are reviewed as normal repository diffs.
 - Release builds depend on local source and never on upstream binary release assets.
-- The bundled `resources/skills/cua-driver` copy is synced from
-  `vendor/cua-driver/source/Skills/cua-driver`.
+- The bundled plugin skill lives in `plugins/cua/skills/cua-driver`; upstream skill files under the
+  vendor snapshot are reference material.
 - The `cua-driver` skill declares `platforms: [darwin]`; built-in skill installation skips it on
   other platforms.
 - The `cua-driver` skill declares `metadata.deepchatFeature = computer-use`; SkillPresenter hides
@@ -89,9 +96,8 @@ skill is hidden from skill listing, skill viewing, and prompt loading. This give
 workflow, snapshot-before-action rules, and visual fallback guidance only while the feature is
 active.
 
-The source of truth for the skill content stays in `vendor/cua-driver/source/Skills/cua-driver`.
-Update `resources/skills/cua-driver` from that vendored source whenever local CUA skill guidance
-changes.
+The source of truth for DeepChat skill content is `plugins/cua/skills/cua-driver`. Keep it MCP-only and
+tailored to DeepChat's plugin runtime; do not replace it with upstream CLI-oriented skill text.
 
 ## Upstream CUA Patch Requirements
 
@@ -112,13 +118,8 @@ The target behavior is that all macOS TCC prompts and System Settings rows displ
 
 ## Upstream Updates
 
-Use the update helper only when a developer intentionally moves the upstream base:
-
-```text
-pnpm run cua:update -- --tag <tag> --commit <sha>
-pnpm run cua:update -- --tag <tag> --commit <sha> --dry-run
-pnpm run cua:diff-upstream
-```
+Move the upstream base only when a developer intentionally cherry-picks a fix that improves the
+bundled DeepChat Computer Use helper.
 
 Update flow:
 
@@ -129,8 +130,8 @@ Update flow:
 4. Build a temporary candidate repository with old upstream as the first commit and new upstream as
    the second commit.
 5. Apply the DeepChat delta with `git apply --3way --whitespace=nowarn`.
-6. On success, copy the merged candidate source into `vendor/cua-driver/source` and update
-   `upstream.json`.
+6. On success, copy the merged candidate source into `vendor/cua-driver/source` and update the
+   upstream base plus `lastCherryPick` in `upstream.json`.
 7. On conflict, copy conflicted source files with conflict markers into `vendor/cua-driver/source`
    during real update runs, print the conflict list, and leave manual resolution to the reviewer.
 
@@ -139,6 +140,8 @@ Conflict handling rules:
 - Resolve conflicts in `vendor/cua-driver/source` as normal source conflicts.
 - Keep DeepChat identity, permission probe, non-blocking permission startup, telemetry defaults, and
   background click dispatch behavior unless upstream adds an equivalent implementation.
+- Keep DeepChat's MCP-only skill and policy surface unless the change explicitly updates DeepChat
+  plugin behavior.
 - Run the helper build and package validation after resolving conflicts.
 
 ## Runtime Placement

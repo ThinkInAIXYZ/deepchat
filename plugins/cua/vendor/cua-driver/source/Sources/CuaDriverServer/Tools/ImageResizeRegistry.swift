@@ -1,6 +1,6 @@
 import Foundation
 
-/// Per-pid zoom context: the native-pixel origin of the last zoom crop
+/// Per-window zoom context: the native-pixel origin of the last zoom crop
 /// and the resize ratio, so the click tool can map zoom-image pixels
 /// back to the resized-image coordinate space automatically.
 public struct ZoomContext: Sendable {
@@ -15,40 +15,72 @@ public struct ZoomContext: Sendable {
     public let ratio: Double
 }
 
-/// Tracks per-pid image resize ratios and last-zoom context so the
+public struct ImageContextKey: Hashable, Sendable {
+    public let pid: Int32
+    public let windowId: UInt32?
+
+    public init(pid: Int32, windowId: UInt32?) {
+        self.pid = pid
+        self.windowId = windowId
+    }
+}
+
+/// Tracks per-window image resize ratios and last-zoom context so the
 /// click tool can map coordinates from any source automatically.
+///
+/// The nil-window key is retained as a compatibility fallback for callers
+/// that omit `window_id`. Window-aware callers get strict `(pid, window_id)`
+/// lookup for zoom contexts so a crop from one window cannot drive a click
+/// in another window.
 public actor ImageResizeRegistry {
     public static let shared = ImageResizeRegistry()
-    private var ratios: [Int32: Double] = [:]
-    private var zooms: [Int32: ZoomContext] = [:]
+    private var ratios: [ImageContextKey: Double] = [:]
+    private var zooms: [ImageContextKey: ZoomContext] = [:]
 
-    /// Record the scale-up ratio for a pid.
-    public func setRatio(_ ratio: Double, forPid pid: Int32) {
-        ratios[pid] = ratio
+    /// Record the scale-up ratio for a pid/window pair.
+    public func setRatio(_ ratio: Double, forPid pid: Int32, windowId: UInt32? = nil) {
+        ratios[ImageContextKey(pid: pid, windowId: windowId)] = ratio
+        if windowId != nil {
+            ratios[ImageContextKey(pid: pid, windowId: nil)] = ratio
+        }
     }
 
-    /// Clear the ratio for a pid (no resize happened).
-    public func clearRatio(forPid pid: Int32) {
-        ratios.removeValue(forKey: pid)
+    /// Clear the ratio for a pid/window pair (no resize happened).
+    public func clearRatio(forPid pid: Int32, windowId: UInt32? = nil) {
+        ratios.removeValue(forKey: ImageContextKey(pid: pid, windowId: windowId))
+        if windowId != nil {
+            ratios.removeValue(forKey: ImageContextKey(pid: pid, windowId: nil))
+        }
     }
 
     /// Returns the scale-up ratio, or nil if no resize is active.
-    public func ratio(forPid pid: Int32) -> Double? {
-        ratios[pid]
+    public func ratio(forPid pid: Int32, windowId: UInt32? = nil) -> Double? {
+        if let windowId,
+           let ratio = ratios[ImageContextKey(pid: pid, windowId: windowId)]
+        {
+            return ratio
+        }
+        return ratios[ImageContextKey(pid: pid, windowId: nil)]
     }
 
-    /// Record the last zoom crop for a pid.
-    public func setZoom(_ context: ZoomContext, forPid pid: Int32) {
-        zooms[pid] = context
+    /// Record the last zoom crop for a pid/window pair.
+    public func setZoom(_ context: ZoomContext, forPid pid: Int32, windowId: UInt32? = nil) {
+        zooms[ImageContextKey(pid: pid, windowId: windowId)] = context
+        if windowId != nil {
+            zooms[ImageContextKey(pid: pid, windowId: nil)] = context
+        }
     }
 
-    /// Clear the zoom context for a pid.
-    public func clearZoom(forPid pid: Int32) {
-        zooms.removeValue(forKey: pid)
+    /// Clear the zoom context for a pid/window pair.
+    public func clearZoom(forPid pid: Int32, windowId: UInt32? = nil) {
+        zooms.removeValue(forKey: ImageContextKey(pid: pid, windowId: windowId))
+        if windowId != nil {
+            zooms.removeValue(forKey: ImageContextKey(pid: pid, windowId: nil))
+        }
     }
 
     /// Returns the last zoom context, or nil.
-    public func zoom(forPid pid: Int32) -> ZoomContext? {
-        zooms[pid]
+    public func zoom(forPid pid: Int32, windowId: UInt32? = nil) -> ZoomContext? {
+        zooms[ImageContextKey(pid: pid, windowId: windowId)]
     }
 }

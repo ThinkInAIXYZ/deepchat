@@ -216,9 +216,13 @@ public enum GetWindowStateTool {
                         // Record resize ratio so ClickTool can scale back up.
                         if let origW = shot.originalWidth, shot.width > 0 {
                             await ImageResizeRegistry.shared.setRatio(
-                                Double(origW) / Double(shot.width), forPid: pid)
+                                Double(origW) / Double(shot.width),
+                                forPid: pid,
+                                windowId: windowId)
                         } else {
-                            await ImageResizeRegistry.shared.clearRatio(forPid: pid)
+                            await ImageResizeRegistry.shared.clearRatio(
+                                forPid: pid,
+                                windowId: windowId)
                         }
                     } catch CaptureError.windowNotFound {
                         // Window raced — swallow and emit a screenshot-less
@@ -310,10 +314,18 @@ public enum GetWindowStateTool {
                     + " [ax mode — no screenshot]"
             )
             if snapshot.elementCount <= 15 {
-                lines.append(
-                    "⚠️  Small AX tree (\(snapshot.elementCount) elements) — this app"
-                        + " likely uses custom rendering. Prefer pixel clicks:"
-                        + " click(pid, x, y).")
+                if ElectronJS.isElectron(pid: pid) {
+                    lines.append(
+                        "⚠️  Small Electron AX tree (\(snapshot.elementCount) elements) — "
+                            + "already attempted AXManualAccessibility, AXEnhancedUserInterface, "
+                            + "and AXObserver activation. Prefer `page` with `electron_debugging_port`, "
+                            + "`screenshot(window_id)` visual confirmation, or a pixel workflow.")
+                } else {
+                    lines.append(
+                        "⚠️  Small AX tree (\(snapshot.elementCount) elements) — this app"
+                            + " likely uses custom rendering. Prefer pixel clicks:"
+                            + " click(pid, x, y).")
+                }
             }
 
         case .vision:
@@ -339,10 +351,19 @@ public enum GetWindowStateTool {
             lines.append(headline)
 
             if snapshot.elementCount <= 15 {
-                lines.append(
-                    "⚠️  Small AX tree (\(snapshot.elementCount) elements) — this app"
-                        + " likely uses custom rendering (e.g. Blender, games, Electron)."
-                        + " Use pixel clicks: click(pid, x, y) with coordinates from the screenshot.")
+                if ElectronJS.isElectron(pid: pid) {
+                    lines.append(
+                        "⚠️  Small Electron AX tree (\(snapshot.elementCount) elements) — "
+                            + "already attempted AXManualAccessibility, AXEnhancedUserInterface, "
+                            + "and AXObserver activation. Prefer `page` with `electron_debugging_port`, "
+                            + "`screenshot(window_id)` for visual confirmation, then pixel clicks "
+                            + "from the `get_window_state` screenshot.")
+                } else {
+                    lines.append(
+                        "⚠️  Small AX tree (\(snapshot.elementCount) elements) — this app"
+                            + " likely uses custom rendering (e.g. Blender, games, Electron)."
+                            + " Use pixel clicks: click(pid, x, y) with coordinates from the screenshot.")
+                }
             }
 
             if let w = snapshot.screenshotWidth, w > 1000 {

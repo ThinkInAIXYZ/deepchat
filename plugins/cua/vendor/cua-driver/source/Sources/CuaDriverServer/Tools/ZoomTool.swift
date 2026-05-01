@@ -44,6 +44,12 @@ public enum ZoomTool {
                 if the caller's coordinates are slightly off. The
                 padding is clamped to the image bounds.
 
+                Pass `window_id` when the region came from a specific
+                `get_window_state(pid, window_id)` screenshot. The resulting
+                zoom context is scoped to that window, so follow-up
+                `click(..., from_zoom=true)` or `drag(..., from_zoom=true)`
+                calls should pass the same `window_id`.
+
                 Requires `get_window_state(pid, window_id)` earlier in this
                 session so the resize ratio is known.
                 """,
@@ -54,6 +60,11 @@ public enum ZoomTool {
                     "pid": [
                         "type": "integer",
                         "description": "Target process ID.",
+                    ],
+                    "window_id": [
+                        "type": "integer",
+                        "description":
+                            "Optional CGWindowID of the window whose get_window_state screenshot produced this region. When present, zoom captures this exact window and stores a window-scoped zoom context.",
                     ],
                     "x1": [
                         "type": "number",
@@ -89,6 +100,17 @@ public enum ZoomTool {
                 return errorResult(
                     "pid \(rawPid) is outside the supported Int32 range.")
             }
+            let rawWindowId = arguments?["window_id"]?.intValue
+            let windowId: UInt32?
+            if let rawWindowId {
+                guard let checked = UInt32(exactly: rawWindowId) else {
+                    return errorResult(
+                        "window_id \(rawWindowId) is outside the supported UInt32 range.")
+                }
+                windowId = checked
+            } else {
+                windowId = nil
+            }
 
             guard let x1 = coerceDouble(arguments?["x1"]),
                   let y1 = coerceDouble(arguments?["y1"]),
@@ -111,7 +133,9 @@ public enum ZoomTool {
             }
 
             // Scale coordinates back to original resolution if resized
-            let ratio = await ImageResizeRegistry.shared.ratio(forPid: pid) ?? 1.0
+            let ratio = await ImageResizeRegistry.shared.ratio(
+                forPid: pid,
+                windowId: windowId) ?? 1.0
             let origX1 = Int(x1 * ratio)
             let origY1 = Int(y1 * ratio)
             let origX2 = Int(x2 * ratio)
@@ -127,9 +151,23 @@ public enum ZoomTool {
             let paddedY2 = origY2 + padH
 
             // Capture at native resolution (no resize)
-            guard let shot = try? await capture.captureFrontmostWindow(pid: pid)
-            else {
-                return errorResult("No capturable window for pid \(pid).")
+            let shot: Screenshot
+            do {
+                if let windowId {
+                    shot = try await capture.captureWindow(
+                        windowID: windowId,
+                        format: .jpeg,
+                        quality: 90
+                    )
+                } else if let frontmost = try await capture.captureFrontmostWindow(pid: pid) {
+                    shot = frontmost
+                } else {
+                    return errorResult("No capturable window for pid \(pid).")
+                }
+            } catch let error as CaptureError {
+                return errorResult("Screenshot failed: \(error.description)")
+            } catch {
+                return errorResult("Unexpected capture error: \(error)")
             }
 
             // Decode the captured image to crop it
@@ -179,11 +217,15 @@ public enum ZoomTool {
             await ImageResizeRegistry.shared.setZoom(
                 ZoomContext(originX: cropX, originY: cropY,
                             width: cropW, height: cropH, ratio: ratio),
-                forPid: pid)
+                forPid: pid,
+                windowId: windowId)
 
             let summary = "✅ Zoomed region captured at native resolution. "
                 + "To click a target in this image, use "
-                + "`click(pid, x, y, from_zoom=true)` where x,y are pixel "
+                + (windowId == nil
+                    ? "`click(pid, x, y, from_zoom=true)`"
+                    : "`click(pid, window_id, x, y, from_zoom=true)`")
+                + " where x,y are pixel "
                 + "coordinates in THIS zoomed image — the driver maps them "
                 + "back automatically."
 

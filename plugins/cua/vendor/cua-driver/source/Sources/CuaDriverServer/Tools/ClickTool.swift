@@ -65,7 +65,10 @@ public enum ClickTool {
                 selects the pixel path. Otherwise `element_index` selects
                 AX mode when present. `pid` is required in both modes.
                 `window_id` is required when `element_index` is used
-                (scopes the cache lookup). `action` is only valid with
+                (scopes the cache lookup). With pixel clicks, pass
+                `window_id` when coordinates came from a specific
+                `get_window_state` or `zoom` image; this scopes resize and
+                zoom mapping to that window. `action` is only valid with
                 `element_index` except the default `press` value; `count`
                 and `modifier` are ignored in the AX path.
                 """,
@@ -85,7 +88,7 @@ public enum ClickTool {
                     "window_id": [
                         "type": "integer",
                         "description":
-                            "CGWindowID for the window whose get_window_state produced the element_index. Required when element_index is used; ignored in the pixel path.",
+                            "CGWindowID for the window whose get_window_state produced the element_index or pixel coordinates. Required for element_index mode; strongly recommended for pixel mode and from_zoom mapping.",
                     ],
                     "x": [
                         "type": "number",
@@ -119,7 +122,7 @@ public enum ClickTool {
                     "from_zoom": [
                         "type": "boolean",
                         "description":
-                            "When true, x and y are pixel coordinates in the last `zoom` image for this pid. The driver automatically maps them back to the correct window coordinates. Use this after calling `zoom` to click on something you saw in the zoomed image.",
+                            "When true, x and y are pixel coordinates in the last `zoom` image for this pid/window. Pass the same window_id used for zoom so the driver can map back to the correct window coordinates.",
                     ],
                     "debug_image_out": [
                         "type": "string",
@@ -476,15 +479,27 @@ public enum ClickTool {
         var actualY = y
 
         if fromZoom {
-            guard let zoom = await ImageResizeRegistry.shared.zoom(forPid: pid) else {
+            guard let zoom = await ImageResizeRegistry.shared.zoom(
+                forPid: pid,
+                windowId: windowId)
+            else {
+                if let windowId {
+                    return errorResult(
+                        "from_zoom=true but no zoom context for pid \(pid) window_id \(windowId). "
+                            + "Call `zoom` with the same pid and window_id first.")
+                }
                 return errorResult(
-                    "from_zoom=true but no zoom context for pid \(pid). Call `zoom` first.")
+                    "from_zoom=true but no pid-only zoom context for pid \(pid). "
+                        + "Call `zoom` first, or pass the same window_id used for zoom.")
             }
             // x,y are in the zoom crop's pixel space; add crop origin to
             // get full-window native-pixel coordinates.
             actualX = Double(zoom.originX) + x
             actualY = Double(zoom.originY) + y
-        } else if let ratio = await ImageResizeRegistry.shared.ratio(forPid: pid) {
+        } else if let ratio = await ImageResizeRegistry.shared.ratio(
+            forPid: pid,
+            windowId: windowId)
+        {
             // x,y are in the resized image space; scale up to native pixels.
             actualX = x * ratio
             actualY = y * ratio

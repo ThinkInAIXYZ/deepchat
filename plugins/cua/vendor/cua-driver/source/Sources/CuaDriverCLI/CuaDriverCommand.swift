@@ -419,11 +419,11 @@ enum AppKitBootstrap {
     }
 }
 
-/// `cua-driver update` — check for a newer release.
+/// `cua-driver update` — report the DeepChat-managed update path.
 struct UpdateCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "update",
-        abstract: "Check for a newer cua-driver release."
+        abstract: "Show how DeepChat updates the bundled cua-driver helper."
     )
 
     @Flag(name: .long, help: "Reserved for standalone cua-driver installs.")
@@ -432,22 +432,10 @@ struct UpdateCommand: AsyncParsableCommand {
     func run() async throws {
         let current = CuaDriverCore.version
         print("Current version: \(current)")
-        print("Checking for updates…")
-
-        guard let latest = await VersionCheck.fetchLatest() else {
-            print("Could not reach GitHub — check your connection and try again.")
-            throw ExitCode(1)
-        }
-
-        guard VersionCheck.isNewer(latest, than: current) else {
-            print("Already up to date.")
-            return
-        }
-
-        print("New version available: \(latest)")
         print("")
-        print("DeepChat packages cua-driver with the app.")
+        print("DeepChat packages this cua-driver fork with the app.")
         print("Update DeepChat to receive newer Computer Use helper builds.")
+        print("Standalone upstream cua-driver releases are not applied to this helper.")
 
         if !apply {
             return

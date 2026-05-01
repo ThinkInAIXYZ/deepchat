@@ -146,9 +146,17 @@ Recommended action/write tools:
 - `set_agent_cursor_motion`
 - `set_agent_cursor_style`
 - recording/config mutation tools
+- `zoom`
+- `page`
 
 Default server `autoApprove` stays empty. If the user selects DeepChat `full_access`, DeepChat can skip
 its own per-tool prompts, but macOS Accessibility and Screen Recording grants are still required.
+
+Rejected design: do not add a public `set_electron_accessibility` tool. The driver already attempts
+Electron/Chromium AX enablement inside `get_window_state` by setting `AXManualAccessibility`,
+`AXEnhancedUserInterface`, registering an AXObserver, and pumping the run loop before walking the tree.
+If Electron still returns a sparse AX tree, the agent should use `page`, `electron_debugging_port`,
+`screenshot(window_id)`, and window-local pixel actions.
 
 ## State Flow
 

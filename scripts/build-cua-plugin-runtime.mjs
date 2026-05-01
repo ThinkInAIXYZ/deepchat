@@ -96,11 +96,23 @@ async function readUpstreamMetadata() {
     )
   }
 
-  const requiredFields = ['upstreamRepo', 'upstreamSubdir', 'tag', 'commit', 'version', 'updatedAt']
+  const requiredFields = [
+    'sourceKind',
+    'upstreamRepo',
+    'upstreamSubdir',
+    'tag',
+    'commit',
+    'version',
+    'updatedAt',
+    'forkPolicy'
+  ]
   for (const field of requiredFields) {
     if (typeof metadata[field] !== 'string' || metadata[field].length === 0) {
       throw new Error(`CUA upstream metadata is missing required string field: ${field}`)
     }
+  }
+  if (metadata.sourceKind !== 'deepchat-owned-fork') {
+    throw new Error(`CUA vendor sourceKind must be deepchat-owned-fork, got ${metadata.sourceKind}`)
   }
   return metadata
 }

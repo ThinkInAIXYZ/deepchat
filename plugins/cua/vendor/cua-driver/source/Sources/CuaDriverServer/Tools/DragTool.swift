@@ -56,9 +56,9 @@ public enum DragTool {
                 event-source level — those targets must be frontmost.
 
                 When `from_zoom` is true, both endpoints are pixel
-                coordinates in the last `zoom` image for this pid; the
-                driver maps them back to window coordinates before
-                dispatching.
+                coordinates in the last `zoom` image for this pid/window.
+                Pass the same `window_id` used for zoom so the driver maps
+                them back to the correct window before dispatching.
                 """,
             inputSchema: [
                 "type": "object",
@@ -122,7 +122,7 @@ public enum DragTool {
                     "from_zoom": [
                         "type": "boolean",
                         "description":
-                            "When true, from_x/from_y/to_x/to_y are pixel coordinates in the last `zoom` image for this pid. The driver maps them back to window coordinates before dispatching.",
+                            "When true, from_x/from_y/to_x/to_y are pixel coordinates in the last `zoom` image for this pid/window. Pass the same window_id used for zoom.",
                     ],
                 ],
                 "additionalProperties": false,
@@ -213,15 +213,27 @@ public enum DragTool {
         var actualToY = toY
 
         if fromZoom {
-            guard let zoom = await ImageResizeRegistry.shared.zoom(forPid: pid) else {
+            guard let zoom = await ImageResizeRegistry.shared.zoom(
+                forPid: pid,
+                windowId: windowId)
+            else {
+                if let windowId {
+                    return errorResult(
+                        "from_zoom=true but no zoom context for pid \(pid) window_id \(windowId). "
+                            + "Call `zoom` with the same pid and window_id first.")
+                }
                 return errorResult(
-                    "from_zoom=true but no zoom context for pid \(pid). Call `zoom` first.")
+                    "from_zoom=true but no pid-only zoom context for pid \(pid). "
+                        + "Call `zoom` first, or pass the same window_id used for zoom.")
             }
             actualFromX = Double(zoom.originX) + fromX
             actualFromY = Double(zoom.originY) + fromY
             actualToX = Double(zoom.originX) + toX
             actualToY = Double(zoom.originY) + toY
-        } else if let ratio = await ImageResizeRegistry.shared.ratio(forPid: pid) {
+        } else if let ratio = await ImageResizeRegistry.shared.ratio(
+            forPid: pid,
+            windowId: windowId)
+        {
             actualFromX = fromX * ratio
             actualFromY = fromY * ratio
             actualToX = toX * ratio

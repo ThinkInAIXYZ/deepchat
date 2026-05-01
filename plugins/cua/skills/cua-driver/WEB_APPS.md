@@ -11,4 +11,6 @@ Recommended browser flow:
 5. Use visible UI tools for controls outside page automation.
 6. Re-snapshot to verify state.
 
+For Electron apps with sparse AX trees, prefer `page` after launching with `electron_debugging_port: 9222` when possible. If DOM access is unavailable, use `screenshot({ window_id })` for broad visual confirmation and one `zoom({ pid, window_id, ... })` only for small details before a window-local pixel click.
+
 For multiple URLs, prefer separate windows so each workflow keeps its own `window_id`.
