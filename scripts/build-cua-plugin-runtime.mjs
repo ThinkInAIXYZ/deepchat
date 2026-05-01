@@ -4,6 +4,7 @@ import fsSync from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { signMacHelperForRelease } from './sign-cua-helper.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = process.env.DEEPCHAT_ROOT_DIR
@@ -216,7 +217,7 @@ async function stageApp(sourceDir, builtBinary, targetArch, version) {
   }
 
   validateArchitecture(stagedBinary, targetArch)
-  signHelper(helperAppPath)
+  await signHelper(helperAppPath)
   return helperAppPath
 }
 
@@ -228,8 +229,17 @@ function validateArchitecture(binaryPath, targetArch) {
   }
 }
 
-function signHelper(helperAppPath) {
+async function signHelper(helperAppPath) {
   const entitlementsPath = path.join(pluginDir, 'build', 'entitlements.plist')
+  const signedForRelease = await signMacHelperForRelease({
+    appPath: helperAppPath,
+    entitlementsPath,
+    cwd: rootDir
+  })
+  if (signedForRelease) {
+    return
+  }
+
   run('codesign', [
     '--force',
     '--deep',
