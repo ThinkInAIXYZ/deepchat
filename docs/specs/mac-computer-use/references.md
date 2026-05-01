@@ -1,20 +1,20 @@
 # External References and Research Notes
 
-Research date: 2026-04-26.
+Research date: 2026-05-01.
 
 ## CUA
 
 - Repository: https://github.com/trycua/cua
 - CUA Driver docs: https://cua.ai/docs/cua-driver/guide/getting-started/introduction
-- Latest GitHub release observed: https://github.com/trycua/cua/releases/tag/cua-driver-v0.0.13
+- Latest GitHub release observed: https://github.com/trycua/cua/releases/tag/cua-driver-v0.0.15
 
 Observed release facts:
 
-- Latest release tag: `cua-driver-v0.0.13`
-- Published: 2026-04-28
+- Latest release tag: `cua-driver-v0.0.15`
+- Published: 2026-04-30
 - Assets observed:
-  - `cua-driver-0.0.13-darwin-arm64.pkg.tar.gz`
-  - `cua-driver-0.0.13-darwin-arm64.tar.gz`
+  - `cua-driver-0.0.15-darwin-arm64.pkg.tar.gz`
+  - `cua-driver-0.0.15-darwin-arm64.tar.gz`
   - generic darwin aliases
 - No x64 release asset was observed, so DeepChat must build from source for x64 support.
 

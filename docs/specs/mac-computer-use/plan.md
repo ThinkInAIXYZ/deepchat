@@ -143,6 +143,8 @@ Recommended action/write tools:
 - `hotkey`
 - `set_value`
 - `set_agent_cursor_enabled`
+- `set_agent_cursor_motion`
+- `set_agent_cursor_style`
 - recording/config mutation tools
 
 Default server `autoApprove` stays empty. If the user selects DeepChat `full_access`, DeepChat can skip
@@ -216,4 +218,3 @@ Surface these states distinctly:
 - Do not bypass macOS TCC or store private permission workarounds.
 - Disable helper self-update. Updates should come from DeepChat release packages.
 - Keep permission identity stable across releases so TCC grants persist.
-

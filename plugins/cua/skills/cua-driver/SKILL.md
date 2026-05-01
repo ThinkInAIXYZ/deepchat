@@ -53,6 +53,10 @@ Ask the user only when visible candidates are ambiguous, the requested action is
 - For browser-like apps: prefer new windows via `launch_app({ bundle_id, urls: [...] })` so each URL has a stable `window_id`.
 - For menu actions: use visible in-window controls first. Use menu-bar actions only when the target app is already the active app and the menu state is visible through the MCP snapshot.
 
+## Agent Cursor
+
+Use `get_agent_cursor_state` to inspect the cursor overlay. Use `set_agent_cursor_enabled`, `set_agent_cursor_motion`, or `set_agent_cursor_style` only when the user asks to show, hide, animate, or restyle the agent cursor.
+
 ## Linked References
 
 - `README.md`: compact MCP workflow reference.

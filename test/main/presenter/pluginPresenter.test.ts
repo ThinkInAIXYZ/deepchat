@@ -300,6 +300,27 @@ describe('PluginPresenter', () => {
     expect(mcpConfig.env).toEqual(server.env)
   })
 
+  it('keeps new CUA cursor style controls permission-gated', async () => {
+    const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
+    const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
+    const registrySource = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/ToolRegistry.swift',
+      'utf8'
+    )
+    const styleToolSource = await readFile(
+      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/SetAgentCursorStyleTool.swift',
+      'utf8'
+    )
+    const manifestTools = manifest.toolPolicies.find(
+      (item: { serverId: string }) => item.serverId === 'cua-driver'
+    ).tools
+
+    expect(styleToolSource).toContain('name: "set_agent_cursor_style"')
+    expect(registrySource).toContain('SetAgentCursorStyleTool.handler')
+    expect(manifestTools.set_agent_cursor_style).toBe('ask')
+    expect(policy.tools.set_agent_cursor_style).toBe('ask')
+  })
+
   it('keeps the CUA skill instructions MCP-only', async () => {
     const files = ['SKILL.md', 'README.md', 'WEB_APPS.md', 'RECORDING.md', 'TESTS.md']
     const contents = await Promise.all(
@@ -311,6 +332,7 @@ describe('PluginPresenter', () => {
     expect(combined).toContain('launch_app')
     expect(combined).toContain('get_window_state')
     expect(combined).toContain('check_permissions')
+    expect(combined).toContain('set_agent_cursor_style')
     expect(combined).toContain('DeepChat Computer Use.app')
     expect(combined).not.toContain('Bash')
     expect(combined).not.toContain('cua-driver <tool')

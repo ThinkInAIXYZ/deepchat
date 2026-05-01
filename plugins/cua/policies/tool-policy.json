@@ -28,6 +28,7 @@
     "set_recording": "ask",
     "set_agent_cursor_enabled": "ask",
     "set_agent_cursor_motion": "ask",
+    "set_agent_cursor_style": "ask",
     "replay_trajectory": "ask",
     "zoom": "ask",
     "page": "ask"
