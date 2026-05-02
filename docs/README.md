@@ -36,33 +36,35 @@ Renderer
 | [guides/code-navigation.md](./guides/code-navigation.md) | 当前代码导航入口 |
 | [guides/getting-started.md](./guides/getting-started.md) | 新开发者快速上手 |
 | [guides/plugin-packaging.md](./guides/plugin-packaging.md) | `.dcplugin` 打包、内置分发和 release 规则 |
+| [spec-driven-dev.md](./spec-driven-dev.md) | SDD 目录规则与变更前置流程 |
 | [architecture/baselines/dependency-report.md](./architecture/baselines/dependency-report.md) | 当前依赖与耦合基线 |
 | [architecture/baselines/main-kernel-boundary-baseline.md](./architecture/baselines/main-kernel-boundary-baseline.md) | main kernel refactor 当前阶段的边界指标与 hot path 快照 |
 | [architecture/baselines/main-kernel-bridge-register.md](./architecture/baselines/main-kernel-bridge-register.md) | main kernel refactor 的临时 bridge 登记表 |
 | [architecture/baselines/main-kernel-migration-scoreboard.md](./architecture/baselines/main-kernel-migration-scoreboard.md) | main kernel refactor 的轻量 migration scoreboard |
-| [specs/renderer-main-single-track/spec.md](./specs/renderer-main-single-track/spec.md) | `phase5` 之后 renderer-main 单轨化目标与验收标准 |
-| [specs/renderer-main-single-track/plan.md](./specs/renderer-main-single-track/plan.md) | 单轨化阶段计划、family 优先级与 merge gate |
-| [specs/renderer-main-single-track/tasks.md](./specs/renderer-main-single-track/tasks.md) | 单轨化执行清单 |
+| [architecture/renderer-main-single-track/spec.md](./architecture/renderer-main-single-track/spec.md) | `phase5` 之后 renderer-main 单轨化目标与验收标准 |
+| [architecture/renderer-main-single-track/plan.md](./architecture/renderer-main-single-track/plan.md) | 单轨化阶段计划、family 优先级与 merge gate |
+| [architecture/renderer-main-single-track/tasks.md](./architecture/renderer-main-single-track/tasks.md) | 单轨化执行清单 |
 | [architecture/baselines/test-failure-groups.md](./architecture/baselines/test-failure-groups.md) | 当前测试失败分组基线 |
 
 ## 本次清理落库
 
 | 位置 | 内容 |
 | --- | --- |
-| [docs/specs/legacy-agentpresenter-retirement/spec.md](./specs/legacy-agentpresenter-retirement/spec.md) | 本次 retirement 的目标、范围、兼容边界 |
-| [docs/specs/legacy-agentpresenter-retirement/plan.md](./specs/legacy-agentpresenter-retirement/plan.md) | 迁移/归档/验证计划 |
-| [docs/specs/legacy-agentpresenter-retirement/tasks.md](./specs/legacy-agentpresenter-retirement/tasks.md) | 已执行清单 |
-| [docs/specs/legacy-llm-provider-runtime-retirement/spec.md](./specs/legacy-llm-provider-runtime-retirement/spec.md) | legacy provider runtime retirement 规格 |
-| [docs/specs/legacy-llm-provider-runtime-retirement/plan.md](./specs/legacy-llm-provider-runtime-retirement/plan.md) | provider runtime 收口与依赖清理计划 |
-| [docs/specs/legacy-llm-provider-runtime-retirement/tasks.md](./specs/legacy-llm-provider-runtime-retirement/tasks.md) | provider runtime 退役执行清单 |
-| [docs/specs/provider-layer-simplification/spec.md](./specs/provider-layer-simplification/spec.md) | provider layer 第二轮内部收口规格 |
-| [docs/specs/provider-layer-simplification/plan.md](./specs/provider-layer-simplification/plan.md) | registry + generic provider 合并计划 |
-| [docs/specs/provider-layer-simplification/tasks.md](./specs/provider-layer-simplification/tasks.md) | provider layer 第二轮执行清单 |
-| [docs/specs/ai-sdk-runtime/spec.md](./specs/ai-sdk-runtime/spec.md) | AI SDK runtime 规格，现已更新为 retired 状态 |
-| [docs/specs/architecture-simplification/spec.md](./specs/architecture-simplification/spec.md) | 整体减负治理规格 |
-| [docs/specs/architecture-simplification/plan.md](./specs/architecture-simplification/plan.md) | 分层/基线/guard 计划 |
-| [docs/specs/architecture-simplification/tasks.md](./specs/architecture-simplification/tasks.md) | 首期实施清单 |
-| [docs/specs/agent-cleanup/spec.md](./specs/agent-cleanup/spec.md) | cleanup 主规格，已更新到 retirement 完成态 |
+| [docs/archives/specs-migration-2026-05-02.md](./archives/specs-migration-2026-05-02.md) | 旧 SDD 目录拆分到 features / issues / architecture / archives 的迁移记录 |
+| [docs/archives/legacy-agentpresenter-retirement/spec.md](./archives/legacy-agentpresenter-retirement/spec.md) | 本次 retirement 的目标、范围、兼容边界 |
+| [docs/archives/legacy-agentpresenter-retirement/plan.md](./archives/legacy-agentpresenter-retirement/plan.md) | 迁移/归档/验证计划 |
+| [docs/archives/legacy-agentpresenter-retirement/tasks.md](./archives/legacy-agentpresenter-retirement/tasks.md) | 已执行清单 |
+| [docs/archives/legacy-llm-provider-runtime-retirement/spec.md](./archives/legacy-llm-provider-runtime-retirement/spec.md) | legacy provider runtime retirement 规格 |
+| [docs/archives/legacy-llm-provider-runtime-retirement/plan.md](./archives/legacy-llm-provider-runtime-retirement/plan.md) | provider runtime 收口与依赖清理计划 |
+| [docs/archives/legacy-llm-provider-runtime-retirement/tasks.md](./archives/legacy-llm-provider-runtime-retirement/tasks.md) | provider runtime 退役执行清单 |
+| [docs/archives/provider-layer-simplification/spec.md](./archives/provider-layer-simplification/spec.md) | provider layer 第二轮内部收口规格 |
+| [docs/archives/provider-layer-simplification/plan.md](./archives/provider-layer-simplification/plan.md) | registry + generic provider 合并计划 |
+| [docs/archives/provider-layer-simplification/tasks.md](./archives/provider-layer-simplification/tasks.md) | provider layer 第二轮执行清单 |
+| [docs/archives/ai-sdk-runtime/spec.md](./archives/ai-sdk-runtime/spec.md) | AI SDK runtime 规格，现已更新为 retired 状态 |
+| [docs/architecture/architecture-simplification/spec.md](./architecture/architecture-simplification/spec.md) | 整体减负治理规格 |
+| [docs/architecture/architecture-simplification/plan.md](./architecture/architecture-simplification/plan.md) | 分层/基线/guard 计划 |
+| [docs/architecture/architecture-simplification/tasks.md](./architecture/architecture-simplification/tasks.md) | 首期实施清单 |
+| [docs/archives/agent-cleanup/spec.md](./archives/agent-cleanup/spec.md) | cleanup 主规格，已更新到 retirement 完成态 |
 
 ## 主内核边界稳定化计划记录
 
@@ -73,16 +75,16 @@ Renderer
 
 | 位置 | 内容 |
 | --- | --- |
-| [docs/specs/main-kernel-refactor/spec.md](./specs/main-kernel-refactor/spec.md) | 收敛后方案的目标、范围、非目标与成功标准 |
-| [docs/specs/main-kernel-refactor/plan.md](./specs/main-kernel-refactor/plan.md) | 以边界稳定和热路径减耦为主的阶段计划 |
-| [docs/specs/main-kernel-refactor/tasks.md](./specs/main-kernel-refactor/tasks.md) | 项目级任务清单与阶段状态 |
-| [docs/specs/main-kernel-refactor/acceptance.md](./specs/main-kernel-refactor/acceptance.md) | 阶段验收口径与本轮最终收口标准 |
-| [docs/specs/main-kernel-refactor/test-plan.md](./specs/main-kernel-refactor/test-plan.md) | 围绕 migrated path 的测试分层与 smoke matrix |
-| [docs/specs/main-kernel-refactor/migration-governance.md](./specs/main-kernel-refactor/migration-governance.md) | 防止双轨失控的实施纪律、bridge 规则与 scoreboard |
-| [docs/specs/main-kernel-refactor/build-vs-buy.md](./specs/main-kernel-refactor/build-vs-buy.md) | 本轮哪些能力引库、哪些能力保持本地实现 |
-| [docs/specs/main-kernel-refactor/ports-and-scheduler.md](./specs/main-kernel-refactor/ports-and-scheduler.md) | 最小必要 port 集合与 `Scheduler` 的定位 |
-| [docs/specs/main-kernel-refactor/route-schema-catalog.md](./specs/main-kernel-refactor/route-schema-catalog.md) | migrated path 的 route registry、schema 和 typed event 目录 |
-| [docs/specs/main-kernel-refactor/eventbus-migration.md](./specs/main-kernel-refactor/eventbus-migration.md) | 本轮对 typed UI event 和 legacy EventBus 的收敛策略 |
+| [docs/architecture/main-kernel-refactor/spec.md](./architecture/main-kernel-refactor/spec.md) | 收敛后方案的目标、范围、非目标与成功标准 |
+| [docs/architecture/main-kernel-refactor/plan.md](./architecture/main-kernel-refactor/plan.md) | 以边界稳定和热路径减耦为主的阶段计划 |
+| [docs/architecture/main-kernel-refactor/tasks.md](./architecture/main-kernel-refactor/tasks.md) | 项目级任务清单与阶段状态 |
+| [docs/architecture/main-kernel-refactor/acceptance.md](./architecture/main-kernel-refactor/acceptance.md) | 阶段验收口径与本轮最终收口标准 |
+| [docs/architecture/main-kernel-refactor/test-plan.md](./architecture/main-kernel-refactor/test-plan.md) | 围绕 migrated path 的测试分层与 smoke matrix |
+| [docs/architecture/main-kernel-refactor/migration-governance.md](./architecture/main-kernel-refactor/migration-governance.md) | 防止双轨失控的实施纪律、bridge 规则与 scoreboard |
+| [docs/architecture/main-kernel-refactor/build-vs-buy.md](./architecture/main-kernel-refactor/build-vs-buy.md) | 本轮哪些能力引库、哪些能力保持本地实现 |
+| [docs/architecture/main-kernel-refactor/ports-and-scheduler.md](./architecture/main-kernel-refactor/ports-and-scheduler.md) | 最小必要 port 集合与 `Scheduler` 的定位 |
+| [docs/architecture/main-kernel-refactor/route-schema-catalog.md](./architecture/main-kernel-refactor/route-schema-catalog.md) | migrated path 的 route registry、schema 和 typed event 目录 |
+| [docs/architecture/main-kernel-refactor/eventbus-migration.md](./architecture/main-kernel-refactor/eventbus-migration.md) | 本轮对 typed UI event 和 legacy EventBus 的收敛策略 |
 
 ## Renderer-Main 单轨化计划记录
 
@@ -92,9 +94,9 @@ Renderer
 
 | 位置 | 内容 |
 | --- | --- |
-| [docs/specs/renderer-main-single-track/spec.md](./specs/renderer-main-single-track/spec.md) | 为什么当前分支还不能在双轨状态下直接合并，以及 single-track 的验收标准 |
-| [docs/specs/renderer-main-single-track/plan.md](./specs/renderer-main-single-track/plan.md) | 单轨化阶段划分、quarantine 模型、family 迁移顺序与最终 merge gate |
-| [docs/specs/renderer-main-single-track/tasks.md](./specs/renderer-main-single-track/tasks.md) | 具体执行清单 |
+| [docs/architecture/renderer-main-single-track/spec.md](./architecture/renderer-main-single-track/spec.md) | 为什么当前分支还不能在双轨状态下直接合并，以及 single-track 的验收标准 |
+| [docs/architecture/renderer-main-single-track/plan.md](./architecture/renderer-main-single-track/plan.md) | 单轨化阶段划分、quarantine 模型、family 迁移顺序与最终 merge gate |
+| [docs/architecture/renderer-main-single-track/tasks.md](./architecture/renderer-main-single-track/tasks.md) | 具体执行清单 |
 
 ## 活跃架构地图
 
@@ -106,25 +108,29 @@ docs/
 ├── architecture/
 │   ├── agent-system.md
 │   ├── baselines/
+│   ├── main-kernel-refactor/
+│   ├── renderer-main-single-track/
 │   ├── session-management.md
 │   ├── tool-system.md
 │   ├── event-system.md
 │   └── mcp-integration.md
+├── features/
+│   └── <feature-goal>/
+│       ├── spec.md
+│       ├── plan.md
+│       └── tasks.md
+├── issues/
+│   └── <issue-goal>/
+│       ├── spec.md
+│       ├── plan.md
+│       └── tasks.md
 ├── guides/
 │   ├── getting-started.md
 │   ├── code-navigation.md
 │   ├── plugin-packaging.md
 │   └── debugging.md
-├── specs/
-│   ├── agent-cleanup/
-│   ├── architecture-simplification/
-│   ├── ai-sdk-runtime/
-│   ├── main-kernel-refactor/
-│   ├── renderer-main-single-track/
-│   ├── provider-layer-simplification/
-│   ├── legacy-llm-provider-runtime-retirement/
-│   └── legacy-agentpresenter-retirement/
 └── archives/
+    ├── specs-migration-2026-05-02.md
     ├── legacy-agentpresenter-architecture.md
     ├── legacy-agentpresenter-flows.md
     ├── legacy-llm-provider-runtime.md

@@ -8,8 +8,23 @@ import type {
 } from '../../../../src/shared/presenter'
 import { OllamaProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/ollamaProvider'
 
+const { mockExecFile, mockOllamaConstructorOptions } = vi.hoisted(() => ({
+  mockExecFile: vi.fn(),
+  mockOllamaConstructorOptions: [] as unknown[]
+}))
+
+vi.mock('node:child_process', () => ({
+  execFile: mockExecFile
+}))
+
 vi.mock('ollama', () => ({
-  Ollama: class MockOllama {}
+  Ollama: class MockOllama {
+    constructor(options?: unknown) {
+      mockOllamaConstructorOptions.push(options ?? {})
+    }
+
+    abort = vi.fn()
+  }
 }))
 
 vi.mock('@shared/logger', () => ({
@@ -69,6 +84,11 @@ describe('OllamaProvider.fetchModels', () => {
   let provider: LLM_PROVIDER
 
   beforeEach(() => {
+    mockOllamaConstructorOptions.length = 0
+    mockExecFile.mockReset()
+    mockExecFile.mockImplementation((_command, _args, _options, callback) => {
+      callback(null, '', '')
+    })
     configPresenter = {
       getProviderModels: vi.fn(() => [
         {
@@ -97,6 +117,25 @@ describe('OllamaProvider.fetchModels', () => {
       baseUrl: 'http://127.0.0.1:11434',
       enable: false
     }
+  })
+
+  it('normalizes Ollama SDK host and OpenAI-compatible runtime base URL', () => {
+    const ollamaProvider = new OllamaProvider(
+      {
+        ...provider,
+        apiKey: 'test-key',
+        baseUrl: 'http://localhost:11434/api'
+      },
+      configPresenter
+    )
+    const runtimeContext = (ollamaProvider as any).getAiSdkRuntimeContext()
+
+    expect(mockOllamaConstructorOptions.at(-1)).toEqual({
+      host: 'http://localhost:11434',
+      headers: { Authorization: 'Bearer test-key' }
+    })
+    expect(runtimeContext.providerKind).toBe('openai-compatible')
+    expect(runtimeContext.provider.baseUrl).toBe('http://localhost:11434/v1')
   })
 
   it('merges local and running models, keeps running-only models, and preserves capabilities', async () => {
@@ -169,6 +208,98 @@ describe('OllamaProvider.fetchModels', () => {
     )
     expect(configPresenter.ensureModelStatus).toHaveBeenCalledWith('ollama', 'qwen3:8b', true)
     expect(configPresenter.setProviderModels).toHaveBeenCalledWith('ollama', models)
+  })
+
+  it('uses ollama list output as the local model source when the SDK list is empty', async () => {
+    const ollamaProvider = new OllamaProvider(provider, configPresenter)
+    ;(ollamaProvider as any).ollama = {
+      list: vi.fn(async () => ({ models: [] })),
+      show: vi.fn(async () => {
+        throw new Error('show unavailable')
+      })
+    }
+    mockExecFile.mockImplementationOnce((_command, _args, _options, callback) => {
+      callback(
+        null,
+        [
+          'NAME                ID              SIZE      MODIFIED',
+          'deepseek-r1:1.5b    e0979632db5a    1.1 GB    17 seconds ago',
+          'gemma4:e2b          7fbdbf8f5e45    7.2 GB    3 weeks ago'
+        ].join('\n'),
+        ''
+      )
+    })
+
+    const models = await ollamaProvider.listModels()
+
+    expect(models.map((model) => model.name)).toEqual(['deepseek-r1:1.5b', 'gemma4:e2b'])
+    expect(models).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'deepseek-r1:1.5b',
+          digest: 'e0979632db5a'
+        }),
+        expect.objectContaining({
+          name: 'gemma4:e2b',
+          digest: '7fbdbf8f5e45'
+        })
+      ])
+    )
+  })
+
+  it('confirms pull success against the ollama list model set', async () => {
+    const ollamaProvider = new OllamaProvider(provider, configPresenter)
+    ;(ollamaProvider as any).ollama = {
+      pull: vi.fn(async () => ({
+        async *[Symbol.asyncIterator]() {
+          yield { status: 'pulling manifest' }
+          yield { status: 'success' }
+        }
+      })),
+      list: vi.fn(async () => ({ models: [] })),
+      show: vi.fn(async () => {
+        throw new Error('show unavailable')
+      })
+    }
+    mockExecFile.mockImplementationOnce((_command, _args, _options, callback) => {
+      callback(
+        null,
+        [
+          'NAME                ID              SIZE      MODIFIED',
+          'qwen3:8b            500a1f067a9f    5.2 GB    1 second ago'
+        ].join('\n'),
+        ''
+      )
+    })
+
+    await expect(ollamaProvider.pullModel('qwen3:8b')).resolves.toBe(true)
+  })
+
+  it('treats latest tags from ollama list as a successful untagged pull', async () => {
+    const ollamaProvider = new OllamaProvider(provider, configPresenter)
+    ;(ollamaProvider as any).ollama = {
+      pull: vi.fn(async () => ({
+        async *[Symbol.asyncIterator]() {
+          yield { status: 'success' }
+        }
+      })),
+      list: vi.fn(async () => ({ models: [] })),
+      show: vi.fn(async () => {
+        throw new Error('show unavailable')
+      })
+    }
+    mockExecFile.mockImplementationOnce((_command, _args, _options, callback) => {
+      callback(
+        null,
+        [
+          'NAME          ID              SIZE      MODIFIED',
+          'qwen3:latest  500a1f067a9f    5.2 GB    now'
+        ].join('\n'),
+        ''
+      )
+    })
+
+    await expect(ollamaProvider.pullModel('qwen3')).resolves.toBe(true)
   })
 
   it('recreates the Ollama client when provider config changes after active streams drain', async () => {

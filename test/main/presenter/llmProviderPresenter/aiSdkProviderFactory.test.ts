@@ -12,6 +12,8 @@ import {
   normalizeAzureBaseUrl,
   normalizeAnthropicBaseUrl,
   normalizeGeminiBaseUrl,
+  normalizeOllamaOpenAIBaseUrl,
+  normalizeOllamaSdkHost,
   normalizeVertexRequestBody,
   normalizeVertexBaseUrl
 } from '@/presenter/llmProviderPresenter/aiSdk/providerFactory'
@@ -76,6 +78,26 @@ describe('AI SDK provider factory', () => {
     )
     expect(normalizeGeminiBaseUrl('https://api.newapi.ai/v1beta1')).toBe(
       'https://api.newapi.ai/v1beta1'
+    )
+  })
+
+  it('normalizes Ollama base urls for SDK and OpenAI-compatible endpoints', () => {
+    expect(normalizeOllamaSdkHost('http://localhost:11434')).toBe('http://localhost:11434')
+    expect(normalizeOllamaSdkHost('http://localhost:11434/api')).toBe('http://localhost:11434')
+    expect(normalizeOllamaSdkHost('http://localhost:11434/v1')).toBe('http://localhost:11434')
+    expect(normalizeOllamaSdkHost('http://example.com/ollama/api')).toBe(
+      'http://example.com/ollama'
+    )
+
+    expect(normalizeOllamaOpenAIBaseUrl('http://localhost:11434')).toBe('http://localhost:11434/v1')
+    expect(normalizeOllamaOpenAIBaseUrl('http://localhost:11434/api')).toBe(
+      'http://localhost:11434/v1'
+    )
+    expect(normalizeOllamaOpenAIBaseUrl('http://localhost:11434/v1')).toBe(
+      'http://localhost:11434/v1'
+    )
+    expect(normalizeOllamaOpenAIBaseUrl('http://example.com/ollama/api')).toBe(
+      'http://example.com/ollama/v1'
     )
   })
 

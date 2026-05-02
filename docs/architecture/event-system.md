@@ -6,7 +6,7 @@
 
 - 当前 active renderer-main boundary 已经优先走 `renderer/api/*Client` + `window.deepchat` + typed contracts
 - 下文中涉及 `useLegacyPresenter()`、`window.api`、raw `window.electron` 的内容，应视为 legacy / compatibility 背景
-- `phase5` 之后的 single-track 规则见 `docs/specs/renderer-main-single-track/`
+- `phase5` 之后的 single-track 规则见 `docs/architecture/renderer-main-single-track/`
 
 ## 📋 核心组件
 

@@ -22,18 +22,30 @@ const createModel = (name: string) => ({
 
 const setupStore = async (overrides?: {
   providerClient?: Record<string, any>
+  modelClient?: Record<string, any>
   modelStore?: Record<string, any>
   providerStore?: Record<string, any>
 }) => {
   vi.resetModules()
   vi.useFakeTimers()
+  let modelsChangedListener:
+    | ((payload: { providerId?: string; reason: 'runtime-refresh'; version: number }) => void)
+    | null = null
 
   const providerClient = {
     listOllamaRunningModels: vi.fn(async () => [createModel('qwen3:8b')]),
     listOllamaModels: vi.fn(async () => [createModel('deepseek-r1:1.5b')]),
     refreshModels: vi.fn(async () => undefined),
     pullOllamaModels: vi.fn(async () => true),
+    onOllamaPullProgress: vi.fn(() => vi.fn()),
     ...overrides?.providerClient
+  }
+  const modelClient = {
+    onModelsChanged: vi.fn((listener) => {
+      modelsChangedListener = listener
+      return vi.fn()
+    }),
+    ...overrides?.modelClient
   }
   const modelStore = {
     refreshProviderModels: vi.fn(async () => undefined),
@@ -65,6 +77,10 @@ const setupStore = async (overrides?: {
     createProviderClient: vi.fn(() => providerClient)
   }))
 
+  vi.doMock('../../../src/renderer/api/ModelClient', () => ({
+    createModelClient: vi.fn(() => modelClient)
+  }))
+
   vi.doMock('@api/legacy/runtime', () => ({
     createLegacyIpcSubscriptionScope: () => ({
       on: vi.fn(),
@@ -85,6 +101,8 @@ const setupStore = async (overrides?: {
   return {
     store: useOllamaStore(),
     providerClient,
+    modelClient,
+    getModelsChangedListener: () => modelsChangedListener,
     modelStore
   }
 }
@@ -105,6 +123,7 @@ describe('ollamaStore', () => {
     ])
     expect(providerClient.refreshModels).toHaveBeenCalledWith('ollama')
     expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('ollama')
+    expect(providerClient.listOllamaModels).toHaveBeenCalledTimes(2)
   })
 
   it('reuses the same refresh chain when pull completes', async () => {
@@ -142,7 +161,7 @@ describe('ollamaStore', () => {
     shouldFail = false
     await store.ensureProviderReady('ollama')
 
-    expect(providerClient.listOllamaModels).toHaveBeenCalledTimes(2)
+    expect(providerClient.listOllamaModels).toHaveBeenCalledTimes(3)
     expect(providerClient.refreshModels).toHaveBeenCalledTimes(1)
     expect(modelStore.refreshProviderModels).toHaveBeenCalledTimes(1)
   })
@@ -155,5 +174,24 @@ describe('ollamaStore', () => {
 
     expect(providerClient.refreshModels).toHaveBeenCalledTimes(2)
     expect(modelStore.refreshProviderModels).toHaveBeenCalledTimes(2)
+  })
+
+  it('syncs runtime lists when the shared model catalog changes', async () => {
+    const { store, providerClient, getModelsChangedListener } = await setupStore()
+
+    store.setupOllamaEventListeners()
+    getModelsChangedListener()?.({
+      providerId: 'ollama',
+      reason: 'runtime-refresh',
+      version: Date.now()
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(providerClient.listOllamaModels).toHaveBeenCalledTimes(1)
+    expect(store.getOllamaLocalModels('ollama').map((model) => model.name)).toEqual([
+      'deepseek-r1:1.5b'
+    ])
   })
 })

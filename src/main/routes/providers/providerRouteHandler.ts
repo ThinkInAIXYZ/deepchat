@@ -117,22 +117,25 @@ export async function dispatchProviderRoute(
 
     case providersListOllamaModelsRoute.name: {
       const input = providersListOllamaModelsRoute.input.parse(rawInput)
+      const models = await llmProviderPresenter.listOllamaModels(input.providerId)
       return providersListOllamaModelsRoute.output.parse({
-        models: await llmProviderPresenter.listOllamaModels(input.providerId)
+        models
       })
     }
 
     case providersListOllamaRunningModelsRoute.name: {
       const input = providersListOllamaRunningModelsRoute.input.parse(rawInput)
+      const models = await llmProviderPresenter.listOllamaRunningModels(input.providerId)
       return providersListOllamaRunningModelsRoute.output.parse({
-        models: await llmProviderPresenter.listOllamaRunningModels(input.providerId)
+        models
       })
     }
 
     case providersPullOllamaModelRoute.name: {
       const input = providersPullOllamaModelRoute.input.parse(rawInput)
+      const success = await llmProviderPresenter.pullOllamaModels(input.providerId, input.modelName)
       return providersPullOllamaModelRoute.output.parse({
-        success: await llmProviderPresenter.pullOllamaModels(input.providerId, input.modelName)
+        success
       })
     }
 

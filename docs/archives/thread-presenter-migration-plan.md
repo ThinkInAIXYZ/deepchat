@@ -1,5 +1,8 @@
 # ThreadPresenter 迁移方案：完全迁移到 SessionPresenter
 
+> Archive note: This document is a historical record. File paths and implementation names can reference code that has since moved or been removed.
+
+
 ## 概述
 
 本文档详细描述了从 `threadPresenter` 到 `sessionPresenter` 的完整迁移方案。目标是消除 `threadPresenter`，将所有功能按职责分离到合适的模块中，建立清晰的架构边界。

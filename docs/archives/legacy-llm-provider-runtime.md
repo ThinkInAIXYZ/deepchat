@@ -1,5 +1,8 @@
 # Legacy LLM Provider Runtime Archive
 
+> Archive note: This document is a historical record. File paths and implementation names can reference code that has since moved or been removed.
+
+
 ## Summary
 
 DeepChat previously maintained two low-level provider runtimes under `llmProviderPresenter`:
@@ -34,5 +37,5 @@ That commit is the canonical source for:
 
 For current implementation details, read:
 
-- [docs/specs/ai-sdk-runtime/spec.md](../specs/ai-sdk-runtime/spec.md)
-- [docs/specs/legacy-llm-provider-runtime-retirement/spec.md](../specs/legacy-llm-provider-runtime-retirement/spec.md)
+- [docs/archives/ai-sdk-runtime/spec.md](../archives/ai-sdk-runtime/spec.md)
+- [docs/archives/legacy-llm-provider-runtime-retirement/spec.md](../archives/legacy-llm-provider-runtime-retirement/spec.md)

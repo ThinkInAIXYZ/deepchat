@@ -1,5 +1,8 @@
 # DeepChat 核心流程
 
+> Archive note: This document is a historical record. File paths and implementation names can reference code that has since moved or been removed.
+
+
 本文档使用时序图详细描述 DeepChat 的关键业务流程，帮助开发者理解运行时行为。
 
 > **Note (2026-03-09):** 本文档描述的是原始 AgentPresenter 流程。当前主流程入口是 `agentSessionPresenter` + `agentRuntimePresenter`（formerly `newAgentPresenter` + `deepchatAgentPresenter`）；核心流程类似但入口不同。详见 [P0 Implementation Summary](./P0_IMPLEMENTATION_SUMMARY.md)。

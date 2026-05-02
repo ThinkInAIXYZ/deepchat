@@ -76,7 +76,6 @@ export interface BuildProviderOptionsParams {
     | 'google'
     | 'vertex'
     | 'bedrock'
-    | 'ollama'
   modelId: string
   modelConfig: ModelConfig
   tools: MCPToolDefinition[]
@@ -320,17 +319,6 @@ export function buildProviderOptions(
         }
       }
       providerOptions[params.providerOptionsKey] = config
-      break
-    }
-
-    case 'ollama': {
-      const config: Record<string, unknown> = {}
-      if (params.modelConfig.reasoningEffort) {
-        config.reasoning_effort = params.modelConfig.reasoningEffort
-      }
-      if (Object.keys(config).length > 0) {
-        providerOptions[params.providerOptionsKey] = config
-      }
       break
     }
   }

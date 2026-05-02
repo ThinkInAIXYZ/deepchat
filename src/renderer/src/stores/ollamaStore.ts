@@ -1,16 +1,20 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createProviderClient } from '../../api/ProviderClient'
+import { createModelClient } from '../../api/ModelClient'
 import type { OllamaModel } from '@shared/presenter'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 
 export const useOllamaStore = defineStore('ollama', () => {
   const providerClient = createProviderClient()
+  const modelClient = createModelClient()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
   let unsubscribeOllamaPullProgress: (() => void) | null = null
+  let unsubscribeModelsChanged: (() => void) | null = null
   const initializedProviderIds = ref<Set<string>>(new Set())
+  const runtimeSyncVersions = new Map<string, number>()
 
   const runningModels = ref<Record<string, OllamaModel[]>>({})
   const localModels = ref<Record<string, OllamaModel[]>>({})
@@ -57,21 +61,48 @@ export const useOllamaStore = defineStore('ollama', () => {
   const getOllamaPullingModels = (providerId: string): Record<string, number> =>
     pullingProgress.value[providerId] || {}
 
+  const getNextRuntimeSyncVersion = (providerId: string) => {
+    const version = (runtimeSyncVersions.get(providerId) ?? 0) + 1
+    runtimeSyncVersions.set(providerId, version)
+    return version
+  }
+
+  const isLatestRuntimeSync = (providerId: string, version: number) => {
+    return runtimeSyncVersions.get(providerId) === version
+  }
+
+  const syncOllamaRuntimeModels = async (
+    providerId: string
+  ): Promise<{ running: OllamaModel[]; local: OllamaModel[] }> => {
+    const version = getNextRuntimeSyncVersion(providerId)
+
+    const [running, local] = await Promise.all([
+      providerClient.listOllamaRunningModels(providerId),
+      providerClient.listOllamaModels(providerId)
+    ])
+
+    if (!isLatestRuntimeSync(providerId, version)) {
+      return {
+        running: getOllamaRunningModels(providerId),
+        local: getOllamaLocalModels(providerId)
+      }
+    }
+
+    setRunningModels(providerId, running)
+    setLocalModels(providerId, local)
+    return { running, local }
+  }
+
   const refreshOllamaModels = async (providerId: string): Promise<boolean> => {
     setupOllamaEventListeners()
 
     try {
-      const [running, local] = await Promise.all([
-        providerClient.listOllamaRunningModels(providerId),
-        providerClient.listOllamaModels(providerId)
-      ])
-      setRunningModels(providerId, running)
-      setLocalModels(providerId, local)
+      await syncOllamaRuntimeModels(providerId)
       await providerClient.refreshModels(providerId)
       await modelStore.refreshProviderModels(providerId)
+      await syncOllamaRuntimeModels(providerId)
       return true
-    } catch (error) {
-      console.error('Failed to refresh Ollama models for', providerId, error)
+    } catch {
       return false
     }
   }
@@ -117,22 +148,32 @@ export const useOllamaStore = defineStore('ollama', () => {
   }
 
   const setupOllamaEventListeners = () => {
-    if (unsubscribeOllamaPullProgress) {
-      return
+    if (!unsubscribeModelsChanged && typeof modelClient.onModelsChanged === 'function') {
+      unsubscribeModelsChanged = modelClient.onModelsChanged(({ providerId }) => {
+        if (!providerId) return
+
+        const provider = providerStore.providers.find((item) => item.id === providerId)
+        if (provider?.apiType !== 'ollama') return
+
+        void syncOllamaRuntimeModels(providerId).catch(() => {})
+      })
     }
 
-    if (typeof providerClient.onOllamaPullProgress !== 'function') {
-      return
+    if (
+      !unsubscribeOllamaPullProgress &&
+      typeof providerClient.onOllamaPullProgress === 'function'
+    ) {
+      unsubscribeOllamaPullProgress = providerClient.onOllamaPullProgress((data) =>
+        handleOllamaModelPullEvent(data)
+      )
     }
-
-    unsubscribeOllamaPullProgress = providerClient.onOllamaPullProgress((data) =>
-      handleOllamaModelPullEvent(data)
-    )
   }
 
   const removeOllamaEventListeners = () => {
     unsubscribeOllamaPullProgress?.()
+    unsubscribeModelsChanged?.()
     unsubscribeOllamaPullProgress = null
+    unsubscribeModelsChanged = null
   }
 
   const clearOllamaProviderData = (providerId: string) => {
@@ -201,6 +242,7 @@ export const useOllamaStore = defineStore('ollama', () => {
     isOllamaModelRunning,
     isOllamaModelLocal,
     initialize,
-    ensureProviderReady
+    ensureProviderReady,
+    syncOllamaRuntimeModels
   }
 })

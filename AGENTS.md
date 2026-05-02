@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - `src/main/`: Electron main process; presenters in `presenter/` (Window/Tab/Thread/Mcp/Config/LLMProvider), `eventbus.ts` for app events.
 - `src/preload/`: Secure IPC bridge (contextIsolation on).
-- `src/renderer/`: Vue 3 app. App code in `src/renderer/src` (`components/`, `stores/`, `views/`, `i18n/`, `lib/`). Shell UI lives in `src/renderer/shell/`.
+- `src/renderer/`: Vue 3 app. App code in `src/renderer/src` (`components/`, `stores`, `views`, `i18n`, `lib`). Secondary renderers live in `src/renderer/browser`, `src/renderer/settings`, `src/renderer/floating`, and `src/renderer/splash`.
 - `src/shared/`: Shared TS types/utilities.
 - `test/`: Vitest suites (`test/main`, `test/renderer`) with setup files.
 - `scripts/`: Build/signing/runtime installers, commit checks.
@@ -44,8 +44,14 @@
 
 ## Specification-Driven Development
 
-Follow the SDD methodology for feature implementation. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md).
+Follow the SDD methodology before changing code, tests, configuration, documentation, build scripts, or project structure. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md).
 
-When working on a feature, prefer creating spec artifacts under `docs/specs/<feature>/` (spec/plan/tasks) and resolve any `[NEEDS CLARIFICATION]` items before implementation.
+Create one kebab-case folder per goal and keep `spec.md`, `plan.md`, and `tasks.md` together:
+
+- `docs/features/<goal>/` for new features, user-visible capabilities, integrations, and tools.
+- `docs/issues/<goal>/` for bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems.
+- `docs/architecture/<goal>/` for refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design.
+
+Resolve every `[NEEDS CLARIFICATION]` item before implementation. Move completed or stale goal folders to `docs/archives/<goal>/`; delete documents that only describe removed code and have no reusable decision record.
 
 Core principles: specification-first, architectural consistency, minimal complexity, compatibility/migration awareness.
