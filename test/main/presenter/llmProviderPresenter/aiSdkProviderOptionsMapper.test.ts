@@ -107,6 +107,26 @@ describe('AI SDK provider options', () => {
     })
   })
 
+  it('routes Ollama reasoning effort through OpenAI-compatible provider options', () => {
+    const result = buildProviderOptions({
+      providerId: 'ollama',
+      capabilityProviderId: 'ollama',
+      providerOptionsKey: 'ollama',
+      apiType: 'openai_chat',
+      modelId: 'qwen3:8b',
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'high'
+      } as any,
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.ollama).toMatchObject({
+      reasoningEffort: 'high'
+    })
+  })
+
   it('maps official anthropic adaptive reasoning controls when enabled', () => {
     mockGetReasoningPortrait.mockReturnValue({
       supported: true,

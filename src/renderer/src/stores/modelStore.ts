@@ -616,7 +616,11 @@ export const useModelStore = defineStore('model', () => {
   const refreshStandardModels = async (providerId: string): Promise<boolean> => {
     try {
       await invalidateProviderModelsCache(providerId)
-      let models: RENDERER_MODEL_META[] = await modelClient.getDbProviderModels(providerId)
+      const providerState = getProviderState(providerId)
+      const useProviderDbModels = providerState?.apiType !== 'ollama'
+      let models: RENDERER_MODEL_META[] = useProviderDbModels
+        ? await modelClient.getDbProviderModels(providerId)
+        : []
 
       const providerModelsQuery = getProviderModelsQuery(providerId)
       await providerModelsQuery.refetch()

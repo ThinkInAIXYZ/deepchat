@@ -208,6 +208,52 @@ describe('modelStore.refreshProviderModels', () => {
     expect(modelClient.getProviderModels).toHaveBeenCalledWith('openai')
   })
 
+  it('uses only installed provider models for ollama refreshes', async () => {
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'ollama', enable: true, apiType: 'ollama', name: 'Ollama' }]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [
+          {
+            id: 'deepseek-r1:32b',
+            name: 'deepseek-r1:32b',
+            providerId: 'ollama',
+            contextLength: 4096,
+            maxTokens: 2048
+          }
+        ]),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'deepseek-r1:1.5b',
+            name: 'deepseek-r1:1.5b',
+            providerId: 'ollama',
+            contextLength: 8192,
+            maxTokens: 2048
+          },
+          {
+            id: 'gemma4:e2b',
+            name: 'gemma4:e2b',
+            providerId: 'ollama',
+            contextLength: 8192,
+            maxTokens: 2048
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({}))
+      }
+    })
+
+    await store.refreshProviderModels('ollama')
+
+    expect(modelClient.getDbProviderModels).not.toHaveBeenCalled()
+    expect(
+      store.allProviderModels.value
+        .find((entry) => entry.providerId === 'ollama')
+        ?.models.map((model) => model.id)
+    ).toEqual(['deepseek-r1:1.5b', 'gemma4:e2b'])
+  })
+
   it('exposes only enabled provider groups through activeEnabledModels', async () => {
     const { store } = await setupStore({
       providerStore: {

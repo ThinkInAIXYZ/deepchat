@@ -100,7 +100,7 @@
             variant="outline"
             size="sm"
             class="text-xs text-normal rounded-lg"
-            @click="showPullModelDialog = true"
+            @click="openPullModelDialog"
           >
             <Icon icon="lucide:download" class="w-4 h-4 text-muted-foreground" />
             {{ t('settings.provider.pullModels') }}
@@ -115,7 +115,7 @@
             {{ t('settings.provider.refreshModels') }}
           </Button>
           <span class="text-xs text-muted-foreground">
-            {{ runningModels.length }}/{{ localModels.length }}
+            {{ runningModels.length }}/{{ effectiveLocalModels.length }}
             {{ t('settings.provider.modelsRunning') }}
           </span>
         </div>
@@ -321,7 +321,8 @@ import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelCheckStore } from '@/stores/modelCheck'
-import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
+import { createModelClient } from '../../api/ModelClient'
+import type { LLM_PROVIDER, MODEL_META, OllamaModel, RENDERER_MODEL_META } from '@shared/presenter'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { ModelType } from '@shared/model'
 
@@ -335,6 +336,7 @@ const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
 const providerStore = useProviderStore()
 const modelCheckStore = useModelCheckStore()
+const modelClient = createModelClient()
 const apiHost = ref(props.provider.baseUrl || '')
 const apiKey = ref(props.provider.apiKey || '')
 const showApiKey = ref(false)
@@ -351,442 +353,122 @@ const localModels = computed(() => ollamaStore.getOllamaLocalModels(props.provid
 const pullingModels = computed(
   () => new Map(Object.entries(ollamaStore.getOllamaPullingModels(props.provider.id)))
 )
+const providerCatalogModels = computed<MODEL_META[]>(
+  () => modelStore.getProviderModelsQuery(props.provider.id).data.value ?? []
+)
 const providerModelMetas = computed<RENDERER_MODEL_META[]>(() => {
+  const localModelNames = new Set(localModels.value.map((model) => model.name))
+  const catalogModelNames = new Set(providerCatalogModels.value.map((model) => model.id))
+  const installedModelNames = localModelNames.size > 0 ? localModelNames : catalogModelNames
   const providerEntry = modelStore.allProviderModels.find(
     (item) => item.providerId === props.provider.id
   )
-  return providerEntry?.models ?? []
+  const metaMap = new Map<string, RENDERER_MODEL_META>()
+
+  for (const model of providerEntry?.models ?? []) {
+    if (installedModelNames.has(model.id)) {
+      metaMap.set(model.id, model)
+    }
+  }
+
+  for (const model of providerCatalogModels.value) {
+    if (!installedModelNames.has(model.id) || metaMap.has(model.id)) {
+      continue
+    }
+
+    metaMap.set(model.id, {
+      id: model.id,
+      name: model.name || model.id,
+      group: model.group || 'default',
+      providerId: props.provider.id,
+      enabled: (model as RENDERER_MODEL_META).enabled ?? true,
+      isCustom: model.isCustom ?? false,
+      contextLength: model.contextLength ?? 4096,
+      maxTokens: model.maxTokens ?? 2048,
+      vision: model.vision ?? false,
+      functionCall: model.functionCall ?? false,
+      explicitFunctionCall: (model as RENDERER_MODEL_META).explicitFunctionCall,
+      reasoning: model.reasoning ?? false,
+      enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
+      type: (model.type ?? ModelType.Chat) as ModelType,
+      supportedEndpointTypes: model.supportedEndpointTypes,
+      endpointType: model.endpointType
+    })
+  }
+
+  return Array.from(metaMap.values())
+})
+const createFallbackLocalModel = (meta: RENDERER_MODEL_META): OllamaModel => ({
+  name: meta.id,
+  model: meta.id,
+  modified_at: new Date(),
+  size: 0,
+  digest: '',
+  details: {
+    format: '',
+    family: '',
+    families: [],
+    parameter_size: '',
+    quantization_level: ''
+  },
+  model_info: {
+    context_length: meta.contextLength ?? 0,
+    embedding_length: 0
+  },
+  capabilities: [
+    meta.type === ModelType.Embedding ? 'embedding' : 'completion',
+    ...(meta.vision ? ['vision'] : []),
+    ...(meta.functionCall ? ['tools'] : []),
+    ...(meta.reasoning ? ['thinking'] : [])
+  ]
+})
+const effectiveLocalModels = computed<OllamaModel[]>(() => {
+  if (localModels.value.length > 0) {
+    return localModels.value
+  }
+
+  return providerCatalogModels.value.map((model) =>
+    createFallbackLocalModel(
+      providerModelMetas.value.find((meta) => meta.id === model.id) ?? {
+        id: model.id,
+        name: model.name || model.id,
+        group: model.group || 'default',
+        providerId: props.provider.id,
+        enabled: true,
+        isCustom: model.isCustom ?? false,
+        contextLength: model.contextLength ?? 4096,
+        maxTokens: model.maxTokens ?? 2048,
+        vision: model.vision ?? false,
+        functionCall: model.functionCall ?? false,
+        explicitFunctionCall: (model as RENDERER_MODEL_META).explicitFunctionCall,
+        reasoning: model.reasoning ?? false,
+        enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
+        type: (model.type ?? ModelType.Chat) as ModelType,
+        supportedEndpointTypes: model.supportedEndpointTypes,
+        endpointType: model.endpointType
+      }
+    )
+  )
 })
 
-// 预设可拉取的模型列表
-const presetModels = [
-  // OpenAI开源模型
-  {
-    name: 'gpt-oss:20b'
-  },
-  {
-    name: 'gpt-oss:120b'
-  },
-  // DeepSeek推理模型系列
-  {
-    name: 'deepseek-r1:1.5b'
-  },
-  {
-    name: 'deepseek-r1:7b'
-  },
-  {
-    name: 'deepseek-r1:8b'
-  },
-  {
-    name: 'deepseek-r1:14b'
-  },
-  {
-    name: 'deepseek-r1:32b'
-  },
-  {
-    name: 'deepseek-r1:70b'
-  },
-  {
-    name: 'deepseek-r1:671b'
-  },
-  // DeepSeek V3/V2.5系列
-  {
-    name: 'deepseek-v3:671b'
-  },
-  {
-    name: 'deepseek-v2.5:236b'
-  },
-  // Gemma3系列
-  {
-    name: 'gemma3:1b'
-  },
-  {
-    name: 'gemma3:4b'
-  },
-  {
-    name: 'gemma3:12b'
-  },
-  {
-    name: 'gemma3:27b'
-  },
-  // Gemma2系列
-  {
-    name: 'gemma2:2b'
-  },
-  {
-    name: 'gemma2:9b'
-  },
-  {
-    name: 'gemma2:27b'
-  },
-  // Gemma系列
-  {
-    name: 'gemma:2b'
-  },
-  {
-    name: 'gemma:7b'
-  },
-  // Qwen3系列
-  {
-    name: 'qwen3:0.6b'
-  },
-  {
-    name: 'qwen3:1.7b'
-  },
-  {
-    name: 'qwen3:4b'
-  },
-  {
-    name: 'qwen3:8b'
-  },
-  {
-    name: 'qwen3:14b'
-  },
-  {
-    name: 'qwen3:30b'
-  },
-  {
-    name: 'qwen3:32b'
-  },
-  {
-    name: 'qwen3:235b'
-  },
-  // Qwen3编程模型
-  {
-    name: 'qwen3-coder:30b'
-  },
-  // Qwen2.5系列
-  {
-    name: 'qwen2.5:0.5b'
-  },
-  {
-    name: 'qwen2.5:1.5b'
-  },
-  {
-    name: 'qwen2.5:3b'
-  },
-  {
-    name: 'qwen2.5:7b'
-  },
-  {
-    name: 'qwen2.5:14b'
-  },
-  {
-    name: 'qwen2.5:32b'
-  },
-  {
-    name: 'qwen2.5:72b'
-  },
-  // Qwen2.5编程模型系列
-  {
-    name: 'qwen2.5-coder:0.5b'
-  },
-  {
-    name: 'qwen2.5-coder:1.5b'
-  },
-  {
-    name: 'qwen2.5-coder:3b'
-  },
-  {
-    name: 'qwen2.5-coder:7b'
-  },
-  {
-    name: 'qwen2.5-coder:14b'
-  },
-  {
-    name: 'qwen2.5-coder:32b'
-  },
-  // Qwen2系列
-  {
-    name: 'qwen2:0.5b'
-  },
-  {
-    name: 'qwen2:1.5b'
-  },
-  {
-    name: 'qwen2:7b'
-  },
-  {
-    name: 'qwen2:72b'
-  },
-  // Qwen第一代系列
-  {
-    name: 'qwen:0.5b'
-  },
-  {
-    name: 'qwen:1.8b'
-  },
-  {
-    name: 'qwen:4b'
-  },
-  {
-    name: 'qwen:7b'
-  },
-  {
-    name: 'qwen:14b'
-  },
-  {
-    name: 'qwen:32b'
-  },
-  {
-    name: 'qwen:72b'
-  },
-  {
-    name: 'qwen:110b'
-  },
-  // QwQ推理模型
-  {
-    name: 'qwq:32b'
-  },
-  // Llama3.3系列
-  {
-    name: 'llama3.3:70b'
-  },
-  // Llama3.2系列
-  {
-    name: 'llama3.2:1b'
-  },
-  {
-    name: 'llama3.2:3b'
-  },
-  // Llama3.2视觉模型
-  {
-    name: 'llama3.2-vision:11b'
-  },
-  {
-    name: 'llama3.2-vision:90b'
-  },
-  // Llama3.1系列
-  {
-    name: 'llama3.1:8b'
-  },
-  {
-    name: 'llama3.1:70b'
-  },
-  {
-    name: 'llama3.1:405b'
-  },
-  // Llama3系列
-  {
-    name: 'llama3:8b'
-  },
-  {
-    name: 'llama3:70b'
-  },
-  // Llama2系列
-  {
-    name: 'llama2:7b'
-  },
-  {
-    name: 'llama2:13b'
-  },
-  {
-    name: 'llama2:70b'
-  },
-  // LLaVA视觉模型系列
-  {
-    name: 'llava:7b'
-  },
-  {
-    name: 'llava:13b'
-  },
-  {
-    name: 'llava:34b'
-  },
-  // LLaVA-Llama3模型
-  {
-    name: 'llava-llama3:8b'
-  },
-  // Mistral系列
-  {
-    name: 'mistral:7b'
-  },
-  {
-    name: 'mistral-nemo:12b'
-  },
-  {
-    name: 'mistral-small:22b'
-  },
-  {
-    name: 'mistral-small:24b'
-  },
-  // Phi系列
-  {
-    name: 'phi3:3.8b'
-  },
-  {
-    name: 'phi3:14b'
-  },
-  {
-    name: 'phi4:14b'
-  },
-  {
-    name: 'phi4-mini-reasoning:3.8b'
-  },
-  // CodeLlama编程模型系列
-  {
-    name: 'codellama:7b'
-  },
-  {
-    name: 'codellama:13b'
-  },
-  {
-    name: 'codellama:34b'
-  },
-  {
-    name: 'codellama:70b'
-  },
-  // MiniCPM视觉模型
-  {
-    name: 'minicpm-v:8b'
-  },
-  // TinyLlama轻量模型
-  {
-    name: 'tinyllama:1.1b'
-  },
-  // SmolLM2轻量模型系列
-  {
-    name: 'smollm2:135m'
-  },
-  {
-    name: 'smollm2:360m'
-  },
-  {
-    name: 'smollm2:1.7b'
-  },
-  // Tulu3指令模型
-  {
-    name: 'tulu3:8b'
-  },
-  {
-    name: 'tulu3:70b'
-  },
-  // OLMo2开源模型
-  {
-    name: 'olmo2:7b'
-  },
-  {
-    name: 'olmo2:13b'
-  },
-  // Solar Pro模型
-  {
-    name: 'solar-pro:22b'
-  },
-  // Dolphin指令模型
-  {
-    name: 'dolphin3:8b'
-  },
-  // Command R模型系列
-  {
-    name: 'command-r7b:7b'
-  },
-  {
-    name: 'command-r7b-arabic:7b'
-  },
-  {
-    name: 'command-a:111b'
-  },
-  // Magicoder编程模型
-  {
-    name: 'magicoder:7b'
-  },
-  // Mathstral数学模型
-  {
-    name: 'mathstral:7b'
-  },
-  // Falcon2模型
-  {
-    name: 'falcon2:11b'
-  },
-  // StableLM模型
-  {
-    name: 'stablelm-zephyr:3b'
-  },
-  // Granite Guardian安全模型
-  {
-    name: 'granite3-guardian:2b'
-  },
-  {
-    name: 'granite3-guardian:8b'
-  },
-  // ShieldGemma安全模型
-  {
-    name: 'shieldgemma:2b'
-  },
-  {
-    name: 'shieldgemma:9b'
-  },
-  {
-    name: 'shieldgemma:27b'
-  },
-  // Sailor2多语言模型
-  {
-    name: 'sailor2:1b'
-  },
-  {
-    name: 'sailor2:8b'
-  },
-  {
-    name: 'sailor2:20b'
-  },
-  // 函数调用模型
-  {
-    name: 'firefunction-v2:70b'
-  },
-  {
-    name: 'nexusraven:13b'
-  },
-  // 专业工具模型
-  {
-    name: 'duckdb-nsql:7b'
-  },
-  {
-    name: 'bespoke-minicheck:7b'
-  },
-  {
-    name: 'nuextract:3.8b'
-  },
-  {
-    name: 'reader-lm:0.5b'
-  },
-  {
-    name: 'reader-lm:1.5b'
-  },
-  // 推理和分析模型
-  {
-    name: 'marco-o1:7b'
-  },
-  // 混合专家模型
-  {
-    name: 'notux:8x7b'
-  },
-  // 大规模对话模型
-  {
-    name: 'alfred:40b'
-  },
-  {
-    name: 'goliath:120b'
-  },
-  {
-    name: 'megadolphin:120b'
-  },
-  // 嵌入模型
-  {
-    name: 'nomic-embed-text:335m'
-  },
-  {
-    name: 'mxbai-embed-large:335m'
-  },
-  {
-    name: 'bge-m3:567m'
-  }
-]
-
 // 可拉取的模型（排除已有的和正在拉取的）
-const availableModels = computed(() => {
-  const localModelNames = new Set(localModels.value.map((m) => m.name))
+type PullModelCatalogItem = { name: string }
+const pullModelCatalog = ref<MODEL_META[]>([])
+const isPullModelCatalogLoading = ref(false)
+const availableModels = computed<PullModelCatalogItem[]>(() => {
+  const localModelNames = new Set(effectiveLocalModels.value.map((model) => model.name))
   const pullingModelNames = new Set(Array.from(pullingModels.value.keys()))
-  return presetModels.filter((m) => !localModelNames.has(m.name) && !pullingModelNames.has(m.name))
+  const seenModelNames = new Set<string>()
+
+  return pullModelCatalog.value
+    .map((model) => model.id || model.name)
+    .filter((modelName): modelName is string => Boolean(modelName))
+    .filter((modelName) => {
+      if (seenModelNames.has(modelName)) return false
+      seenModelNames.add(modelName)
+      return !localModelNames.has(modelName) && !pullingModelNames.has(modelName)
+    })
+    .map((modelName) => ({ name: modelName }))
 })
 
 // 显示的本地模型（包括正在拉取的）
@@ -798,7 +480,7 @@ const displayLocalModels = computed(() => {
     ])
   )
 
-  const models = localModels.value.map((model: any) => {
+  const models = effectiveLocalModels.value.map((model: any) => {
     const meta = metaMap.get(model.name)
     const capabilitySources: string[] = []
     if (Array.isArray(model?.capabilities)) {
@@ -889,6 +571,27 @@ const ensureModelsReady = async () => {
   await ollamaStore.ensureProviderReady(props.provider.id)
 }
 
+const loadPullModelCatalog = async () => {
+  if (isPullModelCatalogLoading.value) {
+    return
+  }
+
+  isPullModelCatalogLoading.value = true
+  try {
+    const models = await modelClient.getDbProviderModels(props.provider.id)
+    pullModelCatalog.value = models
+  } catch {
+    pullModelCatalog.value = []
+  } finally {
+    isPullModelCatalogLoading.value = false
+  }
+}
+
+const openPullModelDialog = () => {
+  showPullModelDialog.value = true
+  void loadPullModelCatalog()
+}
+
 // 刷新模型列表 - 使用 settings store
 const refreshModels = async () => {
   await ollamaStore.refreshOllamaModels(props.provider.id)
@@ -937,7 +640,10 @@ const formatModelSize = (sizeInBytes: number): string => {
 
 // 使用 settings store 的辅助函数
 const isModelLocal = (modelName: string): boolean => {
-  return ollamaStore.isOllamaModelLocal(props.provider.id, modelName)
+  return (
+    ollamaStore.isOllamaModelLocal(props.provider.id, modelName) ||
+    providerModelMetas.value.some((meta) => meta.id === modelName)
+  )
 }
 
 // API URL 处理

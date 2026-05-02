@@ -14,6 +14,7 @@ import {
 import { ModelType } from '@shared/model'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import { execFile } from 'node:child_process'
 import { Ollama, ShowResponse } from 'ollama'
 import {
   runAiSdkCoreStream,
@@ -22,7 +23,10 @@ import {
   runAiSdkGenerateText,
   type AiSdkRuntimeContext
 } from '../aiSdk'
+import { normalizeOllamaOpenAIBaseUrl, normalizeOllamaSdkHost } from '../aiSdk/providerFactory'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+
+const OLLAMA_LIST_TIMEOUT_MS = 5000
 
 export class OllamaProvider extends BaseLLMProvider {
   private static readonly CONFIG_DRAIN_TIMEOUT_MS = 1500
@@ -44,22 +48,27 @@ export class OllamaProvider extends BaseLLMProvider {
   }
 
   private createOllamaClient(): Ollama {
+    const host = normalizeOllamaSdkHost(this.provider.baseUrl)
+
     if (this.provider.apiKey) {
       return new Ollama({
-        host: this.provider.baseUrl,
+        host,
         headers: { Authorization: `Bearer ${this.provider.apiKey}` }
       })
     }
 
     return new Ollama({
-      host: this.provider.baseUrl
+      host
     })
   }
 
   protected getAiSdkRuntimeContext(): AiSdkRuntimeContext {
     return {
-      providerKind: 'ollama',
-      provider: this.provider,
+      providerKind: 'openai-compatible',
+      provider: {
+        ...this.provider,
+        baseUrl: normalizeOllamaOpenAIBaseUrl(this.provider.baseUrl)
+      },
       configPresenter: this.configPresenter,
       defaultHeaders: this.defaultHeaders,
       buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
@@ -70,6 +79,188 @@ export class OllamaProvider extends BaseLLMProvider {
 
   private mergeCapabilities(...sources: Array<string[] | undefined>): string[] {
     return Array.from(new Set(sources.flatMap((source) => (Array.isArray(source) ? source : []))))
+  }
+
+  private normalizeCapabilities(capabilities?: string[]): string[] {
+    const capabilitySet = new Set(Array.isArray(capabilities) ? capabilities.filter(Boolean) : [])
+    if (capabilitySet.size === 0) {
+      capabilitySet.add('chat')
+    }
+    if (capabilitySet.has('completion')) {
+      capabilitySet.add('chat')
+    }
+    return Array.from(capabilitySet)
+  }
+
+  private getModelInfoEntries(modelInfo: ShowResponse['model_info'] | undefined) {
+    if (!modelInfo) {
+      return [] as Array<[string, unknown]>
+    }
+
+    if (modelInfo instanceof Map) {
+      return Array.from(modelInfo.entries()) as Array<[string, unknown]>
+    }
+
+    if (typeof modelInfo === 'object') {
+      return Object.entries(modelInfo as Record<string, unknown>)
+    }
+
+    return [] as Array<[string, unknown]>
+  }
+
+  private findModelInfoNumber(
+    entries: Array<[string, unknown]>,
+    exactKeys: string[],
+    fallback?: (key: string) => boolean
+  ): number | undefined {
+    for (const exactKey of exactKeys) {
+      const value = entries.find(([key]) => key === exactKey)?.[1]
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value
+      }
+    }
+
+    if (!fallback) {
+      return undefined
+    }
+
+    for (const [key, value] of entries) {
+      if (fallback(key) && typeof value === 'number' && Number.isFinite(value)) {
+        return value
+      }
+    }
+
+    return undefined
+  }
+
+  private findModelInfoString(entries: Array<[string, unknown]>, key: string): string | undefined {
+    const value = entries.find(([entryKey]) => entryKey === key)?.[1]
+    return typeof value === 'string' && value.trim() ? value : undefined
+  }
+
+  private findModelInfoValue(entries: Array<[string, unknown]>, key: string): unknown {
+    return entries.find(([entryKey]) => entryKey === key)?.[1]
+  }
+
+  private isLocalOllamaHost(): boolean {
+    try {
+      const url = new URL(normalizeOllamaSdkHost(this.provider.baseUrl))
+      return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(url.hostname)
+    } catch {
+      return false
+    }
+  }
+
+  private getOllamaCliCandidates(): string[] {
+    switch (process.platform) {
+      case 'darwin':
+        return ['ollama', '/opt/homebrew/bin/ollama', '/usr/local/bin/ollama']
+      case 'win32':
+        return ['ollama.exe', 'ollama']
+      default:
+        return ['ollama', '/usr/local/bin/ollama', '/usr/bin/ollama']
+    }
+  }
+
+  private createCliModel(name: string, digest: string): OllamaModel {
+    return {
+      name,
+      model: name,
+      size: 0,
+      digest,
+      modified_at: new Date(),
+      details: {
+        format: '',
+        family: 'default',
+        families: ['default'],
+        parameter_size: '',
+        quantization_level: ''
+      },
+      capabilities: ['chat']
+    }
+  }
+
+  private parseOllamaListOutput(output: string): OllamaModel[] {
+    return output
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('NAME '))
+      .map((line) => {
+        const match = line.match(/^(\S+)\s+([0-9a-fA-F]+)\s+/)
+        return match ? this.createCliModel(match[1], match[2]) : null
+      })
+      .filter((model): model is OllamaModel => Boolean(model))
+  }
+
+  private async listModelsFromCli(): Promise<OllamaModel[]> {
+    if (!this.isLocalOllamaHost()) {
+      return []
+    }
+
+    let lastError: unknown = null
+    try {
+      const sdkHost = normalizeOllamaSdkHost(this.provider.baseUrl)
+      for (const command of this.getOllamaCliCandidates()) {
+        try {
+          const stdout = await new Promise<string>((resolve, reject) => {
+            execFile(
+              command,
+              ['list'],
+              {
+                timeout: OLLAMA_LIST_TIMEOUT_MS,
+                maxBuffer: 1024 * 1024,
+                env: {
+                  ...process.env,
+                  OLLAMA_HOST: sdkHost
+                }
+              },
+              (error, output) => {
+                if (error) {
+                  reject(error)
+                  return
+                }
+
+                resolve(output)
+              }
+            )
+          })
+          return this.parseOllamaListOutput(stdout)
+        } catch (error) {
+          lastError = error
+        }
+      }
+
+      throw lastError
+    } catch {
+      return []
+    }
+  }
+
+  private async listModelsFromSdk(): Promise<OllamaModel[]> {
+    const response = await this.ollama.list()
+    return response.models as unknown as OllamaModel[]
+  }
+
+  private alignModelsWithCliList(
+    sdkModels: OllamaModel[],
+    cliModels: OllamaModel[]
+  ): OllamaModel[] {
+    if (cliModels.length === 0) {
+      return sdkModels
+    }
+
+    const sdkModelsByName = new Map(sdkModels.map((model) => [model.name, model]))
+    return cliModels.map((cliModel) => {
+      const sdkModel = sdkModelsByName.get(cliModel.name)
+      return sdkModel ? this.mergeOllamaModels(sdkModel, cliModel) : cliModel
+    })
+  }
+
+  private matchesRequestedModelName(actualModelName: string, requestedModelName: string): boolean {
+    return (
+      actualModelName === requestedModelName ||
+      (!requestedModelName.includes(':') && actualModelName === `${requestedModelName}:latest`)
+    )
   }
 
   private mergeModelInfo(
@@ -378,17 +569,59 @@ export class OllamaProvider extends BaseLLMProvider {
   private async attachModelInfo(model: OllamaModel): Promise<OllamaModel> {
     try {
       const showResponse = await this.showModelInfo(model.name)
-      const info = showResponse.model_info
+      const entries = this.getModelInfoEntries(showResponse.model_info)
       const family = model.details.family
-      const context_length = info?.[family + '.context_length'] ?? DEFAULT_MODEL_CONTEXT_LENGTH
-      const embedding_length = info?.[family + '.embedding_length'] ?? 512
-      const capabilities = showResponse.capabilities ?? ['chat']
+      const architecture = this.findModelInfoString(entries, 'general.architecture')
+      const exactPrefixes = Array.from(new Set([family, architecture].filter(Boolean) as string[]))
+      const context_length =
+        this.findModelInfoNumber(
+          entries,
+          exactPrefixes.map((prefix) => `${prefix}.context_length`),
+          (key) =>
+            key.endsWith('.context_length') && !key.includes('.vision.') && !key.includes('.audio.')
+        ) ?? DEFAULT_MODEL_CONTEXT_LENGTH
+      const embedding_length =
+        this.findModelInfoNumber(
+          entries,
+          exactPrefixes.map((prefix) => `${prefix}.embedding_length`),
+          (key) =>
+            key.endsWith('.embedding_length') &&
+            !key.includes('.vision.') &&
+            !key.includes('.audio.')
+        ) ?? 512
+      const visionEmbeddingLength = this.findModelInfoNumber(
+        entries,
+        exactPrefixes.map((prefix) => `${prefix}.vision.embedding_length`),
+        (key) => key.includes('.vision.') && key.endsWith('.embedding_length')
+      )
+      const fileType = this.findModelInfoValue(entries, 'general.file_type')
+      const parameterCount = this.findModelInfoValue(entries, 'general.parameter_count')
+      const quantizationVersion = this.findModelInfoValue(entries, 'general.quantization_version')
+      const general = {
+        ...(architecture ? { architecture } : {}),
+        ...(typeof fileType === 'string'
+          ? { file_type: fileType }
+          : typeof fileType === 'number'
+            ? { file_type: String(fileType) }
+            : {}),
+        ...(typeof parameterCount === 'number' ? { parameter_count: parameterCount } : {}),
+        ...(typeof quantizationVersion === 'number'
+          ? { quantization_version: quantizationVersion }
+          : {})
+      }
+      const capabilities = this.normalizeCapabilities(showResponse.capabilities)
 
       return {
         ...model,
+        details: {
+          ...model.details,
+          ...showResponse.details
+        },
         model_info: {
           context_length,
-          embedding_length
+          embedding_length,
+          ...(visionEmbeddingLength ? { vision: { embedding_length: visionEmbeddingLength } } : {}),
+          ...(Object.keys(general).length > 0 ? { general } : {})
         },
         capabilities
       }
@@ -403,19 +636,25 @@ export class OllamaProvider extends BaseLLMProvider {
           context_length: 4096,
           embedding_length: 512
         },
-        capabilities: ['chat']
+        capabilities: this.normalizeCapabilities(['chat'])
       }
     }
   }
 
   public async listModels(): Promise<OllamaModel[]> {
+    const [sdkModels, cliModels] = await Promise.all([
+      this.listModelsFromSdk().catch(() => [] as OllamaModel[]),
+      this.listModelsFromCli()
+    ])
+
     try {
-      const response = await this.ollama.list()
-      const models = response.models as unknown as OllamaModel[]
-      return await Promise.all(models.map(async (model) => this.attachModelInfo(model)))
-    } catch (error) {
-      console.error('Failed to list Ollama models:', (error as Error).message)
-      return []
+      const models = this.alignModelsWithCliList(sdkModels, cliModels)
+      const enrichedModels = await Promise.all(
+        models.map(async (model) => this.attachModelInfo(model))
+      )
+      return enrichedModels
+    } catch {
+      return this.alignModelsWithCliList(sdkModels, cliModels)
     }
   }
 
@@ -424,8 +663,7 @@ export class OllamaProvider extends BaseLLMProvider {
       const response = await this.ollama.ps()
       const runningModels = response.models as unknown as OllamaModel[]
       return await Promise.all(runningModels.map(async (model) => this.attachModelInfo(model)))
-    } catch (error) {
-      console.error('Failed to list running Ollama models:', (error as Error).message)
+    } catch {
       return []
     }
   }
@@ -448,9 +686,9 @@ export class OllamaProvider extends BaseLLMProvider {
         onProgress?.(chunk as ProgressResponse)
       }
 
-      return true
-    } catch (error) {
-      console.error(`Failed to pull Ollama model ${modelName}:`, (error as Error).message)
+      const localModels = await this.listModels()
+      return localModels.some((model) => this.matchesRequestedModelName(model.name, modelName))
+    } catch {
       return false
     } finally {
       finishStream()

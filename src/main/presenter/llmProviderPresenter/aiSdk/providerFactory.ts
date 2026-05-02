@@ -12,7 +12,6 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { createOllama } from 'ollama-ai-provider'
 import { ProxyAgent } from 'undici'
 import { proxyConfig } from '../../proxyConfig'
 import { createReasoningMiddleware } from './middlewares/reasoningMiddleware'
@@ -25,7 +24,6 @@ export type AiSdkProviderKind =
   | 'gemini'
   | 'vertex'
   | 'aws-bedrock'
-  | 'ollama'
 
 export interface CreateAiSdkProviderContextParams {
   providerKind: AiSdkProviderKind
@@ -47,7 +45,6 @@ export interface AiSdkProviderContext {
     | 'google'
     | 'vertex'
     | 'bedrock'
-    | 'ollama'
   model: any
   embeddingModel?: any
   imageModel?: any
@@ -174,6 +171,57 @@ export function normalizeGeminiBaseUrl(baseUrl: string | undefined): string {
   return `${normalized}/v1beta`
 }
 
+const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
+
+function normalizeOllamaInputBaseUrl(baseUrl: string | undefined): URL | null {
+  const normalized = (baseUrl || DEFAULT_OLLAMA_BASE_URL).trim()
+  if (!normalized) {
+    return new URL(DEFAULT_OLLAMA_BASE_URL)
+  }
+
+  try {
+    if (normalized.startsWith(':')) {
+      return new URL(`http://127.0.0.1${normalized}`)
+    }
+
+    return new URL(normalized.includes('://') ? normalized : `http://${normalized}`)
+  } catch {
+    return null
+  }
+}
+
+function stripOllamaEndpointSuffix(pathname: string): string {
+  return pathname.replace(/\/+$/, '').replace(/\/(?:api|v1)$/i, '') || '/'
+}
+
+export function normalizeOllamaSdkHost(baseUrl: string | undefined): string {
+  const parsed = normalizeOllamaInputBaseUrl(baseUrl)
+  if (!parsed) {
+    const fallback = (baseUrl || DEFAULT_OLLAMA_BASE_URL).trim().replace(/\/+$/, '')
+    return fallback.replace(/\/(?:api|v1)$/i, '') || DEFAULT_OLLAMA_BASE_URL
+  }
+
+  parsed.search = ''
+  parsed.hash = ''
+  parsed.pathname = stripOllamaEndpointSuffix(parsed.pathname)
+
+  return parsed.toString().replace(/\/+$/, '')
+}
+
+export function normalizeOllamaOpenAIBaseUrl(baseUrl: string | undefined): string {
+  const parsed = normalizeOllamaInputBaseUrl(baseUrl)
+  if (!parsed) {
+    const fallback = normalizeOllamaSdkHost(baseUrl)
+    return `${fallback.replace(/\/+$/, '')}/v1`
+  }
+
+  parsed.search = ''
+  parsed.hash = ''
+  parsed.pathname = `${stripOllamaEndpointSuffix(parsed.pathname).replace(/\/+$/, '')}/v1`
+
+  return parsed.toString().replace(/\/+$/, '')
+}
+
 function normalizeRequestBody(
   provider: LLM_PROVIDER,
   requestUrl: string,
@@ -265,6 +313,10 @@ function createFetchMiddleware(
 
 function buildOpenAIEndpoint(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}${path}`
+}
+
+function isOllamaProvider(provider: LLM_PROVIDER): boolean {
+  return provider.id === 'ollama' || provider.apiType === 'ollama'
 }
 
 const DEFAULT_AZURE_V1_API_VERSION = 'v1'
@@ -491,9 +543,12 @@ export function createAiSdkProviderContext(
         }
       }
 
+      const openAICompatibleBaseUrl = isOllamaProvider(params.provider)
+        ? normalizeOllamaOpenAIBaseUrl(baseUrl)
+        : baseUrl
       const provider = createOpenAICompatible({
         name: params.provider.id,
-        baseURL: baseUrl,
+        baseURL: openAICompatibleBaseUrl,
         apiKey: params.provider.apiKey,
         headers: params.defaultHeaders,
         fetch,
@@ -506,7 +561,7 @@ export function createAiSdkProviderContext(
         model: maybeWrapModel(provider.chatModel(params.modelId) as any),
         embeddingModel: provider.embeddingModel(params.modelId),
         imageModel: provider.imageModel(params.modelId),
-        endpoint: buildOpenAIEndpoint(baseUrl, '/chat/completions')
+        endpoint: buildOpenAIEndpoint(openAICompatibleBaseUrl, '/chat/completions')
       }
     }
 
@@ -603,24 +658,6 @@ export function createAiSdkProviderContext(
         embeddingModel: (provider as any).embeddingModel?.(params.modelId),
         imageModel: (provider as any).imageModel?.(params.modelId),
         endpoint: bedrockProvider.baseUrl || 'https://bedrock-runtime.amazonaws.com'
-      }
-    }
-
-    case 'ollama': {
-      const provider = createOllama({
-        baseURL: baseUrl || undefined,
-        headers: params.defaultHeaders,
-        fetch
-      })
-
-      return {
-        providerOptionsKey: 'ollama',
-        apiType: 'ollama',
-        model: maybeWrapModel(provider(params.modelId) as any),
-        embeddingModel:
-          (provider as any).embeddingModel?.(params.modelId) ??
-          (provider as any).textEmbeddingModel?.(params.modelId),
-        endpoint: baseUrl || 'http://127.0.0.1:11434'
       }
     }
   }
