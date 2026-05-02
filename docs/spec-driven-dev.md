@@ -6,15 +6,21 @@ Specification-Driven Development (SDD) eliminates the gap between requirements a
 
 In practice, SDD works best when the spec is concrete enough to drive design decisions, tests, and PR review. Prefer small, reviewable increments that keep spec → plan → code traceability.
 
-## Recommended Artifacts
+## Required Artifacts
 
-Keep feature work in a lightweight spec folder so reviewers can find the intent without hunting through code:
+Keep every active change in a lightweight SDD folder so reviewers can find the intent without hunting through code. Use one kebab-case folder per goal:
 
-- `docs/specs/<feature>/spec.md` - user stories, acceptance criteria, non-goals, open questions
-- `docs/specs/<feature>/plan.md` - architecture decisions, event flow, data model, test strategy
-- `docs/specs/<feature>/tasks.md` - small, ordered tasks that map to commits/PRs (optional but recommended)
+- `docs/features/<goal>/` - new features, user-visible capabilities, integrations, and tools
+- `docs/issues/<goal>/` - bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems
+- `docs/architecture/<goal>/` - refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design
 
-If a change is tiny, a single `spec.md` is enough—don’t over-document.
+Each active goal folder contains:
+
+- `spec.md` - user stories, acceptance criteria, non-goals, constraints, open questions
+- `plan.md` - architecture decisions, event flow, data model, compatibility, test strategy
+- `tasks.md` - small, ordered tasks that map to commits/PRs
+
+If a change is tiny, keep all three files short.
 
 ## Workflow
 
@@ -22,6 +28,8 @@ If a change is tiny, a single `spec.md` is enough—don’t over-document.
 2. **Implementation Plan** - Architecture decisions, event flow, IPC surface, test strategy
 3. **Task Breakdown** - Small tasks that can be reviewed independently
 4. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality gates
+
+Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. Move completed or stale goal folders to `docs/archives/<goal>/`. Add an archive note when historical documents reference code paths that moved or were removed. Delete documents that only describe removed code and have no reusable decision record.
 
 ## Six Core Principles
 
@@ -145,4 +153,3 @@ A feature is “done” when:
 - Lint/typecheck/tests pass locally
 - User-facing strings use i18n keys
 - Any migrations or breaking changes are documented
-

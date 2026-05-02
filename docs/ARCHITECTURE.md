@@ -103,9 +103,9 @@ flowchart LR
 
 单轨化的目标、阶段和 merge gate 见：
 
-- [specs/renderer-main-single-track/spec.md](./specs/renderer-main-single-track/spec.md)
-- [specs/renderer-main-single-track/plan.md](./specs/renderer-main-single-track/plan.md)
-- [specs/renderer-main-single-track/tasks.md](./specs/renderer-main-single-track/tasks.md)
+- [architecture/renderer-main-single-track/spec.md](./architecture/renderer-main-single-track/spec.md)
+- [architecture/renderer-main-single-track/plan.md](./architecture/renderer-main-single-track/plan.md)
+- [architecture/renderer-main-single-track/tasks.md](./architecture/renderer-main-single-track/tasks.md)
 
 ## 历史对照与防回归
 
@@ -114,7 +114,7 @@ flowchart LR
 - main kernel 边界回归由 `scripts/architecture-guard.mjs` 和 `docs/architecture/baselines/main-kernel-*.{md,json}` 追踪
 - `scripts/architecture-guard.mjs` 负责固定 `src/renderer/api/legacy/**`、禁止业务层新增 direct legacy transport，并把 typed boundary 外的 legacy access 视为违规
 - legacy agent cleanup 回归由 `scripts/agent-cleanup-guard.mjs` 追踪
-- renderer-main 单轨化后续治理由 `docs/specs/renderer-main-single-track/` 追踪
+- renderer-main 单轨化后续治理由 `docs/architecture/renderer-main-single-track/` 追踪
 
 ## 推荐阅读顺序
 

@@ -1,5 +1,8 @@
 # 通用 Workspace 和 Agent 能力重构实施总结
 
+> Archive note: This document is a historical record. File paths and implementation names can reference code that has since moved or been removed.
+
+
 ## 概述
 
 本次重构围绕“统一工具路由 + 通用 Workspace 视图 + Mode 化能力开关”推进：工具调用统一经 ToolPresenter/ToolMapper 管控，Agent 工具拆为 Yo Browser + Agent FileSystem（仅 agent 模式启用），ACP agent 仍走 ACP provider 内置工具流；Workspace UI 对 agent/acp agent 通用，路径选择与会话设置同步，并补齐安全边界与文件刷新机制。
