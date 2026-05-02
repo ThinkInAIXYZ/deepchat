@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.0.4-beta.5 (2026-05-04)
+- Added Mac computer use capability for enhanced desktop automation
+- Added launch at login and access controls for better app startup management
+- Enhanced agent capabilities with improved model source derivation
+- Upgraded markstream-vue for better stream rendering performance
+- Fixed disabled provider models still appearing in model selection
+- Fixed DeepSeek empty reasoning content handling
+- Fixed file join failures in chat flows
+- 新增 Mac 电脑使用功能，增强桌面自动化能力
+- 新增开机启动与访问控制，优化应用启动管理
+- 增强 Agent 功能，优化模型源选择逻辑
+- 升级 markstream-vue，提升流式渲染性能
+- 修复已禁用供应商模型仍在模型选择中显示的问题
+- 修复 DeepSeek 空推理内容处理
+- 修复聊天流程中的文件连接失败问题
+
 ## v1.0.4-beta.4 (2026-04-29)
 - Added model fetching fallbacks for Anthropic and Gemini so provider model lists recover more reliably
 - Added Xiaomi Token Plan providers for CN, SGP, and AMS regions
