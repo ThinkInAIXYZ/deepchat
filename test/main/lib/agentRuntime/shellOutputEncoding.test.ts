@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createUtf8StreamDecoder,
+  prepareProcessEnvForUtf8Output,
   prepareShellCommandForUtf8Output
 } from '@/lib/agentRuntime/shellOutputEncoding'
 
@@ -42,6 +43,29 @@ describe('shellOutputEncoding', () => {
     })
 
     expect(prepareShellCommandForUtf8Output('/bin/zsh', 'ls')).toBe('ls')
+  })
+
+  it('adds Python UTF-8 environment for Windows direct processes', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+
+    expect(prepareProcessEnvForUtf8Output({ PATH: 'C:\\bin' })).toEqual({
+      PATH: 'C:\\bin',
+      PYTHONIOENCODING: 'utf-8',
+      PYTHONUTF8: '1'
+    })
+  })
+
+  it('keeps direct process environment unchanged outside Windows', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'linux'
+    })
+    const env = { PATH: '/bin' }
+
+    expect(prepareProcessEnvForUtf8Output(env)).toBe(env)
   })
 
   it('decodes UTF-8 text split across chunks', () => {

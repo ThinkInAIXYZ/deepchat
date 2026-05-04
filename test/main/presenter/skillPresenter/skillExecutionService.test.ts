@@ -297,6 +297,11 @@ describe('SkillExecutionService', () => {
   })
 
   it('decodes split UTF-8 foreground output', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+
     class MockStream extends EventEmitter {
       destroy = vi.fn()
     }
@@ -337,6 +342,16 @@ describe('SkillExecutionService', () => {
 
     const result = await resultPromise
 
+    expect(spawn).toHaveBeenCalledWith(
+      'python',
+      ['script.py'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1'
+        })
+      })
+    )
     expect(result).toContain('中文.txt')
     expect(result).toContain('Exit Code: 0')
   })

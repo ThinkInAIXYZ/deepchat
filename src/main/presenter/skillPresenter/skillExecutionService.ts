@@ -18,6 +18,7 @@ import {
 } from '@/lib/agentRuntime/shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
+  prepareProcessEnvForUtf8Output,
   prepareShellCommandForUtf8Output
 } from '@/lib/agentRuntime/shellOutputEncoding'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
@@ -413,9 +414,10 @@ export class SkillExecutionService {
         ? prepareShellCommandForUtf8Output(shellRuntime.shell, plan.shellCommand)
         : plan.shellCommand
       const args = shellRuntime ? [...shellRuntime.args, shellCommand] : plan.args
+      const env = shellRuntime ? plan.env : prepareProcessEnvForUtf8Output(plan.env)
       const child = spawn(command, args, {
         cwd: plan.cwd,
-        env: plan.env,
+        env,
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false
       })

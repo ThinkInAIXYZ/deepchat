@@ -8,6 +8,20 @@ const POWERSHELL_UTF8_PREAMBLE =
 
 const CMD_UTF8_PREAMBLE = 'chcp 65001 > nul'
 
+export function prepareProcessEnvForUtf8Output(
+  env: Record<string, string>
+): Record<string, string> {
+  if (process.platform !== 'win32') {
+    return env
+  }
+
+  return {
+    ...env,
+    PYTHONIOENCODING: 'utf-8',
+    PYTHONUTF8: '1'
+  }
+}
+
 export function prepareShellCommandForUtf8Output(shell: string, command: string): string {
   if (process.platform !== 'win32') {
     return command
