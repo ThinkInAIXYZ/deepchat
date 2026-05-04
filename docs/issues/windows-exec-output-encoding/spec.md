@@ -17,6 +17,8 @@ names and read the command output without mojibake.
 - Do not change tool call rendering in the renderer.
 - Do not change plugin, hook notification, or RTK internal command output handling.
 - Do not support commands that intentionally switch the console back to a non-UTF-8 code page.
+- Do not add Git Bash or WSL-specific encoding setup; those shells are expected to provide their
+  own UTF-8 behavior.
 
 ## Constraints
 

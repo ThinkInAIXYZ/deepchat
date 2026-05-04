@@ -15,7 +15,7 @@ import {
   mergeCommandEnvironment
 } from '@/lib/agentRuntime/shellEnvHelper'
 import {
-  createUtf8StreamDecoder,
+  createUtf8OutputDecoderPair,
   prepareShellCommandForUtf8Output
 } from '@/lib/agentRuntime/shellOutputEncoding'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
@@ -351,18 +351,7 @@ export class AgentBashHandler {
       let outputWriteQueue = Promise.resolve()
       let timeoutId: NodeJS.Timeout | null = null
 
-      const stdoutDecoder = createUtf8StreamDecoder((data) => appendOutput(data))
-      const stderrDecoder = createUtf8StreamDecoder((data) => appendOutput(data))
-      let outputDecodersFlushed = false
-
-      const flushOutputDecoders = () => {
-        if (outputDecodersFlushed) {
-          return
-        }
-        outputDecodersFlushed = true
-        stdoutDecoder.end()
-        stderrDecoder.end()
-      }
+      const outputDecoders = createUtf8OutputDecoderPair((data) => appendOutput(data))
 
       const cleanupTimeout = () => {
         if (timeoutId) {
@@ -375,7 +364,7 @@ export class AgentBashHandler {
         if (settled) return
         settled = true
         cleanupTimeout()
-        flushOutputDecoders()
+        outputDecoders.flush()
 
         try {
           await outputWriteQueue
@@ -414,11 +403,11 @@ export class AgentBashHandler {
       }
 
       child.stdout?.on('data', (data: Buffer | string) => {
-        stdoutDecoder.write(data)
+        outputDecoders.writeStdout(data)
       })
 
       child.stderr?.on('data', (data: Buffer | string) => {
-        stderrDecoder.write(data)
+        outputDecoders.writeStderr(data)
       })
 
       if (options.stdin !== undefined) {
@@ -433,7 +422,7 @@ export class AgentBashHandler {
             return
           }
 
-          flushOutputDecoders()
+          outputDecoders.flush()
           const preview =
             offloaded && outputFilePath
               ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
@@ -452,11 +441,12 @@ export class AgentBashHandler {
 
       child.on('error', (error) => {
         cleanupTimeout()
+        outputDecoders.flush()
         reject(error)
       })
 
       child.on('close', async (code, signal) => {
-        flushOutputDecoders()
+        outputDecoders.flush()
         const preview =
           offloaded && outputFilePath
             ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)

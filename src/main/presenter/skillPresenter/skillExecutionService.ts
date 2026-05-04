@@ -17,7 +17,7 @@ import {
   mergeCommandEnvironment
 } from '@/lib/agentRuntime/shellEnvHelper'
 import {
-  createUtf8StreamDecoder,
+  createUtf8OutputDecoderPair,
   prepareShellCommandForUtf8Output
 } from '@/lib/agentRuntime/shellOutputEncoding'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
@@ -432,18 +432,7 @@ export class SkillExecutionService {
       let forceSettleTimeoutId: NodeJS.Timeout | null = null
       let settled = false
 
-      const stdoutDecoder = createUtf8StreamDecoder((data) => appendOutput(data))
-      const stderrDecoder = createUtf8StreamDecoder((data) => appendOutput(data))
-      let outputDecodersFlushed = false
-
-      const flushOutputDecoders = () => {
-        if (outputDecodersFlushed) {
-          return
-        }
-        outputDecodersFlushed = true
-        stdoutDecoder.end()
-        stderrDecoder.end()
-      }
+      const outputDecoders = createUtf8OutputDecoderPair((data) => appendOutput(data))
 
       const cleanupTimers = () => {
         if (timeoutId) {
@@ -468,7 +457,7 @@ export class SkillExecutionService {
         cleanupTimers()
         child.removeAllListeners('error')
         child.removeAllListeners('close')
-        flushOutputDecoders()
+        outputDecoders.flush()
 
         try {
           await outputWriteQueue
@@ -573,8 +562,8 @@ export class SkillExecutionService {
         queueOutputWrite(chunk)
       }
 
-      child.stdout?.on('data', (data: Buffer | string) => stdoutDecoder.write(data))
-      child.stderr?.on('data', (data: Buffer | string) => stderrDecoder.write(data))
+      child.stdout?.on('data', (data: Buffer | string) => outputDecoders.writeStdout(data))
+      child.stderr?.on('data', (data: Buffer | string) => outputDecoders.writeStderr(data))
 
       if (stdin !== undefined) {
         child.stdin?.write(stdin)

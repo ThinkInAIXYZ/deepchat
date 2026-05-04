@@ -4,7 +4,10 @@ import path from 'path'
 import { nanoid } from 'nanoid'
 import logger from '@shared/logger'
 import { getUserShell } from './shellEnvHelper'
-import { createUtf8StreamDecoder, prepareShellCommandForUtf8Output } from './shellOutputEncoding'
+import {
+  createUtf8OutputDecoderPair,
+  prepareShellCommandForUtf8Output
+} from './shellOutputEncoding'
 import { terminateProcessTree } from './processTree'
 import { resolveSessionDir } from './sessionPaths'
 
@@ -447,54 +450,29 @@ export class BackgroundExecSessionManager {
     session: BackgroundSession,
     config: ReturnType<typeof getConfig>
   ): void {
-    const stdoutDecoder = createUtf8StreamDecoder((data) =>
+    const outputDecoders = createUtf8OutputDecoderPair((data) =>
       this.appendOutput(session, data, config)
     )
-    const stderrDecoder = createUtf8StreamDecoder((data) =>
-      this.appendOutput(session, data, config)
-    )
-    let stdoutFlushed = false
-    let stderrFlushed = false
-
-    const flushStdout = () => {
-      if (stdoutFlushed) {
-        return
-      }
-      stdoutFlushed = true
-      stdoutDecoder.end()
-    }
-
-    const flushStderr = () => {
-      if (stderrFlushed) {
-        return
-      }
-      stderrFlushed = true
-      stderrDecoder.end()
-    }
-
-    session.flushOutputDecoders = () => {
-      flushStdout()
-      flushStderr()
-    }
+    session.flushOutputDecoders = outputDecoders.flush
 
     const stdoutHandler = (data: Buffer | string) => {
-      stdoutDecoder.write(data)
+      outputDecoders.writeStdout(data)
     }
 
     const stderrHandler = (data: Buffer | string) => {
-      stderrDecoder.write(data)
+      outputDecoders.writeStderr(data)
     }
 
     session.child.stdout?.on('data', stdoutHandler)
     session.child.stderr?.on('data', stderrHandler)
 
     session.child.stdout?.on('end', () => {
-      flushStdout()
+      outputDecoders.flushStdout()
       session.stdoutEof = true
     })
 
     session.child.stderr?.on('end', () => {
-      flushStderr()
+      outputDecoders.flushStderr()
       session.stderrEof = true
     })
   }

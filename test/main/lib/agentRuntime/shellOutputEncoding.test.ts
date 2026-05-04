@@ -23,7 +23,7 @@ describe('shellOutputEncoding', () => {
 
     expect(command).toContain('[Console]::OutputEncoding')
     expect(command).toContain('$OutputEncoding')
-    expect(command).toMatch(/dir$/)
+    expect(command).toMatch(/; dir$/)
   })
 
   it('wraps Windows cmd commands with UTF-8 code page setup', () => {
@@ -53,6 +53,18 @@ describe('shellOutputEncoding', () => {
 
     decoder.write(bytes.subarray(0, 2))
     decoder.write(bytes.subarray(2))
+    decoder.end()
+
+    expect(output).toBe('中文.txt\n')
+  })
+
+  it('passes string chunks through without re-encoding', () => {
+    let output = ''
+    const decoder = createUtf8StreamDecoder((text) => {
+      output += text
+    })
+
+    decoder.write('中文.txt\n')
     decoder.end()
 
     expect(output).toBe('中文.txt\n')
