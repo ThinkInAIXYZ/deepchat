@@ -16,6 +16,10 @@ import {
   getUserShell,
   mergeCommandEnvironment
 } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  createUtf8StreamDecoder,
+  prepareShellCommandForUtf8Output
+} from '@/lib/agentRuntime/shellOutputEncoding'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 
@@ -405,7 +409,10 @@ export class SkillExecutionService {
     return await new Promise((resolve, reject) => {
       const shellRuntime = plan.spawnMode === 'shell' ? getUserShell() : null
       const command = shellRuntime ? shellRuntime.shell : plan.command
-      const args = shellRuntime ? [...shellRuntime.args, plan.shellCommand] : plan.args
+      const shellCommand = shellRuntime
+        ? prepareShellCommandForUtf8Output(shellRuntime.shell, plan.shellCommand)
+        : plan.shellCommand
+      const args = shellRuntime ? [...shellRuntime.args, shellCommand] : plan.args
       const child = spawn(command, args, {
         cwd: plan.cwd,
         env: plan.env,
@@ -424,6 +431,19 @@ export class SkillExecutionService {
       let killTimeoutId: NodeJS.Timeout | null = null
       let forceSettleTimeoutId: NodeJS.Timeout | null = null
       let settled = false
+
+      const stdoutDecoder = createUtf8StreamDecoder((data) => appendOutput(data))
+      const stderrDecoder = createUtf8StreamDecoder((data) => appendOutput(data))
+      let outputDecodersFlushed = false
+
+      const flushOutputDecoders = () => {
+        if (outputDecodersFlushed) {
+          return
+        }
+        outputDecodersFlushed = true
+        stdoutDecoder.end()
+        stderrDecoder.end()
+      }
 
       const cleanupTimers = () => {
         if (timeoutId) {
@@ -448,6 +468,7 @@ export class SkillExecutionService {
         cleanupTimers()
         child.removeAllListeners('error')
         child.removeAllListeners('close')
+        flushOutputDecoders()
 
         try {
           await outputWriteQueue
@@ -552,10 +573,8 @@ export class SkillExecutionService {
         queueOutputWrite(chunk)
       }
 
-      child.stdout?.setEncoding('utf-8')
-      child.stderr?.setEncoding('utf-8')
-      child.stdout?.on('data', (data: string) => appendOutput(data))
-      child.stderr?.on('data', (data: string) => appendOutput(data))
+      child.stdout?.on('data', (data: Buffer | string) => stdoutDecoder.write(data))
+      child.stderr?.on('data', (data: Buffer | string) => stderrDecoder.write(data))
 
       if (stdin !== undefined) {
         child.stdin?.write(stdin)
