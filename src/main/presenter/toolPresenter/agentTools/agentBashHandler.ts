@@ -14,6 +14,10 @@ import {
   getUserShell,
   mergeCommandEnvironment
 } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  createUtf8OutputDecoderPair,
+  prepareShellCommandForUtf8Output
+} from '@/lib/agentRuntime/shellOutputEncoding'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 
 // Consider moving to a shared handlers location in future refactoring
@@ -328,10 +332,11 @@ export class AgentBashHandler {
     options: ExecuteCommandOptions
   ): Promise<CompletedShellProcessResult> {
     const { shell, args } = getUserShell()
+    const shellCommand = prepareShellCommandForUtf8Output(shell, command)
     const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
 
     return new Promise((resolve, reject) => {
-      const child = spawn(shell, [...args, command], {
+      const child = spawn(shell, [...args, shellCommand], {
         cwd,
         env: options.env ? { ...options.env } : { ...process.env },
         detached: process.platform !== 'win32',
@@ -346,6 +351,8 @@ export class AgentBashHandler {
       let outputWriteQueue = Promise.resolve()
       let timeoutId: NodeJS.Timeout | null = null
 
+      const outputDecoders = createUtf8OutputDecoderPair((data) => appendOutput(data))
+
       const cleanupTimeout = () => {
         if (timeoutId) {
           clearTimeout(timeoutId)
@@ -357,6 +364,7 @@ export class AgentBashHandler {
         if (settled) return
         settled = true
         cleanupTimeout()
+        outputDecoders.flush()
 
         try {
           await outputWriteQueue
@@ -394,15 +402,12 @@ export class AgentBashHandler {
           })
       }
 
-      child.stdout?.setEncoding('utf-8')
-      child.stderr?.setEncoding('utf-8')
-
-      child.stdout?.on('data', (data: string) => {
-        appendOutput(data)
+      child.stdout?.on('data', (data: Buffer | string) => {
+        outputDecoders.writeStdout(data)
       })
 
-      child.stderr?.on('data', (data: string) => {
-        appendOutput(data)
+      child.stderr?.on('data', (data: Buffer | string) => {
+        outputDecoders.writeStderr(data)
       })
 
       if (options.stdin !== undefined) {
@@ -417,6 +422,7 @@ export class AgentBashHandler {
             return
           }
 
+          outputDecoders.flush()
           const preview =
             offloaded && outputFilePath
               ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
@@ -435,10 +441,12 @@ export class AgentBashHandler {
 
       child.on('error', (error) => {
         cleanupTimeout()
+        outputDecoders.flush()
         reject(error)
       })
 
       child.on('close', async (code, signal) => {
+        outputDecoders.flush()
         const preview =
           offloaded && outputFilePath
             ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)

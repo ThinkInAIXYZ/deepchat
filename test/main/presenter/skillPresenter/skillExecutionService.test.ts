@@ -44,6 +44,7 @@ vi.mock('../../../../src/main/lib/agentRuntime/rtkRuntimeService', () => ({
 }))
 
 import { spawn } from 'child_process'
+import * as shellEnvHelper from '../../../../src/main/lib/agentRuntime/shellEnvHelper'
 import { rtkRuntimeService } from '../../../../src/main/lib/agentRuntime/rtkRuntimeService'
 
 describe('SkillExecutionService', () => {
@@ -54,6 +55,7 @@ describe('SkillExecutionService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(shellEnvHelper.getUserShell).mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
     vi.mocked(fs.promises.stat).mockResolvedValue({
       isDirectory: () => true
@@ -233,6 +235,125 @@ describe('SkillExecutionService', () => {
     })
 
     expect((service as never).quoteForShell('value%"PATH"%')).toBe('"value%%\\"PATH\\"%%"')
+  })
+
+  it('wraps Windows shell-mode foreground commands with UTF-8 output setup', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+    vi.mocked(shellEnvHelper.getUserShell).mockReturnValue({
+      shell: 'powershell.exe',
+      args: ['-NoProfile', '-Command']
+    })
+
+    class MockStream extends EventEmitter {
+      destroy = vi.fn()
+    }
+
+    class MockChild extends EventEmitter {
+      stdout = new MockStream()
+      stderr = new MockStream()
+      stdin = {
+        write: vi.fn(),
+        end: vi.fn(),
+        destroy: vi.fn()
+      }
+      kill = vi.fn()
+    }
+
+    const child = new MockChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(service as never, 'createForegroundOutputPath' as never).mockReturnValue(null)
+
+    const resultPromise = (service as never).runForeground(
+      {
+        command: 'node',
+        args: ['script.js'],
+        cwd: '/skills/ocr',
+        env: { PATH: '/bin' },
+        shellCommand: 'dir',
+        outputPrefix: 'skill_ocr',
+        spawnMode: 'shell'
+      },
+      1000,
+      'conv-1'
+    )
+
+    child.stdout.emit('data', Buffer.from('ok\n'))
+    child.emit('close', 0)
+
+    const result = await resultPromise
+
+    expect(spawn).toHaveBeenCalledWith(
+      'powershell.exe',
+      ['-NoProfile', '-Command', expect.stringContaining('[Console]::OutputEncoding')],
+      expect.objectContaining({
+        shell: false
+      })
+    )
+    expect(result).toContain('ok')
+    expect(result).toContain('Exit Code: 0')
+  })
+
+  it('decodes split UTF-8 foreground output', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+
+    class MockStream extends EventEmitter {
+      destroy = vi.fn()
+    }
+
+    class MockChild extends EventEmitter {
+      stdout = new MockStream()
+      stderr = new MockStream()
+      stdin = {
+        write: vi.fn(),
+        end: vi.fn(),
+        destroy: vi.fn()
+      }
+      kill = vi.fn()
+    }
+
+    const child = new MockChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(service as never, 'createForegroundOutputPath' as never).mockReturnValue(null)
+
+    const resultPromise = (service as never).runForeground(
+      {
+        command: 'python',
+        args: ['script.py'],
+        cwd: '/skills/ocr',
+        env: { PATH: '/bin' },
+        shellCommand: 'python script.py',
+        outputPrefix: 'skill_ocr',
+        spawnMode: 'direct'
+      },
+      1000,
+      'conv-1'
+    )
+
+    const bytes = Buffer.from('中文.txt\n', 'utf8')
+    child.stdout.emit('data', bytes.subarray(0, 2))
+    child.stdout.emit('data', bytes.subarray(2))
+    child.emit('close', 0)
+
+    const result = await resultPromise
+
+    expect(spawn).toHaveBeenCalledWith(
+      'python',
+      ['script.py'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1'
+        })
+      })
+    )
+    expect(result).toContain('中文.txt')
+    expect(result).toContain('Exit Code: 0')
   })
 
   it('escalates to SIGKILL when foreground timeout grace expires', async () => {

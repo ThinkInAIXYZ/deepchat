@@ -45,6 +45,8 @@ class MockChildProcess extends EventEmitter {
 
 describe('BackgroundExecSessionManager', () => {
   let manager: BackgroundExecSessionManager
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+  const originalPsModulePath = process.env.PSModulePath
 
   beforeEach(() => {
     manager = new BackgroundExecSessionManager()
@@ -55,6 +57,14 @@ describe('BackgroundExecSessionManager', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     ;(manager as never).sessions.clear()
+    if (originalPlatform) {
+      Object.defineProperty(process, 'platform', originalPlatform)
+    }
+    if (originalPsModulePath === undefined) {
+      delete process.env.PSModulePath
+    } else {
+      process.env.PSModulePath = originalPsModulePath
+    }
   })
 
   const createSession = (overrides: Record<string, unknown> = {}) => ({
@@ -267,5 +277,52 @@ describe('BackgroundExecSessionManager', () => {
     } finally {
       delete process.env.BASELINE_FLAG
     }
+  })
+
+  it('wraps Windows PowerShell commands before starting a session', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+    process.env.PSModulePath = 'C:\\PowerShell\\Modules'
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    await manager.start('conv-1', 'dir', '/workspace', { timeout: 0 })
+
+    expect(spawn).toHaveBeenCalledWith(
+      'powershell.exe',
+      ['-NoProfile', '-Command', expect.stringContaining('[Console]::OutputEncoding')],
+      expect.objectContaining({
+        detached: false
+      })
+    )
+  })
+
+  it('decodes split UTF-8 output from running sessions', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const result = await manager.start('conv-1', 'echo test', '/workspace', { timeout: 0 })
+    const bytes = Buffer.from('中文.txt\n', 'utf8')
+
+    child.stdout.emit('data', bytes.subarray(0, 2))
+    child.stdout.emit('data', bytes.subarray(2))
+    child.stdout.emit('end')
+    child.stderr.emit('end')
+    child.emit('close', 0, null)
+
+    await expect(
+      manager.waitForCompletionOrYield('conv-1', result.sessionId, 100)
+    ).resolves.toMatchObject({
+      kind: 'completed',
+      result: {
+        status: 'done',
+        output: '中文.txt\n',
+        exitCode: 0,
+        offloaded: false,
+        timedOut: false
+      }
+    })
   })
 })

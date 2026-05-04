@@ -4,6 +4,10 @@ import path from 'path'
 import { nanoid } from 'nanoid'
 import logger from '@shared/logger'
 import { getUserShell } from './shellEnvHelper'
+import {
+  createUtf8OutputDecoderPair,
+  prepareShellCommandForUtf8Output
+} from './shellOutputEncoding'
 import { terminateProcessTree } from './processTree'
 import { resolveSessionDir } from './sessionPaths'
 
@@ -72,6 +76,7 @@ interface BackgroundSession {
   closePromise: Promise<void>
   resolveClose: () => void
   closeSettled: boolean
+  flushOutputDecoders?: () => void
   killTimeoutId?: NodeJS.Timeout
   timedOut: boolean
 }
@@ -121,6 +126,7 @@ export class BackgroundExecSessionManager {
     const config = getConfig()
     const sessionId = `bg_${nanoid(12)}`
     const { shell, args } = getUserShell()
+    const shellCommand = prepareShellCommandForUtf8Output(shell, command)
 
     const sessionDir = resolveSessionDir(conversationId)
     if (sessionDir) {
@@ -131,7 +137,7 @@ export class BackgroundExecSessionManager {
       ? this.createOutputFilePath(sessionDir, sessionId, options?.outputPrefix)
       : null
 
-    const child = spawn(shell, [...args, command], {
+    const child = spawn(shell, [...args, shellCommand], {
       cwd,
       env: { ...process.env, ...options?.env },
       detached: process.platform !== 'win32',
@@ -444,22 +450,29 @@ export class BackgroundExecSessionManager {
     session: BackgroundSession,
     config: ReturnType<typeof getConfig>
   ): void {
-    const stdoutHandler = (data: Buffer) => {
-      this.appendOutput(session, data.toString('utf-8'), config)
+    const outputDecoders = createUtf8OutputDecoderPair((data) =>
+      this.appendOutput(session, data, config)
+    )
+    session.flushOutputDecoders = outputDecoders.flush
+
+    const stdoutHandler = (data: Buffer | string) => {
+      outputDecoders.writeStdout(data)
     }
 
-    const stderrHandler = (data: Buffer) => {
-      this.appendOutput(session, data.toString('utf-8'), config)
+    const stderrHandler = (data: Buffer | string) => {
+      outputDecoders.writeStderr(data)
     }
 
     session.child.stdout?.on('data', stdoutHandler)
     session.child.stderr?.on('data', stderrHandler)
 
     session.child.stdout?.on('end', () => {
+      outputDecoders.flushStdout()
       session.stdoutEof = true
     })
 
     session.child.stderr?.on('end', () => {
+      outputDecoders.flushStderr()
       session.stderrEof = true
     })
   }
@@ -731,6 +744,7 @@ export class BackgroundExecSessionManager {
     signal: NodeJS.Signals | null
   ): Promise<void> {
     try {
+      session.flushOutputDecoders?.()
       await session.outputWriteQueue.catch((error) => {
         logger.warn('[BackgroundExec] Failed while draining output queue:', error)
       })
