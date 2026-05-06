@@ -318,10 +318,11 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
   ) {}
 
   get store(): Record<string, unknown> {
+    const enabled = this.configTables.getAgentSetting<boolean>('enabled')
     return {
       ...this.legacyStore.store,
       ...this.configTables.listAgentSettings(),
-      enabled: this.configTables.getAgentSetting<boolean>('enabled'),
+      ...(enabled !== undefined ? { enabled } : {}),
       sharedMcpSelections: this.configTables.getAgentMcpSelections(SHARED_AGENT_MCP_SELECTION_ID)
     }
   }

@@ -51,7 +51,13 @@ const getMockState = (dbPath: string): MockState => {
 }
 
 class MockDatabase {
+  readonly open = true
+
   constructor(readonly dbPath: string) {}
+  pragma() {
+    return this
+  }
+
   close() {}
 }
 
@@ -314,7 +320,8 @@ describe('SyncConfigImportService', () => {
       expect(tables.listMcpSettings()).toMatchObject({
         mcpEnabled: true,
         customNpmRegistry: 'https://registry.npmjs.org',
-        removedBuiltInServers: ['builtin-old']
+        removedBuiltInServers: ['builtin-old'],
+        extraMcpSetting: { nested: true }
       })
       expect(tables.listAgentSettings()).toEqual({
         enabled: true,
@@ -392,6 +399,52 @@ describe('SyncConfigImportService', () => {
       closeOverwriteTables()
     }
   })
+
+  it('clears present-but-empty legacy sections in overwrite mode', () => {
+    writeJson(path.join(extractionDir, 'configs', 'app-settings.json'), {
+      providers: []
+    })
+    writeJson(path.join(extractionDir, 'configs', 'model-config.json'), {})
+    writeJson(path.join(extractionDir, 'configs', 'mcp-settings.json'), {})
+    writeJson(path.join(extractionDir, 'configs', 'acp_agents.json'), {})
+
+    const { tables, close } = openConfigTables(dbPath)
+    try {
+      tables.upsertProvider(provider('local', 'Local'))
+      tables.replaceProviderModels('local', 'provider', [
+        { id: 'old-model', name: 'Old Model', group: 'default', providerId: 'local' }
+      ])
+      tables.setModelStatus('model_status_local_old-model', 'local', 'old-model', true)
+      tables.setModelConfigStoreEntry('local:old-model', {
+        id: 'old-model',
+        providerId: 'local',
+        config: { maxTokens: 1 }
+      })
+      tables.replaceMcpServers({ local: mcpServer('local-server', true) })
+      tables.setMcpSetting('mcpEnabled', true)
+      tables.setAgentSetting('enabled', true)
+      tables.setAgentMcpSelections(['local'])
+    } finally {
+      close()
+    }
+
+    const service = new SyncConfigImportService(dbPath)
+    service.importLegacyConfig(extractionDir, 'overwrite')
+
+    const { tables: overwriteTables, close: closeOverwriteTables } = openConfigTables(dbPath)
+    try {
+      expect(overwriteTables.listProviders()).toEqual([])
+      expect(overwriteTables.listProviderModels('local', 'provider')).toEqual([])
+      expect(overwriteTables.listModelStatusEntries()).toEqual({})
+      expect(overwriteTables.getModelConfigStoreEntry('local:old-model')).toBeUndefined()
+      expect(overwriteTables.listMcpServers()).toEqual({})
+      expect(overwriteTables.listMcpSettings()).toEqual({})
+      expect(overwriteTables.listAgentSettings()).toEqual({})
+      expect(overwriteTables.getAgentMcpSelections()).toEqual([])
+    } finally {
+      closeOverwriteTables()
+    }
+  })
 })
 
 function writeLegacyConfigFixture(extractionDir: string) {
@@ -438,6 +491,7 @@ function writeLegacyConfigFixture(extractionDir: string) {
     mcpEnabled: true,
     customNpmRegistry: 'https://registry.npmjs.org',
     removedBuiltInServers: ['builtin-old'],
+    extraMcpSetting: { nested: true },
     defaultServers: ['server-a'],
     mcpServers: {
       'server-a': mcpServer('backup-server-a', false),

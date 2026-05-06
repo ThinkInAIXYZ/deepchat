@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import Database from 'better-sqlite3-multiple-ciphers'
+import type Database from 'better-sqlite3-multiple-ciphers'
 import type { IModelConfig, LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
 import { ConfigTables } from '../sqlitePresenter/tables/configTables'
+import { openSQLiteDatabase } from '../sqlitePresenter'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
 export const CURRENT_SYNC_CONFIG_SCHEMA_VERSION = 1
@@ -41,6 +42,14 @@ type LegacyConfigPayload = {
   mcpSettings: Record<string, unknown>
   agentSettings: Record<string, unknown>
   sharedAgentMcpSelections: string[]
+  sections: {
+    providers: boolean
+    providerModels: boolean
+    modelStatuses: boolean
+    modelConfigs: boolean
+    mcp: boolean
+    acp: boolean
+  }
 }
 
 const LEGACY_CONFIG_PATHS = {
@@ -51,13 +60,7 @@ const LEGACY_CONFIG_PATHS = {
   providerModelsDir: path.join('configs', 'provider_models')
 }
 
-const MCP_SETTING_KEYS = [
-  'mcpEnabled',
-  'npmRegistryCache',
-  'customNpmRegistry',
-  'autoDetectNpmRegistry',
-  'removedBuiltInServers'
-]
+const LEGACY_MCP_SETTING_EXCLUDE_KEYS = new Set(['mcpServers', 'defaultServer', 'defaultServers'])
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
@@ -87,7 +90,10 @@ const getStatusKey = (providerId: string, modelId: string): string =>
   `model_status_${providerId}_${modelId.replace(/\./g, '-')}`
 
 export class SyncConfigImportService {
-  constructor(private readonly targetDbPath: string) {}
+  constructor(
+    private readonly targetDbPath: string,
+    private readonly openDatabase: (dbPath: string) => Database.Database = openSQLiteDatabase
+  ) {}
 
   readManifest(extractionDir: string): SyncBackupManifest | null {
     return this.readJsonFile<SyncBackupManifest>(path.join(extractionDir, 'manifest.json'))
@@ -99,7 +105,7 @@ export class SyncConfigImportService {
       return
     }
 
-    const db = new Database(this.targetDbPath)
+    const db = this.openDatabase(this.targetDbPath)
     try {
       const configTables = new ConfigTables(db)
       configTables.createTable()
@@ -111,7 +117,7 @@ export class SyncConfigImportService {
   }
 
   ensureConfigMigrationMarker(): void {
-    const db = new Database(this.targetDbPath)
+    const db = this.openDatabase(this.targetDbPath)
     try {
       const configTables = new ConfigTables(db)
       configTables.createTable()
@@ -132,7 +138,15 @@ export class SyncConfigImportService {
       mcpServers: {},
       mcpSettings: {},
       agentSettings: {},
-      sharedAgentMcpSelections: []
+      sharedAgentMcpSelections: [],
+      sections: {
+        providers: false,
+        providerModels: false,
+        modelStatuses: false,
+        modelConfigs: false,
+        mcp: false,
+        acp: false
+      }
     }
 
     this.readLegacyAppSettings(extractionDir, payload)
@@ -153,7 +167,11 @@ export class SyncConfigImportService {
     }
 
     if (Array.isArray(appSettings.providers)) {
+      payload.sections.providers = true
       payload.providers = appSettings.providers.filter(this.isProvider)
+    }
+    if (Array.isArray(appSettings.providerOrder) || isRecord(appSettings.providerTimestamps)) {
+      payload.sections.providers = true
     }
     payload.providerOrder = normalizeStringArray(appSettings.providerOrder)
     payload.providerTimestamps = normalizeNumberRecord(appSettings.providerTimestamps)
@@ -161,6 +179,7 @@ export class SyncConfigImportService {
     const providerIds = this.collectProviderIds(payload, appSettings)
     for (const [key, value] of Object.entries(appSettings)) {
       if (key.startsWith('model_status_') && typeof value === 'boolean') {
+        payload.sections.modelStatuses = true
         const parsed = this.parseModelStatusKey(key, providerIds)
         payload.modelStatuses.push({
           statusKey: key,
@@ -172,12 +191,14 @@ export class SyncConfigImportService {
       }
 
       if (key.startsWith('custom_models_') && Array.isArray(value)) {
+        payload.sections.providerModels = true
         const providerId = key.slice('custom_models_'.length)
         this.addProviderModels(payload, providerId, 'custom', value)
         continue
       }
 
       if (key.endsWith('_models') && Array.isArray(value)) {
+        payload.sections.providerModels = true
         const providerId = key.slice(0, -'_models'.length)
         if (providerId) {
           this.addProviderModels(payload, providerId, 'provider', value)
@@ -206,6 +227,7 @@ export class SyncConfigImportService {
         if (!store) {
           continue
         }
+        payload.sections.providerModels = true
         this.addProviderModels(payload, providerId, 'provider', store.models)
         this.addProviderModels(payload, providerId, 'custom', store.custom_models)
       }
@@ -219,6 +241,7 @@ export class SyncConfigImportService {
     if (!modelConfig) {
       return
     }
+    payload.sections.modelConfigs = true
     payload.modelConfigs = {
       ...payload.modelConfigs,
       ...modelConfig
@@ -232,6 +255,7 @@ export class SyncConfigImportService {
     if (!mcpSettings) {
       return
     }
+    payload.sections.mcp = true
 
     const defaultServers = new Set([
       ...normalizeStringArray(mcpSettings.defaultServers),
@@ -257,10 +281,11 @@ export class SyncConfigImportService {
       )
     }
 
-    for (const key of MCP_SETTING_KEYS) {
-      if (mcpSettings[key] !== undefined) {
-        payload.mcpSettings[key] = clone(mcpSettings[key])
+    for (const [key, value] of Object.entries(mcpSettings)) {
+      if (LEGACY_MCP_SETTING_EXCLUDE_KEYS.has(key) || value === undefined) {
+        continue
       }
+      payload.mcpSettings[key] = clone(value)
     }
   }
 
@@ -271,6 +296,7 @@ export class SyncConfigImportService {
     if (!acpAgents) {
       return
     }
+    payload.sections.acp = true
 
     if (typeof acpAgents.enabled === 'boolean') {
       payload.agentSettings.enabled = acpAgents.enabled
@@ -292,29 +318,48 @@ export class SyncConfigImportService {
   ): void {
     const overwrite = mode === 'overwrite'
 
-    if (payload.providers.length > 0) {
-      if (overwrite) {
+    if (overwrite) {
+      if (payload.sections.providers) {
         configTables.replaceProviders(
           payload.providers,
           payload.providerOrder,
           payload.providerTimestamps
         )
-      } else {
+      }
+      if (payload.sections.providers || payload.sections.providerModels) {
+        configTables.clearAllProviderModels()
+      }
+      if (
+        payload.sections.providers ||
+        payload.sections.modelStatuses ||
+        payload.sections.providerModels
+      ) {
+        configTables.clearModelStatuses()
+      }
+      if (payload.sections.modelConfigs) {
+        configTables.clearModelConfigStore()
+      }
+      if (payload.sections.mcp) {
+        configTables.replaceMcpServers({})
+        configTables.clearMcpSettings()
+      }
+      if (payload.sections.acp) {
+        configTables.clearAgentSettings()
+        configTables.clearAgentMcpSelections()
+      }
+    }
+
+    if (payload.providers.length > 0) {
+      if (!overwrite) {
         this.mergeProviders(configTables, payload)
       }
     }
 
     if (payload.providerModels.length > 0) {
-      if (overwrite) {
-        configTables.clearAllProviderModels()
-      }
       this.mergeProviderModels(configTables, payload.providerModels, overwrite)
     }
 
     if (payload.modelStatuses.length > 0) {
-      if (overwrite) {
-        configTables.clearModelStatuses()
-      }
       for (const status of payload.modelStatuses) {
         if (overwrite || !configTables.hasModelStatus(status.statusKey)) {
           configTables.setModelStatus(
@@ -328,9 +373,6 @@ export class SyncConfigImportService {
     }
 
     if (Object.keys(payload.modelConfigs).length > 0) {
-      if (overwrite) {
-        configTables.clearModelConfigStore()
-      }
       for (const [cacheKey, config] of Object.entries(payload.modelConfigs)) {
         if (overwrite || !configTables.hasModelConfigStoreEntry(cacheKey)) {
           configTables.setModelConfigStoreEntry(cacheKey, config)
@@ -340,7 +382,11 @@ export class SyncConfigImportService {
 
     if (Object.keys(payload.mcpServers).length > 0) {
       if (overwrite) {
-        configTables.replaceMcpServers(payload.mcpServers)
+        const merged = {
+          ...configTables.listMcpServers(),
+          ...payload.mcpServers
+        }
+        configTables.replaceMcpServers(merged)
       } else {
         const merged = {
           ...payload.mcpServers,
@@ -351,9 +397,6 @@ export class SyncConfigImportService {
     }
 
     if (Object.keys(payload.mcpSettings).length > 0) {
-      if (overwrite) {
-        configTables.clearMcpSettings()
-      }
       for (const [key, value] of Object.entries(payload.mcpSettings)) {
         if (overwrite || configTables.getMcpSetting(key) === undefined) {
           configTables.setMcpSetting(key, value)
@@ -362,9 +405,6 @@ export class SyncConfigImportService {
     }
 
     if (Object.keys(payload.agentSettings).length > 0) {
-      if (overwrite) {
-        configTables.clearAgentSettings()
-      }
       for (const [key, value] of Object.entries(payload.agentSettings)) {
         if (overwrite || configTables.getAgentSetting(key) === undefined) {
           configTables.setAgentSetting(key, value)
@@ -374,7 +414,6 @@ export class SyncConfigImportService {
 
     if (payload.sharedAgentMcpSelections.length > 0) {
       if (overwrite) {
-        configTables.clearAgentMcpSelections()
         configTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
       } else if (configTables.getAgentMcpSelections().length === 0) {
         configTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
@@ -541,7 +580,8 @@ export class SyncConfigImportService {
       Object.keys(payload.mcpServers).length > 0 ||
       Object.keys(payload.mcpSettings).length > 0 ||
       Object.keys(payload.agentSettings).length > 0 ||
-      payload.sharedAgentMcpSelections.length > 0
+      payload.sharedAgentMcpSelections.length > 0 ||
+      Object.values(payload.sections).some(Boolean)
     )
   }
 

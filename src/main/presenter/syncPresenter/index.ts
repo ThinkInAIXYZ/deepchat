@@ -393,6 +393,8 @@ export class SyncPresenter implements ISyncPresenter {
       }
 
       this.emitBackupStatus('collecting')
+      this.ensureSqliteConfigStorageReady()
+      this.checkpointDatabaseForBackup()
       const files: Record<string, Uint8Array> = {}
       files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(this.DB_PATH))
       files[ZIP_PATHS.appSettings] = this.readSanitizedAppSettingsBackup()
@@ -492,7 +494,32 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   private createConfigImportService(): SyncConfigImportService {
-    return new SyncConfigImportService(this.DB_PATH)
+    const sqlitePresenter = this.sqlitePresenter as unknown as SQLitePresenter
+    return new SyncConfigImportService(this.DB_PATH, (dbPath) =>
+      sqlitePresenter.openDatabaseConnection(dbPath)
+    )
+  }
+
+  private ensureSqliteConfigStorageReady(): void {
+    const getConfigTables = () =>
+      (this.sqlitePresenter as unknown as Partial<SQLitePresenter>).configTables
+    let configTables = getConfigTables()
+    if (configTables?.hasConfigMigration?.()) {
+      return
+    }
+
+    this.reattachConfigPresenterStorage()
+    configTables = getConfigTables()
+    if (!configTables?.hasConfigMigration?.()) {
+      throw new Error('sync.error.configNotExists')
+    }
+  }
+
+  private checkpointDatabaseForBackup(): void {
+    const db = this.sqlitePresenter.getDatabase?.()
+    if (db?.open) {
+      db.pragma('wal_checkpoint(TRUNCATE)')
+    }
   }
 
   private resolveBackupVersion(manifest: SyncBackupManifest | null): number {

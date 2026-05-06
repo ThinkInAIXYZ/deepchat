@@ -3,9 +3,7 @@ import type { LLM_PROVIDER, MCPServerConfig, MODEL_META } from '../../../src/sha
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const configTablesModule = sqliteModule
-  ? await import('../../../src/main/presenter/sqlitePresenter/tables/configTables').catch(
-      () => null
-    )
+  ? await import('../../../src/main/presenter/sqlitePresenter/tables/configTables')
   : null
 
 const Database = sqliteModule?.default
@@ -24,7 +22,7 @@ if (Database) {
   }
 }
 
-const describeIfSqlite = sqliteAvailable && ConfigTables ? describe : describe.skip
+const describeIfSqlite = sqliteAvailable ? describe : describe.skip
 
 describeIfSqlite('ConfigTables', () => {
   const createTables = () => {

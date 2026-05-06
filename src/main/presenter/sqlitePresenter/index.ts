@@ -239,6 +239,10 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.db
   }
 
+  public openDatabaseConnection(dbPath = this.dbPath): Database.Database {
+    return openSQLiteDatabase(dbPath, this.password)
+  }
+
   public async diagnoseSchema(): Promise<DatabaseSchemaDiagnosis> {
     return new SchemaInspector(this.db).diagnose()
   }

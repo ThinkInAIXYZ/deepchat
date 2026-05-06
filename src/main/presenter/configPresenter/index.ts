@@ -575,6 +575,7 @@ export class ConfigPresenter implements IConfigPresenter {
       this.attachDbBackedConfigStores(sqlitePresenter)
     } catch (error) {
       console.error('[Config] Failed to attach sqlite-backed config storage:', error)
+      throw error
     }
   }
 
@@ -647,7 +648,6 @@ export class ConfigPresenter implements IConfigPresenter {
     const legacyMcpStore = this.mcpConfHelper.getStoreForMigration()
     const legacyAcpStore = this.acpConfHelper.getStoreForMigration()
 
-    this.dbBackedSettingsStore = appSettingsStore
     this.providerHelper.setStore(appSettingsStore)
     this.modelStatusHelper.setStore(appSettingsStore)
     this.providerModelHelper.setStoreFactory(
@@ -662,6 +662,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.acpConfHelper.setStore(
       new AcpDbStore(legacyAcpStore, configTables) as unknown as StoreLike<any>
     )
+    this.dbBackedSettingsStore = appSettingsStore
 
     this.providerHelper.getProviders()
     this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())

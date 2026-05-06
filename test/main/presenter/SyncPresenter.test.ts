@@ -301,6 +301,7 @@ describe('SyncPresenter backup import', () => {
   let presenter: InstanceType<typeof SyncPresenter>
   let configPresenter: any
   let sqlitePresenter: any
+  let dbPragma: ReturnType<typeof vi.fn>
   let getPathSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
@@ -322,9 +323,17 @@ describe('SyncPresenter backup import', () => {
       return os.tmpdir()
     })
 
+    dbPragma = vi.fn()
     sqlitePresenter = {
       close: vi.fn(),
       reopen: vi.fn(),
+      getDatabase: vi.fn(() => ({
+        open: true,
+        pragma: dbPragma
+      })),
+      configTables: {
+        hasConfigMigration: vi.fn(() => true)
+      },
       clearNewAgentData: vi.fn(),
       importLegacyChatDb: vi.fn(async () => ({
         importedSessions: 0,
@@ -380,6 +389,7 @@ describe('SyncPresenter backup import', () => {
     const files = unzipSync(new Uint8Array(fs.readFileSync(archivePath)))
     expect(files[ZIP_PATHS.agentDb]).toBeDefined()
     expect(files[ZIP_PATHS.mcpSettings]).toBeUndefined()
+    expect(dbPragma).toHaveBeenCalledWith('wal_checkpoint(TRUNCATE)')
     const manifest = JSON.parse(Buffer.from(files[ZIP_PATHS.manifest]).toString('utf-8'))
     expect(manifest).toMatchObject({
       version: 2,
