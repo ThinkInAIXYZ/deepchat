@@ -580,6 +580,7 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   private removeMigratedAppSettings(settings: Record<string, unknown>): Record<string, unknown> {
+    const providerModelKeys = this.getLegacyProviderModelKeys(settings)
     return Object.fromEntries(
       Object.entries(settings).filter(([key]) => {
         if (MIGRATED_APP_SETTINGS_KEYS.has(key)) {
@@ -588,9 +589,48 @@ export class SyncPresenter implements ISyncPresenter {
         if (key.startsWith('model_status_') || key.startsWith('custom_models_')) {
           return false
         }
-        return !key.endsWith('_models')
+        return !providerModelKeys.has(key)
       })
     )
+  }
+
+  private getLegacyProviderModelKeys(settings: Record<string, unknown>): Set<string> {
+    const providerIds = new Set<string>()
+
+    if (Array.isArray(settings.providers)) {
+      for (const provider of settings.providers) {
+        if (
+          provider &&
+          typeof provider === 'object' &&
+          !Array.isArray(provider) &&
+          typeof (provider as { id?: unknown }).id === 'string'
+        ) {
+          providerIds.add((provider as { id: string }).id)
+        }
+      }
+    }
+
+    if (Array.isArray(settings.providerOrder)) {
+      for (const providerId of settings.providerOrder) {
+        if (typeof providerId === 'string') {
+          providerIds.add(providerId)
+        }
+      }
+    }
+
+    try {
+      const configTables = (this.sqlitePresenter as unknown as Partial<SQLitePresenter>)
+        .configTables
+      if (configTables) {
+        for (const provider of configTables.listProviders()) {
+          providerIds.add(provider.id)
+        }
+      }
+    } catch {
+      // During import the main SQLite connection can be closed; settings still carry legacy IDs.
+    }
+
+    return new Set(Array.from(providerIds, (providerId) => `${providerId}_models`))
   }
 
   private resolveBackupDbSource(extractionDir: string): BackupDbSource | null {

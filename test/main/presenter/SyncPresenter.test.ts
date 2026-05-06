@@ -371,7 +371,8 @@ describe('SyncPresenter backup import', () => {
         providerTimestamps: { openai: 123 },
         model_status_openai_gpt4: true,
         openai_models: [{ id: 'gpt-4' }],
-        custom_models_openai: [{ id: 'custom-gpt' }]
+        custom_models_openai: [{ id: 'custom-gpt' }],
+        recent_models: ['local-history']
       },
       customPrompts: { prompts: [] },
       systemPrompts: { prompts: [] },
@@ -408,6 +409,7 @@ describe('SyncPresenter backup import', () => {
     expect(appSettings.model_status_openai_gpt4).toBeUndefined()
     expect(appSettings.openai_models).toBeUndefined()
     expect(appSettings.custom_models_openai).toBeUndefined()
+    expect(appSettings.recent_models).toEqual(['local-history'])
   })
 
   it('imports backup incrementally without overwriting existing data', async () => {
@@ -995,7 +997,7 @@ function createLocalState(
   const dbPath = path.join(dbDir, 'agent.db')
   writeConversationDb(dbPath, data.conversations)
   if (data.extraAgentTables) {
-    mergeMockDbTables(dbPath, data.extraAgentTables)
+    setMockDbTables(dbPath, data.extraAgentTables)
   }
 
   fs.writeFileSync(
@@ -1056,7 +1058,7 @@ function createBackupArchive(
   if (dbType === 'agent' || dbType === 'both') {
     writeConversationDb(agentDbPath, data.conversations)
     if (options.extraAgentTables) {
-      mergeMockDbTables(agentDbPath, options.extraAgentTables)
+      setMockDbTables(agentDbPath, options.extraAgentTables)
     }
   }
 
@@ -1122,7 +1124,7 @@ function createBackupArchive(
   return backupFileName
 }
 
-function mergeMockDbTables(dbPath: string, tables: Record<string, Array<Record<string, unknown>>>) {
+function setMockDbTables(dbPath: string, tables: Record<string, Array<Record<string, unknown>>>) {
   const raw = fs.existsSync(dbPath) ? fs.readFileSync(dbPath, 'utf-8') : '{"tables":{}}'
   const state = JSON.parse(raw) as { tables: Record<string, Array<Record<string, unknown>>> }
   state.tables = {
