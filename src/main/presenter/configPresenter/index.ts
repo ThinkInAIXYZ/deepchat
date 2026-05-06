@@ -73,6 +73,7 @@ import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from './acpRegistryConstants'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import type { SQLitePresenter } from '../sqlitePresenter'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
@@ -87,6 +88,14 @@ import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
 } from '../hooksNotifications/config'
+import {
+  AcpDbStore,
+  AppSettingsDbBackedStore,
+  McpDbStore,
+  ModelConfigDbStore,
+  ProviderModelDbStore
+} from './configDbStores'
+import type { StoreLike } from './storeLike'
 
 // Define application settings interface
 interface IAppSettings {
@@ -385,6 +394,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private systemPromptHelper: SystemPromptHelper
   private uiSettingsHelper: UiSettingsHelper
   private agentRepository: AgentRepository | null = null
+  private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
 
@@ -557,6 +567,171 @@ export class ConfigPresenter implements IConfigPresenter {
     this.initializeUnifiedAgents()
     this.reconcileLegacyBuiltinAgentSelections()
     this.cleanupDeprecatedBuiltinAgentSelections()
+  }
+
+  setSQLitePresenter(sqlitePresenter: SQLitePresenter): void {
+    try {
+      this.migrateConfigStoresToSqlite(sqlitePresenter)
+      this.attachDbBackedConfigStores(sqlitePresenter)
+    } catch (error) {
+      console.error('[Config] Failed to attach sqlite-backed config storage:', error)
+      throw error
+    }
+  }
+
+  private migrateConfigStoresToSqlite(sqlitePresenter: SQLitePresenter): void {
+    const configTables = sqlitePresenter.configTables
+    if (configTables.hasConfigMigration()) {
+      return
+    }
+
+    const providers = this.providerHelper.getProviders()
+    const providerIds = providers.map((provider) => provider.id)
+    const providerOrder = this.readLegacyStringArray('providerOrder') ?? providerIds
+    const providerTimestamps = this.readLegacyNumberRecord('providerTimestamps')
+
+    configTables.replaceProviders(providers, providerOrder, providerTimestamps)
+
+    for (const provider of providers) {
+      const store = this.providerModelHelper.getProviderModelStore(provider.id)
+      const models = store.get<MODEL_META[]>('models', [])
+      const customModels = store.get<MODEL_META[]>('custom_models', [])
+      if (Array.isArray(models)) {
+        configTables.replaceProviderModels(provider.id, 'provider', models)
+      }
+      if (Array.isArray(customModels)) {
+        configTables.replaceProviderModels(provider.id, 'custom', customModels)
+      }
+    }
+
+    for (const [statusKey, enabled] of this.readLegacyModelStatuses()) {
+      const parsed = this.parseLegacyModelStatusKey(statusKey, providerIds)
+      configTables.setModelStatus(statusKey, parsed.providerId, parsed.modelId, enabled)
+    }
+
+    const modelConfigs = this.modelConfigHelper.exportConfigs()
+    for (const [cacheKey, config] of Object.entries(modelConfigs)) {
+      configTables.setModelConfigStoreEntry(cacheKey, config)
+    }
+
+    const mcpStore = this.mcpConfHelper.getStoreForMigration()
+    const mcpServers = mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
+    if (mcpServers && typeof mcpServers === 'object' && !Array.isArray(mcpServers)) {
+      configTables.replaceMcpServers(mcpServers)
+    }
+
+    for (const [key, value] of Object.entries(mcpStore.store)) {
+      if (key === 'mcpServers') {
+        continue
+      }
+      if (value !== undefined) {
+        configTables.setMcpSetting(key, value)
+      }
+    }
+
+    configTables.setAgentSetting('enabled', this.acpConfHelper.getGlobalEnabled())
+    configTables.setAgentSetting('version', '4')
+    configTables.setAgentMcpSelections(this.acpConfHelper.getSharedMcpSelections())
+    configTables.markConfigMigrationApplied()
+  }
+
+  private attachDbBackedConfigStores(sqlitePresenter: SQLitePresenter): void {
+    const configTables = sqlitePresenter.configTables
+    const legacyAppStore = this.store as unknown as StoreLike<Record<string, unknown>>
+    const appSettingsStore = new AppSettingsDbBackedStore(legacyAppStore, configTables)
+    const legacyMcpStore = this.mcpConfHelper.getStoreForMigration()
+    const legacyAcpStore = this.acpConfHelper.getStoreForMigration()
+
+    this.providerHelper.setStore(appSettingsStore)
+    this.modelStatusHelper.setStore(appSettingsStore)
+    this.providerModelHelper.setStoreFactory(
+      (providerId) => new ProviderModelDbStore(providerId, configTables)
+    )
+    this.modelConfigHelper.setStore(
+      new ModelConfigDbStore(configTables) as unknown as StoreLike<any>
+    )
+    this.mcpConfHelper.setStore(
+      new McpDbStore(legacyMcpStore, configTables) as unknown as StoreLike<any>
+    )
+    this.acpConfHelper.setStore(
+      new AcpDbStore(legacyAcpStore, configTables) as unknown as StoreLike<any>
+    )
+    this.dbBackedSettingsStore = appSettingsStore
+
+    this.providerHelper.getProviders()
+    this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
+  }
+
+  private getSettingsStoreForKey(key: string): StoreLike<Record<string, unknown>> {
+    if (this.dbBackedSettingsStore && this.isDbBackedAppSettingKey(key)) {
+      return this.dbBackedSettingsStore
+    }
+    return this.store as unknown as StoreLike<Record<string, unknown>>
+  }
+
+  private isDbBackedAppSettingKey(key: string): boolean {
+    return (
+      key === 'providers' ||
+      key === 'providerOrder' ||
+      key === 'providerTimestamps' ||
+      key.startsWith('model_status_')
+    )
+  }
+
+  private readLegacyStringArray(key: string): string[] | null {
+    const value = this.store.get(key)
+    if (!Array.isArray(value)) {
+      return null
+    }
+    return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
+  }
+
+  private readLegacyNumberRecord(key: string): Record<string, number> {
+    const value = this.store.get(key)
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {}
+    }
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).filter(
+        (entry): entry is [string, number] =>
+          typeof entry[1] === 'number' && Number.isFinite(entry[1])
+      )
+    )
+  }
+
+  private readLegacyModelStatuses(): Array<[string, boolean]> {
+    const rawStore = this.store.store as Record<string, unknown>
+    return Object.entries(rawStore).filter(
+      (entry): entry is [string, boolean] =>
+        entry[0].startsWith('model_status_') && typeof entry[1] === 'boolean'
+    )
+  }
+
+  private parseLegacyModelStatusKey(
+    statusKey: string,
+    providerIds: string[]
+  ): { providerId: string; modelId: string } {
+    const suffix = statusKey.slice('model_status_'.length)
+    const matchedProvider = [...providerIds]
+      .sort((a, b) => b.length - a.length)
+      .find((providerId) => suffix.startsWith(`${providerId}_`))
+
+    if (matchedProvider) {
+      return {
+        providerId: matchedProvider,
+        modelId: suffix.slice(matchedProvider.length + 1)
+      }
+    }
+
+    const separatorIndex = suffix.indexOf('_')
+    if (separatorIndex === -1) {
+      return { providerId: '', modelId: suffix }
+    }
+
+    return {
+      providerId: suffix.slice(0, separatorIndex),
+      modelId: suffix.slice(separatorIndex + 1)
+    }
   }
 
   private getAgentRepositoryOrThrow(): AgentRepository {
@@ -1159,7 +1334,7 @@ export class ConfigPresenter implements IConfigPresenter {
           return this.getBuiltinDeepChatConfig().systemPrompt as T | undefined
         }
       }
-      return this.store.get(key) as T
+      return this.getSettingsStoreForKey(key).get<T>(key)
     } catch (error) {
       console.error(`[Config] Failed to get setting ${key}:`, error)
       return undefined
@@ -1189,7 +1364,7 @@ export class ConfigPresenter implements IConfigPresenter {
         }
       }
 
-      this.store.set(key, value)
+      this.getSettingsStoreForKey(key).set(key, value)
       // Trigger setting change event (main process internal use only)
       eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
 

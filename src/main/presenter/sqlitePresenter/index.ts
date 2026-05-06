@@ -26,6 +26,7 @@ import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
+import { ConfigTables } from './tables/configTables'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
@@ -214,6 +215,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
+  public configTables!: ConfigTables
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -235,6 +237,10 @@ export class SQLitePresenter implements ISQLitePresenter {
 
   public getDatabase(): Database.Database {
     return this.db
+  }
+
+  public openDatabaseConnection(dbPath = this.dbPath): Database.Database {
+    return openSQLiteDatabase(dbPath, this.password)
   }
 
   public async diagnoseSchema(): Promise<DatabaseSchemaDiagnosis> {
@@ -344,6 +350,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
+    this.configTables = new ConfigTables(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -358,6 +365,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatUsageStatsTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
+    this.configTables.createTable()
   }
 
   private initVersionTable() {
@@ -390,7 +398,8 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatPendingInputsTable,
       this.deepchatUsageStatsTable,
       this.legacyImportStatusTable,
-      this.agentsTable
+      this.agentsTable,
+      this.configTables
     ]
 
     // 获取最新的迁移版本

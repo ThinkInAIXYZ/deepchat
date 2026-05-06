@@ -6,6 +6,7 @@ import ElectronStore from 'electron-store'
 // import { app } from 'electron'
 import { compare } from 'compare-versions'
 import { presenter } from '..'
+import type { StoreLike } from './storeLike'
 
 // NPM Registry cache interface
 export interface INpmRegistryCache {
@@ -281,7 +282,7 @@ export const SYSTEM_INMEM_MCP_SERVERS: Record<string, MCPServerConfig> = {
 }
 
 export class McpConfHelper {
-  private mcpStore: ElectronStore<IMcpSettings>
+  private mcpStore: StoreLike<IMcpSettings & Record<string, unknown>>
 
   constructor() {
     // Initialize MCP settings storage
@@ -296,6 +297,14 @@ export class McpConfHelper {
         removedBuiltInServers: []
       }
     })
+  }
+
+  getStoreForMigration(): StoreLike<Record<string, unknown>> {
+    return this.mcpStore as StoreLike<Record<string, unknown>>
+  }
+
+  setStore(store: StoreLike<IMcpSettings & Record<string, unknown>>): void {
+    this.mcpStore = store
   }
 
   private getDefaultEnabledServerNames(): string[] {
@@ -326,7 +335,7 @@ export class McpConfHelper {
   private resolveLegacyEnabledServers(): Set<string> {
     const enabled = new Set<string>()
     const oldDefaultServer = this.mcpStore.get('defaultServer')
-    const oldDefaultServers = this.mcpStore.get('defaultServers') || []
+    const oldDefaultServers = this.mcpStore.get<string[]>('defaultServers', [])
 
     if (typeof oldDefaultServer === 'string' && oldDefaultServer.trim()) {
       enabled.add(oldDefaultServer.trim())
@@ -437,7 +446,7 @@ export class McpConfHelper {
   migrateBuiltinKnowledgeConfigsFromEnv(
     existingConfigs: BuiltinKnowledgeConfig[]
   ): BuiltinKnowledgeConfig[] {
-    const mcpServers = this.mcpStore.get('mcpServers') || {}
+    const mcpServers = this.mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
     const builtinKnowledge = mcpServers.builtinKnowledge
     const rawEnv = builtinKnowledge?.env as unknown
 
@@ -495,11 +504,15 @@ export class McpConfHelper {
   // Get MCP server configuration
   async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
     const storedServers = this.removeDeprecatedBuiltInServers(
-      this.mcpStore.get('mcpServers') || this.buildDefaultServerConfigs()
+      this.mcpStore.get<Record<string, MCPServerConfig>>(
+        'mcpServers',
+        this.buildDefaultServerConfigs()
+      )
     )
     const legacyEnabledServers = this.resolveLegacyEnabledServers()
     const legacyKeysPresent =
-      this.mcpStore.has('defaultServer') || this.mcpStore.has('defaultServers')
+      Boolean(this.mcpStore.has?.('defaultServer')) ||
+      Boolean(this.mcpStore.has?.('defaultServers'))
     const defaultEnabledServers = new Set(this.getDefaultEnabledServerNames())
 
     // 检查并补充缺少的inmemory服务
@@ -519,7 +532,7 @@ export class McpConfHelper {
     let hasChanges =
       legacyEnabledServers.size > 0 ||
       legacyKeysPresent ||
-      Boolean((this.mcpStore.get('mcpServers') || {}).powerpack)
+      Boolean(this.mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {}).powerpack)
 
     const ensureBuiltInServerExists = (
       serverName: string,
@@ -916,7 +929,7 @@ export class McpConfHelper {
     // Remove for all versions < 0.6.0
     if (oldVersion && compare(oldVersion, '0.6.0', '<')) {
       try {
-        const mcpServers = this.mcpStore.get('mcpServers') || {}
+        const mcpServers = this.mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
         let hasChanges = false
 
         // Check if servers exist before deletion (for tracking)
@@ -954,7 +967,7 @@ export class McpConfHelper {
     // 移除 custom-prompts-server 服务（版本 < 0.3.5）
     if (oldVersion && compare(oldVersion, '0.3.5', '<')) {
       try {
-        const mcpServers = this.mcpStore.get('mcpServers') || {}
+        const mcpServers = this.mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
         const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
 
         if (mcpServers[customPromptsServerName]) {
@@ -970,14 +983,16 @@ export class McpConfHelper {
     }
 
     try {
-      this.removeDeprecatedBuiltInServers(this.mcpStore.get('mcpServers') || {})
+      this.removeDeprecatedBuiltInServers(
+        this.mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
+      )
     } catch (error) {
       console.error('Error occurred while removing deprecated built-in MCP servers:', error)
     }
 
     // 升级后检查并添加平台特有服务
     try {
-      const mcpServers = this.mcpStore.get('mcpServers') || {}
+      const mcpServers = this.mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
       const removedBuiltInServers = new Set(this.getRemovedBuiltInServers())
       let hasChanges = false
 

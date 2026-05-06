@@ -4,6 +4,7 @@ import { ModelConfig, MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import ElectronStore from 'electron-store'
 import path from 'path'
+import type { StoreLike } from './storeLike'
 
 export interface IModelStore {
   models: MODEL_META[]
@@ -26,12 +27,15 @@ interface ProviderModelHelperOptions {
   deleteModelStatus: ModelStatusRemover
 }
 
+type ProviderModelStore = StoreLike<IModelStore & Record<string, unknown>>
+
 export class ProviderModelHelper {
   private readonly userDataPath: string
   private readonly getModelConfig: ModelConfigResolver
   private readonly setModelStatus: ModelStatusUpdater
   private readonly deleteModelStatus: ModelStatusRemover
-  private readonly stores: Map<string, ElectronStore<IModelStore>> = new Map()
+  private readonly stores: Map<string, ProviderModelStore> = new Map()
+  private storeFactory: ((providerId: string) => ProviderModelStore) | null = null
   private readonly providerModelsCache = new Map<
     string,
     {
@@ -52,8 +56,19 @@ export class ProviderModelHelper {
     return `models_${safeProviderId}`
   }
 
-  getProviderModelStore(providerId: string): ElectronStore<IModelStore> {
+  setStoreFactory(factory: (providerId: string) => ProviderModelStore): void {
+    this.storeFactory = factory
+    this.stores.clear()
+    this.invalidateAllProviderModelsCache()
+  }
+
+  getProviderModelStore(providerId: string): ProviderModelStore {
     if (!this.stores.has(providerId)) {
+      if (this.storeFactory) {
+        this.stores.set(providerId, this.storeFactory(providerId))
+        return this.stores.get(providerId)!
+      }
+
       const storeName = this.getStoreName(providerId)
       const storePath = path.join(this.userDataPath, PROVIDER_MODELS_DIR)
       console.log(
@@ -67,7 +82,7 @@ export class ProviderModelHelper {
           custom_models: []
         }
       })
-      this.stores.set(providerId, store)
+      this.stores.set(providerId, store as unknown as ProviderModelStore)
       console.log(
         `[ProviderModelHelper] getProviderModelStore: store "${storeName}" created and cached for provider "${providerId}"`
       )
@@ -239,7 +254,7 @@ export class ProviderModelHelper {
   }
 
   clearProviderModelStore(providerId: string): void {
-    const store = this.getProviderModelStore(providerId) as ElectronStore<IModelStore> & {
+    const store = this.getProviderModelStore(providerId) as ProviderModelStore & {
       clear?: () => void
     }
 

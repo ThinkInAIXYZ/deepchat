@@ -12,6 +12,7 @@ import type {
 } from '@shared/presenter'
 import { McpConfHelper } from './mcpConfHelper'
 import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from './acpRegistryConstants'
+import type { StoreLike } from './storeLike'
 
 const ACP_STORE_VERSION = '4'
 
@@ -164,7 +165,7 @@ const getActiveLegacyProfile = (agent: AcpBuiltinAgent): AcpAgentProfile | null 
 }
 
 export class AcpConfHelper {
-  private readonly store: ElectronStore<InternalStore>
+  private store: StoreLike<InternalStore & Record<string, unknown>>
   private readonly mcpConfHelper: McpConfHelper
 
   constructor(options?: { mcpConfHelper?: McpConfHelper }) {
@@ -182,6 +183,14 @@ export class AcpConfHelper {
     })
 
     this.ensureStoreInitialized()
+  }
+
+  getStoreForMigration(): StoreLike<Record<string, unknown>> {
+    return this.store as StoreLike<Record<string, unknown>>
+  }
+
+  setStore(store: StoreLike<InternalStore & Record<string, unknown>>): void {
+    this.store = store
   }
 
   getGlobalEnabled(): boolean {
