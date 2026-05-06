@@ -24,31 +24,51 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
   }
 
   get store(): Record<string, unknown> {
+    const providers = this.configTables.listProviders()
+    const providerOrder = this.configTables.getProviderOrder()
+    const providerTimestamps = this.configTables.getProviderTimestamps()
+    const modelStatusEntries = this.configTables.listModelStatusEntries()
     return {
       ...this.legacyStore.store,
-      providers: this.configTables.listProviders(),
-      providerOrder: this.configTables.getProviderOrder(),
-      providerTimestamps: this.configTables.getProviderTimestamps(),
-      ...this.configTables.listModelStatusEntries()
+      ...(providers.length > 0 ? { providers } : {}),
+      ...(providerOrder.length > 0 ? { providerOrder } : {}),
+      ...(Object.keys(providerTimestamps).length > 0 ? { providerTimestamps } : {}),
+      ...modelStatusEntries
     }
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (key === 'providers') {
       const providers = this.configTables.listProviders()
-      return (providers.length > 0 ? providers : defaultValue) as TValue | undefined
+      if (providers.length > 0) {
+        return providers as TValue
+      }
+      const legacyValue = this.legacyStore.get<TValue>(key)
+      return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
     if (key === 'providerOrder') {
       const order = this.configTables.getProviderOrder()
-      return (order.length > 0 ? order : defaultValue) as TValue | undefined
+      if (order.length > 0) {
+        return order as TValue
+      }
+      const legacyValue = this.legacyStore.get<TValue>(key)
+      return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
     if (key === 'providerTimestamps') {
       const timestamps = this.configTables.getProviderTimestamps()
-      return (Object.keys(timestamps).length > 0 ? timestamps : defaultValue) as TValue | undefined
+      if (Object.keys(timestamps).length > 0) {
+        return timestamps as TValue
+      }
+      const legacyValue = this.legacyStore.get<TValue>(key)
+      return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
     if (this.isModelStatusKey(key)) {
       const status = this.configTables.getModelStatus(key)
-      return (status ?? defaultValue) as TValue | undefined
+      if (status !== undefined) {
+        return status as TValue
+      }
+      const legacyValue = this.legacyStore.get<TValue>(key)
+      return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
 
     const value = this.legacyStore.get<TValue>(key)
@@ -106,20 +126,20 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   has(key: string): boolean {
     if (key === 'providers') {
-      return this.configTables.listProviders().length > 0
+      return this.configTables.listProviders().length > 0 || this.hasLegacyKey(key)
     }
     if (key === 'providerOrder') {
-      return this.configTables.getProviderOrder().length > 0
+      return this.configTables.getProviderOrder().length > 0 || this.hasLegacyKey(key)
     }
     if (key === 'providerTimestamps') {
-      return Object.keys(this.configTables.getProviderTimestamps()).length > 0
+      return (
+        Object.keys(this.configTables.getProviderTimestamps()).length > 0 || this.hasLegacyKey(key)
+      )
     }
     if (this.isModelStatusKey(key)) {
-      return this.configTables.hasModelStatus(key)
+      return this.configTables.hasModelStatus(key) || this.hasLegacyKey(key)
     }
-    return typeof this.legacyStore.has === 'function'
-      ? this.legacyStore.has(key)
-      : this.legacyStore.get(key) !== undefined
+    return this.hasLegacyKey(key)
   }
 
   private isModelStatusKey(key: string): boolean {
@@ -155,6 +175,12 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
     for (const [key, nextValue] of Object.entries(values)) {
       this.set(key, nextValue)
     }
+  }
+
+  private hasLegacyKey(key: string): boolean {
+    return typeof this.legacyStore.has === 'function'
+      ? this.legacyStore.has(key)
+      : this.legacyStore.get(key) !== undefined
   }
 }
 
@@ -255,17 +281,22 @@ export class McpDbStore implements StoreLike<Record<string, unknown>> {
   ) {}
 
   get store(): Record<string, unknown> {
+    const mcpServers = this.configTables.listMcpServers()
     return {
       ...this.legacyStore.store,
       ...this.configTables.listMcpSettings(),
-      mcpServers: this.configTables.listMcpServers()
+      ...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {})
     }
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (key === 'mcpServers') {
       const servers = this.configTables.listMcpServers()
-      return (Object.keys(servers).length > 0 ? servers : defaultValue) as TValue | undefined
+      if (Object.keys(servers).length > 0) {
+        return servers as TValue
+      }
+      const legacyValue = this.legacyStore.get<TValue>(key)
+      return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
     const value = this.configTables.getMcpSetting<TValue>(key)
     if (value !== undefined) {
@@ -300,14 +331,15 @@ export class McpDbStore implements StoreLike<Record<string, unknown>> {
 
   has(key: string): boolean {
     if (key === 'mcpServers') {
-      return Object.keys(this.configTables.listMcpServers()).length > 0
+      return Object.keys(this.configTables.listMcpServers()).length > 0 || this.hasLegacyKey(key)
     }
-    return (
-      this.configTables.getMcpSetting(key) !== undefined ||
-      (typeof this.legacyStore.has === 'function'
-        ? this.legacyStore.has(key)
-        : this.legacyStore.get(key) !== undefined)
-    )
+    return this.configTables.getMcpSetting(key) !== undefined || this.hasLegacyKey(key)
+  }
+
+  private hasLegacyKey(key: string): boolean {
+    return typeof this.legacyStore.has === 'function'
+      ? this.legacyStore.has(key)
+      : this.legacyStore.get(key) !== undefined
   }
 }
 
@@ -319,18 +351,25 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
 
   get store(): Record<string, unknown> {
     const enabled = this.configTables.getAgentSetting<boolean>('enabled')
+    const sharedMcpSelections = this.configTables.getAgentMcpSelections(
+      SHARED_AGENT_MCP_SELECTION_ID
+    )
     return {
       ...this.legacyStore.store,
       ...this.configTables.listAgentSettings(),
       ...(enabled !== undefined ? { enabled } : {}),
-      sharedMcpSelections: this.configTables.getAgentMcpSelections(SHARED_AGENT_MCP_SELECTION_ID)
+      ...(sharedMcpSelections.length > 0 ? { sharedMcpSelections } : {})
     }
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (key === 'sharedMcpSelections') {
       const selections = this.configTables.getAgentMcpSelections(SHARED_AGENT_MCP_SELECTION_ID)
-      return (selections.length > 0 ? selections : defaultValue) as TValue | undefined
+      if (selections.length > 0) {
+        return selections as TValue
+      }
+      const legacyValue = this.legacyStore.get<TValue>(key)
+      return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
 
     if (key === 'enabled' || key === 'version') {

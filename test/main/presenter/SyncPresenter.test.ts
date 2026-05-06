@@ -665,6 +665,42 @@ describe('SyncPresenter backup import', () => {
     expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
   })
 
+  it('rejects v2 backups without sqlite config metadata before touching local data', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      {
+        manifest: {
+          version: 2,
+          createdAt: Date.now(),
+          files: [ZIP_PATHS.agentDb]
+        }
+      }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('sync.error.noValidBackup')
+    expect(sqlitePresenter.close).not.toHaveBeenCalled()
+    expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
+    expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
+  })
+
   it('treats missing manifest backups as legacy backups', async () => {
     createLocalState(userDataDir, {
       conversations: [{ id: 'conv-1', title: 'Local conversation' }],

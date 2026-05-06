@@ -530,10 +530,10 @@ export class SyncPresenter implements ISyncPresenter {
       throw new Error('sync.error.unsupportedBackupVersion')
     }
     if (manifest.version === CURRENT_SYNC_BACKUP_VERSION) {
-      if (
-        typeof manifest.configSchemaVersion === 'number' &&
-        manifest.configSchemaVersion > CURRENT_SYNC_CONFIG_SCHEMA_VERSION
-      ) {
+      if (manifest.configStorage !== 'sqlite' || typeof manifest.configSchemaVersion !== 'number') {
+        throw new Error('sync.error.noValidBackup')
+      }
+      if (manifest.configSchemaVersion > CURRENT_SYNC_CONFIG_SCHEMA_VERSION) {
         throw new Error('sync.error.unsupportedBackupVersion')
       }
       return manifest.version

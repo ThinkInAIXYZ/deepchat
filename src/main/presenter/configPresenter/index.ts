@@ -620,16 +620,10 @@ export class ConfigPresenter implements IConfigPresenter {
       configTables.replaceMcpServers(mcpServers)
     }
 
-    for (const key of [
-      'mcpEnabled',
-      'npmRegistryCache',
-      'customNpmRegistry',
-      'autoDetectNpmRegistry',
-      'removedBuiltInServers',
-      'defaultServer',
-      'defaultServers'
-    ]) {
-      const value = mcpStore.get(key)
+    for (const [key, value] of Object.entries(mcpStore.store)) {
+      if (key === 'mcpServers') {
+        continue
+      }
       if (value !== undefined) {
         configTables.setMcpSetting(key, value)
       }
