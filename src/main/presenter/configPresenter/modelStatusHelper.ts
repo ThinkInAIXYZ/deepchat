@@ -1,18 +1,18 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
-import ElectronStore from 'electron-store'
+import type { StoreLike } from './storeLike'
 
 type SetSetting = <T>(key: string, value: T) => void
 
 const MODEL_STATUS_KEY_PREFIX = 'model_status_'
 
 interface ModelStatusHelperOptions {
-  store: ElectronStore<any>
+  store: StoreLike<any>
   setSetting: SetSetting
 }
 
 export class ModelStatusHelper {
-  private readonly store: ElectronStore<any>
+  private store: StoreLike<any>
   private readonly setSetting: SetSetting
   private readonly cache: Map<string, boolean> = new Map()
   private statusSnapshot: Map<string, boolean> | null = null
@@ -22,13 +22,18 @@ export class ModelStatusHelper {
     this.setSetting = options.setSetting
   }
 
+  setStore(store: StoreLike<any>): void {
+    this.store = store
+    this.clearModelStatusCache()
+  }
+
   private getStatusKey(providerId: string, modelId: string): string {
     const formattedModelId = modelId.replace(/\./g, '-')
     return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
   }
 
   private getRawStoreEntries(): [string, unknown][] | null {
-    const candidate = this.store as ElectronStore<any> & {
+    const candidate = this.store as StoreLike<Record<string, unknown>> & {
       store?: Record<string, unknown>
     }
     const rawStore = candidate.store
@@ -136,7 +141,9 @@ export class ModelStatusHelper {
       return statusSnapshot.has(statusKey)
     }
 
-    const candidate = this.store as ElectronStore<any> & { has?: (key: string) => boolean }
+    const candidate = this.store as StoreLike<Record<string, unknown>> & {
+      has?: (key: string) => boolean
+    }
     if (typeof candidate.has === 'function') {
       return candidate.has(statusKey)
     }

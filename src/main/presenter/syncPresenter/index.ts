@@ -14,6 +14,7 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { SYNC_EVENTS } from '@/events'
 import { DataImporter } from '../sqlitePresenter/importData'
 import { ImportMode } from '../sqlitePresenter'
+import type { SQLitePresenter } from '../sqlitePresenter'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -30,6 +31,7 @@ type BackupStatus = 'idle' | 'preparing' | 'collecting' | 'compressing' | 'final
 const BACKUP_PREFIX = 'backup-'
 const BACKUP_EXTENSION = '.zip'
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
+const MIGRATED_APP_SETTINGS_KEYS = new Set(['providers', 'providerOrder', 'providerTimestamps'])
 
 const ZIP_PATHS = {
   agentDb: 'database/agent.db',
@@ -233,6 +235,7 @@ export class SyncPresenter implements ISyncPresenter {
 
       if (backupDbSource.type === 'chat') {
         this.sqlitePresenter.reopen()
+        this.reattachConfigPresenterStorage()
         sqliteClosed = false
         sqliteReopenedForLegacyImport = true
       }
@@ -301,6 +304,7 @@ export class SyncPresenter implements ISyncPresenter {
 
       if (sqliteClosed) {
         this.sqlitePresenter.reopen()
+        this.reattachConfigPresenterStorage()
       }
       await this.broadcastThreadListUpdateAfterImport()
       if (importMode === ImportMode.OVERWRITE) {
@@ -329,6 +333,7 @@ export class SyncPresenter implements ISyncPresenter {
       if (sqliteClosed) {
         try {
           this.sqlitePresenter.reopen()
+          this.reattachConfigPresenterStorage()
           await this.broadcastThreadListUpdateAfterImport()
         } catch (reopenError) {
           console.error('Failed to reopen sqlite after import failure:', reopenError)
@@ -378,10 +383,9 @@ export class SyncPresenter implements ISyncPresenter {
       this.emitBackupStatus('collecting')
       const files: Record<string, Uint8Array> = {}
       files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(this.DB_PATH))
-      files[ZIP_PATHS.appSettings] = new Uint8Array(fs.readFileSync(this.APP_SETTINGS_PATH))
+      files[ZIP_PATHS.appSettings] = this.readSanitizedAppSettingsBackup()
       this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
       this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
-      this.addOptionalFile(files, ZIP_PATHS.mcpSettings, this.MCP_SETTINGS_PATH)
 
       const manifest = {
         version: 1,
@@ -465,6 +469,14 @@ export class SyncPresenter implements ISyncPresenter {
     this.currentBackupStatus = status
   }
 
+  private reattachConfigPresenterStorage(): void {
+    ;(
+      this.configPresenter as IConfigPresenter & {
+        setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
+      }
+    ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
+  }
+
   private ensureSafeBackupFileName(fileName: string): string {
     const normalized = fileName.replace(/\\/g, '/').trim()
     if (!normalized) {
@@ -491,6 +503,24 @@ export class SyncPresenter implements ISyncPresenter {
     if (fs.existsSync(filePath)) {
       files[zipPath] = new Uint8Array(fs.readFileSync(filePath))
     }
+  }
+
+  private readSanitizedAppSettingsBackup(): Uint8Array {
+    const raw = fs.readFileSync(this.APP_SETTINGS_PATH, 'utf-8')
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const sanitized = this.removeMigratedAppSettings(parsed)
+    return new Uint8Array(Buffer.from(JSON.stringify(sanitized, null, 2), 'utf-8'))
+  }
+
+  private removeMigratedAppSettings(settings: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(
+      Object.entries(settings).filter(([key]) => {
+        if (MIGRATED_APP_SETTINGS_KEYS.has(key)) {
+          return false
+        }
+        return !key.startsWith('model_status_')
+      })
+    )
   }
 
   private resolveBackupDbSource(extractionDir: string): BackupDbSource | null {

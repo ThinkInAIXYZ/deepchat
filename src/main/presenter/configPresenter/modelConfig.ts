@@ -28,6 +28,7 @@ import {
 } from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
 import { modelCapabilities } from './modelCapabilities'
+import type { StoreLike } from './storeLike'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 
@@ -63,7 +64,7 @@ interface ModelConfigStoreMeta {
 type ModelConfigStoreSchema = Record<string, IModelConfig | ModelConfigStoreMeta>
 
 export class ModelConfigHelper {
-  private modelConfigStore: ElectronStore<ModelConfigStoreSchema>
+  private modelConfigStore: StoreLike<ModelConfigStoreSchema>
   private memoryCache: Map<string, IModelConfig> = new Map()
   private cacheInitialized: boolean = false
   private currentVersion: string
@@ -73,6 +74,13 @@ export class ModelConfigHelper {
       name: 'model-config'
     })
     this.currentVersion = appVersion
+    this.ensureStoreSynced()
+  }
+
+  setStore(store: StoreLike<ModelConfigStoreSchema>): void {
+    this.modelConfigStore = store
+    this.memoryCache.clear()
+    this.cacheInitialized = false
     this.ensureStoreSynced()
   }
 
@@ -644,7 +652,7 @@ export class ModelConfigHelper {
   importConfigs(configs: Record<string, IModelConfig>, overwrite: boolean = false): void {
     if (overwrite) {
       // Clear existing configs from both store and cache
-      this.modelConfigStore.clear()
+      this.clearStore()
       this.memoryCache.clear()
       this.cacheInitialized = false
     }
@@ -655,7 +663,7 @@ export class ModelConfigHelper {
     Object.entries(configs).forEach(([key, value]) => {
       if (this.isMetaKey(key) || !value) return
 
-      if (!overwrite && this.modelConfigStore.has(key)) {
+      if (!overwrite && this.hasStoreEntry(key)) {
         return
       }
 
@@ -699,7 +707,7 @@ export class ModelConfigHelper {
    * Clear all configurations
    */
   clearAllConfigs(): void {
-    this.modelConfigStore.clear()
+    this.clearStore()
     this.memoryCache.clear()
     this.cacheInitialized = false
     this.updateStoreMeta({
@@ -713,7 +721,7 @@ export class ModelConfigHelper {
    * @returns Store file path
    */
   getStorePath(): string {
-    return this.modelConfigStore.path
+    return this.modelConfigStore.path ?? ''
   }
 
   /**
@@ -722,5 +730,23 @@ export class ModelConfigHelper {
   clearMemoryCache(): void {
     this.memoryCache.clear()
     this.cacheInitialized = false
+  }
+
+  private hasStoreEntry(key: string): boolean {
+    if (typeof this.modelConfigStore.has === 'function') {
+      return this.modelConfigStore.has(key)
+    }
+    return this.modelConfigStore.get(key) !== undefined
+  }
+
+  private clearStore(): void {
+    if (typeof this.modelConfigStore.clear === 'function') {
+      this.modelConfigStore.clear()
+      return
+    }
+
+    Object.keys(this.modelConfigStore.store).forEach((key) => {
+      this.modelConfigStore.delete(key)
+    })
   }
 }

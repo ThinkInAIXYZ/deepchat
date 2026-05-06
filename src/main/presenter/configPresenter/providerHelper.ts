@@ -6,14 +6,14 @@ import {
   ProviderChange
 } from '@shared/provider-operations'
 import { LLM_PROVIDER } from '@shared/presenter'
-import ElectronStore from 'electron-store'
+import type { StoreLike } from './storeLike'
 
 type SetSetting = <T>(key: string, value: T) => void
 
 const PROVIDERS_STORE_KEY = 'providers'
 
 interface ProviderHelperOptions {
-  store: ElectronStore<any>
+  store: StoreLike<any>
   setSetting: SetSetting
   defaultProviders: LLM_PROVIDER[]
 }
@@ -24,7 +24,7 @@ interface ProviderCleanupHooks {
 }
 
 export class ProviderHelper {
-  private readonly store: ElectronStore<any>
+  private store: StoreLike<any>
   private readonly setSetting: SetSetting
   private readonly defaultProviders: LLM_PROVIDER[]
   private cleanupHooks: ProviderCleanupHooks = {}
@@ -37,6 +37,10 @@ export class ProviderHelper {
 
   setCleanupHooks(hooks: ProviderCleanupHooks): void {
     this.cleanupHooks = hooks
+  }
+
+  setStore(store: StoreLike<any>): void {
+    this.store = store
   }
 
   getProviders(): LLM_PROVIDER[] {

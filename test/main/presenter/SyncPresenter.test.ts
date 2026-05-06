@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import os from 'os'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { zipSync } from 'fflate'
+import { unzipSync, zipSync } from 'fflate'
 import * as fsMock from 'fs'
 
 vi.mock('better-sqlite3-multiple-ciphers', async () => {
@@ -302,6 +302,45 @@ describe('SyncPresenter backup import', () => {
     removeDir(syncDir)
     removeDir(tempDir)
     removeDir(userDataDir)
+  })
+
+  it('backs up migrated config through agent.db and keeps app-settings lightweight', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: {
+        theme: 'light',
+        locale: 'en',
+        providers: [{ id: 'openai', name: 'OpenAI' }],
+        providerOrder: ['openai'],
+        providerTimestamps: { openai: 123 },
+        model_status_openai_gpt4: true
+      },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {
+        mcpServers: {
+          local: { command: 'bunx local', type: 'stdio', enabled: true }
+        }
+      }
+    })
+
+    const backup = await presenter.startBackup()
+    expect(backup).not.toBeNull()
+
+    const archivePath = path.join(syncDir, backup!.fileName)
+    const files = unzipSync(new Uint8Array(fs.readFileSync(archivePath)))
+    expect(files[ZIP_PATHS.agentDb]).toBeDefined()
+    expect(files[ZIP_PATHS.mcpSettings]).toBeUndefined()
+
+    const appSettings = JSON.parse(
+      Buffer.from(files[ZIP_PATHS.appSettings]).toString('utf-8')
+    ) as Record<string, unknown>
+    expect(appSettings.theme).toBe('light')
+    expect(appSettings.locale).toBe('en')
+    expect(appSettings.providers).toBeUndefined()
+    expect(appSettings.providerOrder).toBeUndefined()
+    expect(appSettings.providerTimestamps).toBeUndefined()
+    expect(appSettings.model_status_openai_gpt4).toBeUndefined()
   })
 
   it('imports backup incrementally without overwriting existing data', async () => {

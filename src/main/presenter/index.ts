@@ -212,6 +212,11 @@ export class Presenter implements IPresenter {
         setAgentRepository?: (repository: AgentRepository) => void
       }
     ).setAgentRepository?.(agentRepository)
+    ;(
+      this.configPresenter as IConfigPresenter & {
+        setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
+      }
+    ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
     this.startupWorkloadCoordinator = new StartupWorkloadCoordinator()
 
     // 初始化各个 Presenter 实例及其依赖
