@@ -6,6 +6,7 @@
     "notEnabled": "同期機能が有効になっていません",
     "folderNotExists": "同期フォルダが存在しません",
     "noValidBackup": "同期フォルダに有効なバックアップファイルがありません",
+    "unsupportedBackupVersion": "このバックアップは新しいバージョンの DeepChat で作成されたため、インポートできません",
     "dbNotExists": "データベースファイルが存在しません",
     "configNotExists": "設定ファイルが存在しません",
     "tempDbFailed": "一時データベースバックアップファイルの作成に失敗しました",

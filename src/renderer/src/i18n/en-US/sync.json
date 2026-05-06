@@ -6,6 +6,7 @@
     "notEnabled": "Sync is not enabled",
     "folderNotExists": "Sync folder does not exist",
     "noValidBackup": "No valid backup files found in the sync folder.",
+    "unsupportedBackupVersion": "This backup was created by a newer version of DeepChat and cannot be imported.",
     "dbNotExists": "Database file does not exist",
     "configNotExists": "Configuration file does not exist",
     "tempDbFailed": "Failed to create temporary database backup file",

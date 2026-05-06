@@ -6,6 +6,7 @@
     "notEnabled": "La fonction de synchronisation n'est pas activée",
     "folderNotExists": "Le dossier de synchronisation n'existe pas",
     "noValidBackup": "Aucun fichier de sauvegarde valide dans le dossier de synchronisation",
+    "unsupportedBackupVersion": "Cette sauvegarde a ete creee par une version plus recente de DeepChat et ne peut pas etre importee.",
     "dbNotExists": "Le fichier de base de données n'existe pas",
     "configNotExists": "Le fichier de configuration n'existe pas",
     "tempDbFailed": "Échec de la création du fichier de sauvegarde temporaire de la base de données",

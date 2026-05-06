@@ -6,6 +6,7 @@
     "notEnabled": "동기화 기능이 활성화되지 않았습니다",
     "folderNotExists": "동기화 폴더가 존재하지 않습니다",
     "noValidBackup": "동기화 폴더에 유효한 백업 파일이 없습니다",
+    "unsupportedBackupVersion": "이 백업은 더 새로운 DeepChat 버전에서 생성되어 가져올 수 없습니다",
     "dbNotExists": "데이터베이스 파일이 존재하지 않습니다",
     "configNotExists": "구성 파일이 존재하지 않습니다",
     "tempDbFailed": "임시 데이터베이스 백업 파일 생성에 실패했습니다",

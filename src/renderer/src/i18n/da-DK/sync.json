@@ -6,6 +6,7 @@
     "notEnabled": "Synkronisering er ikke aktiveret",
     "folderNotExists": "Synkroniseringsmappen findes ikke",
     "noValidBackup": "Der blev ikke fundet gyldige backupfiler i synkroniseringsmappen",
+    "unsupportedBackupVersion": "Denne backup blev oprettet af en nyere version af DeepChat og kan ikke importeres.",
     "dbNotExists": "Databasefilen findes ikke",
     "configNotExists": "Konfigurationsfilen findes ikke",
     "tempDbFailed": "Kunne ikke oprette midlertidig databasebackup",

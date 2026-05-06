@@ -6,6 +6,7 @@
     "notEnabled": "הסנכרון אינו מופעל",
     "folderNotExists": "תיקיית הסנכרון אינה קיימת",
     "noValidBackup": "לא נמצאו קבצי גיבוי תקינים בתיקיית הסנכרון.",
+    "unsupportedBackupVersion": "גיבוי זה נוצר בגרסה חדשה יותר של DeepChat ולא ניתן לייבא אותו.",
     "dbNotExists": "קובץ מסד הנתונים אינו קיים",
     "configNotExists": "קובץ התצורה אינו קיים",
     "tempDbFailed": "נכשל ביצירת קובץ גיבוי זמני למסד הנתונים",

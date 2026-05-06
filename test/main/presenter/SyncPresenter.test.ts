@@ -4,6 +4,12 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { unzipSync, zipSync } from 'fflate'
 import * as fsMock from 'fs'
 
+const configImportMocks = vi.hoisted(() => ({
+  importLegacyConfig: vi.fn(),
+  ensureConfigMigrationMarker: vi.fn(),
+  readManifest: vi.fn()
+}))
+
 vi.mock('better-sqlite3-multiple-ciphers', async () => {
   const fs = await vi.importActual<typeof import('fs')>('fs')
   const path = await vi.importActual<typeof import('path')>('path')
@@ -190,44 +196,81 @@ vi.mock('../../../src/main/presenter/sqlitePresenter/importData', async () => {
     async importData() {
       const sourceState = readState(this.sourcePath)
       const targetState = readState(this.targetPath)
+      const tableCounts: Record<string, number> = {}
 
-      const sourceRows = sourceState.tables.new_sessions ?? sourceState.tables.conversations ?? []
-      const targetRows = targetState.tables.new_sessions ?? targetState.tables.conversations ?? []
-      const targetIds = new Set(targetRows.map((row) => String(row.id ?? row.conv_id ?? '')))
+      for (const [tableName, sourceRows] of Object.entries(sourceState.tables)) {
+        const targetRows = targetState.tables[tableName] ?? []
+        const targetKeys = new Set(targetRows.map((row) => this.getRowKey(tableName, row)))
+        let added = 0
 
-      let added = 0
-      for (const row of sourceRows) {
-        const id = String(row.id ?? row.conv_id ?? '')
-        if (!id || targetIds.has(id)) {
-          continue
+        for (const row of sourceRows) {
+          const rowKey = this.getRowKey(tableName, row)
+          if (!rowKey || targetKeys.has(rowKey)) {
+            continue
+          }
+          targetRows.push({ ...row })
+          targetKeys.add(rowKey)
+          added += 1
         }
 
-        targetRows.push({
-          id,
-          title: String(row.title ?? '')
-        })
-        targetIds.add(id)
-        added += 1
+        if (added > 0) {
+          targetState.tables[tableName] = targetRows
+          tableCounts[tableName] = added
+        }
       }
 
-      targetState.tables.conversations = targetRows.map((row) => ({
-        id: String(row.id ?? row.conv_id ?? ''),
-        title: String(row.title ?? '')
-      }))
       writeState(this.targetPath, targetState)
 
-      return {
-        tableCounts: {
-          conversations: added
-        }
-      }
+      return { tableCounts }
     }
 
     close() {}
+
+    private getRowKey(tableName: string, row: MockRow): string {
+      if (tableName === 'provider_models') {
+        return `${row.provider_id}:${row.model_id}:${row.source}`
+      }
+      if (tableName === 'agent_mcp_selections') {
+        return `${row.agent_id}:${row.is_builtin}:${row.mcp_id}`
+      }
+      return String(
+        row.id ?? row.conv_id ?? row.status_key ?? row.cache_key ?? row.name ?? row.key ?? ''
+      )
+    }
   }
 
   return {
     DataImporter: MockDataImporter
+  }
+})
+
+vi.mock('../../../src/main/presenter/syncPresenter/configImportService', async () => {
+  const fs = await vi.importActual<typeof import('fs')>('fs')
+  const path = await vi.importActual<typeof import('path')>('path')
+
+  class MockSyncConfigImportService {
+    readManifest(extractionDir: string) {
+      configImportMocks.readManifest(extractionDir)
+      const manifestPath = path.join(extractionDir, 'manifest.json')
+      if (!fs.existsSync(manifestPath)) {
+        return null
+      }
+      return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+    }
+
+    importLegacyConfig(extractionDir: string, mode: string) {
+      configImportMocks.importLegacyConfig(extractionDir, mode)
+    }
+
+    ensureConfigMigrationMarker() {
+      configImportMocks.ensureConfigMigrationMarker()
+    }
+  }
+
+  return {
+    CURRENT_SYNC_BACKUP_VERSION: 2,
+    CURRENT_SYNC_CONFIG_SCHEMA_VERSION: 1,
+    SyncConfigImportService: MockSyncConfigImportService
   }
 })
 
@@ -261,6 +304,10 @@ describe('SyncPresenter backup import', () => {
   let getPathSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
+    configImportMocks.importLegacyConfig.mockClear()
+    configImportMocks.ensureConfigMigrationMarker.mockClear()
+    configImportMocks.readManifest.mockClear()
+
     userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-user-'))
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-temp-'))
     syncDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sync-'))
@@ -313,7 +360,9 @@ describe('SyncPresenter backup import', () => {
         providers: [{ id: 'openai', name: 'OpenAI' }],
         providerOrder: ['openai'],
         providerTimestamps: { openai: 123 },
-        model_status_openai_gpt4: true
+        model_status_openai_gpt4: true,
+        openai_models: [{ id: 'gpt-4' }],
+        custom_models_openai: [{ id: 'custom-gpt' }]
       },
       customPrompts: { prompts: [] },
       systemPrompts: { prompts: [] },
@@ -331,6 +380,12 @@ describe('SyncPresenter backup import', () => {
     const files = unzipSync(new Uint8Array(fs.readFileSync(archivePath)))
     expect(files[ZIP_PATHS.agentDb]).toBeDefined()
     expect(files[ZIP_PATHS.mcpSettings]).toBeUndefined()
+    const manifest = JSON.parse(Buffer.from(files[ZIP_PATHS.manifest]).toString('utf-8'))
+    expect(manifest).toMatchObject({
+      version: 2,
+      configStorage: 'sqlite',
+      configSchemaVersion: 1
+    })
 
     const appSettings = JSON.parse(
       Buffer.from(files[ZIP_PATHS.appSettings]).toString('utf-8')
@@ -341,6 +396,8 @@ describe('SyncPresenter backup import', () => {
     expect(appSettings.providerOrder).toBeUndefined()
     expect(appSettings.providerTimestamps).toBeUndefined()
     expect(appSettings.model_status_openai_gpt4).toBeUndefined()
+    expect(appSettings.openai_models).toBeUndefined()
+    expect(appSettings.custom_models_openai).toBeUndefined()
   })
 
   it('imports backup incrementally without overwriting existing data', async () => {
@@ -398,6 +455,10 @@ describe('SyncPresenter backup import', () => {
     expect(result.importedSessions).toBe(1)
     expect(sqlitePresenter.close).toHaveBeenCalled()
     expect(sqlitePresenter.reopen).toHaveBeenCalled()
+    expect(configImportMocks.importLegacyConfig).toHaveBeenCalledWith(
+      expect.stringContaining('deepchat-backup-'),
+      'increment'
+    )
 
     const dbPath = path.join(userDataDir, 'app_db', 'agent.db')
     const db = new Database(dbPath)
@@ -444,15 +505,9 @@ describe('SyncPresenter backup import', () => {
       type: 'stdio',
       enabled: true
     })
-    expect(mcpSettings.mcpServers.imported).toEqual({
-      command: 'bunx imported',
-      type: 'stdio',
-      enabled: true
-    })
-    expect(mcpSettings.mcpServers.knowledge).toBeUndefined()
-    expect(mcpSettings.defaultServers).toBeUndefined()
+    expect(mcpSettings.mcpServers.imported).toBeUndefined()
     expect(mcpSettings.extra).toBe(true)
-    expect(mcpSettings.additional).toBe(true)
+    expect(mcpSettings.additional).toBeUndefined()
   })
 
   it('rejects backup file names containing directory traversal', async () => {
@@ -461,6 +516,173 @@ describe('SyncPresenter backup import', () => {
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.noValidBackup')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
+  })
+
+  it('imports v2 sqlite config rows incrementally without overwriting local rows', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {},
+      extraAgentTables: {
+        providers: [{ id: 'local', name: 'Local Provider' }],
+        mcp_servers: [{ name: 'local-server', config_json: '{"enabled":true}' }]
+      }
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [
+          { id: 'conv-1', title: 'Local conversation' },
+          { id: 'conv-2', title: 'Imported conversation' }
+        ],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      {
+        manifest: {
+          version: 2,
+          createdAt: Date.now(),
+          configStorage: 'sqlite',
+          configSchemaVersion: 1,
+          files: [ZIP_PATHS.agentDb, ZIP_PATHS.appSettings]
+        },
+        extraAgentTables: {
+          providers: [
+            { id: 'local', name: 'Backup Provider' },
+            { id: 'imported', name: 'Imported Provider' }
+          ],
+          mcp_servers: [
+            { name: 'local-server', config_json: '{"enabled":false}' },
+            { name: 'imported-server', config_json: '{"enabled":true}' }
+          ]
+        }
+      }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    expect(result.success).toBe(true)
+    expect(configImportMocks.ensureConfigMigrationMarker).toHaveBeenCalledTimes(1)
+    expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
+
+    const state = readMockDbState(path.join(userDataDir, 'app_db', 'agent.db'))
+    expect(state.tables.providers).toEqual([
+      { id: 'local', name: 'Local Provider' },
+      { id: 'imported', name: 'Imported Provider' }
+    ])
+    expect(state.tables.mcp_servers).toEqual([
+      { name: 'local-server', config_json: '{"enabled":true}' },
+      { name: 'imported-server', config_json: '{"enabled":true}' }
+    ])
+  })
+
+  it('rejects unsupported future backup versions before touching local data', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      {
+        manifest: {
+          version: 99,
+          createdAt: Date.now(),
+          files: [ZIP_PATHS.agentDb]
+        }
+      }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('sync.error.unsupportedBackupVersion')
+    expect(sqlitePresenter.close).not.toHaveBeenCalled()
+    expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
+    expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
+  })
+
+  it('rejects unsupported future config schema versions before touching local data', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      {
+        manifest: {
+          version: 2,
+          createdAt: Date.now(),
+          configStorage: 'sqlite',
+          configSchemaVersion: 99,
+          files: [ZIP_PATHS.agentDb]
+        }
+      }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('sync.error.unsupportedBackupVersion')
+    expect(sqlitePresenter.close).not.toHaveBeenCalled()
+    expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
+    expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
+  })
+
+  it('treats missing manifest backups as legacy backups', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      { manifest: null }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    expect(result.success).toBe(true)
+    expect(configImportMocks.importLegacyConfig).toHaveBeenCalledWith(
+      expect.stringContaining('deepchat-backup-'),
+      'increment'
+    )
   })
 
   it('overwrites existing data when import mode is OVERWRITE', async () => {
@@ -505,6 +727,10 @@ describe('SyncPresenter backup import', () => {
     expect(result.sourceDbType).toBe('agent')
     expect(result.importedSessions).toBe(1)
     expect(sqlitePresenter.reopen).toHaveBeenCalled()
+    expect(configImportMocks.importLegacyConfig).toHaveBeenCalledWith(
+      expect.stringContaining('deepchat-backup-'),
+      'overwrite'
+    )
 
     const dbPath = path.join(userDataDir, 'app_db', 'agent.db')
     const db = new Database(dbPath)
@@ -524,9 +750,9 @@ describe('SyncPresenter backup import', () => {
       fs.readFileSync(path.join(userDataDir, 'mcp-settings.json'), 'utf-8')
     )
     expect(mcpSettings.mcpServers).toEqual({
-      imported: { command: 'bunx imported', type: 'stdio', enabled: true }
+      local: { command: 'bunx local', type: 'stdio', enabled: true }
     })
-    expect(mcpSettings.defaultServers).toEqual(['imported'])
+    expect(mcpSettings.defaultServers).toEqual(['local'])
   })
 
   it('imports backup from chat.db through legacy migration in increment mode', async () => {
@@ -675,12 +901,16 @@ function createLocalState(
     customPrompts: { prompts: Array<Record<string, unknown>> }
     systemPrompts: { prompts: Array<Record<string, unknown>> }
     mcpSettings: Record<string, any>
+    extraAgentTables?: Record<string, Array<Record<string, unknown>>>
   }
 ) {
   const dbDir = path.join(userDataDir, 'app_db')
   fs.mkdirSync(dbDir, { recursive: true })
   const dbPath = path.join(dbDir, 'agent.db')
   writeConversationDb(dbPath, data.conversations)
+  if (data.extraAgentTables) {
+    mergeMockDbTables(dbPath, data.extraAgentTables)
+  }
 
   fs.writeFileSync(
     path.join(userDataDir, 'app-settings.json'),
@@ -723,7 +953,11 @@ function createBackupArchive(
     systemPrompts: { prompts: Array<Record<string, unknown>> }
     mcpSettings: Record<string, any>
   },
-  options: { dbType?: 'agent' | 'chat' | 'both' | 'none' } = {}
+  options: {
+    dbType?: 'agent' | 'chat' | 'both' | 'none'
+    manifest?: Record<string, unknown> | null
+    extraAgentTables?: Record<string, Array<Record<string, unknown>>>
+  } = {}
 ): string {
   const dbType = options.dbType ?? 'agent'
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-backup-src-'))
@@ -735,6 +969,9 @@ function createBackupArchive(
   const agentDbPath = path.join(databaseDir, 'agent.db')
   if (dbType === 'agent' || dbType === 'both') {
     writeConversationDb(agentDbPath, data.conversations)
+    if (options.extraAgentTables) {
+      mergeMockDbTables(agentDbPath, options.extraAgentTables)
+    }
   }
 
   const chatDbPath = path.join(databaseDir, 'chat.db')
@@ -779,14 +1016,16 @@ function createBackupArchive(
     Buffer.from(JSON.stringify(data.mcpSettings, null, 2), 'utf-8')
   )
 
-  const manifest = {
-    version: 1,
-    createdAt: timestamp,
-    files: Object.keys(files)
+  if (options.manifest !== null) {
+    const manifest = options.manifest ?? {
+      version: 1,
+      createdAt: timestamp,
+      files: Object.keys(files)
+    }
+    files[ZIP_PATHS.manifest] = new Uint8Array(
+      Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8')
+    )
   }
-  files[ZIP_PATHS.manifest] = new Uint8Array(
-    Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8')
-  )
 
   const zipData = zipSync(files, { level: 6 })
   const backupFileName = `backup-${timestamp}.zip`
@@ -795,6 +1034,24 @@ function createBackupArchive(
 
   removeDir(tempDir)
   return backupFileName
+}
+
+function mergeMockDbTables(dbPath: string, tables: Record<string, Array<Record<string, unknown>>>) {
+  const raw = fs.existsSync(dbPath) ? fs.readFileSync(dbPath, 'utf-8') : '{"tables":{}}'
+  const state = JSON.parse(raw) as { tables: Record<string, Array<Record<string, unknown>>> }
+  state.tables = {
+    ...state.tables,
+    ...tables
+  }
+  fs.writeFileSync(dbPath, JSON.stringify(state, null, 2), 'utf-8')
+}
+
+function readMockDbState(dbPath: string): {
+  tables: Record<string, Array<Record<string, unknown>>>
+} {
+  return JSON.parse(fs.readFileSync(dbPath, 'utf-8')) as {
+    tables: Record<string, Array<Record<string, unknown>>>
+  }
 }
 
 function writeLegacyChatDb(dbPath: string, conversations: Array<{ id: string; title: string }>) {

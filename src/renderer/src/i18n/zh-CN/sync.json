@@ -6,6 +6,7 @@
     "notEnabled": "同步功能未启用",
     "folderNotExists": "同步文件夹不存在",
     "noValidBackup": "同步文件夹中没有有效的备份文件",
+    "unsupportedBackupVersion": "该备份由更新版本的 DeepChat 创建，当前版本无法导入",
     "dbNotExists": "数据库文件不存在",
     "configNotExists": "配置文件不存在",
     "tempDbFailed": "临时数据库备份文件创建失败",

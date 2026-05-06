@@ -338,6 +338,10 @@ export class ConfigTables extends BaseTable {
     this.db.prepare('DELETE FROM provider_models WHERE provider_id = ?').run(providerId)
   }
 
+  clearAllProviderModels(): void {
+    this.db.exec('DELETE FROM provider_models')
+  }
+
   getModelStatus(statusKey: string): boolean | undefined {
     const row = this.db
       .prepare('SELECT enabled FROM model_status WHERE status_key = ?')
@@ -380,6 +384,10 @@ export class ConfigTables extends BaseTable {
 
   deleteProviderModelStatuses(providerId: string): void {
     this.db.prepare('DELETE FROM model_status WHERE provider_id = ?').run(providerId)
+  }
+
+  clearModelStatuses(): void {
+    this.db.exec('DELETE FROM model_status')
   }
 
   listModelConfigStore(): Record<string, IModelConfig | Record<string, unknown>> {
@@ -475,6 +483,10 @@ export class ConfigTables extends BaseTable {
     this.deleteJsonSetting('mcp_settings', key)
   }
 
+  clearMcpSettings(): void {
+    this.db.exec('DELETE FROM mcp_settings')
+  }
+
   listMcpSettings(): Record<string, unknown> {
     return this.listJsonSettings('mcp_settings')
   }
@@ -489,6 +501,10 @@ export class ConfigTables extends BaseTable {
 
   deleteAgentSetting(key: string): void {
     this.deleteJsonSetting('agent_settings', key)
+  }
+
+  clearAgentSettings(): void {
+    this.db.exec('DELETE FROM agent_settings')
   }
 
   listAgentSettings(): Record<string, unknown> {
@@ -525,6 +541,10 @@ export class ConfigTables extends BaseTable {
           .run(agentId, isBuiltin ? 1 : 0, mcpId, index)
       })
     })()
+  }
+
+  clearAgentMcpSelections(): void {
+    this.db.exec('DELETE FROM agent_mcp_selections')
   }
 
   runInTransaction(fn: () => void): void {

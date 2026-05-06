@@ -7,23 +7,22 @@ import {
   ISyncPresenter,
   IConfigPresenter,
   ISQLitePresenter,
-  SyncBackupInfo,
-  MCPServerConfig
+  SyncBackupInfo
 } from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SYNC_EVENTS } from '@/events'
 import { DataImporter } from '../sqlitePresenter/importData'
 import { ImportMode } from '../sqlitePresenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
+import {
+  CURRENT_SYNC_BACKUP_VERSION,
+  CURRENT_SYNC_CONFIG_SCHEMA_VERSION,
+  SyncConfigImportService,
+  type SyncBackupManifest
+} from './configImportService'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
-}
-
-interface McpSettings {
-  mcpServers?: Record<string, MCPServerConfig>
-  defaultServers?: string[]
-  [key: string]: unknown
 }
 
 type BackupStatus = 'idle' | 'preparing' | 'collecting' | 'compressing' | 'finalizing' | 'error'
@@ -32,6 +31,10 @@ const BACKUP_PREFIX = 'backup-'
 const BACKUP_EXTENSION = '.zip'
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
 const MIGRATED_APP_SETTINGS_KEYS = new Set(['providers', 'providerOrder', 'providerTimestamps'])
+const KNOWN_IMPORT_ERRORS = new Set([
+  'sync.error.noValidBackup',
+  'sync.error.unsupportedBackupVersion'
+])
 
 const ZIP_PATHS = {
   agentDb: 'database/agent.db',
@@ -201,12 +204,15 @@ export class SyncPresenter implements ISyncPresenter {
 
     try {
       this.extractBackupArchive(backupZipPath, extractionDir)
+      const configImportService = this.createConfigImportService()
+      const manifest = configImportService.readManifest(extractionDir)
+      const backupVersion = this.resolveBackupVersion(manifest)
+      const usesSqliteConfigStorage = backupVersion >= 2 && manifest?.configStorage === 'sqlite'
 
       const backupDbSource = this.resolveBackupDbSource(extractionDir)
       const backupAppSettingsPath = path.join(extractionDir, ZIP_PATHS.appSettings)
       const backupCustomPromptsPath = path.join(extractionDir, ZIP_PATHS.customPrompts)
       const backupSystemPromptsPath = path.join(extractionDir, ZIP_PATHS.systemPrompts)
-      const backupMcpSettingsPath = path.join(extractionDir, ZIP_PATHS.mcpSettings)
 
       if (!backupDbSource || !fs.existsSync(backupAppSettingsPath)) {
         throw new Error('sync.error.noValidBackup')
@@ -252,6 +258,11 @@ export class SyncPresenter implements ISyncPresenter {
 
           this.copyFile(backupDbSource.path, this.DB_PATH)
           this.cleanupDatabaseSidecarFiles(this.DB_PATH)
+          if (usesSqliteConfigStorage) {
+            configImportService.ensureConfigMigrationMarker()
+          } else {
+            configImportService.importLegacyConfig(extractionDir, 'overwrite')
+          }
           this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
 
           if (fs.existsSync(backupCustomPromptsPath)) {
@@ -261,10 +272,6 @@ export class SyncPresenter implements ISyncPresenter {
           if (fs.existsSync(backupSystemPromptsPath)) {
             this.copyFile(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
           }
-
-          if (fs.existsSync(backupMcpSettingsPath)) {
-            this.copyFile(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
-          }
         } else {
           const importer = new DataImporter(backupDbSource.path, this.DB_PATH)
           const summary = await importer.importData()
@@ -272,15 +279,17 @@ export class SyncPresenter implements ISyncPresenter {
           importedConversationCount =
             summary.tableCounts.new_sessions || summary.tableCounts.conversations || 0
 
+          if (usesSqliteConfigStorage) {
+            configImportService.ensureConfigMigrationMarker()
+          } else {
+            configImportService.importLegacyConfig(extractionDir, 'increment')
+          }
           this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
           if (fs.existsSync(backupCustomPromptsPath)) {
             this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
           }
           if (fs.existsSync(backupSystemPromptsPath)) {
             this.mergePromptStore(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
-          }
-          if (fs.existsSync(backupMcpSettingsPath)) {
-            this.mergeMcpSettings(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
           }
         }
       } else {
@@ -290,15 +299,19 @@ export class SyncPresenter implements ISyncPresenter {
         )
         importedConversationCount = summary.importedSessions
 
+        this.sqlitePresenter.close()
+        sqliteClosed = true
+        sqliteReopenedForLegacyImport = false
+        configImportService.importLegacyConfig(
+          extractionDir,
+          importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
+        )
         this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
         if (fs.existsSync(backupCustomPromptsPath)) {
           this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
         }
         if (fs.existsSync(backupSystemPromptsPath)) {
           this.mergePromptStore(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
-        }
-        if (fs.existsSync(backupMcpSettingsPath)) {
-          this.mergeMcpSettings(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
         }
       }
 
@@ -342,8 +355,7 @@ export class SyncPresenter implements ISyncPresenter {
       eventBus.send(SYNC_EVENTS.IMPORT_ERROR, SendTarget.ALL_WINDOWS, errorMessage)
       return {
         success: false,
-        message:
-          errorMessage === 'sync.error.noValidBackup' ? errorMessage : 'sync.error.importFailed'
+        message: KNOWN_IMPORT_ERRORS.has(errorMessage) ? errorMessage : 'sync.error.importFailed'
       }
     } finally {
       this.cleanupTempFiles(Object.values(tempCurrentFiles))
@@ -388,8 +400,10 @@ export class SyncPresenter implements ISyncPresenter {
       this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
 
       const manifest = {
-        version: 1,
+        version: CURRENT_SYNC_BACKUP_VERSION,
         createdAt: timestamp,
+        configStorage: 'sqlite',
+        configSchemaVersion: CURRENT_SYNC_CONFIG_SCHEMA_VERSION,
         files: Object.keys(files)
       }
       files[ZIP_PATHS.manifest] = new Uint8Array(
@@ -477,6 +491,29 @@ export class SyncPresenter implements ISyncPresenter {
     ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
   }
 
+  private createConfigImportService(): SyncConfigImportService {
+    return new SyncConfigImportService(this.DB_PATH)
+  }
+
+  private resolveBackupVersion(manifest: SyncBackupManifest | null): number {
+    if (!manifest || manifest.version === 1) {
+      return 1
+    }
+    if (manifest.version > CURRENT_SYNC_BACKUP_VERSION) {
+      throw new Error('sync.error.unsupportedBackupVersion')
+    }
+    if (manifest.version === CURRENT_SYNC_BACKUP_VERSION) {
+      if (
+        typeof manifest.configSchemaVersion === 'number' &&
+        manifest.configSchemaVersion > CURRENT_SYNC_CONFIG_SCHEMA_VERSION
+      ) {
+        throw new Error('sync.error.unsupportedBackupVersion')
+      }
+      return manifest.version
+    }
+    throw new Error('sync.error.noValidBackup')
+  }
+
   private ensureSafeBackupFileName(fileName: string): string {
     const normalized = fileName.replace(/\\/g, '/').trim()
     if (!normalized) {
@@ -518,7 +555,10 @@ export class SyncPresenter implements ISyncPresenter {
         if (MIGRATED_APP_SETTINGS_KEYS.has(key)) {
           return false
         }
-        return !key.startsWith('model_status_')
+        if (key.startsWith('model_status_') || key.startsWith('custom_models_')) {
+          return false
+        }
+        return !key.endsWith('_models')
       })
     )
   }
@@ -626,8 +666,9 @@ export class SyncPresenter implements ISyncPresenter {
     preservedSettings.syncFolderPath = this.configPresenter.getSyncFolderPath()
     preservedSettings.lastSyncTime = this.configPresenter.getLastSyncTime()
 
+    const sanitizedBackupSettings = this.removeMigratedAppSettings(backupSettings)
     const mergedSettings = {
-      ...backupSettings,
+      ...sanitizedBackupSettings,
       ...Object.fromEntries(
         Object.entries(preservedSettings).filter(
           ([, value]) => value !== undefined && value !== null
@@ -780,95 +821,5 @@ export class SyncPresenter implements ISyncPresenter {
       console.warn('Failed to read prompt store:', filePath, error)
       return { prompts: [] }
     }
-  }
-
-  private mergeMcpSettings(backupPath: string, targetPath: string): void {
-    const backupSettings = this.readMcpSettings(backupPath)
-    if (!backupSettings) {
-      return
-    }
-
-    const currentSettings = this.readMcpSettings(targetPath) || {}
-    const mergedServers: Record<string, MCPServerConfig> = currentSettings.mcpServers
-      ? { ...currentSettings.mcpServers }
-      : {}
-
-    let addedServers = false
-    for (const [name, config] of Object.entries(backupSettings.mcpServers || {})) {
-      if (this.isKnowledgeMcp(name, config)) {
-        continue
-      }
-      if (!mergedServers[name]) {
-        mergedServers[name] = config
-        addedServers = true
-      } else if (config.enabled && !mergedServers[name].enabled) {
-        mergedServers[name] = { ...mergedServers[name], enabled: true }
-        addedServers = true
-      }
-    }
-
-    const currentEnabled = new Set(
-      Object.entries(mergedServers)
-        .filter(([, config]) => config.enabled)
-        .map(([name]) => name)
-    )
-    let enabledChanged = false
-    for (const serverName of backupSettings.defaultServers || []) {
-      const serverConfig = backupSettings.mcpServers?.[serverName]
-      if (serverConfig && !this.isKnowledgeMcp(serverName, serverConfig)) {
-        const beforeSize = currentEnabled.size
-        currentEnabled.add(serverName)
-        if (currentEnabled.size !== beforeSize && mergedServers[serverName]) {
-          mergedServers[serverName] = { ...mergedServers[serverName], enabled: true }
-          enabledChanged = true
-        }
-      }
-    }
-
-    const mergedSettings: McpSettings = { ...currentSettings }
-    mergedSettings.mcpServers = mergedServers
-    delete mergedSettings.defaultServers
-
-    let settingsChanged = false
-    for (const [key, value] of Object.entries(backupSettings)) {
-      if (key === 'mcpServers' || key === 'defaultServers') {
-        continue
-      }
-      if (mergedSettings[key] === undefined) {
-        mergedSettings[key] = value
-        settingsChanged = true
-      }
-    }
-
-    if (addedServers || enabledChanged || settingsChanged) {
-      fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
-      return
-    }
-
-    if (!fs.existsSync(targetPath)) {
-      fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
-    }
-  }
-
-  private readMcpSettings(filePath: string): McpSettings | null {
-    if (!fs.existsSync(filePath)) {
-      return null
-    }
-    try {
-      const content = fs.readFileSync(filePath, 'utf-8')
-      return JSON.parse(content) as McpSettings
-    } catch (error) {
-      console.warn('Failed to read MCP settings:', filePath, error)
-      return null
-    }
-  }
-
-  private isKnowledgeMcp(name: string, config: MCPServerConfig | undefined): boolean {
-    const normalizedName = name.toLowerCase()
-    if (normalizedName.includes('knowledge')) {
-      return true
-    }
-    const command = typeof config?.command === 'string' ? config.command.toLowerCase() : ''
-    return command.includes('knowledge')
   }
 }
