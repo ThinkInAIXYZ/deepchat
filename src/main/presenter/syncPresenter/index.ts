@@ -217,6 +217,9 @@ export class SyncPresenter implements ISyncPresenter {
       if (!backupDbSource || !fs.existsSync(backupAppSettingsPath)) {
         throw new Error('sync.error.noValidBackup')
       }
+      if (usesSqliteConfigStorage && backupDbSource.type !== 'agent') {
+        throw new Error('sync.error.noValidBackup')
+      }
 
       this.sqlitePresenter.close()
       sqliteClosed = true

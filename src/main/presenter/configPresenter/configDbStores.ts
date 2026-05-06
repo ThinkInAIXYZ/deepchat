@@ -24,15 +24,18 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
   }
 
   get store(): Record<string, unknown> {
+    const useLegacyFallback = this.shouldUseLegacyFallback()
     const providers = this.configTables.listProviders()
     const providerOrder = this.configTables.getProviderOrder()
     const providerTimestamps = this.configTables.getProviderTimestamps()
     const modelStatusEntries = this.configTables.listModelStatusEntries()
     return {
-      ...this.legacyStore.store,
-      ...(providers.length > 0 ? { providers } : {}),
-      ...(providerOrder.length > 0 ? { providerOrder } : {}),
-      ...(Object.keys(providerTimestamps).length > 0 ? { providerTimestamps } : {}),
+      ...this.getLegacyStoreSnapshot(),
+      ...(providers.length > 0 || !useLegacyFallback ? { providers } : {}),
+      ...(providerOrder.length > 0 || !useLegacyFallback ? { providerOrder } : {}),
+      ...(Object.keys(providerTimestamps).length > 0 || !useLegacyFallback
+        ? { providerTimestamps }
+        : {}),
       ...modelStatusEntries
     }
   }
@@ -43,6 +46,9 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
       if (providers.length > 0) {
         return providers as TValue
       }
+      if (!this.shouldUseLegacyFallback()) {
+        return defaultValue
+      }
       const legacyValue = this.legacyStore.get<TValue>(key)
       return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
@@ -50,6 +56,9 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
       const order = this.configTables.getProviderOrder()
       if (order.length > 0) {
         return order as TValue
+      }
+      if (!this.shouldUseLegacyFallback()) {
+        return defaultValue
       }
       const legacyValue = this.legacyStore.get<TValue>(key)
       return legacyValue === undefined ? defaultValue : clone(legacyValue)
@@ -59,6 +68,9 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
       if (Object.keys(timestamps).length > 0) {
         return timestamps as TValue
       }
+      if (!this.shouldUseLegacyFallback()) {
+        return defaultValue
+      }
       const legacyValue = this.legacyStore.get<TValue>(key)
       return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
@@ -66,6 +78,9 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
       const status = this.configTables.getModelStatus(key)
       if (status !== undefined) {
         return status as TValue
+      }
+      if (!this.shouldUseLegacyFallback()) {
+        return defaultValue
       }
       const legacyValue = this.legacyStore.get<TValue>(key)
       return legacyValue === undefined ? defaultValue : clone(legacyValue)
@@ -126,18 +141,28 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   has(key: string): boolean {
     if (key === 'providers') {
-      return this.configTables.listProviders().length > 0 || this.hasLegacyKey(key)
+      return (
+        this.configTables.listProviders().length > 0 ||
+        (this.shouldUseLegacyFallback() && this.hasLegacyKey(key))
+      )
     }
     if (key === 'providerOrder') {
-      return this.configTables.getProviderOrder().length > 0 || this.hasLegacyKey(key)
+      return (
+        this.configTables.getProviderOrder().length > 0 ||
+        (this.shouldUseLegacyFallback() && this.hasLegacyKey(key))
+      )
     }
     if (key === 'providerTimestamps') {
       return (
-        Object.keys(this.configTables.getProviderTimestamps()).length > 0 || this.hasLegacyKey(key)
+        Object.keys(this.configTables.getProviderTimestamps()).length > 0 ||
+        (this.shouldUseLegacyFallback() && this.hasLegacyKey(key))
       )
     }
     if (this.isModelStatusKey(key)) {
-      return this.configTables.hasModelStatus(key) || this.hasLegacyKey(key)
+      return (
+        this.configTables.hasModelStatus(key) ||
+        (this.shouldUseLegacyFallback() && this.hasLegacyKey(key))
+      )
     }
     return this.hasLegacyKey(key)
   }
@@ -175,6 +200,27 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
     for (const [key, nextValue] of Object.entries(values)) {
       this.set(key, nextValue)
     }
+  }
+
+  private getLegacyStoreSnapshot(): Record<string, unknown> {
+    if (this.shouldUseLegacyFallback()) {
+      return this.legacyStore.store
+    }
+
+    const snapshot = { ...this.legacyStore.store }
+    delete snapshot.providers
+    delete snapshot.providerOrder
+    delete snapshot.providerTimestamps
+    for (const key of Object.keys(snapshot)) {
+      if (this.isModelStatusKey(key)) {
+        delete snapshot[key]
+      }
+    }
+    return snapshot
+  }
+
+  private shouldUseLegacyFallback(): boolean {
+    return !this.configTables.hasConfigMigration()
   }
 
   private hasLegacyKey(key: string): boolean {
@@ -281,11 +327,12 @@ export class McpDbStore implements StoreLike<Record<string, unknown>> {
   ) {}
 
   get store(): Record<string, unknown> {
+    const useLegacyFallback = this.shouldUseLegacyFallback()
     const mcpServers = this.configTables.listMcpServers()
     return {
-      ...this.legacyStore.store,
+      ...(useLegacyFallback ? this.legacyStore.store : {}),
       ...this.configTables.listMcpSettings(),
-      ...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {})
+      ...(Object.keys(mcpServers).length > 0 || !useLegacyFallback ? { mcpServers } : {})
     }
   }
 
@@ -295,12 +342,18 @@ export class McpDbStore implements StoreLike<Record<string, unknown>> {
       if (Object.keys(servers).length > 0) {
         return servers as TValue
       }
+      if (!this.shouldUseLegacyFallback()) {
+        return defaultValue
+      }
       const legacyValue = this.legacyStore.get<TValue>(key)
       return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
     const value = this.configTables.getMcpSetting<TValue>(key)
     if (value !== undefined) {
       return value
+    }
+    if (!this.shouldUseLegacyFallback()) {
+      return defaultValue
     }
     const legacyValue = this.legacyStore.get<TValue>(key)
     return legacyValue === undefined ? defaultValue : legacyValue
@@ -331,9 +384,19 @@ export class McpDbStore implements StoreLike<Record<string, unknown>> {
 
   has(key: string): boolean {
     if (key === 'mcpServers') {
-      return Object.keys(this.configTables.listMcpServers()).length > 0 || this.hasLegacyKey(key)
+      return (
+        Object.keys(this.configTables.listMcpServers()).length > 0 ||
+        (this.shouldUseLegacyFallback() && this.hasLegacyKey(key))
+      )
     }
-    return this.configTables.getMcpSetting(key) !== undefined || this.hasLegacyKey(key)
+    return (
+      this.configTables.getMcpSetting(key) !== undefined ||
+      (this.shouldUseLegacyFallback() && this.hasLegacyKey(key))
+    )
+  }
+
+  private shouldUseLegacyFallback(): boolean {
+    return !this.configTables.hasConfigMigration()
   }
 
   private hasLegacyKey(key: string): boolean {
@@ -350,15 +413,16 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
   ) {}
 
   get store(): Record<string, unknown> {
+    const useLegacyFallback = this.shouldUseLegacyFallback()
     const enabled = this.configTables.getAgentSetting<boolean>('enabled')
     const sharedMcpSelections = this.configTables.getAgentMcpSelections(
       SHARED_AGENT_MCP_SELECTION_ID
     )
     return {
-      ...this.legacyStore.store,
+      ...this.getLegacyStoreSnapshot(),
       ...this.configTables.listAgentSettings(),
       ...(enabled !== undefined ? { enabled } : {}),
-      ...(sharedMcpSelections.length > 0 ? { sharedMcpSelections } : {})
+      ...(sharedMcpSelections.length > 0 || !useLegacyFallback ? { sharedMcpSelections } : {})
     }
   }
 
@@ -368,6 +432,9 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
       if (selections.length > 0) {
         return selections as TValue
       }
+      if (!this.shouldUseLegacyFallback()) {
+        return defaultValue
+      }
       const legacyValue = this.legacyStore.get<TValue>(key)
       return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
@@ -376,6 +443,9 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
       const value = this.configTables.getAgentSetting<TValue>(key)
       if (value !== undefined) {
         return value
+      }
+      if (!this.shouldUseLegacyFallback()) {
+        return defaultValue
       }
     }
 
@@ -414,5 +484,21 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
       return
     }
     this.legacyStore.delete(key)
+  }
+
+  private getLegacyStoreSnapshot(): Record<string, unknown> {
+    if (this.shouldUseLegacyFallback()) {
+      return this.legacyStore.store
+    }
+
+    const snapshot = { ...this.legacyStore.store }
+    delete snapshot.enabled
+    delete snapshot.version
+    delete snapshot.sharedMcpSelections
+    return snapshot
+  }
+
+  private shouldUseLegacyFallback(): boolean {
+    return !this.configTables.hasConfigMigration()
   }
 }
