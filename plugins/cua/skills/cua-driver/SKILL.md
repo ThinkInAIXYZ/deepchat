@@ -25,7 +25,7 @@ Use DeepChat's CUA plugin MCP tools for macOS app automation. Treat the tools ex
 2. Start or reuse the target with `launch_app({ bundle_id })`. Use the returned `pid` when available.
 3. Inspect windows with `list_windows({ pid })` when the launch result lacks a usable window.
 4. Snapshot before every UI action with `get_window_state({ pid, window_id })`.
-5. Act with the matching MCP tool: `click`, `right_click`, `double_click`, `drag`, `scroll`, `type_text`, `type_text_chars`, `press_key`, `hotkey`, `set_value`, `page`, or `launch_app` with `urls`.
+5. Act with the matching MCP tool: `click`, `right_click`, `double_click`, `drag`, `scroll`, `type_text`, `press_key`, `hotkey`, `set_value`, `page`, or `launch_app` with `urls`. For web inputs that reject AX text insertion, call `type_text({ pid, text, delay_ms })` and let the driver use its CGEvent fallback.
 6. Snapshot again after each action and verify visible evidence: selected state, changed text, playback progress, new panels, highlighted rows, or updated window content.
 
 Element indices come from the latest `get_window_state` result for the same `pid` and `window_id`. Re-snapshot when an index is missing, stale, or from another window.

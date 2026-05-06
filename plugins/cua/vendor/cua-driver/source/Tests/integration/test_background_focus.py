@@ -310,15 +310,14 @@ class BackgroundFocusTests(unittest.TestCase):
 
         self._assert_no_focus_loss("01_ax_click_button")
 
-    # -- type_text_chars into text field (keystroke synthesis) ---------------
+    # -- type_text fallback into text field (keystroke synthesis) ------------
 
-    def test_02_type_text_chars(self) -> None:
+    def test_02_type_text_with_delay(self) -> None:
         """Type into the text field in backgrounded Safari via keystroke synthesis.
 
         Safari's WebKit AXTextField doesn't accept AXSelectedText attribute
-        writes (the type_text path), so we use type_text_chars which
-        synthesizes individual key events.  We first AX-click the text field
-        to focus it, then send the characters.
+        writes, so type_text uses its delayed CGEvent fallback. We first
+        AX-click the text field to focus it, then send the characters.
         """
         with DriverClient(self.binary) as c:
             window_id = resolve_window_id(c, self._safari_pid)
@@ -363,11 +362,12 @@ class BackgroundFocusTests(unittest.TestCase):
             time.sleep(0.3)
 
             # Type via keystroke synthesis
-            result = c.call_tool("type_text_chars", {
+            result = c.call_tool("type_text", {
                 "pid": self._safari_pid,
                 "text": "hello bg",
+                "delay_ms": 30,
             })
-            print(f"  type_text_chars result: {result}")
+            print(f"  type_text result: {result}")
 
         # Check if the text appears in the AX tree
         has_text = False
@@ -383,7 +383,7 @@ class BackgroundFocusTests(unittest.TestCase):
         print(f"  text found in tree: {has_text}")
         self.assertTrue(has_text, "Typed text not found in Safari AX tree")
 
-        self._assert_no_focus_loss("02_type_text_chars")
+        self._assert_no_focus_loss("02_type_text")
 
     # -- Pixel-addressed click (CGEvent/SkyLight path) ---------------------
 
