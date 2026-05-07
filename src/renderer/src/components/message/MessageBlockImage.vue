@@ -5,20 +5,14 @@
         <!-- 图片加载区域 -->
         <div class="flex justify-center">
           <template v-if="resolvedImageData">
-            <img
-              v-if="resolvedImageData.mimeType === 'deepchat/image-url'"
-              :src="`${resolvedImageData.data}`"
-              class="max-w-[400px] rounded-md cursor-pointer hover:shadow-md transition-shadow"
-              @click="openFullImage"
-              @error="handleImageError"
-            />
-            <img
-              v-else
-              :src="`data:${resolvedImageData.mimeType};base64,${resolvedImageData.data}`"
-              class="max-w-[400px] rounded-md cursor-pointer hover:shadow-md transition-shadow"
-              @click="openFullImage"
-              @error="handleImageError"
-            />
+            <ImageActionContextMenu :source="resolvedImageSrc" :mime-type="resolvedImageMimeType">
+              <img
+                :src="resolvedImageSrc"
+                class="max-w-[400px] rounded-md cursor-pointer hover:shadow-md transition-shadow"
+                @click="openFullImage"
+                @error="handleImageError"
+              />
+            </ImageActionContextMenu>
           </template>
           <div v-else-if="imageError" class="text-sm text-red-500 p-4">
             {{ t('common.error.requestFailed') }}
@@ -32,26 +26,38 @@
 
     <!-- 全屏图片查看器 -->
     <Dialog :open="showFullImage" @update:open="showFullImage = $event">
-      <DialogContent class="sm:max-w-[800px] p-3 bg-background border-0 shadow-none">
+      <DialogContent
+        class="sm:max-w-[800px] p-3 bg-background border-0 shadow-none focus:outline-none"
+        @open-auto-focus="handleImageDialogOpenAutoFocus"
+      >
         <DialogHeader>
           <DialogTitle>
-            <div class="flex items-center justify-between">
-              {{ t('common.image') }}
+            <div class="flex items-center justify-between gap-2 pr-8">
+              <span>{{ t('common.image') }}</span>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                    @click="handleSaveImage"
+                  >
+                    <Icon icon="lucide:download" class="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{{ t('image.save') }}</TooltipContent>
+              </Tooltip>
             </div>
           </DialogTitle>
         </DialogHeader>
         <div class="flex items-center justify-center">
           <template v-if="resolvedImageData">
-            <img
-              v-if="resolvedImageData.mimeType === 'deepchat/image-url'"
-              :src="resolvedImageData.data"
-              class="rounded-md max-h-[80vh] max-w-full object-contain"
-            />
-            <img
-              v-else
-              :src="`data:${resolvedImageData.mimeType};base64,${resolvedImageData.data}`"
-              class="rounded-md max-h-[80vh] max-w-full object-contain"
-            />
+            <ImageActionContextMenu :source="resolvedImageSrc" :mime-type="resolvedImageMimeType">
+              <img
+                :src="resolvedImageSrc"
+                class="rounded-md max-h-[80vh] max-w-full object-contain"
+              />
+            </ImageActionContextMenu>
           </template>
         </div>
       </DialogContent>
@@ -63,8 +69,12 @@
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
+import { Button } from '@shadcn/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import ImageActionContextMenu from './ImageActionContextMenu.vue'
+import { useImageActions } from '@/composables/useImageActions'
 
 const keyMap = {
   'image.title': '生成的图片',
@@ -97,6 +107,7 @@ type LegacyImageBlockContent = {
 
 const imageError = ref(false)
 const showFullImage = ref(false)
+const { saveImage } = useImageActions()
 
 const inferMimeType = (data: string, mimeType?: string): string => {
   if (mimeType && mimeType.trim().length > 0) {
@@ -222,6 +233,22 @@ const resolvedImageData = computed(() => {
   return null
 })
 
+const resolvedImageSrc = computed(() => {
+  const image = resolvedImageData.value
+  if (!image) {
+    return ''
+  }
+
+  return image.mimeType === 'deepchat/image-url'
+    ? image.data
+    : `data:${image.mimeType};base64,${image.data}`
+})
+
+const resolvedImageMimeType = computed(() => {
+  const mimeType = resolvedImageData.value?.mimeType
+  return mimeType === 'deepchat/image-url' ? undefined : mimeType
+})
+
 const handleImageError = () => {
   imageError.value = true
 }
@@ -230,6 +257,23 @@ const openFullImage = () => {
   if (resolvedImageData.value) {
     showFullImage.value = true
   }
+}
+
+const handleImageDialogOpenAutoFocus = (event: Event) => {
+  event.preventDefault()
+  const target = event.target as HTMLElement | null
+  target?.focus()
+}
+
+const handleSaveImage = () => {
+  if (!resolvedImageSrc.value) {
+    return
+  }
+
+  void saveImage({
+    source: resolvedImageSrc.value,
+    mimeType: resolvedImageMimeType.value
+  })
 }
 </script>
 

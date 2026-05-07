@@ -39,11 +39,13 @@ import {
   deviceRestartAppRoute,
   deviceSanitizeSvgRoute,
   deviceSelectDirectoryRoute,
+  fileCopyImageRoute,
   fileGetMimeTypeRoute,
   fileIsDirectoryRoute,
   filePrepareDirectoryRoute,
   filePrepareFileRoute,
   fileReadFileRoute,
+  fileSaveImageRoute,
   fileWriteImageBase64Route,
   hasDeepchatRouteContract,
   mcpAddServerRoute,
@@ -726,6 +728,16 @@ export async function dispatchDeepchatRoute(
       return fileWriteImageBase64Route.output.parse({
         path: await runtime.filePresenter.writeImageBase64(input)
       })
+    }
+
+    case fileSaveImageRoute.name: {
+      const input = fileSaveImageRoute.input.parse(rawInput)
+      return fileSaveImageRoute.output.parse(await runtime.filePresenter.saveImage(input))
+    }
+
+    case fileCopyImageRoute.name: {
+      const input = fileCopyImageRoute.input.parse(rawInput)
+      return fileCopyImageRoute.output.parse(await runtime.filePresenter.copyImage(input))
     }
 
     case workspaceRegisterRoute.name: {

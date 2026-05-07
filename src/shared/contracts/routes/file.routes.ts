@@ -2,6 +2,12 @@ import { z } from 'zod'
 import { defineRouteContract } from '../common'
 import { PreparedMessageFileSchema } from '../domainSchemas'
 
+const FileImageActionInputSchema = z.object({
+  source: z.string().min(1),
+  mimeType: z.string().optional(),
+  suggestedName: z.string().optional()
+})
+
 export const fileGetMimeTypeRoute = defineRouteContract({
   name: 'file.getMimeType',
   input: z.object({
@@ -61,5 +67,22 @@ export const fileWriteImageBase64Route = defineRouteContract({
   }),
   output: z.object({
     path: z.string()
+  })
+})
+
+export const fileSaveImageRoute = defineRouteContract({
+  name: 'file.saveImage',
+  input: FileImageActionInputSchema,
+  output: z.object({
+    canceled: z.boolean(),
+    path: z.string().optional()
+  })
+})
+
+export const fileCopyImageRoute = defineRouteContract({
+  name: 'file.copyImage',
+  input: FileImageActionInputSchema,
+  output: z.object({
+    copied: z.boolean()
   })
 })

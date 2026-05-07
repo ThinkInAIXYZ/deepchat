@@ -76,11 +76,13 @@ import {
   deviceSelectDirectoryRoute
 } from './routes/device.routes'
 import {
+  fileCopyImageRoute,
   fileGetMimeTypeRoute,
   fileIsDirectoryRoute,
   filePrepareDirectoryRoute,
   filePrepareFileRoute,
   fileReadFileRoute,
+  fileSaveImageRoute,
   fileWriteImageBase64Route
 } from './routes/file.routes'
 import {
@@ -326,6 +328,8 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [fileReadFileRoute.name]: fileReadFileRoute,
   [fileIsDirectoryRoute.name]: fileIsDirectoryRoute,
   [fileWriteImageBase64Route.name]: fileWriteImageBase64Route,
+  [fileSaveImageRoute.name]: fileSaveImageRoute,
+  [fileCopyImageRoute.name]: fileCopyImageRoute,
   [workspaceRegisterRoute.name]: workspaceRegisterRoute,
   [workspaceUnregisterRoute.name]: workspaceUnregisterRoute,
   [workspaceWatchRoute.name]: workspaceWatchRoute,
