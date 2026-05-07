@@ -120,7 +120,7 @@ export class ModelConfigHelper {
         case 'rerank':
           return ModelType.Rerank
         case 'imageGeneration':
-          return ModelType.Chat
+          return ModelType.ImageGeneration
         default:
           // Invalid type, fall through to default
           break
@@ -144,6 +144,7 @@ export class ModelConfigHelper {
   }
 
   private buildConfigFromProviderModel(model: ProviderModel, providerId: string): ModelConfig {
+    const modelType = this.inferModelType(model)
     const portrait = modelCapabilities.getReasoningPortrait(providerId, model.id)
     const capabilityProviderId = resolveProviderCapabilityProviderId(providerId, null, model.id)
     const reasoningEnabled =
@@ -172,7 +173,9 @@ export class ModelConfigHelper {
       vision: isImageInputSupported(model),
       functionCall: resolveModelFunctionCall(model.tool_call),
       reasoning: Boolean(reasoningEnabled),
-      type: this.inferModelType(model),
+      type: modelType,
+      apiEndpoint:
+        modelType === ModelType.ImageGeneration ? ApiEndpointType.Image : ApiEndpointType.Chat,
       thinkingBudget,
       forceInterleavedThinkingCompat,
       reasoningEffort,
