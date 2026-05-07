@@ -14,6 +14,12 @@ export interface DeepChatSearchDocumentRow {
 }
 
 const NORMALIZATION_SCHEMA_VERSION = 26
+const FTS_TABLE_NAME = 'deepchat_search_documents_fts'
+const FTS_TRIGGER_NAMES = [
+  'deepchat_search_documents_ai',
+  'deepchat_search_documents_ad',
+  'deepchat_search_documents_au'
+] as const
 
 function buildFtsMatchQuery(query: string): string {
   return query
@@ -25,6 +31,8 @@ function buildFtsMatchQuery(query: string): string {
 }
 
 export class DeepChatSearchDocumentsTable extends BaseTable {
+  private ftsUnavailable = false
+
   constructor(db: Database.Database) {
     super(db, 'deepchat_search_documents')
   }
@@ -65,15 +73,62 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
   }
 
   isFtsAvailable(): boolean {
+    if (this.ftsUnavailable) {
+      return false
+    }
+
+    return this.hasCompatibleFtsTable()
+  }
+
+  private hasFtsTable(): boolean {
     const row = this.db
       .prepare(
         `SELECT name
          FROM sqlite_master
          WHERE type = 'table'
-           AND name = 'deepchat_search_documents_fts'`
+           AND name = ?`
       )
-      .get() as { name?: string } | undefined
-    return row?.name === 'deepchat_search_documents_fts'
+      .get(FTS_TABLE_NAME) as { name?: string } | undefined
+    return row?.name === FTS_TABLE_NAME
+  }
+
+  private getFtsTableSql(): string | null {
+    const row = this.db
+      .prepare(
+        `SELECT sql
+         FROM sqlite_master
+         WHERE type = 'table'
+           AND name = ?`
+      )
+      .get(FTS_TABLE_NAME) as { sql?: string | null } | undefined
+    return row?.sql ?? null
+  }
+
+  private hasCompatibleFtsTable(): boolean {
+    const sql = this.getFtsTableSql()
+    if (!sql) {
+      return false
+    }
+
+    const normalized = sql.replace(/\s+/g, ' ').toLowerCase()
+    return (
+      normalized.includes('using fts5') &&
+      /content\s*=\s*'deepchat_search_documents'/.test(normalized) &&
+      /content_rowid\s*=\s*'rowid'/.test(normalized)
+    )
+  }
+
+  private hasFtsTriggers(): boolean {
+    const rows = this.db
+      .prepare(
+        `SELECT name
+         FROM sqlite_master
+         WHERE type = 'trigger'
+           AND name IN (${FTS_TRIGGER_NAMES.map(() => '?').join(', ')})`
+      )
+      .all(...FTS_TRIGGER_NAMES) as Array<{ name: string }>
+    const existing = new Set(rows.map((row) => row.name))
+    return FTS_TRIGGER_NAMES.every((name) => existing.has(name))
   }
 
   upsert(row: {
@@ -118,8 +173,6 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
         row.content,
         updatedAt
       )
-
-    this.refreshFtsRow(row.documentKey)
   }
 
   refreshSessionTitle(sessionId: string, title: string, updatedAt: number = Date.now()): void {
@@ -130,23 +183,9 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
          WHERE session_id = ?`
       )
       .run(title, updatedAt, sessionId)
-
-    if (!this.isFtsAvailable()) {
-      return
-    }
-
-    const rows = this.db
-      .prepare(
-        `SELECT document_key
-         FROM deepchat_search_documents
-         WHERE session_id = ?`
-      )
-      .all(sessionId) as Array<{ document_key: string }>
-    rows.forEach((row) => this.refreshFtsRow(row.document_key))
   }
 
   delete(documentKey: string): void {
-    this.deleteFtsRow(documentKey)
     this.db.prepare('DELETE FROM deepchat_search_documents WHERE document_key = ?').run(documentKey)
   }
 
@@ -156,14 +195,6 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
     }
 
     const placeholders = messageIds.map(() => '?').join(', ')
-    const rows = this.db
-      .prepare(
-        `SELECT document_key
-         FROM deepchat_search_documents
-         WHERE message_id IN (${placeholders})`
-      )
-      .all(...messageIds) as Array<{ document_key: string }>
-    rows.forEach((row) => this.deleteFtsRow(row.document_key))
     this.db
       .prepare(
         `DELETE FROM deepchat_search_documents
@@ -173,14 +204,6 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
   }
 
   deleteBySession(sessionId: string): void {
-    const rows = this.db
-      .prepare(
-        `SELECT document_key
-         FROM deepchat_search_documents
-         WHERE session_id = ?`
-      )
-      .all(sessionId) as Array<{ document_key: string }>
-    rows.forEach((row) => this.deleteFtsRow(row.document_key))
     this.db.prepare('DELETE FROM deepchat_search_documents WHERE session_id = ?').run(sessionId)
   }
 
@@ -243,11 +266,35 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
 
   private ensureFtsTable(): void {
     try {
-      this.db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS deepchat_search_documents_fts
-        USING fts5(title, content, content='');
-      `)
+      this.db.transaction(() => {
+        const shouldRecreateFtsTable = this.hasFtsTable() && !this.hasCompatibleFtsTable()
+        const shouldRebuildFtsIndex =
+          shouldRecreateFtsTable || !this.hasFtsTable() || !this.hasFtsTriggers()
+
+        if (shouldRecreateFtsTable) {
+          this.dropFtsTriggers()
+          this.db.exec(`DROP TABLE IF EXISTS ${FTS_TABLE_NAME};`)
+        }
+
+        this.db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS ${FTS_TABLE_NAME}
+          USING fts5(
+            title,
+            content,
+            content='deepchat_search_documents',
+            content_rowid='rowid'
+          );
+        `)
+        this.ensureFtsTriggers()
+
+        if (shouldRebuildFtsIndex) {
+          this.rebuildFtsIndex()
+        }
+      })()
+
+      this.ftsUnavailable = false
     } catch (error) {
+      this.ftsUnavailable = true
       console.warn(
         '[DeepChatSearchDocumentsTable] FTS5 unavailable, falling back to LIKE search.',
         error
@@ -255,52 +302,39 @@ export class DeepChatSearchDocumentsTable extends BaseTable {
     }
   }
 
-  private refreshFtsRow(documentKey: string): void {
-    if (!this.isFtsAvailable()) {
-      return
-    }
-
-    const row = this.db
-      .prepare(
-        `SELECT rowid, title, content
-         FROM deepchat_search_documents
-         WHERE document_key = ?`
-      )
-      .get(documentKey) as { rowid: number; title: string; content: string } | undefined
-    if (!row) {
-      return
-    }
-
-    this.db
-      .prepare(
-        "INSERT INTO deepchat_search_documents_fts(deepchat_search_documents_fts, rowid, title, content) VALUES('delete', ?, ?, ?)"
-      )
-      .run(row.rowid, row.title, row.content)
-    this.db
-      .prepare('INSERT INTO deepchat_search_documents_fts(rowid, title, content) VALUES (?, ?, ?)')
-      .run(row.rowid, row.title, row.content)
+  private dropFtsTriggers(): void {
+    this.db.exec(FTS_TRIGGER_NAMES.map((name) => `DROP TRIGGER IF EXISTS ${name};`).join('\n'))
   }
 
-  private deleteFtsRow(documentKey: string): void {
-    if (!this.isFtsAvailable()) {
-      return
-    }
+  private ensureFtsTriggers(): void {
+    this.dropFtsTriggers()
+    this.db.exec(`
+      CREATE TRIGGER deepchat_search_documents_ai
+      AFTER INSERT ON deepchat_search_documents
+      BEGIN
+        INSERT INTO ${FTS_TABLE_NAME}(rowid, title, content)
+        VALUES (new.rowid, new.title, new.content);
+      END;
 
-    const row = this.db
-      .prepare(
-        `SELECT rowid, title, content
-         FROM deepchat_search_documents
-         WHERE document_key = ?`
-      )
-      .get(documentKey) as { rowid: number; title: string; content: string } | undefined
-    if (!row) {
-      return
-    }
+      CREATE TRIGGER deepchat_search_documents_ad
+      AFTER DELETE ON deepchat_search_documents
+      BEGIN
+        INSERT INTO ${FTS_TABLE_NAME}(${FTS_TABLE_NAME}, rowid, title, content)
+        VALUES('delete', old.rowid, old.title, old.content);
+      END;
 
-    this.db
-      .prepare(
-        "INSERT INTO deepchat_search_documents_fts(deepchat_search_documents_fts, rowid, title, content) VALUES('delete', ?, ?, ?)"
-      )
-      .run(row.rowid, row.title, row.content)
+      CREATE TRIGGER deepchat_search_documents_au
+      AFTER UPDATE OF title, content ON deepchat_search_documents
+      BEGIN
+        INSERT INTO ${FTS_TABLE_NAME}(${FTS_TABLE_NAME}, rowid, title, content)
+        VALUES('delete', old.rowid, old.title, old.content);
+        INSERT INTO ${FTS_TABLE_NAME}(rowid, title, content)
+        VALUES (new.rowid, new.title, new.content);
+      END;
+    `)
+  }
+
+  private rebuildFtsIndex(): void {
+    this.db.prepare(`INSERT INTO ${FTS_TABLE_NAME}(${FTS_TABLE_NAME}) VALUES('rebuild')`).run()
   }
 }
