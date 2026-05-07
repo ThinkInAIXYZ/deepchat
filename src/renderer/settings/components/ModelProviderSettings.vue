@@ -306,12 +306,7 @@ const filterProviders = (providers: LLM_PROVIDER[]) => {
     return providers
   }
   const query = searchQuery.value.toLowerCase().trim()
-  return providers.filter(
-    (provider) =>
-      t(provider.name).toLowerCase().includes(query) ||
-      provider.id.toLowerCase().includes(query) ||
-      (provider.apiType && provider.apiType.toLowerCase().includes(query))
-  )
+  return providers.filter((provider) => t(provider.name).toLowerCase().includes(query))
 }
 
 const visibleProviders = computed(() =>
