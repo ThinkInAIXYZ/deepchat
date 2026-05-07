@@ -303,7 +303,7 @@ public enum ClickTool {
             }
             // For text fields (AXTextField / AXTextArea), WebKit establishes
             // DOM focus asynchronously after AXPress returns. Without a pause,
-            // a follow-up type_text_chars call races with WebKit's focus setup
+            // a follow-up type_text CGEvent fallback races with WebKit's focus setup
             // and sends chars before the input is active — chars are silently
             // dropped. This is especially pronounced for email/number inputs
             // when the app is backgrounded (Safari is non-frontmost).

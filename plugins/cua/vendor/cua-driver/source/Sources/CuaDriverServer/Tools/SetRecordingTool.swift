@@ -17,7 +17,7 @@ public enum SetRecordingTool {
             description: """
                 Toggle trajectory recording. When enabled, every
                 subsequent action-tool invocation (click, right_click,
-                scroll, type_text, type_text_chars, press_key, hotkey,
+                scroll, type_text, press_key, hotkey,
                 set_value) writes a turn folder under `output_dir`:
 
                 - `app_state.json` — post-action AX snapshot for the

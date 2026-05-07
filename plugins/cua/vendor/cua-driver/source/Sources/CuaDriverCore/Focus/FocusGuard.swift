@@ -126,7 +126,7 @@ public enum FocusGuardError: Error, CustomStringConvertible, Sendable {
         case .windowMinimized(let pid):
             return "Target window for pid \(pid) is minimized. AX actions on minimized "
                 + "windows (especially Chrome) cause unavoidable deminiaturization. "
-                + "Use type_text_chars/press_key for keyboard input (these don't "
+                + "Use type_text with delay_ms or press_key for keyboard input (these don't "
                 + "deminiaturize), or accept the deminiaturize by unminimizing first."
         }
     }

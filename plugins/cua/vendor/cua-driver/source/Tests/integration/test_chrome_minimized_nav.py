@@ -330,14 +330,15 @@ class ChromeMinimizedNavTests(unittest.TestCase):
         self._assert_chrome_still_minimized("03_set_value_omnibox")
         self._assert_focus_preserved("03_set_value_omnibox")
 
-    # -- Test 4: type_text_chars without omnibox focus — stays minimized ---
+    # -- Test 4: type_text without omnibox focus — stays minimized ---------
 
     def test_04_type_without_omnibox_focus(self) -> None:
         """Type keys to minimized Chrome without focusing omnibox — should stay minimized."""
         with DriverClient(self.binary) as c:
-            c.call_tool("type_text_chars", {
+            c.call_tool("type_text", {
                 "pid": self._chrome_pid,
                 "text": "hello",
+                "delay_ms": 30,
             })
 
         time.sleep(0.5)
