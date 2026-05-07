@@ -16,26 +16,14 @@ describe('ChatService', () => {
       })
     }
     const messageRepository = {
-      listBySession: vi
-        .fn()
-        .mockResolvedValueOnce([
-          {
-            id: 'assistant-1',
-            role: 'assistant',
-            orderSeq: 2
-          }
-        ])
-        .mockResolvedValueOnce([
-          {
-            id: 'assistant-1',
-            role: 'assistant',
-            orderSeq: 2
-          }
-        ]),
+      listBySession: vi.fn(),
       get: vi.fn()
     }
     const providerExecutionPort = {
-      sendMessage: vi.fn().mockResolvedValue(undefined),
+      sendMessage: vi.fn().mockResolvedValue({
+        requestId: null,
+        messageId: null
+      }),
       steerActiveTurn: vi.fn().mockResolvedValue(undefined),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn().mockResolvedValue({
@@ -67,8 +55,8 @@ describe('ChatService', () => {
     expect(sessionRepository.get).toHaveBeenCalledWith('session-1')
     expect(providerCatalogPort.getAgentType).toHaveBeenCalledWith('deepchat')
     expect(providerExecutionPort.sendMessage).toHaveBeenCalledWith('session-1', 'hello')
-    expect(messageRepository.listBySession).toHaveBeenCalledTimes(2)
-    expect(scheduler.timeout).toHaveBeenCalledTimes(5)
+    expect(messageRepository.listBySession).not.toHaveBeenCalled()
+    expect(scheduler.timeout).toHaveBeenCalledTimes(3)
   })
 
   it('steers the active turn without claiming the normal send lock', async () => {
@@ -410,40 +398,23 @@ describe('ChatService', () => {
       })
     }
     const messageRepository = {
-      listBySession: vi
-        .fn()
-        .mockResolvedValueOnce([
-          {
-            id: 'assistant-0',
-            role: 'assistant',
-            orderSeq: 1
-          }
-        ])
-        .mockResolvedValueOnce([
-          {
-            id: 'assistant-0',
-            role: 'assistant',
-            orderSeq: 1
-          },
-          {
-            id: 'assistant-1',
-            role: 'assistant',
-            orderSeq: 2
-          }
-        ]),
+      listBySession: vi.fn(),
       get: vi.fn()
     }
-    let resolveFirstSend!: () => void
+    let resolveFirstSend!: (value: { requestId: string; messageId: string }) => void
     const providerExecutionPort = {
       sendMessage: vi
         .fn()
         .mockImplementationOnce(
           async () =>
-            await new Promise<void>((resolve) => {
+            await new Promise<{ requestId: string; messageId: string }>((resolve) => {
               resolveFirstSend = resolve
             })
         )
-        .mockResolvedValue(undefined),
+        .mockResolvedValue({
+          requestId: 'assistant-1',
+          messageId: 'assistant-1'
+        }),
       steerActiveTurn: vi.fn().mockResolvedValue(undefined),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn()
@@ -470,7 +441,10 @@ describe('ChatService', () => {
       'A stream is already active for session session-1'
     )
 
-    resolveFirstSend()
+    resolveFirstSend({
+      requestId: 'assistant-1',
+      messageId: 'assistant-1'
+    })
     await expect(firstSend).resolves.toEqual({
       accepted: true,
       requestId: 'assistant-1',

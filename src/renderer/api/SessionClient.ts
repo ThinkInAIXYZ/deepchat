@@ -30,6 +30,7 @@ import {
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
   sessionsListLightweightRoute,
+  sessionsListMessagesPageRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
@@ -64,8 +65,22 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     )
   }
 
-  async function restore(sessionId: string) {
-    return await bridge.invoke(sessionsRestoreRoute.name, { sessionId })
+  async function restore(sessionId: string, limit?: number) {
+    return await bridge.invoke(sessionsRestoreRoute.name, { sessionId, limit })
+  }
+
+  async function listMessagesPage(
+    sessionId: string,
+    options?: {
+      cursor?: { orderSeq: number; id: string } | null
+      limit?: number
+    }
+  ) {
+    return await bridge.invoke(sessionsListMessagesPageRoute.name, {
+      sessionId,
+      cursor: options?.cursor,
+      limit: options?.limit
+    })
   }
 
   async function activate(sessionId: string) {
@@ -416,6 +431,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   return {
     create,
     restore,
+    listMessagesPage,
     activate,
     deactivate,
     getActive,

@@ -63,6 +63,14 @@ export class NewSessionManager {
       parentSessionId: options?.parentSessionId,
       subagentMetaJson: options?.subagentMeta ? JSON.stringify(options.subagentMeta) : null
     })
+    this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
+      documentKey: `session:${id}`,
+      sessionId: id,
+      documentKind: 'session',
+      title,
+      content: '',
+      updatedAt: Date.now()
+    })
     this.sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
     return id
   }
@@ -164,6 +172,9 @@ export class NewSessionManager {
       dbFields.subagent_meta_json = fields.subagentMeta ? JSON.stringify(fields.subagentMeta) : null
     }
     this.sqlitePresenter.newSessionsTable.update(id, dbFields)
+    if (fields.title !== undefined) {
+      this.sqlitePresenter.deepchatSearchDocumentsTable.refreshSessionTitle(id, fields.title)
+    }
 
     for (const path of this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)) {
       affectedPaths.add(path)
@@ -176,6 +187,7 @@ export class NewSessionManager {
 
   delete(id: string): void {
     const affectedPaths = this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)
+    this.sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession(id)
     this.sqlitePresenter.newSessionsTable.delete(id)
     for (const path of affectedPaths) {
       this.sqlitePresenter.newEnvironmentsTable.syncPath(path)

@@ -166,6 +166,11 @@ export const SessionPageCursorSchema = z.object({
   id: EntityIdSchema
 })
 
+export const MessagePageCursorSchema = z.object({
+  orderSeq: z.number().int(),
+  id: EntityIdSchema
+})
+
 export const AgentBootstrapItemSchema = z.object({
   id: EntityIdSchema,
   name: z.string(),
@@ -237,6 +242,12 @@ export const ChatMessageRecordSchema = z.object({
   traceCount: z.number().int().optional(),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema
+})
+
+export const ChatMessagePageResultSchema = z.object({
+  messages: z.array(ChatMessageRecordSchema),
+  nextCursor: MessagePageCursorSchema.nullable(),
+  hasMore: z.boolean()
 })
 
 export const AssistantMessageBlockSchema = z.object({

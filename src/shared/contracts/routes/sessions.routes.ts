@@ -10,7 +10,9 @@ import type { HistorySearchHit } from '@shared/types/presenters/agent-session.pr
 import {
   SessionListItemSchema,
   SessionPageCursorSchema,
+  MessagePageCursorSchema,
   ChatMessageRecordSchema,
+  ChatMessagePageResultSchema,
   EntityIdSchema,
   MessageFileSchema,
   PermissionModeSchema,
@@ -72,12 +74,25 @@ export const sessionsCreateRoute = defineRouteContract({
 export const sessionsRestoreRoute = defineRouteContract({
   name: 'sessions.restore',
   input: z.object({
-    sessionId: EntityIdSchema
+    sessionId: EntityIdSchema,
+    limit: z.number().int().positive().max(500).optional()
   }),
   output: z.object({
     session: SessionWithStateSchema.nullable(),
-    messages: z.array(ChatMessageRecordSchema)
+    messages: z.array(ChatMessageRecordSchema),
+    nextCursor: MessagePageCursorSchema.nullable(),
+    hasMore: z.boolean()
   })
+})
+
+export const sessionsListMessagesPageRoute = defineRouteContract({
+  name: 'sessions.listMessagesPage',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    cursor: MessagePageCursorSchema.nullable().optional(),
+    limit: z.number().int().positive().max(500).optional()
+  }),
+  output: ChatMessagePageResultSchema
 })
 
 export const sessionsListRoute = defineRouteContract({

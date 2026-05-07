@@ -2,9 +2,12 @@ import fs from 'fs'
 import path from 'path'
 import type {
   AssistantMessageBlock,
+  ChatMessagePageResult,
   ChatMessageRecord,
   DeepChatSessionState,
   IAgentImplementation,
+  MessagePageCursor,
+  MessageStartResult,
   MessageFile,
   PendingInputEnqueueSource,
   PendingSessionInputRecord,
@@ -582,7 +585,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       pendingQueueItemId?: string
       pendingQueueItemSource?: PendingInputEnqueueSource
     }
-  ): Promise<void> {
+  ): Promise<MessageStartResult> {
     const state = this.runtimeState.get(sessionId)
     if (!state) throw new Error(`Session ${sessionId} not found`)
     if (this.hasPendingInteractions(sessionId)) {
@@ -768,7 +771,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           this.clearActiveGeneration(sessionId, runId)
         }
         this.continueWithSteerInput(sessionId, steerInput, projectDir)
-        return
+        return {
+          requestId: assistantMessageId,
+          messageId: assistantMessageId
+        }
       }
       try {
         this.applyProcessResultStatus(sessionId, result, runId)
@@ -777,6 +783,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       if (result?.status === 'completed') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
+      }
+      return {
+        requestId: assistantMessageId,
+        messageId: assistantMessageId
       }
     } catch (err) {
       console.error('[DeepChatAgent] processMessage error:', err)
@@ -827,7 +837,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         if (steerInput) {
           this.continueWithSteerInput(sessionId, steerInput, projectDir)
         }
-        return
+        return {
+          requestId: assistantMessageId,
+          messageId: assistantMessageId
+        }
       }
       const errorMessage = err instanceof Error ? err.message : String(err)
       if (assistantMessageId) {
@@ -854,6 +867,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         error: { message: errorMessage }
       })
       this.setSessionStatus(sessionId, 'error')
+      return {
+        requestId: assistantMessageId,
+        messageId: assistantMessageId
+      }
     } finally {
       this.clearSessionAbortController(sessionId, preStreamAbortController)
     }
@@ -1511,6 +1528,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
     return this.messageStore.getMessages(sessionId)
+  }
+
+  async listMessagesPage(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: MessagePageCursor | null
+    }
+  ): Promise<ChatMessagePageResult> {
+    return this.messageStore.listMessagesPage(sessionId, options)
   }
 
   async getMessageIds(sessionId: string): Promise<string[]> {

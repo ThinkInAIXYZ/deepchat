@@ -1,5 +1,6 @@
 import type {
   Agent,
+  ChatMessagePageResult,
   SessionListItem,
   SessionLightweightListResult,
   SessionPageCursor,
@@ -9,7 +10,9 @@ import type {
   SessionRecord,
   SessionWithState,
   ChatMessageRecord,
+  MessagePageCursor,
   MessageTraceRecord,
+  MessageStartResult,
   MessageFile,
   SendMessageInput,
   UserMessageContent,
@@ -39,6 +42,7 @@ import type {
   CONVERSATION
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
+import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 import { AgentRegistry } from './agentRegistry'
 import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
@@ -84,6 +88,7 @@ type SearchableMessageRow = {
 }
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
+const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
 const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
@@ -233,6 +238,7 @@ export class AgentSessionPresenter {
   private sessionPermissionPort?: SessionPermissionPort
   private sessionUiPort?: SessionUiPort
   private usageStatsBackfillPromise: Promise<void> | null = null
+  private mainlineNormalizationPromise: Promise<void> | null = null
   private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
 
   constructor(
@@ -703,7 +709,10 @@ export class AgentSessionPresenter {
     }
   }
 
-  async sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
+  async sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<MessageStartResult> {
     let session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
     const wasDraft = session.isDraft
@@ -744,19 +753,19 @@ export class AgentSessionPresenter {
       if (!hadMessages && !wasDraft) {
         void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
       }
-      return
+      return {
+        requestId: null,
+        messageId: null
+      }
     }
 
-    agent
-      .processMessage(sessionId, normalizedInput, {
-        projectDir: session.projectDir ?? null
-      })
-      .catch((error) => {
-        console.error('[AgentSessionPresenter] processMessage failed:', error)
-      })
+    const result = await agent.processMessage(sessionId, normalizedInput, {
+      projectDir: session.projectDir ?? null
+    })
     if (!hadMessages && !wasDraft) {
       void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
     }
+    return result
   }
 
   async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
@@ -1096,6 +1105,50 @@ export class AgentSessionPresenter {
     return agent.getMessages(sessionId)
   }
 
+  async listMessagesPage(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: MessagePageCursor | null
+    }
+  ): Promise<ChatMessagePageResult> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (agent.listMessagesPage) {
+      return await agent.listMessagesPage(sessionId, options)
+    }
+
+    const messages = await agent.getMessages(sessionId)
+    const limit = Math.min(Math.max(Math.floor(options?.limit ?? 100), 1), 500)
+    const cursor = options?.cursor ?? null
+    const filtered = cursor
+      ? messages.filter(
+          (message) =>
+            message.orderSeq < cursor.orderSeq ||
+            (message.orderSeq === cursor.orderSeq && message.id < cursor.id)
+        )
+      : messages
+    const pageMessages = filtered.slice(Math.max(filtered.length - limit, 0))
+    const hasMore = filtered.length > pageMessages.length
+    const nextCursor =
+      hasMore && pageMessages.length > 0
+        ? {
+            orderSeq: pageMessages[0].orderSeq,
+            id: pageMessages[0].id
+          }
+        : null
+
+    return {
+      messages: pageMessages,
+      nextCursor,
+      hasMore
+    }
+  }
+
   async searchHistory(query: string, options?: HistorySearchOptions): Promise<HistorySearchHit[]> {
     const normalizedQuery = normalizeSearchText(query)
     if (!normalizedQuery) {
@@ -1106,6 +1159,77 @@ export class AgentSessionPresenter {
     const db = this.sqlitePresenter.getDatabase()
     if (!db) {
       return []
+    }
+
+    const searchDocumentLimit = limit * MESSAGE_SEARCH_OVERQUERY_FACTOR
+    const searchDocumentRows = this.sqlitePresenter.deepchatSearchDocumentsTable.searchFts(
+      normalizedQuery,
+      searchDocumentLimit
+    )
+    const candidateSearchRows =
+      searchDocumentRows.length > 0
+        ? searchDocumentRows
+        : this.sqlitePresenter.deepchatSearchDocumentsTable.searchLike(
+            normalizedQuery,
+            searchDocumentLimit
+          )
+
+    if (candidateSearchRows.length > 0) {
+      const hits = candidateSearchRows
+        .map((row) => {
+          if (row.document_kind === 'session') {
+            const session = this.sessionManager.get(row.session_id)
+            if (!session) {
+              return null
+            }
+
+            return {
+              kind: 'session' as const,
+              sessionId: session.id,
+              title: row.title,
+              projectDir: session.projectDir,
+              updatedAt: row.updated_at,
+              rank: row.rank
+            }
+          }
+
+          if (!row.message_id || (row.role !== 'user' && row.role !== 'assistant')) {
+            return null
+          }
+
+          return {
+            kind: 'message' as const,
+            sessionId: row.session_id,
+            messageId: row.message_id,
+            title: row.title,
+            role: row.role,
+            snippet: buildSearchSnippet(row.content, normalizedQuery),
+            updatedAt: row.updated_at,
+            rank: row.rank
+          }
+        })
+        .filter((item): item is HistorySearchHit & { rank: number } => item !== null)
+
+      if (hits.length > 0) {
+        const deduped = new Map<string, HistorySearchHit & { rank: number }>()
+        for (const hit of hits) {
+          const key =
+            hit.kind === 'session' ? `session:${hit.sessionId}` : `message:${hit.messageId}`
+          if (!deduped.has(key)) {
+            deduped.set(key, hit)
+          }
+        }
+
+        return Array.from(deduped.values())
+          .sort((left, right) => {
+            if (left.rank !== right.rank) {
+              return left.rank - right.rank
+            }
+            return right.updatedAt - left.updatedAt
+          })
+          .slice(0, limit)
+          .map(({ rank: _rank, ...item }) => item)
+      }
     }
 
     const likeQuery = `%${normalizedQuery}%`
@@ -1272,6 +1396,28 @@ export class AgentSessionPresenter {
     })
 
     return await this.usageStatsBackfillPromise
+  }
+
+  async startMainlineNormalizationBackfill(): Promise<void> {
+    const current =
+      this.sqlitePresenter.configTables.getAgentSetting<{
+        status?: 'running' | 'completed' | 'failed'
+        updatedAt?: number
+      }>(SQLITE_MAINLINE_NORMALIZATION_KEY) ?? null
+
+    if (current?.status === 'completed') {
+      return
+    }
+
+    if (this.mainlineNormalizationPromise) {
+      return await this.mainlineNormalizationPromise
+    }
+
+    this.mainlineNormalizationPromise = this.runMainlineNormalizationBackfill().finally(() => {
+      this.mainlineNormalizationPromise = null
+    })
+
+    return await this.mainlineNormalizationPromise
   }
 
   async startRtkHealthCheck(): Promise<void> {
@@ -2603,6 +2749,170 @@ export class AgentSessionPresenter {
       }
     } catch {
       return {}
+    }
+  }
+
+  private async runMainlineNormalizationBackfill(): Promise<void> {
+    const startedAt = Date.now()
+    this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+      status: 'running',
+      startedAt,
+      finishedAt: null,
+      updatedAt: startedAt
+    })
+
+    try {
+      const db = this.sqlitePresenter.getDatabase()
+      const sessionRows = db
+        .prepare('SELECT * FROM new_sessions ORDER BY updated_at ASC')
+        .all() as Array<{
+        id: string
+        title: string
+        updated_at: number
+      }>
+
+      let processedCount = 0
+      for (const sessionRow of sessionRows) {
+        const activeSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(sessionRow.id)
+        const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
+          sessionRow.id
+        )
+        this.sqlitePresenter.newSessionActiveSkillsTable.replaceForSession(
+          sessionRow.id,
+          activeSkills
+        )
+        this.sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(
+          sessionRow.id,
+          disabledAgentTools
+        )
+        this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
+          documentKey: `session:${sessionRow.id}`,
+          sessionId: sessionRow.id,
+          documentKind: 'session',
+          title: sessionRow.title,
+          content: '',
+          updatedAt: sessionRow.updated_at
+        })
+
+        processedCount += 1
+        if (processedCount % 200 === 0) {
+          await this.yieldToEventLoop()
+        }
+      }
+
+      const messageRows = db
+        .prepare('SELECT * FROM deepchat_messages ORDER BY created_at ASC')
+        .all() as DeepChatMessageRow[]
+
+      for (const row of messageRows) {
+        this.backfillNormalizedMessageRow(row)
+        processedCount += 1
+        if (processedCount % 200 === 0) {
+          this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+            status: 'running',
+            startedAt,
+            finishedAt: null,
+            updatedAt: Date.now()
+          })
+          await this.yieldToEventLoop()
+        }
+      }
+
+      this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+        status: 'completed',
+        startedAt,
+        finishedAt: Date.now(),
+        updatedAt: Date.now()
+      })
+    } catch (error) {
+      this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+        status: 'failed',
+        startedAt,
+        finishedAt: Date.now(),
+        updatedAt: Date.now(),
+        error: error instanceof Error ? error.message : String(error)
+      })
+      throw error
+    }
+  }
+
+  private backfillNormalizedMessageRow(row: DeepChatMessageRow): void {
+    if (row.role === 'user') {
+      const content = this.parseBackfillUserMessageContent(row.content)
+      if (content) {
+        this.sqlitePresenter.deepchatUserMessagesTable.upsert({
+          messageId: row.id,
+          text: content.text,
+          searchEnabled: content.search === true,
+          thinkEnabled: content.think === true
+        })
+        this.sqlitePresenter.deepchatUserMessageFilesTable.replaceForMessage(
+          row.id,
+          content.files.map((file) => ({
+            name: file.name,
+            path: file.path,
+            mimeType: file.mimeType ?? file.type,
+            size: file.size,
+            metadataJson: JSON.stringify({
+              type: file.type,
+              content: file.content,
+              token: file.token,
+              thumbnail: file.thumbnail,
+              metadata: file.metadata
+            })
+          }))
+        )
+        this.sqlitePresenter.deepchatUserMessageLinksTable.replaceForMessage(row.id, content.links)
+      }
+    } else {
+      this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(
+        row.id,
+        this.parseBackfillAssistantBlocks(row.content)
+      )
+    }
+
+    if (row.status === 'sent' || row.status === 'error') {
+      const title = this.sqlitePresenter.newSessionsTable.get(row.session_id)?.title ?? ''
+      this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
+        documentKey: `message:${row.id}`,
+        sessionId: row.session_id,
+        messageId: row.id,
+        documentKind: 'message',
+        role: row.role,
+        title,
+        content: extractSearchableMessageContent(row.content),
+        updatedAt: row.updated_at
+      })
+    }
+  }
+
+  private parseBackfillUserMessageContent(rawContent: string): UserMessageContent | null {
+    try {
+      const parsed = JSON.parse(rawContent) as Partial<UserMessageContent>
+      if (!parsed || typeof parsed !== 'object') {
+        return null
+      }
+
+      return {
+        text: typeof parsed.text === 'string' ? parsed.text : '',
+        files: Array.isArray(parsed.files) ? (parsed.files.filter(Boolean) as MessageFile[]) : [],
+        links: Array.isArray(parsed.links)
+          ? parsed.links.filter((item): item is string => typeof item === 'string')
+          : [],
+        search: parsed.search === true,
+        think: parsed.think === true
+      }
+    } catch {
+      return null
+    }
+  }
+
+  private parseBackfillAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
+    try {
+      const parsed = JSON.parse(rawContent) as AssistantMessageBlock[]
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
     }
   }
 

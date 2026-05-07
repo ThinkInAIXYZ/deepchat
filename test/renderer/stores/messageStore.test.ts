@@ -9,13 +9,36 @@ function createDeferred<T>() {
   return { promise, resolve }
 }
 
+function buildUserMessage(id: string, sessionId: string, orderSeq: number, text: string) {
+  return {
+    id,
+    sessionId,
+    orderSeq,
+    role: 'user' as const,
+    content: JSON.stringify({ text, files: [], links: [], search: false, think: false }),
+    status: 'sent' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    traceCount: 0,
+    createdAt: orderSeq,
+    updatedAt: orderSeq
+  }
+}
+
 const setupStore = async () => {
   vi.resetModules()
 
   const sessionClient = {
     restore: vi.fn().mockResolvedValue({
       session: { id: 's1' },
-      messages: []
+      messages: [],
+      nextCursor: null,
+      hasMore: false
+    }),
+    listMessagesPage: vi.fn().mockResolvedValue({
+      messages: [],
+      nextCursor: null,
+      hasMore: false
     })
   }
   const streamListeners = {
@@ -108,6 +131,8 @@ describe('messageStore', () => {
     const { store, sessionClient } = await setupStore()
     sessionClient.restore.mockResolvedValueOnce({
       session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
       messages: [
         {
           id: 'm1',
@@ -127,7 +152,7 @@ describe('messageStore', () => {
 
     await store.loadMessages('s1')
 
-    expect(sessionClient.restore).toHaveBeenCalledWith('s1')
+    expect(sessionClient.restore).toHaveBeenCalledWith('s1', 100)
     expect(store.messages.value).toHaveLength(1)
     expect(store.messages.value[0]?.metadata).toContain('"messageType":"compaction"')
   })
@@ -141,12 +166,16 @@ describe('messageStore', () => {
       .mockReturnValueOnce(
         firstLoad.promise.then((messages) => ({
           session: { id: 's1' },
+          nextCursor: null,
+          hasMore: false,
           messages
         }))
       )
       .mockReturnValueOnce(
         secondLoad.promise.then((messages) => ({
           session: { id: 's1' },
+          nextCursor: null,
+          hasMore: false,
           messages
         }))
       )
@@ -220,11 +249,15 @@ describe('messageStore', () => {
     sessionClient.restore
       .mockResolvedValueOnce({
         session: { id: 's1' },
-        messages: firstPayload
+        messages: firstPayload,
+        nextCursor: null,
+        hasMore: false
       })
       .mockResolvedValueOnce({
         session: { id: 's1' },
-        messages: secondPayload
+        messages: secondPayload,
+        nextCursor: null,
+        hasMore: false
       })
 
     await store.loadMessages('s1')
@@ -235,6 +268,89 @@ describe('messageStore', () => {
     expect(store.messages.value).toHaveLength(1)
     expect(store.messages.value[0]?.content).toContain('second')
     expect(store.lastPersistedRevision.value).toBe(firstRevision + 1)
+  })
+
+  it('preserves loaded history across same-session refreshes', async () => {
+    const { store, sessionClient } = await setupStore()
+    const olderMessages = Array.from({ length: 50 }, (_, index) =>
+      buildUserMessage(`m${index + 1}`, 's1', index + 1, `older-${index + 1}`)
+    )
+    const recentMessages = Array.from({ length: 100 }, (_, index) =>
+      buildUserMessage(`m${index + 51}`, 's1', index + 51, `recent-${index + 51}`)
+    )
+
+    sessionClient.restore
+      .mockResolvedValueOnce({
+        session: { id: 's1' },
+        messages: recentMessages,
+        nextCursor: { orderSeq: 51, id: 'm51' },
+        hasMore: true
+      })
+      .mockResolvedValueOnce({
+        session: { id: 's1' },
+        messages: [...olderMessages, ...recentMessages],
+        nextCursor: null,
+        hasMore: false
+      })
+    sessionClient.listMessagesPage.mockResolvedValueOnce({
+      messages: olderMessages,
+      nextCursor: null,
+      hasMore: false
+    })
+
+    await store.loadMessages('s1')
+    await store.loadOlderMessages()
+    await store.loadMessages('s1')
+
+    expect(sessionClient.restore).toHaveBeenNthCalledWith(2, 's1', 150)
+    expect(store.messages.value).toHaveLength(150)
+    expect(store.messages.value[0]?.id).toBe('m1')
+    expect(store.messages.value[149]?.id).toBe('m150')
+  })
+
+  it('ignores stale older-history results after switching sessions', async () => {
+    const { store, sessionClient } = await setupStore()
+    const recentMessages = Array.from({ length: 100 }, (_, index) =>
+      buildUserMessage(`s1-${index + 2}`, 's1', index + 2, `recent-${index + 2}`)
+    )
+    const olderPage = createDeferred<{
+      messages: ReturnType<typeof buildUserMessage>[]
+      nextCursor: null
+      hasMore: false
+    }>()
+
+    sessionClient.restore
+      .mockResolvedValueOnce({
+        session: { id: 's1' },
+        messages: recentMessages,
+        nextCursor: { orderSeq: 2, id: 's1-2' },
+        hasMore: true
+      })
+      .mockResolvedValueOnce({
+        session: { id: 's2' },
+        messages: [buildUserMessage('s2-only', 's2', 1, 'other-session')],
+        nextCursor: null,
+        hasMore: false
+      })
+    sessionClient.listMessagesPage.mockReturnValueOnce(olderPage.promise)
+
+    await store.loadMessages('s1')
+    void store.loadOlderMessages()
+
+    store.clear()
+    await store.loadMessages('s2')
+
+    olderPage.resolve({
+      messages: [buildUserMessage('s1-older', 's1', 1, 'stale-history')],
+      nextCursor: null,
+      hasMore: false
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(store.messages.value).toHaveLength(1)
+    expect(store.messages.value[0]?.id).toBe('s2-only')
+    expect(store.hasMoreHistory.value).toBe(false)
+    expect(store.isLoadingHistory.value).toBe(false)
   })
 
   it('keeps rate-limit stream messages ephemeral and skips message hydration', async () => {
@@ -315,10 +431,14 @@ describe('messageStore', () => {
     sessionClient.restore
       .mockResolvedValueOnce({
         session: { id: 's1' },
-        messages: []
+        messages: [],
+        nextCursor: null,
+        hasMore: false
       })
       .mockResolvedValueOnce({
         session: { id: 's1' },
+        nextCursor: null,
+        hasMore: false,
         messages: [
           {
             id: 'user-1',
@@ -362,10 +482,14 @@ describe('messageStore', () => {
     sessionClient.restore
       .mockResolvedValueOnce({
         session: { id: 's1' },
-        messages: []
+        messages: [],
+        nextCursor: null,
+        hasMore: false
       })
       .mockResolvedValueOnce({
         session: { id: 's1' },
+        nextCursor: null,
+        hasMore: false,
         messages: [
           {
             id: 'user-1',
@@ -400,6 +524,8 @@ describe('messageStore', () => {
     const { store, sessionClient, streamListeners } = await setupStore()
     sessionClient.restore.mockResolvedValueOnce({
       session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
       messages: [
         {
           id: 'm1',

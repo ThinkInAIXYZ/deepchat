@@ -3,6 +3,8 @@ import type {
   SessionListItem,
   SessionLightweightListResult,
   SessionPageCursor,
+  MessagePageCursor,
+  ChatMessagePageResult,
   CreateSessionInput,
   CreateDetachedSessionInput,
   SessionWithState,
@@ -14,6 +16,7 @@ import type {
   LegacyImportStatus,
   PendingSessionInputRecord,
   SendMessageInput,
+  MessageStartResult,
   ToolInteractionResponse,
   ToolInteractionResult,
   UsageDashboardData
@@ -71,7 +74,7 @@ export interface IAgentSessionPresenter {
   convertPendingInputToSteer(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
   deletePendingInput(sessionId: string, itemId: string): Promise<void>
   resumePendingQueue(sessionId: string): Promise<void>
-  sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void>
+  sendMessage(sessionId: string, content: string | SendMessageInput): Promise<MessageStartResult>
   steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
   retryMessage(sessionId: string, messageId: string): Promise<void>
   deleteMessage(sessionId: string, messageId: string): Promise<void>
@@ -89,6 +92,13 @@ export interface IAgentSessionPresenter {
   }): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
+  listMessagesPage(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: MessagePageCursor | null
+    }
+  ): Promise<ChatMessagePageResult>
   searchHistory(query: string, options?: HistorySearchOptions): Promise<HistorySearchHit[]>
   getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>

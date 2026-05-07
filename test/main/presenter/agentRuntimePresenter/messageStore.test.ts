@@ -11,6 +11,9 @@ vi.mock('@shared/logger', () => ({
 
 function createMockSqlitePresenter() {
   return {
+    newSessionsTable: {
+      get: vi.fn().mockReturnValue({ title: 'Session Title' })
+    },
     deepchatMessagesTable: {
       insert: vi.fn(),
       updateContent: vi.fn(),
@@ -29,6 +32,42 @@ function createMockSqlitePresenter() {
     },
     deepchatSessionsTable: {
       get: vi.fn()
+    },
+    deepchatUserMessagesTable: {
+      upsert: vi.fn(),
+      get: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatUserMessageFilesTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatUserMessageLinksTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatAssistantBlocksTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatSearchDocumentsTable: {
+      upsert: vi.fn(),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
     },
     deepchatMessageTracesTable: {
       insert: vi.fn().mockReturnValue(1),
@@ -72,6 +111,20 @@ describe('DeepChatMessageStore', () => {
         content: JSON.stringify(content),
         status: 'sent'
       })
+      expect(sqlitePresenter.deepchatUserMessagesTable.upsert).toHaveBeenCalledWith({
+        messageId: 'mock-msg-id',
+        text: 'hello',
+        searchEnabled: false,
+        thinkEnabled: false
+      })
+      expect(sqlitePresenter.deepchatUserMessageFilesTable.replaceForMessage).toHaveBeenCalledWith(
+        'mock-msg-id',
+        []
+      )
+      expect(sqlitePresenter.deepchatUserMessageLinksTable.replaceForMessage).toHaveBeenCalledWith(
+        'mock-msg-id',
+        []
+      )
     })
   })
 
@@ -92,16 +145,21 @@ describe('DeepChatMessageStore', () => {
   })
 
   describe('updateAssistantContent', () => {
-    it('updates content as JSON', () => {
+    it('updates structured assistant blocks and keeps the header pending', () => {
       const blocks = [
         { type: 'content' as const, content: 'hi', status: 'pending' as const, timestamp: 1000 }
       ]
       store.updateAssistantContent('m1', blocks)
 
-      expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledWith(
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).toHaveBeenCalledWith(
         'm1',
-        JSON.stringify(blocks)
+        blocks
       )
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
+        'm1',
+        'pending'
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
     })
   })
 
@@ -113,6 +171,10 @@ describe('DeepChatMessageStore', () => {
       const metadata = '{"totalTokens":100}'
       store.finalizeAssistantMessage('m1', blocks, metadata)
 
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).toHaveBeenCalledWith(
+        'm1',
+        blocks
+      )
       expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
         'm1',
         JSON.stringify(blocks),
@@ -206,6 +268,10 @@ describe('DeepChatMessageStore', () => {
       ]
       store.setMessageError('m1', blocks)
 
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).toHaveBeenCalledWith(
+        'm1',
+        blocks
+      )
       expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
         'm1',
         JSON.stringify(blocks),
@@ -220,6 +286,10 @@ describe('DeepChatMessageStore', () => {
       const metadata = '{"provider":"openai","model":"gpt-4"}'
       store.setMessageError('m1', blocks, metadata)
 
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).toHaveBeenCalledWith(
+        'm1',
+        blocks
+      )
       expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
         'm1',
         JSON.stringify(blocks),
@@ -313,6 +383,19 @@ describe('DeepChatMessageStore', () => {
   describe('deleteBySession', () => {
     it('delegates to table', () => {
       store.deleteBySession('s1')
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession).toHaveBeenCalledWith(
+        's1'
+      )
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.deleteBySession).toHaveBeenCalledWith(
+        's1'
+      )
+      expect(sqlitePresenter.deepchatUserMessageLinksTable.deleteBySession).toHaveBeenCalledWith(
+        's1'
+      )
+      expect(sqlitePresenter.deepchatUserMessageFilesTable.deleteBySession).toHaveBeenCalledWith(
+        's1'
+      )
+      expect(sqlitePresenter.deepchatUserMessagesTable.deleteBySession).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.deepchatMessageTracesTable.deleteBySessionId).toHaveBeenCalledWith(
         's1'
       )
@@ -327,6 +410,11 @@ describe('DeepChatMessageStore', () => {
     it('deletes traces and search results before removing the message', () => {
       store.deleteMessage('m1')
 
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.delete).toHaveBeenCalledWith('message:m1')
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.delete).toHaveBeenCalledWith('m1')
+      expect(sqlitePresenter.deepchatUserMessageLinksTable.delete).toHaveBeenCalledWith('m1')
+      expect(sqlitePresenter.deepchatUserMessageFilesTable.delete).toHaveBeenCalledWith('m1')
+      expect(sqlitePresenter.deepchatUserMessagesTable.delete).toHaveBeenCalledWith('m1')
       expect(sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds).toHaveBeenCalledWith([
         'm1'
       ])
@@ -344,6 +432,24 @@ describe('DeepChatMessageStore', () => {
       store.deleteFromOrderSeq('s1', 2)
 
       expect(sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq).toHaveBeenCalledWith('s1', 2)
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.deleteByMessageIds).toHaveBeenCalledWith([
+        'm2',
+        'm3'
+      ])
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.deleteByMessageIds).toHaveBeenCalledWith([
+        'm2',
+        'm3'
+      ])
+      expect(sqlitePresenter.deepchatUserMessageLinksTable.deleteByMessageIds).toHaveBeenCalledWith(
+        ['m2', 'm3']
+      )
+      expect(sqlitePresenter.deepchatUserMessageFilesTable.deleteByMessageIds).toHaveBeenCalledWith(
+        ['m2', 'm3']
+      )
+      expect(sqlitePresenter.deepchatUserMessagesTable.deleteByMessageIds).toHaveBeenCalledWith([
+        'm2',
+        'm3'
+      ])
       expect(sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds).toHaveBeenCalledWith([
         'm2',
         'm3'
@@ -356,6 +462,15 @@ describe('DeepChatMessageStore', () => {
 
       store.deleteFromOrderSeq('s1', 2)
 
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.deleteByMessageIds).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.deleteByMessageIds).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatUserMessageLinksTable.deleteByMessageIds
+      ).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatUserMessageFilesTable.deleteByMessageIds
+      ).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatUserMessagesTable.deleteByMessageIds).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq).toHaveBeenCalledWith('s1', 2)
     })
@@ -463,6 +578,10 @@ describe('DeepChatMessageStore', () => {
       ])
 
       expect(store.recoverPendingMessages()).toBe(1)
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).toHaveBeenCalledWith(
+        'm2',
+        expect.any(Array)
+      )
       const [messageId, contentJson, status] =
         sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
       expect(messageId).toBe('m2')
@@ -493,6 +612,10 @@ describe('DeepChatMessageStore', () => {
       ])
 
       expect(store.recoverPendingMessages()).toBe(1)
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).toHaveBeenCalledWith(
+        'm3',
+        expect.any(Array)
+      )
       const [messageId, contentJson, status] =
         sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
       expect(messageId).toBe('m3')

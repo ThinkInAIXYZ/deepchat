@@ -125,7 +125,8 @@ sequenceDiagram
     Hook->>N: startLegacyImport()
     N->>I: importLegacyChats()
     I->>DB: read legacy conversations/messages
-    I->>DB: write new_sessions / new_messages
+    I->>DB: write new_sessions / deepchat_messages
+    I->>DB: backfill normalized message/session hot-path tables
     I-->>N: import status
 ```
 

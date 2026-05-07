@@ -14,7 +14,9 @@ describe('messageStore reactivity', () => {
     const sessionClient = {
       restore: vi.fn().mockResolvedValue({
         session: { id: 's1' },
-        messages: []
+        messages: [],
+        nextCursor: null,
+        hasMore: false
       })
     }
     const streamListeners = {

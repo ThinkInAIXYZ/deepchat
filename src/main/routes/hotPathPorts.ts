@@ -5,8 +5,11 @@ import type {
 } from '@shared/presenter'
 import type { DeepchatEventName, DeepchatEventPayload } from '@shared/contracts/events'
 import type {
+  ChatMessagePageResult,
   ChatMessageRecord,
   CreateSessionInput,
+  MessagePageCursor,
+  MessageStartResult,
   SendMessageInput,
   SessionWithState,
   ToolInteractionResponse,
@@ -36,11 +39,18 @@ export interface SessionRepository {
 
 export interface MessageRepository {
   listBySession(sessionId: string): Promise<ChatMessageRecord[]>
+  listPageBySession(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: MessagePageCursor | null
+    }
+  ): Promise<ChatMessagePageResult>
   get(messageId: string): Promise<ChatMessageRecord | null>
 }
 
 export interface ProviderExecutionPort {
-  sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void>
+  sendMessage(sessionId: string, content: string | SendMessageInput): Promise<MessageStartResult>
   steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
   cancelGeneration(sessionId: string): Promise<void>
   respondToolInteraction(
@@ -79,6 +89,7 @@ export function createPresenterHotPathPorts(deps: {
     | 'deactivateSession'
     | 'getActiveSession'
     | 'getMessages'
+    | 'listMessagesPage'
     | 'getMessage'
     | 'sendMessage'
     | 'steerActiveTurn'
@@ -112,6 +123,8 @@ export function createPresenterHotPathPorts(deps: {
     },
     messageRepository: {
       listBySession: async (sessionId) => await deps.agentSessionPresenter.getMessages(sessionId),
+      listPageBySession: async (sessionId, options) =>
+        await deps.agentSessionPresenter.listMessagesPage(sessionId, options),
       get: async (messageId) => await deps.agentSessionPresenter.getMessage(messageId)
     },
     providerExecutionPort: {
