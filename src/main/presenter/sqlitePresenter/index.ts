@@ -20,13 +20,20 @@ import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
 import { DeepChatMessagesTable } from './tables/deepchatMessages'
+import { DeepChatUserMessagesTable } from './tables/deepchatUserMessages'
+import { DeepChatUserMessageFilesTable } from './tables/deepchatUserMessageFiles'
+import { DeepChatUserMessageLinksTable } from './tables/deepchatUserMessageLinks'
+import { DeepChatAssistantBlocksTable } from './tables/deepchatAssistantBlocks'
 import { DeepChatMessageTracesTable } from './tables/deepchatMessageTraces'
 import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearchResults'
+import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { ConfigTables } from './tables/configTables'
+import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
+import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
@@ -209,13 +216,20 @@ export class SQLitePresenter implements ISQLitePresenter {
   public newProjectsTable!: NewProjectsTable
   public deepchatSessionsTable!: DeepChatSessionsTable
   public deepchatMessagesTable!: DeepChatMessagesTable
+  public deepchatUserMessagesTable!: DeepChatUserMessagesTable
+  public deepchatUserMessageFilesTable!: DeepChatUserMessageFilesTable
+  public deepchatUserMessageLinksTable!: DeepChatUserMessageLinksTable
+  public deepchatAssistantBlocksTable!: DeepChatAssistantBlocksTable
   public deepchatMessageTracesTable!: DeepChatMessageTracesTable
   public deepchatMessageSearchResultsTable!: DeepChatMessageSearchResultsTable
+  public deepchatSearchDocumentsTable!: DeepChatSearchDocumentsTable
   public deepchatPendingInputsTable!: DeepChatPendingInputsTable
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
   public configTables!: ConfigTables
+  public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
+  public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -344,13 +358,20 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newProjectsTable = new NewProjectsTable(this.db)
     this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
     this.deepchatMessagesTable = new DeepChatMessagesTable(this.db)
+    this.deepchatUserMessagesTable = new DeepChatUserMessagesTable(this.db)
+    this.deepchatUserMessageFilesTable = new DeepChatUserMessageFilesTable(this.db)
+    this.deepchatUserMessageLinksTable = new DeepChatUserMessageLinksTable(this.db)
+    this.deepchatAssistantBlocksTable = new DeepChatAssistantBlocksTable(this.db)
     this.deepchatMessageTracesTable = new DeepChatMessageTracesTable(this.db)
     this.deepchatMessageSearchResultsTable = new DeepChatMessageSearchResultsTable(this.db)
+    this.deepchatSearchDocumentsTable = new DeepChatSearchDocumentsTable(this.db)
     this.deepchatPendingInputsTable = new DeepChatPendingInputsTable(this.db)
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
     this.configTables = new ConfigTables(this.db)
+    this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
+    this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -359,13 +380,20 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newProjectsTable.createTable()
     this.deepchatSessionsTable.createTable()
     this.deepchatMessagesTable.createTable()
+    this.deepchatUserMessagesTable.createTable()
+    this.deepchatUserMessageFilesTable.createTable()
+    this.deepchatUserMessageLinksTable.createTable()
+    this.deepchatAssistantBlocksTable.createTable()
     this.deepchatMessageTracesTable.createTable()
     this.deepchatMessageSearchResultsTable.createTable()
+    this.deepchatSearchDocumentsTable.createTable()
     this.deepchatPendingInputsTable.createTable()
     this.deepchatUsageStatsTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
     this.configTables.createTable()
+    this.newSessionActiveSkillsTable.createTable()
+    this.newSessionDisabledAgentToolsTable.createTable()
   }
 
   private initVersionTable() {
@@ -393,13 +421,20 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.newProjectsTable,
       this.deepchatSessionsTable,
       this.deepchatMessagesTable,
+      this.deepchatUserMessagesTable,
+      this.deepchatUserMessageFilesTable,
+      this.deepchatUserMessageLinksTable,
+      this.deepchatAssistantBlocksTable,
       this.deepchatMessageTracesTable,
       this.deepchatMessageSearchResultsTable,
+      this.deepchatSearchDocumentsTable,
       this.deepchatPendingInputsTable,
       this.deepchatUsageStatsTable,
       this.legacyImportStatusTable,
       this.agentsTable,
-      this.configTables
+      this.configTables,
+      this.newSessionActiveSkillsTable,
+      this.newSessionDisabledAgentToolsTable
     ]
 
     // 获取最新的迁移版本
@@ -476,10 +511,17 @@ export class SQLitePresenter implements ISQLitePresenter {
       // Keep project metadata and legacy import status; clear session/message domain data only.
       this.db.exec(`
         DELETE FROM deepchat_message_search_results;
+        DELETE FROM deepchat_search_documents;
+        DELETE FROM deepchat_assistant_blocks;
+        DELETE FROM deepchat_user_message_links;
+        DELETE FROM deepchat_user_message_files;
+        DELETE FROM deepchat_user_messages;
         DELETE FROM deepchat_message_traces;
         DELETE FROM deepchat_messages;
         DELETE FROM deepchat_usage_stats;
         DELETE FROM deepchat_sessions;
+        DELETE FROM new_session_active_skills;
+        DELETE FROM new_session_disabled_agent_tools;
         DELETE FROM new_environments;
         DELETE FROM new_sessions;
       `)

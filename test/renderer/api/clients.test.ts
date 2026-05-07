@@ -124,7 +124,11 @@ describe('renderer api clients', () => {
       agentId: 'deepchat',
       message: 'hello'
     })
-    await sessionClient.restore('session-1')
+    await sessionClient.restore('session-1', 100)
+    await sessionClient.listMessagesPage('session-1', {
+      cursor: { orderSeq: 10, id: 'message-10' },
+      limit: 50
+    })
     await sessionClient.list({ includeSubagents: true })
     await sessionClient.activate('session-1')
     await sessionClient.deactivate()
@@ -156,28 +160,34 @@ describe('renderer api clients', () => {
       message: 'hello'
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.restore', {
-      sessionId: 'session-1'
+      sessionId: 'session-1',
+      limit: 100
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'sessions.list', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'sessions.listMessagesPage', {
+      sessionId: 'session-1',
+      cursor: { orderSeq: 10, id: 'message-10' },
+      limit: 50
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'sessions.list', {
       includeSubagents: true
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'sessions.activate', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'sessions.activate', {
       sessionId: 'session-1'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'sessions.deactivate', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'sessions.getActive', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'chat.sendMessage', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'sessions.deactivate', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'sessions.getActive', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'chat.sendMessage', {
       sessionId: 'session-1',
       content: 'follow up'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'chat.steerActiveTurn', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'chat.steerActiveTurn', {
       sessionId: 'session-1',
       content: 'refine active answer'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'chat.stopStream', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'chat.stopStream', {
       requestId: 'message-1'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'chat.respondToolInteraction', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'chat.respondToolInteraction', {
       sessionId: 'session-1',
       messageId: 'message-1',
       toolCallId: 'tool-1',
@@ -186,10 +196,10 @@ describe('renderer api clients', () => {
         granted: true
       }
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'providers.listModels', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'providers.listModels', {
       providerId: 'openai'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'providers.testConnection', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'providers.testConnection', {
       providerId: 'openai',
       modelId: 'gpt-5.4'
     })

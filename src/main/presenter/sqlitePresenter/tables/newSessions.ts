@@ -164,6 +164,9 @@ export class NewSessionsTable extends BaseTable {
         createdAt,
         updatedAt
       )
+
+    this.replaceActiveSkillsRows(id, options?.activeSkills ?? [])
+    this.replaceDisabledAgentToolRows(id, options?.disabledAgentTools ?? [])
   }
 
   get(id: string): NewSessionRow | undefined {
@@ -333,17 +336,37 @@ export class NewSessionsTable extends BaseTable {
     params.push(id)
 
     this.db.prepare(`UPDATE new_sessions SET ${setClauses.join(', ')} WHERE id = ?`).run(...params)
+
+    if (fields.active_skills !== undefined) {
+      this.replaceActiveSkillsRows(id, this.parseActiveSkills(fields.active_skills))
+    }
+    if (fields.disabled_agent_tools !== undefined) {
+      this.replaceDisabledAgentToolRows(id, this.parseStringArray(fields.disabled_agent_tools))
+    }
   }
 
   delete(id: string): void {
+    this.db.prepare('DELETE FROM new_session_active_skills WHERE session_id = ?').run(id)
+    this.db.prepare('DELETE FROM new_session_disabled_agent_tools WHERE session_id = ?').run(id)
     this.db.prepare('DELETE FROM new_sessions WHERE id = ?').run(id)
   }
 
   getActiveSkills(id: string): string[] {
+    const normalizedRows = this.db
+      .prepare(
+        `SELECT skill_name
+         FROM new_session_active_skills
+         WHERE session_id = ?
+         ORDER BY ordinal`
+      )
+      .all(id) as Array<{ skill_name: string }>
+    if (normalizedRows.length > 0) {
+      return normalizedRows.map((row) => row.skill_name)
+    }
+
     const row = this.db.prepare('SELECT active_skills FROM new_sessions WHERE id = ?').get(id) as
       | { active_skills?: string | null }
       | undefined
-
     return this.parseActiveSkills(row?.active_skills)
   }
 
@@ -352,6 +375,18 @@ export class NewSessionsTable extends BaseTable {
   }
 
   getDisabledAgentTools(id: string): string[] {
+    const normalizedRows = this.db
+      .prepare(
+        `SELECT tool_name
+         FROM new_session_disabled_agent_tools
+         WHERE session_id = ?
+         ORDER BY ordinal`
+      )
+      .all(id) as Array<{ tool_name: string }>
+    if (normalizedRows.length > 0) {
+      return normalizedRows.map((row) => row.tool_name)
+    }
+
     const row = this.db
       .prepare('SELECT disabled_agent_tools FROM new_sessions WHERE id = ?')
       .get(id) as { disabled_agent_tools?: string | null } | undefined
@@ -371,6 +406,42 @@ export class NewSessionsTable extends BaseTable {
 
   private parseActiveSkills(raw: string | null | undefined): string[] {
     return this.parseStringArray(raw)
+  }
+
+  private replaceActiveSkillsRows(sessionId: string, activeSkills: string[]): void {
+    const insert = this.db.prepare(
+      `INSERT INTO new_session_active_skills (
+        session_id,
+        ordinal,
+        skill_name
+      ) VALUES (?, ?, ?)`
+    )
+
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM new_session_active_skills WHERE session_id = ?').run(sessionId)
+      activeSkills.forEach((skillName, index) => {
+        insert.run(sessionId, index, skillName)
+      })
+    })()
+  }
+
+  private replaceDisabledAgentToolRows(sessionId: string, toolNames: string[]): void {
+    const insert = this.db.prepare(
+      `INSERT INTO new_session_disabled_agent_tools (
+        session_id,
+        ordinal,
+        tool_name
+      ) VALUES (?, ?, ?)`
+    )
+
+    this.db.transaction(() => {
+      this.db
+        .prepare('DELETE FROM new_session_disabled_agent_tools WHERE session_id = ?')
+        .run(sessionId)
+      toolNames.forEach((toolName, index) => {
+        insert.run(sessionId, index, toolName)
+      })
+    })()
   }
 
   private parseStringArray(raw: string | null | undefined): string[] {

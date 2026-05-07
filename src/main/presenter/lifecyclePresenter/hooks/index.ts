@@ -14,6 +14,7 @@ export { acpRegistryMigrationHook } from './after-start/acpRegistryMigrationHook
 export { legacyImportHook } from './after-start/legacyImportHook'
 export { rtkHealthCheckHook } from './after-start/rtkHealthCheckHook'
 export { usageStatsBackfillHook } from './after-start/usageStatsBackfillHook'
+export { sqliteMainlineNormalizationHook } from './after-start/sqliteMainlineNormalizationHook'
 export { trayDestroyHook } from './beforeQuit/trayDestroyHook'
 export { floatingDestroyHook } from './beforeQuit/floatingDestroyHook'
 export { presenterDestroyHook } from './beforeQuit/presenterDestroyHook'

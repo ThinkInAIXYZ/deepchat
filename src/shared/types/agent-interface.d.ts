@@ -78,7 +78,7 @@ export interface IAgentImplementation {
       pendingQueueItemId?: string
       pendingQueueItemSource?: PendingInputEnqueueSource
     }
-  ): Promise<void>
+  ): Promise<MessageStartResult>
 
   /** Steer an active turn, or start a normal turn if the session is idle */
   steerActiveTurn?(sessionId: string, content: string | SendMessageInput): Promise<void>
@@ -109,6 +109,15 @@ export interface IAgentImplementation {
 
   /** Get all messages for a session, ordered by order_seq */
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
+
+  /** Get a page of messages for a session, ordered by order_seq ASC */
+  listMessagesPage?(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: MessagePageCursor | null
+    }
+  ): Promise<ChatMessagePageResult>
 
   /** Get only message IDs for a session, ordered by order_seq */
   getMessageIds(sessionId: string): Promise<string[]>
@@ -333,6 +342,22 @@ export interface ChatMessageRecord {
   traceCount?: number
   createdAt: number
   updatedAt: number
+}
+
+export interface MessagePageCursor {
+  orderSeq: number
+  id: string
+}
+
+export interface ChatMessagePageResult {
+  messages: ChatMessageRecord[]
+  nextCursor: MessagePageCursor | null
+  hasMore: boolean
+}
+
+export interface MessageStartResult {
+  requestId: string | null
+  messageId: string | null
 }
 
 export interface UsageStatsBackfillStatus {

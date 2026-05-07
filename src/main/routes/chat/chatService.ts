@@ -63,40 +63,17 @@ export class ChatService {
         throw new Error(`Agent type not found: ${session.agentId}`)
       }
 
-      const previousMessages = await this.deps.scheduler.timeout({
-        task: this.deps.messageRepository.listBySession(sessionId),
-        ms: CHAT_LOOKUP_TIMEOUT_MS,
-        reason: `chat.sendMessage:${sessionId}:messages:before`
-      })
-      const maxAssistantOrderSeq = previousMessages.reduce(
-        (maxOrderSeq, message) =>
-          message.role === 'assistant' ? Math.max(maxOrderSeq, message.orderSeq) : maxOrderSeq,
-        Number.NEGATIVE_INFINITY
-      )
-
-      await this.deps.scheduler.timeout({
+      const result = await this.deps.scheduler.timeout({
         task: this.deps.providerExecutionPort.sendMessage(sessionId, content),
         ms: CHAT_SEND_TIMEOUT_MS,
         reason: `chat.sendMessage:${sessionId}`,
         signal: controller.signal
       })
 
-      const messages = await this.deps.scheduler.timeout({
-        task: this.deps.messageRepository.listBySession(sessionId),
-        ms: CHAT_LOOKUP_TIMEOUT_MS,
-        reason: `chat.sendMessage:${sessionId}:messages`
-      })
-      const latestAssistantMessage =
-        [...messages]
-          .filter(
-            (message) => message.role === 'assistant' && message.orderSeq > maxAssistantOrderSeq
-          )
-          .sort((left, right) => right.orderSeq - left.orderSeq)[0] ?? null
-
       return {
         accepted: true,
-        requestId: latestAssistantMessage?.id ?? null,
-        messageId: latestAssistantMessage?.id ?? null
+        requestId: result.requestId,
+        messageId: result.messageId
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'TimeoutError') {

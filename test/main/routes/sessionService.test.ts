@@ -20,7 +20,12 @@ describe('SessionService', () => {
       getActive: vi.fn()
     }
     const messageRepository = {
-      listBySession: vi.fn().mockResolvedValue([{ id: 'message-1', sessionId: 'session-1' }]),
+      listBySession: vi.fn(),
+      listPageBySession: vi.fn().mockResolvedValue({
+        messages: [{ id: 'message-1', sessionId: 'session-1' }],
+        nextCursor: null,
+        hasMore: false
+      }),
       get: vi.fn()
     }
 
@@ -35,10 +40,14 @@ describe('SessionService', () => {
     expect(scheduler.retry).toHaveBeenCalledTimes(1)
     expect(scheduler.timeout).toHaveBeenCalledTimes(2)
     expect(sessionRepository.get).toHaveBeenCalledWith('session-1')
-    expect(messageRepository.listBySession).toHaveBeenCalledWith('session-1')
+    expect(messageRepository.listPageBySession).toHaveBeenCalledWith('session-1', {
+      limit: 100
+    })
     expect(result).toEqual({
       session: { id: 'session-1' },
-      messages: [{ id: 'message-1', sessionId: 'session-1' }]
+      messages: [{ id: 'message-1', sessionId: 'session-1' }],
+      nextCursor: null,
+      hasMore: false
     })
   })
 
@@ -54,6 +63,7 @@ describe('SessionService', () => {
     }
     const messageRepository = {
       listBySession: vi.fn(),
+      listPageBySession: vi.fn(),
       get: vi.fn()
     }
 
@@ -65,8 +75,10 @@ describe('SessionService', () => {
 
     await expect(service.restoreSession('missing-session')).resolves.toEqual({
       session: null,
-      messages: []
+      messages: [],
+      nextCursor: null,
+      hasMore: false
     })
-    expect(messageRepository.listBySession).not.toHaveBeenCalled()
+    expect(messageRepository.listPageBySession).not.toHaveBeenCalled()
   })
 })

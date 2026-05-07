@@ -10,6 +10,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
+import { DeepChatMessageStore } from '../agentRuntimePresenter/messageStore'
 
 type LegacyRow = Record<string, unknown>
 
@@ -26,12 +27,14 @@ const DEFAULT_USER_CONTENT: UserMessageContent = {
 
 export class LegacyChatImportService {
   private readonly sqlitePresenter: SQLitePresenter
+  private readonly messageStore: DeepChatMessageStore
   private readonly sourceDbPath: string
   private runningPromise: Promise<LegacyImportStatus> | null = null
   private skillRepairPromise: Promise<void> | null = null
 
   constructor(sqlitePresenter: SQLitePresenter, sourceDbPath?: string) {
     this.sqlitePresenter = sqlitePresenter
+    this.messageStore = new DeepChatMessageStore(sqlitePresenter)
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
   }
 
@@ -490,27 +493,41 @@ export class LegacyChatImportService {
               ? this.normalizeUserContent(this.pickString(selectedVariant, ['content']) || '')
               : this.normalizeAssistantContent(this.pickString(selectedVariant, ['content']) || '')
 
+          const status = this.normalizeMessageStatus(
+            this.pickString(selectedVariant, ['status']) || 'sent'
+          )
+          const createdAt =
+            this.pickNumber(selectedVariant, ['created_at']) ??
+            this.pickNumber(row, ['created_at']) ??
+            Date.now()
+
           this.sqlitePresenter.deepchatMessagesTable.insert({
             id: messageId,
             sessionId,
             orderSeq: nextOrderSeq,
             role: role as 'user' | 'assistant',
             content: normalizedContent,
-            status: this.normalizeMessageStatus(
-              this.pickString(selectedVariant, ['status']) || 'sent'
-            ),
+            status,
             isContextEdge: this.pickNumber(selectedVariant, ['is_context_edge']) === 1 ? 1 : 0,
             metadata: this.normalizeMetadata(
               this.pickString(selectedVariant, ['metadata']) || '{}'
             ),
-            createdAt:
-              this.pickNumber(selectedVariant, ['created_at']) ??
-              this.pickNumber(row, ['created_at']) ??
-              Date.now(),
-            updatedAt:
-              this.pickNumber(selectedVariant, ['created_at']) ??
-              this.pickNumber(row, ['created_at']) ??
-              Date.now()
+            createdAt,
+            updatedAt: createdAt
+          })
+          this.messageStore.backfillMessageRow({
+            id: messageId,
+            session_id: sessionId,
+            order_seq: nextOrderSeq,
+            role: role as 'user' | 'assistant',
+            content: normalizedContent,
+            status,
+            is_context_edge: this.pickNumber(selectedVariant, ['is_context_edge']) === 1 ? 1 : 0,
+            metadata: this.normalizeMetadata(
+              this.pickString(selectedVariant, ['metadata']) || '{}'
+            ),
+            created_at: createdAt,
+            updated_at: createdAt
           })
 
           importedMessages += 1

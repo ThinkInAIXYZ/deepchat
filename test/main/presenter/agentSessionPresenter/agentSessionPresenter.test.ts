@@ -57,7 +57,22 @@ function createMockDeepChatAgent() {
       modelId: 'gpt-4',
       permissionMode: 'full_access'
     }),
-    processMessage: vi.fn().mockResolvedValue(undefined),
+    processMessage: vi.fn().mockResolvedValue({
+      requestId: null,
+      messageId: null
+    }),
+    queuePendingInput: vi.fn().mockResolvedValue({
+      id: 'queued-1',
+      sessionId: 's1',
+      mode: 'queue',
+      state: 'pending',
+      payload: { text: 'queued', files: [] },
+      queueOrder: 1,
+      claimedAt: null,
+      consumedAt: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }),
     steerActiveTurn: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
@@ -212,8 +227,26 @@ function createMockSqlitePresenter() {
     getDatabase: vi.fn(() => db),
     newSessionsTable: {
       create: vi.fn(),
-      get: vi.fn(),
+      get: vi.fn().mockReturnValue({
+        id: 'session-1',
+        agent_id: 'deepchat',
+        title: 'Release checklist',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 100,
+        updated_at: 200
+      }),
+      getMany: vi.fn().mockReturnValue([]),
       list: vi.fn().mockReturnValue([]),
+      listPage: vi.fn().mockReturnValue({
+        rows: [],
+        hasMore: false
+      }),
       getDisabledAgentTools: vi.fn().mockReturnValue([]),
       updateDisabledAgentTools: vi.fn(),
       update: vi.fn(),
@@ -254,6 +287,13 @@ function createMockSqlitePresenter() {
     deepchatMessageTracesTable: {
       listByMessageId: vi.fn().mockReturnValue([]),
       countByMessageId: vi.fn().mockReturnValue(0)
+    },
+    deepchatSearchDocumentsTable: {
+      upsert: vi.fn(),
+      refreshSessionTitle: vi.fn(),
+      deleteBySession: vi.fn(),
+      searchFts: vi.fn().mockReturnValue([]),
+      searchLike: vi.fn().mockReturnValue([])
     }
   } as any
 }
@@ -305,10 +345,11 @@ describe('AgentSessionPresenter', () => {
         })
       )
       await new Promise((r) => setTimeout(r, 0))
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+      expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
         { text: 'Hello world', files: [] },
         {
+          source: 'send',
           projectDir: '/tmp/proj'
         }
       )
@@ -327,7 +368,7 @@ describe('AgentSessionPresenter', () => {
       expect(result.title).toBe('New Chat')
     })
 
-    it('calls agent.initSession and processMessage', async () => {
+    it('calls agent.initSession and queues the first message', async () => {
       await presenter.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(
@@ -340,12 +381,13 @@ describe('AgentSessionPresenter', () => {
           permissionMode: 'full_access'
         })
       )
-      // processMessage is called non-blocking, so we give it a tick
+      // The first message is queued non-blocking, so we give it a tick
       await new Promise((r) => setTimeout(r, 0))
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+      expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
         { text: 'Hello', files: [] },
         {
+          source: 'send',
           projectDir: null
         }
       )
@@ -662,10 +704,11 @@ describe('AgentSessionPresenter', () => {
         '/tmp/workspace'
       )
       await new Promise((r) => setTimeout(r, 0))
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+      expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
         { text: 'Hello ACP', files: [] },
         {
+          source: 'send',
           projectDir: '/tmp/workspace'
         }
       )
@@ -704,6 +747,31 @@ describe('AgentSessionPresenter', () => {
 
   describe('searchHistory', () => {
     it('returns session and message hits sorted by title relevance before recency', async () => {
+      sqlitePresenter.deepchatSearchDocumentsTable.searchFts.mockReturnValue([
+        {
+          document_key: 'session:session-1',
+          session_id: 'session-1',
+          message_id: null,
+          document_kind: 'session',
+          role: null,
+          title: 'Release checklist',
+          content: '',
+          updated_at: 200,
+          rank: 0
+        },
+        {
+          document_key: 'message:message-1',
+          session_id: 'session-1',
+          message_id: 'message-1',
+          document_kind: 'message',
+          role: 'assistant',
+          title: 'Release checklist',
+          content: 'pnpm run build still fails on arm64',
+          updated_at: 100,
+          rank: 1
+        }
+      ])
+
       const result = await presenter.searchHistory('release', { limit: 5 })
 
       expect(result).toEqual([
@@ -842,10 +910,11 @@ describe('AgentSessionPresenter', () => {
         title: 'Hello ACP'
       })
       expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+      expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         's-draft',
         { text: 'Hello ACP', files: [] },
         {
+          source: 'send',
           projectDir: '/tmp/workspace'
         }
       )
@@ -869,10 +938,11 @@ describe('AgentSessionPresenter', () => {
       })
 
       await presenter.sendMessage('s1', 'Follow-up')
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+      expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         's1',
         { text: 'Follow-up', files: [] },
         {
+          source: 'send',
           projectDir: '/tmp/workspace'
         }
       )

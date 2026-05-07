@@ -8,12 +8,19 @@ import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
 import { DeepChatMessagesTable } from './tables/deepchatMessages'
+import { DeepChatUserMessagesTable } from './tables/deepchatUserMessages'
+import { DeepChatUserMessageFilesTable } from './tables/deepchatUserMessageFiles'
+import { DeepChatUserMessageLinksTable } from './tables/deepchatUserMessageLinks'
+import { DeepChatAssistantBlocksTable } from './tables/deepchatAssistantBlocks'
 import { DeepChatMessageTracesTable } from './tables/deepchatMessageTraces'
 import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearchResults'
+import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
+import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
+import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 
@@ -128,12 +135,32 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     createTable: (db) => new DeepChatMessagesTable(db)
   },
   {
+    name: 'deepchat_user_messages',
+    createTable: (db) => new DeepChatUserMessagesTable(db)
+  },
+  {
+    name: 'deepchat_user_message_files',
+    createTable: (db) => new DeepChatUserMessageFilesTable(db)
+  },
+  {
+    name: 'deepchat_user_message_links',
+    createTable: (db) => new DeepChatUserMessageLinksTable(db)
+  },
+  {
+    name: 'deepchat_assistant_blocks',
+    createTable: (db) => new DeepChatAssistantBlocksTable(db)
+  },
+  {
     name: 'deepchat_message_traces',
     createTable: (db) => new DeepChatMessageTracesTable(db)
   },
   {
     name: 'deepchat_message_search_results',
     createTable: (db) => new DeepChatMessageSearchResultsTable(db)
+  },
+  {
+    name: 'deepchat_search_documents',
+    createTable: (db) => new DeepChatSearchDocumentsTable(db)
   },
   {
     name: 'deepchat_pending_inputs',
@@ -155,6 +182,14 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'agents',
     createTable: (db) => new AgentsTable(db)
+  },
+  {
+    name: 'new_session_active_skills',
+    createTable: (db) => new NewSessionActiveSkillsTable(db)
+  },
+  {
+    name: 'new_session_disabled_agent_tools',
+    createTable: (db) => new NewSessionDisabledAgentToolsTable(db)
   }
 ]
 

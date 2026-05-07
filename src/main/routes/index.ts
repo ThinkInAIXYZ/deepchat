@@ -107,6 +107,7 @@ import {
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
   sessionsListLightweightRoute,
+  sessionsListMessagesPageRoute,
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
@@ -1055,8 +1056,17 @@ export async function dispatchDeepchatRoute(
 
     case sessionsRestoreRoute.name: {
       const input = sessionsRestoreRoute.input.parse(rawInput)
-      const { session, messages } = await runtime.sessionService.restoreSession(input.sessionId)
-      return sessionsRestoreRoute.output.parse({ session, messages })
+      const result = await runtime.sessionService.restoreSession(input.sessionId, input.limit)
+      return sessionsRestoreRoute.output.parse(result)
+    }
+
+    case sessionsListMessagesPageRoute.name: {
+      const input = sessionsListMessagesPageRoute.input.parse(rawInput)
+      const page = await runtime.sessionService.listMessagesPage(input.sessionId, {
+        cursor: input.cursor ?? null,
+        limit: input.limit
+      })
+      return sessionsListMessagesPageRoute.output.parse(page)
     }
 
     case sessionsListRoute.name: {

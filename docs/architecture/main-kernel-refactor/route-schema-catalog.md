@@ -129,7 +129,8 @@ export const AppErrorSchema = z.object({
 | Route | Input summary | Output summary | Notes |
 | --- | --- | --- | --- |
 | `sessions.create` | title / provider / model / agent / projectDir | session summary | 会话创建主入口 |
-| `sessions.restore` | `{ sessionId }` | session snapshot | 恢复主入口 |
+| `sessions.restore` | `{ sessionId, limit? }` | `{ session, messages, nextCursor, hasMore }` | 恢复最新一页消息 |
+| `sessions.listMessagesPage` | `{ sessionId, cursor?, limit? }` | `{ messages, nextCursor, hasMore }` | 向更老消息翻页 |
 | `sessions.list` | optional filter | session summaries | 列表主入口 |
 | `sessions.activate` | `{ sessionId }` | `{ activated: true }` | 当前窗口激活会话 |
 | `sessions.deactivate` | none | `{ deactivated: true }` | 当前窗口关闭活跃会话 |

@@ -72,6 +72,8 @@ const setup = async (options: SetupOptions = {}) => {
     currentStreamMessageId: options.currentStreamMessageId ?? null,
     streamRevision: 0,
     lastPersistedRevision: 0,
+    hasMoreHistory: false,
+    isLoadingHistory: false,
     messageIds: (
       options.messages ?? [
         buildAssistantMessage([
@@ -102,6 +104,7 @@ const setup = async (options: SetupOptions = {}) => {
     getUserMessageContent: vi.fn((message: { content: string }) => JSON.parse(message.content)),
     getMessageMetadata: vi.fn((message: { metadata: string }) => JSON.parse(message.metadata)),
     loadMessages: vi.fn().mockResolvedValue(undefined),
+    loadOlderMessages: vi.fn().mockResolvedValue(0),
     clear: vi.fn(),
     clearStreamingState: vi.fn(),
     addOptimisticUserMessage: vi.fn()
@@ -305,8 +308,9 @@ const setup = async (options: SetupOptions = {}) => {
           default: false
         }
       },
-      emits: ['attach', 'queue', 'send', 'stop'],
-      template: '<div class="chat-input-toolbar-stub" />'
+      emits: ['attach', 'queue', 'send', 'steer', 'stop'],
+      template:
+        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" @click="$emit(\'steer\')" /></div>'
     })
   }))
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({

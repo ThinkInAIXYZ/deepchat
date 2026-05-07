@@ -29,6 +29,12 @@
         </div>
       </div>
       <div ref="messageSearchRoot" class="min-h-[calc(100%-242px)]">
+        <div
+          v-if="messageStore.isLoadingHistory"
+          class="pointer-events-none px-6 py-2 text-center text-xs text-muted-foreground"
+        >
+          {{ t('common.loading') }}
+        </div>
         <MessageList
           :messages="displayMessages"
           :conversation-id="props.sessionId"
@@ -195,6 +201,7 @@ const messageSearchRoot = ref<HTMLDivElement>()
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const NEAR_BOTTOM_THRESHOLD = 80 // px
+const TOP_HISTORY_THRESHOLD = 80
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
@@ -276,6 +283,35 @@ function scrollToBottom(force = false) {
 
 function onScroll() {
   scheduleScrollMetricsRead()
+  const el = scrollContainer.value
+  if (!el || el.scrollTop > TOP_HISTORY_THRESHOLD) {
+    return
+  }
+
+  void loadOlderMessagesAtTop()
+}
+
+async function loadOlderMessagesAtTop(): Promise<void> {
+  if (messageStore.isLoadingHistory || !messageStore.hasMoreHistory) {
+    return
+  }
+
+  const el = scrollContainer.value
+  if (!el) {
+    return
+  }
+
+  const previousScrollHeight = el.scrollHeight
+  const previousScrollTop = el.scrollTop
+  const loadedCount = await messageStore.loadOlderMessages()
+  if (loadedCount === 0) {
+    return
+  }
+
+  await nextTick()
+  const nextScrollHeight = el.scrollHeight
+  el.scrollTop = previousScrollTop + (nextScrollHeight - previousScrollHeight)
+  syncScrollPosition()
 }
 
 async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
@@ -874,6 +910,7 @@ const isInputSubmitDisabled = computed(
     isAcpWorkdirMissing.value ||
     Boolean(activePendingInteraction.value) ||
     isHandlingInteraction.value ||
+    (isGenerating.value && pendingInputStore.isAtCapacity) ||
     !hasDraftInput.value
 )
 const showResumePendingQueue = computed(

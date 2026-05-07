@@ -50,7 +50,7 @@
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| session route dispatch | `src/main/routes/index.ts` | `sessions.create` / `restore` / `activate` / `deactivate` / `getActive` |
+| session route dispatch | `src/main/routes/index.ts` | `sessions.create` / `restore` / `listMessagesPage` / `activate` / `deactivate` / `getActive` |
 | session orchestration | `src/main/routes/sessions/sessionService.ts` | `Scheduler` + session/message repositories |
 | chat route dispatch | `src/main/routes/index.ts` | `chat.sendMessage` / `stopStream` / `respondToolInteraction` |
 | chat orchestration | `src/main/routes/chat/chatService.ts` | send / stop / permission response owner |
@@ -132,4 +132,3 @@ rg "settingsChangedEvent|sessionsUpdatedEvent|chatStream" src/shared src/main sr
 - `docs/archives/legacy-agentpresenter-architecture.md`
 - `docs/archives/legacy-agentpresenter-flows.md`
 - `docs/archives/thread-presenter-migration-plan.md`
-

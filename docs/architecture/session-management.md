@@ -11,9 +11,8 @@ retirement 之后，会话管理被明确拆成两层：
 | --- | --- | --- |
 | `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/index.ts` | renderer 唯一 session 入口 |
 | `NewSessionManager` | `src/main/presenter/agentSessionPresenter/sessionManager.ts` | `new_sessions` 记录、窗口绑定、session CRUD |
-| `NewMessageManager` | `src/main/presenter/agentSessionPresenter/messageManager.ts` | 新会话消息读取与 agent routing |
 | `DeepChatSessionStore` | `src/main/presenter/agentRuntimePresenter/sessionStore.ts` | 活跃 runtime 状态 |
-| `DeepChatMessageStore` | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 新消息持久化 |
+| `DeepChatMessageStore` | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 新消息持久化、分页读取、结构化内容重组 |
 | `SessionPresenter` | `src/main/presenter/sessionPresenter/index.ts` | legacy conversation/thread/export 兼容层 |
 | `sessionPresenter/messageFormatter.ts` | `src/main/presenter/sessionPresenter/messageFormatter.ts` | 用户消息上下文格式化与 exporter 复用 |
 
@@ -71,3 +70,13 @@ sequenceDiagram
 
 如果是当前聊天会话创建、发送消息、取消生成、tool interaction，请直接从
 `agentSessionPresenter` 和 `agentRuntimePresenter` 开始读。
+
+## 恢复与历史分页
+
+新的聊天恢复链路已经不再假设“打开会话 = 一次性读取全量消息”：
+
+- `sessions.restore` 只返回最近一页消息，默认 `100` 条
+- `sessions.listMessagesPage` 负责继续向更老消息翻页
+- renderer `messageStore` 首屏只加载第一页，`ChatPage` 在接近顶部时再拉旧历史
+
+这样可以让大会话恢复保持稳定首屏时间，也把“历史很长”和“首屏可用”两个目标解耦开。

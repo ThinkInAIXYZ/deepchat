@@ -80,7 +80,22 @@ agentRuntimePresenter/
 | Stream loop | `src/main/presenter/agentRuntimePresenter/process.ts` | 调用 provider、累计 blocks、驱动 tool loop |
 | Tool dispatch | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | 调用 `ToolPresenter`、暂停交互、生成 tool 结果 |
 | Context build | `src/main/presenter/agentRuntimePresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
-| Persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 消息持久化与故障恢复 |
+| Persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 消息持久化、分页读取、结构化内容重组与故障恢复 |
+
+## 持久化热路径
+
+`DeepChatMessageStore` 现在采用“头表 + 结构化子表”的主链路模型：
+
+- `deepchat_messages` 作为消息头表
+- `deepchat_user_messages` / `files` / `links` 存 user 热字段
+- `deepchat_assistant_blocks` 存 assistant blocks
+- `deepchat_search_documents` / `_fts` 存历史搜索索引
+
+关键语义：
+
+- streaming 期间只增量更新 `deepchat_assistant_blocks`
+- 最终进入 `sent/error` 时才写回稳定的 `deepchat_messages.content`
+- 读路径优先从结构化表重组 `ChatMessageRecord.content`，缺行时再回退旧 JSON
 
 ## 兼容边界
 

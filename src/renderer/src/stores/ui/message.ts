@@ -9,6 +9,7 @@ import type {
   ChatMessageRecord,
   AssistantMessageBlock,
   MessageFile,
+  MessagePageCursor,
   MessageMetadata,
   SessionWithState
 } from '@shared/types/agent-interface'
@@ -46,9 +47,13 @@ export const useMessageStore = defineStore('message', () => {
   const messageCache = ref<Map<string, ChatMessageRecord>>(new Map())
   const lastPersistedRevision = ref(0)
   const currentSessionId = ref<string | null>(null)
+  const nextCursor = ref<MessagePageCursor | null>(null)
+  const hasMoreHistory = ref(false)
+  const isLoadingHistory = ref(false)
   const parsedMessageCache = new Map<string, ParsedMessageCacheEntry>()
   const hydratingStreamMessageIds = new Set<string>()
   let latestLoadRequestId = 0
+  let latestHistoryRequestId = 0
 
   // --- Getters ---
   const messages = computed(() => {
@@ -168,28 +173,151 @@ export const useMessageStore = defineStore('message', () => {
     currentSessionId.value = sessionId
   }
 
-  async function loadMessages(sessionId: string): Promise<SessionWithState | null> {
-    const requestId = ++latestLoadRequestId
-    setCurrentSessionId(sessionId)
-    try {
-      const restored = await sessionClient.restore(sessionId)
-      const result = restored.messages
-      if (requestId !== latestLoadRequestId) {
+  function isCurrentLoadRequest(requestId: number, sessionId: string): boolean {
+    return requestId === latestLoadRequestId && currentSessionId.value === sessionId
+  }
+
+  function isCurrentHistoryRequest(requestId: number, sessionId: string): boolean {
+    return requestId === latestHistoryRequestId && currentSessionId.value === sessionId
+  }
+
+  async function restoreMessageWindow(
+    sessionId: string,
+    desiredCount: number,
+    requestId: number
+  ): Promise<Awaited<ReturnType<typeof sessionClient.restore>> | null> {
+    const initialLimit = Math.min(Math.max(desiredCount, 100), 500)
+    const restored = await sessionClient.restore(sessionId, initialLimit)
+    if (!isCurrentLoadRequest(requestId, sessionId)) {
+      return null
+    }
+
+    if (!restored.hasMore || !restored.nextCursor || restored.messages.length >= desiredCount) {
+      return restored
+    }
+
+    const seenIds = new Set(restored.messages.map((message) => message.id))
+    let messages = restored.messages
+    let nextCursorValue: { orderSeq: number; id: string } | null = restored.nextCursor
+    let hasMoreValue: boolean = restored.hasMore
+
+    while (messages.length < desiredCount && hasMoreValue && nextCursorValue) {
+      const page = await sessionClient.listMessagesPage(sessionId, {
+        cursor: nextCursorValue,
+        limit: Math.min(Math.max(desiredCount - messages.length, 1), 500)
+      })
+      if (!isCurrentLoadRequest(requestId, sessionId)) {
         return null
       }
 
-      messageCache.value.clear()
-      parsedMessageCache.clear()
-      messageIds.value = []
-      for (const msg of result) {
-        messageCache.value.set(msg.id, msg)
-        messageIds.value.push(msg.id)
+      const uniqueMessages = page.messages.filter((message) => {
+        if (seenIds.has(message.id)) {
+          return false
+        }
+        seenIds.add(message.id)
+        return true
+      })
+
+      if (uniqueMessages.length > 0) {
+        messages = [...uniqueMessages, ...messages]
       }
+
+      nextCursorValue = page.nextCursor
+      hasMoreValue = page.hasMore
+
+      if (page.messages.length === 0) {
+        break
+      }
+    }
+
+    return {
+      session: restored.session,
+      messages,
+      nextCursor: nextCursorValue,
+      hasMore: hasMoreValue
+    }
+  }
+
+  async function loadMessages(sessionId: string): Promise<SessionWithState | null> {
+    const desiredCount =
+      currentSessionId.value === sessionId ? Math.max(messageIds.value.length, 100) : 100
+    const requestId = ++latestLoadRequestId
+    latestHistoryRequestId += 1
+    setCurrentSessionId(sessionId)
+    isLoadingHistory.value = false
+    try {
+      const restored = await restoreMessageWindow(sessionId, desiredCount, requestId)
+      if (!restored) {
+        return null
+      }
+      const result = restored.messages
+      if (!isCurrentLoadRequest(requestId, sessionId)) {
+        return null
+      }
+
+      const nextMessageCache = new Map<string, ChatMessageRecord>()
+      const nextMessageIds: string[] = []
+      for (const msg of result) {
+        nextMessageCache.set(msg.id, msg)
+        nextMessageIds.push(msg.id)
+      }
+
+      parsedMessageCache.clear()
+      messageCache.value = nextMessageCache
+      messageIds.value = nextMessageIds
+      nextCursor.value = restored.nextCursor
+      hasMoreHistory.value = restored.hasMore
       lastPersistedRevision.value += 1
       return restored.session
     } catch (e) {
       console.error('Failed to load messages:', e)
       return null
+    }
+  }
+
+  async function loadOlderMessages(): Promise<number> {
+    if (!currentSessionId.value || !hasMoreHistory.value || isLoadingHistory.value) {
+      return 0
+    }
+
+    const sessionId = currentSessionId.value
+    const requestId = ++latestHistoryRequestId
+    isLoadingHistory.value = true
+    try {
+      const page = await sessionClient.listMessagesPage(sessionId, {
+        cursor: nextCursor.value,
+        limit: 100
+      })
+      if (!isCurrentHistoryRequest(requestId, sessionId)) {
+        return 0
+      }
+      const incomingIds: string[] = []
+      for (const msg of page.messages) {
+        messageCache.value.set(msg.id, msg)
+        incomingIds.push(msg.id)
+      }
+
+      if (incomingIds.length > 0) {
+        const existingIds = new Set(messageIds.value)
+        messageIds.value = [
+          ...incomingIds.filter((id) => !existingIds.has(id)),
+          ...messageIds.value
+        ]
+      }
+
+      nextCursor.value = page.nextCursor
+      hasMoreHistory.value = page.hasMore
+      if (incomingIds.length > 0) {
+        lastPersistedRevision.value += 1
+      }
+      return incomingIds.length
+    } catch (error) {
+      console.error('Failed to load older messages:', error)
+      return 0
+    } finally {
+      if (isCurrentHistoryRequest(requestId, sessionId)) {
+        isLoadingHistory.value = false
+      }
     }
   }
 
@@ -231,9 +359,13 @@ export const useMessageStore = defineStore('message', () => {
 
   function clear(): void {
     latestLoadRequestId += 1
+    latestHistoryRequestId += 1
     setCurrentSessionId(null)
     messageIds.value = []
     messageCache.value.clear()
+    nextCursor.value = null
+    hasMoreHistory.value = false
+    isLoadingHistory.value = false
     parsedMessageCache.clear()
     clearStreamingState()
     hydratingStreamMessageIds.clear()
@@ -306,12 +438,16 @@ export const useMessageStore = defineStore('message', () => {
     currentStreamMessageId,
     streamRevision,
     lastPersistedRevision,
+    nextCursor,
+    hasMoreHistory,
+    isLoadingHistory,
     messages,
     getAssistantMessageBlocks,
     getUserMessageContent,
     getMessageMetadata,
     setCurrentSessionId,
     loadMessages,
+    loadOlderMessages,
     getMessage,
     addOptimisticUserMessage,
     clearStreamingState,
