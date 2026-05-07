@@ -632,7 +632,7 @@
     {
       "id": "junie",
       "name": "Junie",
-      "version": "1468.30.0",
+      "version": "1543.24.0",
       "description": "AI Coding Agent by JetBrains",
       "repository": "https://github.com/JetBrains/junie",
       "website": "https://junie.jetbrains.com",
@@ -643,35 +643,35 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/JetBrains/junie/releases/download/1468.30/junie-release-1468.30-macos-aarch64.zip",
+            "archive": "https://github.com/JetBrains/junie/releases/download/1543.24/junie-release-1543.24-macos-aarch64.zip",
             "cmd": "./Applications/junie.app/Contents/MacOS/junie",
             "args": [
               "--acp=true"
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/JetBrains/junie/releases/download/1468.30/junie-release-1468.30-macos-amd64.zip",
+            "archive": "https://github.com/JetBrains/junie/releases/download/1543.24/junie-release-1543.24-macos-amd64.zip",
             "cmd": "./Applications/junie.app/Contents/MacOS/junie",
             "args": [
               "--acp=true"
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/JetBrains/junie/releases/download/1468.30/junie-release-1468.30-linux-aarch64.zip",
+            "archive": "https://github.com/JetBrains/junie/releases/download/1543.24/junie-release-1543.24-linux-aarch64.zip",
             "cmd": "./junie-app/bin/junie",
             "args": [
               "--acp=true"
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/JetBrains/junie/releases/download/1468.30/junie-release-1468.30-linux-amd64.zip",
+            "archive": "https://github.com/JetBrains/junie/releases/download/1543.24/junie-release-1543.24-linux-amd64.zip",
             "cmd": "./junie-app/bin/junie",
             "args": [
               "--acp=true"
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/JetBrains/junie/releases/download/1468.30/junie-release-1468.30-windows-amd64.zip",
+            "archive": "https://github.com/JetBrains/junie/releases/download/1543.24/junie-release-1543.24-windows-amd64.zip",
             "cmd": "./junie/junie.exe",
             "args": [
               "--acp=true"
@@ -1003,7 +1003,7 @@
     {
       "id": "qoder",
       "name": "Qoder CLI",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "description": "AI coding assistant with agentic capabilities",
       "website": "https://qoder.com",
       "authors": [
@@ -1013,7 +1013,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/qoder.svg",
       "distribution": {
         "npx": {
-          "package": "@qoder-ai/qodercli@0.2.7",
+          "package": "@qoder-ai/qodercli@0.2.8",
           "args": [
             "--acp"
           ]
@@ -1023,7 +1023,7 @@
     {
       "id": "qwen-code",
       "name": "Qwen Code",
-      "version": "0.15.6",
+      "version": "0.15.7",
       "description": "Alibaba's Qwen coding assistant",
       "repository": "https://github.com/QwenLM/qwen-code",
       "website": "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
@@ -1033,7 +1033,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@qwen-code/qwen-code@0.15.6",
+          "package": "@qwen-code/qwen-code@0.15.7",
           "args": [
             "--acp",
             "--experimental-skills"
