@@ -1,10 +1,12 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
+  fileCopyImageRoute,
   fileGetMimeTypeRoute,
   fileIsDirectoryRoute,
   filePrepareDirectoryRoute,
   filePrepareFileRoute,
   fileReadFileRoute,
+  fileSaveImageRoute,
   fileWriteImageBase64Route
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
@@ -41,6 +43,14 @@ export function createFileClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return result.path
   }
 
+  async function saveImage(file: { source: string; mimeType?: string; suggestedName?: string }) {
+    return await bridge.invoke(fileSaveImageRoute.name, file)
+  }
+
+  async function copyImage(file: { source: string; mimeType?: string; suggestedName?: string }) {
+    return await bridge.invoke(fileCopyImageRoute.name, file)
+  }
+
   function getPathForFile(file: File): string {
     return getRuntimePathForFile(file)
   }
@@ -60,6 +70,8 @@ export function createFileClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     readFile,
     isDirectory,
     writeImageBase64,
+    saveImage,
+    copyImage,
     getPathForFile,
     toRelativePath,
     formatPathForInput

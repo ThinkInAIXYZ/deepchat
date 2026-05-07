@@ -1583,6 +1583,16 @@ export interface IFilePresenter {
   isDirectory(absPath: string): Promise<boolean>
   getMimeType(filePath: string): Promise<string>
   writeImageBase64(file: { name: string; content: string }): Promise<string>
+  saveImage(file: {
+    source: string
+    mimeType?: string
+    suggestedName?: string
+  }): Promise<{ canceled: boolean; path?: string }>
+  copyImage(file: {
+    source: string
+    mimeType?: string
+    suggestedName?: string
+  }): Promise<{ copied: boolean }>
   validateFileForKnowledgeBase(filePath: string): Promise<FileValidationResult>
   getSupportedExtensions(): string[]
 }
