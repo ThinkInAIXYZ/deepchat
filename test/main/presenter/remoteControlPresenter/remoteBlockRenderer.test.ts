@@ -255,7 +255,7 @@ describe('remoteBlockRenderer', () => {
         tool_call: {
           id: 'tool-2',
           name: 'read_file',
-          params: '{"path":"/tmp/report.md"}'
+          params: '{"offset":5000,"path":"/tmp/report.md"}'
         },
         extra: {
           toolCallArgsComplete: true

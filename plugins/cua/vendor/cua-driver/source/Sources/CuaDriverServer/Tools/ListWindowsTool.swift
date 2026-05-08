@@ -8,11 +8,12 @@ public enum ListWindowsTool {
         tool: Tool(
             name: "list_windows",
             description: """
-                List every layer-0 top-level window currently known to
+                List every relevant top-level window currently known to
                 WindowServer — including off-screen ones (hidden-launched,
-                minimized into the Dock, on another Space). Each record
-                self-contains its owning app identity so the caller never
-                has to join back against list_apps.
+                minimized into the Dock, on another Space) and, when a pid
+                filter is supplied, that pid's overlay windows. Each record
+                self-contains its owning app identity so the caller never has
+                to join back against list_apps.
 
                 Use this — not list_apps — for any window-level reasoning:
                 "does this app have a visible window right now?", "which
@@ -52,9 +53,10 @@ public enum ListWindowsTool {
 
                 Inputs: pid (optional — restrict to one pid's windows),
                 on_screen_only (bool, default false — surface off-Space /
-                minimized windows by default). Layer 0 filtering is
-                always applied; menubar strips and dock shields are
-                noise for every current caller.
+                minimized windows by default). Without pid, layer-0 filtering
+                is applied so menubar strips and dock shields stay out of the
+                default result. With pid, all windows for that process are
+                returned so app-owned overlays remain inspectable.
                 """,
             inputSchema: [
                 "type": "object",
@@ -98,9 +100,10 @@ public enum ListWindowsTool {
                 : WindowEnumerator.allWindows()
 
             let windows = raw
-                .filter { $0.layer == 0 }
                 .filter { info in
-                    guard let pid = pidFilter else { return true }
+                    guard let pid = pidFilter else {
+                        return info.layer == 0
+                    }
                     return info.pid == pid
                 }
 

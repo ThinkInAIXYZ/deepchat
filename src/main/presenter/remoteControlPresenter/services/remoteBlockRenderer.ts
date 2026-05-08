@@ -228,10 +228,11 @@ const escapeTracePreview = (value: string): string =>
 
 const getTracePreview = (
   value: string | undefined | null,
+  toolName?: string,
   fallback: string = '(none)',
   limit: number = TRACE_PREVIEW_LIMIT
 ): string => {
-  const preview = summarizeToolCallPreview(value) || fallback
+  const preview = summarizeToolCallPreview(value, { toolName }) || fallback
   return escapeTracePreview(truncateSingleLine(preview, limit))
 }
 
@@ -299,12 +300,16 @@ const getProcessLogLines = (block: AssistantMessageBlock): string[] => {
 
   const toolName = normalizeText(block.tool_call?.name) || 'unknown_tool'
   const lines = [
-    `${getTraceEmoji(toolName)} ${toolName}: "${getTracePreview(block.tool_call?.params)}"`
+    `${getTraceEmoji(toolName)} ${toolName}: "${getTracePreview(block.tool_call?.params, toolName)}"`
   ]
 
   if (block.status === 'error') {
     lines.push(
-      `❌ ${toolName}: "${getTracePreview(block.tool_call?.response || block.content, 'error')}"`
+      `❌ ${toolName}: "${getTracePreview(
+        block.tool_call?.response || block.content,
+        undefined,
+        'error'
+      )}"`
     )
   }
 
