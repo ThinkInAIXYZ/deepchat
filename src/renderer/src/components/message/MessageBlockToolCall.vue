@@ -363,7 +363,7 @@ const summaryText = computed(() => {
 
   const raw = paramsText.value.trim()
   if (!raw) return ''
-  return summarizeToolCallPreview(raw)
+  return summarizeToolCallPreview(raw, { toolName: functionLabel.value })
 })
 
 const subagentTasks = computed<SubagentProgressTask[]>(() => {

@@ -228,6 +228,51 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('C:/repo/src/main.ts')
   })
 
+  it('prefers path over offset in read summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"offset":5000,"path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
+  })
+
+  it('prefers path over limit in read summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"limit":200,"path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
+  })
+
+  it('prefers path over content in write summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'write',
+            params: '{"content":"hello world","path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
+  })
+
   it('uses the first query value as summary text', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
