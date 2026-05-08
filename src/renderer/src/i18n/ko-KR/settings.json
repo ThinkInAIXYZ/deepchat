@@ -546,6 +546,58 @@
       "timeout": {
         "label": "Request Timeout (ms)",
         "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "기본값",
+        "size": {
+          "label": "이미지 크기",
+          "custom": "사용자 지정",
+          "placeholder": "예: 2048x2048",
+          "experimental": "2560x1440을 초과하는 크기는 OpenAI에서 실험적 출력으로 표시됩니다.",
+          "validation": {
+            "invalid_format": "{width}x{height} 형식을 사용하세요.",
+            "invalid_multiple": "너비와 높이는 모두 16의 배수여야 합니다.",
+            "side_too_large": "너비와 높이는 모두 3840px 이하여야 합니다.",
+            "aspect_ratio_too_large": "긴 변은 짧은 변의 3배를 초과할 수 없습니다.",
+            "pixel_count_out_of_range": "전체 픽셀 수는 655360에서 8294400 사이여야 합니다."
+          }
+        },
+        "quality": {
+          "label": "이미지 품질",
+          "options": {
+            "low": "낮음",
+            "medium": "중간",
+            "high": "높음",
+            "auto": "자동"
+          }
+        },
+        "outputFormat": {
+          "label": "출력 형식",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "압축",
+          "placeholder": "기본값: 100",
+          "validation": "압축은 0에서 100 사이의 정수여야 합니다."
+        },
+        "background": {
+          "label": "배경",
+          "options": {
+            "auto": "자동",
+            "opaque": "불투명"
+          }
+        },
+        "moderation": {
+          "label": "콘텐츠 필터링",
+          "options": {
+            "auto": "자동",
+            "low": "낮음"
+          }
+        }
       }
     }
   },

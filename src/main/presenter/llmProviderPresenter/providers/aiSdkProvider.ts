@@ -71,6 +71,11 @@ const isOpenAIImageGenerationModel = (modelId: string): boolean =>
   OPENAI_IMAGE_GENERATION_MODELS.includes(modelId) ||
   OPENAI_IMAGE_GENERATION_MODEL_PREFIXES.some((prefix) => modelId.startsWith(prefix))
 
+const shouldUseOpenAIImageGenerationRoute = (modelId: string, modelConfig: ModelConfig): boolean =>
+  isOpenAIImageGenerationModel(modelId) ||
+  modelConfig.apiEndpoint === ApiEndpointType.Image ||
+  modelConfig.type === ModelType.ImageGeneration
+
 export function normalizeExtractedImageText(content: string): string {
   const normalized = content
     .replace(/\r\n/g, '\n')
@@ -537,11 +542,13 @@ export class AiSdkProvider extends BaseLLMProvider {
                 runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
             : decision.providerKind === 'openai-responses'
               ? (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
-                  isOpenAIImageGenerationModel(runtimeModelId) ||
-                  runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
-              : (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
-                  isOpenAIImageGenerationModel(runtimeModelId) ||
-                  runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
+                  shouldUseOpenAIImageGenerationRoute(runtimeModelId, runtimeModelConfig)
+              : decision.providerKind === 'openai-compatible'
+                ? (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
+                    shouldUseOpenAIImageGenerationRoute(runtimeModelId, runtimeModelConfig)
+                : (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
+                    isOpenAIImageGenerationModel(runtimeModelId) ||
+                    runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
 
     return {
       decision,

@@ -546,6 +546,58 @@
       "timeout": {
         "label": "Request Timeout (ms)",
         "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "ברירת מחדל",
+        "size": {
+          "label": "גודל תמונה",
+          "custom": "מותאם אישית",
+          "placeholder": "לדוגמה 2048x2048",
+          "experimental": "גדלים מעל 2560x1440 מסומנים על ידי OpenAI כניסיוניים.",
+          "validation": {
+            "invalid_format": "יש להשתמש בתבנית {width}x{height}.",
+            "invalid_multiple": "הרוחב והגובה חייבים להיות כפולות של 16.",
+            "side_too_large": "הרוחב והגובה חייבים להיות 3840px או פחות.",
+            "aspect_ratio_too_large": "הצלע הארוכה לא יכולה להיות יותר מפי 3 מהצלע הקצרה.",
+            "pixel_count_out_of_range": "סך הפיקסלים חייב להיות בין 655360 ל-8294400."
+          }
+        },
+        "quality": {
+          "label": "איכות",
+          "options": {
+            "low": "נמוכה",
+            "medium": "בינונית",
+            "high": "גבוהה",
+            "auto": "אוטומטי"
+          }
+        },
+        "outputFormat": {
+          "label": "פורמט פלט",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "דחיסה",
+          "placeholder": "ברירת מחדל: 100",
+          "validation": "הדחיסה חייבת להיות מספר שלם בין 0 ל-100."
+        },
+        "background": {
+          "label": "רקע",
+          "options": {
+            "auto": "אוטומטי",
+            "opaque": "אטום"
+          }
+        },
+        "moderation": {
+          "label": "סינון תוכן",
+          "options": {
+            "auto": "אוטומטי",
+            "low": "נמוכה"
+          }
+        }
       }
     }
   },

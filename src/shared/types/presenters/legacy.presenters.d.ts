@@ -5,6 +5,7 @@ import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
 import { ApiEndpointType, ModelType } from '@shared/model'
+import type { ImageGenerationOptions } from '../../imageGenerationSettings'
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
 import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
@@ -177,6 +178,7 @@ export interface ModelConfig {
   enableSearch?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'balanced' | 'precise'
+  imageGeneration?: ImageGenerationOptions
 }
 
 export interface IModelConfig {

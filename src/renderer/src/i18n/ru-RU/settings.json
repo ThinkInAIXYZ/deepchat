@@ -546,6 +546,58 @@
       "timeout": {
         "label": "Request Timeout (ms)",
         "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "По умолчанию",
+        "size": {
+          "label": "Размер изображения",
+          "custom": "Пользовательский",
+          "placeholder": "например 2048x2048",
+          "experimental": "Размеры больше 2560x1440 отмечены OpenAI как экспериментальные.",
+          "validation": {
+            "invalid_format": "Используйте формат {width}x{height}.",
+            "invalid_multiple": "Ширина и высота должны быть кратны 16.",
+            "side_too_large": "Ширина и высота должны быть не более 3840px.",
+            "aspect_ratio_too_large": "Длинная сторона не может быть больше короткой более чем в 3 раза.",
+            "pixel_count_out_of_range": "Общее число пикселей должно быть от 655360 до 8294400."
+          }
+        },
+        "quality": {
+          "label": "Качество",
+          "options": {
+            "low": "Низкое",
+            "medium": "Среднее",
+            "high": "Высокое",
+            "auto": "Авто"
+          }
+        },
+        "outputFormat": {
+          "label": "Формат вывода",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "Сжатие",
+          "placeholder": "По умолчанию: 100",
+          "validation": "Сжатие должно быть целым числом от 0 до 100."
+        },
+        "background": {
+          "label": "Фон",
+          "options": {
+            "auto": "Авто",
+            "opaque": "Непрозрачный"
+          }
+        },
+        "moderation": {
+          "label": "Модерация",
+          "options": {
+            "auto": "Авто",
+            "low": "Низкая"
+          }
+        }
       }
     }
   },

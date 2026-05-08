@@ -263,7 +263,10 @@
                   </div>
 
                   <div v-else-if="localSettings" class="space-y-4">
-                    <div v-if="showTemperatureControl" class="space-y-1.5">
+                    <div
+                      v-if="!showOpenAIImageGenerationSettings && showTemperatureControl"
+                      class="space-y-1.5"
+                    >
                       <label class="text-xs font-medium">{{
                         t('chat.advancedSettings.temperature')
                       }}</label>
@@ -335,7 +338,7 @@
                       </p>
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div v-if="!showOpenAIImageGenerationSettings" class="space-y-1.5">
                       <label class="text-xs font-medium">{{
                         t('chat.advancedSettings.contextLength')
                       }}</label>
@@ -399,7 +402,7 @@
                       </p>
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div v-if="!showOpenAIImageGenerationSettings" class="space-y-1.5">
                       <label class="text-xs font-medium">{{
                         t('chat.advancedSettings.maxTokens')
                       }}</label>
@@ -531,7 +534,17 @@
                       </p>
                     </div>
 
-                    <div v-if="showReasoningEffort" class="space-y-1.5">
+                    <OpenAIImageGenerationSettingsFields
+                      v-if="showOpenAIImageGenerationSettings"
+                      density="compact"
+                      :model-value="localSettings.imageGeneration"
+                      @update:model-value="onImageGenerationSettingsUpdate"
+                    />
+
+                    <div
+                      v-if="!showOpenAIImageGenerationSettings && showReasoningEffort"
+                      class="space-y-1.5"
+                    >
                       <label class="text-xs font-medium">{{
                         t('settings.model.modelConfig.reasoningEffort.label')
                       }}</label>
@@ -558,7 +571,10 @@
                       </Select>
                     </div>
 
-                    <div v-if="showReasoningVisibility" class="space-y-1.5">
+                    <div
+                      v-if="!showOpenAIImageGenerationSettings && showReasoningVisibility"
+                      class="space-y-1.5"
+                    >
                       <label class="text-xs font-medium">{{
                         t('settings.model.modelConfig.reasoningVisibility.label')
                       }}</label>
@@ -587,7 +603,10 @@
                       </Select>
                     </div>
 
-                    <div v-if="showVerbosity" class="space-y-1.5">
+                    <div
+                      v-if="!showOpenAIImageGenerationSettings && showVerbosity"
+                      class="space-y-1.5"
+                    >
                       <label class="text-xs font-medium">{{
                         t('settings.model.modelConfig.verbosity.label')
                       }}</label>
@@ -612,7 +631,10 @@
                       </Select>
                     </div>
 
-                    <div v-if="showThinkingBudget" class="space-y-1.5">
+                    <div
+                      v-if="!showOpenAIImageGenerationSettings && showThinkingBudget"
+                      class="space-y-1.5"
+                    >
                       <div class="flex items-center justify-between">
                         <label class="text-xs font-medium">{{
                           t('chat.advancedSettings.thinkingBudget')
@@ -693,7 +715,7 @@
                       </p>
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div v-if="!showOpenAIImageGenerationSettings" class="space-y-1.5">
                       <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                           <label class="text-xs font-medium">
@@ -881,7 +903,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
-import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
+import type { ModelConfig, RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import type {
   DeepChatAgentConfig,
   PermissionMode,
@@ -919,9 +941,14 @@ import {
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
+import {
+  normalizeImageGenerationOptions,
+  supportsOpenAIImageGenerationSettings
+} from '@shared/imageGenerationSettings'
 import { resolvePreferredChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
+import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
 import { createConfigClient } from '@api/ConfigClient'
 import { createModelClient } from '@api/ModelClient'
 import { createProviderClient } from '@api/ProviderClient'
@@ -951,6 +978,12 @@ type ModelSelection = {
   providerId: string
   modelId: string
 }
+
+const isSameModelSelection = (
+  left: ModelSelection | null | undefined,
+  right: ModelSelection | null | undefined
+): boolean =>
+  Boolean(left && right && left.providerId === right.providerId && left.modelId === right.modelId)
 
 type SystemPromptOption = {
   id: string
@@ -1001,6 +1034,9 @@ const isModelPanelOpen = ref(false)
 const isModelSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
+const modelSettingsTargetConfig = ref<ModelConfig | null>(null)
+const modelSettingsTargetConfigSelection = ref<ModelSelection | null>(null)
+let modelSettingsTargetConfigToken = 0
 const activeNumericInput = ref<GenerationNumericField | null>(null)
 const numericInputDrafts = ref<Record<GenerationNumericField, string>>({
   temperature: '',
@@ -1232,6 +1268,70 @@ const filteredModelGroups = computed<GroupedModelList[]>(() => {
 const modelSettingsTarget = computed<ModelSelection | null>(() => {
   return modelSettingsSelection.value ?? effectiveModelSelection.value
 })
+
+const modelSettingsTargetMeta = computed(() => {
+  const target = modelSettingsTarget.value
+  if (!target) {
+    return null
+  }
+  return findEnabledModelMeta(target.providerId, target.modelId)
+})
+
+const modelSettingsTargetResolvedConfig = computed(() =>
+  isSameModelSelection(modelSettingsTarget.value, modelSettingsTargetConfigSelection.value)
+    ? modelSettingsTargetConfig.value
+    : null
+)
+
+const showOpenAIImageGenerationSettings = computed(() => {
+  const target = modelSettingsTarget.value
+  if (!target) {
+    return false
+  }
+
+  const modelMeta = modelSettingsTargetMeta.value
+  const modelConfig = modelSettingsTargetResolvedConfig.value
+  return supportsOpenAIImageGenerationSettings({
+    providerId: target.providerId,
+    providerApiType: resolveProviderApiType(target.providerId),
+    modelId: target.modelId,
+    apiEndpoint: modelConfig?.apiEndpoint,
+    endpointType: modelConfig?.endpointType ?? modelMeta?.endpointType,
+    supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+    type: modelConfig?.type ?? modelMeta?.type
+  })
+})
+
+watch(
+  () => {
+    const target = modelSettingsTarget.value
+    return target ? { providerId: target.providerId, modelId: target.modelId } : null
+  },
+  async (target) => {
+    const token = ++modelSettingsTargetConfigToken
+    modelSettingsTargetConfig.value = null
+    modelSettingsTargetConfigSelection.value = null
+
+    if (!target) {
+      return
+    }
+
+    try {
+      const config = await modelClient.getModelConfig(target.modelId, target.providerId)
+      if (token !== modelSettingsTargetConfigToken) {
+        return
+      }
+      modelSettingsTargetConfig.value = config
+      modelSettingsTargetConfigSelection.value = { ...target }
+    } catch (error) {
+      if (token !== modelSettingsTargetConfigToken) {
+        return
+      }
+      console.warn('[ChatStatusBar] Failed to load model settings target config:', error)
+    }
+  },
+  { immediate: true }
+)
 
 const permissionModeLabel = computed(() =>
   permissionMode.value === 'default'
@@ -1917,6 +2017,24 @@ const resolveDefaultGenerationSettings = async (
     defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
   }
 
+  const modelMeta = findEnabledModelMeta(providerId, modelId)
+  if (
+    supportsOpenAIImageGenerationSettings({
+      providerId,
+      providerApiType: resolveProviderApiType(providerId),
+      modelId,
+      apiEndpoint: modelConfig.apiEndpoint,
+      endpointType: modelConfig.endpointType ?? modelMeta?.endpointType,
+      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+      type: modelConfig.type ?? modelMeta?.type
+    })
+  ) {
+    const imageGeneration = normalizeImageGenerationOptions(modelConfig.imageGeneration)
+    if (imageGeneration) {
+      defaults.imageGeneration = imageGeneration
+    }
+  }
+
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
       modelConfig.thinkingBudget ?? portrait.budget?.default
@@ -2090,6 +2208,10 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   }
   if (Object.prototype.hasOwnProperty.call(nextPatch, 'forceInterleavedThinkingCompat')) {
     normalizedPatch.forceInterleavedThinkingCompat = next.forceInterleavedThinkingCompat
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'imageGeneration')) {
+    normalizedPatch.imageGeneration = normalizeImageGenerationOptions(next.imageGeneration)
+    next.imageGeneration = normalizedPatch.imageGeneration
   }
 
   scheduleGenerationPersist(normalizedPatch)
@@ -2372,7 +2494,8 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     reasoningEffort: draftStore.reasoningEffort,
     reasoningVisibility: draftStore.reasoningVisibility,
     verbosity: draftStore.verbosity,
-    forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat
+    forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat,
+    imageGeneration: draftStore.imageGeneration
   } as Partial<SessionGenerationSettings>
   const clearedDraftModelOverrides = {
     temperature: undefined,
@@ -2383,7 +2506,8 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     reasoningEffort: undefined,
     reasoningVisibility: undefined,
     verbosity: undefined,
-    forceInterleavedThinkingCompat: undefined
+    forceInterleavedThinkingCompat: undefined,
+    imageGeneration: undefined
   } as Partial<SessionGenerationSettings>
 
   try {
@@ -2715,6 +2839,17 @@ function onInterleavedThinkingToggle(enabled: boolean) {
   }
   updateLocalGenerationSettings({
     forceInterleavedThinkingCompat: enabled
+  })
+}
+
+function onImageGenerationSettingsUpdate(
+  imageGeneration: SessionGenerationSettings['imageGeneration']
+) {
+  if (!localSettings.value) {
+    return
+  }
+  updateLocalGenerationSettings({
+    imageGeneration: normalizeImageGenerationOptions(imageGeneration)
   })
 }
 

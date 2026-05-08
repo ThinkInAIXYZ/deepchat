@@ -53,6 +53,10 @@ import {
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
+import {
+  normalizeImageGenerationOptions,
+  supportsOpenAIImageGenerationSettings
+} from '@shared/imageGenerationSettings'
 import { isDeepSeekSeriesModelId } from '@shared/model'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -1755,6 +1759,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       reasoningEffort: generationSettings.reasoningEffort,
       reasoningVisibility: generationSettings.reasoningVisibility,
       verbosity: generationSettings.verbosity,
+      imageGeneration: generationSettings.imageGeneration,
       reasoning: getReasoningEffectiveEnabledForProvider(capabilityProviderId, reasoningPortrait, {
         reasoning: baseModelConfig.reasoning,
         reasoningEffort: generationSettings.reasoningEffort ?? baseModelConfig.reasoningEffort
@@ -3029,6 +3034,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (Object.prototype.hasOwnProperty.call(requestedPatch, 'forceInterleavedThinkingCompat')) {
       patch.forceInterleavedThinkingCompat = sanitized.forceInterleavedThinkingCompat
     }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'imageGeneration')) {
+      patch.imageGeneration = sanitized.imageGeneration
+    }
 
     return patch
   }
@@ -3046,8 +3054,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       reasoningEffort: settings.reasoningEffort,
       reasoningVisibility: settings.reasoningVisibility,
       verbosity: settings.verbosity,
-      forceInterleavedThinkingCompat: settings.forceInterleavedThinkingCompat
+      forceInterleavedThinkingCompat: settings.forceInterleavedThinkingCompat,
+      imageGeneration: settings.imageGeneration
     }
+  }
+
+  private resolveProviderApiType(providerId: string): string | undefined {
+    return this.configPresenter.getProviderById?.(providerId)?.apiType
   }
 
   private async buildDefaultGenerationSettings(
@@ -3107,6 +3120,22 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           : undefined
     if (typeof interleavedThinkingDefault === 'boolean') {
       defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
+    }
+
+    if (
+      supportsOpenAIImageGenerationSettings({
+        providerId,
+        providerApiType: this.resolveProviderApiType(providerId),
+        modelId,
+        apiEndpoint: modelConfig.apiEndpoint,
+        endpointType: modelConfig.endpointType,
+        type: modelConfig.type
+      })
+    ) {
+      const imageGeneration = normalizeImageGenerationOptions(modelConfig.imageGeneration)
+      if (imageGeneration) {
+        defaults.imageGeneration = imageGeneration
+      }
     }
 
     const supportsReasoning =
@@ -3322,6 +3351,35 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     } else if (typeof base.forceInterleavedThinkingCompat !== 'boolean') {
       delete next.forceInterleavedThinkingCompat
+    }
+
+    if (
+      supportsOpenAIImageGenerationSettings({
+        providerId,
+        providerApiType: this.resolveProviderApiType(providerId),
+        modelId,
+        apiEndpoint: modelConfig.apiEndpoint,
+        endpointType: modelConfig.endpointType,
+        type: modelConfig.type
+      })
+    ) {
+      if (Object.prototype.hasOwnProperty.call(patch, 'imageGeneration')) {
+        const imageGeneration = normalizeImageGenerationOptions(patch.imageGeneration)
+        if (imageGeneration) {
+          next.imageGeneration = imageGeneration
+        } else {
+          delete next.imageGeneration
+        }
+      } else {
+        const imageGeneration = normalizeImageGenerationOptions(next.imageGeneration)
+        if (imageGeneration) {
+          next.imageGeneration = imageGeneration
+        } else {
+          delete next.imageGeneration
+        }
+      }
+    } else {
+      delete next.imageGeneration
     }
 
     if (fixedTemperatureKimi) {

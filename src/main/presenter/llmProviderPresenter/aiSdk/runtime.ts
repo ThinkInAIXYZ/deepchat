@@ -1,4 +1,5 @@
 import { embedMany, generateId, generateImage, generateText, streamText } from 'ai'
+import type { JSONValue } from 'ai'
 import type {
   ChatMessage,
   IConfigPresenter,
@@ -13,6 +14,11 @@ import {
   applyMoonshotKimiReasoningTemperaturePolicy,
   resolveMoonshotKimiTemperaturePolicy
 } from '@shared/moonshotKimiPolicy'
+import {
+  normalizeImageGenerationOptions,
+  supportsOpenAIImageGenerationSettings,
+  type ImageGenerationOptions
+} from '@shared/imageGenerationSettings'
 import { presenter } from '@/presenter'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
@@ -21,6 +27,12 @@ import { mapMessagesToModelMessages } from './messageMapper'
 import { buildProviderOptions } from './providerOptionsMapper'
 import { type AiSdkProviderKind, createAiSdkProviderContext } from './providerFactory'
 import { adaptAiSdkStream } from './streamAdapter'
+
+type ImageGenerationProviderPayload = Record<string, JSONValue>
+type ImageGenerationRequestOptions = {
+  size?: `${number}x${number}`
+  providerOptions?: Record<string, ImageGenerationProviderPayload>
+}
 
 export interface AiSdkRuntimeContext {
   providerKind: AiSdkProviderKind
@@ -152,6 +164,78 @@ function resolveRequestTimeout(modelConfig: ModelConfig): number | undefined {
     return undefined
   }
   return Math.round(timeout)
+}
+
+function buildImageGenerationProviderPayload(
+  providerOptionsKey: string,
+  options: ImageGenerationOptions
+): ImageGenerationProviderPayload {
+  const officialOpenAI = providerOptionsKey === 'openai'
+  const payload: ImageGenerationProviderPayload = {}
+
+  if (options.quality) {
+    payload.quality = options.quality
+  }
+  if (options.background) {
+    payload.background = options.background
+  }
+  if (options.moderation) {
+    payload.moderation = options.moderation
+  }
+  if (options.outputFormat) {
+    payload[officialOpenAI ? 'outputFormat' : 'output_format'] = options.outputFormat
+  }
+  if (options.outputCompression !== undefined) {
+    payload[officialOpenAI ? 'outputCompression' : 'output_compression'] = options.outputCompression
+  }
+
+  return payload
+}
+
+function buildImageGenerationRequestOptions(
+  context: AiSdkRuntimeContext,
+  providerOptionsKey: string,
+  modelId: string,
+  modelConfig: ModelConfig
+): ImageGenerationRequestOptions {
+  if (
+    !supportsOpenAIImageGenerationSettings({
+      providerId: context.provider.id,
+      providerApiType: context.provider.apiType,
+      providerKind: context.providerKind,
+      providerOptionsKey,
+      modelId,
+      apiEndpoint: modelConfig.apiEndpoint,
+      endpointType: modelConfig.endpointType,
+      type: modelConfig.type
+    })
+  ) {
+    return {}
+  }
+
+  const imageGeneration = normalizeImageGenerationOptions(modelConfig.imageGeneration)
+  if (!imageGeneration) {
+    return {}
+  }
+
+  const { size, ...providerImageOptions } = imageGeneration
+  const providerPayload = buildImageGenerationProviderPayload(
+    providerOptionsKey,
+    providerImageOptions
+  )
+  const requestOptions: ImageGenerationRequestOptions = {}
+
+  if (size) {
+    requestOptions.size = size as `${number}x${number}`
+  }
+
+  if (Object.keys(providerPayload).length > 0) {
+    requestOptions.providerOptions = {
+      [providerOptionsKey]: providerPayload
+    }
+  }
+
+  return requestOptions
 }
 
 function normalizeRuntimeModelConfig(
@@ -329,18 +413,27 @@ export async function* runAiSdkCoreStream(
       throw new Error(`Image generation is not supported by provider ${context.provider.id}`)
     }
 
+    const imageGenerationRequestOptions = buildImageGenerationRequestOptions(
+      context,
+      providerContext.providerOptionsKey,
+      modelId,
+      normalizedModelConfig
+    )
+
     await context.emitRequestTrace?.(modelConfig, {
       endpoint: providerContext.imageEndpoint ?? providerContext.endpoint,
       headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
       body: {
         model: providerContext.resolvedModelId ?? modelId,
-        prompt
+        prompt,
+        ...imageGenerationRequestOptions
       }
     })
 
     const result = await generateImage({
       model: providerContext.imageModel,
       prompt,
+      ...imageGenerationRequestOptions,
       ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {})
     })
 

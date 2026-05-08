@@ -546,6 +546,58 @@
       "timeout": {
         "label": "Request Timeout (ms)",
         "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "پیش‌فرض",
+        "size": {
+          "label": "اندازه تصویر",
+          "custom": "سفارشی",
+          "placeholder": "مثلاً 2048x2048",
+          "experimental": "اندازه‌های بزرگ‌تر از 2560x1440 توسط OpenAI به‌عنوان خروجی آزمایشی علامت‌گذاری شده‌اند.",
+          "validation": {
+            "invalid_format": "از قالب {width}x{height} استفاده کنید.",
+            "invalid_multiple": "عرض و ارتفاع باید مضربی از 16 باشند.",
+            "side_too_large": "عرض و ارتفاع باید 3840px یا کمتر باشند.",
+            "aspect_ratio_too_large": "ضلع بلند نمی‌تواند بیش از 3 برابر ضلع کوتاه باشد.",
+            "pixel_count_out_of_range": "مجموع پیکسل‌ها باید بین 655360 و 8294400 باشد."
+          }
+        },
+        "quality": {
+          "label": "کیفیت",
+          "options": {
+            "low": "کم",
+            "medium": "متوسط",
+            "high": "زیاد",
+            "auto": "خودکار"
+          }
+        },
+        "outputFormat": {
+          "label": "فرمت خروجی",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "فشرده‌سازی",
+          "placeholder": "پیش‌فرض: 100",
+          "validation": "فشرده‌سازی باید یک عدد صحیح از 0 تا 100 باشد."
+        },
+        "background": {
+          "label": "پس‌زمینه",
+          "options": {
+            "auto": "خودکار",
+            "opaque": "کدر"
+          }
+        },
+        "moderation": {
+          "label": "نظارت محتوا",
+          "options": {
+            "auto": "خودکار",
+            "low": "کم"
+          }
+        }
       }
     }
   },

@@ -546,6 +546,58 @@
       "timeout": {
         "label": "Request Timeout (ms)",
         "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "Par défaut",
+        "size": {
+          "label": "Taille de l'image",
+          "custom": "Personnalisée",
+          "placeholder": "p. ex. 2048x2048",
+          "experimental": "Les tailles supérieures à 2560x1440 sont marquées comme expérimentales par OpenAI.",
+          "validation": {
+            "invalid_format": "Utilisez le format {width}x{height}.",
+            "invalid_multiple": "La largeur et la hauteur doivent être des multiples de 16.",
+            "side_too_large": "La largeur et la hauteur doivent être inférieures ou égales à 3840px.",
+            "aspect_ratio_too_large": "Le côté long ne peut pas dépasser 3x le côté court.",
+            "pixel_count_out_of_range": "Le nombre total de pixels doit être compris entre 655360 et 8294400."
+          }
+        },
+        "quality": {
+          "label": "Qualité",
+          "options": {
+            "low": "Faible",
+            "medium": "Moyenne",
+            "high": "Élevée",
+            "auto": "Automatique"
+          }
+        },
+        "outputFormat": {
+          "label": "Format de sortie",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "Compression",
+          "placeholder": "Par défaut : 100",
+          "validation": "La compression doit être un entier compris entre 0 et 100."
+        },
+        "background": {
+          "label": "Arrière-plan",
+          "options": {
+            "auto": "Automatique",
+            "opaque": "Opaque"
+          }
+        },
+        "moderation": {
+          "label": "Modération",
+          "options": {
+            "auto": "Automatique",
+            "low": "Faible"
+          }
+        }
       }
     }
   },

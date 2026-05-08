@@ -6,6 +6,12 @@ import {
   ReasoningVisibilitySchema,
   VerbositySchema
 } from '../types/model-db'
+import {
+  OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES,
+  IMAGE_GENERATION_MODERATION_VALUES,
+  IMAGE_GENERATION_OUTPUT_FORMAT_VALUES,
+  IMAGE_GENERATION_QUALITY_VALUES
+} from '../imageGenerationSettings'
 
 export type JsonValue =
   | string
@@ -41,6 +47,17 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
 
 export const FileMetadataValueSchema = z.union([JsonValueSchema, z.date()])
 
+export const ImageGenerationOptionsSchema = z
+  .object({
+    size: z.string().optional(),
+    quality: z.enum(IMAGE_GENERATION_QUALITY_VALUES).optional(),
+    outputFormat: z.enum(IMAGE_GENERATION_OUTPUT_FORMAT_VALUES).optional(),
+    outputCompression: z.number().int().min(0).max(100).optional(),
+    background: z.enum(OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES).optional(),
+    moderation: z.enum(IMAGE_GENERATION_MODERATION_VALUES).optional()
+  })
+  .optional()
+
 export const AppErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
@@ -72,7 +89,8 @@ export const SessionGenerationSettingsSchema = z.object({
   reasoningEffort: ReasoningEffortSchema.optional(),
   reasoningVisibility: ReasoningVisibilitySchema.optional(),
   verbosity: VerbositySchema.optional(),
-  forceInterleavedThinkingCompat: z.boolean().optional()
+  forceInterleavedThinkingCompat: z.boolean().optional(),
+  imageGeneration: ImageGenerationOptionsSchema
 })
 
 export const SessionGenerationSettingsPatchSchema = SessionGenerationSettingsSchema.partial()

@@ -1,7 +1,12 @@
 import { z } from 'zod'
 import { BrowserPageStatus } from '../types/browser'
 import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
-import { FileMetadataValueSchema, JsonValueSchema, ProviderModelSummarySchema } from './common'
+import {
+  FileMetadataValueSchema,
+  ImageGenerationOptionsSchema,
+  JsonValueSchema,
+  ProviderModelSummarySchema
+} from './common'
 import {
   ReasoningEffortSchema,
   ReasoningModeSchema,
@@ -242,7 +247,8 @@ export const ModelConfigSchema = z
     endpointType: z.enum(NEW_API_ENDPOINT_TYPES).optional(),
     enableSearch: z.boolean().optional(),
     forcedSearch: z.boolean().optional(),
-    searchStrategy: z.enum(['turbo', 'balanced', 'precise']).optional()
+    searchStrategy: z.enum(['turbo', 'balanced', 'precise']).optional(),
+    imageGeneration: ImageGenerationOptionsSchema
   })
   .passthrough()
 

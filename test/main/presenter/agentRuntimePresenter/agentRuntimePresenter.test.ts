@@ -217,6 +217,16 @@ function createMockLlmProviderPresenter() {
 }
 
 function createMockConfigPresenter() {
+  const providerApiTypes: Record<string, string> = {
+    acp: 'acp',
+    anthropic: 'anthropic',
+    gemini: 'gemini',
+    'new-api': 'new-api',
+    openai: 'openai',
+    vertex: 'vertex',
+    xai: 'grok'
+  }
+
   return {
     getModelConfig: vi.fn().mockReturnValue({
       temperature: 0.7,
@@ -266,6 +276,10 @@ function createMockConfigPresenter() {
     getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
     getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
     getSetting: vi.fn().mockReturnValue(undefined),
+    getProviderById: vi.fn((providerId: string) => ({
+      id: providerId,
+      apiType: providerApiTypes[providerId] ?? 'openai-compatible'
+    })),
     isKnownModel: vi.fn().mockReturnValue(true),
     resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
     agentSupportsCapability: vi.fn().mockResolvedValue(true)
@@ -2178,6 +2192,65 @@ describe('AgentRuntimePresenter', () => {
           thinkingBudget: 512,
           reasoningEffort: 'minimal',
           verbosity: 'medium'
+        })
+      )
+    })
+
+    it('keeps image generation settings for OpenAI-compatible providers', async () => {
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+        if (providerId === 'aihubmix' && modelId === 'gpt-image-2') {
+          return {
+            temperature: 0.7,
+            maxTokens: 4096,
+            contextLength: 128000,
+            timeout: 600000,
+            thinkingBudget: 512,
+            reasoningEffort: 'medium',
+            verbosity: 'medium',
+            vision: false,
+            type: 'imageGeneration',
+            apiEndpoint: 'image',
+            imageGeneration: {
+              size: '1024x1024',
+              outputFormat: 'webp',
+              outputCompression: 80
+            }
+          }
+        }
+
+        return {
+          temperature: 0.7,
+          maxTokens: 4096,
+          contextLength: 128000,
+          thinkingBudget: 512,
+          reasoningEffort: 'medium',
+          verbosity: 'medium',
+          vision: false
+        }
+      })
+
+      await agent.initSession('s1', { providerId: 'aihubmix', modelId: 'gpt-image-2' })
+
+      await expect(agent.getGenerationSettings('s1')).resolves.toEqual(
+        expect.objectContaining({
+          imageGeneration: {
+            size: '1024x1024',
+            outputFormat: 'webp',
+            outputCompression: 80
+          }
+        })
+      )
+      expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
+        's1',
+        'aihubmix',
+        'gpt-image-2',
+        'full_access',
+        expect.objectContaining({
+          imageGeneration: {
+            size: '1024x1024',
+            outputFormat: 'webp',
+            outputCompression: 80
+          }
         })
       )
     })

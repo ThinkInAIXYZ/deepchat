@@ -608,6 +608,58 @@
       "timeout": {
         "label": "Request Timeout (ms)",
         "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "Default",
+        "size": {
+          "label": "Image size",
+          "custom": "Custom",
+          "placeholder": "e.g. 2048x2048",
+          "experimental": "Sizes above 2560x1440 are marked experimental by OpenAI.",
+          "validation": {
+            "invalid_format": "Use the format {width}x{height}.",
+            "invalid_multiple": "Width and height must be multiples of 16.",
+            "side_too_large": "Width and height must be 3840px or less.",
+            "aspect_ratio_too_large": "The long side cannot be more than 3x the short side.",
+            "pixel_count_out_of_range": "Total pixels must be between 655360 and 8294400."
+          }
+        },
+        "quality": {
+          "label": "Quality",
+          "options": {
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High",
+            "auto": "Auto"
+          }
+        },
+        "outputFormat": {
+          "label": "Output format",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "Compression",
+          "placeholder": "Default: 100",
+          "validation": "Compression must be an integer from 0 to 100."
+        },
+        "background": {
+          "label": "Background",
+          "options": {
+            "auto": "Auto",
+            "opaque": "Opaque"
+          }
+        },
+        "moderation": {
+          "label": "Moderation",
+          "options": {
+            "auto": "Auto",
+            "low": "Low"
+          }
+        }
       }
     }
   },

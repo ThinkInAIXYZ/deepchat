@@ -8,6 +8,10 @@ import {
   type ReasoningEffort,
   type ReasoningVisibility
 } from '@shared/types/model-db'
+import {
+  normalizeImageGenerationOptions,
+  type ImageGenerationOptions
+} from '@shared/imageGenerationSettings'
 
 type DeepChatSessionGenerationSettings = Pick<
   SessionGenerationSettings,
@@ -21,6 +25,7 @@ type DeepChatSessionGenerationSettings = Pick<
   | 'reasoningVisibility'
   | 'verbosity'
   | 'forceInterleavedThinkingCompat'
+  | 'imageGeneration'
 >
 
 export interface DeepChatSessionRow {
@@ -38,6 +43,7 @@ export interface DeepChatSessionRow {
   reasoning_visibility: ReasoningVisibility | null
   verbosity: 'low' | 'medium' | 'high' | null
   force_interleaved_thinking_compat: number | null
+  image_generation_options_json: string | null
   summary_text: string | null
   summary_cursor_order_seq: number | null
   summary_updated_at: number | null
@@ -97,6 +103,10 @@ export class DeepChatSessionsTable extends BaseTable {
 
     if (version >= 24) {
       columns.push('timeout_ms INTEGER')
+    }
+
+    if (version >= 27) {
+      columns.push('image_generation_options_json TEXT')
     }
 
     if (version >= 14) {
@@ -172,6 +182,11 @@ export class DeepChatSessionsTable extends BaseTable {
     if (!this.hasColumn('reasoning_visibility')) {
       statements.push('ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;')
     }
+    if (!this.hasColumn('image_generation_options_json')) {
+      statements.push(
+        'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
+      )
+    }
 
     return statements
   }
@@ -212,11 +227,34 @@ export class DeepChatSessionsTable extends BaseTable {
     if (version === 24) {
       return 'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;'
     }
+    if (version === 27) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 24
+    return 27
+  }
+
+  private serializeImageGenerationOptions(
+    value: ImageGenerationOptions | undefined
+  ): string | null {
+    const normalized = normalizeImageGenerationOptions(value)
+    return normalized ? JSON.stringify(normalized) : null
+  }
+
+  private parseImageGenerationOptions(value: string | null): ImageGenerationOptions | undefined {
+    if (!value) {
+      return undefined
+    }
+
+    try {
+      const parsed = JSON.parse(value) as ImageGenerationOptions
+      return normalizeImageGenerationOptions(parsed)
+    } catch {
+      return undefined
+    }
   }
 
   create(
@@ -243,11 +281,12 @@ export class DeepChatSessionsTable extends BaseTable {
            reasoning_visibility,
            verbosity,
            force_interleaved_thinking_compat,
+           image_generation_options_json,
            summary_text,
            summary_cursor_order_seq,
            summary_updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -268,6 +307,7 @@ export class DeepChatSessionsTable extends BaseTable {
           : generationSettings.forceInterleavedThinkingCompat
             ? 1
             : 0,
+        this.serializeImageGenerationOptions(generationSettings?.imageGeneration),
         null,
         1,
         null
@@ -317,6 +357,10 @@ export class DeepChatSessionsTable extends BaseTable {
     }
     if (typeof row.force_interleaved_thinking_compat === 'number') {
       settings.forceInterleavedThinkingCompat = row.force_interleaved_thinking_compat === 1
+    }
+    const imageGeneration = this.parseImageGenerationOptions(row.image_generation_options_json)
+    if (imageGeneration) {
+      settings.imageGeneration = imageGeneration
     }
 
     return settings
@@ -381,6 +425,10 @@ export class DeepChatSessionsTable extends BaseTable {
             ? 1
             : 0
       )
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'imageGeneration')) {
+      updates.push('image_generation_options_json = ?')
+      params.push(this.serializeImageGenerationOptions(settings.imageGeneration))
     }
 
     if (updates.length === 0) {

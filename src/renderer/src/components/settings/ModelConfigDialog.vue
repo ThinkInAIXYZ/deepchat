@@ -11,7 +11,7 @@
       <div class="overflow-y-auto flex-1 pr-2 -mr-2">
         <form @submit.prevent="handleSave" class="space-y-6">
           <!-- 模型名称 -->
-          <div class="space-y-2">
+          <div v-if="!showOpenAIImageGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelName">{{ t('settings.model.modelConfig.name.label') }}</Label>
             <Input
               id="modelName"
@@ -34,7 +34,7 @@
           </div>
 
           <!-- 模型 ID -->
-          <div class="space-y-2">
+          <div v-if="!showOpenAIImageGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelId">{{ t('settings.model.modelConfig.id.label') }}</Label>
             <Input
               id="modelId"
@@ -57,7 +57,7 @@
           </div>
 
           <!-- 最大输出长度 -->
-          <div class="space-y-2">
+          <div v-if="!showOpenAIImageGenerationSettings" class="space-y-2">
             <Label for="maxTokens">{{ t('settings.model.modelConfig.maxTokens.label') }}</Label>
             <Input
               id="maxTokens"
@@ -77,7 +77,7 @@
           </div>
 
           <!-- 上下文长度 -->
-          <div class="space-y-2">
+          <div v-if="!showOpenAIImageGenerationSettings" class="space-y-2">
             <Label for="contextLength">{{
               t('settings.model.modelConfig.contextLength.label')
             }}</Label>
@@ -118,8 +118,16 @@
             </p>
           </div>
 
+          <OpenAIImageGenerationSettingsFields
+            v-if="showOpenAIImageGenerationSettings"
+            v-model="config.imageGeneration"
+          />
+
           <!-- 温度 (支持推理努力程度的模型不显示) -->
-          <div v-if="showTemperatureControl" class="space-y-2">
+          <div
+            v-if="!showOpenAIImageGenerationSettings && showTemperatureControl"
+            class="space-y-2"
+          >
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
             <Input
               id="temperature"
@@ -144,7 +152,10 @@
           </div>
 
           <!-- 模型类型 -->
-          <div class="space-y-2">
+          <div
+            v-if="!showOpenAIImageGenerationSettings || showOpenAIImageGenerationRouteControls"
+            class="space-y-2"
+          >
             <Label for="type">{{ t('settings.model.modelConfig.type.label') }}</Label>
             <Select v-model="config.type">
               <SelectTrigger>
@@ -170,7 +181,13 @@
             </p>
           </div>
 
-          <div v-if="showEndpointTypeSelector" class="space-y-2">
+          <div
+            v-if="
+              (!showOpenAIImageGenerationSettings || showOpenAIImageGenerationRouteControls) &&
+              showEndpointTypeSelector
+            "
+            class="space-y-2"
+          >
             <Label for="endpointType">{{
               t('settings.model.modelConfig.endpointType.label')
             }}</Label>
@@ -199,7 +216,13 @@
           </div>
 
           <!-- API 端点（仅 OpenAI 兼容 provider 显示） -->
-          <div v-if="showApiEndpointSelector" class="space-y-2">
+          <div
+            v-if="
+              (!showOpenAIImageGenerationSettings || showOpenAIImageGenerationRouteControls) &&
+              showApiEndpointSelector
+            "
+            class="space-y-2"
+          >
             <Label for="apiEndpoint">{{ t('settings.model.modelConfig.apiEndpoint.label') }}</Label>
             <Select v-model="config.apiEndpoint">
               <SelectTrigger>
@@ -220,7 +243,7 @@
           </div>
 
           <!-- 视觉能力 -->
-          <div class="flex items-center justify-between">
+          <div v-if="!showOpenAIImageGenerationSettings" class="flex items-center justify-between">
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.vision.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -234,7 +257,7 @@
           </div>
 
           <!-- 函数调用 -->
-          <div class="flex items-center justify-between">
+          <div v-if="!showOpenAIImageGenerationSettings" class="flex items-center justify-between">
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.functionCall.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -252,7 +275,10 @@
           </div>
 
           <!-- 推理能力 -->
-          <div v-if="showReasoningToggle" class="flex items-center justify-between">
+          <div
+            v-if="!showOpenAIImageGenerationSettings && showReasoningToggle"
+            class="flex items-center justify-between"
+          >
             <div class="space-y-0.5">
               <Label>{{ t(reasoningToggleLabelKey) }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -270,7 +296,10 @@
             />
           </div>
 
-          <div v-if="showInterleavedThinking" class="flex items-center justify-between gap-4">
+          <div
+            v-if="!showOpenAIImageGenerationSettings && showInterleavedThinking"
+            class="flex items-center justify-between gap-4"
+          >
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.interleavedThinking.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -287,7 +316,7 @@
           </div>
 
           <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
-          <div v-if="showReasoningEffort" class="space-y-2">
+          <div v-if="!showOpenAIImageGenerationSettings && showReasoningEffort" class="space-y-2">
             <Label for="reasoningEffort">{{
               t('settings.model.modelConfig.reasoningEffort.label')
             }}</Label>
@@ -312,7 +341,10 @@
             </p>
           </div>
 
-          <div v-if="showReasoningVisibility" class="space-y-2">
+          <div
+            v-if="!showOpenAIImageGenerationSettings && showReasoningVisibility"
+            class="space-y-2"
+          >
             <Label for="reasoningVisibility">{{
               t('settings.model.modelConfig.reasoningVisibility.label')
             }}</Label>
@@ -338,7 +370,7 @@
           </div>
 
           <!-- 详细程度（存在该参数即显示） -->
-          <div v-if="supportsVerbosity" class="space-y-2">
+          <div v-if="!showOpenAIImageGenerationSettings && supportsVerbosity" class="space-y-2">
             <Label for="verbosity">{{ t('settings.model.modelConfig.verbosity.label') }}</Label>
             <Select v-model="config.verbosity">
               <SelectTrigger>
@@ -360,7 +392,7 @@
           </div>
 
           <!-- 思考预算（统一基于能力） -->
-          <div v-if="showThinkingBudget" class="space-y-4">
+          <div v-if="!showOpenAIImageGenerationSettings && showThinkingBudget" class="space-y-4">
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
                 <Label>{{ t('settings.model.modelConfig.thinkingBudget.label') }}</Label>
@@ -500,9 +532,14 @@ import {
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
+import {
+  normalizeImageGenerationOptions,
+  supportsOpenAIImageGenerationSettings
+} from '@shared/imageGenerationSettings'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
+import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
 import { createModelClient } from '@api/ModelClient'
 import {
   Dialog,
@@ -634,6 +671,20 @@ const dialogTitle = computed(() =>
 )
 const canEditModelIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
 const shouldValidateIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
+const showOpenAIImageGenerationSettings = computed(() =>
+  supportsOpenAIImageGenerationSettings({
+    providerId: props.providerId,
+    providerApiType: currentProvider.value?.apiType,
+    modelId: modelIdField.value.trim(),
+    apiEndpoint: config.value.apiEndpoint,
+    endpointType: config.value.endpointType ?? providerModelMeta.value?.endpointType,
+    supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+    type: config.value.type ?? providerModelMeta.value?.type
+  })
+)
+const showOpenAIImageGenerationRouteControls = computed(
+  () => showOpenAIImageGenerationSettings.value && canEditModelIdentity.value
+)
 
 // 重置确认对话框
 const showResetConfirm = ref(false)
@@ -1113,22 +1164,28 @@ const validateForm = () => {
     }
   }
 
-  // 验证最大输出长度
-  if (!config.value.maxTokens || config.value.maxTokens <= 0) {
-    errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMin')
-  } else if (config.value.maxTokens > 1000000) {
-    errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMax')
-  }
+  if (!showOpenAIImageGenerationSettings.value) {
+    // 验证最大输出长度
+    if (!config.value.maxTokens || config.value.maxTokens <= 0) {
+      errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMin')
+    } else if (config.value.maxTokens > 1000000) {
+      errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMax')
+    }
 
-  // 验证上下文长度
-  if (!config.value.contextLength || config.value.contextLength <= 0) {
-    errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMin')
-  } else if (config.value.contextLength > 100_000_000) {
-    errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMax')
+    // 验证上下文长度
+    if (!config.value.contextLength || config.value.contextLength <= 0) {
+      errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMin')
+    } else if (config.value.contextLength > 100_000_000) {
+      errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMax')
+    }
   }
 
   // 验证温度 (仅对显示 temperature 控件的模型)
-  if (showTemperatureControl.value && config.value.temperature !== undefined) {
+  if (
+    !showOpenAIImageGenerationSettings.value &&
+    showTemperatureControl.value &&
+    config.value.temperature !== undefined
+  ) {
     if (config.value.temperature < 0) {
       errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMin')
     } else if (config.value.temperature > 2) {
@@ -1145,7 +1202,11 @@ const validateForm = () => {
     }
   }
 
-  if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
+  if (
+    (!showOpenAIImageGenerationSettings.value || showOpenAIImageGenerationRouteControls.value) &&
+    showEndpointTypeSelector.value &&
+    !isNewApiEndpointType(config.value.endpointType)
+  ) {
     errors.value.endpointType = t('settings.model.modelConfig.endpointType.required')
   }
 }
@@ -1167,7 +1228,10 @@ const handleSave = async () => {
     Number.isFinite(timeout) && timeout > 0 ? Math.round(timeout) : undefined
   const configToSave: ModelConfig = {
     ...config.value,
-    ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {})
+    ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
+    imageGeneration: showOpenAIImageGenerationSettings.value
+      ? normalizeImageGenerationOptions(config.value.imageGeneration)
+      : undefined
   }
 
   try {

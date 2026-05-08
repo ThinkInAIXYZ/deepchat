@@ -546,6 +546,58 @@
       "timeout": {
         "label": "Request Timeout (ms)",
         "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "Padrão",
+        "size": {
+          "label": "Tamanho da imagem",
+          "custom": "Personalizado",
+          "placeholder": "ex.: 2048x2048",
+          "experimental": "Tamanhos acima de 2560x1440 são marcados como experimentais pela OpenAI.",
+          "validation": {
+            "invalid_format": "Use o formato {width}x{height}.",
+            "invalid_multiple": "A largura e a altura devem ser múltiplos de 16.",
+            "side_too_large": "A largura e a altura devem ser de no máximo 3840px.",
+            "aspect_ratio_too_large": "O lado maior não pode ter mais de 3x o lado menor.",
+            "pixel_count_out_of_range": "O total de pixels deve estar entre 655360 e 8294400."
+          }
+        },
+        "quality": {
+          "label": "Qualidade",
+          "options": {
+            "low": "Baixa",
+            "medium": "Média",
+            "high": "Alta",
+            "auto": "Automático"
+          }
+        },
+        "outputFormat": {
+          "label": "Formato de saída",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "Compressão",
+          "placeholder": "Padrão: 100",
+          "validation": "A compressão deve ser um número inteiro de 0 a 100."
+        },
+        "background": {
+          "label": "Plano de fundo",
+          "options": {
+            "auto": "Automático",
+            "opaque": "Opaco"
+          }
+        },
+        "moderation": {
+          "label": "Moderação",
+          "options": {
+            "auto": "Automático",
+            "low": "Baixa"
+          }
+        }
       }
     }
   },

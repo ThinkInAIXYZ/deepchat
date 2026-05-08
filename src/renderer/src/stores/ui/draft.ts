@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, shallowRef, toRaw } from 'vue'
+import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import type {
   CreateSessionInput,
   PermissionMode,
@@ -35,6 +36,9 @@ export const useDraftStore = defineStore('draft', () => {
   )
   const verbosity = ref<SessionGenerationSettings['verbosity'] | undefined>(undefined)
   const forceInterleavedThinkingCompat = ref<boolean | undefined>(undefined)
+  const imageGeneration = shallowRef<SessionGenerationSettings['imageGeneration'] | undefined>(
+    undefined
+  )
   const permissionMode = ref<PermissionMode>('full_access')
   const disabledAgentTools = ref<string[]>([])
   const subagentEnabled = ref(false)
@@ -42,6 +46,12 @@ export const useDraftStore = defineStore('draft', () => {
   let nextStartToken = 0
 
   // --- Actions ---
+
+  function normalizeDraftImageGeneration(
+    value: SessionGenerationSettings['imageGeneration']
+  ): SessionGenerationSettings['imageGeneration'] {
+    return normalizeImageGenerationOptions(toRaw(value))
+  }
 
   function toGenerationSettings(): Partial<SessionGenerationSettings> | undefined {
     const settings: Partial<SessionGenerationSettings> = {}
@@ -59,6 +69,10 @@ export const useDraftStore = defineStore('draft', () => {
     if (verbosity.value !== undefined) settings.verbosity = verbosity.value
     if (forceInterleavedThinkingCompat.value !== undefined) {
       settings.forceInterleavedThinkingCompat = forceInterleavedThinkingCompat.value
+    }
+    const normalizedImageGeneration = normalizeDraftImageGeneration(imageGeneration.value)
+    if (normalizedImageGeneration !== undefined) {
+      settings.imageGeneration = normalizedImageGeneration
     }
 
     return Object.keys(settings).length > 0 ? settings : undefined
@@ -109,6 +123,9 @@ export const useDraftStore = defineStore('draft', () => {
     if (Object.prototype.hasOwnProperty.call(settings, 'forceInterleavedThinkingCompat')) {
       forceInterleavedThinkingCompat.value = settings.forceInterleavedThinkingCompat
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'imageGeneration')) {
+      imageGeneration.value = normalizeDraftImageGeneration(settings.imageGeneration)
+    }
   }
 
   function resetGenerationSettings(): void {
@@ -122,6 +139,7 @@ export const useDraftStore = defineStore('draft', () => {
     reasoningVisibility.value = undefined
     verbosity.value = undefined
     forceInterleavedThinkingCompat.value = undefined
+    imageGeneration.value = undefined
   }
 
   function reset(): void {
@@ -165,6 +183,7 @@ export const useDraftStore = defineStore('draft', () => {
     reasoningVisibility,
     verbosity,
     forceInterleavedThinkingCompat,
+    imageGeneration,
     permissionMode,
     disabledAgentTools,
     subagentEnabled,
