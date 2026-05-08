@@ -479,6 +479,58 @@
       "timeout": {
         "label": "Tidsgrænse for anmodning (ms)",
         "description": "Indstil tidsgrænsen for en enkelt modelanmodning. Hvis den overskrides, afbrydes anmodningen."
+      },
+      "imageGeneration": {
+        "default": "Standard",
+        "size": {
+          "label": "Billedstørrelse",
+          "custom": "Brugerdefineret",
+          "placeholder": "f.eks. 2048x2048",
+          "experimental": "Størrelser over 2560x1440 er markeret som eksperimentelle af OpenAI.",
+          "validation": {
+            "invalid_format": "Brug formatet {width}x{height}.",
+            "invalid_multiple": "Bredde og højde skal være multipla af 16.",
+            "side_too_large": "Bredde og højde må højst være 3840px.",
+            "aspect_ratio_too_large": "Den lange side må ikke være mere end 3x den korte side.",
+            "pixel_count_out_of_range": "Det samlede antal pixels skal være mellem 655360 og 8294400."
+          }
+        },
+        "quality": {
+          "label": "Kvalitet",
+          "options": {
+            "low": "Lav",
+            "medium": "Mellem",
+            "high": "Høj",
+            "auto": "Auto"
+          }
+        },
+        "outputFormat": {
+          "label": "Outputformat",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "Komprimering",
+          "placeholder": "Standard: 100",
+          "validation": "Komprimering skal være et heltal fra 0 til 100."
+        },
+        "background": {
+          "label": "Baggrund",
+          "options": {
+            "auto": "Auto",
+            "opaque": "Uigennemsigtig"
+          }
+        },
+        "moderation": {
+          "label": "Moderation",
+          "options": {
+            "auto": "Auto",
+            "low": "Lav"
+          }
+        }
       }
     }
   },

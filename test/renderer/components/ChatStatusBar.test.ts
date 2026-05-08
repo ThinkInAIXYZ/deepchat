@@ -4,18 +4,23 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
+import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
 
 type TestGenerationSettings = {
   systemPrompt: string
   temperature: number
   contextLength: number
   maxTokens: number
+  apiEndpoint?: 'chat' | 'image'
+  endpointType?: string
+  type?: 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
   reasoning?: boolean
   thinkingBudget?: number
   forceInterleavedThinkingCompat?: boolean
   reasoningEffort?: ReasoningEffort
   reasoningVisibility?: 'omitted' | 'summarized'
   verbosity?: 'low' | 'medium' | 'high'
+  imageGeneration?: ImageGenerationOptions
 }
 
 type ExtraModelGroup = {
@@ -401,6 +406,7 @@ const setup = async (options: SetupOptions = {}) => {
     reasoningEffort: undefined as ReasoningEffort | undefined,
     reasoningVisibility: undefined as 'omitted' | 'summarized' | undefined,
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
+    imageGeneration: undefined as ImageGenerationOptions | undefined,
     subagentEnabled: options.draftSubagentEnabled === true,
     ...options.draftGenerationSettings,
     updateGenerationSettings: vi.fn((patch: Record<string, unknown>) =>
@@ -416,6 +422,7 @@ const setup = async (options: SetupOptions = {}) => {
       draftStore.reasoningEffort = undefined
       draftStore.reasoningVisibility = undefined
       draftStore.verbosity = undefined
+      draftStore.imageGeneration = undefined
     })
   })
 
@@ -852,7 +859,7 @@ describe('ChatStatusBar model and session panels', () => {
             { id: 'text-embedding-3-large', name: 'Embedding', type: 'embedding' },
             { id: 'bge-rerank-v2', name: 'Rerank', type: 'rerank' },
             { id: 'gpt-4.1', name: 'GPT-4.1', type: 'chat' },
-            { id: 'gpt-image-1', name: 'GPT Image 1', type: 'imageGeneration' }
+            { id: 'gpt-image-2', name: 'GPT Image 2', type: 'imageGeneration' }
           ]
         }
       ]
@@ -864,7 +871,7 @@ describe('ChatStatusBar model and session panels', () => {
     }>
     const newApiGroup = filteredGroups.find((group) => group.providerId === 'new-api')
 
-    expect(newApiGroup?.models.map((model) => model.id)).toEqual(['gpt-4.1', 'gpt-image-1'])
+    expect(newApiGroup?.models.map((model) => model.id)).toEqual(['gpt-4.1', 'gpt-image-2'])
     expect(wrapper.text()).not.toContain('text-embedding-3-large')
     expect(wrapper.text()).not.toContain('bge-rerank-v2')
   })
@@ -1358,6 +1365,108 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
     expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
+  })
+
+  it('uses the dedicated image settings panel for gpt-image-2', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      preferredModel: { providerId: 'openai', modelId: 'gpt-image-2' },
+      defaultModel: { providerId: 'openai', modelId: 'gpt-image-2' },
+      extraModelGroups: [
+        {
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          apiType: 'openai',
+          models: [{ id: 'gpt-image-2', name: 'GPT Image 2', type: 'imageGeneration' }]
+        }
+      ],
+      modelConfig: {
+        imageGeneration: {
+          size: '1024x1024',
+          quality: 'high'
+        }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-image-2')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.contextLength')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.maxTokens')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
+    expect(findNumericInput(wrapper, 'timeout').exists()).toBe(true)
+    expect(findNumericInput(wrapper, 'contextLength').exists()).toBe(false)
+    expect((wrapper.vm as any).localSettings.imageGeneration).toEqual({
+      size: '1024x1024',
+      quality: 'high'
+    })
+  })
+
+  it('uses the image settings panel for gpt-image-2 on OpenAI-compatible providers', async () => {
+    const { wrapper, modelClient } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      preferredModel: { providerId: 'aihubmix', modelId: 'gpt-image-2' },
+      defaultModel: { providerId: 'aihubmix', modelId: 'gpt-image-2' },
+      extraModelGroups: [
+        {
+          providerId: 'aihubmix',
+          providerName: 'AIHubMix',
+          apiType: 'openai-compatible',
+          models: [{ id: 'gpt-image-2', name: 'GPT Image 2' }]
+        }
+      ],
+      modelConfig: {
+        apiEndpoint: 'image',
+        imageGeneration: {
+          size: '1024x1024'
+        }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('aihubmix', 'gpt-image-2')
+    await flushPromises()
+
+    expect(modelClient.getModelConfig).toHaveBeenCalledWith('gpt-image-2', 'aihubmix')
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.contextLength')
+  })
+
+  it('keeps ordinary OpenAI chat models on the generic chat settings panel', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      preferredModel: { providerId: 'openai', modelId: 'gpt-5' },
+      defaultModel: { providerId: 'openai', modelId: 'gpt-5' },
+      extraModelGroups: [
+        {
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          apiType: 'openai',
+          models: [{ id: 'gpt-5', name: 'GPT-5' }]
+        }
+      ],
+      modelConfig: {
+        imageGeneration: {
+          size: '1024x1024'
+        }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-5')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(false)
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect(wrapper.text()).toContain('chat.advancedSettings.contextLength')
+    expect(wrapper.text()).toContain('chat.advancedSettings.maxTokens')
+    expect(findNumericInput(wrapper, 'contextLength').exists()).toBe(true)
   })
 
   it('uses the derived default maxTokens value from model config', async () => {

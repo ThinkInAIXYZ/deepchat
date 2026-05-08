@@ -569,6 +569,82 @@ describe('ModelConfigDialog reasoning portraits', () => {
   })
 })
 
+describe('ModelConfigDialog OpenAI image generation settings', () => {
+  it('uses the image settings form for gpt-image-2', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-image-2',
+      modelName: 'GPT Image 2',
+      providerApiType: 'openai',
+      modelConfig: {
+        imageGeneration: {
+          size: '1024x1024'
+        }
+      }
+    })
+
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.contextLength.label')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.maxTokens.label')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
+  })
+
+  it('keeps ordinary OpenAI chat models on the generic model form', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      modelName: 'GPT-5',
+      providerApiType: 'openai',
+      modelConfig: {
+        imageGeneration: {
+          size: '1024x1024'
+        }
+      }
+    })
+
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(false)
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.contextLength.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.maxTokens.label')
+  })
+
+  it('saves normalized image settings for gpt-image-2', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-image-2',
+      modelName: 'GPT Image 2',
+      providerApiType: 'openai'
+    })
+
+    ;(wrapper.vm as any).config.imageGeneration = {
+      size: '1792x1024',
+      quality: 'high',
+      outputFormat: 'jpeg',
+      outputCompression: 80,
+      background: 'opaque',
+      moderation: 'low'
+    }
+    await (wrapper.vm as any).handleSave()
+
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
+      'gpt-image-2',
+      'openai',
+      expect.objectContaining({
+        imageGeneration: {
+          size: '1792x1024',
+          quality: 'high',
+          outputFormat: 'jpeg',
+          outputCompression: 80,
+          background: 'opaque',
+          moderation: 'low'
+        }
+      })
+    )
+  })
+})
+
 describe('ModelConfigDialog new-api endpoint normalization', () => {
   it('restores chat routing and provider model type when switching away from image-generation', async () => {
     const { wrapper, modelConfigStore } = await setup({

@@ -608,6 +608,58 @@
       "timeout": {
         "label": "请求超时时间（毫秒）",
         "description": "设置模型单次请求的超时时间，超过后将自动中断请求。"
+      },
+      "imageGeneration": {
+        "default": "默认",
+        "size": {
+          "label": "图片尺寸",
+          "custom": "自定义",
+          "placeholder": "例如 2048x2048",
+          "experimental": "该尺寸超过 2560x1440，OpenAI 标记为实验性输出。",
+          "validation": {
+            "invalid_format": "请使用 {width}x{height} 格式。",
+            "invalid_multiple": "宽高都必须是 16 的倍数。",
+            "side_too_large": "宽高都不能超过 3840px。",
+            "aspect_ratio_too_large": "长边不能超过短边的 3 倍。",
+            "pixel_count_out_of_range": "总像素必须在 655360 到 8294400 之间。"
+          }
+        },
+        "quality": {
+          "label": "图片质量",
+          "options": {
+            "low": "低",
+            "medium": "中",
+            "high": "高",
+            "auto": "自动"
+          }
+        },
+        "outputFormat": {
+          "label": "输出格式",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "压缩质量",
+          "placeholder": "默认：100",
+          "validation": "压缩质量必须是 0 到 100 的整数。"
+        },
+        "background": {
+          "label": "背景",
+          "options": {
+            "auto": "自动",
+            "opaque": "不透明"
+          }
+        },
+        "moderation": {
+          "label": "内容过滤",
+          "options": {
+            "auto": "自动",
+            "low": "低"
+          }
+        }
       }
     }
   },

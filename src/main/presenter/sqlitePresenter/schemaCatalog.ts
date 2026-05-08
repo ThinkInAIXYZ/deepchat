@@ -122,7 +122,9 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       timeout_ms: 'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;',
       force_interleaved_thinking_compat:
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
-      reasoning_visibility: 'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;'
+      reasoning_visibility: 'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;',
+      image_generation_options_json:
+        'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
     },
     typeCheckedColumns: [
       'summary_cursor_order_seq',

@@ -546,6 +546,58 @@
       "timeout": {
         "label": "Request Timeout (ms)",
         "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "デフォルト",
+        "size": {
+          "label": "画像サイズ",
+          "custom": "カスタム",
+          "placeholder": "例: 2048x2048",
+          "experimental": "2560x1440 を超えるサイズは、OpenAI によって実験的な出力としてマークされています。",
+          "validation": {
+            "invalid_format": "{width}x{height} 形式を使用してください。",
+            "invalid_multiple": "幅と高さはどちらも 16 の倍数である必要があります。",
+            "side_too_large": "幅と高さはどちらも 3840px 以下である必要があります。",
+            "aspect_ratio_too_large": "長辺は短辺の 3 倍を超えることはできません。",
+            "pixel_count_out_of_range": "総ピクセル数は 655360 から 8294400 の間である必要があります。"
+          }
+        },
+        "quality": {
+          "label": "品質",
+          "options": {
+            "low": "低",
+            "medium": "中",
+            "high": "高",
+            "auto": "自動"
+          }
+        },
+        "outputFormat": {
+          "label": "出力形式",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "圧縮",
+          "placeholder": "デフォルト: 100",
+          "validation": "圧縮は 0 から 100 の整数である必要があります。"
+        },
+        "background": {
+          "label": "背景",
+          "options": {
+            "auto": "自動",
+            "opaque": "不透明"
+          }
+        },
+        "moderation": {
+          "label": "モデレーション",
+          "options": {
+            "auto": "自動",
+            "low": "低"
+          }
+        }
       }
     }
   },

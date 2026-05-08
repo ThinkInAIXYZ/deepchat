@@ -311,6 +311,35 @@ describe('main kernel contracts', () => {
     })
   })
 
+  it('preserves gpt-image-2 image settings in session generation settings contracts', () => {
+    const imageGeneration = {
+      size: '3840x2160',
+      quality: 'high',
+      outputFormat: 'webp',
+      outputCompression: 80,
+      background: 'opaque',
+      moderation: 'low'
+    } as const
+
+    expect(SessionGenerationSettingsPatchSchema.parse({ imageGeneration })).toEqual({
+      imageGeneration
+    })
+
+    expect(
+      sessionsUpdateGenerationSettingsRoute.input.parse({
+        sessionId: 'session-1',
+        settings: {
+          imageGeneration
+        }
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      settings: {
+        imageGeneration
+      }
+    })
+  })
+
   it('accepts prepared attachment metadata dates in message route contracts', () => {
     const fileCreated = new Date('2024-01-01T00:00:00.000Z')
     const fileModified = new Date('2024-01-02T00:00:00.000Z')

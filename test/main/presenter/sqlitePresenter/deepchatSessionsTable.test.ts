@@ -106,18 +106,89 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
       throw new Error(`Unexpected SQL: ${sql}`)
     })
 
-    expect(table.getLatestVersion()).toBe(24)
+    expect(table.getLatestVersion()).toBe(27)
 
     expect(table.getMigrationSQL(23)).toBe(
       [
         'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;',
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
-        'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;'
+        'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;',
+        'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
       ].join('\n')
     )
 
     expect(table.getMigrationSQL(24)).toBe(
       'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;'
+    )
+    expect(table.getMigrationSQL(27)).toBe(
+      'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
+    )
+  })
+
+  it('reads image generation settings from persisted JSON', () => {
+    prepare.mockImplementation((sql: string) => {
+      if (sql === 'SELECT * FROM deepchat_sessions WHERE id = ?') {
+        return {
+          get: () => ({
+            id: 's1',
+            provider_id: 'openai',
+            model_id: 'gpt-image-2',
+            permission_mode: 'full_access',
+            system_prompt: null,
+            temperature: null,
+            context_length: null,
+            max_tokens: null,
+            timeout_ms: null,
+            thinking_budget: null,
+            reasoning_effort: null,
+            reasoning_visibility: null,
+            verbosity: null,
+            force_interleaved_thinking_compat: null,
+            image_generation_options_json: JSON.stringify({
+              size: '3840x2160',
+              quality: 'high',
+              outputFormat: 'webp',
+              outputCompression: 80,
+              background: 'opaque',
+              moderation: 'low'
+            }),
+            summary_text: null,
+            summary_cursor_order_seq: 1,
+            summary_updated_at: null
+          })
+        }
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`)
+    })
+
+    expect(table.getGenerationSettings('s1')?.imageGeneration).toEqual({
+      size: '3840x2160',
+      quality: 'high',
+      outputFormat: 'webp',
+      outputCompression: 80,
+      background: 'opaque',
+      moderation: 'low'
+    })
+  })
+
+  it('writes image generation settings as normalized JSON', () => {
+    run.mockReturnValue({ changes: 1 })
+
+    table.updateGenerationSettings('s1', {
+      imageGeneration: {
+        size: '3840x2160',
+        outputFormat: 'png',
+        outputCompression: 80
+      }
+    })
+
+    expect(prepare).toHaveBeenCalledWith(
+      'UPDATE deepchat_sessions SET image_generation_options_json = ? WHERE id = ?'
+    )
+    expect(run).toHaveBeenCalledWith(
+      JSON.stringify({ size: '3840x2160', outputFormat: 'png' }),
+      's1'
     )
   })
 
@@ -152,7 +223,7 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
 
         if (sql === 'SELECT MAX(version) as version FROM schema_versions') {
           return {
-            get: () => ({ version: 25 })
+            get: () => ({ version: 28 })
           }
         }
 
@@ -164,11 +235,11 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     const guardedTable = new DeepChatSessionsTable(guardedDb)
 
     expect(() => guardedTable.createTable()).toThrow(
-      'Recorded deepchat_sessions schema version 25 exceeds supported version 24.'
+      'Recorded deepchat_sessions schema version 28 exceeds supported version 27.'
     )
     expect(exec).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith(
-      'Recorded deepchat_sessions schema version 25 exceeds supported version 24. Refusing to create table from a downgraded schema.'
+      'Recorded deepchat_sessions schema version 28 exceeds supported version 27. Refusing to create table from a downgraded schema.'
     )
   })
 })

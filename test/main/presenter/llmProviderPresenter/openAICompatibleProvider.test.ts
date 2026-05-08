@@ -181,6 +181,46 @@ describe('AiSdkProvider openai-compatible', () => {
     )
   })
 
+  it('uses image generation for OpenAI-compatible models declared by type', async () => {
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    const modelConfig = {
+      maxTokens: 1024,
+      contextLength: 8192,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'imageGeneration'
+    } as ModelConfig
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'paint' }],
+      'custom-image-model',
+      modelConfig,
+      0.7,
+      512,
+      []
+    )) {
+      break
+    }
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
+    expect(context.providerKind).toBe('openai-compatible')
+    expect(context.shouldUseImageGeneration('custom-image-model', modelConfig)).toBe(true)
+    expect(
+      context.shouldUseImageGeneration('custom-image-model', {
+        apiEndpoint: 'image',
+        type: 'chat'
+      } as ModelConfig)
+    ).toBe(true)
+    expect(
+      context.shouldUseImageGeneration('custom-chat-model', {
+        type: 'chat'
+      } as ModelConfig)
+    ).toBe(false)
+  })
+
   it('builds azure runtime context with azure auth headers and image routing', async () => {
     const provider = new AiSdkProvider(
       createProvider({
@@ -222,6 +262,11 @@ describe('AiSdkProvider openai-compatible', () => {
       'api-key': 'test-key'
     })
     expect(context.shouldUseImageGeneration('gpt-image-1', modelConfig)).toBe(true)
+    expect(
+      context.shouldUseImageGeneration('custom-image-model', {
+        type: 'imageGeneration'
+      } as ModelConfig)
+    ).toBe(false)
     expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
   })
 })

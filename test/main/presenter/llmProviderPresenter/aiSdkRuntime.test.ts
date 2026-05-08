@@ -106,7 +106,7 @@ describe('AI SDK runtime', () => {
           } as any
         }
       ],
-      'gpt-image-1',
+      'gpt-image-2',
       {
         apiEndpoint: 'image'
       } as any,
@@ -135,6 +135,219 @@ describe('AI SDK runtime', () => {
         stop_reason: 'complete'
       }
     ])
+  })
+
+  it('does not forward gpt-image-2 image options when the config is empty', async () => {
+    const context = {
+      providerKind: 'openai-responses',
+      provider: {
+        id: 'openai',
+        apiType: 'openai'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseImageGeneration: () => true
+    } as any
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'draw a cat' }],
+      'gpt-image-2',
+      {
+        apiEndpoint: 'image'
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      // Drain stream.
+    }
+
+    const request = mockGenerateImage.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).not.toHaveProperty('size')
+    expect(request).not.toHaveProperty('providerOptions')
+  })
+
+  it('forwards gpt-image-2 image options to the OpenAI image model', async () => {
+    const context = {
+      providerKind: 'openai-responses',
+      provider: {
+        id: 'openai',
+        apiType: 'openai'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseImageGeneration: () => true
+    } as any
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'draw a cat' }],
+      'gpt-image-2',
+      {
+        apiEndpoint: 'image',
+        imageGeneration: {
+          size: '3840x2160',
+          quality: 'high',
+          outputFormat: 'webp',
+          outputCompression: 80,
+          background: 'opaque',
+          moderation: 'low'
+        }
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      // Drain stream.
+    }
+
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        size: '3840x2160',
+        providerOptions: {
+          openai: {
+            quality: 'high',
+            outputFormat: 'webp',
+            outputCompression: 80,
+            background: 'opaque',
+            moderation: 'low'
+          }
+        }
+      })
+    )
+  })
+
+  it('uses wire-shaped gpt-image-2 options for OpenAI-compatible image providers', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValueOnce({
+      providerOptionsKey: 'new-api',
+      apiType: 'openai_chat',
+      model: {},
+      imageModel: {},
+      endpoint: 'https://image.example.com'
+    })
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'new-api',
+        apiType: 'new-api'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseImageGeneration: () => true
+    } as any
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'draw a cat' }],
+      'gpt-image-2',
+      {
+        apiEndpoint: 'image',
+        imageGeneration: {
+          outputFormat: 'jpeg',
+          outputCompression: 70
+        }
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      // Drain stream.
+    }
+
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerOptions: {
+          'new-api': {
+            output_format: 'jpeg',
+            output_compression: 70
+          }
+        }
+      })
+    )
+  })
+
+  it('uses wire-shaped gpt-image-2 options for generic OpenAI-compatible image providers', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValueOnce({
+      providerOptionsKey: 'aihubmix',
+      apiType: 'openai_chat',
+      model: {},
+      imageModel: {},
+      endpoint: 'https://image.example.com'
+    })
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'aihubmix',
+        apiType: 'openai-compatible'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseImageGeneration: () => true
+    } as any
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'draw a cat' }],
+      'gpt-image-2',
+      {
+        apiEndpoint: 'image',
+        imageGeneration: {
+          outputFormat: 'webp',
+          outputCompression: 80
+        }
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      // Drain stream.
+    }
+
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerOptions: {
+          aihubmix: {
+            output_format: 'webp',
+            output_compression: 80
+          }
+        }
+      })
+    )
+  })
+
+  it('does not forward OpenAI image options for ordinary chat models', async () => {
+    const context = {
+      providerKind: 'openai-responses',
+      provider: {
+        id: 'openai',
+        apiType: 'openai'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseImageGeneration: () => true
+    } as any
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'draw a cat' }],
+      'gpt-5',
+      {
+        imageGeneration: {
+          outputFormat: 'jpeg',
+          outputCompression: 70
+        }
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      // Drain stream.
+    }
+
+    const request = mockGenerateImage.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).not.toHaveProperty('size')
+    expect(request).not.toHaveProperty('providerOptions')
   })
 
   it('omits temperature for anthropic models that disable temperature control', async () => {

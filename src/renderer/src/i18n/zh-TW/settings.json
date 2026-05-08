@@ -546,6 +546,58 @@
       "timeout": {
         "label": "請求逾時時間（毫秒）",
         "description": "設定模型單次請求的逾時時間，超過後將自動中斷請求。"
+      },
+      "imageGeneration": {
+        "default": "預設",
+        "size": {
+          "label": "圖片尺寸",
+          "custom": "自訂",
+          "placeholder": "例如 2048x2048",
+          "experimental": "此尺寸超過 2560x1440，OpenAI 標記為實驗性輸出。",
+          "validation": {
+            "invalid_format": "請使用 {width}x{height} 格式。",
+            "invalid_multiple": "寬度和高度都必須是 16 的倍數。",
+            "side_too_large": "寬度和高度都不能超過 3840px。",
+            "aspect_ratio_too_large": "長邊不能超過短邊的 3 倍。",
+            "pixel_count_out_of_range": "總像素必須介於 655360 到 8294400 之間。"
+          }
+        },
+        "quality": {
+          "label": "圖片品質",
+          "options": {
+            "low": "低",
+            "medium": "中",
+            "high": "高",
+            "auto": "自動"
+          }
+        },
+        "outputFormat": {
+          "label": "輸出格式",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "壓縮品質",
+          "placeholder": "預設：100",
+          "validation": "壓縮值必須是 0 到 100 的整數。"
+        },
+        "background": {
+          "label": "背景",
+          "options": {
+            "auto": "自動",
+            "opaque": "不透明"
+          }
+        },
+        "moderation": {
+          "label": "內容審核",
+          "options": {
+            "auto": "自動",
+            "low": "低"
+          }
+        }
       }
     }
   },

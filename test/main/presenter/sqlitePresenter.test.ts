@@ -520,10 +520,11 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
     expect(columnNames.has('reasoning_visibility')).toBe(true)
     expect(columnNames.has('timeout_ms')).toBe(true)
+    expect(columnNames.has('image_generation_options_json')).toBe(true)
 
     const row = checkDb
       .prepare(
-        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat, reasoning_visibility, timeout_ms FROM deepchat_sessions WHERE id = ?'
+        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat, reasoning_visibility, timeout_ms, image_generation_options_json FROM deepchat_sessions WHERE id = ?'
       )
       .get('session-1') as
       | {
@@ -533,6 +534,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
           force_interleaved_thinking_compat: number | null
           reasoning_visibility: string | null
           timeout_ms: number | null
+          image_generation_options_json: string | null
         }
       | undefined
 
@@ -542,7 +544,8 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
       summary_cursor_order_seq: 1,
       force_interleaved_thinking_compat: null,
       reasoning_visibility: null,
-      timeout_ms: null
+      timeout_ms: null,
+      image_generation_options_json: null
     })
     checkDb.close()
   })
@@ -697,28 +700,31 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
     expect(columnNames.has('reasoning_visibility')).toBe(true)
     expect(columnNames.has('timeout_ms')).toBe(true)
+    expect(columnNames.has('image_generation_options_json')).toBe(true)
 
     const row = checkDb
       .prepare(
-        'SELECT force_interleaved_thinking_compat, reasoning_visibility, timeout_ms FROM deepchat_sessions WHERE id = ?'
+        'SELECT force_interleaved_thinking_compat, reasoning_visibility, timeout_ms, image_generation_options_json FROM deepchat_sessions WHERE id = ?'
       )
       .get('session-1') as
       | {
           force_interleaved_thinking_compat: number | null
           reasoning_visibility: string | null
           timeout_ms: number | null
+          image_generation_options_json: string | null
         }
       | undefined
 
     expect(row).toEqual({
       force_interleaved_thinking_compat: null,
       reasoning_visibility: null,
-      timeout_ms: null
+      timeout_ms: null,
+      image_generation_options_json: null
     })
     checkDb.close()
   })
 
-  it('repairs missing timeout_ms in deepchat_sessions when schema version is already 24', async () => {
+  it('repairs missing timeout_ms and image settings in deepchat_sessions when schema version is already 24', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -779,24 +785,29 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     const columnNames = new Set(deepchatColumns.map((column) => column.name))
 
     expect(columnNames.has('timeout_ms')).toBe(true)
+    expect(columnNames.has('image_generation_options_json')).toBe(true)
 
     const row = checkDb
-      .prepare('SELECT reasoning_visibility, timeout_ms FROM deepchat_sessions WHERE id = ?')
+      .prepare(
+        'SELECT reasoning_visibility, timeout_ms, image_generation_options_json FROM deepchat_sessions WHERE id = ?'
+      )
       .get('session-1') as
       | {
           reasoning_visibility: string | null
           timeout_ms: number | null
+          image_generation_options_json: string | null
         }
       | undefined
 
     expect(row).toEqual({
       reasoning_visibility: 'auto',
-      timeout_ms: null
+      timeout_ms: null,
+      image_generation_options_json: null
     })
     checkDb.close()
   })
 
-  it('runs the v23 and v24 recovery migrations for deepchat_sessions when schema version is 22', async () => {
+  it('runs the v23, v24, and v27 recovery migrations for deepchat_sessions when schema version is 22', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -842,8 +853,10 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
     expect(columnNames.has('reasoning_visibility')).toBe(true)
     expect(columnNames.has('timeout_ms')).toBe(true)
+    expect(columnNames.has('image_generation_options_json')).toBe(true)
     expect(versions.map((entry) => entry.version)).toContain(23)
     expect(versions.map((entry) => entry.version)).toContain(24)
+    expect(versions.map((entry) => entry.version)).toContain(27)
     checkDb.close()
   })
 

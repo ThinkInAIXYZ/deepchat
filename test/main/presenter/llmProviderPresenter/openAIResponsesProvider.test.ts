@@ -118,6 +118,11 @@ describe('OpenAIResponsesProvider', () => {
 
     expect(context.providerKind).toBe('openai-responses')
     expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(true)
+    expect(
+      context.shouldUseImageGeneration('custom-image-model', {
+        type: 'imageGeneration'
+      } as ModelConfig)
+    ).toBe(true)
     expect(context.shouldUseImageGeneration('gpt-4o', {} as ModelConfig)).toBe(false)
   })
 
@@ -165,6 +170,11 @@ describe('OpenAIResponsesProvider', () => {
         apiEndpoint: 'image'
       } as ModelConfig)
     ).toBe(true)
+    expect(
+      context.shouldUseImageGeneration('custom-image-model', {
+        type: 'imageGeneration'
+      } as ModelConfig)
+    ).toBe(false)
     expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
   })
 })
