@@ -185,6 +185,10 @@ const customModelsSource = computed(
 )
 
 const validateApiKey = async () => {
+  if (!props.provider.enable) {
+    return
+  }
+
   try {
     const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
@@ -432,6 +436,10 @@ const handleConfigChanged = () => {
 }
 
 const openModelCheckDialog = () => {
+  if (!props.provider.enable) {
+    return
+  }
+
   modelCheckStore.openDialog(props.provider.id)
 }
 

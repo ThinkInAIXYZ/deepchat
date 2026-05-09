@@ -286,6 +286,36 @@ describe('ProviderApiConfig', () => {
     })
   })
 
+  it('disables provider verification when the provider is not enabled', async () => {
+    const { wrapper, modelCheckStore } = await setup({
+      provider: createProvider({
+        enable: false
+      })
+    })
+
+    const verifyButton = wrapper.get('[data-testid="provider-verify-button"]')
+
+    expect(verifyButton.attributes('disabled')).toBeDefined()
+
+    await verifyButton.trigger('click')
+    await flushPromises()
+
+    expect(modelCheckStore.openDialog).not.toHaveBeenCalled()
+  })
+
+  it('does not emit validation from the API key enter shortcut when the provider is disabled', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({
+        enable: false
+      })
+    })
+
+    await wrapper.get('input#deepseek-apikey').trigger('keyup.enter')
+    await flushPromises()
+
+    expect(wrapper.emitted('validate-key')).toBeUndefined()
+  })
+
   it('shows a destructive toast when metadata-backed refresh fails', async () => {
     const { wrapper, toast, llmproviderPresenter } = await setup({
       provider: createProvider({

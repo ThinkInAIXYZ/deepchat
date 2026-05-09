@@ -112,6 +112,7 @@
         variant="outline"
         size="sm"
         class="text-xs text-normal rounded-lg"
+        :disabled="!provider.enable"
         @click="emit('validate-provider')"
       >
         <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{

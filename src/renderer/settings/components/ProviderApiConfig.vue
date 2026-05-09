@@ -103,7 +103,7 @@
             :placeholder="t('settings.provider.keyPlaceholder')"
             style="padding-right: 2.5rem !important"
             @blur="handleApiKeyBlur"
-            @keyup.enter="$emit('validate-key', apiKey)"
+            @keyup.enter="handleValidateKey"
             @update:model-value="apiKey = String($event)"
           />
           <Button
@@ -143,6 +143,7 @@
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
+          :disabled="!canVerifyProvider"
           @click="openModelCheckDialog"
         >
           <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
@@ -271,6 +272,7 @@ const providerApiKeyUrl = computed(() => {
     return props.providerWebsites?.apiKey || ''
   }
 })
+const canVerifyProvider = computed(() => props.provider.enable)
 
 watch(
   () => props.provider,
@@ -321,7 +323,19 @@ const handleOAuthError = (error: string) => {
   emit('oauth-error', error)
 }
 
+const handleValidateKey = () => {
+  if (!canVerifyProvider.value) {
+    return
+  }
+
+  emit('validate-key', apiKey.value)
+}
+
 const openModelCheckDialog = () => {
+  if (!canVerifyProvider.value) {
+    return
+  }
+
   modelCheckStore.openDialog(props.provider.id)
 }
 
