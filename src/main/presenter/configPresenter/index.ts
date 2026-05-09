@@ -892,6 +892,10 @@ export class ConfigPresenter implements IConfigPresenter {
       updates.visionModel = null
     }
 
+    if (isDeprecatedBuiltinModelSelection(config.imageGenerationModel)) {
+      updates.imageGenerationModel = null
+    }
+
     if (Object.keys(updates).length > 0) {
       this.updateBuiltinDeepChatConfig(updates)
     }

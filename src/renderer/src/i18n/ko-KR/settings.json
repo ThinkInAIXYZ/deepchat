@@ -1855,6 +1855,7 @@
     "chatModel": "기본 대화 모델",
     "assistantModel": "보조 모델",
     "visionModel": "시각적 모델",
+    "imageGenerationModel": "이미지 생성 모델",
     "temperature": "온도",
     "contextLength": "컨텍스트 길이",
     "maxTokens": "최대 토큰",

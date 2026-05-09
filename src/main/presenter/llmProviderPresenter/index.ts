@@ -3,10 +3,12 @@ import {
   LLM_PROVIDER,
   LLMResponse,
   MODEL_META,
+  ModelConfig,
   OllamaModel,
   ChatMessage,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
+  StandaloneImageGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
   IConfigPresenter,
@@ -17,6 +19,11 @@ import {
   AcpDebugRequest,
   AcpDebugRunResult
 } from '@shared/presenter'
+import { ApiEndpointType, ModelType } from '@shared/model'
+import {
+  normalizeImageGenerationOptions,
+  type ImageGenerationOptions
+} from '@shared/imageGenerationSettings'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { eventBus } from '@/eventbus'
@@ -43,6 +50,33 @@ const createAbortError = (): Error => {
   const error = new Error('Aborted')
   error.name = 'AbortError'
   return error
+}
+
+const createAbortPromise = (
+  signal: AbortSignal | undefined,
+  onAbort?: () => void
+): { promise?: Promise<never>; cleanup: () => void } => {
+  if (!signal) {
+    return { cleanup: () => undefined }
+  }
+
+  let abortHandler: (() => void) | null = null
+  const promise = new Promise<never>((_, reject) => {
+    abortHandler = () => {
+      onAbort?.()
+      reject(createAbortError())
+    }
+    signal.addEventListener('abort', abortHandler, { once: true })
+  })
+
+  return {
+    promise,
+    cleanup: () => {
+      if (abortHandler) {
+        signal.removeEventListener('abort', abortHandler)
+      }
+    }
+  }
 }
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {
@@ -330,6 +364,86 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       }
       console.error('Stream error:', error)
       return ''
+    }
+  }
+
+  async generateImageStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    imageOptions?: ImageGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneImageGenerationResult> {
+    const normalizedPrompt = prompt.trim()
+    if (!normalizedPrompt) {
+      throw new Error('Image generation prompt is required')
+    }
+
+    const signal = options?.signal
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+
+    await this.executeWithRateLimit(providerId, { signal })
+
+    const provider = this.getProviderInstance(providerId)
+    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const mergedImageOptions = normalizeImageGenerationOptions({
+      ...modelConfig.imageGeneration,
+      ...imageOptions
+    })
+    const resolvedModelConfig: ModelConfig = {
+      ...modelConfig,
+      type: ModelType.ImageGeneration,
+      apiEndpoint: ApiEndpointType.Image,
+      imageGeneration: mergedImageOptions
+    }
+    const stream = provider.coreStream(
+      [{ role: 'user', content: normalizedPrompt }],
+      modelId,
+      resolvedModelConfig,
+      modelConfig.temperature ?? 0.7,
+      modelConfig.maxTokens ?? 1024,
+      []
+    )
+    const images: StandaloneImageGenerationResult['images'] = []
+    const abort = createAbortPromise(signal, () => {
+      void stream.return?.(undefined as never)
+    })
+
+    const collect = async () => {
+      for await (const event of stream) {
+        if (signal?.aborted) {
+          throw createAbortError()
+        }
+
+        if (event.type === 'image_data') {
+          images.push({
+            data: event.image_data.data,
+            mimeType: event.image_data.mimeType
+          })
+        }
+        if (event.type === 'error') {
+          throw new Error(event.error_message)
+        }
+      }
+    }
+
+    try {
+      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
+    } finally {
+      abort.cleanup()
+    }
+
+    if (images.length === 0) {
+      throw new Error('Image generation completed without image output')
+    }
+
+    return {
+      providerId,
+      modelId,
+      ...(mergedImageOptions ? { options: mergedImageOptions } : {}),
+      images
     }
   }
 

@@ -114,6 +114,7 @@
     "chatModel": "默认对话模型",
     "assistantModel": "助手模型",
     "visionModel": "视觉模型",
+    "imageGenerationModel": "图像生成模型",
     "temperature": "温度",
     "contextLength": "上下文长度",
     "maxTokens": "最大 Token 数",

@@ -1855,6 +1855,7 @@
     "chatModel": "מודל שיחה ברירת מחדל",
     "assistantModel": "מודל עוזר",
     "visionModel": "מודל ראייה",
+    "imageGenerationModel": "מודל יצירת תמונות",
     "temperature": "טמפרטורה",
     "contextLength": "אורך הקשר",
     "maxTokens": "מספר טוקנים מרבי",

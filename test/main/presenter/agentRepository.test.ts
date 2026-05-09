@@ -44,6 +44,60 @@ describe('AgentRepository', () => {
     expect(config.subagents?.every((slot) => slot.targetType === 'self')).toBe(true)
   })
 
+  it('inherits DeepChat image generation model from the builtin agent', () => {
+    const now = Date.now()
+    const rows = new Map<string, any>([
+      [
+        'deepchat',
+        {
+          id: 'deepchat',
+          agent_type: 'deepchat',
+          source: 'builtin',
+          name: 'DeepChat',
+          enabled: 1,
+          protected: 1,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: JSON.stringify({
+            imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' }
+          }),
+          state_json: null,
+          created_at: now,
+          updated_at: now
+        }
+      ],
+      [
+        'custom-agent',
+        {
+          id: 'custom-agent',
+          agent_type: 'deepchat',
+          source: 'manual',
+          name: 'Custom Agent',
+          enabled: 1,
+          protected: 0,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: JSON.stringify({}),
+          state_json: null,
+          created_at: now,
+          updated_at: now
+        }
+      ]
+    ])
+    const repository = new AgentRepository({
+      agentsTable: {
+        get: (id: string) => rows.get(id)
+      }
+    } as never)
+
+    expect(repository.resolveDeepChatAgentConfig('custom-agent').imageGenerationModel).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-image-1'
+    })
+  })
+
   it('clears registry ACP installation state without deleting the row', () => {
     const row = {
       id: 'codex-acp',

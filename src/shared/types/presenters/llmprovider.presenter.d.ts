@@ -2,6 +2,7 @@ import { ShowResponse } from 'ollama'
 import type { ChatMessage } from '../core/chat-message'
 import { ModelType } from '../core/model'
 import type { NewApiEndpointType } from '@shared/model'
+import type { ImageGenerationOptions } from '../../imageGenerationSettings'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './legacy.presenters'
 
 /**
@@ -104,6 +105,13 @@ export type LLM_PROVIDER_BASE = Omit<
 export type LLM_EMBEDDING_ATTRS = {
   dimensions: number
   normalized: boolean
+}
+
+export type StandaloneImageGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: ImageGenerationOptions
+  images: Array<{ data: string; mimeType: string }>
 }
 
 export interface KeyStatus {
@@ -298,6 +306,14 @@ export interface ILlmProviderPresenter {
     maxTokens?: number,
     options?: { signal?: AbortSignal }
   ): Promise<string>
+
+  generateImageStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    imageOptions?: ImageGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneImageGenerationResult>
 
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>

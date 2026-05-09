@@ -380,6 +380,14 @@ export class Presenter implements IPresenter {
             temperature,
             maxTokens,
             options
+          ),
+        generateImageStandalone: (providerId, prompt, modelId, imageOptions, options) =>
+          this.llmproviderPresenter.generateImageStandalone(
+            providerId,
+            prompt,
+            modelId,
+            imageOptions,
+            options
           )
       }),
       cacheImage: (data) => this.devicePresenter.cacheImage(data),

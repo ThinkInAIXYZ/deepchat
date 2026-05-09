@@ -27,6 +27,7 @@ import {
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   SubagentOrchestratorTool
 } from './subagentOrchestratorTool'
+import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -119,6 +120,7 @@ export class AgentToolManager {
   private skillExecutionService: SkillExecutionService | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
   private subagentOrchestratorTool: SubagentOrchestratorTool | null = null
+  private imageGenerationTool: AgentImageGenerationTool | null = null
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
   private readonly fileSystemSchemas = {
@@ -279,6 +281,10 @@ export class AgentToolManager {
     this.commandPermissionHandler = options.commandPermissionHandler
     this.runtimePort = options.runtimePort
     this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
+    this.imageGenerationTool = new AgentImageGenerationTool({
+      configPresenter: this.configPresenter,
+      runtimePort: this.runtimePort
+    })
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -338,6 +344,19 @@ export class AgentToolManager {
 
     // 2. Built-in question tool (all modes)
     defs.push(...this.getQuestionToolDefinitions())
+
+    // 2.25. Image generation tool (deepchat agent sessions with an image model)
+    if (isAgentMode && this.imageGenerationTool) {
+      try {
+        if (await this.imageGenerationTool.canUse(context.conversationId)) {
+          defs.push(this.imageGenerationTool.getToolDefinition())
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve image generation tool availability', {
+          error
+        })
+      }
+    }
 
     // 2.5. Subagent orchestration tool (deepchat regular sessions only)
     if (isAgentMode && context.conversationId && this.subagentOrchestratorTool) {
@@ -434,6 +453,14 @@ export class AgentToolManager {
       }
 
       return await this.subagentOrchestratorTool.call(args, conversationId, options)
+    }
+
+    if (toolName === IMAGE_GENERATE_TOOL_NAME) {
+      if (!this.imageGenerationTool) {
+        throw new Error('Image generation tool is not available.')
+      }
+
+      return await this.imageGenerationTool.call(args, conversationId, options)
     }
 
     // Route to process tool

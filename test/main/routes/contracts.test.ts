@@ -545,6 +545,10 @@ describe('main kernel contracts', () => {
           },
           assistantModel: null,
           visionModel: null,
+          imageGenerationModel: {
+            providerId: 'openai',
+            modelId: 'gpt-image-1'
+          },
           systemPrompt: 'system',
           permissionMode: 'full_access',
           disabledAgentTools: ['tool-a'],
@@ -567,6 +571,10 @@ describe('main kernel contracts', () => {
         },
         assistantModel: null,
         visionModel: null,
+        imageGenerationModel: {
+          providerId: 'openai',
+          modelId: 'gpt-image-1'
+        },
         systemPrompt: 'system',
         permissionMode: 'full_access',
         disabledAgentTools: ['tool-a'],

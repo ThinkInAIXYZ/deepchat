@@ -367,6 +367,7 @@ export const DeepChatAgentConfigSchema = z
     defaultModelPreset: DeepChatAgentModelPresetSchema.nullable().optional(),
     assistantModel: ModelSelectionSchema.nullable().optional(),
     visionModel: ModelSelectionSchema.nullable().optional(),
+    imageGenerationModel: ModelSelectionSchema.nullable().optional(),
     systemPrompt: z.string().optional(),
     permissionMode: z.enum(['default', 'full_access']).optional(),
     disabledAgentTools: z.array(z.string()).optional(),

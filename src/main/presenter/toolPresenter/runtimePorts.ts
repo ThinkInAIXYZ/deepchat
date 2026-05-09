@@ -63,7 +63,7 @@ export interface AgentToolRuntimePort {
   getFilePresenter(): Pick<IFilePresenter, 'getMimeType' | 'prepareFileCompletely'>
   getLlmProviderPresenter(): Pick<
     ILlmProviderPresenter,
-    'executeWithRateLimit' | 'generateCompletionStandalone'
+    'executeWithRateLimit' | 'generateCompletionStandalone' | 'generateImageStandalone'
   >
   cacheImage?(data: string): Promise<string>
   createSettingsWindow(): ReturnType<IWindowPresenter['createSettingsWindow']>

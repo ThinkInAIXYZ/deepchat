@@ -28,6 +28,10 @@ import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
 import { cloneBlocksForRenderer } from './echo'
 import {
+  insertBlocksAfterToolCall,
+  prepareToolImagePreviewPresentation
+} from './imageGenerationBlocks'
+import {
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
   emitDeepChatInternalSessionUpdate,
@@ -56,6 +60,8 @@ type ToolExecutionContext = {
 type StagedToolResult = {
   toolCallId: string
   toolName: string
+  toolSource?: 'mcp' | 'agent'
+  serverName?: string
   toolArgs: string
   responseText: string
   isError: boolean
@@ -431,6 +437,8 @@ function buildToolErrorOutcome(
     stagedResult: {
       toolCallId: execution.completedToolCall.id,
       toolName: execution.completedToolCall.name,
+      toolSource: execution.toolDef?.source,
+      serverName: execution.toolContext.serverName,
       toolArgs: execution.completedToolCall.arguments,
       responseText: `Error: ${errorText}`,
       isError: true,
@@ -535,6 +543,13 @@ function applyFinalizedToolResults(params: {
       }
     }
 
+    const imagePresentation = prepareToolImagePreviewPresentation({
+      toolName: stagedResult.toolName,
+      toolSource: stagedResult.toolSource,
+      serverName: stagedResult.serverName,
+      isError: fittedResult.isError,
+      imagePreviews: stagedResult.imagePreviews
+    })
     updateToolCallBlock(
       state.blocks,
       fittedResult.toolCallId,
@@ -547,7 +562,12 @@ function applyFinalizedToolResults(params: {
             rtkMode: stagedResult.rtkMode,
             rtkFallbackReason: stagedResult.rtkFallbackReason
           },
-      stagedResult.imagePreviews
+      imagePresentation.toolBlockImagePreviews
+    )
+    insertBlocksAfterToolCall(
+      state.blocks,
+      fittedResult.toolCallId,
+      imagePresentation.promotedBlocks
     )
 
     if (fittedResult.isError) {
@@ -890,6 +910,8 @@ async function runToolCall(params: {
       stagedResult: {
         toolCallId: completedToolCall.id,
         toolName: completedToolCall.name,
+        toolSource: execution.toolDef?.source,
+        serverName: toolContext.serverName,
         toolArgs: completedToolCall.arguments,
         responseText: stagedResponseText,
         isError: stagedIsError,
@@ -1112,12 +1134,8 @@ export async function executeTools(
   for (const tc of state.completedToolCalls) {
     if (io.abortSignal.aborted) break
 
-    const { toolCall, toolContext, completedToolCall } = buildToolExecutionContext(
-      tc,
-      tools,
-      io.sessionId,
-      providerId
-    )
+    const execution = buildToolExecutionContext(tc, tools, io.sessionId, providerId)
+    const { toolCall, toolContext } = execution
 
     try {
       if (toolCall.function.name === QUESTION_TOOL_NAME) {
@@ -1192,11 +1210,7 @@ export async function executeTools(
       })
 
       const outcome = await runToolCall({
-        execution: {
-          toolCall,
-          toolContext,
-          completedToolCall
-        },
+        execution,
         toolPresenter,
         permissionMode,
         hooks,

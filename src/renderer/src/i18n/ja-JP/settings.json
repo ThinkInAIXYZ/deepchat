@@ -1855,6 +1855,7 @@
     "chatModel": "既定の会話モデル",
     "assistantModel": "アシスタントモデル",
     "visionModel": "視覚モデル",
+    "imageGenerationModel": "画像生成モデル",
     "temperature": "温度",
     "contextLength": "コンテキスト長",
     "maxTokens": "最大トークン数",

@@ -50,7 +50,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         }),
         getLlmProviderPresenter: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn()
+          generateCompletionStandalone: vi.fn(),
+          generateImageStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),

@@ -210,6 +210,7 @@ function createMockLlmProviderPresenter() {
     resolveAgentPermission: vi.fn().mockResolvedValue(undefined),
     executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateCompletionStandalone: vi.fn().mockResolvedValue('English screenshot summary'),
+    generateImageStandalone: vi.fn(),
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the session safely'].join('\n')
     })

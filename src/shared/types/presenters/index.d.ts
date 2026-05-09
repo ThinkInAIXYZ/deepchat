@@ -14,6 +14,7 @@ export type {
   MODEL_META,
   RateLimitQueueSnapshot,
   RENDERER_MODEL_META,
+  StandaloneImageGenerationResult,
   LLM_EMBEDDING_ATTRS,
   KeyStatus,
   AwsBedrockCredential,

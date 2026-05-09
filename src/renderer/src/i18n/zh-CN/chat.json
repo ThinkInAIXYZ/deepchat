@@ -49,6 +49,7 @@
       "groups": {
         "agentFilesystem": "文件系统",
         "agentCore": "核心工具",
+        "agentImageGeneration": "图像生成",
         "agentSkills": "技能工具",
         "deepchatSettings": "DeepChat 设置",
         "yobrowser": "YoBrowser"
