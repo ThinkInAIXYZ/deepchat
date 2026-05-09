@@ -16,7 +16,9 @@ function setText(node, value) {
 }
 
 function setMessage(value) {
-  setText(messageNode, value)
+  if (messageNode) {
+    messageNode.textContent = value || ''
+  }
 }
 
 function setState(enabled) {
