@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.4-beta.6 (2026-05-09)
+- Agents can now generate images right inside chat, with OpenAI image settings available when you want more control
+- Image previews and image actions feel smoother, especially around generated results and tool output
+- Long conversations should feel lighter when you scroll back through older messages
+- Sync and import are more forgiving when settings come from a different app version
+- Mac computer use got a couple of driver updates, so window handling, clicking, and app control should be steadier
+- Fixed a handful of everyday annoyances around Ollama, provider search, Windows command output, search docs, and empty computer-use settings messages
+- Agent 现在可以直接在聊天里生成图片；需要细调时，也能设置 OpenAI 图片生成选项
+- 图片预览和图片操作更顺了一些，生成结果和工具输出里的图片都更好处理
+- 长对话回看历史时会轻快一点，旧消息加载不再那么吃劲
+- 设置同步和导入更宽容了，从不同版本带来的备份也更稳
+- Mac 电脑使用能力升级了几轮驱动，窗口处理、点击和控制应用会更稳
+- 修了一批日常小毛病，包括 Ollama、模型服务商搜索、Windows 命令输出、搜索文档和电脑使用设置里的空提示
+
 ## v1.0.4-beta.5 (2026-05-04)
 - Added Mac computer use capability for enhanced desktop automation
 - Added launch at login and access controls for better app startup management
