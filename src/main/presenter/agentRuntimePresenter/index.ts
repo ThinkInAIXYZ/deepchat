@@ -103,6 +103,10 @@ import {
   emitDeepChatInternalSessionUpdate,
   extractWaitingInteraction
 } from './internalSessionEvents'
+import {
+  insertBlocksAfterToolCall,
+  prepareToolImagePreviewPresentation
+} from './imageGenerationBlocks'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -112,6 +116,8 @@ type PendingInteractionEntry = {
 type DeferredToolExecutionResult = {
   responseText: string
   isError: boolean
+  toolSource?: 'mcp' | 'agent'
+  serverName?: string
   offloadPath?: string
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
@@ -1029,6 +1035,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             this.setSessionStatus(sessionId, 'error')
             return { resumed: false }
           }
+          const imagePresentation = prepareToolImagePreviewPresentation({
+            toolName: toolCall.name || '',
+            toolSource: execution.toolSource,
+            serverName: execution.serverName,
+            isError: execution.isError,
+            imagePreviews: execution.imagePreviews
+          })
+
           this.updateToolCallResponse(
             blocks,
             toolCall.id,
@@ -1038,9 +1052,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               rtkApplied: execution.rtkApplied,
               rtkMode: execution.rtkMode,
               rtkFallbackReason: execution.rtkFallbackReason,
-              imagePreviews: execution.imagePreviews
+              imagePreviews: imagePresentation.toolBlockImagePreviews
             }
           )
+          insertBlocksAfterToolCall(blocks, toolCall.id, imagePresentation.promotedBlocks)
           resumeBudgetToolCall = {
             id: toolCall.id,
             name: toolCall.name || '',
@@ -4243,6 +4258,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return {
         responseText: prepared.content,
         isError: Boolean(rawData.isError),
+        toolSource: toolDefinition.source,
+        serverName: toolDefinition.server.name,
         offloadPath: prepared.offloadPath,
         rtkApplied: rawData.rtkApplied,
         rtkMode: rawData.rtkMode,

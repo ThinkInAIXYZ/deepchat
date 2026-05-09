@@ -1,8 +1,14 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import MessageBlockAudio from '@/components/message/MessageBlockAudio.vue'
 import MessageBlockImage from '@/components/message/MessageBlockImage.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key
+  })
+}))
 
 const createBlock = (
   overrides: Partial<DisplayAssistantMessageBlock> = {}

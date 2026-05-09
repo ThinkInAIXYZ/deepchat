@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolPresenter } from '@/presenter/toolPresenter'
 import { CommandPermissionService } from '@/presenter/permission'
+import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 
 vi.mock('electron', () => ({
   app: {
@@ -27,6 +28,95 @@ const buildToolDefinition = (name: string, serverName: string): MCPToolDefinitio
 })
 
 describe('ToolPresenter', () => {
+  it('reserves image_generate for the built-in agent tool when MCP exposes the same name', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi
+        .fn()
+        .mockResolvedValue([buildToolDefinition(IMAGE_GENERATE_TOOL_NAME, 'mcp-images')]),
+      callTool: vi.fn()
+    } as any
+
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: {
+        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
+        getSkillPresenter: () =>
+          ({
+            getActiveSkills: vi.fn().mockResolvedValue([]),
+            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+            listSkillScripts: vi.fn().mockResolvedValue([]),
+            getSkillExtension: vi.fn().mockResolvedValue({
+              version: 1,
+              env: {},
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              scriptOverrides: {}
+            })
+          }) as any,
+        getYoBrowserToolHandler: () => ({
+          getToolDefinitions: vi.fn().mockReturnValue([]),
+          callTool: vi.fn()
+        }),
+        getFilePresenter: () => ({
+          getMimeType: vi.fn(),
+          prepareFileCompletely: vi.fn()
+        }),
+        getLlmProviderPresenter: () => ({
+          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+          generateCompletionStandalone: vi.fn(),
+          generateImageStandalone: vi.fn()
+        }),
+        createSettingsWindow: vi.fn(),
+        sendToWindow: vi.fn().mockReturnValue(true),
+        getApprovedFilePaths: vi.fn().mockReturnValue([]),
+        consumeSettingsApproval: vi.fn().mockReturnValue(false)
+      }
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\\\workspace'
+    })
+    const imageGenerateDefs = defs.filter((def) => def.function.name === IMAGE_GENERATE_TOOL_NAME)
+
+    expect(imageGenerateDefs).toHaveLength(1)
+    expect(imageGenerateDefs[0].source).toBe('agent')
+    expect(imageGenerateDefs[0].server.name).toBe('agent-image-generation')
+
+    const agentToolManager = (toolPresenter as any).agentToolManager
+    const callToolSpy = vi.fn().mockResolvedValue('agent-image')
+    agentToolManager.callTool = callToolSpy
+
+    await toolPresenter.callTool({
+      id: 'tool-1',
+      type: 'function',
+      function: {
+        name: IMAGE_GENERATE_TOOL_NAME,
+        arguments: '{"prompt":"sunset"}'
+      },
+      conversationId: 'conv-1'
+    })
+
+    expect(callToolSpy).toHaveBeenCalledWith(
+      IMAGE_GENERATE_TOOL_NAME,
+      { prompt: 'sunset' },
+      'conv-1',
+      expect.objectContaining({
+        toolCallId: 'tool-1'
+      })
+    )
+    expect(mcpPresenter.callTool).not.toHaveBeenCalled()
+  })
+
   it('deduplicates agent tools when MCP tool names overlap', async () => {
     const mcpDefs = [buildToolDefinition('shared', 'mcp')]
     const mcpPresenter = {
@@ -71,7 +161,8 @@ describe('ToolPresenter', () => {
         }),
         getLlmProviderPresenter: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn()
+          generateCompletionStandalone: vi.fn(),
+          generateImageStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
@@ -126,7 +217,8 @@ describe('ToolPresenter', () => {
       }),
       getLlmProviderPresenter: () => ({
         executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn()
+        generateCompletionStandalone: vi.fn(),
+        generateImageStandalone: vi.fn()
       }),
       createSettingsWindow: vi.fn(),
       sendToWindow: vi.fn().mockReturnValue(true),
@@ -230,7 +322,8 @@ describe('ToolPresenter', () => {
       }),
       getLlmProviderPresenter: () => ({
         executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn()
+        generateCompletionStandalone: vi.fn(),
+        generateImageStandalone: vi.fn()
       }),
       createSettingsWindow: vi.fn(),
       sendToWindow: vi.fn().mockReturnValue(true),
@@ -302,7 +395,8 @@ describe('ToolPresenter', () => {
         }),
         getLlmProviderPresenter: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn()
+          generateCompletionStandalone: vi.fn(),
+          generateImageStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
@@ -389,7 +483,8 @@ describe('ToolPresenter', () => {
         }),
         getLlmProviderPresenter: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn()
+          generateCompletionStandalone: vi.fn(),
+          generateImageStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
@@ -468,7 +563,8 @@ describe('ToolPresenter', () => {
       }),
       getLlmProviderPresenter: () => ({
         executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn()
+        generateCompletionStandalone: vi.fn(),
+        generateImageStandalone: vi.fn()
       }),
       createSettingsWindow: vi.fn(),
       sendToWindow: vi.fn().mockReturnValue(true),
@@ -566,7 +662,8 @@ describe('ToolPresenter', () => {
         }),
         getLlmProviderPresenter: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn()
+          generateCompletionStandalone: vi.fn(),
+          generateImageStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),

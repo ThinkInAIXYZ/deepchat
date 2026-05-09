@@ -15,6 +15,10 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
+import {
+  IMAGE_GENERATE_TOOL_NAME,
+  IMAGE_GENERATION_TOOL_SERVER_NAME
+} from '@shared/agentImageGenerationTool'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToRenderer: vi.fn() },
@@ -84,6 +88,17 @@ function makeAgentTool(name: string): MCPToolDefinition {
   return {
     ...makeTool(name),
     source: 'agent'
+  }
+}
+
+function makeAgentImageGenerationTool(): MCPToolDefinition {
+  return {
+    ...makeAgentTool(IMAGE_GENERATE_TOOL_NAME),
+    server: {
+      name: IMAGE_GENERATION_TOOL_SERVER_NAME,
+      icons: 'icon',
+      description: 'Agent image generation tools'
+    }
   }
 }
 
@@ -1335,6 +1350,195 @@ describe('dispatch', () => {
           data: 'imgcache://cached.png',
           mimeType: 'image/png',
           source: 'mcp_image'
+        }
+      ])
+      expect(state.blocks).toHaveLength(1)
+    })
+
+    it('promotes image_generate previews into assistant image blocks', async () => {
+      const tools = [makeAgentImageGenerationTool()]
+      const toolPresenter = {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        callTool: vi.fn(async (request) => ({
+          content: '{"ok":true,"imageCount":1}',
+          rawData: {
+            toolCallId: request.id,
+            content: '{"ok":true,"imageCount":1}',
+            isError: false,
+            imagePreviews: [
+              {
+                id: 'generated-image-1',
+                data: 'imgcache://generated.png',
+                mimeType: 'image/png',
+                title: 'Generated image 1',
+                source: 'tool_output'
+              }
+            ]
+          }
+        })),
+        buildToolSystemPrompt: vi.fn().mockReturnValue('')
+      } as unknown as IToolPresenter
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: IMAGE_GENERATE_TOOL_NAME, params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: IMAGE_GENERATE_TOOL_NAME, arguments: '{}' }]
+
+      await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(state.blocks).toHaveLength(2)
+      expect(state.blocks[0]).toEqual(
+        expect.objectContaining({
+          type: 'tool_call',
+          status: 'success'
+        })
+      )
+      expect(state.blocks[0].tool_call?.imagePreviews).toBeUndefined()
+      expect(state.blocks[1]).toEqual(
+        expect.objectContaining({
+          type: 'image',
+          status: 'success',
+          image_data: {
+            data: 'imgcache://generated.png',
+            mimeType: 'image/png'
+          }
+        })
+      )
+    })
+
+    it('does not promote same-name MCP image_generate previews', async () => {
+      const tools = [makeTool(IMAGE_GENERATE_TOOL_NAME)]
+      const toolPresenter = {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        callTool: vi.fn(async (request) => ({
+          content: '{"ok":true,"imageCount":1}',
+          rawData: {
+            toolCallId: request.id,
+            content: '{"ok":true,"imageCount":1}',
+            isError: false,
+            imagePreviews: [
+              {
+                id: 'mcp-generated-image-1',
+                data: 'imgcache://mcp-generated.png',
+                mimeType: 'image/png',
+                source: 'tool_output'
+              }
+            ]
+          }
+        })),
+        buildToolSystemPrompt: vi.fn().mockReturnValue('')
+      } as unknown as IToolPresenter
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: IMAGE_GENERATE_TOOL_NAME, params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: IMAGE_GENERATE_TOOL_NAME, arguments: '{}' }]
+
+      await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toEqual(
+        expect.objectContaining({
+          type: 'tool_call',
+          status: 'success'
+        })
+      )
+      expect(state.blocks[0].tool_call?.imagePreviews).toEqual([
+        {
+          id: 'mcp-generated-image-1',
+          data: 'imgcache://mcp-generated.png',
+          mimeType: 'image/png',
+          source: 'tool_output'
+        }
+      ])
+    })
+
+    it('does not promote image_generate previews when the tool result is an error', async () => {
+      const tools = [makeAgentImageGenerationTool()]
+      const toolPresenter = {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        callTool: vi.fn(async (request) => ({
+          content: 'generation failed',
+          rawData: {
+            toolCallId: request.id,
+            content: 'generation failed',
+            isError: true,
+            imagePreviews: [
+              {
+                id: 'generated-image-1',
+                data: 'imgcache://partial.png',
+                mimeType: 'image/png',
+                source: 'tool_output'
+              }
+            ]
+          }
+        })),
+        buildToolSystemPrompt: vi.fn().mockReturnValue('')
+      } as unknown as IToolPresenter
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: IMAGE_GENERATE_TOOL_NAME, params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: IMAGE_GENERATE_TOOL_NAME, arguments: '{}' }]
+
+      await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0].status).toBe('error')
+      expect(state.blocks[0].tool_call?.imagePreviews).toEqual([
+        {
+          id: 'generated-image-1',
+          data: 'imgcache://partial.png',
+          mimeType: 'image/png',
+          source: 'tool_output'
         }
       ])
     })

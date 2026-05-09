@@ -1855,6 +1855,7 @@
     "chatModel": "Модель чата по умолчанию",
     "assistantModel": "Модель помощника",
     "visionModel": "Визуальная модель",
+    "imageGenerationModel": "Модель генерации изображений",
     "temperature": "Температура",
     "contextLength": "Длина контекста",
     "maxTokens": "Макс. токенов",

@@ -260,6 +260,7 @@
                   <ModelSelect
                     :exclude-providers="['acp']"
                     :respect-chat-mode="false"
+                    :type="getModelSelectTypes(field.key)"
                     :vision-only="field.key === 'visionModel'"
                     @update:model="(model, providerId) => selectModel(field.key, model, providerId)"
                   />
@@ -638,6 +639,7 @@ import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useModelStore } from '@/stores/modelStore'
+import { ModelType } from '@shared/model'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   Agent,
@@ -653,7 +655,7 @@ import {
   normalizeDeepChatSubagentSlots
 } from '@shared/lib/deepchatSubagents'
 
-type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel'
+type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel' | 'imageGenerationModel'
 type AvatarKind = 'default' | 'lucide' | 'monogram'
 type EditableModel = { providerId: string; modelId: string } | null
 type SidebarAgentItem = {
@@ -690,6 +692,7 @@ type FormState = {
   chatModel: EditableModel
   assistantModel: EditableModel
   visionModel: EditableModel
+  imageGenerationModel: EditableModel
   defaultProjectPath: string
   systemPrompt: string
   permissionMode: PermissionMode
@@ -713,6 +716,7 @@ const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
 const GROUP_ORDER = [
   'agent-filesystem',
   'agent-core',
+  'agent-image-generation',
   'agent-skills',
   'deepchat-settings',
   'yobrowser'
@@ -733,6 +737,7 @@ const selectedAgentId = ref<string | null>(null)
 const chatOpen = ref(false)
 const assistantOpen = ref(false)
 const visionOpen = ref(false)
+const imageGenerationOpen = ref(false)
 const systemPromptDialogOpen = ref(false)
 const loadingSystemPrompts = ref(false)
 const systemPromptTemplates = ref<SystemPrompt[]>([])
@@ -752,6 +757,7 @@ const form = reactive<FormState>({
   chatModel: null,
   assistantModel: null,
   visionModel: null,
+  imageGenerationModel: null,
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
@@ -788,7 +794,16 @@ const modelFields = computed(() => [
     label: t('settings.deepchatAgents.assistantModel'),
     open: assistantOpen
   },
-  { key: 'visionModel' as const, label: t('settings.deepchatAgents.visionModel'), open: visionOpen }
+  {
+    key: 'visionModel' as const,
+    label: t('settings.deepchatAgents.visionModel'),
+    open: visionOpen
+  },
+  {
+    key: 'imageGenerationModel' as const,
+    label: t('settings.deepchatAgents.imageGenerationModel'),
+    open: imageGenerationOpen
+  }
 ])
 const permissionOptions = computed(() => [
   {
@@ -982,6 +997,7 @@ const emptyForm = (): FormState => ({
   chatModel: null,
   assistantModel: null,
   visionModel: null,
+  imageGenerationModel: null,
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
@@ -1078,6 +1094,12 @@ const fromAgent = (agent?: Agent | null): FormState => {
     visionModel: config.visionModel
       ? { providerId: config.visionModel.providerId, modelId: config.visionModel.modelId }
       : null,
+    imageGenerationModel: config.imageGenerationModel
+      ? {
+          providerId: config.imageGenerationModel.providerId,
+          modelId: config.imageGenerationModel.modelId
+        }
+      : null,
     defaultProjectPath: normalizePath(config.defaultProjectPath) ?? '',
     systemPrompt: config.systemPrompt ?? '',
     permissionMode: config.permissionMode === 'default' ? 'default' : 'full_access',
@@ -1113,6 +1135,8 @@ const modelText = (selection: EditableModel | undefined) => {
 }
 const getModelLabel = (key: ModelKey) => modelText(form[key])
 const getModelIconId = (key: ModelKey) => form[key]?.modelId ?? ''
+const getModelSelectTypes = (key: ModelKey) =>
+  key === 'imageGenerationModel' ? [ModelType.ImageGeneration] : undefined
 const getSubagentTargetValue = (slot: EditableSubagentSlot) =>
   slot.targetType === 'self'
     ? CURRENT_SUBAGENT_TARGET
@@ -1165,6 +1189,7 @@ const selectModel = (key: ModelKey, model: RENDERER_MODEL_META, providerId: stri
   if (key === 'chatModel') chatOpen.value = false
   if (key === 'assistantModel') assistantOpen.value = false
   if (key === 'visionModel') visionOpen.value = false
+  if (key === 'imageGenerationModel') imageGenerationOpen.value = false
 }
 const loadSystemPromptTemplates = async () => {
   loadingSystemPrompts.value = true
@@ -1295,6 +1320,7 @@ const saveAgent = async () => {
           : null,
         assistantModel: form.assistantModel,
         visionModel: form.visionModel,
+        imageGenerationModel: form.imageGenerationModel,
         defaultProjectPath: normalizePath(form.defaultProjectPath),
         systemPrompt: form.systemPrompt,
         permissionMode: form.permissionMode,

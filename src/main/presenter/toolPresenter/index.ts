@@ -10,7 +10,7 @@ import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
-import { AgentToolManager, type AgentToolCallResult } from './agentTools'
+import { AgentToolManager, IMAGE_GENERATE_TOOL_NAME, type AgentToolCallResult } from './agentTools'
 import type { AgentToolRuntimePort } from './runtimePorts'
 import {
   createAgentToolErrorResult,
@@ -87,7 +87,10 @@ interface ToolPresenterOptions {
 
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'exec', 'process']
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
-const RESERVED_AGENT_TOOL_NAMES = new Set<string>(YO_BROWSER_TOOL_NAMES)
+const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
+  ...YO_BROWSER_TOOL_NAMES,
+  IMAGE_GENERATE_TOOL_NAME
+])
 
 const withToolSource = (tools: MCPToolDefinition[], source: 'mcp' | 'agent'): MCPToolDefinition[] =>
   tools.map((tool) => ({
@@ -449,6 +452,7 @@ export class ToolPresenter implements IToolPresenter {
     const sections = [
       this.buildFilesystemPrompt(toolNames, offloadPath),
       this.buildQuestionPrompt(toolNames),
+      this.buildImageGenerationPrompt(toolNames),
       this.buildSkillsPrompt(toolNames),
       this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
       this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
@@ -587,6 +591,19 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     return hasContent ? lines.join('\n') : ''
+  }
+
+  private buildImageGenerationPrompt(toolNames: Set<string>): string {
+    if (!toolNames.has(IMAGE_GENERATE_TOOL_NAME)) {
+      return ''
+    }
+
+    return [
+      '## Image Generation Tool',
+      `Use \`${IMAGE_GENERATE_TOOL_NAME}\` when the user asks to create, draw, render, or generate a new image.`,
+      'Keep the prompt visual and specific. Include subject, style, composition, lighting, mood, and important constraints from the user.',
+      'Do not use this tool for describing an existing image or reading image files; use the appropriate vision or file tool for that.'
+    ].join('\n')
   }
 
   private buildSettingsPrompt(tools: MCPToolDefinition[]): string {

@@ -36,6 +36,7 @@ describe('AgentToolManager read routing', () => {
   let llmProviderPresenter: {
     executeWithRateLimit: ReturnType<typeof vi.fn>
     generateCompletionStandalone: ReturnType<typeof vi.fn>
+    generateImageStandalone: ReturnType<typeof vi.fn>
   }
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
   let resolveConversationSessionInfo: ReturnType<typeof vi.fn>
@@ -49,7 +50,8 @@ describe('AgentToolManager read routing', () => {
     }
     llmProviderPresenter = {
       executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-      generateCompletionStandalone: vi.fn()
+      generateCompletionStandalone: vi.fn(),
+      generateImageStandalone: vi.fn()
     }
     resolveConversationWorkdir = vi.fn().mockResolvedValue(null)
     resolveConversationSessionInfo = vi.fn().mockResolvedValue({

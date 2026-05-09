@@ -1855,6 +1855,7 @@
     "chatModel": "Standard chatmodel",
     "assistantModel": "Assistentmodel",
     "visionModel": "Vision-model",
+    "imageGenerationModel": "Billedgenereringsmodel",
     "temperature": "Temperatur",
     "contextLength": "Kontekstlængde",
     "maxTokens": "Maks. tokens",

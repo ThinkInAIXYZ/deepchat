@@ -1855,6 +1855,7 @@
     "chatModel": "مدل پیش‌فرض گفتگو",
     "assistantModel": "مدل دستیار",
     "visionModel": "مدل بصری",
+    "imageGenerationModel": "مدل تولید تصویر",
     "temperature": "دما",
     "contextLength": "طول کانتکست",
     "maxTokens": "حداکثر توکن",

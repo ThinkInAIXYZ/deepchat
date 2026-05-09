@@ -874,6 +874,13 @@ export type LLM_EMBEDDING_ATTRS = {
   normalized: boolean
 }
 
+export type StandaloneImageGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: ImageGenerationOptions
+  images: Array<{ data: string; mimeType: string }>
+}
+
 export type AcpDebugActionType =
   | 'initialize'
   | 'newSession'
@@ -1214,6 +1221,13 @@ export interface ILlmProviderPresenter {
     maxTokens?: number,
     options?: { signal?: AbortSignal }
   ): Promise<string>
+  generateImageStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    imageOptions?: ImageGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneImageGenerationResult>
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
   warmupAcpProcess(agentId: string, workdir?: string): Promise<void>

@@ -3,6 +3,7 @@ import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPre
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
 import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 
 const {
   mockRunAiSdkCoreStream,
@@ -362,6 +363,53 @@ describe('LLMProviderPresenter Integration Tests', () => {
 
       expect(typeof response).toBe('string')
       expect(response.length).toBeGreaterThan(0)
+    }, 15000)
+
+    it('should generate images through the standalone image runtime', async () => {
+      mockConfigPresenter.getModelConfig = vi.fn().mockReturnValue({
+        maxTokens: 4096,
+        contextLength: 4096,
+        temperature: 0.7,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.ImageGeneration,
+        imageGeneration: { quality: 'low' }
+      })
+      mockRunAiSdkCoreStream.mockImplementationOnce(async function* () {
+        yield {
+          type: 'image_data',
+          image_data: { data: 'imgcache://generated.png', mimeType: 'image/png' }
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+
+      const response = await llmProviderPresenter.generateImageStandalone(
+        'mock-openai-api',
+        'A warm sunset over the ocean',
+        'gpt-image-1',
+        { size: '1024x1024' }
+      )
+
+      expect(response).toEqual({
+        providerId: 'mock-openai-api',
+        modelId: 'gpt-image-1',
+        options: { quality: 'low', size: '1024x1024' },
+        images: [{ data: 'imgcache://generated.png', mimeType: 'image/png' }]
+      })
+      expect(mockRunAiSdkCoreStream).toHaveBeenCalledWith(
+        expect.any(Object),
+        [{ role: 'user', content: 'A warm sunset over the ocean' }],
+        'gpt-image-1',
+        expect.objectContaining({
+          apiEndpoint: ApiEndpointType.Image,
+          type: ModelType.ImageGeneration,
+          imageGeneration: { quality: 'low', size: '1024x1024' }
+        }),
+        0.7,
+        4096,
+        []
+      )
     }, 15000)
 
     it('should summarize titles', async () => {

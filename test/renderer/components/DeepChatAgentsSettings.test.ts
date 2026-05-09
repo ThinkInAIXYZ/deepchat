@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { ModelType } from '../../../src/shared/model'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -70,6 +71,10 @@ const DropdownMenuItemStub = defineComponent({
 vi.mock('@/components/ModelSelect.vue', () => ({
   default: defineComponent({
     name: 'ModelSelect',
+    props: {
+      type: { type: Array, default: undefined },
+      visionOnly: { type: Boolean, default: false }
+    },
     template: '<div data-testid="model-select-stub"></div>'
   })
 }))
@@ -104,6 +109,7 @@ describe('DeepChatAgentsSettings', () => {
         },
         assistantModel: null,
         visionModel: null,
+        imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' },
         systemPrompt: 'system prompt',
         permissionMode: 'default',
         disabledAgentTools: ['tool_beta'],
@@ -142,13 +148,23 @@ describe('DeepChatAgentsSettings', () => {
       allProviderModels: [
         {
           providerId: 'openai',
-          models: [{ id: 'gpt-4.1', name: 'GPT-4.1' }]
+          models: [
+            { id: 'gpt-4.1', name: 'GPT-4.1' },
+            { id: 'gpt-image-1', name: 'GPT Image 1', type: ModelType.ImageGeneration }
+          ]
         }
       ],
-      findModelByIdOrName: vi.fn(() => ({
-        providerId: 'openai',
-        model: { id: 'gpt-4.1', name: 'GPT-4.1' }
-      }))
+      findModelByIdOrName: vi.fn((modelId: string) =>
+        modelId === 'gpt-image-1'
+          ? {
+              providerId: 'openai',
+              model: { id: 'gpt-image-1', name: 'GPT Image 1', type: ModelType.ImageGeneration }
+            }
+          : {
+              providerId: 'openai',
+              model: { id: 'gpt-4.1', name: 'GPT-4.1' }
+            }
+      )
     }
 
     vi.doMock('@api/legacy/presenters', () => ({
@@ -218,7 +234,11 @@ describe('DeepChatAgentsSettings', () => {
     expect(wrapper.text()).not.toContain('settings.deepchatAgents.verbosity')
     expect(wrapper.text()).not.toContain('settings.deepchatAgents.interleaved')
     expect(wrapper.text()).toContain('GPT-4.1')
+    expect(wrapper.text()).toContain('GPT Image 1')
     expect(wrapper.text()).not.toContain('openai/gpt-4.1')
+    expect(wrapper.text().indexOf('settings.deepchatAgents.visionModel')).toBeLessThan(
+      wrapper.text().indexOf('settings.deepchatAgents.imageGenerationModel')
+    )
 
     const saveButton = wrapper
       .findAll('button')
@@ -243,6 +263,7 @@ describe('DeepChatAgentsSettings', () => {
         },
         assistantModel: null,
         visionModel: null,
+        imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' },
         defaultProjectPath: null,
         systemPrompt: 'system prompt',
         permissionMode: 'default',
@@ -256,6 +277,116 @@ describe('DeepChatAgentsSettings', () => {
       providerId: 'openai',
       modelId: 'gpt-4.1'
     })
+    expect(payload.config.imageGenerationModel).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-image-1'
+    })
+  })
+
+  it('filters the image generation model selector to image models', async () => {
+    vi.resetModules()
+
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: null,
+        assistantModel: null,
+        visionModel: null,
+        imageGenerationModel: null,
+        systemPrompt: '',
+        permissionMode: 'default',
+        disabledAgentTools: []
+      }
+    }
+    const configPresenter = {
+      listAgents: vi.fn().mockResolvedValue([existingAgent]),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
+      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+    }
+    const toolPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    }
+    const projectPresenter = {
+      getRecentProjects: vi.fn().mockResolvedValue([]),
+      selectDirectory: vi.fn().mockResolvedValue(null)
+    }
+
+    vi.doMock('@api/legacy/presenters', () => ({
+      useLegacyPresenter: (name: string) => {
+        if (name === 'configPresenter') return configPresenter
+        if (name === 'projectPresenter') return projectPresenter
+        if (name === 'toolPresenter') return toolPresenter
+        return {}
+      }
+    }))
+    vi.doMock('@/stores/modelStore', () => ({
+      useModelStore: () => ({
+        allProviderModels: [],
+        findModelByIdOrName: vi.fn(() => null)
+      })
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+    vi.doMock('@iconify/vue', () => ({
+      Icon: {
+        name: 'Icon',
+        template: '<span />'
+      }
+    }))
+
+    const DeepChatAgentsSettings = (
+      await import('../../../src/renderer/settings/components/DeepChatAgentsSettings.vue')
+    ).default
+
+    const wrapper = mount(DeepChatAgentsSettings, {
+      global: {
+        stubs: {
+          Button: ButtonStub,
+          Badge: passthrough('Badge'),
+          Input: InputStub,
+          Textarea: TextareaStub,
+          Switch: SwitchStub,
+          Dialog: DialogStub,
+          DialogContent: passthrough('DialogContent'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: DropdownMenuItemStub,
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          Popover: passthrough('Popover'),
+          PopoverContent: passthrough('PopoverContent'),
+          PopoverTrigger: passthrough('PopoverTrigger'),
+          Select: passthrough('Select'),
+          SelectContent: passthrough('SelectContent'),
+          SelectItem: passthrough('SelectItem'),
+          SelectTrigger: passthrough('SelectTrigger'),
+          SelectValue: passthrough('SelectValue'),
+          AgentAvatar: passthrough('AgentAvatar'),
+          ModelIcon: passthrough('ModelIcon'),
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const modelSelects = wrapper.findAllComponents({ name: 'ModelSelect' })
+    expect(modelSelects).toHaveLength(4)
+    expect(modelSelects[2].props('visionOnly')).toBe(true)
+    expect(modelSelects[3].props('type')).toEqual([ModelType.ImageGeneration])
   })
 
   it('keeps the editor header sticky so save actions stay visible while scrolling', async () => {
