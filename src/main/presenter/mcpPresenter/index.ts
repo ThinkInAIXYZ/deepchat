@@ -56,6 +56,15 @@ export class McpPresenter implements IMCPPresenter {
     return Boolean(this.configPresenter.getPrivacyModeEnabled())
   }
 
+  private isPluginOwnedServerConfig(config?: Partial<MCPServerConfig> | null): boolean {
+    return Boolean(config?.ownerPluginId || config?.source === 'plugin')
+  }
+
+  private async isPluginOwnedServerName(serverName: string): Promise<boolean> {
+    const servers = await this.configPresenter.getMcpServers()
+    return this.isPluginOwnedServerConfig(servers[serverName])
+  }
+
   async initialize() {
     if (this.isInitialized) {
       return
@@ -70,9 +79,10 @@ export class McpPresenter implements IMCPPresenter {
       }
 
       // Load configuration
-      const [servers, enabledServers] = await Promise.all([
+      const [servers, enabledServers, mcpEnabled] = await Promise.all([
         this.configPresenter.getMcpServers(),
-        this.configPresenter.getEnabledMcpServers()
+        this.configPresenter.getEnabledMcpServers(),
+        this.configPresenter.getMcpEnabled()
       ])
 
       // Initialize npm registry (prefer cache if available)
@@ -90,7 +100,7 @@ export class McpPresenter implements IMCPPresenter {
 
       // Check and start deepchat-inmemory/custom-prompts-server
       const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
-      if (servers[customPromptsServerName]) {
+      if (mcpEnabled && servers[customPromptsServerName]) {
         console.log(`[MCP] Attempting to start custom prompts server: ${customPromptsServerName}`)
 
         try {
@@ -109,7 +119,8 @@ export class McpPresenter implements IMCPPresenter {
 
       if (enabledServers.length > 0) {
         for (const serverName of enabledServers) {
-          if (servers[serverName]) {
+          const serverConfig = servers[serverName]
+          if (serverConfig && (mcpEnabled || this.isPluginOwnedServerConfig(serverConfig))) {
             console.log(`[MCP] Attempting to start enabled server: ${serverName}`)
 
             try {
@@ -241,7 +252,11 @@ export class McpPresenter implements IMCPPresenter {
 
   // Get all MCP servers
   async getMcpClients(): Promise<McpClient[]> {
-    const clients = await this.toolManager.getRunningClients()
+    const enabled = await this.configPresenter.getMcpEnabled()
+    const servers = await this.configPresenter.getMcpServers()
+    const clients = (await this.toolManager.getRunningClients()).filter(
+      (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
+    )
     const clientsList: McpClient[] = []
     for (const client of clients) {
       const results: MCPToolDefinition[] = []
@@ -330,7 +345,12 @@ export class McpPresenter implements IMCPPresenter {
   async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
     await this.configPresenter.setMcpServerEnabled(serverName, enabled)
 
-    if (!(await this.configPresenter.getMcpEnabled())) {
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[serverName]
+    if (
+      !this.isPluginOwnedServerConfig(serverConfig) &&
+      !(await this.configPresenter.getMcpEnabled())
+    ) {
       return
     }
 
@@ -408,12 +428,19 @@ export class McpPresenter implements IMCPPresenter {
     // Notify renderer process that server has stopped
     eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
   }
+
+  getServerLastError(serverName: string): string | undefined {
+    return this.serverManager.getServerLastError(serverName)
+  }
+
   async getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]> {
     const enabled = await this.configPresenter.getMcpEnabled()
+    const tools = await this.toolManager.getAllToolDefinitions(enabledMcpTools)
     if (enabled) {
-      return await this.toolManager.getAllToolDefinitions(enabledMcpTools)
+      return tools
     }
-    return []
+    const servers = await this.configPresenter.getMcpServers()
+    return tools.filter((tool) => this.isPluginOwnedServerConfig(servers[tool.server.name]))
   }
 
   /**
@@ -422,11 +449,10 @@ export class McpPresenter implements IMCPPresenter {
    */
   async getAllPrompts(): Promise<Array<PromptListEntry>> {
     const enabled = await this.configPresenter.getMcpEnabled()
-    if (!enabled) {
-      return []
-    }
-
-    const clients = await this.toolManager.getRunningClients()
+    const servers = await this.configPresenter.getMcpServers()
+    const clients = (await this.toolManager.getRunningClients()).filter(
+      (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
+    )
     const promptsList: Array<Prompt & { client: { name: string; icon: string } }> = []
 
     for (const client of clients) {
@@ -468,11 +494,10 @@ export class McpPresenter implements IMCPPresenter {
     Array<ResourceListEntry & { client: { name: string; icon: string } }>
   > {
     const enabled = await this.configPresenter.getMcpEnabled()
-    if (!enabled) {
-      return []
-    }
-
-    const clients = await this.toolManager.getRunningClients()
+    const servers = await this.configPresenter.getMcpServers()
+    const clients = (await this.toolManager.getRunningClients()).filter(
+      (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
+    )
     const resourcesList: Array<ResourceListEntry & { client: { name: string; icon: string } }> = []
 
     for (const client of clients) {
@@ -657,8 +682,12 @@ export class McpPresenter implements IMCPPresenter {
     await this.configPresenter?.setMcpEnabled(enabled)
 
     if (enabled) {
+      const servers = await this.configPresenter.getMcpServers()
       const enabledServers = await this.configPresenter.getEnabledMcpServers()
       for (const serverName of enabledServers) {
+        if (this.isPluginOwnedServerConfig(servers[serverName])) {
+          continue
+        }
         try {
           await this.startServer(serverName)
         } catch (error) {
@@ -669,7 +698,11 @@ export class McpPresenter implements IMCPPresenter {
     }
 
     const runningClients = await this.serverManager.getRunningClients()
+    const servers = await this.configPresenter.getMcpServers()
     for (const client of runningClients) {
+      if (this.isPluginOwnedServerConfig(servers[client.serverName])) {
+        continue
+      }
       try {
         await this.stopServer(client.serverName)
       } catch (error) {
@@ -712,7 +745,7 @@ export class McpPresenter implements IMCPPresenter {
 
     // For MCP server prompts, check if MCP is enabled
     const enabled = await this.configPresenter.getMcpEnabled()
-    if (!enabled) {
+    if (!enabled && !(await this.isPluginOwnedServerName(prompt.client.name))) {
       throw new Error('MCP functionality is disabled')
     }
 
@@ -727,7 +760,7 @@ export class McpPresenter implements IMCPPresenter {
    */
   async readResource(resource: ResourceListEntry): Promise<Resource> {
     const enabled = await this.configPresenter.getMcpEnabled()
-    if (!enabled) {
+    if (!enabled && !(await this.isPluginOwnedServerName(resource.client.name))) {
       throw new Error('MCP functionality is disabled')
     }
 

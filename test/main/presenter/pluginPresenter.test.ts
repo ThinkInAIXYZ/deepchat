@@ -40,6 +40,7 @@ type CreatePluginPresenterOptions = {
   appPath?: string
   isPackaged?: boolean
   resourcesPath?: string
+  mcpEnabled?: boolean
 }
 
 const createPluginPresenter = async (
@@ -61,7 +62,7 @@ const createPluginPresenter = async (
     removeMcpServer: vi.fn().mockImplementation(async (serverName: string) => {
       delete mcpServers[serverName]
     }),
-    getMcpEnabled: vi.fn().mockResolvedValue(true)
+    getMcpEnabled: vi.fn().mockResolvedValue(options.mcpEnabled ?? true)
   }
   const mcpPresenter = {
     isReady: vi.fn(() => true),
@@ -72,7 +73,7 @@ const createPluginPresenter = async (
   const skillPresenter = {
     unregisterPluginSkillsByOwner: vi.fn().mockResolvedValue(undefined)
   }
-  return new PluginPresenter({
+  const presenter = new PluginPresenter({
     platform,
     appPath: options.appPath ?? process.cwd(),
     isPackaged: options.isPackaged,
@@ -81,6 +82,13 @@ const createPluginPresenter = async (
     mcpPresenter,
     skillPresenter
   } as any)
+  return Object.assign(presenter, {
+    __mocks: {
+      configPresenter,
+      mcpPresenter,
+      skillPresenter
+    }
+  })
 }
 
 const createBundledFixture = async (
@@ -277,7 +285,20 @@ describe('PluginPresenter', () => {
     expect(presenterSource).toContain('resolvePluginTemplateRecord')
     expect(presenterSource).toContain('startPluginMcpServersIfReady')
     expect(presenterSource).toContain('this.mcpPresenter.startServer(serverName)')
-    expect(presenterSource).toContain('this.configPresenter.getMcpEnabled()')
+    expect(presenterSource).not.toContain('if (!(await this.configPresenter.getMcpEnabled()))')
+  })
+
+  it('starts plugin MCP servers even when the global MCP switch is off', async () => {
+    const fixture = await createBundledFixture()
+    const presenter = await createPluginPresenter('darwin', {
+      appPath: fixture.appPath,
+      mcpEnabled: false
+    })
+
+    const result = await presenter.enablePlugin(fixture.pluginId)
+
+    expect(result.ok).toBe(true)
+    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-runtime')
   })
 
   it('declares the CUA MCP server with plugin helper context', async () => {

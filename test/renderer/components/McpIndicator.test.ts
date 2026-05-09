@@ -56,6 +56,7 @@ const setup = async (options?: {
   showSubagentToggle?: boolean
   subagentEnabled?: boolean
   pluginEnabled?: boolean
+  regularMcpEnabled?: boolean
 }) => {
   vi.resetModules()
   let skillSessionChangedHandler:
@@ -87,14 +88,15 @@ const setup = async (options?: {
   const pluginTools = options?.pluginEnabled
     ? [buildTool('check_permissions', 'cua-driver', 'mcp')]
     : []
+  const regularMcpEnabled = options?.regularMcpEnabled ?? true
   const mcpStore = reactive({
-    enabledServers: [{ name: 'demo-server', icons: 'D', enabled: true }],
+    enabledServers: regularMcpEnabled ? [{ name: 'demo-server', icons: 'D', enabled: true }] : [],
     enabledPluginServers: options?.pluginEnabled
       ? [{ name: 'cua-driver', icons: 'plugin', descriptions: 'CUA Driver', enabled: true }]
       : [],
-    enabledServerCount: 1,
-    tools: [buildTool('mcp_tool', 'demo-server', 'mcp')],
-    visibleTools: [buildTool('mcp_tool', 'demo-server', 'mcp')],
+    enabledServerCount: regularMcpEnabled ? 1 : 0,
+    tools: regularMcpEnabled ? [buildTool('mcp_tool', 'demo-server', 'mcp')] : [],
+    visibleTools: regularMcpEnabled ? [buildTool('mcp_tool', 'demo-server', 'mcp')] : [],
     pluginTools
   })
 
@@ -366,6 +368,21 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('demo-server')
     expect(wrapper.text()).toContain('Plugins')
     expect(wrapper.text()).toContain('CUA Driver')
+  })
+
+  it('shows plugin MCP when global MCP has no enabled regular servers', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'acp-coder',
+      pluginEnabled: true,
+      regularMcpEnabled: false
+    })
+
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].text()).toContain('MCP 0')
+    expect(wrapper.text()).toContain('Plugins')
+    expect(wrapper.text()).toContain('CUA Driver')
+    expect(wrapper.text()).not.toContain('demo-server')
   })
 
   it('updates draft disabled tools for deepchat new thread mode', async () => {

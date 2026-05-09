@@ -1,4 +1,4 @@
-import { IConfigPresenter } from '@shared/presenter'
+import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
 import { McpClient } from './mcpClient'
 import axios from 'axios'
 import { proxyConfig } from '@/presenter/proxyConfig'
@@ -15,6 +15,7 @@ const NPM_REGISTRY_LIST = [
 
 export class ServerManager {
   private clients: Map<string, McpClient> = new Map()
+  private serverLastErrors: Map<string, string> = new Map()
   private configPresenter: IConfigPresenter
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
@@ -26,6 +27,23 @@ export class ServerManager {
 
   private isPrivacyModeEnabled(): boolean {
     return Boolean(this.configPresenter.getPrivacyModeEnabled())
+  }
+
+  private isPluginOwnedServerConfig(config?: Partial<MCPServerConfig> | null): boolean {
+    return Boolean(config?.ownerPluginId || config?.source === 'plugin')
+  }
+
+  getServerLastError(serverName: string): string | undefined {
+    return this.serverLastErrors.get(serverName)
+  }
+
+  setServerLastError(serverName: string, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error || 'Unknown error')
+    this.serverLastErrors.set(serverName, message)
+  }
+
+  clearServerLastError(serverName: string): void {
+    this.serverLastErrors.delete(serverName)
   }
 
   loadRegistryFromCache(): void {
@@ -229,14 +247,18 @@ export class ServerManager {
 
       // Connect to server, this will start the service
       await client.connect()
+      this.clearServerLastError(name)
     } catch (error) {
       console.error(`Failed to start MCP server ${name}:`, error)
 
       // Remove client reference
       this.clients.delete(name)
+      this.setServerLastError(name, error)
 
-      // Send global error notification
-      this.sendMcpConnectionError(name, error)
+      if (!this.isPluginOwnedServerConfig(serverConfig)) {
+        // Send global error notification only for normal MCP servers.
+        this.sendMcpConnectionError(name, error)
+      }
 
       throw error
     } finally {
@@ -282,6 +304,7 @@ export class ServerManager {
 
       // Remove from client list
       this.clients.delete(name)
+      this.clearServerLastError(name)
 
       console.info(`MCP server ${name} has been stopped`)
       eventBus.send(MCP_EVENTS.CLIENT_LIST_UPDATED, SendTarget.ALL_WINDOWS)

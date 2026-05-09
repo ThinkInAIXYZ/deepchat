@@ -1811,6 +1811,7 @@ export interface IMCPPresenter {
   isServerRunning(serverName: string): Promise<boolean>
   startServer(serverName: string): Promise<void>
   stopServer(serverName: string): Promise<void>
+  getServerLastError?(serverName: string): string | undefined
   getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]>
   getAllPrompts(): Promise<Array<PromptListEntry & { client: { name: string; icon: string } }>>
   getAllResources(): Promise<Array<ResourceListEntry & { client: { name: string; icon: string } }>>

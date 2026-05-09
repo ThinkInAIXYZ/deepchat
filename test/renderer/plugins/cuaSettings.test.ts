@@ -28,6 +28,11 @@ const renderSettingsDom = (): void => {
 
 type CuaSettingsWindow = Window & { deepchatPlugin?: unknown }
 
+const runSettingsScript = async (): Promise<void> => {
+  const script = await readFile(scriptPath, 'utf8')
+  window.eval(`(() => {\n${script}\n})()`)
+}
+
 describe('CUA plugin settings', () => {
   beforeEach(() => {
     renderSettingsDom()
@@ -64,7 +69,7 @@ describe('CUA plugin settings', () => {
       disable: vi.fn()
     }
 
-    window.eval(await readFile(scriptPath, 'utf8'))
+    await runSettingsScript()
     await flushPromises()
 
     document.getElementById('check')?.click()
@@ -73,5 +78,37 @@ describe('CUA plugin settings', () => {
     expect(document.getElementById('permission-accessibility')?.textContent).toBe('Granted')
     expect(document.getElementById('permission-screen-recording')?.textContent).toBe('Denied')
     expect(document.getElementById('message')?.textContent).toBe('')
+  })
+
+  it('shows plugin MCP errors in the status row and message area', async () => {
+    const pluginWindow = window as CuaSettingsWindow
+
+    pluginWindow.deepchatPlugin = {
+      getStatus: vi.fn().mockResolvedValue({
+        enabled: true,
+        runtime: {
+          state: 'installed',
+          version: '0.1.5',
+          command: '/mock/cua-driver',
+          helperAppPath: '/mock/DeepChat Computer Use.app'
+        },
+        mcpServers: [
+          {
+            serverId: 'cua-driver',
+            enabled: true,
+            running: false,
+            lastError: 'connect failed'
+          }
+        ]
+      }),
+      invokeAction: vi.fn(),
+      disable: vi.fn()
+    }
+
+    await runSettingsScript()
+    await flushPromises()
+
+    expect(document.getElementById('mcp-state')?.textContent).toBe('Error')
+    expect(document.getElementById('message')?.textContent).toBe('connect failed')
   })
 })
