@@ -27,6 +27,42 @@ const buildToolDefinition = (name: string, serverName: string): MCPToolDefinitio
   }
 })
 
+const buildAgentToolRuntimeMock = (overrides: Record<string, unknown> = {}) =>
+  ({
+    resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+    resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
+    getSkillPresenter: () =>
+      ({
+        getActiveSkills: vi.fn().mockResolvedValue([]),
+        getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+        listSkillScripts: vi.fn().mockResolvedValue([]),
+        getSkillExtension: vi.fn().mockResolvedValue({
+          version: 1,
+          env: {},
+          runtimePolicy: { python: 'auto', node: 'auto' },
+          scriptOverrides: {}
+        })
+      }) as any,
+    getYoBrowserToolHandler: () => ({
+      getToolDefinitions: vi.fn().mockReturnValue([]),
+      callTool: vi.fn()
+    }),
+    getFilePresenter: () => ({
+      getMimeType: vi.fn(),
+      prepareFileCompletely: vi.fn()
+    }),
+    getLlmProviderPresenter: () => ({
+      executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+      generateCompletionStandalone: vi.fn(),
+      generateImageStandalone: vi.fn()
+    }),
+    createSettingsWindow: vi.fn(),
+    sendToWindow: vi.fn().mockReturnValue(true),
+    getApprovedFilePaths: vi.fn().mockReturnValue([]),
+    consumeSettingsApproval: vi.fn().mockReturnValue(false),
+    ...overrides
+  }) as any
+
 describe('ToolPresenter', () => {
   it('reserves image_generate for the built-in agent tool when MCP exposes the same name', async () => {
     const mcpPresenter = {
@@ -46,39 +82,7 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
-        getYoBrowserToolHandler: () => ({
-          getToolDefinitions: vi.fn().mockReturnValue([]),
-          callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn(),
-          generateImageStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      }
+      agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
@@ -134,41 +138,14 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
+      agentToolRuntime: buildAgentToolRuntimeMock({
         getYoBrowserToolHandler: () => ({
           getToolDefinitions: vi
             .fn()
             .mockReturnValue([buildToolDefinition('shared', 'yo-browser')]),
           callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn(),
-          generateImageStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      }
+        })
+      })
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
@@ -192,45 +169,13 @@ describe('ToolPresenter', () => {
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
     }
-    const runtimePort = {
-      resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-      resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-      getSkillPresenter: () =>
-        ({
-          getActiveSkills: vi.fn().mockResolvedValue([]),
-          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-          listSkillScripts: vi.fn().mockResolvedValue([]),
-          getSkillExtension: vi.fn().mockResolvedValue({
-            version: 1,
-            env: {},
-            runtimePolicy: { python: 'auto', node: 'auto' },
-            scriptOverrides: {}
-          })
-        }) as any,
-      getYoBrowserToolHandler: () => ({
-        getToolDefinitions: vi.fn().mockReturnValue([]),
-        callTool: vi.fn()
-      }),
-      getFilePresenter: () => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      }),
-      getLlmProviderPresenter: () => ({
-        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn(),
-        generateImageStandalone: vi.fn()
-      }),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn().mockReturnValue(true),
-      getApprovedFilePaths: vi.fn().mockReturnValue([]),
-      consumeSettingsApproval: vi.fn().mockReturnValue(false)
-    }
+    const runtimePort = buildAgentToolRuntimeMock()
 
     const toolPresenter = new ToolPresenter({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: runtimePort as any
+      agentToolRuntime: runtimePort
     })
 
     await toolPresenter.getAllToolDefinitions({
@@ -297,45 +242,13 @@ describe('ToolPresenter', () => {
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
     }
-    const runtimePort = {
-      resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-      resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-      getSkillPresenter: () =>
-        ({
-          getActiveSkills: vi.fn().mockResolvedValue([]),
-          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-          listSkillScripts: vi.fn().mockResolvedValue([]),
-          getSkillExtension: vi.fn().mockResolvedValue({
-            version: 1,
-            env: {},
-            runtimePolicy: { python: 'auto', node: 'auto' },
-            scriptOverrides: {}
-          })
-        }) as any,
-      getYoBrowserToolHandler: () => ({
-        getToolDefinitions: vi.fn().mockReturnValue([]),
-        callTool: vi.fn()
-      }),
-      getFilePresenter: () => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      }),
-      getLlmProviderPresenter: () => ({
-        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn(),
-        generateImageStandalone: vi.fn()
-      }),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn().mockReturnValue(true),
-      getApprovedFilePaths: vi.fn().mockReturnValue([]),
-      consumeSettingsApproval: vi.fn().mockReturnValue(false)
-    }
+    const runtimePort = buildAgentToolRuntimeMock()
 
     const toolPresenter = new ToolPresenter({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: runtimePort as any
+      agentToolRuntime: runtimePort
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
@@ -370,39 +283,7 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
-        getYoBrowserToolHandler: () => ({
-          getToolDefinitions: vi.fn().mockReturnValue([]),
-          callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn(),
-          generateImageStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      } as any
+      agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
     const withoutYoBrowser = toolPresenter.buildToolSystemPrompt({
@@ -458,39 +339,7 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
-        getYoBrowserToolHandler: () => ({
-          getToolDefinitions: vi.fn().mockReturnValue([]),
-          callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn(),
-          generateImageStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      } as any
+      agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
     const withoutQuestion = toolPresenter.buildToolSystemPrompt({
@@ -538,45 +387,13 @@ describe('ToolPresenter', () => {
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
     }
-    const runtimePort = {
-      resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-      resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-      getSkillPresenter: () =>
-        ({
-          getActiveSkills: vi.fn().mockResolvedValue([]),
-          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-          listSkillScripts: vi.fn().mockResolvedValue([]),
-          getSkillExtension: vi.fn().mockResolvedValue({
-            version: 1,
-            env: {},
-            runtimePolicy: { python: 'auto', node: 'auto' },
-            scriptOverrides: {}
-          })
-        }) as any,
-      getYoBrowserToolHandler: () => ({
-        getToolDefinitions: vi.fn().mockReturnValue([]),
-        callTool: vi.fn()
-      }),
-      getFilePresenter: () => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      }),
-      getLlmProviderPresenter: () => ({
-        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn(),
-        generateImageStandalone: vi.fn()
-      }),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn().mockReturnValue(true),
-      getApprovedFilePaths: vi.fn().mockReturnValue([]),
-      consumeSettingsApproval: vi.fn().mockReturnValue(false)
-    }
+    const runtimePort = buildAgentToolRuntimeMock()
 
     const toolPresenter = new ToolPresenter({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: runtimePort as any
+      agentToolRuntime: runtimePort
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
@@ -637,39 +454,7 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
-        getYoBrowserToolHandler: () => ({
-          getToolDefinitions: vi.fn().mockReturnValue([]),
-          callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-          generateCompletionStandalone: vi.fn(),
-          generateImageStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      } as any
+      agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
     const promptWithoutFocusedTools = toolPresenter.buildToolSystemPrompt({

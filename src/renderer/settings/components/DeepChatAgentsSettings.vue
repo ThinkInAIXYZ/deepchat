@@ -870,6 +870,8 @@ const getGroupLabel = (serverName: string) => {
       return t('chat.input.tools.groups.agentFilesystem')
     case 'agent-core':
       return t('chat.input.tools.groups.agentCore')
+    case 'agent-image-generation':
+      return t('chat.input.tools.groups.agentImageGeneration')
     case 'agent-skills':
       return t('chat.input.tools.groups.agentSkills')
     case 'deepchat-settings':
