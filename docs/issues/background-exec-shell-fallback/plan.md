@@ -4,7 +4,7 @@
 
 - Centralize fallback behavior in `getUserShell()` so foreground exec, background exec, and shell
   environment bootstrap share the same shell resolution.
-- Check absolute shell candidates for path availability before returning them.
+- Check absolute shell candidates for path and executable availability before returning them.
 - Search `PATH` plus DeepChat default paths when `SHELL` is a bare command name.
 - Use conservative POSIX fallback chains and keep Windows behavior intact.
 - Validate shell process working directories before calling `spawn`, because Node reports missing
@@ -19,6 +19,7 @@
 ## Compatibility
 
 - Existing valid user shells are still preferred.
-- Missing shells now fall back to an available POSIX shell instead of failing with `ENOENT`.
+- Missing or non-executable shells now fall back to an available POSIX shell instead of failing
+  with `ENOENT`/`EACCES`.
 - Plain `sh` bootstrap no longer receives login-shell flags it may not support.
 - Missing working directories now produce a direct working-directory error.

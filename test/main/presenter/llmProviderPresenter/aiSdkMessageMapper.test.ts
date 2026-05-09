@@ -34,6 +34,10 @@ function convertToOpenAICompatibleChatMessagesForTest(messages: any[]) {
 }
 
 describe('AI SDK message mapper', () => {
+  class ProviderOptionInstance {
+    value = true
+  }
+
   it('skips malformed non-text user content parts instead of throwing', () => {
     const result = mapMessagesToModelMessages(
       [
@@ -216,7 +220,10 @@ describe('AI SDK message mapper', () => {
               text: 'hello',
               provider_options: {
                 anthropic: { cacheControl: { type: 'ephemeral' } },
-                broken: undefined
+                broken: undefined,
+                dated: new Date('2026-05-09T00:00:00Z'),
+                linked: new URL('https://example.com'),
+                custom: new ProviderOptionInstance()
               }
             }
           ]
@@ -226,7 +233,9 @@ describe('AI SDK message mapper', () => {
           content: 'thinking',
           reasoning_content: 'plan',
           reasoning_provider_options: {
-            broken: undefined
+            broken: undefined,
+            dated: new Date('2026-05-09T00:00:00Z'),
+            linked: new URL('https://example.com')
           }
         } as any
       ],

@@ -3382,13 +3382,14 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const oldHistoryText = makeTextWithEstimatedTokens(3000)
       const pressureText = makeTextWithEstimatedTokens(4100)
+      const requestMessages = [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: oldHistoryText },
+        { role: 'assistant', content: 'old answer' },
+        { role: 'user', content: pressureText }
+      ]
       for await (const _event of callArgs.coreStream(
-        [
-          { role: 'system', content: 'Base system prompt' },
-          { role: 'user', content: oldHistoryText },
-          { role: 'assistant', content: 'old answer' },
-          { role: 'user', content: pressureText }
-        ],
+        requestMessages,
         callArgs.modelId,
         callArgs.modelConfig,
         callArgs.temperature,
@@ -3409,6 +3410,7 @@ describe('AgentRuntimePresenter', () => {
 
       expect(llmProvider.generateText).not.toHaveBeenCalled()
       expect(providerMessages).not.toContainEqual({ role: 'user', content: oldHistoryText })
+      expect(requestMessages).not.toContainEqual({ role: 'user', content: oldHistoryText })
       expect(sqlitePresenter.deepchatMessagesTable.delete).not.toHaveBeenCalled()
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
     })

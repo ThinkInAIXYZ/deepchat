@@ -1889,16 +1889,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                 minimumProtectedTailCount: protectedSteerTailCount,
                 signal: abortController.signal
               })
+              requestMessages.splice(0, requestMessages.length, ...recovered.messages)
               if (recovered.systemPrompt) {
                 replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
               }
               requestPreflight = preflightRequestContext({
-                messages: recovered.messages,
+                messages: requestMessages,
                 tools: requestTools,
                 contextLength: requestModelConfig.contextLength,
                 requestedMaxTokens: requestMaxTokens,
                 minimumProtectedTailCount: protectedSteerTailCount
               })
+              requestMessages.splice(0, requestMessages.length, ...requestPreflight.messages)
             }
             if (!requestPreflight.fitsWithinContext) {
               throw new Error(

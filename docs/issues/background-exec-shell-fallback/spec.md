@@ -8,6 +8,7 @@ path, such as `/bin/zsh`, is unavailable in the current runtime environment.
 ## Acceptance Criteria
 
 - POSIX shell execution does not blindly spawn a missing `process.env.SHELL` path.
+- POSIX shell fallback skips existing but non-executable shell candidates.
 - macOS falls back from zsh to bash and then sh; Linux falls back from bash to sh and then zsh.
 - Background exec sessions use the resolved executable shell path.
 - Shell environment bootstrap uses plain `sh -c` flags when the fallback is `sh`.
@@ -19,4 +20,4 @@ path, such as `/bin/zsh`, is unavailable in the current runtime environment.
 
 - Do not add renderer settings or IPC for shell configuration.
 - Do not persist a detected fallback shell.
-- Do not change command permission behavior or output formatting.
+- Do not change user command permission behavior or output formatting.

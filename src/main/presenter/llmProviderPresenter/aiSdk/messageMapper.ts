@@ -17,17 +17,25 @@ type PendingToolCall = {
 
 type AssistantProviderOptions = Record<string, Record<string, unknown>>
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
 function sanitizeProviderOptions(
   providerOptions: Record<string, unknown> | undefined
 ): AssistantProviderOptions | undefined {
-  if (!providerOptions || typeof providerOptions !== 'object' || Array.isArray(providerOptions)) {
+  if (!isPlainObject(providerOptions)) {
     return undefined
   }
 
   const sanitized = Object.fromEntries(
-    Object.entries(providerOptions).filter(
-      (entry): entry is [string, Record<string, unknown>] =>
-        Boolean(entry[1]) && typeof entry[1] === 'object' && !Array.isArray(entry[1])
+    Object.entries(providerOptions).filter((entry): entry is [string, Record<string, unknown>] =>
+      isPlainObject(entry[1])
     )
   )
 

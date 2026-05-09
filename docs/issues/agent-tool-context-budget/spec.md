@@ -68,3 +68,7 @@ Additional acceptance criteria:
   trimming otherwise.
 - User-configured `maxTokens` values below 4000 are respected and do not force recovery by
   themselves.
+- If no output token can fit after request fitting, preflight reports `effectiveMaxTokens = 0`
+  instead of a positive budget.
+- Context-pressure recovery updates the in-memory request history used by later tool-continuation
+  loops.

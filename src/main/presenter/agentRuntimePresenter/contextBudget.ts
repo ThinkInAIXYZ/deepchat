@@ -163,10 +163,12 @@ export function preflightRequestContext(params: {
   const fitsWithinContext =
     !hasFiniteContext || remainingOutputTokens >= AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS
   const effectiveMaxTokens = hasFiniteContext
-    ? Math.max(
-        AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS,
-        Math.min(requestedMaxTokens, remainingOutputTokens)
-      )
+    ? remainingOutputTokens <= 0
+      ? 0
+      : Math.max(
+          AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS,
+          Math.min(requestedMaxTokens, remainingOutputTokens)
+        )
     : requestedMaxTokens
   const totalRequestTokens = inputTokens + toolReserveTokens + effectiveMaxTokens
   const shrunkByContextPressure = effectiveMaxTokens < requestedMaxTokens

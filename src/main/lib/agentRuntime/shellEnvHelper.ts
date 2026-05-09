@@ -264,7 +264,16 @@ function getShellBootstrapArgs(shellPath: string, command: string): string[] {
 }
 
 function isAvailableShell(shellPath: string): boolean {
-  return fs.existsSync(shellPath)
+  try {
+    const stat = fs.statSync(shellPath)
+    if (!stat.isFile()) {
+      return false
+    }
+    fs.accessSync(shellPath, fs.constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function resolveShellPath(shellCandidate: string | undefined): string | null {

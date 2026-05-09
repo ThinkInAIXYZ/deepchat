@@ -41,6 +41,19 @@ describe('agent request context budget', () => {
     expect(result.requiresContextPressureRecovery).toBe(true)
   })
 
+  it('reports zero effective output tokens when the fitted request cannot fit', () => {
+    const result = preflightRequestContext({
+      messages: [{ role: 'user', content: 'x'.repeat(9000) }],
+      tools: [],
+      contextLength: 8192,
+      requestedMaxTokens: 4096
+    })
+
+    expect(result.fitsWithinContext).toBe(false)
+    expect(result.effectiveMaxTokens).toBe(0)
+    expect(result.totalRequestTokens).toBe(result.inputTokens + result.toolReserveTokens)
+  })
+
   it('respects user configured maxTokens below 4000 without forcing recovery', () => {
     const result = preflightRequestContext({
       messages: [{ role: 'user', content: 'x'.repeat(7200) }],

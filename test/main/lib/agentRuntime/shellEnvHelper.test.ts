@@ -32,6 +32,13 @@ class MockChild extends EventEmitter {
   kill = vi.fn(() => true)
 }
 
+function mockShellStats(): fs.Stats {
+  return {
+    isFile: () => true,
+    isDirectory: () => false
+  } as fs.Stats
+}
+
 function getMarkers(command: string) {
   const matches = [...command.matchAll(/printf '%s\\n' '([^']+)'/g)].map((match) => match[1])
   return {
@@ -47,6 +54,8 @@ describe('shellEnvHelper', () => {
   beforeEach(() => {
     clearShellEnvironmentCache()
     process.env = { ...originalEnv }
+    vi.spyOn(fs, 'statSync').mockReturnValue(mockShellStats())
+    vi.spyOn(fs, 'accessSync').mockReturnValue(undefined)
   })
 
   afterEach(() => {
@@ -65,7 +74,6 @@ describe('shellEnvHelper', () => {
     })
     process.env.SHELL = '/bin/zsh'
     process.env.PATH = '/usr/bin:/bin'
-    vi.mocked(fs.existsSync).mockReturnValue(true)
 
     vi.mocked(spawn).mockImplementation((shell, args) => {
       const child = new MockChild()
@@ -109,7 +117,6 @@ describe('shellEnvHelper', () => {
     })
     process.env.SHELL = '/bin/zsh'
     process.env.PATH = '/usr/bin:/bin'
-    vi.mocked(fs.existsSync).mockReturnValue(true)
 
     vi.mocked(spawn)
       .mockImplementationOnce(() => {
@@ -155,7 +162,35 @@ describe('shellEnvHelper', () => {
     })
     process.env.SHELL = '/missing/zsh'
     process.env.PATH = '/usr/bin:/bin'
-    vi.mocked(fs.existsSync).mockImplementation((candidate) => String(candidate) === '/bin/sh')
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) => {
+      if (String(candidate) === '/bin/sh') {
+        return mockShellStats()
+      }
+      throw new Error('missing')
+    })
+
+    expect(getUserShell()).toEqual({ shell: '/bin/sh', args: ['-c'] })
+  })
+
+  it('skips existing shells that are not executable', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/bin/zsh'
+    process.env.PATH = '/usr/bin:/bin'
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) => {
+      if (['/bin/zsh', '/bin/sh'].includes(String(candidate))) {
+        return mockShellStats()
+      }
+      throw new Error('missing')
+    })
+    vi.spyOn(fs, 'accessSync').mockImplementation((candidate) => {
+      if (String(candidate) === '/bin/zsh') {
+        throw new Error('not executable')
+      }
+      return undefined
+    })
 
     expect(getUserShell()).toEqual({ shell: '/bin/sh', args: ['-c'] })
   })
@@ -167,7 +202,12 @@ describe('shellEnvHelper', () => {
     })
     process.env.SHELL = '/missing/zsh'
     process.env.PATH = '/usr/bin:/bin'
-    vi.mocked(fs.existsSync).mockImplementation((candidate) => String(candidate) === '/bin/sh')
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) => {
+      if (String(candidate) === '/bin/sh') {
+        return mockShellStats()
+      }
+      throw new Error('missing')
+    })
 
     vi.mocked(spawn).mockImplementation((shell, args) => {
       const child = new MockChild()

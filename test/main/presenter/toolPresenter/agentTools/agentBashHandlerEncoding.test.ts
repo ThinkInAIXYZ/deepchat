@@ -65,7 +65,10 @@ describe('AgentBashHandler output encoding', () => {
     })
     const child = new MockChild()
     vi.mocked(spawn).mockReturnValue(child as never)
-    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+    vi.spyOn(fs, 'statSync').mockReturnValue({
+      isDirectory: () => true
+    } as fs.Stats)
 
     const handler = new AgentBashHandler(['/workspace'])
     const resultPromise = (
@@ -89,7 +92,7 @@ describe('AgentBashHandler output encoding', () => {
       'powershell.exe',
       ['-NoProfile', '-Command', expect.stringContaining('[Console]::OutputEncoding')],
       expect.objectContaining({
-        cwd: '/workspace',
+        cwd: expect.stringMatching(/[\\/]workspace$/),
         detached: false
       })
     )

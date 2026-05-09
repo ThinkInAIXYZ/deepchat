@@ -42,9 +42,13 @@ consumes more context and fails on small formatting deviations.
 - When preflight pressure would reduce a normal request below 4000 output tokens, run an internal
   recovery pass before the provider call: compact persisted old turns when enabled, then rely on the
   request fitter to trim older in-memory messages while preserving the active tail.
+- Write recovered messages back into the active request array so later tool-continuation loops use
+  the same compacted/trimmed history.
 - Keep generation settings unchanged; only the provider call's `maxTokens` argument is reduced.
 - Use the same safety-adjusted budget in tool-output fitting so continuation turns do not inject
   tool results that leave the next request over the provider limit.
+- Report zero effective output tokens when a fitted request still cannot fit at all, and fail before
+  calling the provider.
 
 ## Manual Validation Notes
 
