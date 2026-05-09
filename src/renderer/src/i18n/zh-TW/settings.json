@@ -1855,7 +1855,7 @@
     "chatModel": "預設對話模型",
     "assistantModel": "助手模型",
     "visionModel": "視覺模型",
-    "imageGenerationModel": "生圖模型",
+    "imageGenerationModel": "圖像生成模型",
     "temperature": "溫度",
     "contextLength": "上下文長度",
     "maxTokens": "最大 Token 數",

@@ -49,7 +49,7 @@
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
-        "agentImageGeneration": "Image Generation",
+        "agentImageGeneration": "이미지 생성",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"

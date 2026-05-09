@@ -56,7 +56,7 @@
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
-        "agentImageGeneration": "Image Generation",
+        "agentImageGeneration": "Billedgenerering",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
