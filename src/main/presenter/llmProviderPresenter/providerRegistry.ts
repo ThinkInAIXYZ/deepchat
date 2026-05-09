@@ -232,6 +232,21 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'mistral',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'mistral',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'mistral-small-latest',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'minimax',
     createDefinition({
       runtimeKind: 'anthropic',
@@ -434,6 +449,7 @@ const PROVIDER_API_TYPE_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   ['gemini', PROVIDER_ID_REGISTRY.get('gemini')!],
   ['grok', PROVIDER_ID_REGISTRY.get('grok')!],
   ['groq', PROVIDER_ID_REGISTRY.get('groq')!],
+  ['mistral', PROVIDER_ID_REGISTRY.get('mistral')!],
   ['new-api', PROVIDER_ID_REGISTRY.get('new-api')!],
   ['o3fan', PROVIDER_ID_REGISTRY.get('o3fan')!],
   ['openai', PROVIDER_ID_REGISTRY.get('openai')!],

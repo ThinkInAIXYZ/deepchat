@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { maskApiKey } from '@shared/providerDeeplink'
+import { isProviderInstallCustomType, maskApiKey } from '@shared/providerDeeplink'
 
 describe('maskApiKey', () => {
   it('fully masks keys with length up to 4', () => {
@@ -14,5 +14,11 @@ describe('maskApiKey', () => {
 
   it('keeps the existing mask format for keys longer than 8', () => {
     expect(maskApiKey('abcdefghij')).toBe('abcd...ghij')
+  })
+})
+
+describe('isProviderInstallCustomType', () => {
+  it('accepts mistral custom provider deeplink imports', () => {
+    expect(isProviderInstallCustomType('mistral')).toBe(true)
   })
 })

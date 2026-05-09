@@ -1061,7 +1061,8 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   private mapProviderDbModels(group: string): MODEL_META[] {
-    const resolvedId = modelCapabilities.resolveProviderId(this.provider.id) || this.provider.id
+    const sourceId = this.definition.providerDbSourceId || this.provider.id
+    const resolvedId = modelCapabilities.resolveProviderId(sourceId) || sourceId
     const provider = providerDbLoader.getProvider(resolvedId)
     if (!provider || !Array.isArray(provider.models)) {
       return []
