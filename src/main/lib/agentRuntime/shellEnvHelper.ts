@@ -319,7 +319,6 @@ export function getUserShell(): { shell: string; args: string[] } {
   const shell =
     resolveShellPath(process.env.SHELL) ??
     fallbackShells.map((candidate) => resolveShellPath(candidate)).find(Boolean) ??
-    fallbackShells[0] ??
     '/bin/sh'
 
   return { shell, args: ['-c'] }

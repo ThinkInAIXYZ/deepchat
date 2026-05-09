@@ -10,6 +10,8 @@ path, such as `/bin/zsh`, is unavailable in the current runtime environment.
 - POSIX shell execution does not blindly spawn a missing `process.env.SHELL` path.
 - POSIX shell fallback skips existing but non-executable shell candidates.
 - macOS falls back from zsh to bash and then sh; Linux falls back from bash to sh and then zsh.
+- If no configured or platform fallback shell resolves, DeepChat uses `/bin/sh` instead of an
+  unchecked rejected candidate.
 - Background exec sessions use the resolved executable shell path.
 - Shell environment bootstrap uses plain `sh -c` flags when the fallback is `sh`.
 - Missing or inaccessible working directories are reported before spawn instead of surfacing as a

@@ -3,6 +3,7 @@
 - [x] Document the issue and desired behavior.
 - [x] Add available shell resolution and POSIX fallback ordering.
 - [x] Verify fallback shell candidates are executable before spawn.
+- [x] Avoid returning an unchecked platform fallback after candidate validation fails.
 - [x] Avoid login bootstrap flags for plain `sh`.
 - [x] Validate spawn working directories before launching shell processes.
 - [x] Add unit coverage for missing configured shell fallback.

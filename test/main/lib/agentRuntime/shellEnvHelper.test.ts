@@ -195,6 +195,20 @@ describe('shellEnvHelper', () => {
     expect(getUserShell()).toEqual({ shell: '/bin/sh', args: ['-c'] })
   })
 
+  it('does not return an unchecked platform fallback when all candidates are rejected', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/missing/zsh'
+    process.env.PATH = '/usr/bin:/bin'
+    vi.spyOn(fs, 'statSync').mockImplementation(() => {
+      throw new Error('missing')
+    })
+
+    expect(getUserShell()).toEqual({ shell: '/bin/sh', args: ['-c'] })
+  })
+
   it('does not pass login flags to a plain sh bootstrap fallback', async () => {
     Object.defineProperty(process, 'platform', {
       configurable: true,

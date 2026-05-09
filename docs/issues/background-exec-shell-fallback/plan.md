@@ -7,6 +7,8 @@
 - Check absolute shell candidates for path and executable availability before returning them.
 - Search `PATH` plus DeepChat default paths when `SHELL` is a bare command name.
 - Use conservative POSIX fallback chains and keep Windows behavior intact.
+- Return only resolved fallback candidates from the platform fallback chain; if none resolve, use
+  `/bin/sh` as the final default.
 - Validate shell process working directories before calling `spawn`, because Node reports missing
   `cwd` as `spawn <shell> ENOENT`.
 
