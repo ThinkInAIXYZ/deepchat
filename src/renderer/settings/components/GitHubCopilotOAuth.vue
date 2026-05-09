@@ -36,6 +36,7 @@
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
+          :disabled="!provider.enable"
           @click="openModelCheckDialog"
         >
           <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
@@ -261,6 +262,10 @@ const startOAuthLogin = async () => {
 }
 
 const openModelCheckDialog = () => {
+  if (!props.provider.enable) {
+    return
+  }
+
   modelCheckStore.openDialog(props.provider.id)
 }
 

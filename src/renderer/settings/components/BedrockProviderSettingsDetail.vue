@@ -74,6 +74,7 @@
             variant="outline"
             size="sm"
             class="text-xs text-normal rounded-lg"
+            :disabled="!provider.enable"
             @click="
               handleVerifyCredential({ credential: { accessKeyId, secretAccessKey, region } })
             "
@@ -258,6 +259,10 @@ const handleRegionChange = (value: string) => {
 }
 
 const validateCredential = async () => {
+  if (!props.provider.enable) {
+    return
+  }
+
   try {
     const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {

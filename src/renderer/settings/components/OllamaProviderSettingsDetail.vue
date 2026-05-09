@@ -83,6 +83,7 @@
             variant="outline"
             size="sm"
             class="text-xs text-normal rounded-lg"
+            :disabled="!provider.enable"
             @click="openModelCheckDialog"
           >
             <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
@@ -672,6 +673,10 @@ const handleApiKeyEnter = async (value: string) => {
 }
 
 const validateApiKey = async () => {
+  if (!props.provider.enable) {
+    return
+  }
+
   try {
     const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
@@ -693,6 +698,10 @@ const validateApiKey = async () => {
 }
 
 const openModelCheckDialog = () => {
+  if (!props.provider.enable) {
+    return
+  }
+
   modelCheckStore.openDialog(props.provider.id)
 }
 
