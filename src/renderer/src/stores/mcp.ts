@@ -132,21 +132,21 @@ export const useMcpStore = defineStore('mcp', () => {
   const toolsQuery = useIpcQuery({
     key: () => ['mcp', 'tools'],
     query: () => mcpClient.getAllToolDefinitions(),
-    enabled: () => config.value.ready && config.value.mcpEnabled,
+    enabled: () => config.value.ready,
     staleTime: 30_000
   }) as UseQueryReturn<MCPToolDefinition[]>
 
   const clientsQuery = useIpcQuery({
     key: () => ['mcp', 'clients'],
     query: () => mcpClient.getMcpClients(),
-    enabled: () => config.value.ready && config.value.mcpEnabled,
+    enabled: () => config.value.ready,
     staleTime: 30_000
   }) as UseQueryReturn<McpRuntimeClient[]>
 
   const resourcesQuery = useIpcQuery({
     key: () => ['mcp', 'resources'],
     query: () => mcpClient.getAllResources(),
-    enabled: () => config.value.ready && config.value.mcpEnabled,
+    enabled: () => config.value.ready,
     staleTime: 30_000
   }) as UseQueryReturn<ResourceListEntry[]>
 
@@ -184,22 +184,16 @@ export const useMcpStore = defineStore('mcp', () => {
     gcTime: 300_000,
     query: async () => {
       const customPrompts = await loadCustomPrompts()
-      if (!config.value.mcpEnabled) {
-        return customPrompts
-      }
-
       const mcpPrompts = await loadMcpPrompts()
       return [...customPrompts, ...mcpPrompts]
     }
   })
 
-  const tools = computed(() => (config.value.mcpEnabled ? (toolsQuery.data.value ?? []) : []))
+  const tools = computed(() => toolsQuery.data.value ?? [])
 
-  const clients = computed(() => (config.value.mcpEnabled ? (clientsQuery.data.value ?? []) : []))
+  const clients = computed(() => clientsQuery.data.value ?? [])
 
-  const resources = computed(() =>
-    config.value.mcpEnabled ? (resourcesQuery.data.value ?? []) : []
-  )
+  const resources = computed(() => resourcesQuery.data.value ?? [])
 
   const prompts = computed(() => promptsQuery.data.value ?? [])
 
@@ -432,7 +426,7 @@ export const useMcpStore = defineStore('mcp', () => {
     config.value.mcpEnabled ? serverList.value.filter((server) => server.enabled) : []
   )
   const enabledPluginServers = computed(() =>
-    config.value.mcpEnabled ? pluginServerList.value.filter((server) => server.enabled) : []
+    pluginServerList.value.filter((server) => server.enabled)
   )
   const enabledServerCount = computed(() => enabledServers.value.length)
 
@@ -505,7 +499,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // 设置MCP启用状态
   const startEnabledServers = async () => {
     for (const [serverName, serverConfig] of Object.entries(config.value.mcpServers)) {
-      if (!serverConfig.enabled) {
+      if (!serverConfig.enabled || isPluginOwnedServerConfig(serverConfig)) {
         continue
       }
       try {
@@ -553,10 +547,16 @@ export const useMcpStore = defineStore('mcp', () => {
         }, 1000)
       } else {
         await Promise.allSettled(
-          Object.keys(config.value.mcpServers).map((serverName) => mcpClient.stopServer(serverName))
+          Object.entries(config.value.mcpServers)
+            .filter(([, serverConfig]) => !isPluginOwnedServerConfig(serverConfig))
+            .map(([serverName]) => mcpClient.stopServer(serverName))
         )
         // clearing server/tool state when disabling
-        serverStatuses.value = {}
+        serverStatuses.value = Object.fromEntries(
+          Object.entries(serverStatuses.value).filter(([serverName]) =>
+            isPluginOwnedServerName(serverName)
+          )
+        )
         toolInputs.value = {}
         toolResults.value = {}
         // Force refresh queries to get empty results
@@ -579,10 +579,6 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 更新所有服务器状态
   const updateAllServerStatuses = async () => {
-    if (!config.value.mcpEnabled) {
-      return
-    }
-
     for (const serverName of Object.keys(config.value.mcpServers)) {
       await updateServerStatus(serverName, true)
     }
@@ -595,7 +591,8 @@ export const useMcpStore = defineStore('mcp', () => {
   // 更新单个服务器状态
   const updateServerStatus = async (serverName: string, noRefresh: boolean = false) => {
     try {
-      if (!config.value.mcpEnabled) {
+      const serverConfig = config.value.mcpServers[serverName]
+      if (!config.value.mcpEnabled && !isPluginOwnedServerConfig(serverConfig)) {
         serverStatuses.value[serverName] = false
         return
       }
@@ -607,6 +604,10 @@ export const useMcpStore = defineStore('mcp', () => {
       }
       // 根据服务器的状态，关闭或者开启该服务器的所有工具
       const isRunning = serverStatuses.value[serverName] || false
+      if (!config.value.mcpEnabled) {
+        return
+      }
+
       if (isRunning) {
         // Get server tools after refresh
         const serverTools = tools.value
@@ -713,10 +714,6 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   const loadClients = async (options?: QueryExecuteOptions) => {
-    if (!config.value.mcpEnabled) {
-      return
-    }
-
     try {
       const state = await runQuery(clientsQuery, options)
       if (state.status === 'success') {
@@ -728,13 +725,9 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   const loadTools = async (options?: QueryExecuteOptions) => {
-    if (!config.value.mcpEnabled) {
-      return
-    }
-
     try {
       const state = await runQuery(toolsQuery, options)
-      if (state.status === 'success') {
+      if (state.status === 'success' && config.value.mcpEnabled) {
         await syncEnabledToolsWithDefinitions(state.data ?? [])
       }
     } catch (error) {
@@ -753,10 +746,6 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 加载资源列表
   const loadResources = async (options?: QueryExecuteOptions) => {
-    if (!config.value.mcpEnabled) {
-      return
-    }
-
     try {
       await runQuery(resourcesQuery, options)
     } catch (error) {
@@ -899,7 +888,7 @@ export const useMcpStore = defineStore('mcp', () => {
       }
 
       // MCP prompt 需要检查 MCP 是否启用
-      if (!config.value.mcpEnabled) {
+      if (!config.value.mcpEnabled && !isPluginOwnedServerName(prompt.client?.name)) {
         throw new Error(t('mcp.errors.mcpDisabled'))
       }
 
@@ -913,7 +902,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 读取资源内容
   const readResource = async (resource: ResourceListEntry): Promise<Resource> => {
-    if (!config.value.mcpEnabled) {
+    if (!config.value.mcpEnabled && !isPluginOwnedServerName(resource.client?.name)) {
       throw new Error(t('mcp.errors.mcpDisabled'))
     }
 

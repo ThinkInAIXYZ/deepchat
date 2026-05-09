@@ -85,6 +85,15 @@
           {{ plugin.runtime.lastError }}
         </div>
 
+        <div
+          v-if="getPluginMcpErrors(plugin).length > 0"
+          class="space-y-1 text-xs text-destructive"
+        >
+          <div v-for="error in getPluginMcpErrors(plugin)" :key="error">
+            {{ error }}
+          </div>
+        </div>
+
         <div class="flex flex-wrap gap-2">
           <Button
             v-if="!plugin.enabled"
@@ -145,6 +154,12 @@ function formatRuntimeState(state?: PluginRuntimeState): string {
     return '-'
   }
   return t(`settings.plugins.runtimeStates.${state}`)
+}
+
+function getPluginMcpErrors(plugin: PluginListItem): string[] {
+  return (plugin.mcpServers ?? [])
+    .filter((server) => Boolean(server.lastError))
+    .map((server) => `${server.serverId}: ${server.lastError}`)
 }
 
 async function loadPlugins(): Promise<void> {

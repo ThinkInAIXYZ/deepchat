@@ -60,13 +60,15 @@ describe('ToolManager', () => {
           required: []
         }
       }
-    ]
+    ],
+    serverConfig: Record<string, unknown> = {}
   ) {
     return {
       serverName,
       serverConfig: {
         icons: '',
-        descriptions: ''
+        descriptions: '',
+        ...serverConfig
       },
       listTools: vi.fn().mockResolvedValue(tools),
       callTool: vi.fn().mockResolvedValue({
@@ -89,6 +91,14 @@ describe('ToolManager', () => {
       getAcpAgents: vi.fn().mockResolvedValue([]),
       getAgentMcpSelections: vi.fn().mockResolvedValue([]),
       getLanguage: vi.fn().mockReturnValue('en-US')
+    }
+  }
+
+  function createServerManager(clients: unknown[]) {
+    return {
+      getRunningClients: vi.fn().mockResolvedValue(clients),
+      setServerLastError: vi.fn(),
+      clearServerLastError: vi.fn()
     }
   }
 
@@ -123,9 +133,7 @@ describe('ToolManager', () => {
     const configPresenter = createConfigPresenter(serverName)
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const definitions = await manager.getAllToolDefinitions()
@@ -160,9 +168,7 @@ describe('ToolManager', () => {
     const configPresenter = createConfigPresenter('regular-server')
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const definitions = await manager.getAllToolDefinitions()
@@ -197,9 +203,7 @@ describe('ToolManager', () => {
 
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const result = await manager.callTool({
@@ -220,6 +224,26 @@ describe('ToolManager', () => {
     expect(configPresenter.getAgentMcpSelections).toHaveBeenCalledWith('agent-1')
   })
 
+  it('records plugin tool-list failures without showing a global toast', async () => {
+    const client = createClient('plugin-server', [], {
+      source: 'plugin',
+      ownerPluginId: 'com.deepchat.fixture'
+    })
+    client.listTools.mockRejectedValue(new Error('tool list failed'))
+    const configPresenter = createConfigPresenter('plugin-server')
+    const serverManager = createServerManager([client])
+    const manager = new ToolManager(configPresenter as never, serverManager as never)
+
+    const definitions = await manager.getAllToolDefinitions()
+
+    expect(definitions).toEqual([])
+    expect(serverManager.setServerLastError).toHaveBeenCalledWith(
+      'plugin-server',
+      'tool list failed'
+    )
+    expect(eventBusMocks.sendToRenderer).not.toHaveBeenCalled()
+  })
+
   it('skips ACP session resolution when provider hint is non-ACP', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
@@ -227,9 +251,7 @@ describe('ToolManager', () => {
 
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const result = await manager.callTool({
@@ -275,9 +297,7 @@ describe('ToolManager', () => {
 
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const result = await manager.callTool({
@@ -303,9 +323,7 @@ describe('ToolManager', () => {
 
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const result = await manager.callTool({

@@ -80,9 +80,11 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     serverManagerMocks.startServer.mockResolvedValue(undefined)
     serverManagerMocks.stopServer.mockResolvedValue(undefined)
     serverManagerMocks.isServerRunning.mockReturnValue(false)
+    serverManagerMocks.getRunningClients.mockResolvedValue([])
     serverManagerMocks.testNpmRegistrySpeed.mockResolvedValue('https://registry.npmjs.org/')
     serverManagerMocks.updateNpmRegistryInBackground.mockResolvedValue(undefined)
     serverManagerMocks.refreshNpmRegistry.mockResolvedValue('https://registry.npmjs.org/')
+    toolManagerMocks.getAllToolDefinitions.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -90,12 +92,18 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     vi.useRealTimers()
   })
 
-  const createConfigPresenter = (mcpEnabled: boolean, privacyModeEnabled = false) =>
+  const createConfigPresenter = (
+    mcpEnabled: boolean,
+    privacyModeEnabled = false,
+    servers: Record<string, any> = {},
+    enabledServers: string[] = []
+  ) =>
     ({
       setMcpServerEnabled: vi.fn().mockResolvedValue(undefined),
       getMcpEnabled: vi.fn().mockResolvedValue(mcpEnabled),
-      getMcpServers: vi.fn().mockResolvedValue({}),
-      getEnabledMcpServers: vi.fn().mockResolvedValue([]),
+      setMcpEnabled: vi.fn().mockResolvedValue(undefined),
+      getMcpServers: vi.fn().mockResolvedValue(servers),
+      getEnabledMcpServers: vi.fn().mockResolvedValue(enabledServers),
       getLanguage: vi.fn().mockReturnValue('en-US'),
       getPrivacyModeEnabled: vi.fn(() => privacyModeEnabled)
     }) as any
@@ -140,6 +148,107 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     expect(configPresenter.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
     expect(startSpy).not.toHaveBeenCalled()
     expect(stopSpy).not.toHaveBeenCalled()
+  })
+
+  it('starts plugin-owned servers even when MCP is globally disabled', async () => {
+    const configPresenter = createConfigPresenter(
+      false,
+      false,
+      {
+        regular: { enabled: true },
+        plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+      },
+      ['regular', 'plugin']
+    )
+    const presenter = new McpPresenter(configPresenter)
+    ;(presenter as any).serverManager = {
+      startServer: serverManagerMocks.startServer,
+      testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
+      getNpmRegistry: serverManagerMocks.getNpmRegistry,
+      updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground
+    }
+
+    await presenter.initialize()
+
+    expect(serverManagerMocks.startServer).toHaveBeenCalledTimes(1)
+    expect(serverManagerMocks.startServer).toHaveBeenCalledWith('plugin')
+  })
+
+  it('does not start plugin-owned servers when enabling the global MCP switch', async () => {
+    const configPresenter = createConfigPresenter(
+      true,
+      false,
+      {
+        regular: { enabled: true },
+        plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+      },
+      ['regular', 'plugin']
+    )
+    const presenter = new McpPresenter(configPresenter)
+    const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpEnabled(true)
+
+    expect(configPresenter.setMcpEnabled).toHaveBeenCalledWith(true)
+    expect(startSpy).toHaveBeenCalledTimes(1)
+    expect(startSpy).toHaveBeenCalledWith('regular')
+  })
+
+  it('does not stop plugin-owned servers when disabling the global MCP switch', async () => {
+    const configPresenter = createConfigPresenter(false, false, {
+      regular: { enabled: true },
+      plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+    })
+    serverManagerMocks.getRunningClients.mockResolvedValue([
+      { serverName: 'regular' },
+      { serverName: 'plugin' }
+    ])
+    const presenter = new McpPresenter(configPresenter)
+    ;(presenter as any).serverManager = {
+      getRunningClients: serverManagerMocks.getRunningClients
+    }
+    const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpEnabled(false)
+
+    expect(configPresenter.setMcpEnabled).toHaveBeenCalledWith(false)
+    expect(stopSpy).toHaveBeenCalledTimes(1)
+    expect(stopSpy).toHaveBeenCalledWith('regular')
+  })
+
+  it('keeps plugin-owned tool definitions available when MCP is globally disabled', async () => {
+    const configPresenter = createConfigPresenter(false, false, {
+      regular: { enabled: true },
+      plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+    })
+    toolManagerMocks.getAllToolDefinitions.mockResolvedValueOnce([
+      {
+        type: 'function',
+        function: {
+          name: 'regular_tool',
+          description: '',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'regular', icons: '', description: '' }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'plugin_tool',
+          description: '',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'plugin', icons: '', description: '' }
+      }
+    ])
+    const presenter = new McpPresenter(configPresenter)
+    ;(presenter as any).toolManager = {
+      getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions
+    }
+
+    const tools = await presenter.getAllToolDefinitions()
+
+    expect(tools.map((tool) => tool.function.name)).toEqual(['plugin_tool'])
   })
 
   it('rejects when the runtime transition fails after persisting config', async () => {

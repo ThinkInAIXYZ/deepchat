@@ -72,12 +72,19 @@ async function refreshStatus() {
   const cuaMcp = status.mcpServers?.find((server) => server.serverId === 'cua-driver')
   if (!cuaMcp) {
     setText(mcpStateNode, 'Unavailable')
+    setMessage('')
+  } else if (cuaMcp.lastError) {
+    setText(mcpStateNode, 'Error')
+    setMessage(cuaMcp.lastError)
   } else if (cuaMcp.running) {
     setText(mcpStateNode, 'Running')
+    setMessage('')
   } else if (cuaMcp.enabled) {
     setText(mcpStateNode, 'Stopped')
+    setMessage('')
   } else {
     setText(mcpStateNode, 'Disabled')
+    setMessage('')
   }
 }
 

@@ -144,6 +144,7 @@ export interface PluginMcpRuntimeStatus {
   serverId: string
   enabled: boolean
   running: boolean
+  lastError?: string
 }
 
 export interface PluginSettingsContribution {

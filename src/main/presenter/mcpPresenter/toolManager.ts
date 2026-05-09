@@ -44,6 +44,14 @@ export class ToolManager {
     this.toolNameToTargetMap = null
   }
 
+  private isPluginOwnedClient(client: McpClient): boolean {
+    const serverConfig = client.serverConfig as {
+      ownerPluginId?: unknown
+      source?: unknown
+    }
+    return Boolean(serverConfig.ownerPluginId || serverConfig.source === 'plugin')
+  }
+
   public async getRunningClients(): Promise<McpClient[]> {
     return this.serverManager.getRunningClients()
   }
@@ -85,6 +93,7 @@ export class ToolManager {
     for (const client of clients) {
       try {
         const clientTools = await client.listTools()
+        this.serverManager.clearServerLastError(client.serverName)
         if (!clientTools) continue
 
         const currentServerRenames: Set<string> = toolsToRename.get(client.serverName) || new Set()
@@ -118,20 +127,24 @@ export class ToolManager {
           `Pass 1 Error: Failed to get tool list from server '${serverName}':`,
           errorMessage
         )
-        // Send notification (existing logic from previous commit)
-        const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
-        const errorMessages = getErrorMessageLabels(locale)
-        const formattedMessage =
-          errorMessages.getMcpToolListErrorMessage
-            ?.replace('{serverName}', serverName)
-            .replace('{errorMessage}', errorMessage) ||
-          `Failed to get tool list from server '${serverName}': ${errorMessage}`
-        eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
-          title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
-          message: formattedMessage,
-          id: `mcp-error-pass1-${serverName}-${Date.now()}`,
-          type: 'error'
-        })
+        this.serverManager.setServerLastError(serverName, errorMessage)
+        if (!this.isPluginOwnedClient(client)) {
+          // Send notification for normal MCP servers. Plugin-owned MCP errors are shown in
+          // plugin status surfaces instead of global toasts.
+          const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
+          const errorMessages = getErrorMessageLabels(locale)
+          const formattedMessage =
+            errorMessages.getMcpToolListErrorMessage
+              ?.replace('{serverName}', serverName)
+              .replace('{errorMessage}', errorMessage) ||
+            `Failed to get tool list from server '${serverName}': ${errorMessage}`
+          eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+            title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
+            message: formattedMessage,
+            id: `mcp-error-pass1-${serverName}-${Date.now()}`,
+            type: 'error'
+          })
+        }
         continue // Continue to next client
       }
     }
@@ -140,6 +153,7 @@ export class ToolManager {
     for (const client of clients) {
       try {
         const clientTools = await client.listTools()
+        this.serverManager.clearServerLastError(client.serverName)
         if (!clientTools) continue
 
         const renamesForThisServer = toolsToRename.get(client.serverName) || new Set()
@@ -202,6 +216,7 @@ export class ToolManager {
           `Pass 2 Error: Error processing tools from server '${serverName}':`,
           errorMessage
         )
+        this.serverManager.setServerLastError(serverName, errorMessage)
         // Maybe skip adding tools from this client if listTools fails here again,
         // though it succeeded in Pass 1. Or rely on the notification from Pass 1.
         continue // Continue to next client

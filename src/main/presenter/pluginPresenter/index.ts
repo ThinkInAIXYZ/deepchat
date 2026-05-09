@@ -263,7 +263,10 @@ export class PluginPresenter {
   private async disableByOwner(pluginId: string): Promise<void> {
     const servers = await this.configPresenter.getMcpServers()
     for (const [serverName, serverConfig] of Object.entries(servers)) {
-      if (serverConfig.ownerPluginId === pluginId) {
+      if (
+        serverConfig.ownerPluginId === pluginId ||
+        (serverConfig.source === 'plugin' && serverConfig.sourceId === pluginId)
+      ) {
         try {
           if (await this.mcpPresenter.isServerRunning(serverName)) {
             await this.mcpPresenter.stopServer(serverName)
@@ -1250,10 +1253,6 @@ export class PluginPresenter {
       return
     }
 
-    if (!(await this.configPresenter.getMcpEnabled())) {
-      return
-    }
-
     for (const serverName of serverNames) {
       try {
         if (!(await this.mcpPresenter.isServerRunning(serverName))) {
@@ -1279,7 +1278,10 @@ export class PluginPresenter {
       statuses.push({
         serverId: server.id,
         enabled: Boolean(serverConfig?.enabled),
-        running: await this.mcpPresenter.isServerRunning(server.id)
+        running: await this.mcpPresenter.isServerRunning(server.id),
+        lastError: serverConfig?.enabled
+          ? this.mcpPresenter.getServerLastError?.(server.id)
+          : undefined
       })
     }
     return statuses

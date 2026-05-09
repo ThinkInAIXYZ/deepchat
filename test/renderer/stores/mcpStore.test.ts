@@ -146,6 +146,20 @@ describe('useMcpStore toggleServer rollback', () => {
           disable: false,
           type: 'stdio',
           enabled: true
+        },
+        'cua-driver': {
+          command: '/mock/cua-driver',
+          args: ['mcp'],
+          env: {},
+          descriptions: 'Computer Use',
+          icons: 'plugin',
+          autoApprove: [],
+          disable: false,
+          type: 'stdio',
+          enabled: true,
+          source: 'plugin',
+          sourceId: 'com.deepchat.plugins.cua',
+          ownerPluginId: 'com.deepchat.plugins.cua'
         }
       },
       mcpEnabled: false,
@@ -153,7 +167,9 @@ describe('useMcpStore toggleServer rollback', () => {
     }
 
     expect(store.serverList).toHaveLength(1)
+    expect(store.pluginServerList.map((server) => server.name)).toEqual(['cua-driver'])
     expect(store.enabledServers).toEqual([])
+    expect(store.enabledPluginServers.map((server) => server.name)).toEqual(['cua-driver'])
     expect(store.enabledServerCount).toBe(0)
   })
 
