@@ -37,6 +37,7 @@ import ollamaColorIcon from '@/assets/llm-icons/ollama.svg?url'
 import doubaoColorIcon from '@/assets/llm-icons/doubao-color.svg?url'
 import dimcodeColorIcon from '@/assets/llm-icons/dimcode.svg?url'
 import minimaxColorIcon from '@/assets/llm-icons/minimax-color.svg?url'
+import mistralColorIcon from '@/assets/llm-icons/mistral-color.svg?url'
 import fireworksColorIcon from '@/assets/llm-icons/fireworks-color.svg?url'
 import zerooneColorIcon from '@/assets/llm-icons/zeroone.svg?url'
 import xaiColorIcon from '@/assets/llm-icons/xai.svg?url'
@@ -106,6 +107,7 @@ const icons = {
   ollama: ollamaColorIcon,
   doubao: doubaoColorIcon,
   minimax: minimaxColorIcon,
+  mistral: mistralColorIcon,
   fireworks: fireworksColorIcon,
   zeabur: zeaburColorIcon,
   zeroone: zerooneColorIcon,

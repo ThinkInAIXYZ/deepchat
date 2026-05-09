@@ -581,6 +581,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'mistral',
+    name: 'Mistral',
+    apiType: 'mistral',
+    apiKey: '',
+    baseUrl: 'https://api.mistral.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://mistral.ai',
+      apiKey: 'https://console.mistral.ai/api-keys/',
+      docs: 'https://docs.mistral.ai/',
+      models: 'https://docs.mistral.ai/getting-started/models/',
+      defaultBaseUrl: 'https://api.mistral.ai/v1'
+    }
+  },
+
+  {
     id: 'grok',
     name: 'Grok',
     apiType: 'grok',
@@ -608,21 +624,6 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   //     docs: 'https://docs.hyperbolic.xyz',
   //     models: 'https://app.hyperbolic.xyz/models',
   //     defaultBaseUrl: 'https://api.hyperbolic.xyz'
-  //   }
-  // },
-  // {
-  //   id: 'mistral',
-  //   name: 'Mistral',
-  //   apiType: 'mistral',
-  //   apiKey: '',
-  //   baseUrl: 'https://api.mistral.ai',
-  //   enable: false,
-  //   websites: {
-  //     official: 'https://mistral.ai',
-  //     apiKey: 'https://console.mistral.ai/api-keys/',
-  //     docs: 'https://docs.mistral.ai',
-  //     models: 'https://docs.mistral.ai/getting-started/models/models_overview',
-  //     defaultBaseUrl: 'https://api.mistral.ai'
   //   }
   // },
   // {

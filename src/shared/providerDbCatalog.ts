@@ -1,4 +1,4 @@
-const PROVIDER_DB_BACKED_PROVIDER_IDS = new Set(['doubao', 'zhipu', 'minimax', 'o3fan'])
+const PROVIDER_DB_BACKED_PROVIDER_IDS = new Set(['doubao', 'zhipu', 'minimax', 'mistral', 'o3fan'])
 
 export const isProviderDbBackedProvider = (providerId: string | undefined | null): boolean => {
   if (!providerId) {
