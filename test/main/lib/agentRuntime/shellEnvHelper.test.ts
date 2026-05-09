@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('child_process', () => ({
@@ -17,7 +18,11 @@ vi.mock('electron', () => ({
 }))
 
 import { spawn } from 'child_process'
-import { clearShellEnvironmentCache, getShellEnvironment } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  clearShellEnvironmentCache,
+  getShellEnvironment,
+  getUserShell
+} from '@/lib/agentRuntime/shellEnvHelper'
 
 class MockStream extends EventEmitter {}
 
@@ -60,6 +65,7 @@ describe('shellEnvHelper', () => {
     })
     process.env.SHELL = '/bin/zsh'
     process.env.PATH = '/usr/bin:/bin'
+    vi.mocked(fs.existsSync).mockReturnValue(true)
 
     vi.mocked(spawn).mockImplementation((shell, args) => {
       const child = new MockChild()
@@ -103,6 +109,7 @@ describe('shellEnvHelper', () => {
     })
     process.env.SHELL = '/bin/zsh'
     process.env.PATH = '/usr/bin:/bin'
+    vi.mocked(fs.existsSync).mockReturnValue(true)
 
     vi.mocked(spawn)
       .mockImplementationOnce(() => {
@@ -138,6 +145,49 @@ describe('shellEnvHelper', () => {
     expect(recoveredEnv.VOLTA_HOME).toBe('/Users/tester/.volta')
     expect(recoveredEnv.PATH.split(':')).toEqual(
       expect.arrayContaining(['/custom/bin', '/usr/local/bin', '/usr/bin', '/bin'])
+    )
+  })
+
+  it('falls back to an available POSIX shell when the configured shell is unavailable', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/missing/zsh'
+    process.env.PATH = '/usr/bin:/bin'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) => String(candidate) === '/bin/sh')
+
+    expect(getUserShell()).toEqual({ shell: '/bin/sh', args: ['-c'] })
+  })
+
+  it('does not pass login flags to a plain sh bootstrap fallback', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/missing/zsh'
+    process.env.PATH = '/usr/bin:/bin'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) => String(candidate) === '/bin/sh')
+
+    vi.mocked(spawn).mockImplementation((shell, args) => {
+      const child = new MockChild()
+      const command = String(args?.[1] ?? '')
+      const { start, end } = getMarkers(command)
+
+      queueMicrotask(() => {
+        child.stdout.emit('data', [start, 'PATH=/fallback/bin', end].join('\n'))
+        child.emit('exit', 0, null)
+      })
+
+      expect(shell).toBe('/bin/sh')
+      expect(args).toEqual(['-c', expect.any(String)])
+      return child as never
+    })
+
+    await expect(getShellEnvironment()).resolves.toEqual(
+      expect.objectContaining({
+        PATH: expect.stringContaining('/fallback/bin')
+      })
     )
   })
 

@@ -73,12 +73,11 @@ import {
   fitMessagesToContextWindow
 } from './contextBuilder'
 import {
-  buildRequestContextBudget,
   capAgentDefaultMaxTokens,
   capAgentRequestMaxTokens,
   estimateToolReserveTokens,
   fitRequestMessagesToContextWindow,
-  resolveEffectiveRequestMaxTokens
+  preflightRequestContext
 } from './contextBudget'
 import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
@@ -756,6 +755,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         projectDir,
         promptPreview: normalizedInput.text,
         tools,
+        baseSystemPrompt,
         interleavedReasoning
       })
       if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
@@ -1720,6 +1720,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     messages: ChatMessage[]
     projectDir: string | null
     tools?: MCPToolDefinition[]
+    baseSystemPrompt?: string
     initialBlocks?: AssistantMessageBlock[]
     promptPreview?: string
     interleavedReasoning?: InterleavedReasoningConfig
@@ -1730,6 +1731,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       messages,
       projectDir,
       tools: providedTools,
+      baseSystemPrompt,
       initialBlocks,
       promptPreview,
       interleavedReasoning: providedInterleavedReasoning
@@ -1786,6 +1788,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const llmProviderPresenter = this.llmProviderPresenter
     const pendingInputCoordinator = this.pendingInputCoordinator
     const injectSteerInputsIntoRequest = this.injectSteerInputsIntoRequest.bind(this)
+    const recoverContextPressure = this.recoverRequestContextPressure.bind(this)
+    const replaceLeadingSystemPromptInPlace = this.replaceLeadingSystemPromptInPlace.bind(this)
     const persistMessageTrace = this.persistMessageTrace.bind(this)
     if (traceEnabled) {
       const traceAwareConfig = modelConfig as ModelConfig & {
@@ -1859,21 +1863,48 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           let queuedForRateLimit = false
 
           try {
-            const requestBudget = buildRequestContextBudget(
-              requestMaxTokens,
-              requestModelConfig.contextLength,
-              requestTools
-            )
             const protectedSteerTailCount =
               claimedSteerBatch.length > 0
                 ? claimedSteerBatch.length + (requestMessages.at(-1)?.role === 'user' ? 1 : 0)
                 : 0
-            const fittedMessages = fitRequestMessagesToContextWindow({
+            let requestPreflight = preflightRequestContext({
               messages: injectedMessages,
+              tools: requestTools,
               contextLength: requestModelConfig.contextLength,
-              reserveTokens: requestBudget.totalReserveTokens,
+              requestedMaxTokens: requestMaxTokens,
               minimumProtectedTailCount: protectedSteerTailCount
             })
+            if (requestPreflight.requiresContextPressureRecovery) {
+              const recovered = await recoverContextPressure({
+                sessionId,
+                providerId: state.providerId,
+                modelId: requestModelId,
+                requestMessages: requestPreflight.messages,
+                baseSystemPrompt,
+                contextLength: requestModelConfig.contextLength,
+                requestedMaxTokens: requestPreflight.requestedMaxTokens,
+                tools: requestTools,
+                supportsVision,
+                interleavedReasoning,
+                minimumProtectedTailCount: protectedSteerTailCount,
+                signal: abortController.signal
+              })
+              if (recovered.systemPrompt) {
+                replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
+              }
+              requestPreflight = preflightRequestContext({
+                messages: recovered.messages,
+                tools: requestTools,
+                contextLength: requestModelConfig.contextLength,
+                requestedMaxTokens: requestMaxTokens,
+                minimumProtectedTailCount: protectedSteerTailCount
+              })
+            }
+            if (!requestPreflight.fitsWithinContext) {
+              throw new Error(
+                'Request cannot fit within the model context window after applying the safety margin.'
+              )
+            }
             await llmProviderPresenter.executeWithRateLimit(state.providerId, {
               signal: abortController.signal,
               onQueued: (snapshot) => {
@@ -1895,16 +1926,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             }
 
             for await (const event of provider.coreStream(
-              fittedMessages,
+              requestPreflight.messages,
               requestModelId,
               requestModelConfig,
               requestTemperature,
-              resolveEffectiveRequestMaxTokens({
-                messages: fittedMessages,
-                toolReserveTokens: requestBudget.toolReserveTokens,
-                contextLength: requestModelConfig.contextLength,
-                requestedMaxTokens: requestMaxTokens
-              }),
+              requestPreflight.effectiveMaxTokens,
               requestTools
             )) {
               if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
@@ -2037,6 +2063,93 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.clearActiveGeneration(sessionId, activeGeneration.runId)
       throw error
     }
+  }
+
+  private async recoverRequestContextPressure(params: {
+    sessionId: string
+    providerId: string
+    modelId: string
+    requestMessages: ChatMessage[]
+    baseSystemPrompt?: string
+    contextLength: number
+    requestedMaxTokens: number
+    tools: MCPToolDefinition[]
+    supportsVision: boolean
+    interleavedReasoning: InterleavedReasoningConfig
+    minimumProtectedTailCount: number
+    signal: AbortSignal
+  }): Promise<{ messages: ChatMessage[]; systemPrompt?: string }> {
+    let messages = params.requestMessages
+    const systemPromptBase =
+      params.baseSystemPrompt ?? this.getLeadingSystemPrompt(params.requestMessages) ?? ''
+    const intent = await this.compactionService.prepareForContextPressureRecovery({
+      sessionId: params.sessionId,
+      providerId: params.providerId,
+      modelId: params.modelId,
+      systemPrompt: systemPromptBase,
+      contextLength: params.contextLength,
+      reserveTokens: params.requestedMaxTokens,
+      extraReserveTokens: estimateToolReserveTokens(params.tools),
+      supportsVision: params.supportsVision,
+      preserveInterleavedReasoning: params.interleavedReasoning.preserveReasoningContent,
+      preserveEmptyInterleavedReasoning:
+        params.interleavedReasoning.preserveEmptyReasoningContent === true,
+      projectedMessages: this.withoutLeadingSystemMessage(params.requestMessages),
+      signal: params.signal
+    })
+
+    if (!intent) {
+      return { messages }
+    }
+
+    const summaryState = await this.applyCompactionIntent(params.sessionId, intent, {
+      signal: params.signal
+    })
+    const systemPrompt = appendSummarySection(systemPromptBase, summaryState.summaryText)
+    messages = this.replaceLeadingSystemPrompt(messages, systemPrompt)
+
+    return {
+      messages: fitRequestMessagesToContextWindow({
+        messages,
+        contextLength: params.contextLength,
+        reserveTokens: params.requestedMaxTokens + estimateToolReserveTokens(params.tools),
+        minimumProtectedTailCount: params.minimumProtectedTailCount
+      }),
+      systemPrompt
+    }
+  }
+
+  private getLeadingSystemPrompt(messages: ChatMessage[]): string | null {
+    const first = messages[0]
+    return first?.role === 'system' && typeof first.content === 'string' ? first.content : null
+  }
+
+  private withoutLeadingSystemMessage(messages: ChatMessage[]): ChatMessage[] {
+    return messages[0]?.role === 'system' ? messages.slice(1) : messages
+  }
+
+  private replaceLeadingSystemPrompt(messages: ChatMessage[], systemPrompt: string): ChatMessage[] {
+    if (!systemPrompt) {
+      return this.withoutLeadingSystemMessage(messages)
+    }
+    if (messages[0]?.role === 'system') {
+      return [{ ...messages[0], content: systemPrompt }, ...messages.slice(1)]
+    }
+    return [{ role: 'system', content: systemPrompt }, ...messages]
+  }
+
+  private replaceLeadingSystemPromptInPlace(messages: ChatMessage[], systemPrompt: string): void {
+    if (!systemPrompt) {
+      if (messages[0]?.role === 'system') {
+        messages.shift()
+      }
+      return
+    }
+    if (messages[0]?.role === 'system') {
+      messages[0] = { ...messages[0], content: systemPrompt }
+      return
+    }
+    messages.unshift({ role: 'system', content: systemPrompt })
   }
 
   private injectSteerInputsIntoRequest(
@@ -2427,6 +2540,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         messages: resumeContext,
         projectDir,
         tools,
+        baseSystemPrompt,
         initialBlocks,
         interleavedReasoning
       })

@@ -33,6 +33,19 @@ consumes more context and fails on small formatting deviations.
 - Add a compact tool-schema mode for legacy function-call fallback.
 - Add UI diagnostics for "context budget pressure" and suggested remediation.
 
+## Second Increment
+
+- Add a provider-call preflight helper that estimates messages, tool definitions, the safety margin,
+  and the temporary effective output cap before every loop request.
+- Reserve a 256-token safety margin for normal model context windows so off-by-one provider
+  validators do not reject otherwise fitted requests.
+- When preflight pressure would reduce a normal request below 4000 output tokens, run an internal
+  recovery pass before the provider call: compact persisted old turns when enabled, then rely on the
+  request fitter to trim older in-memory messages while preserving the active tail.
+- Keep generation settings unchanged; only the provider call's `maxTokens` argument is reduced.
+- Use the same safety-adjusted budget in tool-output fitting so continuation turns do not inject
+  tool results that leave the next request over the provider limit.
+
 ## Manual Validation Notes
 
 For a MiniMax-M2.7 agent session, inspect trace/log output rather than running automated test

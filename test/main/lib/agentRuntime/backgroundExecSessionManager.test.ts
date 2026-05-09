@@ -47,10 +47,12 @@ describe('BackgroundExecSessionManager', () => {
   let manager: BackgroundExecSessionManager
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
   const originalPsModulePath = process.env.PSModulePath
+  const originalShell = process.env.SHELL
 
   beforeEach(() => {
     manager = new BackgroundExecSessionManager()
     clearInterval((manager as never).cleanupIntervalId)
+    vi.mocked(fs.existsSync).mockReturnValue(true)
   })
 
   afterEach(() => {
@@ -64,6 +66,11 @@ describe('BackgroundExecSessionManager', () => {
       delete process.env.PSModulePath
     } else {
       process.env.PSModulePath = originalPsModulePath
+    }
+    if (originalShell === undefined) {
+      delete process.env.SHELL
+    } else {
+      process.env.SHELL = originalShell
     }
   })
 
@@ -297,6 +304,44 @@ describe('BackgroundExecSessionManager', () => {
         detached: false
       })
     )
+  })
+
+  it('falls back to an available shell when the configured POSIX shell is missing', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/missing/zsh'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) =>
+      ['/bin/sh', '/workspace'].includes(String(candidate))
+    )
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    await manager.start('conv-1', 'echo test', '/workspace', { timeout: 0 })
+
+    expect(spawn).toHaveBeenCalledWith(
+      '/bin/sh',
+      ['-c', 'echo test'],
+      expect.objectContaining({
+        cwd: '/workspace'
+      })
+    )
+  })
+
+  it('rejects missing working directories before spawn can report a misleading shell ENOENT', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/bin/zsh'
+    vi.mocked(fs.existsSync).mockImplementation((candidate) => String(candidate) === '/bin/zsh')
+
+    await expect(
+      manager.start('conv-1', 'echo test', '/missing/workspace', { timeout: 0 })
+    ).rejects.toThrow('Working directory does not exist or is not accessible: /missing/workspace')
+
+    expect(spawn).not.toHaveBeenCalled()
   })
 
   it('decodes split UTF-8 output from running sessions', async () => {

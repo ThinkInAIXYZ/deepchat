@@ -9,6 +9,8 @@ import {
 export const AGENT_DEFAULT_MAX_OUTPUT_TOKENS_CAP = 16_384
 export const AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP = 32_768
 export const AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS = 1
+export const AGENT_CONTEXT_SAFETY_MARGIN_TOKENS = 256
+export const AGENT_CONTEXT_PRESSURE_MIN_OUTPUT_TOKENS = 4_000
 
 export type RequestContextBudget = {
   outputReserveTokens: number
@@ -16,8 +18,39 @@ export type RequestContextBudget = {
   totalReserveTokens: number
 }
 
+export type RequestContextPreflightResult = {
+  messages: ChatMessage[]
+  inputTokens: number
+  toolReserveTokens: number
+  requestedMaxTokens: number
+  effectiveMaxTokens: number
+  usableContextLength: number
+  remainingOutputTokens: number
+  totalRequestTokens: number
+  fitsWithinContext: boolean
+  shrunkByContextPressure: boolean
+  requiresContextPressureRecovery: boolean
+}
+
 export function estimateToolReserveTokens(tools: MCPToolDefinition[]): number {
   return estimateToolDefinitionTokens(tools)
+}
+
+export function getUsableContextLength(contextLength: number): number {
+  if (!Number.isFinite(contextLength) || contextLength <= 0) {
+    return contextLength
+  }
+
+  // Tiny synthetic windows are used heavily in tests; reserving 256 there would leave no usable
+  // room and would not represent a real agent model window.
+  if (contextLength <= AGENT_CONTEXT_SAFETY_MARGIN_TOKENS * 4) {
+    return contextLength
+  }
+
+  return Math.max(
+    AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS,
+    Math.floor(contextLength - AGENT_CONTEXT_SAFETY_MARGIN_TOKENS)
+  )
 }
 
 export function capAgentRequestMaxTokens(
@@ -68,7 +101,7 @@ export function fitRequestMessagesToContextWindow(params: {
 
   return fitMessagesToContextWindow(
     params.messages,
-    params.contextLength,
+    getUsableContextLength(params.contextLength),
     params.reserveTokens,
     Math.max(
       params.minimumProtectedTailCount ?? 0,
@@ -89,13 +122,72 @@ export function resolveEffectiveRequestMaxTokens(params: {
   }
 
   const remaining = Math.floor(
-    params.contextLength - estimateMessagesTokens(params.messages) - params.toolReserveTokens
+    getUsableContextLength(params.contextLength) -
+      estimateMessagesTokens(params.messages) -
+      params.toolReserveTokens
   )
   if (remaining <= 0) {
     return AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS
   }
 
   return Math.max(AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS, Math.min(requested, remaining))
+}
+
+export function preflightRequestContext(params: {
+  messages: ChatMessage[]
+  tools: MCPToolDefinition[]
+  contextLength: number
+  requestedMaxTokens: number
+  minimumProtectedTailCount?: number
+}): RequestContextPreflightResult {
+  const requestedMaxTokens = capAgentRequestMaxTokens(
+    params.requestedMaxTokens,
+    params.contextLength
+  )
+  const toolReserveTokens = estimateToolReserveTokens(params.tools)
+  const fittedMessages = sanitizeToolContinuationMessages(
+    fitRequestMessagesToContextWindow({
+      messages: params.messages,
+      contextLength: params.contextLength,
+      reserveTokens: requestedMaxTokens + toolReserveTokens,
+      minimumProtectedTailCount: params.minimumProtectedTailCount
+    })
+  )
+  const inputTokens = estimateMessagesTokens(fittedMessages)
+  const usableContextLength = getUsableContextLength(params.contextLength)
+  const hasFiniteContext =
+    Number.isFinite(usableContextLength) && Number.isFinite(params.contextLength)
+  const remainingOutputTokens = hasFiniteContext
+    ? Math.floor(usableContextLength - inputTokens - toolReserveTokens)
+    : requestedMaxTokens
+  const fitsWithinContext =
+    !hasFiniteContext || remainingOutputTokens >= AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS
+  const effectiveMaxTokens = hasFiniteContext
+    ? Math.max(
+        AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS,
+        Math.min(requestedMaxTokens, remainingOutputTokens)
+      )
+    : requestedMaxTokens
+  const totalRequestTokens = inputTokens + toolReserveTokens + effectiveMaxTokens
+  const shrunkByContextPressure = effectiveMaxTokens < requestedMaxTokens
+  const requiresContextPressureRecovery =
+    shrunkByContextPressure &&
+    requestedMaxTokens >= AGENT_CONTEXT_PRESSURE_MIN_OUTPUT_TOKENS &&
+    effectiveMaxTokens < AGENT_CONTEXT_PRESSURE_MIN_OUTPUT_TOKENS
+
+  return {
+    messages: fittedMessages,
+    inputTokens,
+    toolReserveTokens,
+    requestedMaxTokens,
+    effectiveMaxTokens,
+    usableContextLength,
+    remainingOutputTokens,
+    totalRequestTokens,
+    fitsWithinContext,
+    shrunkByContextPressure,
+    requiresContextPressureRecovery
+  }
 }
 
 function resolveProtectedRequestTailCount(messages: ChatMessage[]): number {
@@ -122,6 +214,43 @@ function resolveProtectedRequestTailCount(messages: ChatMessage[]): number {
   }
 
   return 1
+}
+
+function sanitizeToolContinuationMessages(messages: ChatMessage[]): ChatMessage[] {
+  const sanitized: ChatMessage[] = []
+  let pendingToolCallIds = new Set<string>()
+
+  for (const message of messages) {
+    if (message.role === 'assistant') {
+      sanitized.push(message)
+      pendingToolCallIds = new Set(message.tool_calls?.map((toolCall) => toolCall.id) ?? [])
+      continue
+    }
+
+    if (message.role === 'tool') {
+      const toolCallId = message.tool_call_id
+      if (!toolCallId) {
+        if (pendingToolCallIds.size === 0) {
+          continue
+        }
+        sanitized.push(message)
+        continue
+      }
+
+      if (!pendingToolCallIds.has(toolCallId)) {
+        continue
+      }
+
+      sanitized.push(message)
+      pendingToolCallIds.delete(toolCallId)
+      continue
+    }
+
+    sanitized.push(message)
+    pendingToolCallIds = new Set()
+  }
+
+  return sanitized
 }
 
 function getContextOutputCap(contextLength: number): number {

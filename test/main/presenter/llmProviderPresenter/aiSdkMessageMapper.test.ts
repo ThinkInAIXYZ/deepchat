@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { modelMessageSchema } from 'ai'
 import { mapMessagesToModelMessages } from '@/presenter/llmProviderPresenter/aiSdk/messageMapper'
 
 function convertToOpenAICompatibleChatMessagesForTest(messages: any[]) {
@@ -202,5 +203,70 @@ describe('AI SDK message mapper', () => {
         content: [{ type: 'reasoning', text: 'Think before answering.' }]
       }
     ])
+  })
+
+  it('drops invalid provider options before returning AI SDK messages', () => {
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: 'hello',
+              provider_options: {
+                anthropic: { cacheControl: { type: 'ephemeral' } },
+                broken: undefined
+              }
+            }
+          ]
+        } as any,
+        {
+          role: 'assistant',
+          content: 'thinking',
+          reasoning_content: 'plan',
+          reasoning_provider_options: {
+            broken: undefined
+          }
+        } as any
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true,
+        preserveOpenAICompatibleReasoningContent: true
+      }
+    )
+
+    expect(result.every((message) => modelMessageSchema.safeParse(message).success)).toBe(true)
+    expect(result[0]).toEqual({
+      role: 'assistant',
+      content: [
+        {
+          type: 'text',
+          text: 'hello',
+          providerOptions: {
+            anthropic: { cacheControl: { type: 'ephemeral' } }
+          }
+        }
+      ]
+    })
+    expect(result[1]).toEqual({
+      role: 'assistant',
+      content: [
+        {
+          type: 'reasoning',
+          text: 'plan'
+        },
+        {
+          type: 'text',
+          text: 'thinking'
+        }
+      ],
+      providerOptions: {
+        openaiCompatible: {
+          reasoning_content: 'plan'
+        }
+      }
+    })
   })
 })

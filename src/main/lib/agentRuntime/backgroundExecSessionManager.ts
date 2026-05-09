@@ -8,6 +8,7 @@ import {
   createUtf8OutputDecoderPair,
   prepareShellCommandForUtf8Output
 } from './shellOutputEncoding'
+import { describeSpawnFailure, resolveUsableSpawnCwd } from './spawnGuard'
 import { terminateProcessTree } from './processTree'
 import { resolveSessionDir } from './sessionPaths'
 
@@ -60,6 +61,8 @@ interface BackgroundSession {
   sessionId: string
   conversationId: string
   command: string
+  cwd: string
+  shell: string
   child: ChildProcess
   status: 'running' | 'done' | 'error' | 'killed'
   exitCode?: number
@@ -127,6 +130,7 @@ export class BackgroundExecSessionManager {
     const sessionId = `bg_${nanoid(12)}`
     const { shell, args } = getUserShell()
     const shellCommand = prepareShellCommandForUtf8Output(shell, command)
+    const spawnCwd = resolveUsableSpawnCwd(cwd)
 
     const sessionDir = resolveSessionDir(conversationId)
     if (sessionDir) {
@@ -138,7 +142,7 @@ export class BackgroundExecSessionManager {
       : null
 
     const child = spawn(shell, [...args, shellCommand], {
-      cwd,
+      cwd: spawnCwd,
       env: { ...process.env, ...options?.env },
       detached: process.platform !== 'win32',
       stdio: ['pipe', 'pipe', 'pipe']
@@ -154,6 +158,8 @@ export class BackgroundExecSessionManager {
       sessionId,
       conversationId,
       command,
+      cwd: spawnCwd,
+      shell,
       child,
       status: 'running',
       createdAt: now,
@@ -503,8 +509,17 @@ export class BackgroundExecSessionManager {
       if (session.status === 'running') {
         session.status = 'error'
       }
-      session.errorMessage = error.message
-      logger.error(`[BackgroundExec] Session ${session.sessionId} error:`, error)
+      const errorMessage = describeSpawnFailure(error, {
+        shell: session.shell,
+        cwd: session.cwd
+      })
+      session.errorMessage = errorMessage
+      this.appendOutput(session, `${errorMessage}\n`, getConfig())
+      logger.error(`[BackgroundExec] Session ${session.sessionId} error:`, {
+        error,
+        cwd: session.cwd,
+        shell: session.shell
+      })
       queueMicrotask(() => {
         if (!session.closeSettled && session.exitCode === undefined) {
           void this.finalizeSession(session, null, null)

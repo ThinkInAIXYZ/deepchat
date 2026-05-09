@@ -1,5 +1,6 @@
 import { spawn } from 'child_process'
 import { app } from 'electron'
+import fs from 'fs'
 import * as path from 'path'
 import { RuntimeHelper } from '../runtimeHelper'
 
@@ -27,6 +28,12 @@ const NPM_ENV_KEYS = [
   'NPM_CONFIG_TMP'
 ] as const
 const RELEVANT_ENV_KEYS = [...PATH_ENV_KEYS, ...NODE_ENV_KEYS, ...NPM_ENV_KEYS] as const
+
+const POSIX_SHELL_FALLBACKS: Partial<Record<NodeJS.Platform, string[]>> = {
+  darwin: ['/bin/zsh', '/usr/bin/zsh', '/bin/bash', '/usr/bin/bash', '/bin/sh', '/usr/bin/sh'],
+  linux: ['/bin/bash', '/usr/bin/bash', '/bin/sh', '/usr/bin/sh', '/bin/zsh', '/usr/bin/zsh']
+}
+const DEFAULT_POSIX_SHELL_FALLBACKS = ['/bin/sh', '/usr/bin/sh']
 
 let cachedShellEnv: Record<string, string> | null = null
 
@@ -253,7 +260,39 @@ function getShellBootstrapArgs(shellPath: string, command: string): string[] {
     return ['-l', '-i', '-c', command]
   }
 
-  return ['-l', '-c', command]
+  return ['-c', command]
+}
+
+function isAvailableShell(shellPath: string): boolean {
+  return fs.existsSync(shellPath)
+}
+
+function resolveShellPath(shellCandidate: string | undefined): string | null {
+  const shell = shellCandidate?.trim()
+  if (!shell) {
+    return null
+  }
+
+  if (path.isAbsolute(shell)) {
+    return isAvailableShell(shell) ? shell : null
+  }
+
+  const searchEntries = mergePathEntries([getPathEntriesFromEnv(process.env)], {
+    includeDefaultPaths: true
+  }).entries
+
+  for (const entry of searchEntries) {
+    const resolved = path.join(entry, shell)
+    if (isAvailableShell(resolved)) {
+      return resolved
+    }
+  }
+
+  return null
+}
+
+function getFallbackShellCandidates(platform: NodeJS.Platform): string[] {
+  return POSIX_SHELL_FALLBACKS[platform] ?? DEFAULT_POSIX_SHELL_FALLBACKS
 }
 
 export function getUserShell(): { shell: string; args: string[] } {
@@ -267,9 +306,12 @@ export function getUserShell(): { shell: string; args: string[] } {
     return { shell: 'cmd.exe', args: ['/c'] }
   }
 
-  const fallbackShell =
-    platform === 'darwin' ? '/bin/zsh' : platform === 'linux' ? '/bin/bash' : '/bin/sh'
-  const shell = process.env.SHELL || fallbackShell
+  const fallbackShells = getFallbackShellCandidates(platform)
+  const shell =
+    resolveShellPath(process.env.SHELL) ??
+    fallbackShells.map((candidate) => resolveShellPath(candidate)).find(Boolean) ??
+    fallbackShells[0] ??
+    '/bin/sh'
 
   return { shell, args: ['-c'] }
 }

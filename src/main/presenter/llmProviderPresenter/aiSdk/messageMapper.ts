@@ -17,6 +17,23 @@ type PendingToolCall = {
 
 type AssistantProviderOptions = Record<string, Record<string, unknown>>
 
+function sanitizeProviderOptions(
+  providerOptions: Record<string, unknown> | undefined
+): AssistantProviderOptions | undefined {
+  if (!providerOptions || typeof providerOptions !== 'object' || Array.isArray(providerOptions)) {
+    return undefined
+  }
+
+  const sanitized = Object.fromEntries(
+    Object.entries(providerOptions).filter(
+      (entry): entry is [string, Record<string, unknown>] =>
+        Boolean(entry[1]) && typeof entry[1] === 'object' && !Array.isArray(entry[1])
+    )
+  )
+
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined
+}
+
 function hasOwnReasoningContent(message: ChatMessage): boolean {
   return Object.prototype.hasOwnProperty.call(message, 'reasoning_content')
 }
@@ -101,8 +118,8 @@ function mapAssistantTextAndReasoning(message: ChatMessage): any[] {
     content.push({
       type: 'reasoning',
       text: message.reasoning_content ?? '',
-      ...(message.reasoning_provider_options
-        ? { providerOptions: message.reasoning_provider_options }
+      ...(sanitizeProviderOptions(message.reasoning_provider_options)
+        ? { providerOptions: sanitizeProviderOptions(message.reasoning_provider_options) }
         : {})
     })
   }
@@ -116,7 +133,9 @@ function mapAssistantTextAndReasoning(message: ChatMessage): any[] {
       content.push({
         type: 'text',
         text: part.text,
-        ...(part.provider_options ? { providerOptions: part.provider_options } : {})
+        ...(sanitizeProviderOptions(part.provider_options)
+          ? { providerOptions: sanitizeProviderOptions(part.provider_options) }
+          : {})
       })
     }
 
@@ -128,7 +147,9 @@ function mapAssistantTextAndReasoning(message: ChatMessage): any[] {
     content.push({
       type: 'text',
       text,
-      ...(message.provider_options ? { providerOptions: message.provider_options } : {})
+      ...(sanitizeProviderOptions(message.provider_options)
+        ? { providerOptions: sanitizeProviderOptions(message.provider_options) }
+        : {})
     })
   }
 
@@ -150,13 +171,13 @@ function buildAssistantProviderOptions(
     return undefined
   }
 
-  return {
+  return sanitizeProviderOptions({
     ...message.provider_options,
     openaiCompatible: {
       ...message.provider_options?.openaiCompatible,
       reasoning_content: message.reasoning_content ?? ''
     }
-  }
+  })
 }
 
 function buildAssistantModelMessage(
@@ -231,7 +252,9 @@ export function mapMessagesToModelMessages(
               type: 'tool-call',
               toolCallId,
               toolName: toolCall.function.name,
-              ...(toolCall.provider_options ? { providerOptions: toolCall.provider_options } : {}),
+              ...(sanitizeProviderOptions(toolCall.provider_options)
+                ? { providerOptions: sanitizeProviderOptions(toolCall.provider_options) }
+                : {}),
               input:
                 typeof rawArgs === 'string' ? (tryParseJson(rawArgs) ?? { raw: rawArgs }) : rawArgs
             })
@@ -309,7 +332,9 @@ export function mapMessagesToModelMessages(
               toolCallId: pending?.id || message.tool_call_id || `tool-result-${generateId()}`,
               toolName: pending?.name || 'unknown',
               output: toToolResultOutput(serialized),
-              ...(message.provider_options ? { providerOptions: message.provider_options } : {})
+              ...(sanitizeProviderOptions(message.provider_options)
+                ? { providerOptions: sanitizeProviderOptions(message.provider_options) }
+                : {})
             }
           ]
         } as ModelMessage)

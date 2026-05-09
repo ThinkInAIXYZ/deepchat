@@ -6,6 +6,11 @@ import { app } from 'electron'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
+import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
+import {
+  estimateToolReserveTokens,
+  getUsableContextLength
+} from '@/presenter/agentRuntimePresenter/contextBudget'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -111,6 +116,35 @@ function createMockSqlitePresenter() {
     summary_cursor_order_seq: 1,
     summary_updated_at: null
   }
+  const deepchatMessagesTable = {
+    insert: vi.fn(),
+    updateContent: vi.fn(),
+    updateStatus: vi.fn(),
+    updateContentAndStatus: vi.fn(),
+    getBySession: vi.fn().mockReturnValue([]),
+    getBySessionUpToOrderSeq: vi.fn().mockReturnValue([]),
+    listPageBySession: vi.fn().mockReturnValue([]),
+    getByStatus: vi.fn().mockReturnValue([]),
+    getIdsBySession: vi.fn().mockReturnValue([]),
+    getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
+    get: vi.fn(),
+    getLastUserMessageBeforeOrAtOrderSeq: vi.fn(),
+    getMaxOrderSeq: vi.fn().mockReturnValue(0),
+    deleteBySession: vi.fn(),
+    delete: vi.fn(),
+    deleteFromOrderSeq: vi.fn(),
+    recoverPendingMessages: vi.fn().mockReturnValue(0)
+  }
+  const deepchatAssistantBlocksTable = {
+    replaceForMessage: vi.fn((messageId: string, blocks: any[]) => {
+      deepchatMessagesTable.updateContent(messageId, JSON.stringify(blocks))
+    }),
+    listByMessageIds: vi.fn().mockReturnValue([]),
+    listByMessageId: vi.fn().mockReturnValue([]),
+    deleteBySession: vi.fn(),
+    delete: vi.fn(),
+    deleteByMessageIds: vi.fn()
+  }
   return {
     newSessionsTable: {
       get: vi.fn(),
@@ -150,21 +184,35 @@ function createMockSqlitePresenter() {
       }),
       delete: vi.fn()
     },
-    deepchatMessagesTable: {
-      insert: vi.fn(),
-      updateContent: vi.fn(),
-      updateStatus: vi.fn(),
-      updateContentAndStatus: vi.fn(),
-      getBySession: vi.fn().mockReturnValue([]),
-      getByStatus: vi.fn().mockReturnValue([]),
-      getIdsBySession: vi.fn().mockReturnValue([]),
-      getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
+    deepchatMessagesTable,
+    deepchatUserMessagesTable: {
+      upsert: vi.fn(),
       get: vi.fn(),
-      getMaxOrderSeq: vi.fn().mockReturnValue(0),
+      listByMessageIds: vi.fn().mockReturnValue([]),
       deleteBySession: vi.fn(),
       delete: vi.fn(),
-      deleteFromOrderSeq: vi.fn(),
-      recoverPendingMessages: vi.fn().mockReturnValue(0)
+      deleteByMessageIds: vi.fn()
+    },
+    deepchatUserMessageFilesTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      deleteBySession: vi.fn(),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn()
+    },
+    deepchatUserMessageLinksTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      deleteBySession: vi.fn(),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn()
+    },
+    deepchatAssistantBlocksTable,
+    deepchatSearchDocumentsTable: {
+      upsert: vi.fn(),
+      deleteBySession: vi.fn(),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn()
     },
     deepchatMessageTracesTable: {
       insert: vi.fn().mockReturnValue(1),
@@ -172,6 +220,9 @@ function createMockSqlitePresenter() {
       countByMessageId: vi.fn().mockReturnValue(0),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
+    },
+    deepchatUsageStatsTable: {
+      upsert: vi.fn()
     },
     deepchatMessageSearchResultsTable: {
       add: vi.fn(),
@@ -296,6 +347,24 @@ function createMockToolPresenter(toolDefs: any[] = []) {
     }),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as any
+}
+
+function makeTextWithEstimatedTokens(minTokens: number): string {
+  let low = 1
+  let high = Math.max(1, minTokens * 4)
+  while (estimateMessagesTokens([{ role: 'user', content: 'x'.repeat(high) }]) < minTokens) {
+    low = high + 1
+    high *= 2
+  }
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (estimateMessagesTokens([{ role: 'user', content: 'x'.repeat(mid) }]) < minTokens) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+  return 'x'.repeat(low)
 }
 
 describe('AgentRuntimePresenter', () => {
@@ -3249,6 +3318,100 @@ describe('AgentRuntimePresenter', () => {
 
       return records
     }
+
+    it('preflights provider calls with a safety margin and compacts before low-output pressure calls', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      llmProvider.generateText.mockClear()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const pressureText = makeTextWithEstimatedTokens(4100)
+      for await (const _event of callArgs.coreStream(
+        [
+          { role: 'system', content: 'Base system prompt' },
+          { role: 'user', content: pressureText }
+        ],
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCall = providerCoreStream.mock.calls[0]
+      const providerMessages = providerCall[0]
+      const providerMaxTokens = providerCall[4]
+      const providerTools = providerCall[5]
+      const totalRequestTokens =
+        estimateMessagesTokens(providerMessages) +
+        estimateToolReserveTokens(providerTools) +
+        providerMaxTokens
+
+      expect(llmProvider.generateText).toHaveBeenCalled()
+      expect(providerMessages[0].content).toContain('## Conversation Summary')
+      expect(providerMaxTokens).toBeLessThan(4096)
+      expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
+    })
+
+    it('trims provider request history without deleting stored messages when compaction is disabled', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        autoCompactionEnabled: false
+      })
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      llmProvider.generateText.mockClear()
+      sqlitePresenter.deepchatMessagesTable.delete.mockClear()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const oldHistoryText = makeTextWithEstimatedTokens(3000)
+      const pressureText = makeTextWithEstimatedTokens(4100)
+      for await (const _event of callArgs.coreStream(
+        [
+          { role: 'system', content: 'Base system prompt' },
+          { role: 'user', content: oldHistoryText },
+          { role: 'assistant', content: 'old answer' },
+          { role: 'user', content: pressureText }
+        ],
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCall = providerCoreStream.mock.calls[0]
+      const providerMessages = providerCall[0]
+      const providerMaxTokens = providerCall[4]
+      const providerTools = providerCall[5]
+      const totalRequestTokens =
+        estimateMessagesTokens(providerMessages) +
+        estimateToolReserveTokens(providerTools) +
+        providerMaxTokens
+
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+      expect(providerMessages).not.toContainEqual({ role: 'user', content: oldHistoryText })
+      expect(sqlitePresenter.deepchatMessagesTable.delete).not.toHaveBeenCalled()
+      expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
+    })
 
     it('emits compacting before compacted on successful compaction', async () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))

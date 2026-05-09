@@ -18,6 +18,7 @@ import {
   createUtf8OutputDecoderPair,
   prepareShellCommandForUtf8Output
 } from '@/lib/agentRuntime/shellOutputEncoding'
+import { resolveUsableSpawnCwd } from '@/lib/agentRuntime/spawnGuard'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 
 // Consider moving to a shared handlers location in future refactoring
@@ -334,10 +335,11 @@ export class AgentBashHandler {
     const { shell, args } = getUserShell()
     const shellCommand = prepareShellCommandForUtf8Output(shell, command)
     const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
+    const spawnCwd = resolveUsableSpawnCwd(cwd)
 
     return new Promise((resolve, reject) => {
       const child = spawn(shell, [...args, shellCommand], {
-        cwd,
+        cwd: spawnCwd,
         env: options.env ? { ...options.env } : { ...process.env },
         detached: process.platform !== 'win32',
         stdio: ['pipe', 'pipe', 'pipe']

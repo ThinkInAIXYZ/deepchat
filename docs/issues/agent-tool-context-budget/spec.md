@@ -53,3 +53,18 @@ Observed risk points:
 - Legacy parser accepts complete function-call tags, a trailing unclosed function-call tag, and JSON
   wrapped in Markdown fences.
 - No ACP-specific behavior is required for the first increment.
+
+## Second Increment: Context Pressure Backoff
+
+Additional acceptance criteria:
+
+- Every agent-loop provider request must satisfy
+  `estimated messages + tool schemas + effective maxTokens <= contextLength - 256` for normal model
+  windows.
+- If the estimated input and configured request output would exceed that budget, DeepChat must
+  temporarily reduce only the per-call `maxTokens` value passed to the provider.
+- If context pressure would reduce a normally sized request below 4000 output tokens, DeepChat must
+  internally recover context first, using auto-compaction when enabled and transient request-window
+  trimming otherwise.
+- User-configured `maxTokens` values below 4000 are respected and do not force recovery by
+  themselves.

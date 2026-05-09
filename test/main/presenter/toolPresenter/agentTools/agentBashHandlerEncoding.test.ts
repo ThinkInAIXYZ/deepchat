@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import { spawn } from 'child_process'
+import fs from 'fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('child_process', () => ({
@@ -64,6 +65,7 @@ describe('AgentBashHandler output encoding', () => {
     })
     const child = new MockChild()
     vi.mocked(spawn).mockReturnValue(child as never)
+    vi.mocked(fs.existsSync).mockReturnValue(true)
 
     const handler = new AgentBashHandler(['/workspace'])
     const resultPromise = (
