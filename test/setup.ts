@@ -170,10 +170,15 @@ vi.mock('electron', () => ({
 vi.mock('fs', () => {
   const mockedFs = {
     existsSync: vi.fn(),
+    statSync: vi.fn(),
+    accessSync: vi.fn(),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),
     readdirSync: vi.fn(),
+    constants: {
+      X_OK: 1
+    },
     promises: {
       access: vi.fn(),
       readFile: vi.fn(),

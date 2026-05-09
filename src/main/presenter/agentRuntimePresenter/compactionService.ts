@@ -6,6 +6,7 @@ import type {
   MessageMetadata,
   DeepChatAgentConfig
 } from '@shared/types/agent-interface'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { DeepChatMessageStore } from './messageStore'
 import type { DeepChatSessionStore, SessionSummaryState } from './sessionStore'
@@ -308,6 +309,42 @@ export class CompactionService {
     })
   }
 
+  async prepareForContextPressureRecovery(params: {
+    sessionId: string
+    providerId: string
+    modelId: string
+    systemPrompt: string
+    contextLength: number
+    reserveTokens: number
+    extraReserveTokens?: number
+    supportsVision: boolean
+    preserveInterleavedReasoning: boolean
+    preserveEmptyInterleavedReasoning?: boolean
+    projectedMessages: ChatMessage[]
+    signal?: AbortSignal
+  }): Promise<CompactionIntent | null> {
+    throwIfAbortRequested(params.signal)
+    const settings = await this.getCompactionSettings(params.sessionId)
+    throwIfAbortRequested(params.signal)
+    if (!settings.enabled) {
+      return null
+    }
+
+    const sentRecords = this.messageStore
+      .getMessages(params.sessionId)
+      .filter((record) => record.status === 'sent' && !isCompactionRecord(record))
+      .sort((a, b) => a.orderSeq - b.orderSeq)
+
+    return this.prepareCompaction({
+      ...params,
+      records: sentRecords,
+      protectedTurnCount: settings.retainRecentPairs,
+      triggerThreshold: settings.triggerThreshold,
+      projectedMessages: params.projectedMessages,
+      force: true
+    })
+  }
+
   async applyCompaction(
     intent: CompactionIntent,
     signal?: AbortSignal
@@ -372,7 +409,8 @@ export class CompactionService {
     records: ChatMessageRecord[]
     protectedTurnCount: number
     triggerThreshold: number
-    projectedMessages: ReturnType<typeof createUserChatMessage>[]
+    projectedMessages: ChatMessage[]
+    force?: boolean
   }): CompactionIntent | null {
     const summaryState = this.sessionStore.getSummaryState(params.sessionId)
     const scopedRecords = params.records.filter(
@@ -404,13 +442,15 @@ export class CompactionService {
       ...projectedHistory,
       ...params.projectedMessages
     ]
-    const requestBudget = Math.floor(
-      (params.contextLength - params.reserveTokens - (params.extraReserveTokens ?? 0)) /
-        SAFETY_MARGIN
-    )
-    const triggerBudget = Math.max(0, Math.floor((requestBudget * params.triggerThreshold) / 100))
-    if (estimateMessagesTokens(projectedPrompt) <= triggerBudget) {
-      return null
+    if (!params.force) {
+      const requestBudget = Math.floor(
+        (params.contextLength - params.reserveTokens - (params.extraReserveTokens ?? 0)) /
+          SAFETY_MARGIN
+      )
+      const triggerBudget = Math.max(0, Math.floor((requestBudget * params.triggerThreshold) / 100))
+      if (estimateMessagesTokens(projectedPrompt) <= triggerBudget) {
+        return null
+      }
     }
 
     if (turns.length <= params.protectedTurnCount) {

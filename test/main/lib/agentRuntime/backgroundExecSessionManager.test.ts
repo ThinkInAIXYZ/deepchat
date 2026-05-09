@@ -43,14 +43,31 @@ class MockChildProcess extends EventEmitter {
   pid = 321
 }
 
+function mockStats(kind: 'file' | 'directory'): fs.Stats {
+  return {
+    isFile: () => kind === 'file',
+    isDirectory: () => kind === 'directory'
+  } as fs.Stats
+}
+
+function normalizedPath(candidate: unknown): string {
+  return String(candidate).replace(/\\/g, '/')
+}
+
 describe('BackgroundExecSessionManager', () => {
   let manager: BackgroundExecSessionManager
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
   const originalPsModulePath = process.env.PSModulePath
+  const originalShell = process.env.SHELL
 
   beforeEach(() => {
     manager = new BackgroundExecSessionManager()
     clearInterval((manager as never).cleanupIntervalId)
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
+      String(candidate).includes('workspace') ? mockStats('directory') : mockStats('file')
+    )
+    vi.spyOn(fs, 'accessSync').mockReturnValue(undefined)
   })
 
   afterEach(() => {
@@ -64,6 +81,11 @@ describe('BackgroundExecSessionManager', () => {
       delete process.env.PSModulePath
     } else {
       process.env.PSModulePath = originalPsModulePath
+    }
+    if (originalShell === undefined) {
+      delete process.env.SHELL
+    } else {
+      process.env.SHELL = originalShell
     }
   })
 
@@ -266,7 +288,7 @@ describe('BackgroundExecSessionManager', () => {
         expect.any(String),
         expect.any(Array),
         expect.objectContaining({
-          cwd: '/workspace',
+          cwd: expect.stringMatching(/[\\/]workspace$/),
           env: expect.objectContaining({
             BASELINE_FLAG: 'baseline',
             PATH: '/prepared/bin:/usr/local/bin',
@@ -297,6 +319,65 @@ describe('BackgroundExecSessionManager', () => {
         detached: false
       })
     )
+  })
+
+  it('falls back to an available shell when the configured POSIX shell is missing', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/missing/zsh'
+    vi.spyOn(fs, 'existsSync').mockImplementation((candidate) =>
+      normalizedPath(candidate).endsWith('/workspace')
+    )
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) => {
+      const value = normalizedPath(candidate)
+      if (value.endsWith('/workspace')) {
+        return mockStats('directory')
+      }
+      if (value === '/bin/sh') {
+        return mockStats('file')
+      }
+      throw new Error('missing')
+    })
+    vi.spyOn(fs, 'accessSync').mockImplementation((candidate) => {
+      if (String(candidate) === '/bin/sh') {
+        return undefined
+      }
+      throw new Error('not executable')
+    })
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    await manager.start('conv-1', 'echo test', '/workspace', { timeout: 0 })
+
+    expect(spawn).toHaveBeenCalledWith(
+      '/bin/sh',
+      ['-c', 'echo test'],
+      expect.objectContaining({
+        cwd: expect.stringMatching(/[\\/]workspace$/)
+      })
+    )
+  })
+
+  it('rejects missing working directories before spawn can report a misleading shell ENOENT', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/bin/zsh'
+    vi.spyOn(fs, 'existsSync').mockImplementation(
+      (candidate) => !normalizedPath(candidate).endsWith('/missing/workspace')
+    )
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
+      String(candidate) === '/bin/zsh' ? mockStats('file') : mockStats('directory')
+    )
+
+    await expect(
+      manager.start('conv-1', 'echo test', '/missing/workspace', { timeout: 0 })
+    ).rejects.toThrow('Working directory does not exist or is not accessible')
+
+    expect(spawn).not.toHaveBeenCalled()
   })
 
   it('decodes split UTF-8 output from running sessions', async () => {

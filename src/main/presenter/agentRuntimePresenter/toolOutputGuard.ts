@@ -5,6 +5,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
 import { estimateMessagesTokens } from './contextBuilder'
+import { getUsableContextLength } from './contextBudget'
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
@@ -275,7 +276,7 @@ export class ToolOutputGuard {
       estimateMessagesTokens(conversationMessages) +
         toolDefinitionTokens +
         Math.max(0, Math.floor(maxTokens)) <=
-      contextLength
+      getUsableContextLength(contextLength)
     )
   }
 
