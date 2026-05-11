@@ -29,6 +29,15 @@ const createTextPayload = (text: string): string =>
     text
   })
 
+const createMarkdownPayload = (text: string): string =>
+  JSON.stringify({
+    post: {
+      zh_cn: {
+        content: [[{ tag: 'md', text }]]
+      }
+    }
+  })
+
 const createCardPayload = (card: FeishuInteractiveCardPayload): string => JSON.stringify(card)
 
 const readHeaderValue = (headers: unknown, name: string): string | undefined => {
@@ -232,6 +241,43 @@ export class FeishuClient {
     return messageId
   }
 
+  async sendMarkdown(target: FeishuTransportTarget, text: string): Promise<string | null> {
+    let messageId: string | null = null
+
+    for (const chunk of chunkFeishuText(text)) {
+      const content = createMarkdownPayload(chunk)
+
+      if (target.replyToMessageId) {
+        const response = (await this.sdk.im.message.reply({
+          path: {
+            message_id: target.replyToMessageId
+          },
+          data: {
+            content,
+            msg_type: 'post',
+            reply_in_thread: Boolean(target.threadId)
+          }
+        })) as FeishuMessageResponse
+        messageId = response.data?.message_id?.trim() || messageId
+        continue
+      }
+
+      const response = (await this.sdk.im.message.create({
+        params: {
+          receive_id_type: 'chat_id'
+        },
+        data: {
+          receive_id: target.chatId,
+          msg_type: 'post',
+          content
+        }
+      })) as FeishuMessageResponse
+      messageId = response.data?.message_id?.trim() || messageId
+    }
+
+    return messageId
+  }
+
   async downloadMessageResource(params: {
     messageId: string
     fileKey: string
@@ -332,6 +378,18 @@ export class FeishuClient {
       data: {
         msg_type: 'text',
         content: createTextPayload(text)
+      }
+    })
+  }
+
+  async updateMarkdown(messageId: string, text: string): Promise<void> {
+    await this.sdk.im.message.update({
+      path: {
+        message_id: messageId
+      },
+      data: {
+        msg_type: 'post',
+        content: createMarkdownPayload(text)
       }
     })
   }

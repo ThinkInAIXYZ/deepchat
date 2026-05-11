@@ -57,6 +57,8 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
     stop: vi.fn(),
     sendText: vi.fn().mockImplementation(async () => `om_bot_${nextMessageId++}`),
     updateText: vi.fn().mockResolvedValue(undefined),
+    sendMarkdown: vi.fn().mockImplementation(async () => `om_bot_${nextMessageId++}`),
+    updateMarkdown: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
     downloadMessageResource: vi.fn().mockResolvedValue({
       data: Buffer.from('file').toString('base64'),
@@ -243,7 +245,7 @@ describe('FeishuRuntime', () => {
       })
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -256,7 +258,7 @@ describe('FeishuRuntime', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -284,7 +286,7 @@ describe('FeishuRuntime', () => {
             ]
           })
         )
-        expect(harness.client.updateText).toHaveBeenCalledWith('om_bot_2', 'Final answer')
+        expect(harness.client.updateMarkdown).toHaveBeenCalledWith('om_bot_2', 'Final answer')
         expect(harness.bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith(
           'feishu:oc_1:root'
         )
@@ -352,7 +354,7 @@ describe('FeishuRuntime', () => {
       })
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -365,7 +367,7 @@ describe('FeishuRuntime', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -373,7 +375,7 @@ describe('FeishuRuntime', () => {
           },
           'The conversation ended with an error.'
         )
-        expect(harness.client.updateText).not.toHaveBeenCalledWith(
+        expect(harness.client.updateMarkdown).not.toHaveBeenCalledWith(
           'om_bot_1',
           'The conversation ended with an error.'
         )
@@ -437,7 +439,7 @@ describe('FeishuRuntime', () => {
       })
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -450,8 +452,8 @@ describe('FeishuRuntime', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(harness.client.updateText).toHaveBeenCalledWith('om_bot_1', 'A'.repeat(8_000))
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.updateMarkdown).toHaveBeenCalledWith('om_bot_1', 'A'.repeat(8_000))
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -485,7 +487,7 @@ describe('FeishuRuntime', () => {
       const updatedText = firstChunk + changedMiddleChunk + 'C'.repeat(FEISHU_OUTBOUND_TEXT_LIMIT)
       const sendResults: Array<string | null> = ['om_bot_1', null, 'om_bot_3']
 
-      harness.client.sendText.mockImplementation(async () =>
+      harness.client.sendMarkdown.mockImplementation(async () =>
         sendResults.length > 0 ? (sendResults.shift() as string | null) : 'om_bot_4'
       )
       harness.router.handleMessage.mockResolvedValue({
@@ -560,7 +562,10 @@ describe('FeishuRuntime', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(harness.client.updateText).not.toHaveBeenCalledWith('om_bot_3', changedMiddleChunk)
+        expect(harness.client.updateMarkdown).not.toHaveBeenCalledWith(
+          'om_bot_3',
+          changedMiddleChunk
+        )
       })
 
       await harness.runtime.stop()
@@ -660,7 +665,7 @@ describe('FeishuRuntime', () => {
       })
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -673,7 +678,7 @@ describe('FeishuRuntime', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -686,7 +691,7 @@ describe('FeishuRuntime', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -694,7 +699,7 @@ describe('FeishuRuntime', () => {
           },
           'Summary ready.'
         )
-        expect(harness.client.updateText).not.toHaveBeenCalledWith('om_bot_1', 'Summary ready.')
+        expect(harness.client.updateMarkdown).not.toHaveBeenCalledWith('om_bot_1', 'Summary ready.')
         expect(harness.bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith(
           'feishu:oc_1:root'
         )
@@ -736,8 +741,8 @@ describe('FeishuRuntime', () => {
       })
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledTimes(1)
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledTimes(1)
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -795,7 +800,7 @@ describe('FeishuRuntime', () => {
     })
 
     await vi.waitFor(() => {
-      expect(harness.client.sendText).toHaveBeenCalledWith(
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',
           threadId: null,
@@ -829,7 +834,7 @@ describe('FeishuRuntime', () => {
 
     await vi.waitFor(() => {
       expect(harness.router.handleMessage).toHaveBeenCalledTimes(1)
-      expect(harness.client.sendText).toHaveBeenCalledTimes(1)
+      expect(harness.client.sendMarkdown).toHaveBeenCalledTimes(1)
     })
 
     await harness.runtime.stop()
@@ -858,7 +863,7 @@ describe('FeishuRuntime', () => {
 
     await vi.waitFor(() => {
       expect(harness.router.handleMessage).toHaveBeenCalledTimes(1)
-      expect(harness.client.sendText).toHaveBeenCalledTimes(1)
+      expect(harness.client.sendMarkdown).toHaveBeenCalledTimes(1)
     })
 
     await harness.runtime.stop()
@@ -935,7 +940,7 @@ describe('FeishuRuntime', () => {
 
     await vi.waitFor(() => {
       expect(harness.router.handleMessage).toHaveBeenCalledTimes(1)
-      expect(harness.client.sendText).toHaveBeenCalledWith(
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',
           threadId: null,
@@ -1056,8 +1061,8 @@ describe('FeishuRuntime', () => {
     await Promise.resolve()
 
     expect(handledTexts).toEqual(['A'])
-    expect(harness.client.sendText).not.toHaveBeenCalledWith(expect.anything(), 'stale-a')
-    expect(harness.client.sendText).not.toHaveBeenCalledWith(expect.anything(), 'B')
+    expect(harness.client.sendMarkdown).not.toHaveBeenCalledWith(expect.anything(), 'stale-a')
+    expect(harness.client.sendMarkdown).not.toHaveBeenCalledWith(expect.anything(), 'B')
 
     await harness.emitMessage({
       parsed: createParsedMessage({
@@ -1069,7 +1074,7 @@ describe('FeishuRuntime', () => {
 
     await vi.waitFor(() => {
       expect(handledTexts).toEqual(['A', 'fresh'])
-      expect(harness.client.sendText).toHaveBeenCalledWith(
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',
           threadId: null,
@@ -1132,7 +1137,7 @@ describe('FeishuRuntime', () => {
     })
 
     await vi.waitFor(() => {
-      expect(harness.client.sendText).toHaveBeenCalledWith(
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',
           threadId: null,
@@ -1150,7 +1155,7 @@ describe('FeishuRuntime', () => {
     })
 
     await vi.waitFor(() => {
-      expect(harness.client.sendText).toHaveBeenCalledWith(
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',
           threadId: null,
@@ -1193,7 +1198,7 @@ describe('FeishuRuntime', () => {
       )
 
       await vi.waitFor(() => {
-        expect(harness.client.sendText).toHaveBeenCalledWith(
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
             threadId: null,
@@ -1259,7 +1264,7 @@ describe('FeishuRuntime', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(harness.client.sendText).not.toHaveBeenCalledWith(
+    expect(harness.client.sendMarkdown).not.toHaveBeenCalledWith(
       expect.anything(),
       'stale conversation output'
     )
@@ -1273,7 +1278,7 @@ describe('FeishuRuntime', () => {
     })
 
     await vi.waitFor(() => {
-      expect(harness.client.sendText).toHaveBeenCalledWith(
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',
           threadId: null,
@@ -1323,7 +1328,7 @@ describe('FeishuRuntime', () => {
     })
 
     await vi.waitFor(() => {
-      expect(harness.client.sendText).toHaveBeenCalledWith(
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',
           threadId: null,
@@ -1380,7 +1385,7 @@ describe('FeishuRuntime', () => {
 
     await vi.waitFor(() => {
       expect(harness.client.sendCard).toHaveBeenCalled()
-      expect(harness.client.sendText).toHaveBeenCalledWith(
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',
           threadId: null,
