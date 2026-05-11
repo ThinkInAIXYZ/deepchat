@@ -428,6 +428,36 @@ describe('CompactionService', () => {
     expect(records.map((record) => record.id)).not.toContain('user-3')
   })
 
+  it('summarizes assistant error records without explicit error blocks as unknown failures', async () => {
+    const { service, messageStore } = createService({
+      sessionConfig: {
+        autoCompactionRetainRecentPairs: 1
+      }
+    })
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'first turn '.repeat(20)),
+      makeAssistantRecord(2, 'partial answer', 'error'),
+      makeUserRecord(3, 'second turn '.repeat(20)),
+      makeAssistantRecord(4, 'second reply '.repeat(20)),
+      makeUserRecord(5, 'third turn '.repeat(20)),
+      makeAssistantRecord(6, 'third reply '.repeat(20))
+    ])
+
+    const intent = await service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 700,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false,
+      newUserContent: 'latest turn'
+    })
+
+    expect(intent?.summaryBlocks.join('\n')).toContain('[Generation failed]\nReason: Unknown error')
+  })
+
   it('passes assistant error records into forced context-pressure compaction', async () => {
     const { service, messageStore } = createService()
     messageStore.getMessages.mockReturnValue([

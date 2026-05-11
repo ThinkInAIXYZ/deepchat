@@ -184,6 +184,11 @@ function serializeAssistantRecord(record: ChatMessageRecord): string {
   const errorSummary = formatAssistantErrorSummary(errorMessages)
   if (errorSummary) {
     lines.push(errorSummary)
+  } else if (record.status === 'error') {
+    const fallbackSummary = formatAssistantErrorSummary(['Unknown error'])
+    if (fallbackSummary) {
+      lines.push(fallbackSummary)
+    }
   }
 
   return lines.join('\n')
