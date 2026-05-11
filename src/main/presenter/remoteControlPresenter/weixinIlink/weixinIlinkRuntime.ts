@@ -423,6 +423,11 @@ export class WeixinIlinkRuntime {
           await this.syncDeliverySegments(deliveryState, endpointKey, sendContext, processSegments)
         }
 
+        if (snapshot.pendingInteraction) {
+          this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+          return
+        }
+
         if (finalText.trim()) {
           this.logInfo('Sending Weixin iLink final fallback text without delivery state.', {
             accountId: message.accountId,
