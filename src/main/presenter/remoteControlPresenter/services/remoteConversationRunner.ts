@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -51,6 +51,7 @@ const sleep = async (ms: number): Promise<void> => {
 }
 
 const REMOTE_ASSET_ROOT = '.deepchat/remote-assets'
+const REMOTE_GENERATED_ASSET_ROOT = 'remote-assets'
 const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 35_000
 
 const MIME_EXTENSION: Record<string, string> = {
@@ -58,9 +59,24 @@ const MIME_EXTENSION: Record<string, string> = {
   'image/png': '.png',
   'image/webp': '.webp',
   'image/gif': '.gif',
+  'image/bmp': '.bmp',
+  'image/avif': '.avif',
   'application/pdf': '.pdf',
   'text/plain': '.txt'
 }
+
+const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.avif': 'image/avif'
+}
+
+const IMAGE_DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s
+const IMGCACHE_URL_PREFIX = 'imgcache://'
 
 const isInvalidPathSegment = (value: string): boolean =>
   value.length === 0 || value === '.' || value === '..'
@@ -110,6 +126,80 @@ const channelFromEndpointKey = (endpointKey: string): string =>
 const stripDataUrlPrefix = (data: string): string => {
   const commaIndex = data.indexOf(',')
   return data.startsWith('data:') && commaIndex >= 0 ? data.slice(commaIndex + 1) : data
+}
+
+const normalizeImageMimeType = (value: string | undefined | null): string | null => {
+  const normalized = value?.split(';')[0]?.trim().toLowerCase()
+  return normalized?.startsWith('image/') ? normalized : null
+}
+
+const inferImageMimeTypeFromPath = (filePath: string): string | null =>
+  IMAGE_MIME_BY_EXTENSION[path.extname(filePath).toLowerCase()] ?? null
+
+const safeDecodePath = (value: string): string => {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+const resolveCachedImagePath = (source: string): string => {
+  const cacheDir = path.join(app.getPath('userData'), 'images')
+  const cachePath = safeDecodePath(source.slice(IMGCACHE_URL_PREFIX.length))
+  const fullPath = path.resolve(cacheDir, cachePath)
+  const relativePath = path.relative(cacheDir, fullPath)
+
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error('Invalid cached generated image path.')
+  }
+
+  return fullPath
+}
+
+const decodeBase64Image = (value: string, label: string): Buffer => {
+  const data = Buffer.from(value.replace(/\s/g, ''), 'base64')
+  if (data.length === 0) {
+    throw new Error(`Invalid ${label} image data.`)
+  }
+  return data
+}
+
+const resolveGeneratedImageContent = async (
+  source: string,
+  fallbackMimeType: string
+): Promise<{
+  data: Buffer
+  mimeType: string
+}> => {
+  const normalizedSource = source.trim()
+  const dataUrlMatch = IMAGE_DATA_URL_PATTERN.exec(normalizedSource)
+  if (dataUrlMatch) {
+    return {
+      data: decodeBase64Image(dataUrlMatch[2], 'data URL'),
+      mimeType: dataUrlMatch[1].toLowerCase()
+    }
+  }
+
+  if (normalizedSource.startsWith('data:')) {
+    throw new Error('Unsupported generated image data URL.')
+  }
+
+  if (normalizedSource.startsWith(IMGCACHE_URL_PREFIX)) {
+    const imagePath = resolveCachedImagePath(normalizedSource)
+    return {
+      data: await fs.readFile(imagePath),
+      mimeType:
+        normalizeImageMimeType(fallbackMimeType) ??
+        inferImageMimeTypeFromPath(imagePath) ??
+        'image/png'
+    }
+  }
+
+  return {
+    data: decodeBase64Image(stripDataUrlPrefix(normalizedSource), 'base64'),
+    mimeType: normalizeImageMimeType(fallbackMimeType) ?? 'image/png'
+  }
 }
 
 const hasAttachmentDownloadSource = (attachment: RemoteInputAttachment): boolean =>
@@ -605,10 +695,10 @@ export class RemoteConversationRunner {
     return this.getGlobalDefaultWorkdir()
   }
 
-  private async resolveAssetWorkspace(
+  private async resolveOptionalAssetWorkspace(
     endpointKey: string,
     session: Pick<SessionWithState, 'projectDir' | 'agentId'>
-  ): Promise<string> {
+  ): Promise<string | null> {
     const projectDir = session.projectDir?.trim()
     if (projectDir) {
       return projectDir
@@ -619,7 +709,31 @@ export class RemoteConversationRunner {
       return defaultWorkdir
     }
 
+    return null
+  }
+
+  private async resolveAssetWorkspace(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'projectDir' | 'agentId'>
+  ): Promise<string> {
+    const workspace = await this.resolveOptionalAssetWorkspace(endpointKey, session)
+    if (workspace) {
+      return workspace
+    }
+
     throw new Error('Remote attachments require a workspace directory.')
+  }
+
+  private async resolveGeneratedImageAssetRoot(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'projectDir' | 'agentId'>
+  ): Promise<string> {
+    const workspace = await this.resolveOptionalAssetWorkspace(endpointKey, session)
+    if (workspace) {
+      return path.join(workspace, REMOTE_ASSET_ROOT)
+    }
+
+    return path.join(app.getPath('userData'), REMOTE_GENERATED_ASSET_ROOT)
   }
 
   private async prepareRemoteAttachments(
@@ -932,11 +1046,11 @@ export class RemoteConversationRunner {
       return []
     }
 
-    let workspace: string
+    let assetRoot: string
     try {
-      workspace = await this.resolveAssetWorkspace(endpointKey, session)
+      assetRoot = await this.resolveGeneratedImageAssetRoot(endpointKey, session)
     } catch (error) {
-      console.warn('[RemoteConversationRunner] Failed to resolve generated image workspace:', {
+      console.warn('[RemoteConversationRunner] Failed to resolve generated image asset root:', {
         endpointKey,
         messageId,
         error
@@ -945,8 +1059,7 @@ export class RemoteConversationRunner {
     }
 
     const assetDir = path.join(
-      workspace,
-      REMOTE_ASSET_ROOT,
+      assetRoot,
       channelFromEndpointKey(endpointKey),
       hashEndpointKey(endpointKey),
       sanitizePathSegment(messageId, 'assistant-message')
@@ -970,22 +1083,25 @@ export class RemoteConversationRunner {
         continue
       }
 
-      const mimeType = block.image_data?.mimeType?.trim() || 'image/png'
-      const extension = MIME_EXTENSION[mimeType.toLowerCase()] || '.img'
-      const filename = `generated-${index + 1}${extension}`
-      const filePath = path.join(assetDir, filename)
-
       try {
+        const imageContent = await resolveGeneratedImageContent(
+          data,
+          block.image_data?.mimeType?.trim() || 'image/png'
+        )
+        const extension = MIME_EXTENSION[imageContent.mimeType.toLowerCase()] || '.img'
+        const filename = `generated-${index + 1}${extension}`
+        const filePath = path.join(assetDir, filename)
+
         try {
           await fs.access(filePath)
         } catch {
-          await fs.writeFile(filePath, Buffer.from(stripDataUrlPrefix(data), 'base64'))
+          await fs.writeFile(filePath, imageContent.data)
         }
 
         assets.push({
           key: `${messageId}:${index}:image`,
           path: filePath,
-          mimeType,
+          mimeType: imageContent.mimeType,
           filename,
           sourceMessageId: messageId
         })

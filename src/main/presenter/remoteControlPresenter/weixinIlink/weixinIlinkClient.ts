@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto'
+import { createCipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 
 type WeixinIlinkQrCodeResponse = {
@@ -20,6 +20,22 @@ type WeixinIlinkCdnMedia = {
   aes_key?: string
   encrypt_type?: number
   full_url?: string
+}
+
+type WeixinIlinkApiResult = {
+  ret?: number
+  errcode?: number
+  errmsg?: string
+  message?: string
+}
+
+type WeixinIlinkGetUploadUrlResponse = WeixinIlinkApiResult & {
+  upload_param?: string
+  thumb_upload_param?: string
+}
+
+type WeixinIlinkBaseInfo = {
+  channel_version?: string
 }
 
 export type WeixinIlinkMessageItem = {
@@ -124,15 +140,70 @@ const WEIXIN_ILINK_LOGIN_TTL_MS = 5 * 60_000
 const WEIXIN_ILINK_QR_POLL_TIMEOUT_MS = 35_000
 const WEIXIN_ILINK_REQUEST_TIMEOUT_MS = 15_000
 const WEIXIN_ILINK_LONG_POLL_TIMEOUT_MS = 35_000
+const WEIXIN_ILINK_CHANNEL_VERSION = '1.0.0'
 
 const activeLogins = new Map<string, ActiveWeixinIlinkLogin>()
 
 const ensureTrailingSlash = (url: string): string => (url.endsWith('/') ? url : `${url}/`)
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const buildBaseInfo = (value: unknown): WeixinIlinkBaseInfo => {
+  const baseInfo = isRecord(value) ? value : {}
+  const channelVersion =
+    String(baseInfo.channel_version ?? '').trim() || WEIXIN_ILINK_CHANNEL_VERSION
+  return {
+    ...baseInfo,
+    channel_version: channelVersion
+  }
+}
+
+const withBaseInfo = (body: Record<string, unknown>): Record<string, unknown> => ({
+  ...body,
+  base_info: buildBaseInfo(body.base_info)
+})
+
 const buildRandomWechatUin = (): string => {
   const uint32 = randomBytes(4).readUInt32BE(0)
   return Buffer.from(String(uint32), 'utf8').toString('base64')
 }
+
+const withImageSendStage = async <T>(stage: string, operation: () => Promise<T>): Promise<T> => {
+  try {
+    return await operation()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Weixin iLink image ${stage} failed: ${message}`)
+  }
+}
+
+const assertWeixinIlinkSuccess = (response: WeixinIlinkApiResult, fallback: string): void => {
+  const ret = response.ret
+  const errcode = response.errcode
+  const failed =
+    (typeof ret === 'number' && ret !== 0) || (typeof errcode === 'number' && errcode !== 0)
+
+  if (!failed) {
+    return
+  }
+
+  throw new WeixinIlinkApiError(
+    response.errmsg?.trim() || response.message?.trim() || fallback,
+    undefined,
+    typeof errcode === 'number' ? errcode : ret
+  )
+}
+
+const encryptAes128Ecb = (content: Buffer, key: Buffer): Buffer => {
+  const cipher = createCipheriv('aes-128-ecb', key, null)
+  return Buffer.concat([cipher.update(content), cipher.final()])
+}
+
+const md5Hex = (content: Buffer): string => createHash('md5').update(content).digest('hex')
+
+const encodeIlinkMediaAesKey = (aesKeyHex: string): string =>
+  Buffer.from(aesKeyHex, 'utf8').toString('base64')
 
 const isFreshLogin = (login: ActiveWeixinIlinkLogin): boolean =>
   Date.now() - login.startedAt < WEIXIN_ILINK_LOGIN_TTL_MS
@@ -220,7 +291,7 @@ const fetchPostJson = async <T>(params: {
   timeoutMs?: number
 }): Promise<T> => {
   return await withTimeout(params.timeoutMs, async (signal) => {
-    const payload = JSON.stringify(params.body)
+    const payload = JSON.stringify(withBaseInfo(params.body))
     const response = await fetch(
       new URL(params.endpoint, ensureTrailingSlash(params.baseUrl)).toString(),
       {
@@ -459,35 +530,113 @@ export class WeixinIlinkClient {
     mimeType?: string
     contextToken?: string | null
   }): Promise<void> {
-    const imageContent = (await fs.readFile(params.imagePath)).toString('base64')
-    await fetchPostJson<Record<string, unknown>>({
-      baseUrl: this.credentials.baseUrl,
-      endpoint: 'ilink/bot/sendmessage',
-      token: this.credentials.botToken,
-      timeoutMs: WEIXIN_ILINK_REQUEST_TIMEOUT_MS,
-      body: {
-        msg: {
-          from_user_id: '',
+    const imageContent = await fs.readFile(params.imagePath)
+    const aesKey = randomBytes(16)
+    const aesKeyHex = aesKey.toString('hex')
+    const fileKey = randomBytes(16).toString('hex')
+    const encryptedContent = encryptAes128Ecb(imageContent, aesKey)
+    const uploadResponse = await withImageSendStage('getuploadurl', async () => {
+      const response = await fetchPostJson<WeixinIlinkGetUploadUrlResponse>({
+        baseUrl: this.credentials.baseUrl,
+        endpoint: 'ilink/bot/getuploadurl',
+        token: this.credentials.botToken,
+        timeoutMs: WEIXIN_ILINK_REQUEST_TIMEOUT_MS,
+        body: {
+          filekey: fileKey,
+          media_type: 1,
           to_user_id: params.toUserId,
-          client_id: randomUUID(),
-          message_type: 2,
-          message_state: 2,
-          item_list: [
-            {
-              type: 2,
-              image_item: {
-                content_type: params.mimeType || 'image/png',
-                data: imageContent
-              }
-            }
-          ],
-          ...(params.contextToken?.trim()
-            ? {
-                context_token: params.contextToken.trim()
-              }
-            : {})
+          rawsize: imageContent.byteLength,
+          rawfilemd5: md5Hex(imageContent),
+          filesize: encryptedContent.byteLength,
+          no_need_thumb: true,
+          aeskey: aesKeyHex
         }
+      })
+      assertWeixinIlinkSuccess(response, 'Weixin iLink getUploadUrl failed.')
+      return response
+    })
+
+    const uploadParam = uploadResponse.upload_param?.trim()
+    if (!uploadParam) {
+      throw new Error(
+        'Weixin iLink image getuploadurl failed: Weixin iLink getUploadUrl did not return upload_param.'
+      )
+    }
+
+    const encryptedQueryParam = await withImageSendStage('cdn-upload', async () =>
+      this.uploadCdnMedia({
+        uploadParam,
+        fileKey,
+        content: encryptedContent
+      })
+    )
+    await withImageSendStage('sendmessage', async () => {
+      const response = await fetchPostJson<WeixinIlinkApiResult>({
+        baseUrl: this.credentials.baseUrl,
+        endpoint: 'ilink/bot/sendmessage',
+        token: this.credentials.botToken,
+        timeoutMs: WEIXIN_ILINK_REQUEST_TIMEOUT_MS,
+        body: {
+          msg: {
+            from_user_id: '',
+            to_user_id: params.toUserId,
+            client_id: randomUUID(),
+            message_type: 2,
+            message_state: 2,
+            item_list: [
+              {
+                type: 2,
+                image_item: {
+                  content_type: params.mimeType || 'image/png',
+                  media: {
+                    encrypt_query_param: encryptedQueryParam,
+                    aes_key: encodeIlinkMediaAesKey(aesKeyHex),
+                    encrypt_type: 1
+                  },
+                  mid_size: encryptedContent.byteLength
+                }
+              }
+            ],
+            ...(params.contextToken?.trim()
+              ? {
+                  context_token: params.contextToken.trim()
+                }
+              : {})
+          }
+        }
+      })
+      assertWeixinIlinkSuccess(response, 'Weixin iLink sendMessage failed.')
+    })
+  }
+
+  private async uploadCdnMedia(params: {
+    uploadParam: string
+    fileKey: string
+    content: Buffer
+  }): Promise<string> {
+    return await withTimeout(WEIXIN_ILINK_REQUEST_TIMEOUT_MS, async (signal) => {
+      const response = await fetch(
+        `${WEIXIN_ILINK_CDN_BASE_URL.replace(/\/+$/, '')}/upload?encrypted_query_param=${encodeURIComponent(params.uploadParam)}&filekey=${encodeURIComponent(params.fileKey)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/octet-stream'
+          },
+          body: Uint8Array.from(params.content),
+          ...(signal ? { signal } : {})
+        }
+      )
+
+      if (!response.ok) {
+        throw new WeixinIlinkApiError(await normalizeHttpError(response), response.status)
       }
+
+      const encryptedParam = response.headers.get('x-encrypted-param')?.trim()
+      if (!encryptedParam) {
+        throw new Error('Weixin iLink CDN upload did not return x-encrypted-param.')
+      }
+
+      return encryptedParam
     })
   }
 

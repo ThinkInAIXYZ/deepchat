@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { app } from 'electron'
 import { RemoteConversationRunner } from '@/presenter/remoteControlPresenter/services/remoteConversationRunner'
 
 const createSession = (overrides: Record<string, unknown> = {}) => ({
@@ -34,6 +35,7 @@ const encryptAes128Ecb = (content: Buffer, key: Buffer): Buffer => {
 describe('RemoteConversationRunner', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.mocked(app.getPath).mockImplementation(() => '/mock/path')
   })
 
   it('creates new sessions with the current default deepchat agent', async () => {
@@ -565,6 +567,188 @@ describe('RemoteConversationRunner', () => {
         })
       ]
     })
+  })
+
+  it('persists generated remote images from cached and base64 sources', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-images-'))
+    const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-user-data-'))
+    const cacheDir = path.join(userData, 'images')
+    await fs.mkdir(cacheDir, { recursive: true })
+
+    const cachedImage = Buffer.from('cached generated image')
+    const dataUrlImage = Buffer.from('data url generated image')
+    const rawBase64Image = Buffer.from('raw base64 generated image')
+    await fs.writeFile(path.join(cacheDir, 'generated.png'), cachedImage)
+    vi.mocked(app.getPath).mockImplementation((name: string) =>
+      name === 'userData' ? userData : '/mock/path'
+    )
+
+    const assistantMessage = {
+      id: 'assistant-images',
+      role: 'assistant',
+      orderSeq: 2,
+      status: 'success',
+      content: JSON.stringify([
+        {
+          type: 'image',
+          status: 'success',
+          timestamp: 1,
+          image_data: {
+            data: 'imgcache://generated.png',
+            mimeType: 'image/png'
+          }
+        },
+        {
+          type: 'image',
+          status: 'success',
+          timestamp: 2,
+          image_data: {
+            data: `data:image/jpeg;base64,${dataUrlImage.toString('base64')}`,
+            mimeType: 'image/png'
+          }
+        },
+        {
+          type: 'image',
+          status: 'success',
+          timestamp: 3,
+          image_data: {
+            data: rawBase64Image.toString('base64'),
+            mimeType: 'image/webp'
+          }
+        }
+      ])
+    }
+    const session = createSession({
+      id: 'session-bound',
+      projectDir: workspace
+    })
+    const agentSessionPresenter = {
+      getSession: vi.fn().mockResolvedValue(session),
+      getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      getMessage: vi.fn().mockResolvedValue(assistantMessage),
+      getSearchResults: vi.fn().mockResolvedValue([])
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: agentSessionPresenter as any,
+        agentRuntimePresenter: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-bound',
+          updatedAt: 1
+        }),
+        clearBinding: vi.fn(),
+        clearActiveEvent: vi.fn(),
+        rememberActiveEvent: vi.fn()
+      } as any
+    )
+
+    const execution = await runner.sendText('weixin-ilink:account:user', 'draw a sunset')
+    const snapshot = await execution.getSnapshot()
+
+    expect(snapshot.generatedImages).toEqual([
+      expect.objectContaining({
+        key: 'assistant-images:0:image',
+        mimeType: 'image/png',
+        filename: 'generated-1.png'
+      }),
+      expect.objectContaining({
+        key: 'assistant-images:1:image',
+        mimeType: 'image/jpeg',
+        filename: 'generated-2.jpg'
+      }),
+      expect.objectContaining({
+        key: 'assistant-images:2:image',
+        mimeType: 'image/webp',
+        filename: 'generated-3.webp'
+      })
+    ])
+    await expect(fs.readFile(snapshot.generatedImages![0].path)).resolves.toEqual(cachedImage)
+    await expect(fs.readFile(snapshot.generatedImages![1].path)).resolves.toEqual(dataUrlImage)
+    await expect(fs.readFile(snapshot.generatedImages![2].path)).resolves.toEqual(rawBase64Image)
+    expect(snapshot.finalText).toBe('')
+  })
+
+  it('persists generated remote images in user data when no workspace is available', async () => {
+    const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-user-data-'))
+    const image = Buffer.from('generated image without workspace')
+    vi.mocked(app.getPath).mockImplementation((name: string) =>
+      name === 'userData' ? userData : '/mock/path'
+    )
+
+    const assistantMessage = {
+      id: 'assistant-images-no-workspace',
+      role: 'assistant',
+      orderSeq: 2,
+      status: 'success',
+      content: JSON.stringify([
+        {
+          type: 'image',
+          status: 'success',
+          timestamp: 1,
+          image_data: {
+            data: `data:image/png;base64,${image.toString('base64')}`,
+            mimeType: 'image/png'
+          }
+        }
+      ])
+    }
+    const session = createSession({
+      id: 'session-bound',
+      projectDir: null
+    })
+    const agentSessionPresenter = {
+      getSession: vi.fn().mockResolvedValue(session),
+      getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      getMessage: vi.fn().mockResolvedValue(assistantMessage),
+      getSearchResults: vi.fn().mockResolvedValue([])
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: agentSessionPresenter as any,
+        agentRuntimePresenter: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-bound',
+          updatedAt: 1
+        }),
+        clearBinding: vi.fn(),
+        clearActiveEvent: vi.fn(),
+        rememberActiveEvent: vi.fn()
+      } as any
+    )
+
+    const execution = await runner.sendText('weixin-ilink:account:user', 'draw a sunrise')
+    const snapshot = await execution.getSnapshot()
+
+    expect(snapshot.generatedImages).toEqual([
+      expect.objectContaining({
+        key: 'assistant-images-no-workspace:0:image',
+        mimeType: 'image/png',
+        filename: 'generated-1.png'
+      })
+    ])
+    expect(snapshot.generatedImages![0].path).toContain(
+      path.join(userData, 'remote-assets', 'weixin-ilink')
+    )
+    await expect(fs.readFile(snapshot.generatedImages![0].path)).resolves.toEqual(image)
+    expect(snapshot.finalText).toBe('')
   })
 
   it('lists recent sessions for the currently bound agent before falling back to default agent', async () => {
