@@ -32,6 +32,16 @@ export type RequestContextPreflightResult = {
   requiresContextPressureRecovery: boolean
 }
 
+export type RequestContextBudgetDiagnostics = {
+  usableContextLength: number
+  inputTokens: number
+  toolReserveTokens: number
+  requestedMaxTokens: number
+  effectiveMaxTokens: number
+  remainingOutputTokens: number
+  totalRequestTokens: number
+}
+
 export function estimateToolReserveTokens(tools: MCPToolDefinition[]): number {
   return estimateToolDefinitionTokens(tools)
 }
@@ -193,6 +203,34 @@ export function preflightRequestContext(params: {
     shrunkByContextPressure,
     requiresContextPressureRecovery
   }
+}
+
+export function buildRequestContextBudgetDiagnostics(
+  preflight: RequestContextPreflightResult
+): RequestContextBudgetDiagnostics {
+  return {
+    usableContextLength: preflight.usableContextLength,
+    inputTokens: preflight.inputTokens,
+    toolReserveTokens: preflight.toolReserveTokens,
+    requestedMaxTokens: preflight.requestedMaxTokens,
+    effectiveMaxTokens: preflight.effectiveMaxTokens,
+    remainingOutputTokens: preflight.remainingOutputTokens,
+    totalRequestTokens: preflight.totalRequestTokens
+  }
+}
+
+export function buildRequestContextOverflowErrorMessage(
+  preflight: RequestContextPreflightResult
+): string {
+  const diagnostics = buildRequestContextBudgetDiagnostics(preflight)
+  const formatTokenCount = (value: number): string =>
+    Number.isFinite(value) ? String(Math.floor(value)) : 'unknown'
+
+  return [
+    'Request was not sent because it cannot fit within the model context window after applying the safety margin.',
+    `Budget: usable context ${formatTokenCount(diagnostics.usableContextLength)} tokens, estimated input ${formatTokenCount(diagnostics.inputTokens)} tokens, tool schemas ${formatTokenCount(diagnostics.toolReserveTokens)} tokens, requested output ${formatTokenCount(diagnostics.requestedMaxTokens)} tokens, effective output ${formatTokenCount(diagnostics.effectiveMaxTokens)} tokens, remaining output room ${formatTokenCount(diagnostics.remainingOutputTokens)} tokens.`,
+    'Try shortening the latest input or attachments, reducing active tools, skills, or system prompt content, lowering max output tokens, or increasing context length.'
+  ].join(' ')
 }
 
 function resolveProtectedRequestTailCount(messages: ChatMessage[]): number {

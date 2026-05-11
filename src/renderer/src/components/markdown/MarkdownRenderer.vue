@@ -4,6 +4,8 @@
       :content="debouncedContent"
       :custom-id="customRendererId"
       :isDark="themeStore.isDark"
+      :smooth-streaming="smoothStreaming"
+      :fade="false"
       :codeBlockDarkTheme="codeBlockDarkTheme"
       :codeBlockLightTheme="codeBlockLightTheme"
       :codeBlockMonacoOptions="codeBlockMonacoOption"
@@ -32,13 +34,19 @@ import LinkNode from './LinkNode.vue'
 import { useMarkdownLinkNavigation } from './useMarkdownLinkNavigation'
 import type { MarkdownLinkContext } from './linkTypes'
 
-const props = defineProps<{
-  content: string
-  debug?: boolean
-  messageId?: string
-  threadId?: string
-  linkContext?: MarkdownLinkContext
-}>()
+const props = withDefaults(
+  defineProps<{
+    content: string
+    debug?: boolean
+    messageId?: string
+    threadId?: string
+    linkContext?: MarkdownLinkContext
+    smoothStreaming?: boolean
+  }>(),
+  {
+    smoothStreaming: false
+  }
+)
 const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
 // 组件映射表

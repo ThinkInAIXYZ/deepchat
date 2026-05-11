@@ -72,3 +72,16 @@ Additional acceptance criteria:
   instead of a positive budget.
 - Context-pressure recovery updates the in-memory request history used by later tool-continuation
   loops.
+
+## Retry Overflow Hardening
+
+Additional acceptance criteria:
+
+- Retry and resume provider calls that still cannot fit after request fitting attempt the same
+  internal recovery pass before failing, even when the user configured fewer than 4000 output
+  tokens.
+- If recovery cannot make the latest user/system/tool payload fit, DeepChat fails before sending a
+  provider request and stores a clear budget error on the assistant message.
+- The error explains that no provider request was sent and suggests shortening current input or
+  attachments, reducing active tools/skills/system prompt content, lowering max output tokens, or
+  increasing context length.

@@ -57,6 +57,17 @@ consumes more context and fails on small formatting deviations.
 - Judge tool-output continuation fitting against the next preflight-fitted request shape, so older
   history that would be trimmed before the next provider call does not falsely fail the tool result.
 
+## Retry Overflow Hardening
+
+- Route unfittable provider-call preflight results through the existing context-pressure recovery
+  path once before failing.
+- Keep the latest user/system/tool payload protected; recovery may compact persisted history,
+  replace stale summary-bearing system prompt text, trim older in-memory history, and reduce only
+  the per-call output cap.
+- When recovery still cannot fit, fail before rate-limit wait/provider streaming with a budget
+  diagnostic that includes usable context, estimated input, tool-schema reserve, requested/effective
+  output, and remaining output room.
+
 ## Manual Validation Notes
 
 For a MiniMax-M2.7 agent session, inspect trace/log output rather than running automated test

@@ -367,6 +367,43 @@ function makeTextWithEstimatedTokens(minTokens: number): string {
   return 'x'.repeat(low)
 }
 
+function makeDeepchatUserRow(orderSeq: number, text: string, id = `u${orderSeq}`) {
+  return {
+    id,
+    session_id: 's1',
+    order_seq: orderSeq,
+    role: 'user' as const,
+    content: JSON.stringify({ text, files: [], links: [], search: false, think: false }),
+    status: 'sent' as const,
+    is_context_edge: 0,
+    metadata: '{}',
+    created_at: Date.now(),
+    updated_at: Date.now()
+  }
+}
+
+function makeDeepchatAssistantRow(
+  orderSeq: number,
+  content: string,
+  id = `a${orderSeq}`,
+  status: 'sent' | 'pending' | 'error' = 'sent'
+) {
+  return {
+    id,
+    session_id: 's1',
+    order_seq: orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      { type: 'content', content, status: 'success', timestamp: Date.now() }
+    ]),
+    status,
+    is_context_edge: 0,
+    metadata: '{}',
+    created_at: Date.now(),
+    updated_at: Date.now()
+  }
+}
+
 describe('AgentRuntimePresenter', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
@@ -420,6 +457,47 @@ describe('AgentRuntimePresenter', () => {
       tempHome = null
     }
   })
+
+  function installSessionRows(initialRows: any[]) {
+    let rows = [...initialRows]
+    sqlitePresenter.deepchatMessagesTable.getBySession.mockImplementation((sessionId: string) =>
+      rows.filter((row) => row.session_id === sessionId)
+    )
+    sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+      rows.find((row) => row.id === id)
+    )
+    sqlitePresenter.deepchatMessagesTable.getLastUserMessageBeforeOrAtOrderSeq.mockImplementation(
+      (sessionId: string, orderSeq: number) =>
+        [...rows]
+          .reverse()
+          .find(
+            (row) =>
+              row.session_id === sessionId && row.role === 'user' && row.order_seq <= orderSeq
+          )
+    )
+    sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq.mockImplementation(
+      (sessionId: string, fromOrderSeq: number) =>
+        rows
+          .filter((row) => row.session_id === sessionId && row.order_seq >= fromOrderSeq)
+          .map((row) => row.id)
+    )
+    sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq.mockImplementation(
+      (sessionId: string, fromOrderSeq: number) => {
+        rows = rows.filter((row) => row.session_id !== sessionId || row.order_seq < fromOrderSeq)
+      }
+    )
+    sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq.mockImplementation((sessionId: string) =>
+      rows.reduce(
+        (maxOrderSeq, row) =>
+          row.session_id === sessionId ? Math.max(maxOrderSeq, row.order_seq) : maxOrderSeq,
+        0
+      )
+    )
+
+    return {
+      getRows: () => rows
+    }
+  }
 
   describe('constructor (crash recovery)', () => {
     it('calls pending status query on init', () => {
@@ -3658,6 +3736,114 @@ describe('AgentRuntimePresenter', () => {
         cursorOrderSeq: 3,
         summaryUpdatedAt: 333
       })
+    })
+  })
+
+  describe('retry context overflow recovery', () => {
+    it('recovers an unfittable retry provider request before calling the provider', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      installSessionRows([
+        makeDeepchatUserRow(1, 'A'.repeat(100)),
+        makeDeepchatAssistantRow(2, 'B'.repeat(100)),
+        makeDeepchatUserRow(3, 'C'.repeat(100)),
+        makeDeepchatAssistantRow(4, 'D'.repeat(100)),
+        makeDeepchatUserRow(5, 'E'.repeat(100)),
+        makeDeepchatAssistantRow(6, 'F'.repeat(100)),
+        makeDeepchatUserRow(7, 'retry target', 'retry-user'),
+        makeDeepchatAssistantRow(8, 'failed answer', 'retry-assistant', 'error')
+      ])
+
+      await agent.retryMessage('s1', 'retry-assistant')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockClear()
+      llmProvider.generateText.mockClear()
+      const oversizedSystemPrompt = makeTextWithEstimatedTokens(9000)
+      for await (const _event of callArgs.coreStream(
+        [
+          { role: 'system', content: oversizedSystemPrompt },
+          { role: 'user', content: 'retry target' }
+        ],
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      const providerCall = providerCoreStream.mock.calls[0]
+      const providerMessages = providerCall[0]
+      const providerMaxTokens = providerCall[4]
+      const providerTools = providerCall[5]
+      const totalRequestTokens =
+        estimateMessagesTokens(providerMessages) +
+        estimateToolReserveTokens(providerTools) +
+        providerMaxTokens
+
+      expect(llmProvider.generateText).toHaveBeenCalled()
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(providerMessages[0].content).not.toBe(oversizedSystemPrompt)
+      expect(providerMessages[0].content).toContain('## Conversation Summary')
+      expect(providerMaxTokens).toBeGreaterThan(0)
+      expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
+    })
+
+    it('fails retry with budget guidance when the current input cannot fit', async () => {
+      const actualProcessModule = await vi.importActual<
+        typeof import('@/presenter/agentRuntimePresenter/process')
+      >('@/presenter/agentRuntimePresenter/process')
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        actualProcessModule.processStream
+      )
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      installSessionRows([
+        makeDeepchatUserRow(1, makeTextWithEstimatedTokens(9000), 'retry-user'),
+        makeDeepchatAssistantRow(2, 'failed answer', 'retry-assistant', 'error')
+      ])
+
+      await agent.retryMessage('s1', 'retry-assistant')
+      consoleError.mockRestore()
+
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const errorUpdate = sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls
+        .filter((call) => call[2] === 'error')
+        .find((call) => String(call[1]).includes('Request was not sent'))
+      const errorBlocks = JSON.parse(errorUpdate?.[1] ?? '[]')
+
+      expect(providerCoreStream).not.toHaveBeenCalled()
+      expect(errorUpdate).toBeTruthy()
+      expect(errorBlocks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'error',
+            content: expect.stringContaining('lowering max output tokens')
+          })
+        ])
+      )
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+        'stream:error',
+        'all',
+        expect.objectContaining({
+          error: expect.stringContaining('Request was not sent')
+        })
+      )
     })
   })
 
