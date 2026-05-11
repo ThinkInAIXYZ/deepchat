@@ -11,6 +11,13 @@ import type {
 import type { DeepChatMessageStore } from './messageStore'
 
 const IMAGE_TOKEN_ESTIMATE = 512
+const UNKNOWN_ASSISTANT_ERROR = 'Unknown error'
+const KNOWN_ERROR_REASON_TEXT: Record<string, string> = {
+  'common.error.userCanceledGeneration': 'User canceled generation',
+  'common.error.sessionInterrupted':
+    'Session was unexpectedly interrupted, generation is incomplete',
+  'common.error.noModelResponse': 'Model did not return any content, it may have timed out'
+}
 
 export type ContextBuildOptions = {
   summaryCursorOrderSeq?: number
@@ -104,6 +111,16 @@ function isCompactionRecord(record: ChatMessageRecord): boolean {
   } catch {
     return false
   }
+}
+
+export function isContextHistoryRecord(record: ChatMessageRecord): boolean {
+  if (isCompactionRecord(record)) {
+    return false
+  }
+  if (record.status === 'sent') {
+    return true
+  }
+  return record.role === 'assistant' && record.status === 'error'
 }
 
 function buildNonImageFileContext(files: MessageFile[]): string {
@@ -248,6 +265,69 @@ export function estimateToolDefinitionTokens(toolDefinitions: MCPToolDefinition[
   )
 }
 
+export function normalizeAssistantErrorReason(value: string): string {
+  const trimmed = value.trim()
+  return KNOWN_ERROR_REASON_TEXT[trimmed] ?? trimmed
+}
+
+export function formatAssistantErrorSummary(errorMessages: string[]): string | null {
+  const reasons = errorMessages
+    .map(normalizeAssistantErrorReason)
+    .filter((message) => message.length > 0)
+
+  if (reasons.length === 0) {
+    return null
+  }
+
+  const uniqueReasons = [...new Set(reasons)]
+  const onlyUserCanceled =
+    uniqueReasons.length === 1 &&
+    uniqueReasons[0] === KNOWN_ERROR_REASON_TEXT['common.error.userCanceledGeneration']
+  const label = onlyUserCanceled ? 'Generation canceled' : 'Generation failed'
+  return `[${label}]\nReason: ${uniqueReasons.join('\n')}`
+}
+
+function buildAssistantErrorSummary(
+  blocks: AssistantMessageBlock[],
+  record: ChatMessageRecord
+): string | null {
+  const errorMessages = blocks
+    .filter(
+      (block): block is AssistantMessageBlock & { content: string } =>
+        block.type === 'error' &&
+        typeof block.content === 'string' &&
+        block.content.trim().length > 0
+    )
+    .map((block) => block.content)
+
+  if (errorMessages.length > 0) {
+    return formatAssistantErrorSummary(errorMessages)
+  }
+
+  if (record.status === 'error') {
+    return formatAssistantErrorSummary([UNKNOWN_ASSISTANT_ERROR])
+  }
+
+  return null
+}
+
+function appendAssistantTextContent(
+  content: ChatMessage['content'],
+  extraText: string | null
+): ChatMessage['content'] {
+  if (!extraText) {
+    return content
+  }
+
+  if (Array.isArray(content)) {
+    return [...content, { type: 'text', text: extraText }]
+  }
+
+  return [typeof content === 'string' ? content : '', extraText]
+    .filter((value) => value.trim().length > 0)
+    .join('\n\n')
+}
+
 /**
  * Convert a ChatMessageRecord from the DB into one or more ChatMessages for the LLM.
  * Only settled tool calls (with a non-empty response) are included in history.
@@ -268,6 +348,7 @@ export function recordToChatMessages(
   }
 
   const blocks = JSON.parse(record.content) as AssistantMessageBlock[]
+  const errorSummary = buildAssistantErrorSummary(blocks, record)
   const combinedText = blocks
     .filter((block) => block.type === 'content' || block.type === 'reasoning_content')
     .map((block) => block.content)
@@ -325,13 +406,19 @@ export function recordToChatMessages(
   )
 
   if (toolCallBlocks.length === 0) {
+    const contentWithErrorSummary = appendAssistantTextContent(
+      preserveEmptyInterleavedReasoning || shouldPreserveReasoning
+        ? assistantContent
+        : combinedText,
+      errorSummary
+    )
     if (shouldPreserveReasoning) {
-      return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
+      return [applyReasoningContent({ role: 'assistant', content: contentWithErrorSummary })]
     }
     if (preserveEmptyInterleavedReasoning) {
-      return [{ role: 'assistant', content: assistantContent }]
+      return [{ role: 'assistant', content: contentWithErrorSummary }]
     }
-    return [{ role: 'assistant', content: combinedText }]
+    return [{ role: 'assistant', content: contentWithErrorSummary }]
   }
 
   const toolCalls: NonNullable<ChatMessage['tool_calls']> = []
@@ -351,13 +438,19 @@ export function recordToChatMessages(
   }
 
   if (toolCalls.length === 0) {
+    const contentWithErrorSummary = appendAssistantTextContent(
+      preserveEmptyInterleavedReasoning || shouldPreserveReasoning
+        ? assistantContent
+        : combinedText,
+      errorSummary
+    )
     if (shouldPreserveReasoning) {
-      return [applyReasoningContent({ role: 'assistant', content: assistantContent })]
+      return [applyReasoningContent({ role: 'assistant', content: contentWithErrorSummary })]
     }
     if (preserveEmptyInterleavedReasoning) {
-      return [{ role: 'assistant', content: assistantContent }]
+      return [{ role: 'assistant', content: contentWithErrorSummary }]
     }
-    return [{ role: 'assistant', content: combinedText }]
+    return [{ role: 'assistant', content: contentWithErrorSummary }]
   }
 
   const assistantMessage: ChatMessage = {
@@ -374,6 +467,9 @@ export function recordToChatMessages(
       tool_call_id: block.tool_call!.id,
       content: block.tool_call!.response || ''
     })
+  }
+  if (errorSummary) {
+    result.push({ role: 'assistant', content: errorSummary })
   }
 
   return result
@@ -542,10 +638,11 @@ export function buildContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
-  const sentRecords =
-    options.historyRecords ??
-    messageStore.getMessages(sessionId).filter((message) => message.status === 'sent')
-  const historyRecords = filterRecordsFromCursor(sentRecords, options.summaryCursorOrderSeq ?? 1)
+  const candidateRecords = options.historyRecords ?? messageStore.getMessages(sessionId)
+  const historyRecords = filterRecordsFromCursor(
+    candidateRecords.filter(isContextHistoryRecord),
+    options.summaryCursorOrderSeq ?? 1
+  )
   const historyTurns = buildHistoryTurns(
     historyRecords,
     supportsVision,
@@ -640,7 +737,7 @@ export function buildResumeContext(
     if (message.id === assistantMessageId) {
       return true
     }
-    if (message.status !== 'sent') {
+    if (!isContextHistoryRecord(message)) {
       return false
     }
     return message.orderSeq >= cursor

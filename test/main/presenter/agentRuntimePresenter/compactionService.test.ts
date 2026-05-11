@@ -24,7 +24,8 @@ vi.mock('@/presenter/agentRuntimePresenter/contextBuilder', async (importOrigina
 function makeUserRecord(
   orderSeq: number,
   text: string,
-  files: Array<Record<string, unknown>> = []
+  files: Array<Record<string, unknown>> = [],
+  status: 'sent' | 'pending' | 'error' = 'sent'
 ) {
   return {
     id: `user-${orderSeq}`,
@@ -32,7 +33,7 @@ function makeUserRecord(
     orderSeq,
     role: 'user' as const,
     content: JSON.stringify({ text, files, links: [], search: false, think: false }),
-    status: 'sent' as const,
+    status,
     isContextEdge: 0,
     metadata: '{}',
     createdAt: Date.now(),
@@ -40,7 +41,11 @@ function makeUserRecord(
   }
 }
 
-function makeAssistantRecord(orderSeq: number, text: string) {
+function makeAssistantRecord(
+  orderSeq: number,
+  text: string,
+  status: 'sent' | 'pending' | 'error' = 'sent'
+) {
   return {
     id: `assistant-${orderSeq}`,
     sessionId: 's1',
@@ -49,7 +54,24 @@ function makeAssistantRecord(orderSeq: number, text: string) {
     content: JSON.stringify([
       { type: 'content', content: text, status: 'success', timestamp: Date.now() }
     ]),
-    status: 'sent' as const,
+    status,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
+function makeAssistantErrorRecord(orderSeq: number, errorMessage: string) {
+  return {
+    id: `assistant-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      { type: 'error', content: errorMessage, status: 'error', timestamp: Date.now() }
+    ]),
+    status: 'error' as const,
     isContextEdge: 0,
     metadata: '{}',
     createdAt: Date.now(),
@@ -370,6 +392,66 @@ describe('CompactionService', () => {
 
     expect(buildHistoryTurns).toHaveBeenNthCalledWith(1, expect.any(Array), false, false, false)
     expect(buildHistoryTurns).toHaveBeenNthCalledWith(2, expect.any(Array), false, true, false)
+  })
+
+  it('passes assistant error records into next-turn compaction but excludes errored users', async () => {
+    const { service, messageStore } = createService({
+      sessionConfig: {
+        autoCompactionRetainRecentPairs: 1
+      }
+    })
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'first turn '.repeat(20)),
+      makeAssistantErrorRecord(2, 'provider failed'),
+      makeUserRecord(3, 'failed user', [], 'error'),
+      makeUserRecord(4, 'second turn '.repeat(20)),
+      makeAssistantRecord(5, 'second reply '.repeat(20)),
+      makeUserRecord(6, 'third turn '.repeat(20)),
+      makeAssistantRecord(7, 'third reply '.repeat(20))
+    ])
+
+    await service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 700,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false,
+      newUserContent: 'latest turn'
+    })
+
+    const buildHistoryTurns = vi.mocked(contextBuilderModule.buildHistoryTurns)
+    const records = buildHistoryTurns.mock.calls.at(-1)?.[0] ?? []
+    expect(records.map((record) => record.id)).toContain('assistant-2')
+    expect(records.map((record) => record.id)).not.toContain('user-3')
+  })
+
+  it('passes assistant error records into forced context-pressure compaction', async () => {
+    const { service, messageStore } = createService()
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'first turn '.repeat(20)),
+      makeAssistantErrorRecord(2, 'provider failed'),
+      makeUserRecord(3, 'second turn '.repeat(20)),
+      makeAssistantRecord(4, 'second reply '.repeat(20))
+    ])
+
+    await service.prepareForContextPressureRecovery({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 700,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false,
+      projectedMessages: []
+    })
+
+    const buildHistoryTurns = vi.mocked(contextBuilderModule.buildHistoryTurns)
+    const records = buildHistoryTurns.mock.calls.at(-1)?.[0] ?? []
+    expect(records.map((record) => record.id)).toContain('assistant-2')
   })
 
   it('retains the configured recent pairs plus the resume target turn', async () => {

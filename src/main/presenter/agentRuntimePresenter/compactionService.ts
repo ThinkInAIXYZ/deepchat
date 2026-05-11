@@ -15,6 +15,8 @@ import {
   buildUserMessageContent,
   createUserChatMessage,
   estimateMessagesTokens,
+  formatAssistantErrorSummary,
+  isContextHistoryRecord,
   normalizeUserInput
 } from './contextBuilder'
 
@@ -144,6 +146,7 @@ function serializeUserRecord(record: ChatMessageRecord): string {
 function serializeAssistantRecord(record: ChatMessageRecord): string {
   const blocks = parseAssistantBlocks(record)
   const lines: string[] = [`[Assistant][order=${record.orderSeq}]`]
+  const errorMessages: string[] = []
 
   for (const block of blocks) {
     if ((block.type === 'content' || block.type === 'reasoning_content') && block.content) {
@@ -171,7 +174,16 @@ function serializeAssistantRecord(record: ChatMessageRecord): string {
       if (actionContent) {
         lines.push(actionContent)
       }
+      continue
     }
+    if (block.type === 'error' && block.content) {
+      errorMessages.push(block.content)
+    }
+  }
+
+  const errorSummary = formatAssistantErrorSummary(errorMessages)
+  if (errorSummary) {
+    lines.push(errorSummary)
   }
 
   return lines.join('\n')
@@ -246,14 +258,14 @@ export class CompactionService {
       return null
     }
 
-    const sentRecords = this.messageStore
+    const historyRecords = this.messageStore
       .getMessages(params.sessionId)
-      .filter((record) => record.status === 'sent' && !isCompactionRecord(record))
+      .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
 
     return this.prepareCompaction({
       ...params,
-      records: sentRecords,
+      records: historyRecords,
       protectedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: [createUserChatMessage(params.newUserContent, params.supportsVision)]
@@ -297,7 +309,7 @@ export class CompactionService {
       if (record.id === params.messageId) {
         return true
       }
-      return record.status === 'sent'
+      return isContextHistoryRecord(record)
     })
 
     return this.prepareCompaction({
@@ -330,14 +342,14 @@ export class CompactionService {
       return null
     }
 
-    const sentRecords = this.messageStore
+    const historyRecords = this.messageStore
       .getMessages(params.sessionId)
-      .filter((record) => record.status === 'sent' && !isCompactionRecord(record))
+      .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
 
     return this.prepareCompaction({
       ...params,
-      records: sentRecords,
+      records: historyRecords,
       protectedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: params.projectedMessages,
