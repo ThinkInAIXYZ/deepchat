@@ -36,9 +36,6 @@
         :maxLiveNodes="120"
         :liveNodeBuffer="30"
         :customId="customId"
-        :final="!props.thinking"
-        :typewriter="props.thinking"
-        :codeBlockStream="props.thinking"
       />
     </div>
 
