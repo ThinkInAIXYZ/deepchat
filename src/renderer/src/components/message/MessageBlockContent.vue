@@ -5,7 +5,7 @@
     <MarkdownRenderer
       v-if="part.type === 'text'"
       :content="part.content"
-      :loading="props.block.status === 'loading'"
+      :loading="part.loading"
       :message-id="messageId"
       :thread-id="threadId"
       :link-context="{
