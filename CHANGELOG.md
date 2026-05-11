@@ -3,11 +3,19 @@
 ## v1.0.4-beta.7 (2026-05-11)
 - Added Mistral as a built-in provider, including model icons, provider catalog support, and deeplink handling
 - Agent runs now budget tool schemas and tool output more defensively, reducing oversized context failures and follow-up stalls
+- Context-window overflow errors now include budget diagnostics and try pressure recovery before failing oversized requests
+- Feishu remote control replies now use optimized Markdown posts for headings, tables, lists, code blocks, and streamed updates
+- Markdown streaming now stays smooth while messages are loading without leaving completed content in a streaming state
+- Upgraded markstream-vue to 0.0.14-beta.8 for improved Markdown rendering behavior
 - Agent terminal execution is steadier when shells, working directories, or context compaction need fallback handling
 - Disabled providers no longer trigger verification requests from settings screens
 - Plugin MCP servers now keep their lifecycle more isolated, improving start/stop behavior and built-in plugin visibility
 - 新增 Mistral 内置 Provider，补齐模型图标、Provider 目录与 deeplink 支持
 - Agent 运行会更谨慎地预算工具 schema 与工具输出，减少上下文过大和后续执行卡住的问题
+- 上下文窗口溢出错误现在会带上预算诊断，并在失败前尝试恢复上下文压力
+- 飞书远程控制回复改用优化后的 Markdown post，改善标题、表格、列表、代码块和流式更新
+- Markdown 流式渲染只在消息加载中保持平滑，完成后的内容不会继续停留在流式状态
+- markstream-vue 升级到 0.0.14-beta.8，改善 Markdown 渲染表现
 - 当 shell、工作目录或上下文压缩需要 fallback 时，Agent 终端执行更稳定
 - 设置页不会再对已禁用的 Provider 发起验证请求
 - Plugin MCP server 的生命周期隔离更清晰，启动、停止和内置插件展示更可靠
