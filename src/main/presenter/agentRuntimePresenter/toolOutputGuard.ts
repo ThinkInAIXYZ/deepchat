@@ -1,11 +1,9 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { approximateTokenSize } from 'tokenx'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
-import { estimateMessagesTokens } from './contextBuilder'
-import { getUsableContextLength } from './contextBudget'
+import { preflightRequestContext } from './contextBudget'
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
@@ -268,16 +266,12 @@ export class ToolOutputGuard {
 
   hasContextBudget(params: ContextBudgetParams): boolean {
     const { conversationMessages, toolDefinitions, contextLength, maxTokens } = params
-    const toolDefinitionTokens = toolDefinitions.reduce(
-      (total, tool) => total + approximateTokenSize(JSON.stringify(tool)),
-      0
-    )
-    return (
-      estimateMessagesTokens(conversationMessages) +
-        toolDefinitionTokens +
-        Math.max(0, Math.floor(maxTokens)) <=
-      getUsableContextLength(contextLength)
-    )
+    return preflightRequestContext({
+      messages: conversationMessages,
+      tools: toolDefinitions,
+      contextLength,
+      requestedMaxTokens: maxTokens
+    }).fitsWithinContext
   }
 
   fitToolError(params: FitToolErrorParams): ToolOutputGuardResult {

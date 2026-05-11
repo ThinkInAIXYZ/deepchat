@@ -44,11 +44,56 @@ describe('ToolOutputGuard', () => {
     ).toBe(true)
     expect(
       guard.hasContextBudget({
-        conversationMessages: [{ role: 'user', content: 'x'.repeat(maxMessageTokens + 1) }],
+        conversationMessages: [
+          {
+            role: 'user',
+            content: 'x'.repeat(getUsableContextLength(5000) - toolDefinitionTokens)
+          }
+        ],
         toolDefinitions,
         contextLength: 5000,
         maxTokens: 1000
       })
     ).toBe(false)
+  })
+
+  it('allows tool continuations when the next provider request can be refitted', async () => {
+    const guard = new ToolOutputGuard()
+
+    const result = await guard.fitToolBatchOutputs({
+      conversationMessages: [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'x'.repeat(4500) },
+        { role: 'user', content: 'run tool' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'exec', arguments: '{}' }
+            }
+          ]
+        }
+      ],
+      results: [
+        {
+          toolCallId: 'call-1',
+          toolName: 'exec',
+          responseText: 'ok',
+          isError: false
+        }
+      ],
+      toolDefinitions: [],
+      contextLength: 5000,
+      maxTokens: 1000
+    })
+
+    expect(result.kind).toBe('ok')
+    expect(result.results[0]).toMatchObject({
+      contextResponseText: 'ok',
+      downgraded: false
+    })
   })
 })

@@ -12,6 +12,7 @@
 - [x] Apply safety-adjusted budget checks to tool-output continuation fitting.
 - [x] Drop orphaned tool results and invalid provider options before AI SDK requests.
 - [x] Report zero effective output tokens for unfittable preflight results.
+- [x] Harden preflight for unknown context windows and refitted tool continuations.
 - [ ] Add request budget telemetry.
 - [ ] Add reasoning retention budget.
 - [ ] Add compact legacy tool schema mode.

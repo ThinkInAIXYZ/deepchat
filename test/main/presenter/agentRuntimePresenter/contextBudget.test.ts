@@ -67,6 +67,20 @@ describe('agent request context budget', () => {
     expect(result.requiresContextPressureRecovery).toBe(false)
   })
 
+  it('treats non-positive context windows as unknown during preflight', () => {
+    const messages = [{ role: 'user' as const, content: 'x'.repeat(2000) }]
+    const result = preflightRequestContext({
+      messages,
+      tools: [],
+      contextLength: 0,
+      requestedMaxTokens: 4096
+    })
+
+    expect(result.messages).toEqual(messages)
+    expect(result.effectiveMaxTokens).toBe(4096)
+    expect(result.fitsWithinContext).toBe(true)
+  })
+
   it('drops orphaned tool result messages after request fitting', () => {
     const result = preflightRequestContext({
       messages: [

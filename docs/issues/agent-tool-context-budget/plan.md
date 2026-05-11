@@ -50,6 +50,13 @@ consumes more context and fails on small formatting deviations.
 - Report zero effective output tokens when a fitted request still cannot fit at all, and fail before
   calling the provider.
 
+## Review Hardening
+
+- Treat non-positive context windows as unknown/unbounded during request preflight, matching the
+  existing fitting and max-token helpers.
+- Judge tool-output continuation fitting against the next preflight-fitted request shape, so older
+  history that would be trimmed before the next provider call does not falsely fail the tool result.
+
 ## Manual Validation Notes
 
 For a MiniMax-M2.7 agent session, inspect trace/log output rather than running automated test

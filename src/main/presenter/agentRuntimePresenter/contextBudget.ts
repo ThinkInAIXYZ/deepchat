@@ -156,7 +156,10 @@ export function preflightRequestContext(params: {
   const inputTokens = estimateMessagesTokens(fittedMessages)
   const usableContextLength = getUsableContextLength(params.contextLength)
   const hasFiniteContext =
-    Number.isFinite(usableContextLength) && Number.isFinite(params.contextLength)
+    Number.isFinite(usableContextLength) &&
+    Number.isFinite(params.contextLength) &&
+    params.contextLength > 0 &&
+    usableContextLength > 0
   const remainingOutputTokens = hasFiniteContext
     ? Math.floor(usableContextLength - inputTokens - toolReserveTokens)
     : requestedMaxTokens
