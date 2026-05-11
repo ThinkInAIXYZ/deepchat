@@ -13,6 +13,8 @@
 - [x] Drop orphaned tool results and invalid provider options before AI SDK requests.
 - [x] Report zero effective output tokens for unfittable preflight results.
 - [x] Harden preflight for unknown context windows and refitted tool continuations.
+- [x] Recover unfittable retry/resume preflights before provider calls.
+- [x] Add actionable budget diagnostics for irreducible retry/resume overflow.
 - [ ] Add request budget telemetry.
 - [ ] Add reasoning retention budget.
 - [ ] Add compact legacy tool schema mode.

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   AGENT_CONTEXT_PRESSURE_MIN_OUTPUT_TOKENS,
+  buildRequestContextBudgetDiagnostics,
+  buildRequestContextOverflowErrorMessage,
   getUsableContextLength,
   preflightRequestContext
 } from '@/presenter/agentRuntimePresenter/contextBudget'
@@ -97,5 +99,27 @@ describe('agent request context budget', () => {
       { role: 'system', content: 'sys' },
       { role: 'user', content: 'continue' }
     ])
+  })
+
+  it('formats diagnostics for unfittable preflight results', () => {
+    const result = preflightRequestContext({
+      messages: [{ role: 'user', content: 'x'.repeat(9000) }],
+      tools: [],
+      contextLength: 8192,
+      requestedMaxTokens: 4096
+    })
+
+    expect(buildRequestContextBudgetDiagnostics(result)).toMatchObject({
+      usableContextLength: 7936,
+      inputTokens: result.inputTokens,
+      toolReserveTokens: 0,
+      requestedMaxTokens: 4096,
+      effectiveMaxTokens: 0,
+      remainingOutputTokens: expect.any(Number),
+      totalRequestTokens: result.inputTokens
+    })
+    expect(buildRequestContextOverflowErrorMessage(result)).toContain('Request was not sent')
+    expect(buildRequestContextOverflowErrorMessage(result)).toContain('remaining output room')
+    expect(buildRequestContextOverflowErrorMessage(result)).toContain('lowering max output tokens')
   })
 })

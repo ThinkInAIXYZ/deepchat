@@ -67,13 +67,17 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
         type: String,
         default: undefined
       },
+      smoothStreaming: {
+        type: Boolean,
+        default: false
+      },
       linkContext: {
         type: Object as () => MarkdownLinkContext | undefined,
         default: undefined
       }
     },
     template:
-      '<div class="markdown-stub" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId">{{ content }}</div>'
+      '<div class="markdown-stub" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)">{{ content }}</div>'
   })
 }))
 
@@ -177,4 +181,41 @@ describe('MessageBlockContent', () => {
     expect(markdown.attributes('data-link-session-id')).toBe('s3')
     expect(markdown.text()).toContain('plain markdown content')
   })
+
+  it('disables smooth streaming for completed content blocks', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({
+          status: 'success',
+          content: 'completed markdown content'
+        }),
+        messageId: 'm4',
+        threadId: 's4'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.get('.markdown-stub').attributes('data-smooth-streaming')).toBe('false')
+  })
+
+  it.each(['pending', 'loading'] as const)(
+    'enables smooth streaming for %s content blocks',
+    async (status) => {
+      const wrapper = mount(MessageBlockContent, {
+        props: {
+          block: createBlock({
+            status,
+            content: `${status} markdown content`
+          }),
+          messageId: 'm5',
+          threadId: 's5'
+        }
+      })
+
+      await flushPromises()
+
+      expect(wrapper.get('.markdown-stub').attributes('data-smooth-streaming')).toBe('true')
+    }
+  )
 })

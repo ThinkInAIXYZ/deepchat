@@ -75,6 +75,7 @@ import {
 import {
   capAgentDefaultMaxTokens,
   capAgentRequestMaxTokens,
+  buildRequestContextOverflowErrorMessage,
   estimateToolReserveTokens,
   fitRequestMessagesToContextWindow,
   preflightRequestContext
@@ -1874,7 +1875,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               requestedMaxTokens: requestMaxTokens,
               minimumProtectedTailCount: protectedSteerTailCount
             })
-            if (requestPreflight.requiresContextPressureRecovery) {
+            if (
+              requestPreflight.requiresContextPressureRecovery ||
+              !requestPreflight.fitsWithinContext
+            ) {
               const recovered = await recoverContextPressure({
                 sessionId,
                 providerId: state.providerId,
@@ -1903,9 +1907,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               requestMessages.splice(0, requestMessages.length, ...requestPreflight.messages)
             }
             if (!requestPreflight.fitsWithinContext) {
-              throw new Error(
-                'Request cannot fit within the model context window after applying the safety margin.'
-              )
+              throw new Error(buildRequestContextOverflowErrorMessage(requestPreflight))
             }
             await llmProviderPresenter.executeWithRateLimit(state.providerId, {
               signal: abortController.signal,

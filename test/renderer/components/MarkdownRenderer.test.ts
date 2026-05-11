@@ -78,15 +78,30 @@ const setup = async (props: Record<string, unknown> = {}) => {
 
     const NodeRenderer = defineComponent({
       name: 'NodeRenderer',
-      setup() {
+      props: {
+        smoothStreaming: {
+          type: Boolean,
+          default: false
+        }
+      },
+      setup(props) {
         return () =>
-          customComponents.code_block?.({
-            node: {
-              language: 'html',
-              code: '<h1>Hello</h1>',
-              raw: '<h1>Hello</h1>'
-            }
-          }) ?? h('div')
+          h(
+            'div',
+            {
+              'data-testid': 'node-renderer',
+              'data-smooth-streaming': String(props.smoothStreaming)
+            },
+            [
+              customComponents.code_block?.({
+                node: {
+                  language: 'html',
+                  code: '<h1>Hello</h1>',
+                  raw: '<h1>Hello</h1>'
+                }
+              }) ?? h('div')
+            ]
+          )
       }
     })
 
@@ -197,6 +212,24 @@ describe('MarkdownRenderer', () => {
       'artifact-msg-fallback-message',
       'artifact-thread-fallback-thread',
       { force: true }
+    )
+  })
+
+  it('disables smooth streaming by default', async () => {
+    const { wrapper } = await setup()
+
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-smooth-streaming')).toBe(
+      'false'
+    )
+  })
+
+  it('passes explicit smooth streaming to NodeRenderer', async () => {
+    const { wrapper } = await setup({
+      smoothStreaming: true
+    })
+
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-smooth-streaming')).toBe(
+      'true'
     )
   })
 

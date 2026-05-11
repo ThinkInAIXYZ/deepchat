@@ -6,6 +6,7 @@
       v-if="part.type === 'text'"
       :content="part.content"
       :loading="part.loading"
+      :smooth-streaming="shouldSmoothStream"
       :message-id="messageId"
       :thread-id="threadId"
       :link-context="{
@@ -54,6 +55,9 @@ const props = defineProps<{
 
 const { processedContent } = useBlockContent(props)
 const lastArtifactSnapshot = ref<string>('')
+const shouldSmoothStream = computed(
+  () => props.block.status === 'pending' || props.block.status === 'loading'
+)
 
 const artifactSnapshot = computed(() =>
   processedContent.value
