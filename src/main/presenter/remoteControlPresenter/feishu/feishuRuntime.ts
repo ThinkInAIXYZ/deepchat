@@ -19,6 +19,7 @@ import {
   buildFeishuPendingInteractionText
 } from './feishuInteractionPrompt'
 import { chunkFeishuText, FeishuClient, type FeishuBotIdentity } from './feishuClient'
+import { optimizeMarkdownForFeishu } from './feishuMarkdown'
 import { FeishuParser } from './feishuParser'
 
 const sleep = async (ms: number): Promise<void> => {
@@ -278,7 +279,7 @@ export class FeishuRuntime {
         if (!this.isCurrentRun(runId)) {
           return
         }
-        await this.deps.client.sendText(target, reply)
+        await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(reply))
       }
 
       if (routed.outboundActions?.length) {
@@ -446,7 +447,7 @@ export class FeishuRuntime {
           }
           this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
         } else if (finalText) {
-          await this.deps.client.sendText(target, finalText)
+          await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(finalText))
         }
         await this.sendGeneratedImages(target, snapshot)
         return
@@ -466,7 +467,7 @@ export class FeishuRuntime {
           )
           this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
         } else {
-          await this.deps.client.sendText(target, timeoutText)
+          await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(timeoutText))
         }
         return
       }
@@ -691,12 +692,13 @@ export class FeishuRuntime {
     segment: RemoteDeliverySegment
   ): Promise<FeishuRemoteDeliveryState['segments'][number]> {
     const normalized = segment.text.trim()
-    const nextChunks = chunkFeishuText(normalized)
+    const optimized = optimizeMarkdownForFeishu(normalized)
+    const nextChunks = chunkFeishuText(optimized)
 
     if (!existing) {
       const messageIds: Array<string | null> = []
       for (const chunk of nextChunks) {
-        const messageId = await this.deps.client.sendText(target, chunk)
+        const messageId = await this.deps.client.sendMarkdown(target, chunk)
         messageIds.push(messageId ?? null)
       }
 
@@ -708,7 +710,9 @@ export class FeishuRuntime {
       }
     }
 
-    const previousChunks = existing.lastText ? chunkFeishuText(existing.lastText) : []
+    const previousChunks = existing.lastText
+      ? chunkFeishuText(optimizeMarkdownForFeishu(existing.lastText))
+      : []
     if (
       nextChunks.length < existing.messageIds.length ||
       previousChunks.length < existing.messageIds.length ||
@@ -718,7 +722,7 @@ export class FeishuRuntime {
     ) {
       const messageIds: Array<string | null> = []
       for (const chunk of nextChunks) {
-        const messageId = await this.deps.client.sendText(target, chunk)
+        const messageId = await this.deps.client.sendMarkdown(target, chunk)
         messageIds.push(messageId ?? null)
       }
 
@@ -744,11 +748,11 @@ export class FeishuRuntime {
         continue
       }
 
-      await this.deps.client.updateText(messageId, nextChunks[index])
+      await this.deps.client.updateMarkdown(messageId, nextChunks[index])
     }
 
     for (let index = messageIds.length; index < nextChunks.length; index += 1) {
-      const messageId = await this.deps.client.sendText(target, nextChunks[index])
+      const messageId = await this.deps.client.sendMarkdown(target, nextChunks[index])
       messageIds.push(messageId ?? null)
     }
 
@@ -780,7 +784,7 @@ export class FeishuRuntime {
       }
 
       if (action.type === 'sendText') {
-        await this.deps.client.sendText(target, action.text)
+        await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(action.text))
         continue
       }
 
@@ -791,7 +795,7 @@ export class FeishuRuntime {
           '[FeishuRuntime] Failed to send interactive card, falling back to text:',
           error
         )
-        await this.deps.client.sendText(target, action.fallbackText)
+        await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(action.fallbackText))
       }
     }
   }
