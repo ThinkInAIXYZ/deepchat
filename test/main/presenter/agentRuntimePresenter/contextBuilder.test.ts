@@ -78,6 +78,64 @@ function makeAssistantRecord(
   }
 }
 
+function makeAssistantErrorRecord(
+  orderSeq: number,
+  errorMessage: string,
+  partialText: string = ''
+) {
+  return {
+    id: `asst-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      ...(partialText
+        ? [{ type: 'content', content: partialText, status: 'success', timestamp: Date.now() }]
+        : []),
+      { type: 'error', content: errorMessage, status: 'error', timestamp: Date.now() }
+    ]),
+    status: 'error' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
+function makeAssistantErrorWithToolRecord(
+  orderSeq: number,
+  text: string,
+  toolResponse: string,
+  errorMessage: string
+) {
+  return {
+    id: `asst-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      { type: 'content', content: text, status: 'success', timestamp: Date.now() },
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: Date.now(),
+        tool_call: {
+          id: `tc-${orderSeq}`,
+          name: 'example_tool',
+          params: '{"foo":"bar"}',
+          response: toolResponse
+        }
+      },
+      { type: 'error', content: errorMessage, status: 'error', timestamp: Date.now() }
+    ]),
+    status: 'error' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
 function makeAssistantWithReasoningRecord(orderSeq: number, text: string, reasoning: string) {
   return {
     id: `asst-${orderSeq}`,
@@ -328,19 +386,19 @@ describe('buildContext', () => {
     expect(result[5]).toEqual({ role: 'user', content: 'msg3' })
   })
 
-  it('filters out error messages', () => {
+  it('includes assistant error messages with readable failure reasons', () => {
     const messages = [
       makeUserRecord(1, 'msg1'),
-      makeAssistantRecord(2, 'error reply', 'error'),
+      makeAssistantErrorRecord(2, 'provider exploded'),
       makeUserRecord(3, 'msg2'),
       makeAssistantRecord(4, 'good reply')
     ]
     const store = createMockMessageStore(messages)
     const result = buildContext('s1', 'msg3', '', 10000, 4096, store)
 
-    // Should only include msg1, msg2, good reply (skip error)
     expect(result).toEqual([
       { role: 'user', content: 'msg1' },
+      { role: 'assistant', content: '[Generation failed]\nReason: provider exploded' },
       { role: 'user', content: 'msg2' },
       { role: 'assistant', content: 'good reply' },
       { role: 'user', content: 'msg3' }
@@ -355,6 +413,80 @@ describe('buildContext', () => {
     expect(result).toEqual([
       { role: 'user', content: 'msg1' },
       { role: 'user', content: 'msg2' }
+    ])
+  })
+
+  it('filters out errored user messages', () => {
+    const messages = [makeUserRecord(1, 'failed submit', 'error'), makeUserRecord(2, 'msg2')]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'msg3', '', 10000, 4096, store)
+
+    expect(result).toEqual([
+      { role: 'user', content: 'msg2' },
+      { role: 'user', content: 'msg3' }
+    ])
+  })
+
+  it('converts canceled assistant messages to a readable cancel summary', () => {
+    const messages = [
+      makeUserRecord(1, 'stop this'),
+      makeAssistantErrorRecord(2, 'common.error.userCanceledGeneration')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'continue', '', 10000, 4096, store)
+
+    expect(result).toEqual([
+      { role: 'user', content: 'stop this' },
+      {
+        role: 'assistant',
+        content: '[Generation canceled]\nReason: User canceled generation'
+      },
+      { role: 'user', content: 'continue' }
+    ])
+  })
+
+  it('preserves partial assistant content before the failure reason', () => {
+    const messages = [
+      makeUserRecord(1, 'do work'),
+      makeAssistantErrorRecord(2, 'timeout', 'Partial answer')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'continue', '', 10000, 4096, store)
+
+    expect(result).toEqual([
+      { role: 'user', content: 'do work' },
+      {
+        role: 'assistant',
+        content: 'Partial answer\n\n[Generation failed]\nReason: timeout'
+      },
+      { role: 'user', content: 'continue' }
+    ])
+  })
+
+  it('replays settled tool calls before appending terminal failure context', () => {
+    const messages = [
+      makeUserRecord(1, 'use a tool'),
+      makeAssistantErrorWithToolRecord(2, 'Checking...', 'tool result', 'terminal failure')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'continue', '', 10000, 4096, store)
+
+    expect(result).toEqual([
+      { role: 'user', content: 'use a tool' },
+      {
+        role: 'assistant',
+        content: 'Checking...',
+        tool_calls: [
+          {
+            id: 'tc-2',
+            type: 'function',
+            function: { name: 'example_tool', arguments: '{"foo":"bar"}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-2', content: 'tool result' },
+      { role: 'assistant', content: '[Generation failed]\nReason: terminal failure' },
+      { role: 'user', content: 'continue' }
     ])
   })
 
@@ -813,6 +945,37 @@ describe('buildResumeContext', () => {
         ]
       },
       { role: 'tool', tool_call_id: 'tc-resume', content: 'tool result' }
+    ])
+  })
+
+  it('includes prior assistant error records when building resume context', () => {
+    const messages = [
+      makeUserRecord(1, 'previous user'),
+      makeAssistantErrorRecord(2, 'previous failure'),
+      makeUserRecord(3, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 4,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          { type: 'content', content: 'partial answer', status: 'success', timestamp: Date.now() }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildResumeContext('s1', 'resume-target', '', 10000, 4096, store)
+
+    expect(result).toEqual([
+      { role: 'user', content: 'previous user' },
+      { role: 'assistant', content: '[Generation failed]\nReason: previous failure' },
+      { role: 'user', content: 'recent user' },
+      { role: 'assistant', content: 'partial answer' }
     ])
   })
 })

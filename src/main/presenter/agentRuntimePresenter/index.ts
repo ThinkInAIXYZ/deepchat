@@ -70,7 +70,8 @@ import {
   buildContext,
   buildResumeContext,
   createUserChatMessage,
-  fitMessagesToContextWindow
+  fitMessagesToContextWindow,
+  isContextHistoryRecord
 } from './contextBuilder'
 import {
   capAgentDefaultMaxTokens,
@@ -644,9 +645,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         activeSkillNames
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const historyRecords = this.messageStore
-        .getMessages(sessionId)
-        .filter((message) => message.status === 'sent')
+      const historyRecords = this.messageStore.getMessages(sessionId).filter(isContextHistoryRecord)
       const userContent: UserMessageContent = {
         text: normalizedInput.text,
         files: normalizedInput.files || [],
