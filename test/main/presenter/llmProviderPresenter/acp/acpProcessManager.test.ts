@@ -257,20 +257,21 @@ describe('AcpProcessManager config cache fallback', () => {
     process.env.PATH = '/usr/bin:/bin'
 
     try {
+      const launchSpec = {
+        agentId: 'agent-1',
+        source: 'manual',
+        distributionType: 'npx' as const,
+        command: 'agent',
+        args: [],
+        env: {
+          PATH: '/launch/bin',
+          LAUNCH_ONLY: '1'
+        },
+        cwd: '/tmp/workspace'
+      }
       const manager = new AcpProcessManager({
         providerId: 'acp',
-        resolveLaunchSpec: vi.fn().mockResolvedValue({
-          agentId: 'agent-1',
-          source: 'manual',
-          distributionType: 'npx',
-          command: 'agent',
-          args: [],
-          env: {
-            PATH: '/launch/bin',
-            LAUNCH_ONLY: '1'
-          },
-          cwd: '/tmp/workspace'
-        }),
+        resolveLaunchSpec: vi.fn().mockResolvedValue(launchSpec),
         getAgentState: vi.fn().mockResolvedValue({
           envOverride: {
             PATH: '/user/bin',
@@ -312,7 +313,8 @@ describe('AcpProcessManager config cache fallback', () => {
           name: 'Agent One',
           command: 'agent'
         },
-        '/tmp/workspace'
+        '/tmp/workspace',
+        launchSpec
       )
 
       expect(spawn).toHaveBeenCalled()

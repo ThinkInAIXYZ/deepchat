@@ -1841,7 +1841,7 @@ describe('dispatch', () => {
         (total, tool) => total + approximateTokenSize(JSON.stringify(tool)),
         0
       )
-      const contextLength = estimateMessagesTokens(fittingPrefixMessages) + toolDefinitionTokens
+      const contextLength = estimateMessagesTokens(fittingPrefixMessages) + toolDefinitionTokens + 1
 
       const executed = await executeTools(
         state,

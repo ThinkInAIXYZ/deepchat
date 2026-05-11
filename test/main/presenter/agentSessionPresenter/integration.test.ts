@@ -58,7 +58,48 @@ function createMockSqlitePresenter() {
   const deepchatSessionsStore = new Map<string, any>()
   const messagesStore = new Map<string, any>()
   const pendingInputsStore = new Map<string, any>()
+  const assistantBlocksStore = new Map<string, any[]>()
   let messagesList: any[] = []
+
+  const buildAssistantBlockRows = (messageId: string, blocks: any[]) => {
+    const now = Date.now()
+    return blocks.map((block, index) => ({
+      message_id: messageId,
+      block_index: index,
+      block_type: block.type,
+      status: block.status,
+      text_content: block.content ?? null,
+      tool_call_id: block.tool_call?.id ?? null,
+      tool_name: block.tool_call?.name ?? null,
+      tool_params: block.tool_call?.params ?? null,
+      tool_response: block.tool_call?.response ?? null,
+      action_type: block.action_type ?? null,
+      image_mime_type: block.image_data?.mimeType ?? null,
+      reasoning_start_at:
+        typeof block.reasoning_time === 'object' ? (block.reasoning_time?.start ?? null) : null,
+      reasoning_end_at:
+        typeof block.reasoning_time === 'object' ? (block.reasoning_time?.end ?? null) : null,
+      extra_json: JSON.stringify({
+        id: block.id,
+        timestamp: block.timestamp,
+        imageData: block.image_data?.data,
+        extra: block.extra,
+        toolCallExtra: block.tool_call
+          ? {
+              rtkApplied: block.tool_call.rtkApplied,
+              rtkMode: block.tool_call.rtkMode,
+              rtkFallbackReason: block.tool_call.rtkFallbackReason,
+              imagePreviews: block.tool_call.imagePreviews,
+              server_name: block.tool_call.server_name,
+              server_icons: block.tool_call.server_icons,
+              server_description: block.tool_call.server_description
+            }
+          : undefined,
+        reasoningTime: typeof block.reasoning_time === 'number' ? block.reasoning_time : undefined
+      }),
+      updated_at: now
+    }))
+  }
 
   return {
     newSessionsTable: {
@@ -362,6 +403,52 @@ function createMockSqlitePresenter() {
         return count
       })
     },
+    deepchatUserMessagesTable: {
+      upsert: vi.fn(),
+      get: vi.fn().mockReturnValue(undefined),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatUserMessageFilesTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatUserMessageLinksTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatAssistantBlocksTable: {
+      replaceForMessage: vi.fn((messageId: string, blocks: any[]) => {
+        assistantBlocksStore.set(messageId, buildAssistantBlockRows(messageId, blocks))
+      }),
+      listByMessageId: vi.fn((messageId: string) => assistantBlocksStore.get(messageId) ?? []),
+      listByMessageIds: vi.fn((messageIds: string[]) =>
+        messageIds.flatMap((messageId) => assistantBlocksStore.get(messageId) ?? [])
+      ),
+      delete: vi.fn((messageId: string) => {
+        assistantBlocksStore.delete(messageId)
+      }),
+      deleteByMessageIds: vi.fn((messageIds: string[]) => {
+        for (const messageId of messageIds) {
+          assistantBlocksStore.delete(messageId)
+        }
+      }),
+      deleteBySession: vi.fn((sessionId: string) => {
+        for (const message of messagesStore.values()) {
+          if (message.session_id === sessionId) {
+            assistantBlocksStore.delete(message.id)
+          }
+        }
+      })
+    },
     deepchatMessageTracesTable: {
       insert: vi.fn().mockReturnValue(1),
       listByMessageId: vi.fn().mockReturnValue([]),
@@ -374,6 +461,13 @@ function createMockSqlitePresenter() {
       listByMessageId: vi.fn().mockReturnValue([]),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
+    },
+    deepchatSearchDocumentsTable: {
+      upsert: vi.fn(),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn(),
+      refreshSessionTitle: vi.fn()
     },
     deepchatPendingInputsTable: {
       insert: vi.fn((row: any) => {
@@ -450,6 +544,7 @@ function createMockSqlitePresenter() {
     _deepchatSessionsStore: deepchatSessionsStore,
     _messagesStore: messagesStore,
     _pendingInputsStore: pendingInputsStore,
+    _assistantBlocksStore: assistantBlocksStore,
     _getMessagesList: () => messagesList
   } as any
 }

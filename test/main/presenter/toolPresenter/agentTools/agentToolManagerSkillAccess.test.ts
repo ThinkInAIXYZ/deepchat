@@ -162,11 +162,12 @@ describe('AgentToolManager skill file access', () => {
       'conv1'
     )
 
+    const realSkillFilePath = await fs.realpath(skillFilePath)
     expect(permission).toEqual(
       expect.objectContaining({
         needsPermission: true,
         permissionType: 'write',
-        paths: [skillFilePath]
+        paths: [realSkillFilePath]
       })
     )
   })

@@ -465,7 +465,7 @@ describe('SettingsApp provider deeplink', () => {
     expect(wrapper.get('[data-testid="provider-import-dialog"]').exists()).toBe(true)
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'common.error',
+        title: 'common.error.operationFailed',
         description: 'apply failed',
         variant: 'destructive'
       })

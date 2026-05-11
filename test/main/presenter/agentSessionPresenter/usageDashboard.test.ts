@@ -395,6 +395,14 @@ function createMockSqlitePresenter() {
   return {
     deepchatSessionsTable,
     deepchatMessagesTable,
+    deepchatAssistantBlocksTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      listByMessageIds: vi.fn().mockReturnValue([])
+    },
+    deepchatSearchDocumentsTable: {
+      upsert: vi.fn()
+    },
     deepchatUsageStatsTable,
     newSessionsTable: {
       create: vi.fn(),

@@ -292,7 +292,10 @@ function createRuntime() {
         maxTokens: 4096,
         timeout: settings.timeout ?? 5000
       })),
-    sendMessage: vi.fn().mockResolvedValue(undefined),
+    sendMessage: vi.fn().mockResolvedValue({
+      requestId: 'message-2',
+      messageId: 'message-2'
+    }),
     steerActiveTurn: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     getMessage: vi.fn().mockResolvedValue({

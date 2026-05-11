@@ -335,7 +335,8 @@ export class McpConfHelper {
   private resolveLegacyEnabledServers(): Set<string> {
     const enabled = new Set<string>()
     const oldDefaultServer = this.mcpStore.get('defaultServer')
-    const oldDefaultServers = this.mcpStore.get<string[]>('defaultServers', [])
+    const oldDefaultServersValue = this.mcpStore.get<string[]>('defaultServers', [])
+    const oldDefaultServers = Array.isArray(oldDefaultServersValue) ? oldDefaultServersValue : []
 
     if (typeof oldDefaultServer === 'string' && oldDefaultServer.trim()) {
       enabled.add(oldDefaultServer.trim())

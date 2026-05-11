@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.4-beta.7 (2026-05-11)
+- Added Mistral as a built-in provider, including model icons, provider catalog support, and deeplink handling
+- Agent runs now budget tool schemas and tool output more defensively, reducing oversized context failures and follow-up stalls
+- Agent terminal execution is steadier when shells, working directories, or context compaction need fallback handling
+- Disabled providers no longer trigger verification requests from settings screens
+- Plugin MCP servers now keep their lifecycle more isolated, improving start/stop behavior and built-in plugin visibility
+- 新增 Mistral 内置 Provider，补齐模型图标、Provider 目录与 deeplink 支持
+- Agent 运行会更谨慎地预算工具 schema 与工具输出，减少上下文过大和后续执行卡住的问题
+- 当 shell、工作目录或上下文压缩需要 fallback 时，Agent 终端执行更稳定
+- 设置页不会再对已禁用的 Provider 发起验证请求
+- Plugin MCP server 的生命周期隔离更清晰，启动、停止和内置插件展示更可靠
+
 ## v1.0.4-beta.6 (2026-05-09)
 - Agents can now generate images right inside chat, with OpenAI image settings available when you want more control
 - Image previews and image actions feel smoother, especially around generated results and tool output

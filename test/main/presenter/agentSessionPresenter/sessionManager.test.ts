@@ -18,6 +18,11 @@ function createMockSqlitePresenter() {
       listPathsForSession: vi.fn().mockReturnValue([]),
       syncPath: vi.fn(),
       syncForSession: vi.fn()
+    },
+    deepchatSearchDocumentsTable: {
+      upsert: vi.fn(),
+      refreshSessionTitle: vi.fn(),
+      deleteBySession: vi.fn()
     }
   } as any
 }
@@ -50,6 +55,14 @@ describe('NewSessionManager', () => {
           subagentMetaJson: null
         }
       )
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.upsert).toHaveBeenCalledWith({
+        documentKey: 'session:mock-id-123',
+        sessionId: 'mock-id-123',
+        documentKind: 'session',
+        title: 'Hello world',
+        content: '',
+        updatedAt: expect.any(Number)
+      })
       expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/workspace')
     })
   })
@@ -136,6 +149,10 @@ describe('NewSessionManager', () => {
         is_pinned: 1,
         is_draft: 0
       })
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.refreshSessionTitle).toHaveBeenCalledWith(
+        's1',
+        'New Title'
+      )
       expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/current')
     })
 
@@ -173,6 +190,9 @@ describe('NewSessionManager', () => {
 
       manager.delete('s1')
 
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession).toHaveBeenCalledWith(
+        's1'
+      )
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/to-delete')
     })

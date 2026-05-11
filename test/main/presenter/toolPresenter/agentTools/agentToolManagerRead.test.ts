@@ -16,7 +16,18 @@ vi.mock('fs', async (importOriginal) => {
 
 vi.mock('electron', () => ({
   app: {
-    getPath: () => os.tmpdir()
+    getPath: (name: string) => {
+      if (name === 'temp') {
+        return path.join(os.tmpdir(), 'deepchat-electron-temp')
+      }
+      if (name === 'home') {
+        return path.join(os.tmpdir(), 'deepchat-electron-home')
+      }
+      if (name === 'userData') {
+        return path.join(os.tmpdir(), 'deepchat-electron-user-data')
+      }
+      return os.tmpdir()
+    }
   },
   nativeImage: {
     createFromPath: () => ({
