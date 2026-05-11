@@ -31,8 +31,10 @@ const createTextPayload = (text: string): string =>
 
 const createMarkdownPayload = (text: string): string =>
   JSON.stringify({
-    zh_cn: {
-      content: [[{ tag: 'md', text }]]
+    post: {
+      zh_cn: {
+        content: [[{ tag: 'md', text }]]
+      }
     }
   })
 
