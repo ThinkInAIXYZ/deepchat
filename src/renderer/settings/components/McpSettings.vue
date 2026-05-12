@@ -14,7 +14,7 @@
     <div class="flex-1 rounded-xl bg-muted/20"></div>
   </div>
 
-  <div v-else data-testid="settings-mcp-page" class="w-full h-full flex flex-col">
+  <div v-else data-testid="settings-mcp-page" class="w-full h-full min-h-0 flex flex-col">
     <div class="shrink-0 px-4 pt-4">
       <div class="flex flex-col gap-3">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -45,8 +45,8 @@
     </div>
 
     <!-- Server list -->
-    <div class="flex-1 overflow-y-auto">
-      <div v-if="mcpEnabled" class="h-full">
+    <div class="min-h-0 flex-1 overflow-hidden">
+      <div v-if="mcpEnabled" class="h-full min-h-0">
         <McpServers ref="mcpServersRef" :show-footer-add-button="false">
           <template #status-bar>
             <div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">

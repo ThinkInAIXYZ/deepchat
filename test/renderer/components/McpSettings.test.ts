@@ -152,6 +152,17 @@ describe('McpSettings', () => {
     expect(wrapper.find('[data-testid="market-view"]').exists()).toBe(false)
   })
 
+  it('keeps the MCP page frame static around the scrolling server list', async () => {
+    const { wrapper } = await setup()
+    const serverView = wrapper.find('[data-testid="servers-view"]')
+    const serverPanel = serverView.element.parentElement
+    const scrollFrame = serverPanel?.parentElement
+
+    expect(wrapper.find('[data-testid="settings-mcp-page"]').classes()).toContain('min-h-0')
+    expect(serverPanel?.className).toContain('min-h-0')
+    expect(scrollFrame?.className).toContain('overflow-hidden')
+  })
+
   it('renders the market subview and clears only the market query on back', async () => {
     const { wrapper, router } = await setup({ view: 'market', foo: '1' })
 

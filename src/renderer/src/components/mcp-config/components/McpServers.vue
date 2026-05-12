@@ -235,9 +235,9 @@ defineExpose({
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
+  <div class="h-full min-h-0 flex flex-col">
     <!-- Server list -->
-    <ScrollArea class="flex-1 px-3">
+    <ScrollArea class="min-h-0 flex-1 px-3">
       <div v-if="mcpStore.configLoading" class="flex justify-center py-8">
         <div class="text-center">
           <Icon
@@ -314,9 +314,7 @@ defineExpose({
     </ScrollArea>
 
     <!-- Footer actions -->
-    <div
-      class="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-    >
+    <div class="shrink-0 border-t bg-background">
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div class="flex min-w-0 flex-1 items-center gap-3">
           <slot name="status-bar">
