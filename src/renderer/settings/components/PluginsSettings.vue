@@ -101,6 +101,7 @@
         <div class="flex flex-wrap gap-2">
           <Button
             v-if="!plugin.enabled"
+            :data-testid="`plugin-enable-${plugin.id}`"
             size="sm"
             :disabled="isPending(plugin.id)"
             @click="enablePlugin(plugin.id)"
@@ -109,7 +110,8 @@
             {{ t('settings.plugins.enable') }}
           </Button>
           <Button
-            v-if="plugin.enabled && plugin.settings"
+            v-if="plugin.settings"
+            :data-testid="`plugin-settings-${plugin.id}`"
             size="sm"
             variant="outline"
             :disabled="isPending(plugin.id)"
@@ -120,6 +122,7 @@
           </Button>
           <Button
             v-if="plugin.enabled"
+            :data-testid="`plugin-disable-${plugin.id}`"
             size="sm"
             variant="outline"
             :disabled="isPending(plugin.id)"

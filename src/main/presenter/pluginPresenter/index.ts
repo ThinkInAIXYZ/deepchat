@@ -218,6 +218,22 @@ export class PluginPresenter {
             error:
               'Helper uninstall is not implemented for this runtime. Use the helper provider uninstall flow.'
           }
+        case 'config.get': {
+          const plugin = this.getInstalledOrOfficialPluginOrThrow(pluginId)
+          const configPath = path.join(plugin.root, 'config.json')
+          if (!fs.existsSync(configPath)) {
+            return { ok: true, data: {} }
+          }
+          const raw = fs.readFileSync(configPath, 'utf-8')
+          return { ok: true, data: JSON.parse(raw) }
+        }
+        case 'config.set': {
+          const plugin = this.getInstalledOrOfficialPluginOrThrow(pluginId)
+          const payload = (_payload ?? {}) as Record<string, unknown>
+          const configPath = path.join(plugin.root, 'config.json')
+          fs.writeFileSync(configPath, JSON.stringify(payload, null, 2), 'utf-8')
+          return { ok: true }
+        }
         default:
           throw new Error(`Unsupported plugin action: ${actionId}`)
       }
@@ -239,18 +255,21 @@ export class PluginPresenter {
 
     await this.disableByOwner(pluginId)
 
-    const runtime = await this.refreshRuntime(pluginId)
-    this.upsertResource({
-      pluginId,
-      kind: 'runtime',
-      key: runtime.runtimeId,
-      payload: this.toJsonPayload(runtime),
-      enabled: true
-    })
+    let runtime: PluginRuntimeStatus | undefined
+    if (plugin.manifest.runtime) {
+      runtime = await this.refreshRuntime(pluginId)
+      this.upsertResource({
+        pluginId,
+        kind: 'runtime',
+        key: runtime.runtimeId,
+        payload: this.toJsonPayload(runtime),
+        enabled: true
+      })
+    }
 
     this.registerSettingsContributions(plugin)
 
-    if (runtime.state !== 'installed' && runtime.state !== 'running') {
+    if (runtime && runtime.state !== 'installed' && runtime.state !== 'running') {
       return
     }
 
@@ -288,9 +307,15 @@ export class PluginPresenter {
     this.removeResourceRecordsByOwner(pluginId)
   }
 
+  private async removePersistedInstallation(pluginId: string): Promise<void> {
+    await this.disableByOwner(pluginId)
+    this.removeInstallationRecord(pluginId)
+    this.removeRuntimeRecordsByOwner(pluginId)
+  }
+
   private async registerMcpServers(
     plugin: ResolvedOfficialPlugin,
-    runtime: PluginRuntimeStatus
+    runtime?: PluginRuntimeStatus
   ): Promise<string[]> {
     const servers = plugin.manifest.mcpServers ?? []
     const registeredServerNames: string[] = []
@@ -394,10 +419,6 @@ export class PluginPresenter {
 
   private async openPluginSettingsWindow(pluginId: string): Promise<void> {
     const plugin = this.getInstalledOrOfficialPluginOrThrow(pluginId)
-    const installation = this.getInstallation(pluginId)
-    if (!installation?.enabled) {
-      throw new Error(`Plugin ${pluginId} is not enabled`)
-    }
 
     const settings = this.getSettingsContribution(pluginId)
     if (!settings) {
@@ -737,15 +758,30 @@ export class PluginPresenter {
         continue
       }
       if (!this.isPluginPlatformSupported(plugin.manifest)) {
+        console.info(`[PluginHost] Skipping plugin ${plugin.manifest.id}: platform not supported`)
+        await this.removePersistedInstallation(plugin.manifest.id)
         continue
       }
-      this.assertTrustedOfficialPlugin(plugin.manifest)
+      try {
+        this.assertTrustedOfficialPlugin(plugin.manifest)
+      } catch (error) {
+        console.warn(`[PluginHost] Skipping untrusted plugin ${plugin.manifest.id}:`, error)
+        await this.removePersistedInstallation(plugin.manifest.id)
+        continue
+      }
+      console.info(`[PluginHost] Discovered plugin: ${plugin.manifest.id} at ${plugin.root}`)
       this.officialPlugins.set(plugin.manifest.id, plugin)
     }
   }
 
   private resolveOfficialPluginDirectories(): ResolvedOfficialPlugin[] {
-    const sourceRoots = [this.getPluginInstallRoot()]
+    const sourceRoots = this.isPackaged
+      ? [this.getPluginInstallRoot()]
+      : [
+          path.join(process.cwd(), 'plugins'),
+          path.join(this.appPath, 'plugins'),
+          this.getPluginInstallRoot()
+        ]
     const pluginRoots = new Set<string>()
 
     for (const sourceRoot of sourceRoots) {
@@ -906,7 +942,14 @@ export class PluginPresenter {
       : undefined
     if (existing && existingManifestPath && fs.existsSync(existingManifestPath)) {
       const existingManifest = this.readManifest(existingManifestPath)
-      if (existingManifest.version === plugin.manifest.version) {
+      const shouldRefreshDirectoryInstallation =
+        plugin.sourceType === 'directory' &&
+        path.resolve(plugin.sourcePath) !== path.resolve(existing.path)
+      if (
+        !shouldRefreshDirectoryInstallation &&
+        existingManifest.version === plugin.manifest.version &&
+        this.arePluginManifestsEquivalent(existingManifest, plugin.manifest)
+      ) {
         this.assertTrustedOfficialPlugin(existingManifest)
         this.assertPlatformSupported(existingManifest)
         this.applyDeclaredExecutablePermissions(existingManifest, existing.path)
@@ -959,6 +1002,7 @@ export class PluginPresenter {
       return installRoot
     }
 
+    const preservedConfig = this.readInstalledPluginConfig(installRoot)
     fs.rmSync(installRoot, { recursive: true, force: true })
     fs.mkdirSync(installRoot, { recursive: true })
 
@@ -968,7 +1012,31 @@ export class PluginPresenter {
       this.copyPluginDirectory(plugin.sourcePath, installRoot)
     }
 
+    this.writeInstalledPluginConfig(installRoot, preservedConfig)
+
     return installRoot
+  }
+
+  private arePluginManifestsEquivalent(
+    left: DeepChatPluginManifest,
+    right: DeepChatPluginManifest
+  ): boolean {
+    return JSON.stringify(left) === JSON.stringify(right)
+  }
+
+  private readInstalledPluginConfig(installRoot: string): string | undefined {
+    const configPath = path.join(installRoot, 'config.json')
+    if (!fs.existsSync(configPath) || !fs.statSync(configPath).isFile()) {
+      return undefined
+    }
+    return fs.readFileSync(configPath, 'utf8')
+  }
+
+  private writeInstalledPluginConfig(installRoot: string, config: string | undefined): void {
+    if (config === undefined) {
+      return
+    }
+    fs.writeFileSync(path.join(installRoot, 'config.json'), config, 'utf8')
   }
 
   private extractPluginPackage(packagePath: string, installRoot: string): void {
@@ -1096,6 +1164,20 @@ export class PluginPresenter {
   }
 
   private getInstalledOrOfficialPluginOrThrow(pluginId: string): ResolvedOfficialPlugin {
+    const official = this.officialPlugins.get(pluginId)
+    if (official) {
+      const installation = this.ensureOfficialPluginInstallation(official)
+      const manifestPath = path.join(installation.path, 'plugin.json')
+      if (fs.existsSync(manifestPath)) {
+        return {
+          manifest: this.readManifest(manifestPath),
+          root: installation.path,
+          sourcePath: installation.path,
+          sourceType: 'directory'
+        }
+      }
+    }
+
     const installation = this.getInstallation(pluginId)
     if (installation?.path && fs.existsSync(path.join(installation.path, 'plugin.json'))) {
       return {
@@ -1115,6 +1197,13 @@ export class PluginPresenter {
 
   private getInstallation(pluginId: string): PluginInstallationRecord | undefined {
     return this.getInstallations().find((installation) => installation.pluginId === pluginId)
+  }
+
+  private removeInstallationRecord(pluginId: string): void {
+    this.store.set(
+      'installations',
+      this.getInstallations().filter((installation) => installation.pluginId !== pluginId)
+    )
   }
 
   private upsertInstallation(record: PluginInstallationRecord): void {
@@ -1173,6 +1262,13 @@ export class PluginPresenter {
     )
   }
 
+  private removeRuntimeRecordsByOwner(pluginId: string): void {
+    this.store.set(
+      'runtimes',
+      (this.store.get('runtimes') ?? []).filter((runtime) => runtime.pluginId !== pluginId)
+    )
+  }
+
   private upsertRuntimeRecord(record: RuntimeDependencyRecord): void {
     this.store.set('runtimes', [
       ...(this.store.get('runtimes') ?? []).filter(
@@ -1183,24 +1279,85 @@ export class PluginPresenter {
     ])
   }
 
+  private resolveManifestSettingsContribution(
+    plugin: ResolvedOfficialPlugin,
+    pluginRoot: string
+  ): PluginSettingsContribution | undefined {
+    const contribution = plugin.manifest.settingsContributions?.[0]
+    if (!contribution) {
+      return undefined
+    }
+
+    const entry = this.resolvePluginRelativePath(pluginRoot, contribution.entry)
+    const preloadTypes = this.resolvePluginRelativePath(pluginRoot, contribution.preloadTypes)
+    if (!fs.existsSync(entry) || !fs.existsSync(preloadTypes)) {
+      return undefined
+    }
+
+    return {
+      id: contribution.id,
+      ownerPluginId: plugin.manifest.id,
+      title: contribution.title,
+      placement: contribution.placement,
+      entry,
+      preloadTypes
+    }
+  }
+
+  private isSettingsContributionAvailable(settings?: PluginSettingsContribution): boolean {
+    try {
+      const entry = settings?.entry
+      const preloadTypes = settings?.preloadTypes
+      if (!entry || !preloadTypes) {
+        return false
+      }
+      return fs.existsSync(entry) && fs.existsSync(preloadTypes)
+    } catch {
+      return false
+    }
+  }
+
   private getSettingsContribution(pluginId: string): PluginSettingsContribution | undefined {
     const record = this.getResources().find(
       (resource) =>
         resource.pluginId === pluginId && resource.kind === 'settings' && resource.enabled
     )
-    return record?.payload as unknown as PluginSettingsContribution | undefined
+    const stored = record?.payload as unknown as PluginSettingsContribution | undefined
+    if (this.isSettingsContributionAvailable(stored)) {
+      return stored
+    }
+
+    const plugin = this.getOfficialPluginOrThrow(pluginId)
+    const installation = this.getInstallation(pluginId)
+    if (installation?.path) {
+      const installedSettings = this.resolveManifestSettingsContribution(plugin, installation.path)
+      if (installedSettings) {
+        return installedSettings
+      }
+    }
+
+    if (plugin.sourceType === 'package') {
+      const ensuredInstallation = this.ensureOfficialPluginInstallation(plugin)
+      return this.resolveManifestSettingsContribution(plugin, ensuredInstallation.path)
+    }
+
+    return this.resolveManifestSettingsContribution(plugin, plugin.root)
   }
 
   private resolvePluginTemplate(
     template: string,
     plugin: ResolvedOfficialPlugin,
-    runtime: PluginRuntimeStatus
+    runtime?: PluginRuntimeStatus
   ): string {
-    return template
-      .replaceAll(`\${runtime.${runtime.runtimeId}.command}`, runtime.command ?? '')
-      .replaceAll(`\${runtime.${runtime.runtimeId}.helperAppPath}`, runtime.helperAppPath ?? '')
+    let result = template
       .replaceAll('${plugin.root}', plugin.root)
       .replaceAll('${plugin.id}', plugin.manifest.id)
+    if (runtime) {
+      result = result
+        .replaceAll(`\${runtime.${runtime.runtimeId}.command}`, runtime.command ?? '')
+        .replaceAll(`\${runtime.${runtime.runtimeId}.helperAppPath}`, runtime.helperAppPath ?? '')
+    }
+    return result
   }
 
   private resolveRuntimeCandidate(candidate: string, pluginRoot: string): string | null {
@@ -1220,7 +1377,7 @@ export class PluginPresenter {
   private resolvePluginTemplateRecord(
     input: Record<string, string>,
     plugin: ResolvedOfficialPlugin,
-    runtime: PluginRuntimeStatus
+    runtime?: PluginRuntimeStatus
   ): Record<string, string> {
     return Object.fromEntries(
       Object.entries(input).map(([key, value]) => [

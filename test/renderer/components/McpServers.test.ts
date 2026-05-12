@@ -27,6 +27,12 @@ const setup = async (options: { withServers?: boolean; showFooterAddButton?: boo
   }
 
   const toast = vi.fn()
+  const serverList = overrides.serverList ?? []
+  const config = {
+    mcpServers: {
+      ...(overrides.config?.mcpServers ?? {})
+    }
+  }
   const mcpStore = reactive({
     mcpInstallCache: '',
     clearMcpInstallCache: vi.fn(),
@@ -155,5 +161,55 @@ describe('McpServers', () => {
     expect(wrapper.text()).toContain('settings.mcp.center.filters.stopped')
     expect(wrapper.text()).not.toContain('settings.mcp.center.filters.builtIn')
     expect(wrapper.text()).not.toContain('settings.mcp.center.filters.custom')
+  })
+
+  it('hides plugin-owned MCP servers from the global settings list', async () => {
+    const { wrapper } = await setup({
+      serverList: [{ name: 'feishu-tools' }, { name: 'user-server' }],
+      config: {
+        mcpServers: {
+          'feishu-tools': {
+            type: 'stdio',
+            command: 'node',
+            args: [],
+            enabled: true,
+            source: 'plugin',
+            ownerPluginId: 'com.deepchat.plugins.feishu'
+          },
+          'user-server': {
+            type: 'stdio',
+            command: 'node',
+            args: [],
+            enabled: true
+          }
+        }
+      }
+    })
+
+    const cards = wrapper.findAll('[data-testid="server-card"]').map((card) => card.text())
+
+    expect(cards).toEqual(['user-server'])
+    expect(wrapper.text()).not.toContain('feishu-tools')
+  })
+
+  it('shows the empty state when only plugin-owned MCP servers exist', async () => {
+    const { wrapper } = await setup({
+      serverList: [{ name: 'feishu-tools' }],
+      config: {
+        mcpServers: {
+          'feishu-tools': {
+            type: 'stdio',
+            command: 'node',
+            args: [],
+            enabled: true,
+            source: 'plugin',
+            ownerPluginId: 'com.deepchat.plugins.feishu'
+          }
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('settings.mcp.noServersFound')
+    expect(wrapper.findAll('[data-testid="server-card"]')).toHaveLength(0)
   })
 })

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -97,6 +97,7 @@ const createBundledFixture = async (
     packageRoot?: string
     pluginId?: string
     name?: string
+    includeSettings?: boolean
   } = {}
 ) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-test-'))
@@ -107,6 +108,7 @@ const createBundledFixture = async (
   const packagePath = path.join(packageRoot, 'deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin')
   const runtimeRelativePath = `runtime/darwin/${process.arch}/fixture-runtime`
   const pluginId = options.pluginId ?? 'com.deepchat.plugins.fixture'
+  const includeSettings = options.includeSettings ?? false
   const manifest = {
     id: pluginId,
     name: options.name ?? 'Fixture Runtime',
@@ -117,7 +119,9 @@ const createBundledFixture = async (
       platforms: ['darwin']
     },
     activationEvents: ['onEnable'],
-    capabilities: ['runtime.manage', 'mcp.register'],
+    capabilities: includeSettings
+      ? ['runtime.manage', 'mcp.register', 'settings.contribute']
+      : ['runtime.manage', 'mcp.register'],
     source: {
       type: 'deepchat-official',
       url: 'https://github.com/ThinkInAIXYZ/deepchat/releases/download/v0.2.3/deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin',
@@ -138,11 +142,32 @@ const createBundledFixture = async (
         args: ['mcp'],
         autoApprove: []
       }
-    ]
+    ],
+    ...(includeSettings
+      ? {
+          settingsContributions: [
+            {
+              id: 'fixture-settings',
+              title: 'Fixture Settings',
+              placement: 'plugins',
+              entry: 'settings/index.html',
+              preloadTypes: 'types/settings-preload.d.ts'
+            }
+          ]
+        }
+      : {})
   }
   const files: Record<string, Uint8Array> = {
     'plugin.json': new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`),
     [runtimeRelativePath]: new TextEncoder().encode('#!/bin/sh\necho fixture-runtime 1.0.0\n')
+  }
+  if (includeSettings) {
+    files['settings/index.html'] = new TextEncoder().encode(
+      '<!doctype html><title>Fixture Settings</title>\n'
+    )
+    files['types/settings-preload.d.ts'] = new TextEncoder().encode(
+      'interface Window { deepchatPlugin?: unknown }\n'
+    )
   }
   const checksums = Object.fromEntries(
     Object.entries(files).map(([filePath, content]) => [
@@ -173,6 +198,118 @@ const createBundledFixture = async (
   }
 }
 
+const createDirectoryFixture = async (
+  options: {
+    appPath?: string
+    pluginId?: string
+    name?: string
+  } = {}
+) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-dir-test-'))
+  tempRoots.push(root)
+  const appPath = options.appPath ?? path.join(root, 'app')
+  const userDataPath = path.join(root, 'userData')
+  const pluginId = options.pluginId ?? 'com.deepchat.plugins.fixture'
+  const pluginRoot = path.join(appPath, 'plugins', pluginId)
+  const installedRoot = path.join(userDataPath, 'plugins', pluginId)
+  const currentManifest = {
+    id: pluginId,
+    name: options.name ?? 'Fixture Settings Plugin',
+    version: '0.2.3',
+    publisher: 'DeepChat',
+    engines: {
+      deepchat: '>=0.2.3',
+      platforms: ['darwin']
+    },
+    activationEvents: ['onEnable'],
+    capabilities: ['mcp.register', 'settings.contribute'],
+    source: {
+      type: 'deepchat-official',
+      url: 'https://github.com/ThinkInAIXYZ/deepchat/releases/download/v0.2.3/deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin',
+      publisher: 'DeepChat'
+    },
+    mcpServers: [
+      {
+        id: 'fixture-tools',
+        displayName: 'Fixture Tools',
+        transport: 'stdio',
+        command: 'node',
+        args: ['${plugin.root}/mcp/serve.mjs'],
+        env: {},
+        autoApprove: ['all']
+      }
+    ],
+    settingsContributions: [
+      {
+        id: 'fixture-settings',
+        title: 'Fixture Settings',
+        placement: 'plugins',
+        entry: 'settings/index.html',
+        preloadTypes: 'types/settings-preload.d.ts'
+      }
+    ]
+  }
+  const staleInstalledManifest = {
+    ...currentManifest,
+    capabilities: ['mcp.register'],
+    mcpServers: [
+      {
+        id: 'fixture-tools',
+        displayName: 'Fixture Tools',
+        transport: 'stdio',
+        command: 'node',
+        args: ['${plugin.root}/mcp/legacy.mjs'],
+        env: {
+          FIXTURE_APP_ID: ''
+        },
+        autoApprove: ['all']
+      }
+    ]
+  }
+  delete (staleInstalledManifest as { settingsContributions?: unknown }).settingsContributions
+
+  await mkdir(path.join(pluginRoot, 'mcp'), { recursive: true })
+  await mkdir(path.join(pluginRoot, 'settings'), { recursive: true })
+  await mkdir(path.join(pluginRoot, 'types'), { recursive: true })
+  await mkdir(path.join(installedRoot, 'mcp'), { recursive: true })
+  await mkdir(installedRoot, { recursive: true })
+  await writeFile(
+    path.join(pluginRoot, 'plugin.json'),
+    `${JSON.stringify(currentManifest, null, 2)}\n`
+  )
+  await writeFile(path.join(pluginRoot, 'mcp', 'serve.mjs'), 'console.log("serve")\n')
+  await writeFile(
+    path.join(pluginRoot, 'settings', 'index.html'),
+    '<!doctype html><title>Fixture Settings</title>\n'
+  )
+  await writeFile(
+    path.join(pluginRoot, 'types', 'settings-preload.d.ts'),
+    'interface Window { deepchatPlugin?: unknown }\n'
+  )
+  await writeFile(
+    path.join(installedRoot, 'plugin.json'),
+    `${JSON.stringify(staleInstalledManifest, null, 2)}\n`
+  )
+  await writeFile(path.join(installedRoot, 'mcp', 'legacy.mjs'), 'console.log("legacy")\n')
+  vi.mocked(app.getPath).mockImplementation((name: string) => {
+    if (name === 'userData') {
+      return userDataPath
+    }
+    if (name === 'temp' || name === 'home') {
+      return root
+    }
+    return '/mock/path'
+  })
+
+  return {
+    appPath,
+    pluginId,
+    pluginRoot,
+    installedRoot,
+    userDataPath
+  }
+}
+
 describe('PluginPresenter', () => {
   afterEach(async () => {
     process.chdir(originalCwd)
@@ -186,8 +323,12 @@ describe('PluginPresenter', () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
 
     expect(manifest.engines.platforms).toEqual(['darwin'])
-    expect(await winPresenter.listPlugins()).toEqual([])
-    expect(await linuxPresenter.listPlugins()).toEqual([])
+    expect((await winPresenter.listPlugins()).map((plugin) => plugin.id)).not.toContain(
+      'com.deepchat.plugins.cua'
+    )
+    expect((await linuxPresenter.listPlugins()).map((plugin) => plugin.id)).not.toContain(
+      'com.deepchat.plugins.cua'
+    )
   })
 
   it('lists bundled official plugins as installed and enables them by materializing the package', async () => {
@@ -195,8 +336,8 @@ describe('PluginPresenter', () => {
     const presenter = await createPluginPresenter('darwin', fixture.appPath)
 
     const plugins = await presenter.listPlugins()
-    expect(plugins).toHaveLength(1)
-    expect(plugins[0]).toMatchObject({
+    const plugin = plugins.find((item) => item.id === fixture.pluginId)
+    expect(plugin).toMatchObject({
       id: fixture.pluginId,
       installed: true,
       enabled: false,
@@ -228,6 +369,300 @@ describe('PluginPresenter', () => {
     })
   })
 
+  it('restores plugin settings from the installed manifest when stored resources are missing', async () => {
+    const fixture = await createBundledFixture({ includeSettings: true })
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    vi.clearAllMocks()
+
+    const enabled = await presenter.enablePlugin(fixture.pluginId)
+
+    expect(enabled.ok).toBe(true)
+    expect(enabled.status).toMatchObject({
+      id: fixture.pluginId,
+      enabled: true,
+      settings: {
+        id: 'fixture-settings',
+        ownerPluginId: fixture.pluginId,
+        title: 'Fixture Settings'
+      }
+    })
+
+    ;(presenter as any).store.set('resources', [])
+
+    const plugin = await presenter.getPlugin(fixture.pluginId)
+
+    expect(plugin).toMatchObject({
+      id: fixture.pluginId,
+      enabled: true,
+      settings: {
+        id: 'fixture-settings',
+        ownerPluginId: fixture.pluginId,
+        title: 'Fixture Settings'
+      }
+    })
+
+    const action = await presenter.invokeAction(fixture.pluginId, 'settings.open')
+
+    expect(action).toMatchObject({ ok: true })
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(BrowserWindow).mock.results[0]?.value.loadFile).toHaveBeenCalledWith(
+      path.join(fixture.userDataPath, 'plugins', fixture.pluginId, 'settings', 'index.html'),
+      {
+        query: {
+          pluginId: fixture.pluginId
+        }
+      }
+    )
+  })
+
+  it('opens settings for a disabled packaged plugin that declares a settings contribution', async () => {
+    const fixture = await createBundledFixture({ includeSettings: true })
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    vi.clearAllMocks()
+
+    const plugin = (await presenter.listPlugins()).find((item) => item.id === fixture.pluginId)
+
+    expect(plugin).toMatchObject({
+      id: fixture.pluginId,
+      enabled: false,
+      settings: {
+        id: 'fixture-settings',
+        ownerPluginId: fixture.pluginId,
+        title: 'Fixture Settings'
+      }
+    })
+
+    const action = await presenter.invokeAction(fixture.pluginId, 'settings.open')
+
+    expect(action).toMatchObject({ ok: true })
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(BrowserWindow).mock.results[0]?.value.loadFile).toHaveBeenCalledWith(
+      path.join(fixture.userDataPath, 'plugins', fixture.pluginId, 'settings', 'index.html'),
+      {
+        query: {
+          pluginId: fixture.pluginId
+        }
+      }
+    )
+  })
+
+  it('uses the current official manifest when an installed copy lacks settings metadata', async () => {
+    const fixture = await createBundledFixture({ includeSettings: true })
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+
+    const enabled = await presenter.enablePlugin(fixture.pluginId)
+    expect(enabled.ok).toBe(true)
+
+    const disabled = await presenter.disablePlugin(fixture.pluginId)
+    expect(disabled.ok).toBe(true)
+
+    const installedManifestPath = path.join(
+      fixture.userDataPath,
+      'plugins',
+      fixture.pluginId,
+      'plugin.json'
+    )
+    const installedManifest = JSON.parse(await readFile(installedManifestPath, 'utf8'))
+    delete installedManifest.settingsContributions
+    await writeFile(installedManifestPath, `${JSON.stringify(installedManifest, null, 2)}\n`)
+    vi.clearAllMocks()
+
+    const plugin = await presenter.getPlugin(fixture.pluginId)
+
+    expect(plugin).toMatchObject({
+      id: fixture.pluginId,
+      enabled: false,
+      settings: {
+        id: 'fixture-settings',
+        ownerPluginId: fixture.pluginId,
+        title: 'Fixture Settings'
+      }
+    })
+
+    const action = await presenter.invokeAction(fixture.pluginId, 'settings.open')
+
+    expect(action).toMatchObject({ ok: true })
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(BrowserWindow).mock.results[0]?.value.loadFile).toHaveBeenCalledWith(
+      path.join(fixture.userDataPath, 'plugins', fixture.pluginId, 'settings', 'index.html'),
+      {
+        query: {
+          pluginId: fixture.pluginId
+        }
+      }
+    )
+  })
+
+  it('prefers workspace plugin metadata over a stale installed directory copy in development', async () => {
+    const fixture = await createDirectoryFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    vi.clearAllMocks()
+
+    const plugin = await presenter.getPlugin(fixture.pluginId)
+
+    expect(plugin).toMatchObject({
+      id: fixture.pluginId,
+      enabled: false,
+      settings: {
+        id: 'fixture-settings',
+        ownerPluginId: fixture.pluginId,
+        title: 'Fixture Settings'
+      }
+    })
+
+    const action = await presenter.invokeAction(fixture.pluginId, 'settings.open')
+
+    expect(action).toMatchObject({ ok: true })
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(BrowserWindow).mock.results[0]?.value.loadFile).toHaveBeenCalledWith(
+      path.join(fixture.installedRoot, 'settings', 'index.html'),
+      {
+        query: {
+          pluginId: fixture.pluginId
+        }
+      }
+    )
+  })
+
+  it('refreshes stale same-version installs before startup activation and preserves config', async () => {
+    const fixture = await createDirectoryFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const config = {
+      appId: 'cli_fixture_app_id',
+      appSecret: 'fixture-secret',
+      brand: 'feishu',
+      preset: 'preset.default'
+    }
+    await writeFile(path.join(fixture.installedRoot, 'config.json'), `${JSON.stringify(config)}\n`)
+    ;(presenter as any).store.set('installations', [
+      {
+        pluginId: fixture.pluginId,
+        version: '0.2.3',
+        path: fixture.installedRoot,
+        enabled: true,
+        trusted: true,
+        source: 'deepchat-official',
+        installedAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ])
+
+    await presenter.initialize()
+
+    const installedManifest = JSON.parse(
+      await readFile(path.join(fixture.installedRoot, 'plugin.json'), 'utf8')
+    )
+    const configAfterRefresh = JSON.parse(
+      await readFile(path.join(fixture.installedRoot, 'config.json'), 'utf8')
+    )
+    const servers = await presenter.__mocks.configPresenter.getMcpServers()
+
+    expect(installedManifest.settingsContributions).toEqual([
+      {
+        id: 'fixture-settings',
+        title: 'Fixture Settings',
+        placement: 'plugins',
+        entry: 'settings/index.html',
+        preloadTypes: 'types/settings-preload.d.ts'
+      }
+    ])
+    expect(installedManifest.mcpServers[0].args).toEqual(['${plugin.root}/mcp/serve.mjs'])
+    expect(fs.existsSync(path.join(fixture.installedRoot, 'mcp', 'serve.mjs'))).toBe(true)
+    expect(fs.existsSync(path.join(fixture.installedRoot, 'mcp', 'legacy.mjs'))).toBe(false)
+    expect(configAfterRefresh).toMatchObject(config)
+    expect(servers['fixture-tools']).toMatchObject({
+      args: [path.join(fixture.installedRoot, 'mcp', 'serve.mjs')],
+      source: 'plugin',
+      sourceId: fixture.pluginId,
+      enabled: true
+    })
+    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-tools')
+  })
+
+  it('syncs dev directory installs even when only the plugin files changed', async () => {
+    const fixture = await createDirectoryFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const currentManifest = await readFile(path.join(fixture.pluginRoot, 'plugin.json'), 'utf8')
+    const config = {
+      appId: 'cli_fixture_app_id',
+      appSecret: 'fixture-secret',
+      brand: 'feishu',
+      preset: 'preset.default'
+    }
+
+    await writeFile(path.join(fixture.installedRoot, 'plugin.json'), currentManifest)
+    await writeFile(path.join(fixture.installedRoot, 'mcp', 'serve.mjs'), 'console.log("stale")\n')
+    await writeFile(path.join(fixture.installedRoot, 'config.json'), `${JSON.stringify(config)}\n`)
+    ;(presenter as any).store.set('installations', [
+      {
+        pluginId: fixture.pluginId,
+        version: '0.2.3',
+        path: fixture.installedRoot,
+        enabled: true,
+        trusted: true,
+        source: 'deepchat-official',
+        installedAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ])
+
+    await presenter.initialize()
+
+    const serveScript = await readFile(path.join(fixture.installedRoot, 'mcp', 'serve.mjs'), 'utf8')
+    const configAfterRefresh = JSON.parse(
+      await readFile(path.join(fixture.installedRoot, 'config.json'), 'utf8')
+    )
+
+    expect(serveScript).toBe('console.log("serve")\n')
+    expect(configAfterRefresh).toMatchObject(config)
+    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-tools')
+  })
+
+  it('removes persisted plugin state when discovery rejects an installed official plugin', async () => {
+    const fixture = await createDirectoryFixture()
+    const workspaceManifestPath = path.join(fixture.pluginRoot, 'plugin.json')
+    const manifest = JSON.parse(await readFile(workspaceManifestPath, 'utf8'))
+    manifest.toolPolicies = [
+      {
+        serverId: 'fixture-tools',
+        tools: {
+          fixture_tool: 'ask'
+        }
+      }
+    ]
+    await writeFile(workspaceManifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const { getPluginToolPolicy } = await import('@/presenter/pluginPresenter/toolPolicyStore')
+
+    const enabled = await presenter.enablePlugin(fixture.pluginId)
+    expect(enabled.ok).toBe(true)
+    expect(getPluginToolPolicy('fixture-tools', 'fixture_tool')).toBe('ask')
+
+    const rejectedManifest = {
+      ...manifest,
+      engines: {
+        ...manifest.engines,
+        platforms: ['linux']
+      }
+    }
+    await writeFile(workspaceManifestPath, `${JSON.stringify(rejectedManifest, null, 2)}\n`)
+    await writeFile(
+      path.join(fixture.installedRoot, 'plugin.json'),
+      `${JSON.stringify(rejectedManifest, null, 2)}\n`
+    )
+
+    await presenter.initialize()
+
+    const servers = await presenter.__mocks.configPresenter.getMcpServers()
+
+    expect((presenter as any).store.get('installations')).toEqual([])
+    expect((presenter as any).store.get('resources')).toEqual([])
+    expect((presenter as any).store.get('runtimes')).toEqual([])
+    expect(servers['fixture-tools']).toBeUndefined()
+    expect(getPluginToolPolicy('fixture-tools', 'fixture_tool')).toBeNull()
+  })
+
   it('loads official packages only from resources roots in packaged mode', async () => {
     const cwdRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-cwd-'))
     tempRoots.push(cwdRoot)
@@ -252,8 +687,8 @@ describe('PluginPresenter', () => {
 
     const plugins = await presenter.listPlugins()
 
-    expect(plugins).toHaveLength(1)
-    expect(plugins[0]).toMatchObject({
+    const plugin = plugins.find((item) => item.id === pluginId)
+    expect(plugin).toMatchObject({
       id: pluginId,
       name: 'Resource Runtime',
       trusted: true,
@@ -493,6 +928,47 @@ describe('PluginPresenter', () => {
       expect(source).toContain('CUA_DRIVER_MCP_MODE')
       expect(source).toContain('Call get_window_state with the same pid and window_id')
     }
+  })
+
+  it('pins the Feishu MCP bootstrap package and keeps registry selection explicit', async () => {
+    const source = await readFile('plugins/feishu/mcp/serve.mjs', 'utf8')
+
+    expect(source).not.toContain('@modelcontextprotocol/sdk')
+    expect(source).toContain('Content-Length:')
+    expect(source).toContain('@larksuiteoapi/lark-mcp@0.5.1')
+    expect(source).toContain('REGISTRY_OVERRIDE')
+    expect(source).not.toContain('registry.npmmirror.com')
+  })
+
+  it('uses conservative Feishu MCP defaults in the plugin manifest', async () => {
+    const manifest = JSON.parse(await readFile('plugins/feishu/plugin.json', 'utf8'))
+
+    expect(manifest.mcpServers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'feishu-tools',
+          autoApprove: []
+        })
+      ])
+    )
+  })
+
+  it('declares a Feishu plugin skill for MCP tool routing', async () => {
+    const manifest = JSON.parse(await readFile('plugins/feishu/plugin.json', 'utf8'))
+    const skill = await readFile('plugins/feishu/skills/feishu-tools/SKILL.md', 'utf8')
+
+    expect(manifest.capabilities).toContain('skills.register')
+    expect(manifest.skills).toEqual([
+      {
+        id: 'feishu-tools',
+        path: 'skills/feishu-tools/SKILL.md',
+        scope: 'agent'
+      }
+    ])
+    expect(skill).toContain('This plugin is an MCP server tool surface')
+    expect(skill).toContain('Do not ask the user to classify the plugin')
+    expect(skill).toContain('Use the live tool names and descriptions in the current session')
+    expect(skill).toContain('Feishu plugin settings')
   })
 
   it('skips install telemetry in the bundled CUA CLI entrypoint', async () => {
