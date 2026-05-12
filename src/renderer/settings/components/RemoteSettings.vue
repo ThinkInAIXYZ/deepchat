@@ -1,5 +1,5 @@
 <template>
-  <ScrollArea class="h-full w-full">
+  <ScrollArea data-testid="settings-remote-page" class="h-full w-full">
     <div class="flex h-full w-full flex-col gap-4 p-4">
       <div v-if="isLoading" class="space-y-4 animate-pulse">
         <div class="h-6 w-48 rounded bg-muted/50"></div>

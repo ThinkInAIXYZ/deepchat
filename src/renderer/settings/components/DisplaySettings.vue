@@ -1,7 +1,11 @@
 <template>
-  <ScrollArea data-testid="settings-appearance-page" class="w-full h-full">
-    <div class="w-full h-full flex flex-col gap-1.5 p-4">
-      <!-- 语言选择 -->
+  <SettingsPageShell
+    :title="t('routes.settings-display')"
+    :eyebrow="t('settings.controlCenter.groups.setup')"
+    data-testid="settings-appearance-page"
+  >
+    <div class="flex w-full flex-col gap-1.5">
+      <!-- Language selection -->
       <div class="flex flex-col gap-2 px-2 py-2">
         <div class="flex items-center gap-3">
           <span
@@ -31,7 +35,7 @@
         </div>
       </div>
 
-      <!-- 主题设置 -->
+      <!-- Theme settings -->
       <div class="flex flex-col gap-2 px-2 py-2">
         <div class="flex items-center gap-3">
           <span
@@ -170,7 +174,7 @@
         </div>
       </div>
 
-      <!-- 系统通知设置 -->
+      <!-- System notifications -->
       <div class="flex flex-col gap-2 px-2 py-2">
         <div class="flex items-center gap-3">
           <span
@@ -178,7 +182,7 @@
             :dir="languageStore.dir"
           >
             <Icon icon="lucide:bell" class="w-4 h-4 text-muted-foreground" />
-            <span class="truncate">{{ t('settings.common.notifications') || '系统通知' }}</span>
+            <span class="truncate">{{ t('settings.common.notifications') }}</span>
           </span>
           <div class="ml-auto">
             <Switch
@@ -193,7 +197,7 @@
         </div>
       </div>
 
-      <!-- 字体大小设置 -->
+      <!-- Font size settings -->
       <div class="flex flex-col gap-2 px-2 py-2">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
@@ -218,14 +222,14 @@
 
       <FontSettingsSection />
 
-      <!-- 投屏保护开关 -->
+      <!-- Content protection toggle -->
       <div class="flex items-center gap-3 px-2 py-2">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="languageStore.dir"
         >
           <Icon icon="lucide:monitor" class="w-4 h-4 text-muted-foreground" />
-          <span class="truncate">{{ t('settings.common.contentProtection') || '投屏保护' }}</span>
+          <span class="truncate">{{ t('settings.common.contentProtection') }}</span>
         </span>
         <div class="ml-auto">
           <Switch
@@ -236,7 +240,7 @@
         </div>
       </div>
 
-      <!-- 悬浮按钮开关 -->
+      <!-- Floating button toggle -->
       <div v-if="FLOATING_BUTTON_AVAILABLE" class="flex flex-col gap-2 px-2 py-2">
         <div class="flex items-center gap-3">
           <span
@@ -259,15 +263,13 @@
         </div>
       </div>
     </div>
-  </ScrollArea>
+  </SettingsPageShell>
 
-  <!-- 投屏保护切换确认对话框 -->
+  <!-- Content protection confirmation dialog -->
   <Dialog v-model:open="isContentProtectionDialogOpen">
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>{{
-          t('settings.common.contentProtectionDialogTitle') || '确认切换投屏保护'
-        }}</DialogTitle>
+        <DialogTitle>{{ t('settings.common.contentProtectionDialogTitle') }}</DialogTitle>
         <DialogDescription>
           <template v-if="newContentProtectionValue">
             {{ t('settings.common.contentProtectionEnableDesc') }}
@@ -298,7 +300,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -326,6 +327,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { ButtonGroup } from '@shadcn/components/ui/button-group'
 import { Switch } from '@shadcn/components/ui/switch'
 import FontSettingsSection from './display/FontSettingsSection.vue'
+import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const languageStore = useLanguageStore()
 const uiSettingsStore = useUiSettingsStore()
@@ -337,7 +339,7 @@ const { themeMode } = storeToRefs(themeStore)
 // --- Language Settings ---
 const selectedLanguage = ref('system')
 const languageOptions = [
-  { value: 'system', label: t('common.languageSystem') || '跟随系统' }, // 使用i18n key 或 默认值
+  { value: 'system', label: t('common.languageSystem') || 'System' },
   { value: 'zh-CN', label: '简体中文' },
   { value: 'en-US', label: 'English (US)' },
   { value: 'zh-TW', label: '繁體中文（台灣）' },
@@ -426,14 +428,14 @@ const contentProtectionEnabled = computed({
     return uiSettingsStore.contentProtectionEnabled
   },
   set: () => {
-    // Setter handled by handleContentProtectionChange
+    // Setter handled by handleContentProtectionChange.
   }
 })
 const isContentProtectionDialogOpen = ref(false)
 const newContentProtectionValue = ref(false)
 
 const handleContentProtectionChange = (value: boolean) => {
-  console.log('准备切换投屏保护状态:', value)
+  console.log('Preparing to change content protection state:', value)
   newContentProtectionValue.value = value
   isContentProtectionDialogOpen.value = true
 }
@@ -461,7 +463,6 @@ const handleFloatingButtonChange = (value: boolean) => {
   floatingButtonStore.setFloatingButtonEnabled(value)
 }
 
-// --- Lifecycle ---
 onMounted(async () => {
   selectedLanguage.value = languageStore.language
 })

@@ -1,20 +1,22 @@
 <template>
-  <ScrollArea class="h-full w-full">
-    <div class="flex h-full w-full flex-col gap-1.5 p-4">
-      <div class="flex items-start gap-3 px-2 py-2">
-        <div class="flex-1 text-xs leading-5 text-muted-foreground">
-          {{ t('settings.environments.description') }}
-        </div>
-        <Button variant="outline" size="sm" :disabled="isLoading" @click="void refreshData()">
-          <Icon
-            icon="lucide:refresh-cw"
-            class="mr-2 h-4 w-4"
-            :class="isLoading ? 'animate-spin' : ''"
-          />
-          {{ t('settings.environments.actions.refresh') }}
-        </Button>
-      </div>
+  <SettingsPageShell
+    :title="t('settings.environments.title')"
+    :description="t('settings.environments.description')"
+    :eyebrow="t('settings.controlCenter.groups.models')"
+    data-testid="settings-environments-page"
+  >
+    <template #actions>
+      <Button variant="outline" size="sm" :disabled="isLoading" @click="void refreshData()">
+        <Icon
+          icon="lucide:refresh-cw"
+          class="mr-2 h-4 w-4"
+          :class="isLoading ? 'animate-spin' : ''"
+        />
+        {{ t('settings.environments.actions.refresh') }}
+      </Button>
+    </template>
 
+    <div class="flex w-full flex-col gap-1.5">
       <div class="flex items-center gap-3 px-2 py-2">
         <span class="flex items-center gap-2 text-sm font-medium text-foreground">
           <Icon icon="lucide:folder-x" class="h-4 w-4 text-muted-foreground" />
@@ -127,7 +129,7 @@
         </article>
       </template>
     </div>
-  </ScrollArea>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
@@ -135,12 +137,12 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useToast } from '@/components/use-toast'
 import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useProjectStore } from '@/stores/ui/project'
 import type { EnvironmentSummary } from '@shared/types/agent-interface'
+import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 type EnvironmentListItem = EnvironmentSummary & {
   isSyntheticDefault?: boolean

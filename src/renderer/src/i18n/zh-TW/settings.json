@@ -250,6 +250,12 @@
         "column-count-mismatch": "欄位數不匹配",
         "type-mismatch": "欄位類型不匹配"
       }
+    },
+    "privacyTitle": "Data & Privacy",
+    "privacyDescription": "管理备份同步、隐私模式、数据维护与危险操作。",
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "重置聊天、知识库或全部数据。此操作不可撤销。"
     }
   },
   "dashboard": {
@@ -875,7 +881,25 @@
     "operationSuccess": "操作成功",
     "settingsApplied": "設置已應用",
     "bedrockLimitTip": "* 僅支援 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）",
-    "bedrockVerifyTip": "DeepChat 使用 Claude 3.5 Sonnet 模型驗證，若您無此模型的呼叫許可權驗證將失敗。這不會影響其他模型的使用。"
+    "bedrockVerifyTip": "DeepChat 使用 Claude 3.5 Sonnet 模型驗證，若您無此模型的呼叫許可權驗證將失敗。這不會影響其他模型的使用。",
+    "center": {
+      "title": "Provider Center",
+      "description": "管理服務商連線、模型與進階設定。",
+      "noApiUrl": "未配置 API URL",
+      "enabledModels": "{count} 个模型已启用",
+      "noAdvancedConfig": "此服务商没有额外高级配置。",
+      "status": {
+        "connected": "Connected",
+        "keyMissing": "Key missing",
+        "disabled": "Disabled",
+        "local": "Local"
+      },
+      "tabs": {
+        "connection": "Connect",
+        "models": "Models",
+        "advanced": "Advanced"
+      }
+    }
   },
   "knowledgeBase": {
     "title": "知識庫設置",
@@ -1128,7 +1152,7 @@
     "removeDefaultFirst": "請先移除一些默認服務器",
     "higressMarket": "前往 Higress MCP 安裝",
     "npmRegistry": {
-      "title": "NPM源設定",
+      "title": "NPM 源",
       "currentSource": "目前來源",
       "cached": "快取",
       "lastChecked": "上次檢測",
@@ -1176,7 +1200,23 @@
     "starting": "啟動中",
     "error": "錯誤",
     "managedServerReadOnly": "DeepChat托管服务",
-    "managedServerReadOnlyDesc": "請在對應插件設定中管理啟用和權限"
+    "managedServerReadOnlyDesc": "請在對應插件設定中管理啟用和權限",
+    "center": {
+      "title": "MCP Center",
+      "running": "Running",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "searchPlaceholder": "搜索 MCP servers...",
+      "noResults": "没有匹配的 MCP server",
+      "command": "Command / URL",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "stopped": "Stopped",
+        "builtIn": "Built-in",
+        "custom": "Custom"
+      }
+    }
   },
   "about": {
     "title": "關於我們",
@@ -1918,5 +1958,79 @@
     "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
     "openRelease": "GitHub Release"
+  },
+  "controlCenter": {
+    "groups": {
+      "overview": "概览",
+      "setup": "基础",
+      "models": "Agent設定",
+      "tools": "能力擴展",
+      "knowledge": "上下文工程",
+      "system": "系统"
+    },
+    "overview": {
+      "title": "Settings Overview",
+      "description": "集中查看服務商、MCP、Agent、資料與用量狀態。",
+      "searchPlaceholder": "搜尋設定、服務商、模型、Agent、MCP...",
+      "providers": "Providers",
+      "mcp": "MCP",
+      "deepchatAgents": "DeepChat Agents",
+      "data": "最後備份時間",
+      "enabledCount": "{count} 个已启用",
+      "runningCount": "{count} 个运行中",
+      "enabledAgentCount": "{count} 個 Agent 已啟用",
+      "providersDescription": "服务商连接状态",
+      "deepchatAgentsDescription": "Agent 設定入口",
+      "mcpOn": "MCP 已启用",
+      "mcpOff": "MCP 已关闭",
+      "syncOn": "同步已启用",
+      "syncOff": "同步未启用",
+      "backupNever": "从未备份"
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "addApiKey": "Add API Key",
+      "addApiKeyDesc": "配置服务商连接",
+      "enableModel": "Enable Model",
+      "enableModelDesc": "启用可用模型",
+      "startMcp": "Start MCP Server",
+      "startMcpDesc": "启动工具服务",
+      "backupNow": "Backup Now",
+      "backupNowDesc": "立即备份数据"
+    },
+    "needsAttention": {
+      "title": "Needs attention",
+      "empty": "当前没有需要处理的项目",
+      "noModels": "还没有启用模型",
+      "privacyOff": "隐私模式未开启",
+      "backupNever": "数据从未备份"
+    },
+    "activity": {
+      "title": "最近設定變更",
+      "description": "只展示最近 200 條設定變更，資料庫保留最近 2000 條。",
+      "when": "时间",
+      "category": "类型",
+      "change": "修改",
+      "empty": "暂无修改记录",
+      "emptyDescription": "成功修改设置后会出现在这里。",
+      "settingUpdated": "更新设置：{key}",
+      "providerUpdated": "更新服务商：{name}",
+      "providerCreated": "新增服务商：{name}",
+      "providerRemoved": "移除服务商：{name}",
+      "providerModelsRefreshed": "刷新服务商模型：{name}",
+      "modelStatusChanged": "更新模型状态：{model}",
+      "modelBatchUpdated": "批量更新 {count} 个模型",
+      "mcpServerCreated": "新增 MCP Server：{name}",
+      "mcpServerUpdated": "更新 MCP Server：{name}",
+      "mcpServerRemoved": "移除 MCP Server：{name}",
+      "mcpServerStatusChanged": "切换 MCP Server：{name}",
+      "mcpGlobalStatusChanged": "切换 MCP 全局状态：{status}",
+      "mcpServerStarted": "启动 MCP Server：{name}",
+      "mcpServerStopped": "停止 MCP Server：{name}",
+      "mcpRegistryRefreshed": "刷新 MCP NPM registry",
+      "backupCreated": "创建备份：{name}",
+      "backupImported": "导入备份：{name}",
+      "databaseRepaired": "数据库修复完成：{status}"
+    }
   }
 }

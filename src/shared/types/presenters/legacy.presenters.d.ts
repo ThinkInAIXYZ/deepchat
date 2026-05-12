@@ -371,6 +371,12 @@ export interface IShortcutPresenter {
 export interface ISQLitePresenter {
   close(): void
   reopen(): void
+  recordSettingsActivity(
+    input: import('@shared/contracts/routes').SettingsActivityInput
+  ): Promise<import('@shared/contracts/routes').SettingsActivityRecord>
+  listSettingsActivity(
+    limit?: number
+  ): Promise<import('@shared/contracts/routes').SettingsActivityRecord[]>
   diagnoseSchema(): Promise<DatabaseSchemaDiagnosis>
   repairSchema(): Promise<DatabaseRepairReport>
   clearNewAgentData(): Promise<void>

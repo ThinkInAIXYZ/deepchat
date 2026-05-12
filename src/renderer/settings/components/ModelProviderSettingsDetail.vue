@@ -1,75 +1,99 @@
 <template>
   <section class="w-full h-full">
-    <ScrollArea class="w-full h-full px-4 flex flex-col gap-2">
-      <div class="flex flex-col gap-4 px-2 py-4">
-        <!-- 基础API配置 -->
-        <ProviderApiConfig
-          :provider="provider"
-          :provider-websites="providerWebsites"
-          @api-host-change="handleApiHostChange"
-          @api-key-change="handleApiKeyChange"
-          @validate-key="openModelCheckDialog"
-          @delete-provider="showDeleteProviderDialog = true"
-          @oauth-success="handleOAuthSuccess"
-          @oauth-error="handleOAuthError"
-        />
+    <ScrollArea class="w-full h-full">
+      <div class="flex flex-col gap-4 p-4">
+        <div class="rounded-lg border border-border bg-card p-4">
+          <div class="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0">
+              <h2 class="truncate text-lg font-semibold">{{ t(provider.name) }}</h2>
+              <p class="mt-1 truncate text-sm text-muted-foreground">
+                {{ provider.baseUrl || t('settings.provider.center.noApiUrl') }}
+              </p>
+            </div>
+            <div class="flex shrink-0 flex-wrap items-center gap-2">
+              <Badge variant="outline">
+                {{
+                  t('settings.provider.center.enabledModels', {
+                    count: enabledModels.length
+                  })
+                }}
+              </Badge>
+            </div>
+          </div>
+        </div>
 
-        <Separator />
+        <Tabs default-value="connection" class="flex min-h-0 flex-1 flex-col gap-4">
+          <TabsList class="grid w-full grid-cols-3">
+            <TabsTrigger value="connection">
+              {{ t('settings.provider.center.tabs.connection') }}
+            </TabsTrigger>
+            <TabsTrigger value="models">
+              {{ t('settings.provider.center.tabs.models') }}
+            </TabsTrigger>
+            <TabsTrigger value="advanced">
+              {{ t('settings.provider.center.tabs.advanced') }}
+            </TabsTrigger>
+          </TabsList>
 
-        <VertexProviderSettingsDetail
-          v-if="provider.apiType === 'vertex'"
-          :provider="provider as VERTEX_PROVIDER"
-          @config-updated="handleConfigChanged"
-          @validate-provider="validateApiKey"
-        />
+          <TabsContent value="connection" class="mt-0">
+            <ProviderApiConfig
+              :provider="provider"
+              :provider-websites="providerWebsites"
+              @api-host-change="handleApiHostChange"
+              @api-key-change="handleApiKeyChange"
+              @validate-key="openModelCheckDialog"
+              @delete-provider="showDeleteProviderDialog = true"
+              @oauth-success="handleOAuthSuccess"
+              @oauth-error="handleOAuthError"
+            />
+          </TabsContent>
 
-        <Separator v-if="provider.apiType === 'vertex'" />
+          <TabsContent value="models" class="mt-0">
+            <ProviderModelManager
+              :provider="provider"
+              :enabled-models="enabledModels"
+              :total-models-count="providerModels.length + customModels.length"
+              :provider-models="providerModels"
+              :custom-models="customModels"
+              :is-model-list-loading="isModelListLoading"
+              @custom-model-added="handleAddModelSaved"
+              @disable-all-models="disableAllModelsConfirm"
+              @model-enabled-change="handleModelEnabledChange"
+              @config-changed="handleConfigChanged"
+            />
+          </TabsContent>
 
-        <!-- Azure特殊配置 -->
-        <AzureProviderConfig
-          v-if="provider.id === 'azure-openai'"
-          :provider="provider"
-          :initial-value="azureApiVersion"
-          @api-version-change="handleAzureApiVersionChange"
-        />
+          <TabsContent value="advanced" class="mt-0">
+            <div class="flex flex-col gap-4">
+              <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
 
-        <Separator v-if="provider.id === 'azure-openai'" />
+              <VertexProviderSettingsDetail
+                v-if="provider.apiType === 'vertex'"
+                :provider="provider as VERTEX_PROVIDER"
+                @config-updated="handleConfigChanged"
+                @validate-provider="validateApiKey"
+              />
 
-        <!-- Gemini安全设置 -->
-        <GeminiSafetyConfig
-          v-if="provider.id === 'gemini'"
-          :provider="provider"
-          :initial-safety-levels="geminiSafetyLevelsForChild"
-          @safety-setting-change="handleSafetySettingChange"
-        />
+              <AzureProviderConfig
+                v-if="provider.id === 'azure-openai'"
+                :provider="provider"
+                :initial-value="azureApiVersion"
+                @api-version-change="handleAzureApiVersionChange"
+              />
 
-        <Separator v-if="provider.id === 'gemini'" />
+              <GeminiSafetyConfig
+                v-if="provider.id === 'gemini'"
+                :provider="provider"
+                :initial-safety-levels="geminiSafetyLevelsForChild"
+                @safety-setting-change="handleSafetySettingChange"
+              />
 
-        <VoiceAIProviderConfig v-if="provider.id === 'voiceai'" :provider="provider" />
+              <VoiceAIProviderConfig v-if="provider.id === 'voiceai'" :provider="provider" />
 
-        <Separator v-if="provider.id === 'voiceai'" />
-
-        <!-- 速率限制配置 -->
-        <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
-
-        <Separator />
-
-        <!-- ModelScope MCP 同步 -->
-        <ModelScopeMcpSync v-if="provider.id === 'modelscope'" :provider="provider" />
-
-        <!-- 模型管理 -->
-        <ProviderModelManager
-          :provider="provider"
-          :enabled-models="enabledModels"
-          :total-models-count="providerModels.length + customModels.length"
-          :provider-models="providerModels"
-          :custom-models="customModels"
-          :is-model-list-loading="isModelListLoading"
-          @custom-model-added="handleAddModelSaved"
-          @disable-all-models="disableAllModelsConfirm"
-          @model-enabled-change="handleModelEnabledChange"
-          @config-changed="handleConfigChanged"
-        />
+              <ModelScopeMcpSync v-if="provider.id === 'modelscope'" :provider="provider" />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </ScrollArea>
 
@@ -91,6 +115,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -106,9 +131,10 @@ import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
-import { Separator } from '@shadcn/components/ui/separator'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
+import { Badge } from '@shadcn/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 
 interface ProviderWebsites {
   official: string
@@ -131,6 +157,7 @@ const props = defineProps<{
   provider: LLM_PROVIDER
 }>()
 
+const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()

@@ -7,17 +7,18 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 
 import { createI18n } from 'vue-i18n'
 import locales, { pluralRules } from '@/i18n'
-import { getSettingsNavigationItems } from '@shared/settingsNavigation'
+import { getSettingsRouteItems } from '@shared/settingsNavigation'
 import { preloadIcons } from '../src/lib/iconLoader'
 
-const settingsNavigationItems = getSettingsNavigationItems(window.electron?.process?.platform)
+const settingsRouteItems = getSettingsRouteItems(window.electron?.process?.platform)
 
 const settingsRouteComponents = {
+  'settings-overview': () => import('./components/SettingsOverview.vue'),
   'settings-common': () => import('./components/CommonSettings.vue'),
   'settings-display': () => import('./components/DisplaySettings.vue'),
   'settings-environments': () => import('./components/EnvironmentsSettings.vue'),
   'settings-provider': () => import('./components/ModelProviderSettings.vue'),
-  'settings-dashboard': () => import('./components/DashboardSettings.vue'),
+  'settings-dashboard': () => import('./components/SettingsOverview.vue'),
   'settings-mcp': () => import('./components/McpSettings.vue'),
   'settings-deepchat-agents': () => import('./components/DeepChatAgentsSettings.vue'),
   'settings-acp': () => import('./components/AcpSettings.vue'),
@@ -45,19 +46,37 @@ const i18n = createI18n({
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
-    ...settingsNavigationItems.map((item) => ({
-      path: item.path,
-      name: item.routeName,
-      component: settingsRouteComponents[item.routeName],
-      meta: {
-        titleKey: item.titleKey,
-        icon: item.icon,
-        position: item.position
-      }
-    })),
+    ...settingsRouteItems.map((item) =>
+      item.routeName === 'settings-dashboard'
+        ? {
+            path: item.path,
+            name: item.routeName,
+            redirect: {
+              name: 'settings-overview',
+              query: {
+                section: 'usage'
+              }
+            },
+            meta: {
+              titleKey: item.titleKey,
+              icon: item.icon,
+              position: item.position
+            }
+          }
+        : {
+            path: item.path,
+            name: item.routeName,
+            component: settingsRouteComponents[item.routeName],
+            meta: {
+              titleKey: item.titleKey,
+              icon: item.icon,
+              position: item.position
+            }
+          }
+    ),
     {
       path: '/',
-      redirect: '/common'
+      redirect: '/overview'
     }
   ]
 })

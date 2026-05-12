@@ -93,7 +93,8 @@ const setup = async (options?: {
     useRouter: () => router
   }))
   vi.doMock('@vueuse/core', () => ({
-    refDebounced: (value: unknown) => value
+    refDebounced: (value: unknown) => value,
+    reactiveOmit: (value: Record<string, unknown>) => value
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -111,6 +112,7 @@ const setup = async (options?: {
         ScrollArea: passthrough('ScrollArea'),
         Input: passthrough('Input'),
         Button: passthrough('Button'),
+        Badge: passthrough('Badge'),
         Switch: passthrough('Switch'),
         Icon: true,
         ModelIcon: true,

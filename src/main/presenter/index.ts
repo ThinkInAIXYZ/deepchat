@@ -936,6 +936,7 @@ registerMainKernelRoutes(ipcMain, () =>
         upgradePresenter: presenter.upgradePresenter,
         dialogPresenter: presenter.dialogPresenter,
         toolPresenter: presenter.toolPresenter,
+        sqlitePresenter: presenter.sqlitePresenter,
         windowPresenter: presenter.windowPresenter,
         devicePresenter: presenter.devicePresenter,
         projectPresenter: presenter.projectPresenter,

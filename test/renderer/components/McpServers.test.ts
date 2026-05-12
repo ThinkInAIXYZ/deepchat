@@ -14,31 +14,7 @@ const buttonStub = defineComponent({
   template: '<button data-testid="action-button" @click="$emit(\'click\')"><slot /></button>'
 })
 
-const dropdownItemStub = defineComponent({
-  name: 'DropdownMenuItem',
-  emits: ['click'],
-  template: '<button data-testid="dropdown-item" @click="$emit(\'click\')"><slot /></button>'
-})
-
-const mcpServerCardStub = defineComponent({
-  name: 'McpServerCard',
-  props: {
-    server: {
-      type: Object,
-      required: true
-    }
-  },
-  template: '<div data-testid="server-card">{{ server.name }}</div>'
-})
-
-const setup = async (
-  overrides: Partial<{
-    serverList: Array<{ name: string }>
-    config: {
-      mcpServers: Record<string, Record<string, unknown>>
-    }
-  }> = {}
-) => {
+const setup = async (options: { withServers?: boolean; showFooterAddButton?: boolean } = {}) => {
   vi.resetModules()
 
   const router = {
@@ -60,8 +36,36 @@ const setup = async (
   const mcpStore = reactive({
     mcpInstallCache: '',
     clearMcpInstallCache: vi.fn(),
-    serverList,
-    config,
+    serverList: options.withServers
+      ? [
+          {
+            name: 'running-server',
+            icons: '',
+            descriptions: '',
+            command: '',
+            args: [],
+            enabled: true,
+            isRunning: true
+          },
+          {
+            name: 'stopped-server',
+            icons: '',
+            descriptions: '',
+            command: '',
+            args: [],
+            enabled: false,
+            isRunning: false
+          }
+        ]
+      : [],
+    config: {
+      mcpServers: options.withServers
+        ? {
+            'running-server': { type: 'stdio' },
+            'stopped-server': { type: 'stdio' }
+          }
+        : {}
+    },
     configLoading: false,
     tools: [],
     visibleTools: [],
@@ -99,6 +103,9 @@ const setup = async (
   const McpServers = (await import('@/components/mcp-config/components/McpServers.vue')).default
 
   const wrapper = mount(McpServers, {
+    props: {
+      showFooterAddButton: options.showFooterAddButton
+    },
     global: {
       stubs: {
         Button: buttonStub,
@@ -110,11 +117,7 @@ const setup = async (
         DialogTitle: defineComponent({ name: 'DialogTitle', template: '<div />' }),
         DialogDescription: defineComponent({ name: 'DialogDescription', template: '<div />' }),
         DialogFooter: defineComponent({ name: 'DialogFooter', template: '<div />' }),
-        DropdownMenu: passthrough('DropdownMenu'),
-        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
-        DropdownMenuContent: passthrough('DropdownMenuContent'),
-        DropdownMenuItem: dropdownItemStub,
-        McpServerCard: mcpServerCardStub,
+        McpServerCard: true,
         McpServerForm: true,
         McpToolPanel: true,
         McpPromptPanel: true,
@@ -126,7 +129,8 @@ const setup = async (
 
   return {
     wrapper,
-    router
+    router,
+    mcpStore
   }
 }
 
@@ -136,28 +140,27 @@ describe('McpServers', () => {
     vi.stubGlobal('open', vi.fn())
   })
 
-  it('renders the market button before the add button in the footer action area', async () => {
+  it('renders the add button in the footer action area', async () => {
     const { wrapper } = await setup()
     const actionButtons = wrapper.findAll('[data-testid="action-button"]')
 
-    expect(actionButtons[0]?.text()).toContain('routes.settings-mcp-market')
-    expect(actionButtons[1]?.text()).toContain('common.add')
+    expect(actionButtons[0]?.text()).toContain('common.add')
   })
 
-  it('opens the MCP market subview and Higress from the footer menu', async () => {
-    const { wrapper, router } = await setup()
-    const dropdownItems = wrapper.findAll('[data-testid="dropdown-item"]')
+  it('can hide the footer add button for settings header ownership', async () => {
+    const { wrapper } = await setup({ showFooterAddButton: false })
 
-    await dropdownItems[0]?.trigger('click')
-    expect(router.push).toHaveBeenCalledWith({
-      name: 'settings-mcp',
-      query: {
-        view: 'market'
-      }
-    })
+    expect(wrapper.text()).not.toContain('common.add')
+  })
 
-    await dropdownItems[1]?.trigger('click')
-    expect(window.open).toHaveBeenCalledWith('https://mcp.higress.ai/?from=deepchat', '_blank')
+  it('only shows all, running, and stopped filters', async () => {
+    const { wrapper } = await setup({ withServers: true })
+
+    expect(wrapper.text()).toContain('settings.mcp.center.filters.all')
+    expect(wrapper.text()).toContain('settings.mcp.center.filters.running')
+    expect(wrapper.text()).toContain('settings.mcp.center.filters.stopped')
+    expect(wrapper.text()).not.toContain('settings.mcp.center.filters.builtIn')
+    expect(wrapper.text()).not.toContain('settings.mcp.center.filters.custom')
   })
 
   it('hides plugin-owned MCP servers from the global settings list', async () => {

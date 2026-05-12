@@ -19,5 +19,6 @@
   "settings-environments": "Окружения",
   "settings-remote": "Удалённое управление",
   "settings-deepchat-agents": "Агенты DeepChat",
-  "settings-plugins": "Plugins"
+  "settings-plugins": "Plugins",
+  "settings-overview": "Обзор настроек"
 }

@@ -227,8 +227,14 @@ const findRefreshButton = (wrapper: ReturnType<typeof mount>) =>
 const findRepairButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.databaseRepair', 'Repair database')
 
-const findResetButton = (wrapper: ReturnType<typeof mount>) =>
-  findButtonByText(wrapper, 'settings.data.resetData', 'Reset data')
+const findResetAllButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.resetAll', 'Reset all data')
+
+const findResetKnowledgeButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.resetKnowledgeData', 'Reset knowledge data')
+
+const findResetChatButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.resetChatData', 'Reset chat data')
 
 const findResetConfirmButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.confirmReset', 'Reset confirm')
@@ -243,16 +249,30 @@ describe('DataSettings', () => {
 
     const headings = wrapper.findAll('h2').map((item) => item.text())
 
-    expect(headings).toEqual([
-      'settings.data.syncSectionTitle',
-      'settings.data.operationsSectionTitle'
-    ])
+    expect(headings).not.toContain('settings.data.syncSectionTitle')
+    expect(headings).not.toContain('settings.data.operationsSectionTitle')
     expect(wrapper.text()).toContain('Privacy Mode')
     expect(wrapper.text()).toContain('App update checks')
     expect(wrapper.text()).toContain('settings.data.databaseRepair.title')
     expect(wrapper.text()).toContain('settings.data.modelConfigUpdate.title')
-    expect(wrapper.text()).toContain('settings.data.resetData')
+    expect(wrapper.text()).toContain('settings.data.dangerZone.title')
+    expect(wrapper.text()).toContain('settings.data.resetChatData')
+    expect(wrapper.text()).toContain('settings.data.resetKnowledgeData')
+    expect(wrapper.text()).toContain('settings.data.resetAll')
     expect(wrapper.text()).toContain('settings.data.yoBrowser.title')
+  })
+
+  it('keeps long danger zone labels within taller wrapping buttons', async () => {
+    const { wrapper } = await setup()
+
+    const resetButtons = [findResetChatButton(wrapper), findResetKnowledgeButton(wrapper)]
+
+    for (const button of resetButtons) {
+      expect(button.classes()).toContain('min-h-12')
+      expect(button.classes()).toContain('whitespace-normal')
+      expect(button.find('span').classes()).toContain('min-w-0')
+      expect(button.find('span').classes()).toContain('leading-tight')
+    }
   })
 
   it('updates privacy mode from the data settings page', async () => {
@@ -475,7 +495,9 @@ describe('DataSettings', () => {
     syncStore.syncEnabled = false
     await nextTick()
 
-    expect(findResetButton(wrapper).attributes('disabled')).toBeUndefined()
+    expect(findResetChatButton(wrapper).attributes('disabled')).toBeUndefined()
+    expect(findResetKnowledgeButton(wrapper).attributes('disabled')).toBeUndefined()
+    expect(findResetAllButton(wrapper).attributes('disabled')).toBeUndefined()
   })
 
   it('disables reset actions during import and blocks the reset handler', async () => {
@@ -484,7 +506,7 @@ describe('DataSettings', () => {
     syncStore.isImporting = true
     await nextTick()
 
-    expect(findResetButton(wrapper).attributes('disabled')).toBeDefined()
+    expect(findResetAllButton(wrapper).attributes('disabled')).toBeDefined()
     expect(findResetConfirmButton(wrapper).attributes('disabled')).toBeDefined()
 
     findResetConfirmButton(wrapper).vm.$emit('click')

@@ -418,17 +418,11 @@ describe('Settings App', () => {
 
     await flushPromises()
 
-    const providerSidebarItem = wrapper
-      .findAll('div')
-      .find(
-        (node) =>
-          node.classes().includes('cursor-pointer') &&
-          node.text().includes('routes.settings-provider')
-      )
+    const providerSidebarItem = wrapper.find('[data-testid="settings-tab-model-providers"]')
 
-    expect(providerSidebarItem).toBeDefined()
+    expect(providerSidebarItem.exists()).toBe(true)
 
-    await providerSidebarItem!.trigger('click')
+    await providerSidebarItem.trigger('click')
 
     expect(push).toHaveBeenCalledWith('/provider')
     expect(push).not.toHaveBeenCalledWith('/provider/:providerId?')

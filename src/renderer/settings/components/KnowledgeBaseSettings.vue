@@ -1,26 +1,19 @@
 <template>
-  <ScrollArea class="w-full h-full p-4">
-    <div v-show="!showBuiltinKnowledgeDetail" class="w-full h-full flex flex-col gap-4">
-      <!-- 知识库配置标题 -->
-      <div class="flex flex-row items-center gap-2">
-        <span class="font-medium flex-1">{{ t('settings.knowledgeBase.title') }}</span>
-      </div>
-
-      <!-- 知识库列表 -->
+  <SettingsPageShell
+    :title="t('settings.knowledgeBase.title')"
+    :eyebrow="t('settings.controlCenter.groups.knowledge')"
+    data-testid="settings-knowledge-base-page"
+  >
+    <div v-show="!showBuiltinKnowledgeDetail" class="flex w-full flex-col gap-4">
       <div class="space-y-4">
-        <!-- RAGFlow知识库 -->
         <RagflowKnowledgeSettings ref="ragflowSettingsRef" />
-        <!-- Dify知识库 -->
         <DifyKnowledgeSettings ref="difySettingsRef" />
-        <!-- FastGPT知识库 -->
         <FastGptKnowledgeSettings ref="fastGptSettingsRef" />
-        <!-- 内置知识库 -->
         <BuiltinKnowledgeSettings
           v-if="enableBuiltinKnowledge"
           ref="builtinSettingsRef"
           @showDetail="showDetail"
         />
-        <!-- NowledgeMem Integration -->
         <NowledgeMemSettings ref="nowledgeMemSettingsRef" />
       </div>
     </div>
@@ -31,13 +24,12 @@
         @hideKnowledgeFile="showBuiltinKnowledgeDetail = false"
       ></KnowledgeFile>
     </div>
-  </ScrollArea>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import RagflowKnowledgeSettings from './RagflowKnowledgeSettings.vue'
 import DifyKnowledgeSettings from './DifyKnowledgeSettings.vue'
 import FastGptKnowledgeSettings from './FastGptKnowledgeSettings.vue'
@@ -46,6 +38,7 @@ import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
 import { useLegacyPresenter } from '@api/legacy/presenters'
+import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const difySettingsRef = ref<InstanceType<typeof DifyKnowledgeSettings> | null>(null)
 const ragflowSettingsRef = ref<InstanceType<typeof RagflowKnowledgeSettings> | null>(null)
@@ -53,7 +46,6 @@ const fastGptSettingsRef = ref<InstanceType<typeof FastGptKnowledgeSettings> | n
 const nowledgeMemSettingsRef = ref<InstanceType<typeof NowledgeMemSettings> | null>(null)
 const builtinSettingsRef = ref<InstanceType<typeof BuiltinKnowledgeSettings> | null>(null)
 
-// 根据系统版本控制是否展示内置知识库
 const knowledgePresenter = useLegacyPresenter('knowledgePresenter')
 const enableBuiltinKnowledge = ref(false)
 knowledgePresenter.isSupported().then((res) => {
@@ -61,7 +53,6 @@ knowledgePresenter.isSupported().then((res) => {
 })
 
 const { t } = useI18n()
-// 是否展示内置知识库文件详情
 const showBuiltinKnowledgeDetail = ref(false)
 const builtinKnowledgeDetail = ref<BuiltinKnowledgeConfig | null>(null)
 const showDetail = (detail: BuiltinKnowledgeConfig) => {

@@ -1,18 +1,22 @@
 <template>
-  <div class="w-full h-full flex flex-col p-6 gap-4 overflow-hidden">
-    <header class="flex items-center justify-between gap-3">
-      <div class="min-w-0">
-        <h2 class="text-lg font-semibold truncate">{{ t('settings.plugins.title') }}</h2>
-        <p class="text-xs text-muted-foreground mt-1">
-          {{ t('settings.plugins.officialOnly') }}
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <Button variant="outline" size="icon" :disabled="loading" @click="loadPlugins">
-          <Icon icon="lucide:refresh-cw" class="w-4 h-4" />
-        </Button>
-      </div>
-    </header>
+  <SettingsPageShell
+    :title="t('settings.plugins.title')"
+    :description="t('settings.plugins.officialOnly')"
+    :eyebrow="t('settings.controlCenter.groups.tools')"
+    data-testid="settings-plugins-page"
+  >
+    <template #actions>
+      <Button
+        variant="outline"
+        size="icon"
+        :disabled="loading"
+        :aria-label="t('settings.plugins.refresh')"
+        :title="t('settings.plugins.refresh')"
+        @click="loadPlugins"
+      >
+        <Icon icon="lucide:refresh-cw" class="w-4 h-4" />
+      </Button>
+    </template>
 
     <div
       v-if="errorMessage"
@@ -21,7 +25,7 @@
       {{ errorMessage }}
     </div>
 
-    <div class="flex-1 overflow-y-auto space-y-3 pr-1">
+    <div class="space-y-3">
       <div
         v-if="!loading && plugins.length === 0"
         class="border border-dashed border-border rounded-lg p-6 flex flex-col gap-4 bg-background"
@@ -130,7 +134,7 @@
         </div>
       </article>
     </div>
-  </div>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
@@ -140,6 +144,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { createPluginClient } from '@api/PluginClient'
 import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'
+import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const { t } = useI18n()
 const pluginClient = createPluginClient()

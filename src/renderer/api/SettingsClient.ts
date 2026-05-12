@@ -5,6 +5,7 @@ import {
   configGetEntriesRoute,
   configUpdateEntriesRoute,
   settingsGetSnapshotRoute,
+  settingsActivityListRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
   systemOpenSettingsRoute,
@@ -76,6 +77,11 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
     return await bridge.invoke(settingsUpdateRoute.name, { changes })
   }
 
+  async function listRecentActivity(limit = 200) {
+    const result = await bridge.invoke(settingsActivityListRoute.name, { limit })
+    return result.activities
+  }
+
   async function openSettings(navigation?: SettingsNavigationPayload) {
     return await bridge.invoke(
       systemOpenSettingsRoute.name,
@@ -101,6 +107,7 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
     getConfigEntry,
     setConfigEntry,
     update,
+    listRecentActivity,
     openSettings,
     onChanged
   }
