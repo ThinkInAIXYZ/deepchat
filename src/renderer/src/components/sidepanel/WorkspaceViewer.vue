@@ -34,6 +34,21 @@
         </div>
 
         <Button
+          variant="ghost"
+          size="icon"
+          class="h-7 w-7"
+          data-testid="workspace-viewer-fullscreen-toggle"
+          :title="fullscreenToggleLabel"
+          :aria-label="fullscreenToggleLabel"
+          @click="emit('toggle-fullscreen')"
+        >
+          <Icon
+            :icon="props.isFullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'"
+            class="h-4 w-4"
+          />
+        </Button>
+
+        <Button
           v-if="openFilePath"
           variant="outline"
           size="sm"
@@ -76,7 +91,7 @@
             >
               {{ t('chat.workspace.git.staged') }}
             </h4>
-            <pre class="whitespace-pre-wrap break-words">{{ props.gitDiff.staged }}</pre>
+            <pre class="whitespace-pre-wrap wrap-break-word">{{ props.gitDiff.staged }}</pre>
           </section>
           <section v-if="props.gitDiff.unstaged">
             <h4
@@ -84,7 +99,7 @@
             >
               {{ t('chat.workspace.git.unstaged') }}
             </h4>
-            <pre class="whitespace-pre-wrap break-words">{{ props.gitDiff.unstaged }}</pre>
+            <pre class="whitespace-pre-wrap wrap-break-word">{{ props.gitDiff.unstaged }}</pre>
           </section>
           <div
             v-if="!props.gitDiff.staged && !props.gitDiff.unstaged"
@@ -131,6 +146,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
@@ -149,6 +165,11 @@ const props = defineProps<{
   gitDiff: WorkspaceGitDiff | null
   loadingFilePreview: boolean
   loadingGitDiff: boolean
+  isFullscreen?: boolean
+}>()
+
+const emit = defineEmits<{
+  'toggle-fullscreen': []
 }>()
 
 const { t } = useI18n()
@@ -249,6 +270,10 @@ const emptyMessage = computed(() => {
   }
 
   return t('chat.workspace.title')
+})
+
+const fullscreenToggleLabel = computed(() => {
+  return props.isFullscreen ? t('common.restore') : t('common.maximize')
 })
 
 const handleOpenFile = async () => {
