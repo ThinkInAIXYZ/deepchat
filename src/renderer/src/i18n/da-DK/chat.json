@@ -277,8 +277,12 @@
     }
   },
   "compaction": {
-    "compacting": "Komprimerer automatisk kontekst...",
-    "compacted": "Konteksten blev automatisk komprimeret"
+    "compacting": "Komprimerer kontekst...",
+    "compacted": "Konteksten blev komprimeret",
+    "commandDescription": "Komprimer samtalekontekst",
+    "noopTitle": "Ingen kontekst at komprimere",
+    "noopDescription": "Der er endnu ingen ny samtalehistorik at komprimere.",
+    "failedTitle": "Komprimering mislykkedes"
   },
   "newThread": {
     "title": "Byg og udforsk"

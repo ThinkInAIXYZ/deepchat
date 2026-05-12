@@ -297,6 +297,14 @@ function createRuntime() {
       messageId: 'message-2'
     }),
     steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+    compactSession: vi.fn().mockResolvedValue({
+      compacted: true,
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123
+      }
+    }),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     getMessage: vi.fn().mockResolvedValue({
       id: 'message-1',
@@ -712,6 +720,28 @@ describe('dispatchDeepchatRoute', () => {
       'session-1',
       'refine the active answer'
     )
+
+    const compactResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.compact',
+      {
+        sessionId: 'session-1'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    expect(agentSessionPresenter.compactSession).toHaveBeenCalledWith('session-1')
+    expect(compactResult).toEqual({
+      compacted: true,
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123
+      }
+    })
   })
 
   it('dispatches session generation settings routes without dropping timeout', async () => {

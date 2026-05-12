@@ -130,6 +130,9 @@ export interface IAgentImplementation {
   /** Get current runtime/persisted compaction state for the session */
   getSessionCompactionState?(sessionId: string): Promise<SessionCompactionState>
 
+  /** Manually compact old conversation context without threshold checks */
+  compactSession?(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
+
   /** Clear all messages in this session while keeping the session record */
   clearMessages?(sessionId: string): Promise<void>
 

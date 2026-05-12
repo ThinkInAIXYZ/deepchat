@@ -9,8 +9,8 @@ import type {
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => {
-      if (key === 'chat.compaction.compacting') return '正在自动压缩...'
-      if (key === 'chat.compaction.compacted') return '上下文已自动压缩'
+      if (key === 'chat.compaction.compacting') return '正在压缩上下文...'
+      if (key === 'chat.compaction.compacted') return '上下文已压缩'
       return key
     }
   })
@@ -140,7 +140,7 @@ describe('MessageList', () => {
     })
 
     expect(wrapper.find('[data-compaction-indicator="true"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('上下文已自动压缩')
+    expect(wrapper.text()).toContain('上下文已压缩')
     expect(wrapper.text()).toContain('u1')
     expect(wrapper.text()).toContain('a1')
     expect(wrapper.text()).toContain('u2')
@@ -152,7 +152,7 @@ describe('MessageList', () => {
         messages: [createCompactionMessage('c1', 1, 'compacting')]
       }
     })
-    expect(compactingWrapper.text()).toContain('正在自动压缩...')
+    expect(compactingWrapper.text()).toContain('正在压缩上下文...')
     expect(compactingWrapper.find('[data-compaction-indicator="true"]').attributes()).toMatchObject(
       {
         'data-compaction-status': 'compacting'
@@ -165,7 +165,7 @@ describe('MessageList', () => {
         messages: [createCompactionMessage('c1', 1, 'compacted')]
       }
     })
-    expect(compactedWrapper.text()).toContain('上下文已自动压缩')
+    expect(compactedWrapper.text()).toContain('上下文已压缩')
     expect(compactedWrapper.find('[data-compaction-indicator="true"]').attributes()).toMatchObject({
       'data-compaction-status': 'compacted'
     })

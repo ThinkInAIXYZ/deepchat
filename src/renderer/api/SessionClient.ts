@@ -10,6 +10,7 @@ import type { DeepchatRouteInput } from '@shared/contracts/routes'
 import {
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
+  sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
   sessionsDeleteMessageRoute,
@@ -255,6 +256,10 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     await bridge.invoke(sessionsClearMessagesRoute.name, { sessionId })
   }
 
+  async function compactSession(sessionId: string) {
+    return await bridge.invoke(sessionsCompactRoute.name, { sessionId })
+  }
+
   async function exportSession(
     sessionId: string,
     format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
@@ -458,6 +463,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     renameSession,
     toggleSessionPinned,
     clearSessionMessages,
+    compactSession,
     exportSession,
     deleteSession,
     getAcpSessionCommands,

@@ -102,8 +102,12 @@
     "rateLimitMinutes": "m"
   },
   "compaction": {
-    "compacting": "Auto-compacting context...",
-    "compacted": "Context was auto-compacted"
+    "compacting": "Compacting context...",
+    "compacted": "Context was compacted",
+    "commandDescription": "Compact conversation context",
+    "noopTitle": "No context to compact",
+    "noopDescription": "There is no new conversation history to compact yet.",
+    "failedTitle": "Compaction failed"
   },
   "rateLimit": {
     "queueTooltip": "{count} requests in queue, {interval}s interval",

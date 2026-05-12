@@ -277,8 +277,12 @@
     }
   },
   "compaction": {
-    "compacting": "Compactage automatique du contexte...",
-    "compacted": "Le contexte a été compacté automatiquement"
+    "compacting": "Compactage du contexte...",
+    "compacted": "Le contexte a été compacté",
+    "commandDescription": "Compacter le contexte de conversation",
+    "noopTitle": "Aucun contexte à compacter",
+    "noopDescription": "Il n'y a pas encore de nouvel historique de conversation à compacter.",
+    "failedTitle": "Échec de la compaction"
   },
   "newThread": {
     "title": "Créer et explorer"

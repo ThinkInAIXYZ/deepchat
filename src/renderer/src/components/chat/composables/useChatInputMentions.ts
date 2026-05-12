@@ -15,9 +15,11 @@ import {
 import SuggestionList from '../mentions/SuggestionList.vue'
 import {
   buildCommandText,
+  createManualCompactionSuggestion,
   filterSlashSuggestionItems,
   flattenPromptResultToText,
   resolveSlashSelectionAction,
+  shouldShowManualCompactionCommand,
   sortSlashSuggestionItems,
   type AcpSessionCommand,
   type SlashSuggestionItem
@@ -42,6 +44,8 @@ export interface UseChatInputMentionsOptions {
   workspacePath: Ref<string | null>
   sessionId: Ref<string | null>
   isAcpSession: Ref<boolean>
+  isGenerating?: Ref<boolean>
+  compactCommandDescription?: Ref<string>
   onCommandSubmit: (command: string) => void
   onActivateSkill?: (skillName: string) => Promise<void> | void
   onPendingSkillsChange?: (skills: string[]) => void
@@ -183,6 +187,19 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
 
   const slashItems = computed<SlashSuggestionItem[]>(() => {
     const items: SlashSuggestionItem[] = []
+    if (
+      shouldShowManualCompactionCommand({
+        sessionId: options.sessionId.value,
+        isAcpSession: options.isAcpSession.value,
+        isGenerating: options.isGenerating?.value
+      })
+    ) {
+      items.push(
+        createManualCompactionSuggestion(
+          options.compactCommandDescription?.value ?? 'Compact conversation context'
+        )
+      )
+    }
 
     for (const command of acpCommands.value) {
       items.push({

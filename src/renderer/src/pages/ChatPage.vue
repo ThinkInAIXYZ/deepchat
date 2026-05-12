@@ -85,6 +85,7 @@
               :session-id="props.sessionId"
               :workspace-path="sessionStore.activeSession?.projectDir ?? null"
               :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+              :is-generating="isGenerating"
               :submit-disabled="isInputSubmitDisabled"
               :queue-submit-enabled="isGenerating && hasDraftInput"
               :queue-submit-disabled="isQueueSubmitDisabled"
@@ -133,6 +134,7 @@ import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
+import { useToast } from '@/components/use-toast'
 import { createChatClient } from '../../api/ChatClient'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
@@ -140,6 +142,7 @@ import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { createSessionClient } from '@api/SessionClient'
+import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import {
   applyChatSearchHighlights,
   clearChatSearchHighlights,
@@ -167,6 +170,7 @@ const modelStore = useModelStore()
 const chatClient = createChatClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
+const { toast } = useToast()
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
@@ -928,6 +932,12 @@ async function onSubmit() {
   const text = message.value.trim()
   const files = [...attachedFiles.value].map((f) => toRaw(f))
   if (!text && files.length === 0) return
+  if (await handleManualCompactionCommand(text)) {
+    if (!isGenerating.value) {
+      message.value = ''
+    }
+    return
+  }
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, { text, files })
   } else {
@@ -944,6 +954,10 @@ async function onCommandSubmit(command: string) {
   const text = command.trim()
   if (!text) return
 
+  if (await handleManualCompactionCommand(text)) {
+    return
+  }
+
   const files = [...attachedFiles.value]
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, { text, files })
@@ -953,6 +967,37 @@ async function onCommandSubmit(command: string) {
   attachedFiles.value = []
 }
 
+async function handleManualCompactionCommand(text: string): Promise<boolean> {
+  if (!isManualCompactionCommand(text)) {
+    return false
+  }
+  if (sessionStore.activeSession?.providerId === 'acp') {
+    return false
+  }
+  if (isGenerating.value) {
+    return true
+  }
+
+  try {
+    const result = await sessionClient.compactSession(props.sessionId)
+    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    if (!result.compacted) {
+      toast({
+        title: t('chat.compaction.noopTitle'),
+        description: t('chat.compaction.noopDescription')
+      })
+    }
+  } catch (error) {
+    console.error('[ChatPage] manual compaction failed:', error)
+    toast({
+      title: t('chat.compaction.failedTitle'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  }
+  return true
+}
+
 async function onQueueSubmit() {
   if (isReadOnlySession.value) return
   if (isAcpWorkdirMissing.value) return
@@ -960,6 +1005,9 @@ async function onQueueSubmit() {
   const text = message.value.trim()
   const files = [...attachedFiles.value].map((f) => toRaw(f))
   if (!text && files.length === 0) return
+  if (await handleManualCompactionCommand(text)) {
+    return
+  }
   await pendingInputStore.queueInput(props.sessionId, { text, files })
   message.value = ''
   attachedFiles.value = []
@@ -972,6 +1020,9 @@ async function onSteer() {
   const text = message.value.trim()
   const files = [...attachedFiles.value].map((f) => toRaw(f))
   if (!text && files.length === 0) return
+  if (await handleManualCompactionCommand(text)) {
+    return
+  }
   await chatClient.steerActiveTurn(props.sessionId, { text, files })
   message.value = ''
   attachedFiles.value = []

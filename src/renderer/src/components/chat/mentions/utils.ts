@@ -33,6 +33,9 @@ export type SlashActionDecision =
   | { kind: 'insert-prompt'; prompt: PromptListEntry }
   | { kind: 'request-prompt-args'; prompt: PromptListEntry }
 
+export const MANUAL_COMPACTION_COMMAND_NAME = 'compact'
+export const MANUAL_COMPACTION_COMMAND_TEXT = `/${MANUAL_COMPACTION_COMMAND_NAME}`
+
 const uniq = (values: string[]) => {
   const seen = new Set<string>()
   const result: string[] = []
@@ -50,6 +53,30 @@ export const buildCommandText = (name: string, input?: string): string => {
   const content = input?.trim()
   return content ? `${base} ${content}` : base
 }
+
+export const isManualCompactionCommand = (value: string): boolean => {
+  return value.trim() === MANUAL_COMPACTION_COMMAND_TEXT
+}
+
+export const shouldShowManualCompactionCommand = (params: {
+  sessionId?: string | null
+  isAcpSession?: boolean
+  isGenerating?: boolean
+}): boolean => {
+  return Boolean(params.sessionId) && params.isAcpSession !== true && params.isGenerating !== true
+}
+
+export const createManualCompactionSuggestion = (description: string): SlashSuggestionItem => ({
+  id: `command:${MANUAL_COMPACTION_COMMAND_NAME}`,
+  category: 'command',
+  label: MANUAL_COMPACTION_COMMAND_TEXT,
+  description,
+  payload: {
+    name: MANUAL_COMPACTION_COMMAND_NAME,
+    description,
+    input: null
+  }
+})
 
 const collectPromptSegments = (value: unknown, segments: string[], visited: Set<object>): void => {
   if (typeof value === 'string') {

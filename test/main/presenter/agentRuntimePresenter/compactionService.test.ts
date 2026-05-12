@@ -281,6 +281,104 @@ describe('CompactionService', () => {
     expect(intent).toBeNull()
   })
 
+  it('prepares manual compaction when auto compaction is disabled', async () => {
+    const { service, messageStore } = createService({
+      sessionConfig: {
+        autoCompactionEnabled: false
+      }
+    })
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'A'.repeat(80)),
+      makeAssistantRecord(2, 'B'.repeat(80)),
+      makeUserRecord(3, 'C'.repeat(80)),
+      makeAssistantRecord(4, 'D'.repeat(80)),
+      makeUserRecord(5, 'E'.repeat(80)),
+      makeAssistantRecord(6, 'F'.repeat(80))
+    ])
+
+    const intent = await service.prepareForManualCompaction({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 100000,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false
+    })
+
+    expect(intent).not.toBeNull()
+    expect(intent?.summaryBlocks).toHaveLength(3)
+  })
+
+  it('prepares manual compaction below the automatic threshold', async () => {
+    const { service, messageStore, sessionConfig } = createService()
+    sessionConfig.autoCompactionTriggerThreshold = 95
+    sessionConfig.autoCompactionRetainRecentPairs = 1
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'short one'),
+      makeAssistantRecord(2, 'short reply'),
+      makeUserRecord(3, 'short two'),
+      makeAssistantRecord(4, 'short reply two')
+    ])
+
+    const automaticIntent = await service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 100000,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false,
+      newUserContent: 'latest turn'
+    })
+    const manualIntent = await service.prepareForManualCompaction({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 100000,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false
+    })
+
+    expect(automaticIntent).toBeNull()
+    expect(manualIntent).not.toBeNull()
+    expect(manualIntent?.targetCursorOrderSeq).toBe(5)
+  })
+
+  it('compacts all available turns for manual compaction without retaining a raw tail', async () => {
+    const { service, messageStore } = createService({
+      sessionConfig: {
+        autoCompactionEnabled: false,
+        autoCompactionRetainRecentPairs: 2
+      }
+    })
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'A'.repeat(80)),
+      makeAssistantRecord(2, 'B'.repeat(80)),
+      makeUserRecord(3, 'C'.repeat(80)),
+      makeAssistantRecord(4, 'D'.repeat(80))
+    ])
+
+    const intent = await service.prepareForManualCompaction({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 1000,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false
+    })
+
+    expect(intent).not.toBeNull()
+    expect(intent?.summaryBlocks).toHaveLength(2)
+    expect(intent?.targetCursorOrderSeq).toBe(5)
+  })
+
   it('triggers compaction at the configured threshold before hard overflow', async () => {
     const { service, messageStore, sessionConfig } = createService()
     messageStore.getMessages.mockReturnValue([

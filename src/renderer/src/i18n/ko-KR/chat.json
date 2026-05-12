@@ -277,8 +277,12 @@
     }
   },
   "compaction": {
-    "compacting": "컨텍스트를 자동 압축하는 중...",
-    "compacted": "컨텍스트가 자동으로 압축되었습니다"
+    "compacting": "컨텍스트를 압축하는 중...",
+    "compacted": "컨텍스트가 압축되었습니다",
+    "commandDescription": "대화 컨텍스트 압축",
+    "noopTitle": "압축할 컨텍스트가 없습니다",
+    "noopDescription": "아직 압축할 새 대화 기록이 없습니다.",
+    "failedTitle": "압축 실패"
   },
   "newThread": {
     "title": "만들고 탐색하기"

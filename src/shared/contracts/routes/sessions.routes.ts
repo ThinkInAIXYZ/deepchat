@@ -16,6 +16,7 @@ import {
   EntityIdSchema,
   MessageFileSchema,
   PermissionModeSchema,
+  SessionCompactionStateSchema,
   SessionGenerationSettingsSchema,
   SessionGenerationSettingsPatchSchema,
   SessionWithStateSchema,
@@ -377,6 +378,17 @@ export const sessionsClearMessagesRoute = defineRouteContract({
   }),
   output: z.object({
     cleared: z.literal(true)
+  })
+})
+
+export const sessionsCompactRoute = defineRouteContract({
+  name: 'sessions.compact',
+  input: z.object({
+    sessionId: EntityIdSchema
+  }),
+  output: z.object({
+    compacted: z.boolean(),
+    state: SessionCompactionStateSchema
   })
 })
 
