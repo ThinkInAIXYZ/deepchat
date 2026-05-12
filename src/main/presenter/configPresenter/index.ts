@@ -2218,6 +2218,7 @@ export class ConfigPresenter implements IConfigPresenter {
     }
     this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, repairingState)
     this.notifyAcpAgentsChanged([registryAgent.id])
+    await this.refreshAcpProviderAgents([registryAgent.id])
 
     try {
       const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
@@ -2489,10 +2490,10 @@ export class ConfigPresenter implements IConfigPresenter {
   private handleAcpAgentsMutated(agentIds?: string[]) {
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged(agentIds)
-    this.refreshAcpProviderAgents(agentIds)
+    void this.refreshAcpProviderAgents(agentIds)
   }
 
-  private refreshAcpProviderAgents(agentIds?: string[]): void {
+  private async refreshAcpProviderAgents(agentIds?: string[]): Promise<void> {
     try {
       const providerInstance = presenter?.llmproviderPresenter?.getProviderInstance?.('acp')
       if (!providerInstance) {
@@ -2504,7 +2505,7 @@ export class ConfigPresenter implements IConfigPresenter {
         return
       }
 
-      void acpProvider.refreshAgents(agentIds)
+      await acpProvider.refreshAgents(agentIds)
     } catch (error) {
       console.warn('[ACP] Failed to refresh agent processes after config change:', error)
     }

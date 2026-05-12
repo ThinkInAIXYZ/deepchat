@@ -193,13 +193,26 @@ export class AcpSessionManager {
     }
     this.processManager.bindProcess(agent.id, conversationId, workdir)
 
-    const session = await this.initializeSession(handle, conversationId, agent, workdir).catch(
-      async (error) => {
+    const session = await this.initializeSession(
+      handle,
+      conversationId,
+      agent,
+      workdir,
+      hooks
+    ).catch(async (error) => {
+      const initError = error
+      try {
         await this.processManager.unbindProcess(agent.id, conversationId)
-        throw error
+      } catch (cleanupError) {
+        console.warn(
+          '[ACP] Failed to unbind process after session initialization error:',
+          cleanupError
+        )
       }
-    )
-    const detachListeners = this.attachSessionHooks(agent.id, session.sessionId, hooks)
+      throw initError
+    })
+    const detachListeners =
+      session.detachHandlers ?? this.attachSessionHooks(agent.id, session.sessionId, hooks)
 
     // Register session workdir for fs/terminal operations
     this.processManager.registerSessionWorkdir(session.sessionId, workdir, conversationId)
@@ -295,57 +308,17 @@ export class AcpSessionManager {
     handle: AcpProcessHandle,
     conversationId: string,
     agent: AcpAgentConfig,
-    workdir: string
+    workdir: string,
+    hooks: SessionHooks
   ): Promise<{
     sessionId: string
     configState: AcpConfigState
     availableModes?: Array<{ id: string; name: string; description: string }>
     currentModeId?: string
+    detachHandlers?: Array<() => void>
   }> {
     try {
-      let mcpServers: schema.McpServer[] = []
-      try {
-        const selections = await this.configPresenter.getAgentMcpSelections(agent.id)
-        if (selections.length > 0) {
-          const serverConfigs = await this.configPresenter.getMcpServers()
-          const converted = selections
-            .map((name) => {
-              const cfg = serverConfigs[name]
-              if (!cfg) return null
-              return convertMcpConfigToAcpFormat(name, cfg)
-            })
-            .filter((item): item is schema.McpServer => Boolean(item))
-
-          mcpServers = filterMcpServersByTransportSupport(converted, handle.mcpCapabilities)
-
-          if (converted.length !== mcpServers.length) {
-            console.info(`[ACP] Filtered MCP servers by transport support for agent ${agent.id}:`, {
-              selected: selections,
-              converted: converted.map((s) =>
-                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
-              ),
-              passed: mcpServers.map((s) =>
-                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
-              )
-            })
-          } else {
-            console.info(`[ACP] Passing MCP servers to agent ${agent.id}:`, {
-              selected: selections,
-              passed: mcpServers.map((s) =>
-                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
-              )
-            })
-          }
-        } else {
-          console.info(`[ACP] No MCP selections for agent ${agent.id}; passing none.`)
-        }
-      } catch (error) {
-        console.warn(
-          `[ACP] Failed to resolve MCP servers for agent ${agent.id}; passing none.`,
-          error
-        )
-        mcpServers = []
-      }
+      const mcpServers = await this.resolveMcpServersForAgent(agent.id, handle.mcpCapabilities)
 
       const persistedSession = await this.sessionPersistence.getSessionData(
         conversationId,
@@ -355,6 +328,7 @@ export class AcpSessionManager {
 
       let sessionId = ''
       let configState = handle.configState ?? createEmptyAcpConfigState('legacy')
+      let detachHandlers: Array<() => void> | undefined
       let responseModeState:
         | {
             availableModes?: Array<{ id: string; name: string; description?: string | null }>
@@ -366,6 +340,8 @@ export class AcpSessionManager {
       const canLoadSession = Boolean(handle.supportsLoadSession)
       if (canLoadSession && persistedSessionId) {
         try {
+          this.processManager.registerSessionWorkdir(persistedSessionId, workdir, conversationId)
+          detachHandlers = this.attachSessionHooks(agent.id, persistedSessionId, hooks)
           const loadResponse = await handle.connection.loadSession({
             cwd: workdir,
             mcpServers,
@@ -386,6 +362,15 @@ export class AcpSessionManager {
             `[ACP] Loaded persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
           )
         } catch (error) {
+          detachHandlers?.forEach((dispose) => {
+            try {
+              dispose()
+            } catch (disposeError) {
+              console.warn('[ACP] Failed to detach persisted session handler:', disposeError)
+            }
+          })
+          detachHandlers = undefined
+          this.processManager.clearSession(persistedSessionId)
           console.warn(
             `[ACP] Failed to load persisted session ${persistedSessionId} for conversation ${conversationId}; falling back to newSession.`,
             error
@@ -463,11 +448,58 @@ export class AcpSessionManager {
         sessionId,
         configState,
         availableModes,
-        currentModeId
+        currentModeId,
+        detachHandlers
       }
     } catch (error) {
       console.error(`[ACP] Failed to initialize session for agent ${agent.id}:`, error)
       throw error
+    }
+  }
+
+  async resolveMcpServersForAgent(
+    agentId: string,
+    mcpCapabilities?: schema.McpCapabilities
+  ): Promise<schema.McpServer[]> {
+    try {
+      const selections = await this.configPresenter.getAgentMcpSelections(agentId)
+      if (selections.length === 0) {
+        console.info(`[ACP] No MCP selections for agent ${agentId}; passing none.`)
+        return []
+      }
+
+      const serverConfigs = await this.configPresenter.getMcpServers()
+      const converted = selections
+        .map((name) => {
+          const cfg = serverConfigs[name]
+          if (!cfg) return null
+          return convertMcpConfigToAcpFormat(name, cfg)
+        })
+        .filter((item): item is schema.McpServer => Boolean(item))
+
+      const filtered = filterMcpServersByTransportSupport(converted, mcpCapabilities)
+      if (converted.length !== filtered.length) {
+        console.info(`[ACP] Filtered MCP servers by transport support for agent ${agentId}:`, {
+          selected: selections,
+          converted: converted.map((server) =>
+            'type' in server ? `${server.name}:${server.type}` : `${server.name}:stdio`
+          ),
+          passed: filtered.map((server) =>
+            'type' in server ? `${server.name}:${server.type}` : `${server.name}:stdio`
+          )
+        })
+      } else {
+        console.info(`[ACP] Passing MCP servers to agent ${agentId}:`, {
+          selected: selections,
+          passed: filtered.map((server) =>
+            'type' in server ? `${server.name}:${server.type}` : `${server.name}:stdio`
+          )
+        })
+      }
+      return filtered
+    } catch (error) {
+      console.warn(`[ACP] Failed to resolve MCP servers for agent ${agentId}; passing none.`, error)
+      return []
     }
   }
 }

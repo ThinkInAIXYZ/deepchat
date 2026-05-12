@@ -1,5 +1,7 @@
 import { app } from 'electron'
 import type {
+  AcpTurnFinishPayload,
+  AcpTurnStartPayload,
   AcpSessionEntity,
   AgentSessionLifecycleStatus,
   ISQLitePresenter
@@ -64,6 +66,14 @@ export class AcpSessionPersistence {
   async clearSession(conversationId: string, agentId: string): Promise<void> {
     await this.updateSessionId(conversationId, agentId, null)
     await this.updateStatus(conversationId, agentId, 'idle')
+  }
+
+  async startTurn(input: AcpTurnStartPayload): Promise<void> {
+    await this.sqlitePresenter.startAcpTurn(input)
+  }
+
+  async finishTurn(input: AcpTurnFinishPayload): Promise<void> {
+    await this.sqlitePresenter.finishAcpTurn(input)
   }
 
   async getWorkdir(conversationId: string, agentId: string): Promise<string> {

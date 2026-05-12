@@ -1400,10 +1400,12 @@
       "eventCount": "{count} مورد",
       "eventKinds": {
         "error": "اشتباه",
+        "lifecycle": "چرخه حیات",
         "notification": "اطلاع‌رسانی",
         "permission": "مجوزها",
         "request": "درخواست",
-        "response": "پاسخ"
+        "response": "پاسخ",
+        "stderr": "stderr"
       },
       "events": "رویداد",
       "format": "فرمت JSON",

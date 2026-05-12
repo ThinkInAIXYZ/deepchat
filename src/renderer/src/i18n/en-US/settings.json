@@ -1491,6 +1491,8 @@
         "response": "Response",
         "notification": "Notification",
         "permission": "Permission",
+        "lifecycle": "Lifecycle",
+        "stderr": "stderr",
         "error": "Error"
       },
       "healthCheck": "Health Check",

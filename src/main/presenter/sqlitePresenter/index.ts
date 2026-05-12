@@ -15,6 +15,7 @@ import {
 } from '@shared/presenter'
 import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
+import { AcpTurnsTable, type AcpTurnStatus } from './tables/acpTurns'
 import { NewEnvironmentsTable } from './tables/newEnvironments'
 import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
@@ -213,6 +214,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   private messagesTable!: MessagesTable
   private messageAttachmentsTable!: MessageAttachmentsTable
   private acpSessionsTable!: AcpSessionsTable
+  private acpTurnsTable!: AcpTurnsTable
   public newEnvironmentsTable!: NewEnvironmentsTable
   public newSessionsTable!: NewSessionsTable
   public newProjectsTable!: NewProjectsTable
@@ -373,6 +375,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.messagesTable = new MessagesTable(this.db)
     this.messageAttachmentsTable = new MessageAttachmentsTable(this.db)
     this.acpSessionsTable = new AcpSessionsTable(this.db)
+    this.acpTurnsTable = new AcpTurnsTable(this.db)
     this.newEnvironmentsTable = new NewEnvironmentsTable(this.db)
     this.newSessionsTable = new NewSessionsTable(this.db)
     this.newProjectsTable = new NewProjectsTable(this.db)
@@ -396,6 +399,7 @@ export class SQLitePresenter implements ISQLitePresenter {
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
+    this.acpTurnsTable.createTable()
     this.newEnvironmentsTable.createTable()
     this.newSessionsTable.createTable()
     this.newProjectsTable.createTable()
@@ -816,6 +820,25 @@ export class SQLitePresenter implements ISQLitePresenter {
     for (const path of affectedPaths) {
       this.newEnvironmentsTable.syncPath(path)
     }
+  }
+
+  public async startAcpTurn(input: {
+    id: string
+    acpSessionId: string
+    conversationId: string
+    userMessageId?: string | null
+    startedAt: number
+  }): Promise<void> {
+    this.acpTurnsTable.start(input)
+  }
+
+  public async finishAcpTurn(input: {
+    id: string
+    status: Exclude<AcpTurnStatus, 'active'>
+    stopReason?: string | null
+    completedAt: number
+  }): Promise<void> {
+    this.acpTurnsTable.finish(input)
   }
 
   private hasTable(tableName: string): boolean {

@@ -1513,6 +1513,8 @@
         "response": "响应",
         "notification": "通知",
         "permission": "权限",
+        "lifecycle": "生命周期",
+        "stderr": "stderr",
         "error": "错误"
       }
     }

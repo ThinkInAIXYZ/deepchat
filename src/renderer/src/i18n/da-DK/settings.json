@@ -1307,10 +1307,12 @@
       "eventCount": "{count} hændelser",
       "eventKinds": {
         "error": "fejl",
+        "lifecycle": "Livscyklus",
         "notification": "Meddelelse",
         "permission": "Tilladelse",
         "request": "Anmodning",
-        "response": "Svar"
+        "response": "Svar",
+        "stderr": "stderr"
       },
       "events": "Hændelser",
       "format": "Formater JSON",

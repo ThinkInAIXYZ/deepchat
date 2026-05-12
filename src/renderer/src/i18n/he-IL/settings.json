@@ -1374,10 +1374,12 @@
       "eventCount": "{count} פריטים",
       "eventKinds": {
         "error": "טָעוּת",
+        "lifecycle": "מחזור חיים",
         "notification": "לְהוֹדִיעַ",
         "permission": "הרשאות",
         "request": "לִשְׁאוֹל",
-        "response": "תְגוּבָה"
+        "response": "תְגוּבָה",
+        "stderr": "stderr"
       },
       "events": "מִקרֶה",
       "format": "פורמט JSON",

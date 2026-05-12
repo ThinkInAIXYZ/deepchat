@@ -197,7 +197,7 @@ describe('AcpProcessManager config cache fallback', () => {
     )
   })
 
-  it('keeps an explicit terminal cwd when the agent provides one', async () => {
+  it('keeps an explicit terminal cwd when it is inside the session workdir', async () => {
     const manager = createManager()
     const createTerminal = vi.fn().mockResolvedValue({ terminalId: 'term-1' })
 
@@ -215,14 +215,74 @@ describe('AcpProcessManager config cache fallback', () => {
     await client.createTerminal({
       sessionId: 'session-1',
       command: 'pwd',
-      cwd: '/tmp/custom'
+      cwd: '/tmp/workspace/subdir'
     })
 
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session-1',
         command: 'pwd',
-        cwd: '/tmp/custom'
+        cwd: '/tmp/workspace/subdir'
+      })
+    )
+  })
+
+  it('resolves a relative terminal cwd inside the session workdir', async () => {
+    const manager = createManager()
+    const createTerminal = vi.fn().mockResolvedValue({ terminalId: 'term-1' })
+
+    ;(manager as any).terminalManager = {
+      createTerminal,
+      terminalOutput: vi.fn(),
+      waitForTerminalExit: vi.fn(),
+      killTerminal: vi.fn(),
+      releaseTerminal: vi.fn()
+    }
+    ;(manager as any).sessionWorkdirs.set('session-1', '/tmp/workspace')
+
+    const client = (manager as any).createClientProxy()
+
+    await client.createTerminal({
+      sessionId: 'session-1',
+      command: 'pwd',
+      cwd: 'subdir'
+    })
+
+    expect(createTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        command: 'pwd',
+        cwd: '/tmp/workspace/subdir'
+      })
+    )
+  })
+
+  it('falls back to the session workdir when explicit terminal cwd escapes it', async () => {
+    const manager = createManager()
+    const createTerminal = vi.fn().mockResolvedValue({ terminalId: 'term-1' })
+
+    ;(manager as any).terminalManager = {
+      createTerminal,
+      terminalOutput: vi.fn(),
+      waitForTerminalExit: vi.fn(),
+      killTerminal: vi.fn(),
+      releaseTerminal: vi.fn()
+    }
+    ;(manager as any).sessionWorkdirs.set('session-1', '/tmp/workspace')
+
+    const client = (manager as any).createClientProxy()
+
+    await client.createTerminal({
+      sessionId: 'session-1',
+      command: 'pwd',
+      cwd: '/tmp/other'
+    })
+
+    expect(createTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        command: 'pwd',
+        cwd: '/tmp/workspace'
       })
     )
   })
@@ -339,5 +399,47 @@ describe('AcpProcessManager config cache fallback', () => {
     } finally {
       process.env.PATH = originalPath
     }
+  })
+
+  it('does not create a temporary session during warmup', async () => {
+    const manager = createManager()
+    const newSession = vi.fn().mockResolvedValue({ sessionId: 'temp-session' })
+    const handle = {
+      providerId: 'acp',
+      agentId: 'agent-1',
+      agent: { id: 'agent-1', name: 'Agent One', command: 'agent' },
+      status: 'ready',
+      pid: 1234,
+      restarts: 1,
+      lastHeartbeatAt: Date.now(),
+      metadata: {},
+      child: { killed: false, exitCode: null, signalCode: null, on: vi.fn() },
+      connection: { newSession },
+      readyAt: Date.now(),
+      state: 'warmup',
+      workdir: '/tmp/workspace',
+      launchSignature: JSON.stringify({
+        command: 'agent',
+        args: [],
+        env: {},
+        cwd: null,
+        distributionType: 'manual',
+        version: null,
+        installDir: null
+      })
+    }
+
+    vi.spyOn(manager as any, 'spawnProcess').mockResolvedValue(handle)
+
+    await manager.warmupProcess(
+      {
+        id: 'agent-1',
+        name: 'Agent One',
+        command: 'agent'
+      },
+      '/tmp/workspace'
+    )
+
+    expect(newSession).not.toHaveBeenCalled()
   })
 })

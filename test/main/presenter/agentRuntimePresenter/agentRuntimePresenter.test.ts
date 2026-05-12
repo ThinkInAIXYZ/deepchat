@@ -3397,6 +3397,80 @@ describe('AgentRuntimePresenter', () => {
       return records
     }
 
+    it('bypasses DeepChat context preflight for oversized ACP provider calls', async () => {
+      await agent.initSession('s1', {
+        providerId: 'acp',
+        modelId: 'claude-code-acp',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 8000
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockClear()
+      const oversizedPrompt = makeTextWithEstimatedTokens(9000)
+      const requestMessages = [{ role: 'user' as const, content: oversizedPrompt }]
+
+      for await (const _event of callArgs.coreStream(
+        requestMessages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(providerCoreStream.mock.calls[0][0]).toEqual(requestMessages)
+      expect(providerCoreStream.mock.calls[0][4]).toBe(8000)
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+      expect(
+        JSON.stringify((eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls)
+      ).not.toContain('Request was not sent')
+      expect(
+        JSON.stringify(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls)
+      ).not.toContain('Request was not sent')
+    })
+
+    it('does not start DeepChat context-pressure compaction for ACP turns', async () => {
+      const historyRows = createSentTurnRecords(3)
+      installSessionRows(historyRows)
+      const prepareSpy = vi.spyOn(
+        (agent as unknown as { compactionService: { prepareForNextUserTurn: () => unknown } })
+          .compactionService,
+        'prepareForNextUserTurn'
+      )
+
+      await agent.initSession('s1', {
+        providerId: 'acp',
+        modelId: 'claude-code-acp',
+        generationSettings: {
+          contextLength: 2500,
+          maxTokens: 512
+        }
+      })
+      await agent.processMessage('s1', 'new prompt')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const messageText = JSON.stringify(callArgs.messages)
+
+      expect(prepareSpy).not.toHaveBeenCalled()
+      expect(messageText).toContain('U'.repeat(2400))
+      expect(messageText).toContain('A'.repeat(2400))
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
+        'session:compaction-updated',
+        'all',
+        expect.objectContaining({
+          sessionId: 's1',
+          status: 'compacting'
+        })
+      )
+    })
+
     it('preflights provider calls with a safety margin and compacts before low-output pressure calls', async () => {
       await agent.initSession('s1', {
         providerId: 'openai',

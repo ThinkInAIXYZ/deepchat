@@ -61,7 +61,7 @@
                 ? 'border-primary bg-primary/5'
                 : 'border-border hover:border-primary/60'
             "
-            :disabled="!processReady"
+            :disabled="!processReady && method.value !== 'initialize'"
             @click="selectMethod(method.value)"
           >
             <div class="text-sm font-medium leading-tight">{{ method.label }}</div>
@@ -249,6 +249,10 @@ function createDebugSessionId() {
 
 const methodOptions = computed(() => [
   {
+    value: 'initialize' as const,
+    label: t('settings.acp.debug.methods.initialize')
+  },
+  {
     value: 'newSession' as const,
     label: t('settings.acp.debug.methods.newSession')
   },
@@ -329,14 +333,7 @@ const formatPayload = () => {
 const templateForMethod = (method: AcpDebugRequest['action']) => {
   switch (method) {
     case 'initialize':
-      return {
-        protocolVersion: 1.0,
-        clientCapabilities: {
-          fs: { readTextFile: true, writeTextFile: true },
-          terminal: true
-        },
-        clientInfo: { name: 'DeepChat', version: 'debug' }
-      }
+      return {}
     case 'newSession':
       return {
         ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
@@ -425,6 +422,8 @@ const eventLabel = (kind: AcpDebugEventEntry['kind']) => {
 
 const eventTone = (kind: AcpDebugEventEntry['kind']) => {
   if (kind === 'request') return 'bg-primary/5 border-primary/30'
+  if (kind === 'lifecycle') return 'bg-sky-50 dark:bg-sky-950/30 border-sky-200/60'
+  if (kind === 'stderr') return 'bg-amber-50 dark:bg-amber-950/30 border-amber-200/60'
   if (kind === 'response') {
     return 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-700/40'
   }
@@ -503,7 +502,7 @@ const handleSend = async () => {
     if (result?.sessionId) {
       debugSessionId.value = result.sessionId
     }
-    if (selectedMethod.value === 'initialize' && result?.status === 'ok') {
+    if (result?.status === 'ok') {
       processReady.value = true
     }
     if (result && result.status === 'error' && result.error) {

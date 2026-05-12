@@ -1400,10 +1400,12 @@
       "eventCount": "{count} 個のアイテム",
       "eventKinds": {
         "error": "間違い",
+        "lifecycle": "ライフサイクル",
         "notification": "通知する",
         "permission": "権限",
         "request": "聞く",
-        "response": "応答"
+        "response": "応答",
+        "stderr": "stderr"
       },
       "events": "イベント",
       "format": "JSON形式",

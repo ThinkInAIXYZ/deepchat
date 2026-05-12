@@ -3,6 +3,7 @@ import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
 import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable } from './tables/acpSessions'
+import { AcpTurnsTable } from './tables/acpTurns'
 import { NewEnvironmentsTable } from './tables/newEnvironments'
 import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
@@ -75,6 +76,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'acp_sessions',
     createTable: (db) => new AcpSessionsTable(db)
+  },
+  {
+    name: 'acp_turns',
+    createTable: (db) => new AcpTurnsTable(db)
   },
   {
     name: 'new_environments',
