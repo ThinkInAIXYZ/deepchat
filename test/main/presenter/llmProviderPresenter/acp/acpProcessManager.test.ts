@@ -227,6 +227,36 @@ describe('AcpProcessManager config cache fallback', () => {
     )
   })
 
+  it('resolves a relative terminal cwd inside the session workdir', async () => {
+    const manager = createManager()
+    const createTerminal = vi.fn().mockResolvedValue({ terminalId: 'term-1' })
+
+    ;(manager as any).terminalManager = {
+      createTerminal,
+      terminalOutput: vi.fn(),
+      waitForTerminalExit: vi.fn(),
+      killTerminal: vi.fn(),
+      releaseTerminal: vi.fn()
+    }
+    ;(manager as any).sessionWorkdirs.set('session-1', '/tmp/workspace')
+
+    const client = (manager as any).createClientProxy()
+
+    await client.createTerminal({
+      sessionId: 'session-1',
+      command: 'pwd',
+      cwd: 'subdir'
+    })
+
+    expect(createTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        command: 'pwd',
+        cwd: '/tmp/workspace/subdir'
+      })
+    )
+  })
+
   it('falls back to the session workdir when explicit terminal cwd escapes it', async () => {
     const manager = createManager()
     const createTerminal = vi.fn().mockResolvedValue({ terminalId: 'term-1' })

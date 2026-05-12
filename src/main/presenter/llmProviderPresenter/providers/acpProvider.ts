@@ -11,6 +11,8 @@ import type {
   AcpDebugEventEntry,
   AcpDebugRequest,
   AcpDebugRunResult,
+  AcpTurnFinishPayload,
+  AcpTurnStartPayload,
   LLM_PROVIDER,
   IConfigPresenter
 } from '@shared/presenter'
@@ -872,6 +874,22 @@ export class AcpProvider extends BaseLLMProvider {
     }
   }
 
+  private async persistTurnStart(input: AcpTurnStartPayload): Promise<void> {
+    try {
+      await this.sessionPersistence.startTurn(input)
+    } catch (error) {
+      console.warn('[ACP] Failed to persist turn start:', error)
+    }
+  }
+
+  private async persistTurnFinish(input: AcpTurnFinishPayload): Promise<void> {
+    try {
+      await this.sessionPersistence.finishTurn(input)
+    } catch (error) {
+      console.warn('[ACP] Failed to persist turn finish:', error)
+    }
+  }
+
   private async runPrompt(
     session: AcpSessionRecord,
     prompt: schema.ContentBlock[],
@@ -891,7 +909,7 @@ export class AcpProvider extends BaseLLMProvider {
       })
       turnId = turn.id
       turnStarted = true
-      void this.sessionPersistence.startTurn({
+      await this.persistTurnStart({
         id: turn.id,
         acpSessionId: session.sessionId,
         conversationId,
@@ -925,7 +943,7 @@ export class AcpProvider extends BaseLLMProvider {
       console.log('[ACP] runPrompt: response:', response)
       const completedTurn = this.promptController.complete(session.sessionId, response.stopReason)
       if (completedTurn) {
-        void this.sessionPersistence.finishTurn({
+        await this.persistTurnFinish({
           id: completedTurn.id,
           status: 'completed',
           stopReason: response.stopReason,
@@ -945,14 +963,14 @@ export class AcpProvider extends BaseLLMProvider {
       if (turnStarted) {
         const failedTurn = this.promptController.fail(session.sessionId)
         if (failedTurn) {
-          void this.sessionPersistence.finishTurn({
+          await this.persistTurnFinish({
             id: failedTurn.id,
             status: 'error',
             stopReason: 'error',
             completedAt: failedTurn.completedAt ?? Date.now()
           })
         } else if (turnId) {
-          void this.sessionPersistence.finishTurn({
+          await this.persistTurnFinish({
             id: turnId,
             status: 'error',
             stopReason: 'error',

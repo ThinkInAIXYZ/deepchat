@@ -1374,7 +1374,7 @@
       "eventCount": "{count} פריטים",
       "eventKinds": {
         "error": "טָעוּת",
-        "lifecycle": "Lifecycle",
+        "lifecycle": "מחזור חיים",
         "notification": "לְהוֹדִיעַ",
         "permission": "הרשאות",
         "request": "לִשְׁאוֹל",

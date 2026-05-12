@@ -1400,7 +1400,7 @@
       "eventCount": "{count}개 항목",
       "eventKinds": {
         "error": "오류",
-        "lifecycle": "Lifecycle",
+        "lifecycle": "라이프사이클",
         "notification": "알림",
         "permission": "권한",
         "request": "요청",

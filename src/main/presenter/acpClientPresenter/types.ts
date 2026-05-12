@@ -1,6 +1,7 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig, AcpConfigState, AgentSessionLifecycleStatus } from '@shared/presenter'
+import type { AcpAgentConfig, AgentSessionLifecycleStatus } from '@shared/presenter'
 import type { AssistantMessageBlock } from '@shared/chat'
+import type { DeepChatAgentEvent as SharedDeepChatAgentEvent } from '@shared/contracts/acp'
 
 export type AcpConnectionStatus = 'starting' | 'ready' | 'auth-required' | 'error' | 'disposed'
 
@@ -26,19 +27,13 @@ export interface AcpSessionRef {
 }
 
 export type DeepChatAgentEvent =
-  | { type: 'message.delta'; conversationId: string; text: string }
-  | { type: 'content.block'; conversationId: string; block: AssistantMessageBlock }
+  | SharedDeepChatAgentEvent
   | {
       type: 'tool.created' | 'tool.updated'
       conversationId: string
       toolCallId?: string
       block: AssistantMessageBlock
     }
-  | { type: 'plan.updated'; conversationId: string; entries: unknown[] }
-  | { type: 'terminal.updated'; conversationId: string; terminal: unknown }
-  | { type: 'permission.requested'; conversationId: string; request: unknown }
-  | { type: 'config.updated'; conversationId: string; configState: AcpConfigState }
-  | { type: 'turn.completed'; conversationId: string; stopReason: string }
 
 export interface StartAcpConnectionInput {
   agent: AcpAgentConfig

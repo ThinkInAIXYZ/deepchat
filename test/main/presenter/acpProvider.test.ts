@@ -674,4 +674,71 @@ describe('AcpProvider runDebugAction error handling', () => {
       vi.useRealTimers()
     }
   })
+
+  it('awaits turn start persistence before sending the ACP prompt', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+    provider.promptController = {
+      begin: vi.fn().mockReturnValue({
+        id: 'turn-start',
+        sessionId: 'session-start',
+        conversationId: 'conv-start',
+        userMessageId: null,
+        startedAt: Date.now()
+      }),
+      complete: vi.fn().mockReturnValue({
+        id: 'turn-start',
+        completedAt: Date.now()
+      }),
+      fail: vi.fn()
+    }
+
+    let resolveStart!: () => void
+    const startTurn = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStart = resolve
+        })
+    )
+    const finishTurn = vi.fn().mockResolvedValue(undefined)
+    provider.sessionPersistence = {
+      startTurn,
+      finishTurn
+    }
+
+    const prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' })
+    const queue = {
+      push: vi.fn(),
+      done: vi.fn()
+    }
+
+    const runPrompt = provider['runPrompt'](
+      {
+        sessionId: 'session-start',
+        conversationId: 'conv-start',
+        connection: {
+          prompt
+        }
+      },
+      [],
+      queue,
+      {}
+    )
+
+    expect(startTurn).toHaveBeenCalledTimes(1)
+    expect(prompt).not.toHaveBeenCalled()
+
+    resolveStart()
+    await runPrompt
+
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(finishTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'turn-start',
+        status: 'completed',
+        stopReason: 'end_turn'
+      })
+    )
+    expect(queue.done).toHaveBeenCalledTimes(1)
+  })
 })

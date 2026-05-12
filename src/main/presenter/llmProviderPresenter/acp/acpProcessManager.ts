@@ -215,7 +215,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
   private resolveCwdInsideWorkdir(workdir: string, cwd: string): string | null {
     const resolvedWorkdir = path.resolve(workdir)
-    const resolvedCwd = path.resolve(cwd)
+    const resolvedCwd = path.isAbsolute(cwd)
+      ? path.resolve(cwd)
+      : path.resolve(resolvedWorkdir, cwd)
     if (!this.isPathInside(resolvedWorkdir, resolvedCwd)) {
       return null
     }
@@ -232,8 +234,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
 
     try {
-      const realWorkdir = realpathSync(workdir)
-      const realCwd = realpathSync(cwd)
+      const realWorkdir = realpathSync(resolvedWorkdir)
+      const realCwd = realpathSync(resolvedCwd)
       return this.isPathInside(realWorkdir, realCwd) ? realCwd : null
     } catch (error) {
       console.warn(`[ACP] Failed to resolve terminal cwd "${cwd}":`, error)
@@ -701,8 +703,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       })
       const initPromise = connection.initialize(initPayload)
 
+      let timeoutHandle: NodeJS.Timeout | null = null
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
+        timeoutHandle = setTimeout(() => {
           reject(
             new Error(
               `[ACP] Connection initialization timeout after ${timeoutMs}ms for agent ${agent.id}`
@@ -711,7 +714,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         }, timeoutMs)
       })
 
-      const initResult = await Promise.race([initPromise, timeoutPromise])
+      const initResult = await Promise.race([initPromise, timeoutPromise]).finally(() => {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle)
+        }
+      })
       console.info(`[ACP] Connection initialization completed successfully for agent ${agent.id}`)
 
       // Log Agent capabilities from initialization

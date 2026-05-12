@@ -200,8 +200,16 @@ export class AcpSessionManager {
       workdir,
       hooks
     ).catch(async (error) => {
-      await this.processManager.unbindProcess(agent.id, conversationId)
-      throw error
+      const initError = error
+      try {
+        await this.processManager.unbindProcess(agent.id, conversationId)
+      } catch (cleanupError) {
+        console.warn(
+          '[ACP] Failed to unbind process after session initialization error:',
+          cleanupError
+        )
+      }
+      throw initError
     })
     const detachListeners =
       session.detachHandlers ?? this.attachSessionHooks(agent.id, session.sessionId, hooks)
@@ -354,7 +362,13 @@ export class AcpSessionManager {
             `[ACP] Loaded persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
           )
         } catch (error) {
-          detachHandlers?.forEach((dispose) => dispose())
+          detachHandlers?.forEach((dispose) => {
+            try {
+              dispose()
+            } catch (disposeError) {
+              console.warn('[ACP] Failed to detach persisted session handler:', disposeError)
+            }
+          })
           detachHandlers = undefined
           this.processManager.clearSession(persistedSessionId)
           console.warn(

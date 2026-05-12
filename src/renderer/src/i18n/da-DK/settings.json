@@ -1307,7 +1307,7 @@
       "eventCount": "{count} hændelser",
       "eventKinds": {
         "error": "fejl",
-        "lifecycle": "Lifecycle",
+        "lifecycle": "Livscyklus",
         "notification": "Meddelelse",
         "permission": "Tilladelse",
         "request": "Anmodning",

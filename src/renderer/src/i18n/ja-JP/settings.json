@@ -1400,7 +1400,7 @@
       "eventCount": "{count} 個のアイテム",
       "eventKinds": {
         "error": "間違い",
-        "lifecycle": "Lifecycle",
+        "lifecycle": "ライフサイクル",
         "notification": "通知する",
         "permission": "権限",
         "request": "聞く",

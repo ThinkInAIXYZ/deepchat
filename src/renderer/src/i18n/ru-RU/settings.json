@@ -1400,7 +1400,7 @@
       "eventCount": "{count} событий",
       "eventKinds": {
         "error": "ошибка",
-        "lifecycle": "Lifecycle",
+        "lifecycle": "Жизненный цикл",
         "notification": "Уведомление",
         "permission": "Разрешение",
         "request": "Запрос",

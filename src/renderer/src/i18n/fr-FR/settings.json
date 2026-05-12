@@ -1400,7 +1400,7 @@
       "eventCount": "{count} articles",
       "eventKinds": {
         "error": "erreur",
-        "lifecycle": "Lifecycle",
+        "lifecycle": "Cycle de vie",
         "notification": "notifier",
         "permission": "Autorisations",
         "request": "demander",

@@ -1400,7 +1400,7 @@
       "eventCount": "{count} itens",
       "eventKinds": {
         "error": "erro",
-        "lifecycle": "Lifecycle",
+        "lifecycle": "Ciclo de vida",
         "notification": "notificar",
         "permission": "Permissões",
         "request": "perguntar",
