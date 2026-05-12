@@ -123,6 +123,17 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       getAgentMcpSelections: vi.fn().mockResolvedValue([]),
       getMcpServers: vi.fn().mockResolvedValue({})
     }) as any
+  const createProcessManager = () =>
+    ({
+      registerSessionWorkdir: vi.fn(),
+      registerSessionListener: vi.fn().mockReturnValue(vi.fn()),
+      registerPermissionResolver: vi.fn().mockReturnValue(vi.fn()),
+      clearSession: vi.fn()
+    }) as any
+  const createSessionHooks = () => ({
+    onSessionUpdate: vi.fn(),
+    onPermission: vi.fn()
+  })
   const createWarmupConfigState = () => ({
     source: 'configOptions' as const,
     options: [
@@ -143,7 +154,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
   it('prefers loadSession when agent supports it and persisted session exists', async () => {
     const manager = new AcpSessionManager({
       providerId: 'acp',
-      processManager: {} as any,
+      processManager: createProcessManager(),
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-1' })
       } as any,
@@ -167,7 +178,8 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       handle,
       'conv-load',
       { id: 'agent1', name: 'Agent 1' },
-      '/tmp'
+      '/tmp',
+      createSessionHooks()
     )
 
     expect(handle.connection.loadSession).toHaveBeenCalledWith({
@@ -183,7 +195,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
   it('falls back to newSession when loadSession fails', async () => {
     const manager = new AcpSessionManager({
       providerId: 'acp',
-      processManager: {} as any,
+      processManager: createProcessManager(),
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-2' })
       } as any,
@@ -205,7 +217,8 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       handle,
       'conv-fallback',
       { id: 'agent1', name: 'Agent 1' },
-      '/tmp'
+      '/tmp',
+      createSessionHooks()
     )
 
     expect(handle.connection.loadSession).toHaveBeenCalledTimes(1)

@@ -3,6 +3,12 @@ import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import McpServerCard from '@/components/mcp-config/components/McpServerCard.vue'
 
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key
+  })
+}))
+
 const passthrough = (name: string) =>
   defineComponent({
     name,

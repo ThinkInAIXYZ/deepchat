@@ -14,7 +14,27 @@ const buttonStub = defineComponent({
   template: '<button data-testid="action-button" @click="$emit(\'click\')"><slot /></button>'
 })
 
-const setup = async (options: { withServers?: boolean; showFooterAddButton?: boolean } = {}) => {
+const serverCardStub = defineComponent({
+  name: 'McpServerCard',
+  props: {
+    server: {
+      type: Object,
+      required: true
+    }
+  },
+  template: '<div data-testid="server-card">{{ server.name }}</div>'
+})
+
+type SetupOptions = {
+  withServers?: boolean
+  showFooterAddButton?: boolean
+  serverList?: Array<Record<string, unknown> & { name: string }>
+  config?: {
+    mcpServers?: Record<string, Record<string, unknown>>
+  }
+}
+
+const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
   const router = {
@@ -27,45 +47,46 @@ const setup = async (options: { withServers?: boolean; showFooterAddButton?: boo
   }
 
   const toast = vi.fn()
-  const serverList = overrides.serverList ?? []
+  const defaultServerList = options.withServers
+    ? [
+        {
+          name: 'running-server',
+          icons: '',
+          descriptions: '',
+          command: '',
+          args: [],
+          enabled: true,
+          isRunning: true
+        },
+        {
+          name: 'stopped-server',
+          icons: '',
+          descriptions: '',
+          command: '',
+          args: [],
+          enabled: false,
+          isRunning: false
+        }
+      ]
+    : []
+  const defaultMcpServers = options.withServers
+    ? {
+        'running-server': { type: 'stdio' },
+        'stopped-server': { type: 'stdio' }
+      }
+    : {}
+  const serverList = options.serverList ?? defaultServerList
   const config = {
     mcpServers: {
-      ...(overrides.config?.mcpServers ?? {})
+      ...defaultMcpServers,
+      ...(options.config?.mcpServers ?? {})
     }
   }
   const mcpStore = reactive({
     mcpInstallCache: '',
     clearMcpInstallCache: vi.fn(),
-    serverList: options.withServers
-      ? [
-          {
-            name: 'running-server',
-            icons: '',
-            descriptions: '',
-            command: '',
-            args: [],
-            enabled: true,
-            isRunning: true
-          },
-          {
-            name: 'stopped-server',
-            icons: '',
-            descriptions: '',
-            command: '',
-            args: [],
-            enabled: false,
-            isRunning: false
-          }
-        ]
-      : [],
-    config: {
-      mcpServers: options.withServers
-        ? {
-            'running-server': { type: 'stdio' },
-            'stopped-server': { type: 'stdio' }
-          }
-        : {}
-    },
+    serverList,
+    config,
     configLoading: false,
     tools: [],
     visibleTools: [],
@@ -117,7 +138,7 @@ const setup = async (options: { withServers?: boolean; showFooterAddButton?: boo
         DialogTitle: defineComponent({ name: 'DialogTitle', template: '<div />' }),
         DialogDescription: defineComponent({ name: 'DialogDescription', template: '<div />' }),
         DialogFooter: defineComponent({ name: 'DialogFooter', template: '<div />' }),
-        McpServerCard: true,
+        McpServerCard: serverCardStub,
         McpServerForm: true,
         McpToolPanel: true,
         McpPromptPanel: true,
@@ -165,7 +186,7 @@ describe('McpServers', () => {
 
   it('hides plugin-owned MCP servers from the global settings list', async () => {
     const { wrapper } = await setup({
-      serverList: [{ name: 'feishu-tools' }, { name: 'user-server' }],
+      serverList: [{ name: 'user-server' }],
       config: {
         mcpServers: {
           'feishu-tools': {
@@ -194,7 +215,7 @@ describe('McpServers', () => {
 
   it('shows the empty state when only plugin-owned MCP servers exist', async () => {
     const { wrapper } = await setup({
-      serverList: [{ name: 'feishu-tools' }],
+      serverList: [],
       config: {
         mcpServers: {
           'feishu-tools': {
