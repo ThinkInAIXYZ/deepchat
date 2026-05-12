@@ -11,12 +11,6 @@ import {
   DialogTrigger,
   DialogDescription
 } from '@shadcn/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@shadcn/components/ui/dropdown-menu'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Input } from '@shadcn/components/ui/input'
 import {
@@ -36,7 +30,6 @@ import McpToolPanel from './McpToolPanel.vue'
 import McpPromptPanel from './McpPromptPanel.vue'
 import McpResourceViewer from './McpResourceViewer.vue'
 import type { MCPServerConfig } from '@shared/presenter'
-import { HIGRESS_MCP_MARKETPLACE_URL } from '../const'
 
 const mcpStore = useMcpStore()
 const { t } = useI18n()
@@ -55,8 +48,8 @@ const selectedServerForPrompts = ref<string>('')
 const selectedServerForResources = ref<string>('')
 const selectedDetailServerName = ref('')
 const searchQuery = ref('')
-const activeFilter = ref<'all' | 'running' | 'stopped' | 'builtIn' | 'custom'>('all')
-const mcpFilters = ['all', 'running', 'stopped', 'builtIn', 'custom'] as const
+const activeFilter = ref<'all' | 'running' | 'stopped'>('all')
+const mcpFilters = ['all', 'running', 'stopped'] as const
 
 watch(
   () => mcpStore.mcpInstallCache,
@@ -90,13 +83,10 @@ const filteredServers = computed(() => {
       !query ||
       server.name.toLowerCase().includes(query) ||
       server.descriptions?.toLowerCase().includes(query)
-    const builtIn = isBuiltInServer(server.name)
     const matchesFilter =
       activeFilter.value === 'all' ||
       (activeFilter.value === 'running' && server.isRunning) ||
-      (activeFilter.value === 'stopped' && !server.isRunning) ||
-      (activeFilter.value === 'builtIn' && builtIn) ||
-      (activeFilter.value === 'custom' && !builtIn)
+      (activeFilter.value === 'stopped' && !server.isRunning)
 
     return matchesQuery && matchesFilter
   })
@@ -223,20 +213,6 @@ const handleViewResources = async (serverName: string) => {
   isResourceViewerOpen.value = true
 }
 
-const openMarketView = async () => {
-  await router.push({
-    name: 'settings-mcp',
-    query: {
-      ...router.currentRoute.value.query,
-      view: 'market'
-    }
-  })
-}
-
-const openHigressMarket = () => {
-  window.open(HIGRESS_MCP_MARKETPLACE_URL, '_blank')
-}
-
 const openDetail = (serverName: string) => {
   selectedDetailServerName.value = serverName
 }
@@ -326,41 +302,27 @@ const openDetail = (serverName: string) => {
       class="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
     >
       <div class="flex items-center justify-between p-3">
-        <!-- Server summary -->
-        <div class="flex items-center space-x-3">
-          <div class="flex items-center space-x-1">
-            <Icon icon="lucide:server" class="h-3 w-3 text-muted-foreground" />
-            <span class="text-xs text-muted-foreground">
-              {{ t('settings.mcp.totalServers') }}: {{ mcpStore.serverList.length }}
-            </span>
-          </div>
-          <div v-if="mcpStore.serverList.length > 0" class="flex items-center space-x-1">
-            <Icon icon="lucide:play" class="h-3 w-3 text-green-600" />
-            <span class="text-xs text-green-600">
-              {{ mcpStore.serverList.filter((s) => s.isRunning).length }}
-            </span>
-          </div>
+        <div class="flex min-w-0 flex-1 items-center gap-3">
+          <slot name="status-bar">
+            <div class="flex items-center space-x-3">
+              <div class="flex items-center space-x-1">
+                <Icon icon="lucide:server" class="h-3 w-3 text-muted-foreground" />
+                <span class="text-xs text-muted-foreground">
+                  {{ t('settings.mcp.totalServers') }}: {{ mcpStore.serverList.length }}
+                </span>
+              </div>
+              <div v-if="mcpStore.serverList.length > 0" class="flex items-center space-x-1">
+                <Icon icon="lucide:play" class="h-3 w-3 text-green-600" />
+                <span class="text-xs text-green-600">
+                  {{ mcpStore.serverList.filter((s) => s.isRunning).length }}
+                </span>
+              </div>
+            </div>
+          </slot>
         </div>
 
         <!-- Action buttons -->
         <div class="flex space-x-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="outline" size="sm" class="h-8 px-3 text-xs gap-1.5">
-                <Icon icon="lucide:shopping-bag" class="h-3.5 w-3.5" />
-                {{ t('routes.settings-mcp-market') }}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem class="text-xs" @click="openMarketView">
-                {{ t('routes.settings-mcp-market') }}
-              </DropdownMenuItem>
-              <DropdownMenuItem class="text-xs" @click="openHigressMarket">
-                {{ t('settings.mcp.marketMenu.higress') }}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
           <Dialog v-model:open="isAddServerDialogOpen">
             <DialogTrigger as-child>
               <Button size="sm" class="h-8 px-3 text-xs">
@@ -383,6 +345,7 @@ const openDetail = (serverName: string) => {
               />
             </DialogContent>
           </Dialog>
+          <slot name="footer-actions-after" />
         </div>
       </div>
     </div>

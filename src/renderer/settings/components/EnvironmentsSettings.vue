@@ -2,7 +2,7 @@
   <SettingsPageShell
     :title="t('settings.environments.title')"
     :description="t('settings.environments.description')"
-    :eyebrow="t('settings.controlCenter.groups.setup')"
+    :eyebrow="t('settings.controlCenter.groups.models')"
     data-testid="settings-environments-page"
   >
     <template #actions>

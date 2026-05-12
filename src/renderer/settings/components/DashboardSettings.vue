@@ -67,9 +67,13 @@
 
       <section v-if="isLoading && !dashboard" class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div
-          class="h-68 animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-3"
+          :class="[
+            'h-68 animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2',
+            props.hideNostalgia ? 'xl:col-span-4' : 'xl:col-span-3'
+          ]"
         ></div>
         <div
+          v-if="!props.hideNostalgia"
           class="h-68 animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-1"
         ></div>
       </section>
@@ -79,7 +83,10 @@
           <Card
             v-if="tokenUsageCard"
             data-testid="summary-card-tokenUsage"
-            class="h-full overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm md:col-span-2 xl:col-span-3"
+            :class="[
+              'h-full overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm md:col-span-2',
+              props.hideNostalgia ? 'xl:col-span-4' : 'xl:col-span-3'
+            ]"
           >
             <CardHeader class="space-y-1 pb-1">
               <CardDescription>{{ t('settings.dashboard.summary.tokenUsage') }}</CardDescription>
@@ -289,45 +296,11 @@
             </CardContent>
           </Card>
 
-          <Card
-            v-if="nostalgiaCard"
-            data-testid="summary-card-nostalgia"
-            class="flex h-full flex-col overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm md:col-span-2 xl:col-span-1"
-          >
-            <CardHeader class="space-y-1 pb-1">
-              <CardTitle class="wrap-break-word whitespace-normal text-base leading-tight">
-                {{ t('settings.dashboard.summary.nostalgiaLabel') }}
-              </CardTitle>
-            </CardHeader>
-            <CardContent
-              class="flex flex-1 flex-col gap-3 pt-0 lg:grid lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] lg:items-start lg:gap-4 xl:flex xl:flex-col"
-            >
-              <div class="flex min-h-18 items-start sm:min-h-20">
-                <Transition name="nostalgia-fade" mode="out-in">
-                  <CardTitle
-                    :key="activeNostalgiaStat?.id ?? 'unavailable'"
-                    data-testid="nostalgia-rotating-value"
-                    class="wrap-break-word whitespace-normal text-2xl font-semibold leading-tight tracking-tight sm:text-3xl"
-                  >
-                    {{ activeNostalgiaStat?.value ?? t('settings.dashboard.unavailable') }}
-                  </CardTitle>
-                </Transition>
-              </div>
-
-              <div data-testid="nostalgia-details" class="space-y-2 lg:pt-0.5">
-                <div
-                  v-for="item in nostalgiaCard.details"
-                  :key="item.id"
-                  :data-testid="`nostalgia-detail-${item.id}`"
-                  class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
-                >
-                  <p class="wrap-break-word whitespace-normal text-sm leading-6">
-                    {{ item.content }}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <UsageNostalgiaCard
+            v-if="!props.hideNostalgia"
+            :dashboard="dashboard"
+            class="md:col-span-2 xl:col-span-1"
+          />
         </section>
 
         <section
@@ -701,6 +674,7 @@ import {
 import type { ChartConfig } from '@shadcn/components/ui/chart'
 import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/types/agent-interface'
 import { useLegacyPresenter } from '@api/legacy/presenters'
+import UsageNostalgiaCard from './control-center/UsageNostalgiaCard.vue'
 
 type CalendarCell = UsageDashboardCalendarDay | null
 type TokenUsageTrendKey = 'input' | 'output' | 'cached' | 'cost'
@@ -725,32 +699,30 @@ type BreakdownChartRow = {
   estimatedCostUsd: number | null
   barRatio: number
 }
-type NostalgiaRotatingStat = {
-  id: 'days' | 'sessions' | 'messages'
-  value: string
-}
-type NostalgiaDetailItem = {
-  id: 'days' | 'sessions' | 'messages' | 'most-active-day'
-  content: string
-}
-
 const { t, locale } = useI18n()
 const agentSessionPresenter = useLegacyPresenter('agentSessionPresenter')
+const props = withDefaults(
+  defineProps<{
+    hideNostalgia?: boolean
+  }>(),
+  {
+    hideNostalgia: false
+  }
+)
+const emit = defineEmits<{
+  (e: 'dashboard-loaded', dashboard: UsageDashboardData): void
+}>()
 
 const isLoading = ref(true)
 const isRetryingRtk = ref(false)
 const errorMessage = ref('')
 const dashboard = ref<UsageDashboardData | null>(null)
-const nostalgiaStatIndex = ref(0)
 const tokenUsageTooltip = ref<{ component?: UnovisTooltip } | null>(null)
 let isDashboardMounted = false
 let refreshTimer: number | null = null
-let nostalgiaRotationTimer: number | null = null
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 const COST_TREND_DAYS = 30
 const TOKEN_USAGE_CHART_HEIGHT = 184
-const NOSTALGIA_ROTATION_INTERVAL = 4000
 
 const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
 
@@ -893,86 +865,6 @@ const tokenUsageCard = computed(() => {
   }
 })
 
-const nostalgiaCard = computed(() => {
-  if (!dashboard.value) {
-    return null
-  }
-
-  const days = getDaysWithDeepChat(dashboard.value.recordingStartedAt)
-  const summary = dashboard.value.summary
-  const formattedDays = days === null ? t('settings.dashboard.unavailable') : formatCount(days)
-  const formattedSessions = formatCount(summary.sessionCount)
-  const formattedMessages = formatCount(summary.messageCount)
-  const mostActiveDayText = summary.mostActiveDay.date
-    ? t('settings.dashboard.summary.nostalgiaMostActiveDayDetail', {
-        date: formatDateKey(summary.mostActiveDay.date),
-        count: formatCount(summary.mostActiveDay.messageCount)
-      })
-    : t('settings.dashboard.unavailable')
-  const rotatingStats = [
-    days === null
-      ? null
-      : ({
-          id: 'days',
-          value: t('settings.dashboard.summary.nostalgiaDaysValue', {
-            days: formattedDays
-          })
-        } satisfies NostalgiaRotatingStat),
-    {
-      id: 'sessions',
-      value: t('settings.dashboard.summary.nostalgiaSessionsValue', {
-        count: formattedSessions
-      })
-    } satisfies NostalgiaRotatingStat,
-    {
-      id: 'messages',
-      value: t('settings.dashboard.summary.nostalgiaMessagesValue', {
-        count: formattedMessages
-      })
-    } satisfies NostalgiaRotatingStat
-  ].filter((item): item is NostalgiaRotatingStat => item !== null)
-
-  return {
-    rotatingStats,
-    details: [
-      {
-        id: 'days',
-        content:
-          days === null
-            ? t('settings.dashboard.unavailable')
-            : t('settings.dashboard.summary.nostalgiaDaysDetail', {
-                days: formattedDays
-              })
-      },
-      {
-        id: 'sessions',
-        content: t('settings.dashboard.summary.nostalgiaSessionsDetail', {
-          count: formattedSessions
-        })
-      },
-      {
-        id: 'messages',
-        content: t('settings.dashboard.summary.nostalgiaMessagesDetail', {
-          count: formattedMessages
-        })
-      },
-      {
-        id: 'most-active-day',
-        content: mostActiveDayText
-      }
-    ] satisfies NostalgiaDetailItem[]
-  }
-})
-
-const activeNostalgiaStat = computed<NostalgiaRotatingStat | null>(() => {
-  const stats = nostalgiaCard.value?.rotatingStats ?? []
-  if (stats.length === 0) {
-    return null
-  }
-
-  return stats[nostalgiaStatIndex.value % stats.length]
-})
-
 const calendarGridStyle = computed(() => ({
   gridTemplateColumns: `repeat(${Math.max(calendarWeeks.value.length, 1)}, minmax(0, 1fr))`
 }))
@@ -1070,6 +962,7 @@ async function loadDashboard(): Promise<void> {
       return
     }
     dashboard.value = nextDashboard
+    emit('dashboard-loaded', nextDashboard)
     shouldFinalizeLoad = true
   } catch (error) {
     if (!isDashboardMounted) {
@@ -1081,7 +974,6 @@ async function loadDashboard(): Promise<void> {
   } finally {
     if (shouldFinalizeLoad && isDashboardMounted) {
       isLoading.value = false
-      syncNostalgiaRotation()
       scheduleRefresh()
     }
   }
@@ -1221,20 +1113,6 @@ function formatDateKey(dateKey: string): string {
   )
 }
 
-function getDaysWithDeepChat(value: number | null): number | null {
-  if (!value) {
-    return null
-  }
-
-  const startedAt = new Date(value)
-  const today = new Date()
-  const startedAtDay = new Date(startedAt.getFullYear(), startedAt.getMonth(), startedAt.getDate())
-  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const diffDays = Math.floor((todayDay.getTime() - startedAtDay.getTime()) / MS_PER_DAY) + 1
-
-  return Math.max(1, diffDays)
-}
-
 const tokenTrendXAccessor = (point: TokenUsageTrendPoint): number => point.index
 const tokenTrendInputAccessor = (point: TokenUsageTrendPoint): number => point.inputValue
 const tokenTrendOutputAccessor = (point: TokenUsageTrendPoint): number => point.outputValue
@@ -1337,43 +1215,6 @@ function breakdownBarStyle(barRatio: number): { width: string } {
   }
 }
 
-function syncNostalgiaRotation(): void {
-  if (!isDashboardMounted) {
-    if (nostalgiaRotationTimer !== null) {
-      window.clearInterval(nostalgiaRotationTimer)
-      nostalgiaRotationTimer = null
-    }
-    return
-  }
-
-  const statCount = nostalgiaCard.value?.rotatingStats.length ?? 0
-
-  if (statCount > 1) {
-    nostalgiaStatIndex.value %= statCount
-
-    if (nostalgiaRotationTimer === null) {
-      nostalgiaRotationTimer = window.setInterval(() => {
-        if (!isDashboardMounted) {
-          return
-        }
-        const currentCount = nostalgiaCard.value?.rotatingStats.length ?? 0
-        if (currentCount > 1) {
-          nostalgiaStatIndex.value = (nostalgiaStatIndex.value + 1) % currentCount
-        }
-      }, NOSTALGIA_ROTATION_INTERVAL)
-    }
-
-    return
-  }
-
-  if (nostalgiaRotationTimer !== null) {
-    window.clearInterval(nostalgiaRotationTimer)
-    nostalgiaRotationTimer = null
-  }
-
-  nostalgiaStatIndex.value = 0
-}
-
 onMounted(() => {
   isDashboardMounted = true
   void loadDashboard()
@@ -1385,11 +1226,6 @@ onBeforeUnmount(() => {
   if (refreshTimer) {
     window.clearTimeout(refreshTimer)
     refreshTimer = null
-  }
-
-  if (nostalgiaRotationTimer) {
-    window.clearInterval(nostalgiaRotationTimer)
-    nostalgiaRotationTimer = null
   }
 })
 </script>
@@ -1455,16 +1291,6 @@ onBeforeUnmount(() => {
   display: grid;
   row-gap: var(--calendar-row-gap);
   min-width: 0;
-}
-
-.nostalgia-fade-enter-active,
-.nostalgia-fade-leave-active {
-  transition: opacity 220ms ease;
-}
-
-.nostalgia-fade-enter-from,
-.nostalgia-fade-leave-to {
-  opacity: 0;
 }
 
 .calendar-cell {

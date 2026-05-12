@@ -36,110 +36,6 @@
             />
           </div>
         </div>
-
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardHeader class="pb-2">
-              <CardDescription>{{ t('settings.mcp.center.running') }}</CardDescription>
-              <CardTitle>{{ runningCount }}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader class="pb-2">
-              <CardDescription>{{ t('settings.mcp.center.builtIn') }}</CardDescription>
-              <CardTitle>{{ builtInCount }}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader class="pb-2">
-              <CardDescription>{{ t('settings.mcp.center.custom') }}</CardDescription>
-              <CardTitle>{{ customCount }}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader class="pb-2">
-              <div class="flex items-center justify-between gap-2">
-                <CardDescription>{{ t('settings.mcp.npmRegistry.title') }}</CardDescription>
-                <Dialog v-model:open="npmAdvancedDialogOpen">
-                  <DialogTrigger as-child>
-                    <Button variant="ghost" size="icon-sm">
-                      <Icon icon="lucide:settings-2" class="size-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent class="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>{{ t('settings.mcp.npmRegistry.title') }}</DialogTitle>
-                      <DialogDescription>
-                        {{ t('settings.mcp.npmRegistry.advancedSettings') }}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div class="flex flex-col gap-4">
-                      <div class="flex items-center justify-between gap-3 text-sm">
-                        <span class="text-muted-foreground">
-                          {{ t('settings.mcp.npmRegistry.currentSource') }}
-                        </span>
-                        <div class="flex min-w-0 items-center gap-2">
-                          <span class="truncate font-mono text-xs">
-                            {{ npmRegistryStatus.currentRegistry || 'Default' }}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            :disabled="refreshing"
-                            @click="refreshNpmRegistry"
-                          >
-                            <Icon
-                              :icon="refreshing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                              :class="refreshing ? 'size-4 animate-spin' : 'size-4'"
-                            />
-                          </Button>
-                        </div>
-                      </div>
-                      <div class="flex items-center justify-between gap-3">
-                        <span class="text-sm text-muted-foreground">
-                          {{ t('settings.mcp.npmRegistry.autoDetect') }}
-                        </span>
-                        <Switch
-                          :model-value="npmRegistryStatus.autoDetectEnabled"
-                          @update:model-value="setAutoDetectNpmRegistry"
-                        />
-                      </div>
-                      <Input
-                        v-model="customRegistryInput"
-                        :placeholder="t('settings.mcp.npmRegistry.customSourcePlaceholder')"
-                        class="font-mono"
-                      />
-                      <div class="flex gap-2">
-                        <Button
-                          variant="outline"
-                          :disabled="
-                            !customRegistryInput.trim() ||
-                            customRegistryInput.trim() === npmRegistryStatus.customRegistry
-                          "
-                          class="flex-1"
-                          @click="saveCustomNpmRegistry"
-                        >
-                          {{ t('common.save') }}
-                        </Button>
-                        <Button
-                          v-if="npmRegistryStatus.customRegistry"
-                          variant="outline"
-                          class="flex-1"
-                          @click="clearCustomNpmRegistry"
-                        >
-                          {{ t('common.clear') }}
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              <CardTitle class="truncate text-base">
-                {{ npmRegistryStatus.currentRegistry || 'Default' }}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
       </div>
       <Separator class="mt-3" />
     </div>
@@ -147,7 +43,115 @@
     <!-- Server list -->
     <div class="flex-1 overflow-y-auto">
       <div v-if="mcpEnabled" class="h-full">
-        <McpServers />
+        <McpServers>
+          <template #status-bar>
+            <div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+              <span class="text-xs text-muted-foreground">
+                {{ t('settings.mcp.totalServers') }}:
+                <span class="font-medium text-foreground">{{ mcpStore.serverList.length }}</span>
+              </span>
+              <span class="text-xs text-muted-foreground">
+                {{ t('settings.mcp.center.running') }}:
+                <span class="font-medium text-foreground">{{ runningCount }}</span>
+              </span>
+              <span class="text-xs text-muted-foreground">
+                {{ t('settings.mcp.center.builtIn') }}:
+                <span class="font-medium text-foreground">{{ builtInCount }}</span>
+              </span>
+              <span class="text-xs text-muted-foreground">
+                {{ t('settings.mcp.center.custom') }}:
+                <span class="font-medium text-foreground">{{ customCount }}</span>
+              </span>
+            </div>
+          </template>
+
+          <template #footer-actions-after>
+            <Dialog v-model:open="npmAdvancedDialogOpen">
+              <DialogTrigger as-child>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="h-8 max-w-[18rem] gap-1.5 px-3 text-xs"
+                  :title="npmRegistryStatus.currentRegistry || 'Default'"
+                >
+                  <Icon icon="lucide:settings-2" class="h-3.5 w-3.5 shrink-0" />
+                  <span class="hidden text-muted-foreground sm:inline">
+                    {{ t('settings.mcp.npmRegistry.title') }}
+                  </span>
+                  <span class="truncate font-mono">
+                    {{ npmRegistryStatus.currentRegistry || 'Default' }}
+                  </span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{{ t('settings.mcp.npmRegistry.title') }}</DialogTitle>
+                  <DialogDescription>
+                    {{ t('settings.mcp.npmRegistry.advancedSettings') }}
+                  </DialogDescription>
+                </DialogHeader>
+                <div class="flex flex-col gap-4">
+                  <div class="flex items-center justify-between gap-3 text-sm">
+                    <span class="text-muted-foreground">
+                      {{ t('settings.mcp.npmRegistry.currentSource') }}
+                    </span>
+                    <div class="flex min-w-0 items-center gap-2">
+                      <span class="truncate font-mono text-xs">
+                        {{ npmRegistryStatus.currentRegistry || 'Default' }}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        :disabled="refreshing"
+                        @click="refreshNpmRegistry"
+                      >
+                        <Icon
+                          :icon="refreshing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+                          :class="refreshing ? 'size-4 animate-spin' : 'size-4'"
+                        />
+                      </Button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-sm text-muted-foreground">
+                      {{ t('settings.mcp.npmRegistry.autoDetect') }}
+                    </span>
+                    <Switch
+                      :model-value="npmRegistryStatus.autoDetectEnabled"
+                      @update:model-value="setAutoDetectNpmRegistry"
+                    />
+                  </div>
+                  <Input
+                    v-model="customRegistryInput"
+                    :placeholder="t('settings.mcp.npmRegistry.customSourcePlaceholder')"
+                    class="font-mono"
+                  />
+                  <div class="flex gap-2">
+                    <Button
+                      variant="outline"
+                      :disabled="
+                        !customRegistryInput.trim() ||
+                        customRegistryInput.trim() === npmRegistryStatus.customRegistry
+                      "
+                      class="flex-1"
+                      @click="saveCustomNpmRegistry"
+                    >
+                      {{ t('common.save') }}
+                    </Button>
+                    <Button
+                      v-if="npmRegistryStatus.customRegistry"
+                      variant="outline"
+                      class="flex-1"
+                      @click="clearCustomNpmRegistry"
+                    >
+                      {{ t('common.clear') }}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </template>
+        </McpServers>
       </div>
       <div v-else class="p-8 text-center text-muted-foreground text-sm">
         {{ t('settings.mcp.enableToAccess') }}
@@ -174,7 +178,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@shadcn/components/ui/dialog'
-import { Card, CardDescription, CardHeader, CardTitle } from '@shadcn/components/ui/card'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/use-toast'

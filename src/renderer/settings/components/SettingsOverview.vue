@@ -38,6 +38,8 @@
         :value="t('settings.controlCenter.overview.enabledCount', { count: enabledProvidersCount })"
         icon="lucide:cloud-cog"
         :description="t('settings.controlCenter.overview.providersDescription')"
+        interactive
+        @select="openRoute('settings-provider')"
       />
       <StatusMetricCard
         :label="t('settings.controlCenter.overview.mcp')"
@@ -48,68 +50,58 @@
             ? t('settings.controlCenter.overview.mcpOn')
             : t('settings.controlCenter.overview.mcpOff')
         "
+        interactive
+        @select="openRoute('settings-mcp')"
       />
       <StatusMetricCard
-        :label="t('settings.controlCenter.overview.knowledge')"
-        :value="t('settings.controlCenter.overview.sourceCount', { count: knowledgeSourceCount })"
-        icon="lucide:book-marked"
-        :description="t('settings.controlCenter.overview.knowledgeDescription')"
-      />
-      <StatusMetricCard
-        :label="t('settings.controlCenter.overview.data')"
-        :value="lastBackupText"
-        icon="lucide:database-backup"
-        :description="
-          syncEnabled
-            ? t('settings.controlCenter.overview.syncOn')
-            : t('settings.controlCenter.overview.syncOff')
+        :label="t('settings.controlCenter.overview.deepchatAgents')"
+        :value="
+          t('settings.controlCenter.overview.enabledAgentCount', {
+            count: enabledDeepChatAgentsCount
+          })
         "
+        icon="lucide:bot"
+        :description="t('settings.controlCenter.overview.deepchatAgentsDescription')"
+        interactive
+        @select="openRoute('settings-deepchat-agents')"
       />
+      <Card class="min-w-0">
+        <CardHeader class="gap-2 pb-2">
+          <div class="flex items-center justify-between gap-3">
+            <CardDescription class="truncate">
+              {{ t('settings.controlCenter.quickStart.title') }}
+            </CardDescription>
+            <Icon icon="lucide:list-checks" class="size-4 shrink-0 text-muted-foreground" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div class="grid gap-1.5">
+            <button
+              v-for="task in quickTasks"
+              :key="task.key"
+              type="button"
+              class="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-2 text-start text-xs transition-colors hover:bg-accent"
+              :title="t(task.descriptionKey)"
+              @click="openRoute(task.routeName)"
+            >
+              <Icon
+                :icon="task.done ? 'lucide:check-circle-2' : task.icon"
+                class="size-4 shrink-0"
+                :class="task.done ? 'text-emerald-500' : 'text-muted-foreground'"
+              />
+              <span class="min-w-0 truncate font-medium">{{ t(task.labelKey) }}</span>
+            </button>
+          </div>
+        </CardContent>
+      </Card>
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
-      <SettingsSectionCard :title="t('settings.controlCenter.quickStart.title')">
-        <div class="grid gap-2 sm:grid-cols-2">
-          <button
-            v-for="task in quickTasks"
-            :key="task.key"
-            type="button"
-            class="flex min-w-0 items-center gap-3 rounded-md border border-border bg-background px-3 py-2 text-start hover:bg-accent"
-            @click="openRoute(task.routeName)"
-          >
-            <Icon
-              :icon="task.done ? 'lucide:check-circle-2' : task.icon"
-              class="size-4 shrink-0 text-muted-foreground"
-            />
-            <div class="min-w-0">
-              <div class="truncate text-sm font-medium">{{ t(task.labelKey) }}</div>
-              <div class="truncate text-xs text-muted-foreground">
-                {{ t(task.descriptionKey) }}
-              </div>
-            </div>
-          </button>
-        </div>
-      </SettingsSectionCard>
-
-      <SettingsSectionCard :title="t('settings.controlCenter.needsAttention.title')">
-        <div v-if="attentionItems.length" class="flex flex-col gap-2">
-          <button
-            v-for="item in attentionItems"
-            :key="item.key"
-            type="button"
-            class="flex min-w-0 items-center gap-3 rounded-md px-2 py-2 text-start hover:bg-accent"
-            @click="openRoute(item.routeName)"
-          >
-            <Badge variant="secondary" class="shrink-0">{{ item.category }}</Badge>
-            <span class="min-w-0 truncate text-sm">{{ t(item.labelKey) }}</span>
-          </button>
-        </div>
-        <Empty v-else>
-          <EmptyHeader>
-            <EmptyTitle>{{ t('settings.controlCenter.needsAttention.empty') }}</EmptyTitle>
-          </EmptyHeader>
-        </Empty>
-      </SettingsSectionCard>
+    <section
+      ref="usageDashboardRef"
+      data-testid="settings-overview-usage-dashboard"
+      class="min-h-[640px] overflow-hidden rounded-lg border border-border"
+    >
+      <DashboardSettings />
     </section>
 
     <SettingsSectionCard
@@ -154,14 +146,6 @@
         </EmptyHeader>
       </Empty>
     </SettingsSectionCard>
-
-    <section
-      ref="usageDashboardRef"
-      data-testid="settings-overview-usage-dashboard"
-      class="min-h-[640px] overflow-hidden rounded-lg border border-border"
-    >
-      <DashboardSettings />
-    </section>
   </SettingsPageShell>
 </template>
 
@@ -172,6 +156,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader } from '@shadcn/components/ui/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@shadcn/components/ui/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@shadcn/components/ui/input-group'
 import {
@@ -182,7 +167,6 @@ import {
   TableHeader,
   TableRow
 } from '@shadcn/components/ui/table'
-import { createConfigClient } from '@api/ConfigClient'
 import { createSettingsClient } from '@api/SettingsClient'
 import type { SettingsActivityRecord } from '@shared/contracts/routes'
 import {
@@ -194,7 +178,7 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useMcpStore } from '@/stores/mcp'
 import { useSyncStore } from '@/stores/sync'
-import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { useAgentStore } from '@/stores/ui/agent'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
 import StatusMetricCard from './control-center/StatusMetricCard.vue'
@@ -203,17 +187,15 @@ import DashboardSettings from './DashboardSettings.vue'
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
-const configClient = createConfigClient()
 const settingsClient = createSettingsClient()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const mcpStore = useMcpStore()
 const syncStore = useSyncStore()
-const uiSettingsStore = useUiSettingsStore()
+const agentStore = useAgentStore()
 
 const activities = ref<SettingsActivityRecord[]>([])
 const searchQuery = ref('')
-const knowledgeSourceCount = ref(0)
 const usageDashboardRef = ref<HTMLElement | null>(null)
 const settingsItems = getSettingsNavigationItems(window.electron?.process?.platform)
 type SettingsRouteName = SettingsNavigationItem['routeName']
@@ -231,17 +213,11 @@ const mcpEnabled = computed(() => mcpStore.mcpEnabled)
 const runningMcpCount = computed(
   () => mcpStore.serverList.filter((server) => server.isRunning).length
 )
-const syncEnabled = computed(() => syncStore.syncEnabled)
-
-const lastBackupText = computed(() => {
-  if (!syncStore.lastSyncTime) {
-    return t('settings.controlCenter.overview.backupNever')
-  }
-
-  return new Intl.DateTimeFormat(locale.value || undefined, {
-    dateStyle: 'medium'
-  }).format(new Date(syncStore.lastSyncTime))
-})
+const enabledDeepChatAgentsCount = computed(
+  () =>
+    agentStore.enabledAgents.filter((agent) => (agent.agentType ?? agent.type) === 'deepchat')
+      .length
+)
 
 const quickTasks = computed<
   Array<{
@@ -286,42 +262,6 @@ const quickTasks = computed<
     done: Boolean(syncStore.lastSyncTime)
   }
 ])
-
-const attentionItems = computed(() => {
-  const items: Array<{
-    key: string
-    labelKey: string
-    category: string
-    routeName: SettingsRouteName
-  }> = []
-
-  if (enabledModelsCount.value === 0) {
-    items.push({
-      key: 'models',
-      labelKey: 'settings.controlCenter.needsAttention.noModels',
-      category: 'Models',
-      routeName: 'settings-provider'
-    })
-  }
-  if (!uiSettingsStore.privacyModeEnabled) {
-    items.push({
-      key: 'privacy',
-      labelKey: 'settings.controlCenter.needsAttention.privacyOff',
-      category: 'Data',
-      routeName: 'settings-database'
-    })
-  }
-  if (!syncStore.lastSyncTime) {
-    items.push({
-      key: 'backup',
-      labelKey: 'settings.controlCenter.needsAttention.backupNever',
-      category: 'Data',
-      routeName: 'settings-database'
-    })
-  }
-
-  return items
-})
 
 const searchResults = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -369,16 +309,13 @@ const formatDate = (timestamp: number) =>
   }).format(new Date(timestamp))
 
 onMounted(async () => {
-  const [knowledgeResult] = await Promise.allSettled([
-    configClient.getKnowledgeConfigs(),
+  await Promise.allSettled([
     providerStore.ensureInitialized?.(),
     modelStore.initialize?.(),
     mcpStore.loadConfig?.(),
-    syncStore.initialize?.()
+    syncStore.initialize?.(),
+    agentStore.fetchAgents()
   ])
-  if (knowledgeResult.status === 'fulfilled') {
-    knowledgeSourceCount.value = knowledgeResult.value.filter((config) => config.enabled).length
-  }
   activities.value = await settingsClient.listRecentActivity(200)
   await nextTick()
   if (route.query.section === 'usage') {

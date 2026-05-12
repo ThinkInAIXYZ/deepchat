@@ -1,7 +1,7 @@
 <template>
   <SettingsPageShell
     :title="t('settings.shortcuts.title')"
-    :eyebrow="t('settings.controlCenter.groups.setup')"
+    :eyebrow="t('settings.controlCenter.groups.system')"
     data-testid="settings-shortcut-page"
   >
     <template #actions>

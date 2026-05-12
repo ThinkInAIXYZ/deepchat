@@ -1,5 +1,17 @@
 <template>
-  <Card class="min-w-0">
+  <Card
+    :class="[
+      'min-w-0',
+      interactive
+        ? 'cursor-pointer transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+        : ''
+    ]"
+    :role="interactive ? 'button' : undefined"
+    :tabindex="interactive ? 0 : undefined"
+    @click="handleSelect"
+    @keydown.enter="handleSelect"
+    @keydown.space.prevent="handleSelect"
+  >
     <CardHeader class="gap-2 pb-3">
       <div class="flex items-center justify-between gap-3">
         <CardDescription class="truncate">{{ label }}</CardDescription>
@@ -31,11 +43,22 @@ import {
   CardTitle
 } from '@shadcn/components/ui/card'
 
-defineProps<{
+const props = defineProps<{
   label: string
   value: string
   icon: string
   description?: string
   badge?: string
+  interactive?: boolean
 }>()
+
+const emit = defineEmits<{
+  (e: 'select'): void
+}>()
+
+const handleSelect = () => {
+  if (props.interactive) {
+    emit('select')
+  }
+}
 </script>

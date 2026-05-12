@@ -115,8 +115,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     path: '/environments',
     titleKey: 'routes.settings-environments',
     icon: 'lucide:folders',
-    position: 2.5,
-    groupKey: 'setup',
+    position: 3.25,
+    groupKey: 'models',
     keywords: ['environment', 'workspace', 'folder', 'project', '环境', '工作区', '目录']
   },
   {
@@ -134,7 +134,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-deepchat-agents',
     icon: 'lucide:bot',
     position: 3.5,
-    groupKey: 'tools',
+    groupKey: 'models',
     keywords: ['agent', 'agents', 'deepchat', '智能体', 'agent']
   },
   {
@@ -143,7 +143,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-acp',
     icon: 'lucide:shield-check',
     position: 4,
-    groupKey: 'tools',
+    groupKey: 'models',
     keywords: ['acp', 'agent client protocol']
   },
   {
@@ -171,7 +171,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-remote',
     icon: 'lucide:smartphone',
     position: 5.25,
-    groupKey: 'tools',
+    groupKey: 'system',
     keywords: ['remote', 'telegram', 'feishu', 'control', '远程', '控制']
   },
   {
@@ -235,7 +235,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-shortcut',
     icon: 'lucide:keyboard',
     position: 10,
-    groupKey: 'setup',
+    groupKey: 'system',
     keywords: ['shortcut', 'hotkey', 'keybinding', '快捷键']
   },
   {

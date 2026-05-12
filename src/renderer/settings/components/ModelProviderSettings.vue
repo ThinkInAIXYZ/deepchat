@@ -107,9 +107,6 @@
                     @click="startEditingName(provider, $event)"
                   />
                 </template>
-                <Badge variant="secondary" class="max-w-24 shrink-0 truncate text-[10px]">
-                  {{ getProviderStatusLabel(provider) }}
-                </Badge>
                 <Switch
                   :model-value="provider.enable"
                   @click.stop="toggleProviderStatus(provider)"
@@ -173,9 +170,6 @@
                     @click="startEditingName(provider, $event)"
                   />
                 </template>
-                <Badge variant="outline" class="max-w-24 shrink-0 truncate text-[10px]">
-                  {{ getProviderStatusLabel(provider) }}
-                </Badge>
                 <Switch
                   :model-value="provider.enable"
                   @click.stop="toggleProviderStatus(provider)"
@@ -242,7 +236,6 @@ import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
@@ -317,22 +310,6 @@ const filterProviders = (providers: LLM_PROVIDER[]) => {
   }
   const query = searchQuery.value.toLowerCase().trim()
   return providers.filter((provider) => t(provider.name).toLowerCase().includes(query))
-}
-
-const isLocalProvider = (provider: LLM_PROVIDER) =>
-  provider.apiType === 'ollama' || provider.apiType === 'lmstudio'
-
-const getProviderStatusLabel = (provider: LLM_PROVIDER) => {
-  if (isLocalProvider(provider)) {
-    return t('settings.provider.center.status.local')
-  }
-  if (!provider.enable) {
-    return t('settings.provider.center.status.disabled')
-  }
-  if (!provider.apiKey?.trim()) {
-    return t('settings.provider.center.status.keyMissing')
-  }
-  return t('settings.provider.center.status.connected')
 }
 
 const visibleProviders = computed(() =>

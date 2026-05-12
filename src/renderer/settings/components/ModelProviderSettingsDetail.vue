@@ -11,13 +11,6 @@
               </p>
             </div>
             <div class="flex shrink-0 flex-wrap items-center gap-2">
-              <Badge :variant="provider.enable ? 'default' : 'secondary'">
-                {{
-                  provider.enable
-                    ? t('settings.provider.center.status.connected')
-                    : t('settings.provider.center.status.disabled')
-                }}
-              </Badge>
               <Badge variant="outline">
                 {{
                   t('settings.provider.center.enabledModels', {
@@ -30,15 +23,12 @@
         </div>
 
         <Tabs default-value="connection" class="flex min-h-0 flex-1 flex-col gap-4">
-          <TabsList class="grid w-full grid-cols-4">
+          <TabsList class="grid w-full grid-cols-3">
             <TabsTrigger value="connection">
               {{ t('settings.provider.center.tabs.connection') }}
             </TabsTrigger>
             <TabsTrigger value="models">
               {{ t('settings.provider.center.tabs.models') }}
-            </TabsTrigger>
-            <TabsTrigger value="limits">
-              {{ t('settings.provider.center.tabs.limits') }}
             </TabsTrigger>
             <TabsTrigger value="advanced">
               {{ t('settings.provider.center.tabs.advanced') }}
@@ -73,12 +63,10 @@
             />
           </TabsContent>
 
-          <TabsContent value="limits" class="mt-0">
-            <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
-          </TabsContent>
-
           <TabsContent value="advanced" class="mt-0">
             <div class="flex flex-col gap-4">
+              <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
+
               <VertexProviderSettingsDetail
                 v-if="provider.apiType === 'vertex'"
                 :provider="provider as VERTEX_PROVIDER"
@@ -103,13 +91,6 @@
               <VoiceAIProviderConfig v-if="provider.id === 'voiceai'" :provider="provider" />
 
               <ModelScopeMcpSync v-if="provider.id === 'modelscope'" :provider="provider" />
-
-              <div
-                v-if="!hasAdvancedConfig"
-                class="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground"
-              >
-                {{ t('settings.provider.center.noAdvancedConfig') }}
-              </div>
             </div>
           </TabsContent>
         </Tabs>
@@ -217,15 +198,6 @@ const providerWebsites = computed<ProviderWebsites | undefined>(
   () =>
     providerStore.defaultProviders.find((provider) => provider.id === props.provider.id)
       ?.websites as ProviderWebsites | undefined
-)
-
-const hasAdvancedConfig = computed(
-  () =>
-    props.provider.apiType === 'vertex' ||
-    props.provider.id === 'azure-openai' ||
-    props.provider.id === 'gemini' ||
-    props.provider.id === 'voiceai' ||
-    props.provider.id === 'modelscope'
 )
 
 const providerModelsSource = computed(

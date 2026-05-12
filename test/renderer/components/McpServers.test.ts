@@ -14,13 +14,7 @@ const buttonStub = defineComponent({
   template: '<button data-testid="action-button" @click="$emit(\'click\')"><slot /></button>'
 })
 
-const dropdownItemStub = defineComponent({
-  name: 'DropdownMenuItem',
-  emits: ['click'],
-  template: '<button data-testid="dropdown-item" @click="$emit(\'click\')"><slot /></button>'
-})
-
-const setup = async () => {
+const setup = async (options: { withServers?: boolean } = {}) => {
   vi.resetModules()
 
   const router = {
@@ -36,9 +30,35 @@ const setup = async () => {
   const mcpStore = reactive({
     mcpInstallCache: '',
     clearMcpInstallCache: vi.fn(),
-    serverList: [],
+    serverList: options.withServers
+      ? [
+          {
+            name: 'running-server',
+            icons: '',
+            descriptions: '',
+            command: '',
+            args: [],
+            enabled: true,
+            isRunning: true
+          },
+          {
+            name: 'stopped-server',
+            icons: '',
+            descriptions: '',
+            command: '',
+            args: [],
+            enabled: false,
+            isRunning: false
+          }
+        ]
+      : [],
     config: {
-      mcpServers: {}
+      mcpServers: options.withServers
+        ? {
+            'running-server': { type: 'stdio' },
+            'stopped-server': { type: 'stdio' }
+          }
+        : {}
     },
     configLoading: false,
     tools: [],
@@ -88,10 +108,6 @@ const setup = async () => {
         DialogTitle: defineComponent({ name: 'DialogTitle', template: '<div />' }),
         DialogDescription: defineComponent({ name: 'DialogDescription', template: '<div />' }),
         DialogFooter: defineComponent({ name: 'DialogFooter', template: '<div />' }),
-        DropdownMenu: passthrough('DropdownMenu'),
-        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
-        DropdownMenuContent: passthrough('DropdownMenuContent'),
-        DropdownMenuItem: dropdownItemStub,
         McpServerCard: true,
         McpServerForm: true,
         McpToolPanel: true,
@@ -104,7 +120,8 @@ const setup = async () => {
 
   return {
     wrapper,
-    router
+    router,
+    mcpStore
   }
 }
 
@@ -114,27 +131,20 @@ describe('McpServers', () => {
     vi.stubGlobal('open', vi.fn())
   })
 
-  it('renders the market button before the add button in the footer action area', async () => {
+  it('renders the add button in the footer action area', async () => {
     const { wrapper } = await setup()
     const actionButtons = wrapper.findAll('[data-testid="action-button"]')
 
-    expect(actionButtons[0]?.text()).toContain('routes.settings-mcp-market')
-    expect(actionButtons[1]?.text()).toContain('common.add')
+    expect(actionButtons[0]?.text()).toContain('common.add')
   })
 
-  it('opens the MCP market subview and Higress from the footer menu', async () => {
-    const { wrapper, router } = await setup()
-    const dropdownItems = wrapper.findAll('[data-testid="dropdown-item"]')
+  it('only shows all, running, and stopped filters', async () => {
+    const { wrapper } = await setup({ withServers: true })
 
-    await dropdownItems[0]?.trigger('click')
-    expect(router.push).toHaveBeenCalledWith({
-      name: 'settings-mcp',
-      query: {
-        view: 'market'
-      }
-    })
-
-    await dropdownItems[1]?.trigger('click')
-    expect(window.open).toHaveBeenCalledWith('https://mcp.higress.ai/?from=deepchat', '_blank')
+    expect(wrapper.text()).toContain('settings.mcp.center.filters.all')
+    expect(wrapper.text()).toContain('settings.mcp.center.filters.running')
+    expect(wrapper.text()).toContain('settings.mcp.center.filters.stopped')
+    expect(wrapper.text()).not.toContain('settings.mcp.center.filters.builtIn')
+    expect(wrapper.text()).not.toContain('settings.mcp.center.filters.custom')
   })
 })
