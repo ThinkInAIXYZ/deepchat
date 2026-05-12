@@ -278,38 +278,42 @@
               </div>
             </div>
             <AlertDialog v-model:open="isResetDialogOpen">
-              <div class="grid w-full shrink-0 gap-2 lg:w-[34rem] lg:grid-cols-3">
+              <div class="grid w-full shrink-0 gap-2 lg:w-[42rem] lg:grid-cols-3">
                 <Button
                   variant="destructive"
-                  class="w-full"
+                  class="h-auto min-h-12 w-full whitespace-normal px-3 py-2"
                   :disabled="isResetActionDisabled"
                   :dir="languageStore.dir"
                   @click="openResetDialog('chat')"
                 >
-                  <Icon icon="lucide:rotate-ccw" class="h-4 w-4" />
-                  <span class="text-sm font-medium">{{ t('settings.data.resetChatData') }}</span>
+                  <Icon icon="lucide:rotate-ccw" class="h-4 w-4 shrink-0" />
+                  <span class="min-w-0 text-center text-sm font-medium leading-tight">{{
+                    t('settings.data.resetChatData')
+                  }}</span>
                 </Button>
                 <Button
                   variant="destructive"
-                  class="w-full"
+                  class="h-auto min-h-12 w-full whitespace-normal px-3 py-2"
                   :disabled="isResetActionDisabled"
                   :dir="languageStore.dir"
                   @click="openResetDialog('knowledge')"
                 >
-                  <Icon icon="lucide:book-x" class="h-4 w-4" />
-                  <span class="text-sm font-medium">{{
+                  <Icon icon="lucide:book-x" class="h-4 w-4 shrink-0" />
+                  <span class="min-w-0 text-center text-sm font-medium leading-tight">{{
                     t('settings.data.resetKnowledgeData')
                   }}</span>
                 </Button>
                 <Button
                   variant="destructive"
-                  class="w-full"
+                  class="h-auto min-h-12 w-full whitespace-normal px-3 py-2"
                   :disabled="isResetActionDisabled"
                   :dir="languageStore.dir"
                   @click="openResetDialog('all')"
                 >
-                  <Icon icon="lucide:triangle-alert" class="h-4 w-4" />
-                  <span class="text-sm font-medium">{{ t('settings.data.resetAll') }}</span>
+                  <Icon icon="lucide:triangle-alert" class="h-4 w-4 shrink-0" />
+                  <span class="min-w-0 text-center text-sm font-medium leading-tight">{{
+                    t('settings.data.resetAll')
+                  }}</span>
                 </Button>
               </div>
               <AlertDialogContent>

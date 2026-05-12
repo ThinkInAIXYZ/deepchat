@@ -249,10 +249,8 @@ describe('DataSettings', () => {
 
     const headings = wrapper.findAll('h2').map((item) => item.text())
 
-    expect(headings).toEqual([
-      'settings.data.syncSectionTitle',
-      'settings.data.operationsSectionTitle'
-    ])
+    expect(headings).not.toContain('settings.data.syncSectionTitle')
+    expect(headings).not.toContain('settings.data.operationsSectionTitle')
     expect(wrapper.text()).toContain('Privacy Mode')
     expect(wrapper.text()).toContain('App update checks')
     expect(wrapper.text()).toContain('settings.data.databaseRepair.title')
@@ -262,6 +260,19 @@ describe('DataSettings', () => {
     expect(wrapper.text()).toContain('settings.data.resetKnowledgeData')
     expect(wrapper.text()).toContain('settings.data.resetAll')
     expect(wrapper.text()).toContain('settings.data.yoBrowser.title')
+  })
+
+  it('keeps long danger zone labels within taller wrapping buttons', async () => {
+    const { wrapper } = await setup()
+
+    const resetButtons = [findResetChatButton(wrapper), findResetKnowledgeButton(wrapper)]
+
+    for (const button of resetButtons) {
+      expect(button.classes()).toContain('min-h-12')
+      expect(button.classes()).toContain('whitespace-normal')
+      expect(button.find('span').classes()).toContain('min-w-0')
+      expect(button.find('span').classes()).toContain('leading-tight')
+    }
   })
 
   it('updates privacy mode from the data settings page', async () => {
