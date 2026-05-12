@@ -2,6 +2,7 @@
 
 ## v1.0.4-beta.8 (2026-05-12)
 - Added a redesigned settings control center with overview cards, grouped navigation, settings activity, and refined MCP, provider, and data panels
+- Added a fullscreen toggle for the side panel and improved layout responsiveness across side panel and workspace views
 - Added an isolated Feishu plugin settings surface with credential management, MCP presets, and plugin-owned MCP servers hidden from global MCP settings
 - ACP client runtime now has clearer connection and session routing, debug logging, path guarding, and persisted turn metadata for steadier ACP sessions
 - Weixin remote control now delivers generated images and avoids leaving silent pending interactions behind
@@ -9,6 +10,7 @@
 - Agent failed-message context is preserved more consistently after compaction and context-pressure errors
 - Updated AI SDK patch versions and refreshed bundled provider and ACP registry data for fresher runtime compatibility
 - 设置页升级为控制中心，新增概览卡片、分组导航、设置活动记录，并优化 MCP、Provider 与数据设置面板
+- 新增侧边栏全屏切换，并优化侧边栏与工作区视图的布局响应表现
 - 新增隔离的飞书插件设置页，支持凭证管理、MCP 预设，并从全局 MCP 设置中隐藏插件自有 MCP server
 - ACP client runtime 现在具备更清晰的连接与会话路由、调试日志、路径保护和 turn 元数据持久化，让 ACP 会话更稳定
 - 微信远程控制现在可以发送生成图片，并避免留下静默的 pending 交互
