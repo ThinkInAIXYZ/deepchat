@@ -618,6 +618,51 @@ describe('PluginPresenter', () => {
     expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-tools')
   })
 
+  it('removes persisted plugin state when discovery rejects an installed official plugin', async () => {
+    const fixture = await createDirectoryFixture()
+    const workspaceManifestPath = path.join(fixture.pluginRoot, 'plugin.json')
+    const manifest = JSON.parse(await readFile(workspaceManifestPath, 'utf8'))
+    manifest.toolPolicies = [
+      {
+        serverId: 'fixture-tools',
+        tools: {
+          fixture_tool: 'ask'
+        }
+      }
+    ]
+    await writeFile(workspaceManifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const { getPluginToolPolicy } = await import('@/presenter/pluginPresenter/toolPolicyStore')
+
+    const enabled = await presenter.enablePlugin(fixture.pluginId)
+    expect(enabled.ok).toBe(true)
+    expect(getPluginToolPolicy('fixture-tools', 'fixture_tool')).toBe('ask')
+
+    const rejectedManifest = {
+      ...manifest,
+      engines: {
+        ...manifest.engines,
+        platforms: ['linux']
+      }
+    }
+    await writeFile(workspaceManifestPath, `${JSON.stringify(rejectedManifest, null, 2)}\n`)
+    await writeFile(
+      path.join(fixture.installedRoot, 'plugin.json'),
+      `${JSON.stringify(rejectedManifest, null, 2)}\n`
+    )
+
+    await presenter.initialize()
+
+    const servers = await presenter.__mocks.configPresenter.getMcpServers()
+
+    expect((presenter as any).store.get('installations')).toEqual([])
+    expect((presenter as any).store.get('resources')).toEqual([])
+    expect((presenter as any).store.get('runtimes')).toEqual([])
+    expect(servers['fixture-tools']).toBeUndefined()
+    expect(getPluginToolPolicy('fixture-tools', 'fixture_tool')).toBeNull()
+  })
+
   it('loads official packages only from resources roots in packaged mode', async () => {
     const cwdRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-cwd-'))
     tempRoots.push(cwdRoot)
@@ -885,13 +930,27 @@ describe('PluginPresenter', () => {
     }
   })
 
-  it('keeps the Feishu MCP bootstrap self-contained for installed plugin copies', async () => {
+  it('pins the Feishu MCP bootstrap package and keeps registry selection explicit', async () => {
     const source = await readFile('plugins/feishu/mcp/serve.mjs', 'utf8')
 
     expect(source).not.toContain('@modelcontextprotocol/sdk')
     expect(source).toContain('Content-Length:')
-    expect(source).toContain('npm_config_registry')
-    expect(source).toContain('registry.npmmirror.com')
+    expect(source).toContain('@larksuiteoapi/lark-mcp@0.5.1')
+    expect(source).toContain('REGISTRY_OVERRIDE')
+    expect(source).not.toContain('registry.npmmirror.com')
+  })
+
+  it('uses conservative Feishu MCP defaults in the plugin manifest', async () => {
+    const manifest = JSON.parse(await readFile('plugins/feishu/plugin.json', 'utf8'))
+
+    expect(manifest.mcpServers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'feishu-tools',
+          autoApprove: []
+        })
+      ])
+    )
   })
 
   it('declares a Feishu plugin skill for MCP tool routing', async () => {

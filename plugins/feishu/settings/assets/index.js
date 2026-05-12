@@ -43,15 +43,22 @@ async function refreshStatus() {
   const mcp = status.mcpServers?.find((s) => s.serverId === 'feishu-tools')
   if (!mcp) {
     setText(mcpStateNode, 'Unavailable')
+  } else if (mcp.running) {
+    setText(mcpStateNode, 'Running')
+    setMessage('')
+  } else if (mcp.enabled) {
+    setText(mcpStateNode, 'Stopped')
+    setMessage('')
   } else if (mcp.lastError) {
     setText(mcpStateNode, 'Error')
     setMessage(mcp.lastError)
-  } else if (mcp.running) {
-    setText(mcpStateNode, 'Running')
-  } else if (mcp.enabled) {
-    setText(mcpStateNode, 'Stopped')
   } else {
     setText(mcpStateNode, 'Disabled')
+    setMessage('')
+  }
+
+  if (!mcp) {
+    setMessage('')
   }
 }
 

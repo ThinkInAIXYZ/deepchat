@@ -307,6 +307,12 @@ export class PluginPresenter {
     this.removeResourceRecordsByOwner(pluginId)
   }
 
+  private async removePersistedInstallation(pluginId: string): Promise<void> {
+    await this.disableByOwner(pluginId)
+    this.removeInstallationRecord(pluginId)
+    this.removeRuntimeRecordsByOwner(pluginId)
+  }
+
   private async registerMcpServers(
     plugin: ResolvedOfficialPlugin,
     runtime?: PluginRuntimeStatus
@@ -753,12 +759,14 @@ export class PluginPresenter {
       }
       if (!this.isPluginPlatformSupported(plugin.manifest)) {
         console.info(`[PluginHost] Skipping plugin ${plugin.manifest.id}: platform not supported`)
+        await this.removePersistedInstallation(plugin.manifest.id)
         continue
       }
       try {
         this.assertTrustedOfficialPlugin(plugin.manifest)
       } catch (error) {
         console.warn(`[PluginHost] Skipping untrusted plugin ${plugin.manifest.id}:`, error)
+        await this.removePersistedInstallation(plugin.manifest.id)
         continue
       }
       console.info(`[PluginHost] Discovered plugin: ${plugin.manifest.id} at ${plugin.root}`)
@@ -1191,6 +1199,13 @@ export class PluginPresenter {
     return this.getInstallations().find((installation) => installation.pluginId === pluginId)
   }
 
+  private removeInstallationRecord(pluginId: string): void {
+    this.store.set(
+      'installations',
+      this.getInstallations().filter((installation) => installation.pluginId !== pluginId)
+    )
+  }
+
   private upsertInstallation(record: PluginInstallationRecord): void {
     this.store.set('installations', [
       ...this.getInstallations().filter((item) => item.pluginId !== record.pluginId),
@@ -1244,6 +1259,13 @@ export class PluginPresenter {
     }
     return (this.store.get('runtimes') ?? []).find(
       (runtime) => runtime.pluginId === pluginId && runtime.runtimeId === runtimeId
+    )
+  }
+
+  private removeRuntimeRecordsByOwner(pluginId: string): void {
+    this.store.set(
+      'runtimes',
+      (this.store.get('runtimes') ?? []).filter((runtime) => runtime.pluginId !== pluginId)
     )
   }
 

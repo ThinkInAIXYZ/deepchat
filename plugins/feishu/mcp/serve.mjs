@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const pluginRoot = join(__dirname, '..')
 const WARNING_TEXT =
   'Feishu/Lark credentials are not configured. Please open the plugin settings and set your App ID and App Secret, then restart the MCP server.'
+const LARK_MCP_PACKAGE = '@larksuiteoapi/lark-mcp@0.5.1'
 
 function loadConfig() {
   const configPath = join(pluginRoot, 'config.json')
@@ -151,8 +152,20 @@ function startWarningServer() {
   process.stdin.resume()
 }
 
+function resolveSpawnEnv() {
+  const registryOverride = process.env.REGISTRY_OVERRIDE?.trim()
+  if (!registryOverride) {
+    return process.env
+  }
+
+  return {
+    ...process.env,
+    npm_config_registry: registryOverride
+  }
+}
+
 function startConfiguredServer() {
-  const args = ['-y', '@larksuiteoapi/lark-mcp', 'mcp', '-a', appId, '-s', appSecret]
+  const args = ['-y', LARK_MCP_PACKAGE, 'mcp', '-a', appId, '-s', appSecret]
   if (brand === 'lark') {
     args.push('--domain', 'https://open.larksuite.com')
   }
@@ -162,10 +175,7 @@ function startConfiguredServer() {
 
   const child = spawn('npx', args, {
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      npm_config_registry: process.env.npm_config_registry || 'https://registry.npmmirror.com'
-    }
+    env: resolveSpawnEnv()
   })
 
   child.on('error', (error) => {

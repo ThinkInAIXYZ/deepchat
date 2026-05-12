@@ -22,7 +22,7 @@
       "command": "node",
       "args": ["${plugin.root}/mcp/serve.mjs"],
       "env": {},
-      "autoApprove": ["all"]
+      "autoApprove": []
     }
   ],
   "skills": [

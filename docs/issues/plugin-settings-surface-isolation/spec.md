@@ -18,6 +18,8 @@ instead of being mixed into the existing global settings or MCP settings surface
   cannot survive on version equality alone.
 - In development, official plugin directory installs stay synchronized with workspace files even when
   only non-manifest files changed.
+- Discovery that rejects an official plugin as unsupported or untrusted clears its persisted
+  installation record and plugin-owned runtime resources before startup activation can reuse them.
 - Enabling an official plugin with a declared settings contribution exposes the plugin settings
   action on the Plugins settings page without depending on previously persisted resource records.
 - Opening plugin settings still works when persisted plugin resource records are missing or stale,
@@ -25,6 +27,11 @@ instead of being mixed into the existing global settings or MCP settings surface
 - Reinstalling a stale official plugin preserves plugin-local configuration such as `config.json`.
 - Plugin-owned MCP entrypoints remain runnable after installation into userData and must not rely on
   static imports from the workspace or app-level `node_modules`.
+- The Feishu plugin settings page clears stale MCP error text whenever the Feishu MCP is not in an
+  error state.
+- The Feishu MCP bootstrap launches a pinned upstream package version and only honors explicit
+  registry overrides instead of injecting a hardcoded registry fallback.
+- The Feishu plugin manifest does not auto-approve every MCP tool call by default.
 - Global MCP settings do not render plugin-owned MCP servers identified by `source: plugin`.
 - Plugin-owned MCP runtime status remains available from plugin-specific settings/status surfaces.
 
