@@ -158,9 +158,9 @@ describe('WorkspaceViewer', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]').attributes('title')).toBe(
-      'common.restore'
-    )
+    expect(
+      wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]').attributes('title')
+    ).toBe('common.restore')
   })
 
   it('shows raw artifact preview through preview pane fallback', async () => {

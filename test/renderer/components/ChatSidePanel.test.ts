@@ -122,23 +122,23 @@ describe('ChatSidePanel', () => {
       activeTab: 'workspace'
     })
 
-    expect(wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')).toBe(
-      'false'
-    )
+    expect(
+      wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')
+    ).toBe('false')
     expect(wrapper.find('[data-testid="chat-side-panel-resize-handle"]').exists()).toBe(true)
 
     await wrapper.get('[data-testid="workspace-panel-toggle"]').trigger('click')
 
-    expect(wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')).toBe(
-      'true'
-    )
+    expect(
+      wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')
+    ).toBe('true')
     expect(wrapper.find('[data-testid="chat-side-panel-resize-handle"]').exists()).toBe(false)
 
     sidepanelStore.activeTab = 'browser'
     await nextTick()
 
-    expect(wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')).toBe(
-      'false'
-    )
+    expect(
+      wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')
+    ).toBe('false')
   })
 })
