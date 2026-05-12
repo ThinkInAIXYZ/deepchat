@@ -57,7 +57,7 @@ const selectedServerForResources = ref<string>('')
 const selectedDetailServerName = ref('')
 const searchQuery = ref('')
 const activeFilter = ref<'all' | 'running' | 'stopped'>('all')
-const mcpFilters = ['all', 'running', 'stopped'] as const
+const MCP_FILTERS = ['all', 'running', 'stopped'] as const
 
 watch(
   () => mcpStore.mcpInstallCache,
@@ -229,6 +229,12 @@ const openDetail = (serverName: string) => {
   selectedDetailServerName.value = serverName
 }
 
+const closeDetail = (open: boolean) => {
+  if (!open) {
+    selectedDetailServerName.value = ''
+  }
+}
+
 defineExpose({
   openAddServerDialog
 })
@@ -271,7 +277,7 @@ defineExpose({
           />
           <div class="flex flex-wrap gap-2">
             <Button
-              v-for="filter in mcpFilters"
+              v-for="filter in MCP_FILTERS"
               :key="filter"
               size="sm"
               :variant="activeFilter === filter ? 'default' : 'outline'"
@@ -364,14 +370,7 @@ defineExpose({
       </div>
     </div>
 
-    <Sheet
-      :open="Boolean(selectedDetailServer)"
-      @update:open="
-        (open) => {
-          if (!open) selectedDetailServerName = ''
-        }
-      "
-    >
+    <Sheet :open="Boolean(selectedDetailServer)" @update:open="closeDetail">
       <SheetContent class="flex w-full flex-col sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>{{ selectedDetailServer?.name }}</SheetTitle>

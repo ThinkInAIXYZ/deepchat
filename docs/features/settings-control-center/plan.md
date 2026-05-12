@@ -9,7 +9,7 @@
 ## Pages
 
 - Build `SettingsOverview` with passive status cards, quick tasks, needs attention, recent activity, and embedded usage dashboard.
-- Refactor Provider into list plus detail tabs: Connection, Models, Limits, Advanced.
+- Refactor Provider into list plus detail tabs: Connection, Models, Advanced.
 - Refactor MCP into status cards, filters, server cards, and a right-side Sheet detail.
 - Refactor Data into Backup & Sync, Privacy Mode, Data Operations, and Danger Zone.
 - Wrap remaining tabs with the new shell without changing their core behavior.

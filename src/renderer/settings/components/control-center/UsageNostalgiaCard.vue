@@ -215,7 +215,7 @@ function formatDateKey(dateKey: string): string {
 }
 
 function getDaysWithDeepChat(value: number | null): number | null {
-  if (!value) {
+  if (value === null) {
     return null
   }
 

@@ -268,7 +268,7 @@ const handleInstalled = () => {
 }
 
 const handleDraftSuggestionsToggle = async (nextValue: boolean | string) => {
-  const normalized = Boolean(nextValue)
+  const normalized = typeof nextValue === 'string' ? nextValue === 'true' : Boolean(nextValue)
   draftSuggestionsEnabled.value = normalized
   await configPresenter.setSkillDraftSuggestionsEnabled?.(normalized)
 }

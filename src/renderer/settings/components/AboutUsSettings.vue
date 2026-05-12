@@ -5,7 +5,7 @@
     data-testid="settings-about-page"
   >
     <div class="flex min-h-[520px] w-full flex-col items-center justify-center gap-2">
-      <img src="@/assets/logo.png" class="h-10 w-10" />
+      <img src="@/assets/logo.png" class="h-10 w-10" :alt="t('about.title')" />
       <div class="flex flex-col items-center gap-2" :dir="languageStore.dir">
         <h1 class="text-2xl font-bold">{{ t('about.title') }}</h1>
         <p class="pb-4 text-xs text-muted-foreground">v{{ appVersion }}</p>

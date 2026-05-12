@@ -127,7 +127,7 @@
               {{ formatDate(activity.createdAt) }}
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{{ activity.category }}</Badge>
+              <Badge variant="outline">{{ getActivityCategoryLabel(activity.category) }}</Badge>
             </TableCell>
             <TableCell class="min-w-0">
               <span class="line-clamp-2 text-sm">
@@ -302,6 +302,24 @@ const openFirstSearchResult = () => {
   }
 }
 
+const getActivityCategoryLabel = (category: SettingsActivityRecord['category']) => {
+  const labelKeys: Record<SettingsActivityRecord['category'], string> = {
+    provider: 'settings.controlCenter.overview.providers',
+    model: 'settings.controlCenter.groups.models',
+    mcp: 'settings.controlCenter.overview.mcp',
+    privacy: 'settings.common.privacyMode',
+    appearance: 'routes.settings-display',
+    agent: 'settings.controlCenter.groups.models',
+    knowledge: 'settings.controlCenter.groups.knowledge',
+    prompt: 'routes.settings-prompt',
+    shortcut: 'routes.settings-shortcut',
+    data: 'settings.data.privacyTitle',
+    system: 'settings.controlCenter.groups.system'
+  }
+
+  return t(labelKeys[category])
+}
+
 const formatDate = (timestamp: number) =>
   new Intl.DateTimeFormat(locale.value || undefined, {
     dateStyle: 'medium',
@@ -316,7 +334,12 @@ onMounted(async () => {
     syncStore.initialize?.(),
     agentStore.fetchAgents()
   ])
-  activities.value = await settingsClient.listRecentActivity(200)
+  try {
+    activities.value = await settingsClient.listRecentActivity(200)
+  } catch (error) {
+    console.warn('[SettingsOverview] Failed to load recent settings activity:', error)
+    activities.value = []
+  }
   await nextTick()
   if (route.query.section === 'usage') {
     usageDashboardRef.value?.scrollIntoView({ block: 'start' })

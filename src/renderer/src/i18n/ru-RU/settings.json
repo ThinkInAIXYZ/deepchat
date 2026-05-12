@@ -897,7 +897,6 @@
       "tabs": {
         "connection": "Connect",
         "models": "Models",
-        "limits": "Limits",
         "advanced": "Advanced"
       }
     }

@@ -266,18 +266,22 @@ export class SQLitePresenter implements ISQLitePresenter {
 
   public async repairSchema(): Promise<DatabaseRepairReport> {
     const report = new DatabaseRepairService(this.db, this.dbPath).repair()
-    this.settingsActivityTable?.record({
-      category: 'data',
-      action: 'repaired',
-      targetType: 'database',
-      targetId: 'schema',
-      targetLabel: 'Database schema',
-      routeName: 'settings-database',
-      summaryKey: 'settings.controlCenter.activity.databaseRepaired',
-      summaryParams: {
-        status: report.status
-      }
-    })
+    try {
+      this.settingsActivityTable?.record({
+        category: 'data',
+        action: 'repaired',
+        targetType: 'database',
+        targetId: 'schema',
+        targetLabel: 'Database schema',
+        routeName: 'settings-database',
+        summaryKey: 'settings.controlCenter.activity.databaseRepaired',
+        summaryParams: {
+          status: report.status
+        }
+      })
+    } catch (error) {
+      console.warn('[SettingsActivity] Failed to record repair event:', error)
+    }
     return report
   }
 

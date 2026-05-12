@@ -409,6 +409,10 @@ function recordSkillUpdatedActivity(
   recordSkillSettingsActivity(runtime, 'updated', label, targetType)
 }
 
+function didSkillOperationSucceed(result: { success?: boolean }): boolean {
+  return result.success === true
+}
+
 function readPromptUpdateName(input: unknown): string | null {
   if (!input || typeof input !== 'object' || !('updates' in input)) {
     return null
@@ -1836,35 +1840,45 @@ export async function dispatchDeepchatRoute(
     case skillsInstallFromFolderRoute.name: {
       const input = skillsInstallFromFolderRoute.input.parse(rawInput)
       const result = await runtime.skillPresenter.installFromFolder(input.folderPath, input.options)
-      recordSkillSettingsActivity(runtime, 'created', 'skill folder source')
+      if (didSkillOperationSucceed(result)) {
+        recordSkillSettingsActivity(runtime, 'created', 'skill folder source')
+      }
       return skillsInstallFromFolderRoute.output.parse({ result })
     }
 
     case skillsInstallFromZipRoute.name: {
       const input = skillsInstallFromZipRoute.input.parse(rawInput)
       const result = await runtime.skillPresenter.installFromZip(input.zipPath, input.options)
-      recordSkillSettingsActivity(runtime, 'created', 'skill zip source')
+      if (didSkillOperationSucceed(result)) {
+        recordSkillSettingsActivity(runtime, 'created', 'skill zip source')
+      }
       return skillsInstallFromZipRoute.output.parse({ result })
     }
 
     case skillsInstallFromUrlRoute.name: {
       const input = skillsInstallFromUrlRoute.input.parse(rawInput)
       const result = await runtime.skillPresenter.installFromUrl(input.url, input.options)
-      recordSkillSettingsActivity(runtime, 'created', 'skill URL source')
+      if (didSkillOperationSucceed(result)) {
+        recordSkillSettingsActivity(runtime, 'created', 'skill URL source')
+      }
       return skillsInstallFromUrlRoute.output.parse({ result })
     }
 
     case skillsUninstallRoute.name: {
       const input = skillsUninstallRoute.input.parse(rawInput)
       const result = await runtime.skillPresenter.uninstallSkill(input.name)
-      recordSkillRemovedActivity(runtime, input.name)
+      if (didSkillOperationSucceed(result)) {
+        recordSkillRemovedActivity(runtime, input.name)
+      }
       return skillsUninstallRoute.output.parse({ result })
     }
 
     case skillsUpdateFileRoute.name: {
       const input = skillsUpdateFileRoute.input.parse(rawInput)
       const result = await runtime.skillPresenter.updateSkillFile(input.name, input.content)
-      recordSkillUpdatedActivity(runtime, input.name)
+      if (didSkillOperationSucceed(result)) {
+        recordSkillUpdatedActivity(runtime, input.name)
+      }
       return skillsUpdateFileRoute.output.parse({ result })
     }
 
@@ -1875,7 +1889,9 @@ export async function dispatchDeepchatRoute(
         input.content,
         input.config
       )
-      recordSkillUpdatedActivity(runtime, input.name)
+      if (didSkillOperationSucceed(result)) {
+        recordSkillUpdatedActivity(runtime, input.name)
+      }
       return skillsSaveWithExtensionRoute.output.parse({ result })
     }
 

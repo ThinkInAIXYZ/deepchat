@@ -6,7 +6,14 @@
     data-testid="settings-plugins-page"
   >
     <template #actions>
-      <Button variant="outline" size="icon" :disabled="loading" @click="loadPlugins">
+      <Button
+        variant="outline"
+        size="icon"
+        :disabled="loading"
+        :aria-label="t('settings.plugins.refresh')"
+        :title="t('settings.plugins.refresh')"
+        @click="loadPlugins"
+      >
         <Icon icon="lucide:refresh-cw" class="w-4 h-4" />
       </Button>
     </template>

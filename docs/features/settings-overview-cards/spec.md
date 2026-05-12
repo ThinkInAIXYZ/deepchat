@@ -6,10 +6,13 @@ As a user opening Settings Overview, I want the top status cards and setup panel
 
 ## Acceptance Criteria
 
-- The top Providers, MCP, Knowledge, and data status cards are clickable and navigate to their corresponding settings pages.
-- The data status card label is "Last backup time" in English and "最后备份时间" in Chinese.
+- The top Providers, MCP, and DeepChat Agents status cards are clickable and navigate to their corresponding settings pages.
+- Quick start appears as the fourth top-row card.
+- The Quick start card itself is not clickable; only individual check items navigate to their target settings pages.
 - The Needs attention panel is removed from the overview.
-- The usage dashboard nostalgia card ("前尘往事") appears beside Quick start on the overview, and the dashboard copy below does not duplicate it.
+- The Last backup time metric card is removed from the overview top row.
+- The usage dashboard appears immediately below the top row.
+- The usage dashboard nostalgia card ("前尘往事") appears beside Token usage.
 - Quick start tasks that are complete show a green check icon; incomplete tasks keep their configured icon.
 - Recent changes appears at the bottom of the overview and is renamed Recent settings changes.
 
