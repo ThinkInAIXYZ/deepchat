@@ -136,6 +136,8 @@
       :git-diff="selectedGitDiff"
       :loading-file-preview="loadingFilePreview"
       :loading-git-diff="loadingGitDiff"
+      :is-fullscreen="props.isFullscreen"
+      @toggle-fullscreen="emit('toggle-fullscreen')"
     />
   </div>
 </template>
@@ -161,10 +163,12 @@ import type { WorkspaceGitFileChange } from '@shared/presenter'
 const props = defineProps<{
   sessionId: string
   workspacePath: string | null
+  isFullscreen?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:workspacePath': [path: string | null]
+  'toggle-fullscreen': []
 }>()
 
 type ArtifactItem = WorkspaceArtifactContext & {

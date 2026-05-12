@@ -58,8 +58,15 @@ describe('WorkspaceViewer', () => {
       useSidepanelStore: () => sidepanelStore
     }))
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: () => ({
+    vi.doMock('@iconify/vue', () => ({
+      Icon: defineComponent({
+        name: 'Icon',
+        template: '<span data-testid="icon" />'
+      })
+    }))
+
+    vi.doMock('@api/WorkspaceClient', () => ({
+      createWorkspaceClient: () => ({
         openFile: openFileMock
       })
     }))
@@ -117,6 +124,7 @@ describe('WorkspaceViewer', () => {
         gitDiff: null,
         loadingFilePreview: false,
         loadingGitDiff: false,
+        isFullscreen: false,
         ...options?.props
       },
       global: {
@@ -132,6 +140,28 @@ describe('WorkspaceViewer', () => {
 
     return { wrapper, sidepanelStore, openFileMock }
   }
+
+  it('shows a maximize button and emits toggle-fullscreen', async () => {
+    const { wrapper } = await setup()
+
+    const fullscreenButton = wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]')
+    expect(fullscreenButton.attributes('title')).toBe('common.maximize')
+
+    await fullscreenButton.trigger('click')
+    expect(wrapper.emitted('toggle-fullscreen')).toEqual([[]])
+  })
+
+  it('shows restore label while fullscreen is active', async () => {
+    const { wrapper } = await setup({
+      props: {
+        isFullscreen: true
+      }
+    })
+
+    expect(wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]').attributes('title')).toBe(
+      'common.restore'
+    )
+  })
 
   it('shows raw artifact preview through preview pane fallback', async () => {
     const { wrapper } = await setup()
