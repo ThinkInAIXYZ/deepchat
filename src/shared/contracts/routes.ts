@@ -170,6 +170,7 @@ import { startupGetBootstrapRoute } from './routes/startup.routes'
 import {
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
+  sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
   sessionsDeleteMessageRoute,
@@ -439,6 +440,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [sessionsRenameRoute.name]: sessionsRenameRoute,
   [sessionsTogglePinnedRoute.name]: sessionsTogglePinnedRoute,
   [sessionsClearMessagesRoute.name]: sessionsClearMessagesRoute,
+  [sessionsCompactRoute.name]: sessionsCompactRoute,
   [sessionsExportRoute.name]: sessionsExportRoute,
   [sessionsDeleteRoute.name]: sessionsDeleteRoute,
   [sessionsGetAcpSessionCommandsRoute.name]: sessionsGetAcpSessionCommandsRoute,

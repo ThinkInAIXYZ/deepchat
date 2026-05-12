@@ -277,8 +277,12 @@
     }
   },
   "compaction": {
-    "compacting": "דחיסת ההקשר מתבצעת באופן אוטומטי...",
-    "compacted": "ההקשר נדחס אוטומטית"
+    "compacting": "דחיסת ההקשר מתבצעת...",
+    "compacted": "ההקשר נדחס",
+    "commandDescription": "דחיסת הקשר השיחה",
+    "noopTitle": "אין הקשר לדחיסה",
+    "noopDescription": "עדיין אין היסטוריית שיחה חדשה לדחיסה.",
+    "failedTitle": "הדחיסה נכשלה"
   },
   "newThread": {
     "title": "בנו וגלו"

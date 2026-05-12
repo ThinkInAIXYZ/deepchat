@@ -34,6 +34,7 @@ type SetupOptions = {
   currentStreamMessageId?: string | null
   pendingInputStorePatch?: Record<string, unknown>
   sessionKind?: 'regular' | 'subagent'
+  activeSessionPatch?: Record<string, unknown>
   spotlightPendingJump?: { sessionId: string; messageId: string } | null
   deferStartupTasks?: boolean
 }
@@ -49,7 +50,8 @@ const setup = async (options: SetupOptions = {}) => {
       providerId: 'acp',
       modelId: 'dimcode-acp',
       status: 'idle',
-      sessionKind: options.sessionKind ?? 'regular'
+      sessionKind: options.sessionKind ?? 'regular',
+      ...options.activeSessionPatch
     },
     sendMessage: vi.fn().mockResolvedValue(undefined),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
@@ -159,8 +161,17 @@ const setup = async (options: SetupOptions = {}) => {
     retryMessage: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
     editUserMessage: vi.fn().mockResolvedValue(undefined),
-    forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
+    forkSession: vi.fn().mockResolvedValue({ id: 'forked' }),
+    compactSession: vi.fn().mockResolvedValue({
+      compacted: true,
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 3,
+        summaryUpdatedAt: 123
+      }
+    })
   }
+  const toast = vi.fn()
 
   const spotlightStore = reactive({
     pendingMessageJump: options.spotlightPendingJump ?? null,
@@ -190,6 +201,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('@/components/use-toast', () => ({
+    useToast: () => ({ toast })
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
@@ -279,6 +293,10 @@ const setup = async (options: SetupOptions = {}) => {
           default: false
         },
         queueSubmitDisabled: {
+          type: Boolean,
+          default: false
+        },
+        isGenerating: {
           type: Boolean,
           default: false
         }
@@ -381,6 +399,9 @@ const setup = async (options: SetupOptions = {}) => {
     wrapper,
     agentSessionPresenter,
     chatClient,
+    sessionClient,
+    sessionStore,
+    toast,
     messageStore,
     pendingInputStore,
     spotlightStore,
@@ -411,6 +432,98 @@ describe('ChatPage', () => {
 
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
     expect(pendingInputStore.loadPendingInputs).toHaveBeenCalledWith('s1')
+  })
+
+  it('runs manual compaction instead of sending exact /compact in DeepChat sessions', async () => {
+    const { wrapper, chatClient, sessionClient, messageStore } = await setup({
+      activeSessionPatch: {
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      }
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:files', [
+      {
+        name: 'notes.md',
+        path: '/repo/notes.md',
+        mimeType: 'text/markdown'
+      }
+    ])
+    input.vm.$emit('update:modelValue', '/compact')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(sessionClient.compactSession).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(chatClient.sendMessage).not.toHaveBeenCalled()
+    expect(input.props('files')).toEqual([
+      {
+        name: 'notes.md',
+        path: '/repo/notes.md',
+        mimeType: 'text/markdown'
+      }
+    ])
+  })
+
+  it('shows a no-op notice when manual compaction has no eligible history', async () => {
+    const { wrapper, sessionClient, toast } = await setup({
+      activeSessionPatch: {
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      }
+    })
+    sessionClient.compactSession.mockResolvedValueOnce({
+      compacted: false,
+      state: {
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      }
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('command-submit', '/compact')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.compaction.noopTitle',
+      description: 'chat.compaction.noopDescription'
+    })
+  })
+
+  it('does not queue or compact exact /compact while generating', async () => {
+    const { wrapper, chatClient, sessionClient, pendingInputStore } = await setup({
+      isStreaming: true,
+      activeSessionPatch: {
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      }
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('command-submit', '/compact')
+    await flushPromises()
+
+    expect(input.props('isGenerating')).toBe(true)
+    expect(sessionClient.compactSession).not.toHaveBeenCalled()
+    expect(chatClient.sendMessage).not.toHaveBeenCalled()
+    expect(pendingInputStore.queueInput).not.toHaveBeenCalled()
+  })
+
+  it('keeps ACP /compact submissions on the normal command path', async () => {
+    const { wrapper, chatClient, sessionClient } = await setup()
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('command-submit', '/compact')
+    await flushPromises()
+
+    expect(sessionClient.compactSession).not.toHaveBeenCalled()
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('s1', {
+      text: '/compact',
+      files: []
+    })
   })
 
   it('maps reasoning metadata into message usage for think duration fallback', async () => {

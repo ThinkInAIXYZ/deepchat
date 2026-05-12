@@ -1330,6 +1330,29 @@ export class AgentSessionPresenter {
     return await agent.getSessionCompactionState(sessionId)
   }
 
+  async compactSession(
+    sessionId: string
+  ): Promise<{ compacted: boolean; state: SessionCompactionState }> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.compactSession) {
+      throw new Error(`Agent ${session.agentId} does not support manual compaction.`)
+    }
+
+    const agentType = await this.getAgentType(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    const providerId = state?.providerId || (agentType === 'acp' ? 'acp' : '')
+    if (agentType === 'acp' || providerId === 'acp') {
+      throw new Error('Manual compaction is only available for DeepChat agent sessions.')
+    }
+
+    return await agent.compactSession(sessionId)
+  }
+
   async getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
     const normalizedMessageId = messageId?.trim()
     if (!normalizedMessageId) {

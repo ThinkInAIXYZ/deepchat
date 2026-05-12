@@ -106,6 +106,7 @@ const props = withDefaults(
     sessionId?: string | null
     workspacePath?: string | null
     isAcpSession?: boolean
+    isGenerating?: boolean
     submitDisabled?: boolean
     queueSubmitEnabled?: boolean
     queueSubmitDisabled?: boolean
@@ -118,6 +119,7 @@ const props = withDefaults(
     sessionId: null,
     workspacePath: null,
     isAcpSession: false,
+    isGenerating: false,
     submitDisabled: false,
     queueSubmitEnabled: false,
     queueSubmitDisabled: false,
@@ -150,6 +152,8 @@ const mentions = useChatInputMentions({
   workspacePath: computed(() => props.workspacePath),
   sessionId: computed(() => props.sessionId),
   isAcpSession: computed(() => props.isAcpSession),
+  isGenerating: computed(() => props.isGenerating),
+  compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
   onCommandSubmit: (command) => emit('command-submit', command),
   onActivateSkill: async (skillName) => {
     await skillsData.activateSkill(skillName)

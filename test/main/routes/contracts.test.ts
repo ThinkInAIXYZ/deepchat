@@ -19,6 +19,7 @@ import {
   providersTestConnectionRoute,
   configListAgentsRoute,
   sessionsActivateRoute,
+  sessionsCompactRoute,
   sessionsGetGenerationSettingsRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
@@ -61,6 +62,7 @@ describe('main kernel contracts', () => {
         'providers.pullOllamaModel',
         'sessions.activate',
         'sessions.clearMessages',
+        'sessions.compact',
         'sessions.convertPendingInputToSteer',
         'sessions.delete',
         'sessions.deleteMessage',
@@ -399,6 +401,34 @@ describe('main kernel contracts', () => {
       content: {
         text: 'actually, focus on risks',
         files: [pdfAttachment]
+      }
+    })
+  })
+
+  it('validates manual compaction route contracts', () => {
+    expect(
+      sessionsCompactRoute.input.parse({
+        sessionId: 'session-1'
+      })
+    ).toEqual({
+      sessionId: 'session-1'
+    })
+
+    expect(
+      sessionsCompactRoute.output.parse({
+        compacted: true,
+        state: {
+          status: 'compacted',
+          cursorOrderSeq: 3,
+          summaryUpdatedAt: 123
+        }
+      })
+    ).toEqual({
+      compacted: true,
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 3,
+        summaryUpdatedAt: 123
       }
     })
   })

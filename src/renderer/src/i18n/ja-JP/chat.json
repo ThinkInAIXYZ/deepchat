@@ -277,8 +277,12 @@
     }
   },
   "compaction": {
-    "compacting": "コンテキストを自動圧縮しています...",
-    "compacted": "コンテキストは自動圧縮されました"
+    "compacting": "コンテキストを圧縮しています...",
+    "compacted": "コンテキストは圧縮されました",
+    "commandDescription": "会話コンテキストを圧縮",
+    "noopTitle": "圧縮できるコンテキストがありません",
+    "noopDescription": "まだ圧縮できる新しい会話履歴がありません。",
+    "failedTitle": "圧縮に失敗しました"
   },
   "newThread": {
     "title": "作成して探索"

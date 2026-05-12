@@ -1609,6 +1609,83 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return { ...persistedState }
   }
 
+  async compactSession(
+    sessionId: string
+  ): Promise<{ compacted: boolean; state: SessionCompactionState }> {
+    const state = this.runtimeState.get(sessionId) ?? (await this.getSessionListState(sessionId))
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+    if (this.shouldBypassDeepChatContextBudget(state.providerId)) {
+      throw new Error('Manual compaction is only available for DeepChat agent sessions.')
+    }
+    if (state.status !== 'idle') {
+      throw new Error('Manual compaction is only available when the session is idle.')
+    }
+    if (this.hasPendingInteractions(sessionId)) {
+      throw new Error('Pending tool interactions must be resolved before compacting.')
+    }
+
+    this.setSessionStatus(sessionId, 'generating')
+    try {
+      const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      const interleavedReasoning = this.resolveInterleavedReasoningConfig(
+        state.providerId,
+        state.modelId,
+        generationSettings
+      )
+      const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
+        state.providerId,
+        generationSettings.contextLength
+      )
+      const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
+      const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
+      const projectDir = this.resolveProjectDir(sessionId)
+      const tools = await this.loadToolDefinitionsForSession(
+        sessionId,
+        projectDir,
+        activeSkillNames
+      )
+      const toolReserveTokens = estimateToolReserveTokens(tools)
+      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
+        sessionId,
+        generationSettings.systemPrompt,
+        tools,
+        activeSkillNames
+      )
+
+      const intent = await this.compactionService.prepareForManualCompaction({
+        sessionId,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        systemPrompt: baseSystemPrompt,
+        contextLength: generationSettings.contextLength,
+        reserveTokens: maxTokens,
+        extraReserveTokens: toolReserveTokens,
+        supportsVision: this.supportsVision(state.providerId, state.modelId),
+        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+        preserveEmptyInterleavedReasoning:
+          interleavedReasoning.preserveEmptyReasoningContent === true
+      })
+
+      if (!intent) {
+        return {
+          compacted: false,
+          state: await this.getSessionCompactionState(sessionId)
+        }
+      }
+
+      const summaryState = await this.applyCompactionIntent(sessionId, intent)
+      const compacted = summaryState.summaryUpdatedAt !== intent.previousState.summaryUpdatedAt
+      return {
+        compacted,
+        state: await this.getSessionCompactionState(sessionId)
+      }
+    } finally {
+      this.setSessionStatus(sessionId, 'idle')
+    }
+  }
+
   async clearMessages(sessionId: string): Promise<void> {
     const state = await this.getSessionState(sessionId)
     if (!state) {

@@ -111,6 +111,7 @@ import {
   providersUpdateRoute,
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
+  sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
   sessionsDeleteMessageRoute,
@@ -1709,6 +1710,12 @@ export async function dispatchDeepchatRoute(
       const input = sessionsClearMessagesRoute.input.parse(rawInput)
       await runtime.agentSessionPresenter.clearSessionMessages(input.sessionId)
       return sessionsClearMessagesRoute.output.parse({ cleared: true })
+    }
+
+    case sessionsCompactRoute.name: {
+      const input = sessionsCompactRoute.input.parse(rawInput)
+      const result = await runtime.agentSessionPresenter.compactSession(input.sessionId)
+      return sessionsCompactRoute.output.parse(result)
     }
 
     case sessionsExportRoute.name: {

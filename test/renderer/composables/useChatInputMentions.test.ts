@@ -4,7 +4,10 @@ import {
   filterSlashSuggestionItems,
   flattenPromptResultToText,
   MAX_FILTERED_SLASH_SUGGESTIONS,
+  createManualCompactionSuggestion,
+  isManualCompactionCommand,
   resolveSlashSelectionAction,
+  shouldShowManualCompactionCommand,
   sortSlashSuggestionItems,
   type SlashSuggestionItem
 } from '@/components/chat/mentions/utils'
@@ -35,6 +38,20 @@ describe('flattenPromptResultToText', () => {
 })
 
 describe('resolveSlashSelectionAction', () => {
+  it('dispatches the manual compaction command directly', () => {
+    const item = createManualCompactionSuggestion('Compact conversation context')
+
+    expect(item).toMatchObject({
+      id: 'command:compact',
+      category: 'command',
+      label: '/compact'
+    })
+    expect(resolveSlashSelectionAction(item)).toEqual({
+      kind: 'send-command',
+      command: '/compact'
+    })
+  })
+
   it('dispatches command directly when no input hint', () => {
     const item: SlashSuggestionItem = {
       id: 'command:plan',
@@ -134,6 +151,46 @@ describe('resolveSlashSelectionAction', () => {
 
     const sorted = sortSlashSuggestionItems(unordered)
     expect(sorted.map((item) => item.category)).toEqual(['command', 'skill', 'prompt', 'tool'])
+  })
+})
+
+describe('manual compaction slash visibility', () => {
+  it('only shows manual compaction for idle DeepChat sessions', () => {
+    expect(
+      shouldShowManualCompactionCommand({
+        sessionId: 's1',
+        isAcpSession: false,
+        isGenerating: false
+      })
+    ).toBe(true)
+    expect(
+      shouldShowManualCompactionCommand({
+        sessionId: 's1',
+        isAcpSession: false,
+        isGenerating: true
+      })
+    ).toBe(false)
+    expect(
+      shouldShowManualCompactionCommand({
+        sessionId: 's1',
+        isAcpSession: true,
+        isGenerating: false
+      })
+    ).toBe(false)
+    expect(
+      shouldShowManualCompactionCommand({
+        sessionId: null,
+        isAcpSession: false,
+        isGenerating: false
+      })
+    ).toBe(false)
+  })
+
+  it('matches only exact manual compaction submissions', () => {
+    expect(isManualCompactionCommand('/compact')).toBe(true)
+    expect(isManualCompactionCommand('  /compact  ')).toBe(true)
+    expect(isManualCompactionCommand('/compact now')).toBe(false)
+    expect(isManualCompactionCommand('/compactly')).toBe(false)
   })
 })
 

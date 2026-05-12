@@ -101,6 +101,7 @@ export interface IAgentSessionPresenter {
   ): Promise<ChatMessagePageResult>
   searchHistory(query: string, options?: HistorySearchOptions): Promise<HistorySearchHit[]>
   getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
+  compactSession(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   getLegacyImportStatus(): Promise<LegacyImportStatus>
   retryLegacyImport(): Promise<LegacyImportStatus>

@@ -390,6 +390,27 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
+  it('does not create a deepchat session from a draft /compact command', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore } = await setup()
+
+    agentStore.selectedAgentId = 'deepchat'
+    await flushPromises()
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    ;(wrapper.vm as any).message = '/compact'
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).not.toHaveBeenCalled()
+    expect(sessionStore.sendMessage).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).message).toBe('/compact')
+  })
+
   it('keeps draft input when deepchat session creation fails', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {

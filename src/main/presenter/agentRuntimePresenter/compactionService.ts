@@ -362,6 +362,36 @@ export class CompactionService {
     })
   }
 
+  async prepareForManualCompaction(params: {
+    sessionId: string
+    providerId: string
+    modelId: string
+    systemPrompt: string
+    contextLength: number
+    reserveTokens: number
+    extraReserveTokens?: number
+    supportsVision: boolean
+    preserveInterleavedReasoning: boolean
+    preserveEmptyInterleavedReasoning?: boolean
+    signal?: AbortSignal
+  }): Promise<CompactionIntent | null> {
+    throwIfAbortRequested(params.signal)
+
+    const historyRecords = this.messageStore
+      .getMessages(params.sessionId)
+      .filter(isContextHistoryRecord)
+      .sort((a, b) => a.orderSeq - b.orderSeq)
+
+    return this.prepareCompaction({
+      ...params,
+      records: historyRecords,
+      protectedTurnCount: 0,
+      triggerThreshold: 0,
+      projectedMessages: [],
+      force: true
+    })
+  }
+
   async applyCompaction(
     intent: CompactionIntent,
     signal?: AbortSignal

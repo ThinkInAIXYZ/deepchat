@@ -127,6 +127,7 @@ import {
   type ChatModelSelection
 } from '@/lib/chatModelSelection'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -291,6 +292,7 @@ async function onSubmit() {
 
   const text = message.value.trim()
   if (!text) return
+  if (shouldIgnoreManualCompactionDraft(text)) return
   const files = [...attachedFiles.value].map((f) => toRaw(f))
 
   try {
@@ -306,6 +308,7 @@ async function onCommandSubmit(command: string) {
   if (isAcpWorkdirMissing.value) return
   const text = command.trim()
   if (!text) return
+  if (shouldIgnoreManualCompactionDraft(text)) return
   const files = [...attachedFiles.value].map((f) => toRaw(f))
   try {
     await submitText(text, files)
@@ -313,6 +316,10 @@ async function onCommandSubmit(command: string) {
   } catch (e) {
     console.error('[NewThreadPage] submit failed:', e)
   }
+}
+
+function shouldIgnoreManualCompactionDraft(text: string): boolean {
+  return !isAcpSelectedAgent.value && isManualCompactionCommand(text)
 }
 
 async function submitText(text: string, files: MessageFile[]) {

@@ -3657,6 +3657,131 @@ describe('AgentRuntimePresenter', () => {
       ])
     })
 
+    it('manually compacts without creating a user turn or streaming', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        autoCompactionEnabled: false,
+        autoCompactionRetainRecentPairs: 1
+      })
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq.mockReturnValue(6)
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 128000,
+          maxTokens: 4096
+        }
+      })
+      const result = await agent.compactSession('s1')
+
+      expect(result).toEqual({
+        compacted: true,
+        state: expect.objectContaining({
+          status: 'compacted',
+          cursorOrderSeq: 7
+        })
+      })
+      expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
+      expect(processStream).not.toHaveBeenCalled()
+
+      const insertRows = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.map(
+        ([row]: any[]) => row
+      )
+      expect(insertRows).toHaveLength(1)
+      expect(insertRows[0]).toEqual(
+        expect.objectContaining({
+          sessionId: 's1',
+          orderSeq: 7,
+          role: 'assistant',
+          status: 'sent'
+        })
+      )
+      expect(JSON.parse(insertRows[0].metadata)).toEqual({
+        messageType: 'compaction',
+        compactionStatus: 'compacting',
+        summaryUpdatedAt: null
+      })
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
+        'mock-msg-id',
+        expect.any(String),
+        'sent',
+        expect.stringContaining('"compactionStatus":"compacted"')
+      )
+    })
+
+    it('marks the session generating before manual compaction preparation awaits', async () => {
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(1))
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq.mockReturnValue(2)
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 128000,
+          maxTokens: 4096
+        }
+      })
+
+      const getGenerationSettings = (agent as any).getEffectiveSessionGenerationSettings.bind(agent)
+      const generationSettingsSpy = vi
+        .spyOn(agent as any, 'getEffectiveSessionGenerationSettings')
+        .mockImplementation(async (sessionId: string) => {
+          expect((agent as any).runtimeState.get(sessionId).status).toBe('generating')
+          return await getGenerationSettings(sessionId)
+        })
+
+      await agent.compactSession('s1')
+
+      expect(generationSettingsSpy).toHaveBeenCalledWith('s1')
+      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+    })
+
+    it('restores idle status when manual compaction has no eligible history', async () => {
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([])
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 128000,
+          maxTokens: 4096
+        }
+      })
+
+      const result = await agent.compactSession('s1')
+
+      expect(result.compacted).toBe(false)
+      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+    })
+
+    it('does not manually compact ACP sessions', async () => {
+      const prepareSpy = vi.spyOn((agent as any).compactionService, 'prepareForManualCompaction')
+      await agent.initSession('s1', {
+        providerId: 'acp',
+        modelId: 'claude-code-acp'
+      })
+
+      await expect(agent.compactSession('s1')).rejects.toThrow(
+        'Manual compaction is only available for DeepChat agent sessions.'
+      )
+      expect(prepareSpy).not.toHaveBeenCalled()
+    })
+
+    it('does not manually compact while the session is generating', async () => {
+      const prepareSpy = vi.spyOn((agent as any).compactionService, 'prepareForManualCompaction')
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+      ;(agent as any).runtimeState.get('s1').status = 'generating'
+
+      await expect(agent.compactSession('s1')).rejects.toThrow(
+        'Manual compaction is only available when the session is idle.'
+      )
+      expect(prepareSpy).not.toHaveBeenCalled()
+    })
+
     it('falls back to the previous compacted state when compaction fails', async () => {
       await agent.initSession('s1', {
         providerId: 'openai',
