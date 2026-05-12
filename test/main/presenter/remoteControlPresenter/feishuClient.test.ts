@@ -189,6 +189,45 @@ describe('FeishuClient', () => {
     expect((client as any).sdk.im.message.create).not.toHaveBeenCalled()
   })
 
+  it('serializes post replies using the Feishu post content schema', async () => {
+    const client = new FeishuClient({
+      brand: 'feishu',
+      appId: 'cli_feishu',
+      appSecret: 'secret',
+      verificationToken: 'verify',
+      encryptKey: 'encrypt'
+    })
+    ;(client as any).sdk.im.message.reply.mockResolvedValue({
+      data: {
+        message_id: 'om_reply'
+      }
+    })
+
+    const messageId = await client.sendMarkdown(
+      {
+        chatId: 'oc_1',
+        replyToMessageId: 'om_source'
+      },
+      'Pairing complete.'
+    )
+
+    expect(messageId).toBe('om_reply')
+    expect((client as any).sdk.im.message.reply).toHaveBeenCalledWith({
+      path: {
+        message_id: 'om_source'
+      },
+      data: {
+        content: JSON.stringify({
+          zh_cn: {
+            content: [[{ tag: 'md', text: 'Pairing complete.' }]]
+          }
+        }),
+        msg_type: 'post',
+        reply_in_thread: false
+      }
+    })
+  })
+
   it('fails fast when the image file is missing', async () => {
     const client = new FeishuClient({
       brand: 'feishu',
