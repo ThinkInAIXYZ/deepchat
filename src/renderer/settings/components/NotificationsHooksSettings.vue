@@ -1,5 +1,5 @@
 <template>
-  <ScrollArea class="h-full w-full">
+  <ScrollArea data-testid="settings-notifications-hooks-page" class="h-full w-full">
     <div class="flex h-full w-full flex-col gap-4 p-4">
       <div v-if="isLoading" class="text-sm text-muted-foreground">
         {{ t('common.loading') }}

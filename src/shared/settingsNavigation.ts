@@ -1,5 +1,6 @@
 export interface SettingsNavigationItem {
   routeName:
+    | 'settings-overview'
     | 'settings-common'
     | 'settings-display'
     | 'settings-environments'
@@ -21,8 +22,25 @@ export interface SettingsNavigationItem {
   titleKey: string
   icon: string
   position: number
+  groupKey: SettingsNavigationGroupKey
   keywords: string[]
   supportedPlatforms?: string[]
+  hiddenInSidebar?: boolean
+}
+
+export type SettingsNavigationGroupKey =
+  | 'overview'
+  | 'setup'
+  | 'models'
+  | 'tools'
+  | 'knowledge'
+  | 'system'
+
+export interface SettingsNavigationGroup {
+  key: SettingsNavigationGroupKey
+  titleKey: string
+  position: number
+  items: SettingsNavigationItem[]
 }
 
 export interface SettingsNavigationPayload {
@@ -31,13 +49,56 @@ export interface SettingsNavigationPayload {
   section?: string
 }
 
+export const SETTINGS_NAVIGATION_GROUPS: Array<Omit<SettingsNavigationGroup, 'items'>> = [
+  {
+    key: 'overview',
+    titleKey: 'settings.controlCenter.groups.overview',
+    position: 0
+  },
+  {
+    key: 'setup',
+    titleKey: 'settings.controlCenter.groups.setup',
+    position: 1
+  },
+  {
+    key: 'models',
+    titleKey: 'settings.controlCenter.groups.models',
+    position: 2
+  },
+  {
+    key: 'tools',
+    titleKey: 'settings.controlCenter.groups.tools',
+    position: 3
+  },
+  {
+    key: 'knowledge',
+    titleKey: 'settings.controlCenter.groups.knowledge',
+    position: 4
+  },
+  {
+    key: 'system',
+    titleKey: 'settings.controlCenter.groups.system',
+    position: 5
+  }
+]
+
 export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
+  {
+    routeName: 'settings-overview',
+    path: '/overview',
+    titleKey: 'routes.settings-overview',
+    icon: 'lucide:gauge',
+    position: 0,
+    groupKey: 'overview',
+    keywords: ['overview', 'dashboard', 'usage', 'settings', '控制台', '设置中心', '用量']
+  },
   {
     routeName: 'settings-common',
     path: '/common',
     titleKey: 'routes.settings-common',
     icon: 'lucide:bolt',
     position: 1,
+    groupKey: 'setup',
     keywords: ['common', 'general', 'preferences', '通用', '设置']
   },
   {
@@ -46,6 +107,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-display',
     icon: 'lucide:monitor',
     position: 2,
+    groupKey: 'setup',
     keywords: ['display', 'theme', 'font', 'appearance', '显示', '主题', '字体']
   },
   {
@@ -54,6 +116,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-environments',
     icon: 'lucide:folders',
     position: 2.5,
+    groupKey: 'setup',
     keywords: ['environment', 'workspace', 'folder', 'project', '环境', '工作区', '目录']
   },
   {
@@ -62,6 +125,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-provider',
     icon: 'lucide:cloud-cog',
     position: 3,
+    groupKey: 'models',
     keywords: ['provider', 'model', 'llm', 'openai', 'anthropic', '服务商', '模型']
   },
   {
@@ -70,6 +134,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-deepchat-agents',
     icon: 'lucide:bot',
     position: 3.5,
+    groupKey: 'tools',
     keywords: ['agent', 'agents', 'deepchat', '智能体', 'agent']
   },
   {
@@ -78,6 +143,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-acp',
     icon: 'lucide:shield-check',
     position: 4,
+    groupKey: 'tools',
     keywords: ['acp', 'agent client protocol']
   },
   {
@@ -86,7 +152,9 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-dashboard',
     icon: 'lucide:layout-dashboard',
     position: 4.5,
-    keywords: ['dashboard', 'usage', 'stats', '统计', '用量']
+    groupKey: 'overview',
+    keywords: ['dashboard', 'usage', 'stats', '统计', '用量'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-mcp',
@@ -94,6 +162,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-mcp',
     icon: 'lucide:server',
     position: 5,
+    groupKey: 'tools',
     keywords: ['mcp', 'tools', 'server', 'model context protocol', '工具', '服务']
   },
   {
@@ -102,6 +171,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-remote',
     icon: 'lucide:smartphone',
     position: 5.25,
+    groupKey: 'tools',
     keywords: ['remote', 'telegram', 'feishu', 'control', '远程', '控制']
   },
   {
@@ -110,6 +180,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-notifications-hooks',
     icon: 'lucide:bell',
     position: 5.5,
+    groupKey: 'tools',
     keywords: ['notification', 'hook', 'webhook', '通知']
   },
   {
@@ -118,6 +189,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-plugins',
     icon: 'lucide:puzzle',
     position: 5.75,
+    groupKey: 'tools',
     keywords: ['plugin', 'plugins', 'extension', 'runtime', '插件', '扩展', '运行时'],
     supportedPlatforms: ['darwin']
   },
@@ -127,6 +199,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-skills',
     icon: 'lucide:wand-sparkles',
     position: 6,
+    groupKey: 'knowledge',
     keywords: ['skill', 'skills', '技能']
   },
   {
@@ -135,6 +208,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-prompt',
     icon: 'lucide:book-open-text',
     position: 7,
+    groupKey: 'knowledge',
     keywords: ['prompt', 'system prompt', '提示词']
   },
   {
@@ -143,6 +217,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-knowledge-base',
     icon: 'lucide:book-marked',
     position: 8,
+    groupKey: 'knowledge',
     keywords: ['knowledge', 'rag', 'knowledge base', '知识库']
   },
   {
@@ -151,6 +226,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-database',
     icon: 'lucide:database',
     position: 9,
+    groupKey: 'system',
     keywords: ['database', 'data', 'backup', '数据', '备份']
   },
   {
@@ -159,6 +235,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-shortcut',
     icon: 'lucide:keyboard',
     position: 10,
+    groupKey: 'setup',
     keywords: ['shortcut', 'hotkey', 'keybinding', '快捷键']
   },
   {
@@ -167,6 +244,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-about',
     icon: 'lucide:info',
     position: 11,
+    groupKey: 'system',
     keywords: ['about', 'version', 'info', '关于', '版本']
   }
 ]
@@ -205,18 +283,32 @@ export const isSettingsNavigationItemSupported = (
 }
 
 export const getSettingsNavigationItems = (platform?: string): SettingsNavigationItem[] =>
+  getSettingsRouteItems(platform).filter((item) => !item.hiddenInSidebar)
+
+export const getSettingsRouteItems = (platform?: string): SettingsNavigationItem[] =>
   SETTINGS_NAVIGATION_ITEMS.filter((item) => isSettingsNavigationItemSupported(item, platform))
+
+export const getSettingsNavigationGroups = (platform?: string): SettingsNavigationGroup[] => {
+  const items = getSettingsNavigationItems(platform)
+
+  return SETTINGS_NAVIGATION_GROUPS.map((group) => ({
+    ...group,
+    items: items
+      .filter((item) => item.groupKey === group.key)
+      .sort((left, right) => left.position - right.position)
+  })).filter((group) => group.items.length > 0)
+}
 
 export const resolveSettingsNavigationPath = (
   routeName: SettingsNavigationItem['routeName'],
   params?: Record<string, string>,
   platform?: string
 ): string => {
-  const item = getSettingsNavigationItems(platform).find(
+  const item = getSettingsRouteItems(platform).find(
     (navigationItem) => navigationItem.routeName === routeName
   )
   if (!item) {
-    return '/common'
+    return '/overview'
   }
 
   const resolvedSegments = item.path

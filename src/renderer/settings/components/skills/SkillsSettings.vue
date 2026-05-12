@@ -1,79 +1,91 @@
 <template>
-  <div class="w-full h-full flex flex-col">
-    <!-- Header -->
-    <SkillsHeader
-      v-model:search-query="searchQuery"
-      @install="installDialogOpen = true"
-      @export="openSyncDialog('export')"
-    />
+  <SettingsPageShell
+    :title="t('settings.skills.title')"
+    :description="t('settings.skills.description')"
+    :eyebrow="t('settings.controlCenter.groups.knowledge')"
+    data-testid="settings-skills-page"
+  >
+    <template #actions>
+      <div class="relative">
+        <Icon
+          icon="lucide:search"
+          class="absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          :model-value="searchQuery"
+          :placeholder="t('settings.skills.search')"
+          class="h-8 w-48 pl-8"
+          @update:model-value="searchQuery = String($event)"
+        />
+      </div>
+      <Button variant="outline" size="sm" @click="openSyncDialog('export')">
+        <Icon icon="lucide:upload" class="w-4 h-4 mr-1" />
+        {{ t('settings.skills.sync.export') }}
+      </Button>
+      <Button size="sm" @click="installDialogOpen = true">
+        <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
+        {{ t('settings.skills.addSkill') }}
+      </Button>
+    </template>
 
-    <!-- Scrollable content -->
-    <div class="flex-1 min-h-0">
-      <ScrollArea class="h-full">
-        <div class="px-4">
-          <Separator class="my-4" />
+    <div>
+      <Separator class="my-4" />
 
-          <!-- Sync Status Section -->
-          <div class="mb-4 rounded-lg border px-4 py-3 flex items-start justify-between gap-4">
-            <div class="space-y-1">
-              <div class="text-sm font-medium">
-                {{ t('settings.skills.draftSuggestions.title') }}
-              </div>
-              <p class="text-xs text-muted-foreground">
-                {{ t('settings.skills.draftSuggestions.description') }}
-              </p>
-            </div>
-            <Switch
-              :model-value="draftSuggestionsEnabled"
-              @update:model-value="handleDraftSuggestionsToggle"
-            />
+      <div class="mb-4 rounded-lg border px-4 py-3 flex items-start justify-between gap-4">
+        <div class="space-y-1">
+          <div class="text-sm font-medium">
+            {{ t('settings.skills.draftSuggestions.title') }}
           </div>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.skills.draftSuggestions.description') }}
+          </p>
+        </div>
+        <Switch
+          :model-value="draftSuggestionsEnabled"
+          @update:model-value="handleDraftSuggestionsToggle"
+        />
+      </div>
 
-          <!-- Sync Status Section -->
-          <div class="mb-4">
-            <SyncStatusSection @import="handleQuickImport" @import-new="handleImportNew" />
-          </div>
+      <div class="mb-4">
+        <SyncStatusSection @import="handleQuickImport" @import-new="handleImportNew" />
+      </div>
 
-          <Separator class="mb-4" />
+      <Separator class="mb-4" />
 
-          <!-- Skills grid -->
-          <div v-if="loading" class="space-y-3 pb-4 animate-pulse">
-            <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
-              <div class="space-y-3">
-                <div class="h-4 w-40 rounded bg-muted/60"></div>
-                <div class="h-3 w-full rounded bg-muted/40"></div>
-                <div class="h-3 w-3/4 rounded bg-muted/30"></div>
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-else-if="filteredSkills.length === 0"
-            class="flex flex-col items-center justify-center py-8"
-          >
-            <Icon icon="lucide:wand-sparkles" class="w-12 h-12 text-muted-foreground/50 mb-4" />
-            <p class="text-muted-foreground text-sm">
-              {{ searchQuery ? t('settings.skills.noResults') : t('settings.skills.empty') }}
-            </p>
-            <p v-if="!searchQuery" class="text-muted-foreground/70 text-xs mt-1">
-              {{ t('settings.skills.emptyHint') }}
-            </p>
-          </div>
-
-          <!-- Skills list -->
-          <div v-else class="flex flex-col gap-2 pb-4">
-            <SkillCard
-              v-for="skill in filteredSkills"
-              :key="skill.name"
-              :skill="skill"
-              :extension="skillExtensions[skill.name]"
-              :scripts="skillScripts[skill.name] || []"
-              @edit="openEditor(skill)"
-              @delete="confirmDelete(skill)"
-            />
+      <div v-if="loading" class="space-y-3 pb-4 animate-pulse">
+        <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
+          <div class="space-y-3">
+            <div class="h-4 w-40 rounded bg-muted/60"></div>
+            <div class="h-3 w-full rounded bg-muted/40"></div>
+            <div class="h-3 w-3/4 rounded bg-muted/30"></div>
           </div>
         </div>
-      </ScrollArea>
+      </div>
+
+      <div
+        v-else-if="filteredSkills.length === 0"
+        class="flex flex-col items-center justify-center py-8"
+      >
+        <Icon icon="lucide:wand-sparkles" class="w-12 h-12 text-muted-foreground/50 mb-4" />
+        <p class="text-muted-foreground text-sm">
+          {{ searchQuery ? t('settings.skills.noResults') : t('settings.skills.empty') }}
+        </p>
+        <p v-if="!searchQuery" class="text-muted-foreground/70 text-xs mt-1">
+          {{ t('settings.skills.emptyHint') }}
+        </p>
+      </div>
+
+      <div v-else class="flex flex-col gap-2 pb-4">
+        <SkillCard
+          v-for="skill in filteredSkills"
+          :key="skill.name"
+          :skill="skill"
+          :extension="skillExtensions[skill.name]"
+          :scripts="skillScripts[skill.name] || []"
+          @edit="openEditor(skill)"
+          @delete="confirmDelete(skill)"
+        />
+      </div>
     </div>
 
     <!-- Install dialog -->
@@ -112,7 +124,7 @@
 
     <!-- First-launch sync prompt -->
     <SyncPromptDialog @import="handlePromptImport" @close="handlePromptClose" />
-  </div>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
@@ -121,8 +133,9 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { Icon } from '@iconify/vue'
 import { Separator } from '@shadcn/components/ui/separator'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
+import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -138,13 +151,13 @@ import { useSkillsStore } from '@/stores/skillsStore'
 import { useLegacyPresenter } from '@api/legacy/presenters'
 import type { SkillMetadata } from '@shared/types/skill'
 
-import SkillsHeader from './SkillsHeader.vue'
 import SkillCard from './SkillCard.vue'
 import SkillInstallDialog from './SkillInstallDialog.vue'
 import SkillEditorSheet from './SkillEditorSheet.vue'
 import SyncStatusSection from './SyncStatusSection.vue'
 import SyncPromptDialog from './SyncPromptDialog.vue'
 import { SkillSyncDialog } from './SkillSyncDialog'
+import SettingsPageShell from '../control-center/SettingsPageShell.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()

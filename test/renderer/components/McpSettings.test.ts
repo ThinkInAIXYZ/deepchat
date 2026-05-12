@@ -33,6 +33,31 @@ const setup = async (query: Record<string, string> = {}) => {
   const toast = vi.fn()
   const mcpStore = reactive({
     mcpEnabled: true,
+    configLoading: false,
+    serverList: [
+      {
+        name: 'Artifacts',
+        enabled: true,
+        isRunning: true
+      },
+      {
+        name: 'Custom',
+        enabled: false,
+        isRunning: false
+      }
+    ],
+    config: {
+      ready: true,
+      mcpServers: {
+        Artifacts: {
+          type: 'inmemory',
+          source: 'deepchat'
+        },
+        Custom: {
+          type: 'stdio'
+        }
+      }
+    },
     setMcpEnabled: vi.fn().mockResolvedValue(undefined),
     getNpmRegistryStatus: vi.fn().mockResolvedValue({
       currentRegistry: null,
@@ -80,6 +105,11 @@ const setup = async (query: Record<string, string> = {}) => {
         Input: true,
         Icon: true,
         Separator: true,
+        Card: passthrough('Card'),
+        CardContent: passthrough('CardContent'),
+        CardDescription: passthrough('CardDescription'),
+        CardHeader: passthrough('CardHeader'),
+        CardTitle: passthrough('CardTitle'),
         Collapsible: passthrough('Collapsible'),
         CollapsibleContent: passthrough('CollapsibleContent'),
         CollapsibleTrigger: passthrough('CollapsibleTrigger'),

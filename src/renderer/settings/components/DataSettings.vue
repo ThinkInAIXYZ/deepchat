@@ -1,6 +1,10 @@
 <template>
-  <ScrollArea class="w-full h-full">
-    <div class="flex h-full w-full flex-col gap-4 p-4">
+  <SettingsPageShell
+    data-testid="settings-data-page"
+    :title="t('settings.data.privacyTitle')"
+    :description="t('settings.data.privacyDescription')"
+  >
+    <div class="flex w-full flex-col gap-4">
       <div class="rounded-xl border border-border bg-card/30 p-4">
         <div class="mb-4 flex items-center gap-2" :dir="languageStore.dir">
           <Icon icon="lucide:refresh-cw" class="h-4 w-4 text-muted-foreground" />
@@ -277,24 +281,47 @@
             <div class="flex gap-3">
               <Icon icon="lucide:rotate-ccw" class="mt-1 h-4 w-4 text-muted-foreground" />
               <div class="flex flex-col gap-1">
-                <div class="text-sm font-medium">{{ t('settings.data.resetData') }}</div>
+                <div class="text-sm font-medium">{{ t('settings.data.dangerZone.title') }}</div>
                 <p class="text-xs text-muted-foreground">
-                  {{ t('settings.data.resetDataDescription') }}
+                  {{ t('settings.data.dangerZone.description') }}
                 </p>
               </div>
             </div>
             <AlertDialog v-model:open="isResetDialogOpen">
-              <AlertDialogTrigger as-child>
+              <div class="grid w-full shrink-0 gap-2 lg:w-[34rem] lg:grid-cols-3">
                 <Button
                   variant="destructive"
-                  class="w-full shrink-0 lg:w-48"
+                  class="w-full"
                   :disabled="isResetActionDisabled"
                   :dir="languageStore.dir"
+                  @click="openResetDialog('chat')"
                 >
                   <Icon icon="lucide:rotate-ccw" class="h-4 w-4" />
-                  <span class="text-sm font-medium">{{ t('settings.data.resetData') }}</span>
+                  <span class="text-sm font-medium">{{ t('settings.data.resetChatData') }}</span>
                 </Button>
-              </AlertDialogTrigger>
+                <Button
+                  variant="destructive"
+                  class="w-full"
+                  :disabled="isResetActionDisabled"
+                  :dir="languageStore.dir"
+                  @click="openResetDialog('knowledge')"
+                >
+                  <Icon icon="lucide:book-x" class="h-4 w-4" />
+                  <span class="text-sm font-medium">{{
+                    t('settings.data.resetKnowledgeData')
+                  }}</span>
+                </Button>
+                <Button
+                  variant="destructive"
+                  class="w-full"
+                  :disabled="isResetActionDisabled"
+                  :dir="languageStore.dir"
+                  @click="openResetDialog('all')"
+                >
+                  <Icon icon="lucide:triangle-alert" class="h-4 w-4" />
+                  <span class="text-sm font-medium">{{ t('settings.data.resetAll') }}</span>
+                </Button>
+              </div>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>{{ t('settings.data.resetConfirmTitle') }}</AlertDialogTitle>
@@ -466,13 +493,12 @@
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  </ScrollArea>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { DatabaseRepairReport } from '@shared/presenter'
@@ -514,6 +540,7 @@ import { useLegacyPresenter } from '@api/legacy/presenters'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/use-toast'
 import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
+import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
@@ -566,7 +593,6 @@ const isResetActionDisabled = computed(() => {
   return isResetting.value || isBackupActive.value || isImporting.value
 })
 
-// 使用计算属性处理双向绑定
 const syncEnabled = computed({
   get: () => syncStore.syncEnabled,
   set: (value) => syncStore.setSyncEnabled(value)
@@ -709,7 +735,6 @@ const handleSettingsSectionNavigation = (event: Event) => {
   void runSchemaRepair()
 }
 
-// 初始化
 onMounted(async () => {
   await syncStore.initialize()
   window.addEventListener(SETTINGS_SECTION_EVENT, handleSettingsSectionNavigation as EventListener)
@@ -828,13 +853,11 @@ const handleRefreshProviderDb = async () => {
   }
 }
 
-// 关闭导入对话框
 const closeImportDialog = () => {
   isImportDialogOpen.value = false
-  importMode.value = 'increment' // 重置为默认值
+  importMode.value = 'increment'
 }
 
-// 处理导入
 const handleImport = async () => {
   if (!selectedBackup.value) {
     return
@@ -855,7 +878,6 @@ const handleImport = async () => {
   closeImportDialog()
 }
 
-// 处理警告对话框的确认操作
 const handleAlertAction = () => {
   syncStore.clearImportResult()
 }
@@ -863,6 +885,11 @@ const handleAlertAction = () => {
 const closeResetDialog = () => {
   isResetDialogOpen.value = false
   resetType.value = 'chat'
+}
+
+const openResetDialog = (type: 'chat' | 'knowledge' | 'all') => {
+  resetType.value = type
+  isResetDialogOpen.value = true
 }
 
 const handleReset = async () => {
@@ -873,7 +900,7 @@ const handleReset = async () => {
     await devicePresenter.resetDataByType(resetType.value)
     closeResetDialog()
   } catch (error) {
-    console.error('重置数据失败:', error)
+    console.error('Failed to reset data:', error)
   } finally {
     isResetting.value = false
   }

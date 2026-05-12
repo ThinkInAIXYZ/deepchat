@@ -19,5 +19,6 @@
   "settings-environments": "Miljøer",
   "settings-remote": "Fjernstyring",
   "settings-deepchat-agents": "DeepChat-agenter",
-  "settings-plugins": "Plugins"
+  "settings-plugins": "Plugins",
+  "settings-overview": "Settings Overview"
 }

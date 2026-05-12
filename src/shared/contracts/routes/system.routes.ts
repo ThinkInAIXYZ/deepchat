@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '../common'
 
 export const SettingsRouteNameSchema = z.enum([
+  'settings-overview',
   'settings-common',
   'settings-display',
   'settings-environments',

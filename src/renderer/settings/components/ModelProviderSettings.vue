@@ -23,8 +23,13 @@
   </div>
   <div v-else data-testid="settings-provider-page" class="w-full h-full flex flex-row">
     <ScrollArea class="w-80 border-r h-full">
-      <div class="space-y-4 p-4">
-        <!-- 搜索框 -->
+      <div class="flex flex-col gap-4 p-4">
+        <div class="flex flex-col gap-1">
+          <h1 class="text-lg font-semibold">{{ t('settings.provider.center.title') }}</h1>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.provider.center.description') }}
+          </p>
+        </div>
         <div class="sticky top-4 z-10">
           <div class="relative">
             <Input
@@ -48,9 +53,8 @@
             />
           </div>
         </div>
-        <!-- 启用的服务商区域 -->
-        <div v-if="enabledProviders.length > 0">
-          <div class="text-xs font-medium text-muted-foreground mb-2 px-2">
+        <div v-if="enabledProviders.length > 0" class="flex flex-col gap-2">
+          <div class="text-xs font-medium text-muted-foreground px-2">
             {{ t('settings.provider.enabled') }} ({{ enabledProviders.length }})
           </div>
           <draggable
@@ -103,6 +107,9 @@
                     @click="startEditingName(provider, $event)"
                   />
                 </template>
+                <Badge variant="secondary" class="max-w-24 shrink-0 truncate text-[10px]">
+                  {{ getProviderStatusLabel(provider) }}
+                </Badge>
                 <Switch
                   :model-value="provider.enable"
                   @click.stop="toggleProviderStatus(provider)"
@@ -112,9 +119,8 @@
           </draggable>
         </div>
 
-        <!-- 禁用的服务商区域 -->
-        <div v-if="disabledProviders.length > 0">
-          <div class="text-xs font-medium text-muted-foreground mb-2 px-2">
+        <div v-if="disabledProviders.length > 0" class="flex flex-col gap-2">
+          <div class="text-xs font-medium text-muted-foreground px-2">
             {{ t('settings.provider.disabled') }} ({{ disabledProviders.length }})
           </div>
           <draggable
@@ -167,6 +173,9 @@
                     @click="startEditingName(provider, $event)"
                   />
                 </template>
+                <Badge variant="outline" class="max-w-24 shrink-0 truncate text-[10px]">
+                  {{ getProviderStatusLabel(provider) }}
+                </Badge>
                 <Switch
                   :model-value="provider.enable"
                   @click.stop="toggleProviderStatus(provider)"
@@ -233,6 +242,7 @@ import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
+import { Badge } from '@shadcn/components/ui/badge'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
@@ -307,6 +317,22 @@ const filterProviders = (providers: LLM_PROVIDER[]) => {
   }
   const query = searchQuery.value.toLowerCase().trim()
   return providers.filter((provider) => t(provider.name).toLowerCase().includes(query))
+}
+
+const isLocalProvider = (provider: LLM_PROVIDER) =>
+  provider.apiType === 'ollama' || provider.apiType === 'lmstudio'
+
+const getProviderStatusLabel = (provider: LLM_PROVIDER) => {
+  if (isLocalProvider(provider)) {
+    return t('settings.provider.center.status.local')
+  }
+  if (!provider.enable) {
+    return t('settings.provider.center.status.disabled')
+  }
+  if (!provider.apiKey?.trim()) {
+    return t('settings.provider.center.status.keyMissing')
+  }
+  return t('settings.provider.center.status.connected')
 }
 
 const visibleProviders = computed(() =>

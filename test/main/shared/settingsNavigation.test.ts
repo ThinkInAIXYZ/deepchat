@@ -1,12 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getSettingsNavigationGroups,
   getSettingsNavigationItems,
+  getSettingsRouteItems,
   resolveSettingsNavigationPath
 } from '@shared/settingsNavigation'
 
 describe('settings navigation helpers', () => {
   it('resolves direct settings routes', () => {
+    expect(resolveSettingsNavigationPath('settings-overview')).toBe('/overview')
     expect(resolveSettingsNavigationPath('settings-mcp')).toBe('/mcp')
+  })
+
+  it('groups visible settings navigation and hides the legacy dashboard item', () => {
+    expect(getSettingsRouteItems().some((item) => item.routeName === 'settings-dashboard')).toBe(
+      true
+    )
+    expect(
+      getSettingsNavigationItems().some((item) => item.routeName === 'settings-dashboard')
+    ).toBe(false)
+    expect(getSettingsNavigationGroups()[0]?.key).toBe('overview')
   })
 
   it('resolves provider routes with params', () => {
@@ -31,6 +44,6 @@ describe('settings navigation helpers', () => {
     expect(
       getSettingsNavigationItems('linux').some((item) => item.routeName === 'settings-plugins')
     ).toBe(false)
-    expect(resolveSettingsNavigationPath('settings-plugins', undefined, 'win32')).toBe('/common')
+    expect(resolveSettingsNavigationPath('settings-plugins', undefined, 'win32')).toBe('/overview')
   })
 })

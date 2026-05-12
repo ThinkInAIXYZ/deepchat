@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-full w-full">
+  <div data-testid="settings-deepchat-agents-page" class="flex h-full w-full">
     <aside class="flex w-[300px] shrink-0 flex-col border-r border-border">
       <div class="flex items-center justify-between gap-3 px-4 py-4">
         <div>

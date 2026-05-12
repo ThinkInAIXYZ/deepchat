@@ -21,6 +21,7 @@ import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
+import { SettingsActivityTable } from './tables/settingsActivity'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 
@@ -192,6 +193,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'new_session_disabled_agent_tools',
     createTable: (db) => new NewSessionDisabledAgentToolsTable(db)
+  },
+  {
+    name: 'settings_activity',
+    createTable: (db) => new SettingsActivityTable(db)
   }
 ]
 

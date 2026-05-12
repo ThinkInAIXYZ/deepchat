@@ -19,5 +19,6 @@
   "settings-environments": "Environnements",
   "settings-remote": "Accès distant",
   "settings-deepchat-agents": "Agents DeepChat",
-  "settings-plugins": "Plugins"
+  "settings-plugins": "Plugins",
+  "settings-overview": "Settings Overview"
 }
