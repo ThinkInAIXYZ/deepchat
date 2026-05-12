@@ -1400,10 +1400,12 @@
       "eventCount": "{count} itens",
       "eventKinds": {
         "error": "erro",
+        "lifecycle": "Lifecycle",
         "notification": "notificar",
         "permission": "Permissões",
         "request": "perguntar",
-        "response": "resposta"
+        "response": "resposta",
+        "stderr": "stderr"
       },
       "events": "evento",
       "format": "Formatar JSON",

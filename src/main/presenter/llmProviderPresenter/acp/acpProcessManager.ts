@@ -12,6 +12,7 @@ import type {
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
 import type {
+  AcpDebugEventEntry,
   AcpAgentConfig,
   AcpAgentState,
   AcpConfigState,
@@ -38,6 +39,7 @@ import {
 } from './acpConfigState'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { AcpDebugLog } from '@/presenter/acpClientPresenter/connection/AcpDebugLog'
 
 export interface AcpProcessHandle extends AgentProcessHandle {
   child: ChildProcessWithoutNullStreams
@@ -51,6 +53,8 @@ export interface AcpProcessHandle extends AgentProcessHandle {
   configState?: AcpConfigState
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
+  agentCapabilities?: schema.AgentCapabilities
+  authMethods?: schema.AuthMethod[]
   mcpCapabilities?: schema.McpCapabilities
   supportsLoadSession?: boolean
   launchSignature: string
@@ -143,6 +147,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       currentModeId?: string
     }
   >()
+  private readonly debugLog = new AcpDebugLog()
   private shuttingDown = false
 
   constructor(options: AcpProcessManagerOptions) {
@@ -185,13 +190,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private resolveTerminalCwd(sessionId: string, requestedCwd?: string | null): string {
-    const explicitCwd = requestedCwd?.trim()
-    if (explicitCwd) {
-      return explicitCwd
-    }
-
     const sessionWorkdir = this.sessionWorkdirs.get(sessionId)?.trim()
     if (sessionWorkdir) {
+      const explicitCwd = requestedCwd?.trim()
+      if (explicitCwd) {
+        const safeCwd = this.resolveCwdInsideWorkdir(sessionWorkdir, explicitCwd)
+        if (safeCwd) {
+          return safeCwd
+        }
+        console.warn(
+          `[ACP] Terminal cwd "${explicitCwd}" escapes session workdir "${sessionWorkdir}", using session workdir.`
+        )
+      }
       return sessionWorkdir
     }
 
@@ -201,6 +211,39 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       `[ACP] Missing session workdir for terminal session ${sessionId}${conversationId ? ` (conversation ${conversationId})` : ''}, using fallback workdir: ${fallbackWorkdir}`
     )
     return fallbackWorkdir
+  }
+
+  private resolveCwdInsideWorkdir(workdir: string, cwd: string): string | null {
+    const resolvedWorkdir = path.resolve(workdir)
+    const resolvedCwd = path.resolve(cwd)
+    if (!this.isPathInside(resolvedWorkdir, resolvedCwd)) {
+      return null
+    }
+
+    let realpathSync: typeof fs.realpathSync | null = null
+    try {
+      realpathSync = typeof fs.realpathSync === 'function' ? fs.realpathSync.bind(fs) : null
+    } catch {
+      realpathSync = null
+    }
+
+    if (!realpathSync) {
+      return resolvedCwd
+    }
+
+    try {
+      const realWorkdir = realpathSync(workdir)
+      const realCwd = realpathSync(cwd)
+      return this.isPathInside(realWorkdir, realCwd) ? realCwd : null
+    } catch (error) {
+      console.warn(`[ACP] Failed to resolve terminal cwd "${cwd}":`, error)
+      return resolvedCwd
+    }
+  }
+
+  private isPathInside(root: string, target: string): boolean {
+    const relative = path.relative(root, target)
+    return !(relative.startsWith('..') || path.isAbsolute(relative))
   }
 
   /**
@@ -318,12 +361,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         handle.boundConversationId = undefined
         handle.workdir = resolvedWorkdir
         this.handles.set(warmupKey, handle)
-        void this.fetchProcessConfigState(handle).catch((error) => {
-          console.warn(
-            `[ACP] Failed to fetch config options during warmup for agent ${agent.id}:`,
-            error
-          )
-        })
         this.applyPreferredMode(handle, preferredModeId)
         console.info(
           `[ACP] Warmup process ready for agent ${agent.id} (pid=${handle.pid}, workdir=${resolvedWorkdir})`
@@ -562,6 +599,17 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return this.latestConfigStates.get(agentId)
   }
 
+  getDebugEvents(agentId: string): AcpDebugEventEntry[] {
+    return this.debugLog.list(agentId)
+  }
+
+  appendDebugEvent(
+    agentId: string,
+    entry: Omit<AcpDebugEventEntry, 'id' | 'timestamp' | 'agentId'>
+  ): AcpDebugEventEntry {
+    return this.debugLog.append(agentId, entry)
+  }
+
   registerSessionListener(
     agentId: string,
     sessionId: string,
@@ -638,14 +686,20 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const timeoutMs = 60 * 1000 * 5 // 5 minutes timeout for initialization
 
     try {
-      const initPromise = connection.initialize({
+      const initPayload = {
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: buildClientCapabilities({
           enableFs: true,
           enableTerminal: true
         }),
         clientInfo: { name: 'DeepChat', version: app.getVersion() }
+      }
+      this.debugLog.append(agent.id, {
+        kind: 'request',
+        action: 'initialize',
+        payload: initPayload
       })
+      const initPromise = connection.initialize(initPayload)
 
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
@@ -670,8 +724,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           mcpCapabilities?: schema.McpCapabilities
           loadSession?: boolean
         }
+        authMethods?: schema.AuthMethod[]
       }
+      this.debugLog.append(agent.id, {
+        kind: 'response',
+        action: 'initialize',
+        payload: initResult
+      })
 
+      handleSeed.agentCapabilities = resultData.agentCapabilities
+      handleSeed.authMethods = resultData.authMethods
       if (resultData.agentCapabilities?.mcpCapabilities) {
         handleSeed.mcpCapabilities = resultData.agentCapabilities.mcpCapabilities
         console.info('[ACP] MCP capabilities:', resultData.agentCapabilities.mcpCapabilities)
@@ -709,6 +771,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       handleSeed.currentModeId = resultData.modes?.currentModeId
     } catch (error) {
       console.error(`[ACP] Connection initialization failed for agent ${agent.id}:`, error)
+      this.debugLog.append(agent.id, {
+        kind: 'error',
+        action: 'initialize',
+        message: error instanceof Error ? error.message : String(error),
+        payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+      })
 
       // Clean up the child process if initialization failed
       if (!child.killed) {
@@ -741,6 +809,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       configState: handleSeed.configState ?? createEmptyAcpConfigState('legacy'),
       availableModes: handleSeed.availableModes,
       currentModeId: handleSeed.currentModeId,
+      agentCapabilities: handleSeed.agentCapabilities,
+      authMethods: handleSeed.authMethods,
       mcpCapabilities: handleSeed.mcpCapabilities,
       supportsLoadSession: handleSeed.supportsLoadSession,
       launchSignature
@@ -750,6 +820,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       console.warn(
         `[ACP] Agent process for ${agent.id} exited (PID: ${child.pid}, code=${code ?? 'null'}, signal=${signal ?? 'null'})`
       )
+      this.debugLog.append(agent.id, {
+        kind: 'lifecycle',
+        action: 'process.exit',
+        payload: { pid: child.pid, code, signal }
+      })
       this.removeHandleReferences(handle)
       this.clearSessionsForAgent(agent.id)
     })
@@ -765,15 +840,32 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       const error = chunk.toString().trim()
       if (error) {
         console.error(`[ACP] ${agent.id} stderr: ${error}`)
+        this.debugLog.append(agent.id, {
+          kind: 'stderr',
+          action: 'process.stderr',
+          message: error,
+          payload: error
+        })
       }
     })
 
     // Add additional process monitoring
     child.on('error', (error) => {
       console.error(`[ACP] Agent process ${agent.id} encountered error:`, error)
+      this.debugLog.append(agent.id, {
+        kind: 'error',
+        action: 'process.error',
+        message: error.message,
+        payload: { name: error.name, stack: error.stack }
+      })
     })
 
     console.info(`[ACP] Process monitoring set up for agent ${agent.id} (PID: ${child.pid})`)
+    this.debugLog.append(agent.id, {
+      kind: 'lifecycle',
+      action: 'process.ready',
+      payload: { pid: child.pid, workdir }
+    })
 
     return handle
   }
@@ -1005,6 +1097,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       console.warn(`[ACP] Received session update for unknown session "${notification.sessionId}"`)
       return
     }
+    this.debugLog.append(entry.agentId, {
+      kind: 'notification',
+      action: 'session/update',
+      sessionId: notification.sessionId,
+      payload: notification
+    })
 
     entry.handlers.forEach((handler) => {
       try {
@@ -1027,69 +1125,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
 
     try {
+      this.debugLog.append(entry.agentId, {
+        kind: 'permission',
+        action: 'session/request_permission',
+        sessionId: params.sessionId,
+        payload: params
+      })
       return await entry.resolver(params)
     } catch (error) {
       console.error('[ACP] Permission resolver failed:', error)
       return { outcome: { outcome: 'cancelled' } }
-    }
-  }
-
-  private async fetchProcessConfigState(handle: AcpProcessHandle): Promise<void> {
-    if (!this.isHandleAlive(handle)) return
-    try {
-      const response = await handle.connection.newSession({
-        cwd: handle.workdir,
-        mcpServers: []
-      })
-      if (response.sessionId) {
-        this.registerSessionWorkdir(response.sessionId, handle.workdir)
-      }
-
-      handle.configState = normalizeAcpConfigState({
-        configOptions: response.configOptions,
-        models: response.models,
-        modes: response.modes
-      })
-
-      const legacyModeState = getLegacyModeState(handle.configState)
-      if (legacyModeState?.availableModes?.length) {
-        handle.availableModes = legacyModeState.availableModes
-        if (
-          handle.currentModeId &&
-          handle.availableModes.some((mode) => mode.id === handle.currentModeId)
-        ) {
-          const modeOption = getAcpConfigOptionByCategory(handle.configState, 'mode')
-          if (modeOption?.type === 'select') {
-            handle.configState =
-              updateAcpConfigStateValue(handle.configState, modeOption.id, handle.currentModeId) ??
-              handle.configState
-          }
-        } else if (legacyModeState.currentModeId) {
-          handle.currentModeId = legacyModeState.currentModeId
-        } else {
-          handle.currentModeId = handle.availableModes[0]?.id ?? handle.currentModeId
-        }
-        this.notifyModesReady(handle)
-      }
-      this.syncAgentCache(handle)
-      this.notifyConfigOptionsReady(handle)
-
-      if (response.sessionId) {
-        try {
-          await handle.connection.cancel({ sessionId: response.sessionId })
-          this.clearSession(response.sessionId)
-        } catch (cancelError) {
-          console.warn(
-            `[ACP] Failed to cancel warmup session ${response.sessionId} for agent ${handle.agentId}:`,
-            cancelError
-          )
-        }
-      }
-    } catch (error) {
-      console.warn(
-        `[ACP] Warmup session failed to fetch config options for agent ${handle.agentId}:`,
-        error
-      )
     }
   }
 

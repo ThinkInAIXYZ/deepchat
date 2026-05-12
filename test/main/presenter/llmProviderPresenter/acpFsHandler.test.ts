@@ -47,6 +47,24 @@ describe('AcpFsHandler', () => {
       ).rejects.toThrow(/Path escapes workspace/)
     })
 
+    it('rejects symlinks that resolve outside the workspace', async () => {
+      const outsideFile = path.join(os.tmpdir(), `acp-outside-${Date.now()}.txt`)
+      const linkPath = path.join(testDir, 'outside-link.txt')
+      await fs.writeFile(outsideFile, 'outside')
+      await fs.symlink(outsideFile, linkPath)
+
+      try {
+        await expect(
+          handler.readTextFile({
+            path: linkPath,
+            sessionId: 'test-session'
+          })
+        ).rejects.toThrow(/Path escapes workspace/)
+      } finally {
+        await fs.unlink(outsideFile).catch(() => {})
+      }
+    })
+
     it('allows any path when workspaceRoot is null', async () => {
       const unrestrictedHandler = new AcpFsHandler({ workspaceRoot: null })
 
@@ -221,6 +239,25 @@ describe('AcpFsHandler', () => {
           sessionId: 'test-session'
         })
       ).rejects.toThrow(/Path escapes workspace/)
+    })
+
+    it('rejects writes through symlinks that resolve outside the workspace', async () => {
+      const outsideFile = path.join(os.tmpdir(), `acp-outside-write-${Date.now()}.txt`)
+      const linkPath = path.join(testDir, 'outside-write-link.txt')
+      await fs.writeFile(outsideFile, 'outside')
+      await fs.symlink(outsideFile, linkPath)
+
+      try {
+        await expect(
+          handler.writeTextFile({
+            path: linkPath,
+            content: 'should not write',
+            sessionId: 'test-session'
+          })
+        ).rejects.toThrow(/Path escapes workspace/)
+      } finally {
+        await fs.unlink(outsideFile).catch(() => {})
+      }
     })
   })
 })

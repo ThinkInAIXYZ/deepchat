@@ -21,18 +21,15 @@ import {
   type PermissionRequestOption
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
-import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_DEBUG_EVENTS, ACP_WORKSPACE_EVENTS, CONFIG_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { app } from 'electron'
 import {
   AcpProcessManager,
   AcpSessionManager,
   AcpSessionPersistence,
   AcpContentMapper,
   AcpMessageFormatter,
-  buildClientCapabilities,
   getAcpConfigOption,
   getAcpConfigOptionByCategory,
   getLegacyModeState,
@@ -44,6 +41,7 @@ import {
   type AcpProcessHandle,
   type AcpSessionRecord
 } from '../acp'
+import { AcpClientPresenter, AcpPromptController } from '@/presenter/acpClientPresenter'
 import { nanoid } from 'nanoid'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
@@ -113,6 +111,8 @@ export class AcpProvider extends BaseLLMProvider {
   private readonly processManager: AcpProcessManager
   private readonly sessionManager: AcpSessionManager
   private readonly sessionPersistence: AcpSessionPersistence
+  private readonly acpRuntime: AcpClientPresenter
+  private readonly promptController: AcpPromptController
   private readonly contentMapper = new AcpContentMapper()
   private readonly messageFormatter = new AcpMessageFormatter()
   private readonly pendingPermissions = new Map<string, PendingPermissionState>()
@@ -125,28 +125,15 @@ export class AcpProvider extends BaseLLMProvider {
   ) {
     super(provider, configPresenter, mcpRuntime)
     this.sessionPersistence = sessionPersistence
-    this.processManager = new AcpProcessManager({
-      providerId: provider.id,
-      resolveLaunchSpec: (agentId, workdir) =>
-        this.configPresenter.resolveAcpLaunchSpec(agentId, workdir),
-      getAgentState: (agentId) => this.configPresenter.getAcpAgentState(agentId),
-      getNpmRegistry: async () => {
-        // Get npm registry from MCP presenter's server manager
-        // This will use the fastest registry from speed test
-        return this.mcpRuntime?.getNpmRegistry?.() ?? null
-      },
-      getUvRegistry: async () => {
-        // Get uv registry from MCP presenter's server manager
-        // This will use the fastest registry from speed test
-        return this.mcpRuntime?.getUvRegistry?.() ?? null
-      }
+    this.acpRuntime = new AcpClientPresenter({
+      provider,
+      configPresenter,
+      sessionPersistence,
+      mcpRuntime
     })
-    this.sessionManager = new AcpSessionManager({
-      providerId: provider.id,
-      processManager: this.processManager,
-      sessionPersistence: this.sessionPersistence,
-      configPresenter
-    })
+    this.processManager = this.acpRuntime.processManager
+    this.sessionManager = this.acpRuntime.sessionManager
+    this.promptController = this.acpRuntime.promptController
 
     void this.initWhenEnabled()
   }
@@ -558,7 +545,10 @@ export class AcpProvider extends BaseLLMProvider {
       throw error
     }
     const connection = handle.connection
-    const events: AcpDebugEventEntry[] = []
+    const events: AcpDebugEventEntry[] =
+      typeof this.processManager.getDebugEvents === 'function'
+        ? [...this.processManager.getDebugEvents(agent.id)]
+        : []
 
     const isPlainObject = (value: unknown): value is Record<string, unknown> =>
       Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -626,41 +616,34 @@ export class AcpProvider extends BaseLLMProvider {
       )
     }
 
-    const defaultInitPayload = (): schema.InitializeRequest => ({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: 'DeepChat', version: app.getVersion() },
-      clientCapabilities: buildClientCapabilities({ enableFs: true, enableTerminal: true })
-    })
-
     const resolveWorkdir = (): string | undefined => {
       const cwd = request.workdir ?? handle.workdir
       return cwd?.trim() || undefined
     }
 
+    const resolveMcpServers = async (): Promise<schema.McpServer[]> => {
+      if (typeof this.sessionManager?.resolveMcpServersForAgent !== 'function') {
+        return []
+      }
+      return this.sessionManager.resolveMcpServersForAgent(agent.id, handle.mcpCapabilities)
+    }
+
     try {
       switch (request.action) {
         case 'initialize': {
-          const body = isPlainObject(request.payload)
-            ? { ...defaultInitPayload(), ...request.payload }
-            : defaultInitPayload()
-          pushEvent({ kind: 'request', action: 'initialize', payload: body })
-          const response = await connection.initialize(body)
-          const sessionIdFromInit = (response as unknown as { sessionId?: unknown }).sessionId
-          if (!activeSessionId && typeof sessionIdFromInit === 'string') {
-            activeSessionId = sessionIdFromInit
-          }
           pushEvent({
-            kind: 'response',
+            kind: 'lifecycle',
             action: 'initialize',
             sessionId: activeSessionId,
-            payload: response
+            message: 'Connection is already initialized by the ACP runtime.',
+            payload: this.acpRuntime.toConnectionRef(handle)
           })
           break
         }
         case 'newSession': {
           const basePayload: schema.NewSessionRequest = {
             cwd: resolveWorkdir() ?? process.cwd(),
-            mcpServers: []
+            mcpServers: await resolveMcpServers()
           }
           const body = { ...basePayload }
           if (isPlainObject(request.payload)) {
@@ -677,6 +660,8 @@ export class AcpProvider extends BaseLLMProvider {
           pushEvent({ kind: 'request', action: 'newSession', payload: body })
           const response = await connection.newSession(body)
           activeSessionId = response.sessionId
+          this.processManager.registerSessionWorkdir(activeSessionId, body.cwd)
+          attachSession(activeSessionId)
           pushEvent({
             kind: 'response',
             action: 'newSession',
@@ -697,7 +682,7 @@ export class AcpProvider extends BaseLLMProvider {
           }
           const body: schema.LoadSessionRequest = {
             cwd: resolveWorkdir() ?? process.cwd(),
-            mcpServers: [],
+            mcpServers: await resolveMcpServers(),
             sessionId: sessionToLoad
           }
           if (payloadOverrides) {
@@ -717,6 +702,7 @@ export class AcpProvider extends BaseLLMProvider {
             sessionId: sessionToLoad,
             payload: body
           })
+          this.processManager.registerSessionWorkdir(sessionToLoad, body.cwd)
           attachSession(sessionToLoad)
           const response = await connection.loadSession(body)
           activeSessionId = sessionToLoad
@@ -894,8 +880,24 @@ export class AcpProvider extends BaseLLMProvider {
   ): Promise<void> {
     const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
     let timeoutId: NodeJS.Timeout | null = null
+    const conversationId = modelConfig.conversationId ?? session.conversationId
+    let turnStarted = false
+    let turnId: string | null = null
 
     try {
+      const turn = this.promptController.begin({
+        sessionId: session.sessionId,
+        conversationId
+      })
+      turnId = turn.id
+      turnStarted = true
+      void this.sessionPersistence.startTurn({
+        id: turn.id,
+        acpSessionId: session.sessionId,
+        conversationId,
+        userMessageId: turn.userMessageId,
+        startedAt: turn.startedAt
+      })
       const requestBody = {
         sessionId: session.sessionId,
         prompt
@@ -921,6 +923,15 @@ export class AcpProvider extends BaseLLMProvider {
           ])
         : promptRequest)
       console.log('[ACP] runPrompt: response:', response)
+      const completedTurn = this.promptController.complete(session.sessionId, response.stopReason)
+      if (completedTurn) {
+        void this.sessionPersistence.finishTurn({
+          id: completedTurn.id,
+          status: 'completed',
+          stopReason: response.stopReason,
+          completedAt: completedTurn.completedAt ?? Date.now()
+        })
+      }
       queue.push(createStreamEvent.stop(this.mapStopReason(response.stopReason)))
     } catch (error) {
       if (timeoutMs && error instanceof Error && error.name === 'AbortError') {
@@ -931,6 +942,24 @@ export class AcpProvider extends BaseLLMProvider {
         }
       }
 
+      if (turnStarted) {
+        const failedTurn = this.promptController.fail(session.sessionId)
+        if (failedTurn) {
+          void this.sessionPersistence.finishTurn({
+            id: failedTurn.id,
+            status: 'error',
+            stopReason: 'error',
+            completedAt: failedTurn.completedAt ?? Date.now()
+          })
+        } else if (turnId) {
+          void this.sessionPersistence.finishTurn({
+            id: turnId,
+            status: 'error',
+            stopReason: 'error',
+            completedAt: Date.now()
+          })
+        }
+      }
       const message =
         error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
       queue.push(createStreamEvent.error(`ACP: ${message}`))

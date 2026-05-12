@@ -1400,10 +1400,12 @@
       "eventCount": "{count} событий",
       "eventKinds": {
         "error": "ошибка",
+        "lifecycle": "Lifecycle",
         "notification": "Уведомление",
         "permission": "Разрешение",
         "request": "Запрос",
-        "response": "Ответ"
+        "response": "Ответ",
+        "stderr": "stderr"
       },
       "events": "События",
       "format": "Формат JSON",

@@ -574,11 +574,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
 import { useLegacyPresenter } from '@api/legacy/presenters'
+import { CONFIG_EVENTS } from '@/events'
 import { Icon } from '@iconify/vue'
 import {
   Card,
@@ -1088,7 +1089,28 @@ const handleRegistryCatalogAction = async (agent: AcpRegistryAgent) => {
   await installRegistryAgent(agent)
 }
 
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
+const scheduleAcpDataReload = () => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+  }
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null
+    void loadAcpData()
+  }, 80)
+}
+
 onMounted(() => {
   void loadAcpData()
+  window.electron?.ipcRenderer?.on(CONFIG_EVENTS.AGENTS_CHANGED, scheduleAcpDataReload)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+    refreshTimer = null
+  }
+  window.electron?.ipcRenderer?.removeListener(CONFIG_EVENTS.AGENTS_CHANGED, scheduleAcpDataReload)
 })
 </script>

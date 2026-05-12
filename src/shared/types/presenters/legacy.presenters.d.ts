@@ -464,6 +464,8 @@ export interface ISQLitePresenter {
   ): Promise<void>
   deleteAcpSessions(conversationId: string): Promise<void>
   deleteAcpSession(conversationId: string, agentId: string): Promise<void>
+  startAcpTurn(input: AcpTurnStartPayload): Promise<void>
+  finishAcpTurn(input: AcpTurnFinishPayload): Promise<void>
   migrateAcpAgentReferences(aliasMap: Record<string, string>): Promise<void>
 }
 
@@ -898,7 +900,14 @@ export type AcpDebugActionType =
   | 'extMethod'
   | 'extNotification'
 
-export type AcpDebugEventKind = 'request' | 'response' | 'notification' | 'permission' | 'error'
+export type AcpDebugEventKind =
+  | 'request'
+  | 'response'
+  | 'notification'
+  | 'permission'
+  | 'lifecycle'
+  | 'stderr'
+  | 'error'
 
 export interface AcpDebugRequest {
   agentId: string
@@ -1091,6 +1100,23 @@ export interface AcpSessionUpsertPayload {
   workdir?: string | null
   status?: AgentSessionLifecycleStatus
   metadata?: Record<string, unknown> | null
+}
+
+export type AcpTurnStatus = 'active' | 'completed' | 'cancelled' | 'error'
+
+export interface AcpTurnStartPayload {
+  id: string
+  acpSessionId: string
+  conversationId: string
+  userMessageId?: string | null
+  startedAt: number
+}
+
+export interface AcpTurnFinishPayload {
+  id: string
+  status: Exclude<AcpTurnStatus, 'active'>
+  stopReason?: string | null
+  completedAt: number
 }
 
 export interface AcpWorkdirInfo {

@@ -3,6 +3,7 @@ import * as path from 'path'
 import { RequestError } from '@agentclientprotocol/sdk'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { buildBinaryReadGuidance, shouldRejectAcpTextRead } from '@/lib/binaryReadGuard'
+import { AcpPathGuard } from '@/presenter/acpClientPresenter/workspace/AcpPathGuard'
 
 export interface FsHandlerOptions {
   /** Session's working directory (workspace root). Null = allow all. */
@@ -25,28 +26,24 @@ export class AcpFsHandler {
   private readonly workspaceRoot: string | null
   private readonly maxReadSize: number
   private readonly onFileChange?: (filePath: string) => void
+  private readonly pathGuard: AcpPathGuard
 
   constructor(options: FsHandlerOptions) {
     this.workspaceRoot = options.workspaceRoot ? path.resolve(options.workspaceRoot) : null
     this.maxReadSize = options.maxReadSize ?? 10 * 1024 * 1024 // 10MB default
     this.onFileChange = options.onFileChange
+    this.pathGuard = new AcpPathGuard(this.workspaceRoot)
   }
 
   /**
    * Validate that the path is within the workspace boundary.
    * Throws RequestError if path escapes workspace.
    */
-  private validatePath(filePath: string): string {
-    const resolved = path.resolve(filePath)
-
-    if (this.workspaceRoot) {
-      const relative = path.relative(this.workspaceRoot, resolved)
-      if (relative.startsWith('..') || path.isAbsolute(relative)) {
-        throw RequestError.invalidParams({ path: filePath }, `Path escapes workspace: ${filePath}`)
-      }
+  private async validatePath(filePath: string, mode: 'read' | 'write'): Promise<string> {
+    if (mode === 'read') {
+      return this.pathGuard.resolveReadPath(filePath)
     }
-
-    return resolved
+    return this.pathGuard.resolveWritePath(filePath)
   }
 
   /**
@@ -55,9 +52,8 @@ export class AcpFsHandler {
    * Supports optional line offset and limit for reading portions of large files.
    */
   async readTextFile(params: schema.ReadTextFileRequest): Promise<schema.ReadTextFileResponse> {
-    const filePath = this.validatePath(params.path)
-
     try {
+      const filePath = await this.validatePath(params.path, 'read')
       const stat = await fs.stat(filePath)
       if (stat.size > this.maxReadSize) {
         throw RequestError.invalidParams(
@@ -106,9 +102,8 @@ export class AcpFsHandler {
    * Creates parent directories if they don't exist.
    */
   async writeTextFile(params: schema.WriteTextFileRequest): Promise<schema.WriteTextFileResponse> {
-    const filePath = this.validatePath(params.path)
-
     try {
+      const filePath = await this.validatePath(params.path, 'write')
       // Ensure parent directory exists
       const dir = path.dirname(filePath)
       await fs.mkdir(dir, { recursive: true })

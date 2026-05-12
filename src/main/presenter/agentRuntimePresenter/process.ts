@@ -410,7 +410,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         io,
         permissionMode,
         params.toolOutputGuard,
-        modelConfig.contextLength > 0 ? modelConfig.contextLength : UNKNOWN_CONTEXT_LIMIT,
+        providerId === 'acp'
+          ? Number.MAX_SAFE_INTEGER
+          : modelConfig.contextLength > 0
+            ? modelConfig.contextLength
+            : UNKNOWN_CONTEXT_LIMIT,
         maxTokens,
         echo,
         hooks,

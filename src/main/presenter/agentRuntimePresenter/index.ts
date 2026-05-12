@@ -626,10 +626,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         state.modelId,
         generationSettings
       )
-      const maxTokens = capAgentRequestMaxTokens(
-        generationSettings.maxTokens,
+      const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
+        state.providerId,
         generationSettings.contextLength
       )
+      const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
       const tools = await this.loadToolDefinitionsForSession(
         sessionId,
@@ -654,21 +655,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         think: false
       }
 
-      const compactionIntent = await this.compactionService.prepareForNextUserTurn({
-        sessionId,
-        providerId: state.providerId,
-        modelId: state.modelId,
-        systemPrompt: baseSystemPrompt,
-        contextLength: generationSettings.contextLength,
-        reserveTokens: maxTokens,
-        extraReserveTokens: toolReserveTokens,
-        supportsVision,
-        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-        preserveEmptyInterleavedReasoning:
-          interleavedReasoning.preserveEmptyReasoningContent === true,
-        newUserContent: normalizedInput,
-        signal: preStreamAbortSignal
-      })
+      const compactionIntent = this.shouldBypassDeepChatContextBudget(state.providerId)
+        ? null
+        : await this.compactionService.prepareForNextUserTurn({
+            sessionId,
+            providerId: state.providerId,
+            modelId: state.modelId,
+            systemPrompt: baseSystemPrompt,
+            contextLength: generationSettings.contextLength,
+            reserveTokens: maxTokens,
+            extraReserveTokens: toolReserveTokens,
+            supportsVision,
+            preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+            preserveEmptyInterleavedReasoning:
+              interleavedReasoning.preserveEmptyReasoningContent === true,
+            newUserContent: normalizedInput,
+            signal: preStreamAbortSignal
+          })
       let summaryState: SessionSummaryState
 
       if (compactionIntent) {
@@ -721,7 +724,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         sessionId,
         normalizedInput,
         systemPrompt,
-        generationSettings.contextLength,
+        contextBudgetLength,
         maxTokens,
         this.messageStore,
         supportsVision,
@@ -1422,6 +1425,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return resolvedProviderId === 'acp'
   }
 
+  private shouldBypassDeepChatContextBudget(providerId?: string | null): boolean {
+    return providerId?.trim() === 'acp'
+  }
+
+  private resolveDeepChatContextBudgetLength(
+    providerId: string | null | undefined,
+    contextLength: number
+  ): number {
+    return this.shouldBypassDeepChatContextBudget(providerId)
+      ? Number.MAX_SAFE_INTEGER
+      : contextLength
+  }
+
   private getAbortSignalForSession(sessionId: string): AbortSignal | undefined {
     return (
       this.activeGenerations.get(sessionId)?.abortController.signal ??
@@ -1760,6 +1776,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const interleavedReasoning =
       providedInterleavedReasoning ??
       this.resolveInterleavedReasoningConfig(state.providerId, state.modelId, generationSettings)
+    const bypassContextBudget = this.shouldBypassDeepChatContextBudget(state.providerId)
+    const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
+      state.providerId,
+      generationSettings.contextLength
+    )
     const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
     const capabilityProviderId = this.resolveCapabilityProviderId(state.providerId, state.modelId)
     const reasoningPortrait = this.getReasoningPortrait(state.providerId, state.modelId)
@@ -1767,10 +1788,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       ...baseModelConfig,
       temperature: generationSettings.temperature,
       contextLength: generationSettings.contextLength,
-      maxTokens: capAgentRequestMaxTokens(
-        generationSettings.maxTokens,
-        generationSettings.contextLength
-      ),
+      maxTokens: capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength),
       timeout: generationSettings.timeout,
       thinkingBudget: generationSettings.thinkingBudget,
       reasoningEffort: generationSettings.reasoningEffort,
@@ -1813,10 +1831,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const temperature = generationSettings.temperature
-    const maxTokens = capAgentRequestMaxTokens(
-      generationSettings.maxTokens,
-      generationSettings.contextLength
-    )
+    const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
 
     const tools = providedTools ?? (await this.loadToolDefinitionsForSession(sessionId, projectDir))
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
@@ -1855,7 +1870,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             requestMessages,
             claimedSteerBatch,
             supportsVision,
-            requestModelConfig.contextLength,
+            bypassContextBudget ? Number.MAX_SAFE_INTEGER : requestModelConfig.contextLength,
             requestMaxTokens
           )
 
@@ -1863,51 +1878,59 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           let queuedForRateLimit = false
 
           try {
-            const protectedSteerTailCount =
-              claimedSteerBatch.length > 0
-                ? claimedSteerBatch.length + (requestMessages.at(-1)?.role === 'user' ? 1 : 0)
-                : 0
-            let requestPreflight = preflightRequestContext({
-              messages: injectedMessages,
-              tools: requestTools,
-              contextLength: requestModelConfig.contextLength,
-              requestedMaxTokens: requestMaxTokens,
-              minimumProtectedTailCount: protectedSteerTailCount
-            })
-            if (
-              requestPreflight.requiresContextPressureRecovery ||
-              !requestPreflight.fitsWithinContext
-            ) {
-              const recovered = await recoverContextPressure({
-                sessionId,
-                providerId: state.providerId,
-                modelId: requestModelId,
-                requestMessages: requestPreflight.messages,
-                baseSystemPrompt,
-                contextLength: requestModelConfig.contextLength,
-                requestedMaxTokens: requestPreflight.requestedMaxTokens,
-                tools: requestTools,
-                supportsVision,
-                interleavedReasoning,
-                minimumProtectedTailCount: protectedSteerTailCount,
-                signal: abortController.signal
-              })
-              requestMessages.splice(0, requestMessages.length, ...recovered.messages)
-              if (recovered.systemPrompt) {
-                replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
-              }
-              requestPreflight = preflightRequestContext({
-                messages: requestMessages,
+            let providerMessages = injectedMessages
+            let providerMaxTokens = requestMaxTokens
+
+            if (!bypassContextBudget) {
+              const protectedSteerTailCount =
+                claimedSteerBatch.length > 0
+                  ? claimedSteerBatch.length + (requestMessages.at(-1)?.role === 'user' ? 1 : 0)
+                  : 0
+              let requestPreflight = preflightRequestContext({
+                messages: injectedMessages,
                 tools: requestTools,
                 contextLength: requestModelConfig.contextLength,
                 requestedMaxTokens: requestMaxTokens,
                 minimumProtectedTailCount: protectedSteerTailCount
               })
-              requestMessages.splice(0, requestMessages.length, ...requestPreflight.messages)
+              if (
+                requestPreflight.requiresContextPressureRecovery ||
+                !requestPreflight.fitsWithinContext
+              ) {
+                const recovered = await recoverContextPressure({
+                  sessionId,
+                  providerId: state.providerId,
+                  modelId: requestModelId,
+                  requestMessages: requestPreflight.messages,
+                  baseSystemPrompt,
+                  contextLength: requestModelConfig.contextLength,
+                  requestedMaxTokens: requestPreflight.requestedMaxTokens,
+                  tools: requestTools,
+                  supportsVision,
+                  interleavedReasoning,
+                  minimumProtectedTailCount: protectedSteerTailCount,
+                  signal: abortController.signal
+                })
+                requestMessages.splice(0, requestMessages.length, ...recovered.messages)
+                if (recovered.systemPrompt) {
+                  replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
+                }
+                requestPreflight = preflightRequestContext({
+                  messages: requestMessages,
+                  tools: requestTools,
+                  contextLength: requestModelConfig.contextLength,
+                  requestedMaxTokens: requestMaxTokens,
+                  minimumProtectedTailCount: protectedSteerTailCount
+                })
+                requestMessages.splice(0, requestMessages.length, ...requestPreflight.messages)
+              }
+              if (!requestPreflight.fitsWithinContext) {
+                throw new Error(buildRequestContextOverflowErrorMessage(requestPreflight))
+              }
+              providerMessages = requestPreflight.messages
+              providerMaxTokens = requestPreflight.effectiveMaxTokens
             }
-            if (!requestPreflight.fitsWithinContext) {
-              throw new Error(buildRequestContextOverflowErrorMessage(requestPreflight))
-            }
+
             await llmProviderPresenter.executeWithRateLimit(state.providerId, {
               signal: abortController.signal,
               onQueued: (snapshot) => {
@@ -1929,11 +1952,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             }
 
             for await (const event of provider.coreStream(
-              requestPreflight.messages,
+              providerMessages,
               requestModelId,
               requestModelConfig,
               requestTemperature,
-              requestPreflight.effectiveMaxTokens,
+              providerMaxTokens,
               requestTools
             )) {
               if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
@@ -2439,10 +2462,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         state.modelId,
         generationSettings
       )
-      const maxTokens = capAgentRequestMaxTokens(
-        generationSettings.maxTokens,
+      const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
+        state.providerId,
         generationSettings.contextLength
       )
+      const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const projectDir = this.resolveProjectDir(sessionId)
       const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
       const tools = await this.loadToolDefinitionsForSession(
@@ -2459,28 +2483,30 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         activeSkillNames
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const summaryState = await this.resolveCompactionStateForResumeTurn({
-        sessionId,
-        messageId,
-        providerId: state.providerId,
-        modelId: state.modelId,
-        systemPrompt: baseSystemPrompt,
-        contextLength: generationSettings.contextLength,
-        reserveTokens: maxTokens,
-        extraReserveTokens: toolReserveTokens,
-        supportsVision: this.supportsVision(state.providerId, state.modelId),
-        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-        preserveEmptyInterleavedReasoning:
-          interleavedReasoning.preserveEmptyReasoningContent === true,
-        signal: preStreamAbortSignal
-      })
+      const summaryState = this.shouldBypassDeepChatContextBudget(state.providerId)
+        ? this.sessionStore.getSummaryState(sessionId)
+        : await this.resolveCompactionStateForResumeTurn({
+            sessionId,
+            messageId,
+            providerId: state.providerId,
+            modelId: state.modelId,
+            systemPrompt: baseSystemPrompt,
+            contextLength: generationSettings.contextLength,
+            reserveTokens: maxTokens,
+            extraReserveTokens: toolReserveTokens,
+            supportsVision: this.supportsVision(state.providerId, state.modelId),
+            preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+            preserveEmptyInterleavedReasoning:
+              interleavedReasoning.preserveEmptyReasoningContent === true,
+            signal: preStreamAbortSignal
+          })
       this.throwIfAbortRequested(preStreamAbortSignal)
       const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       let resumeContext = buildResumeContext(
         sessionId,
         messageId,
         systemPrompt,
-        generationSettings.contextLength,
+        contextBudgetLength,
         maxTokens,
         this.messageStore,
         this.supportsVision(state.providerId, state.modelId),
@@ -2493,7 +2519,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             interleavedReasoning.preserveEmptyReasoningContent === true
         }
       )
-      if (budgetToolCall?.id && budgetToolCall.name) {
+      if (
+        budgetToolCall?.id &&
+        budgetToolCall.name &&
+        !this.shouldBypassDeepChatContextBudget(state.providerId)
+      ) {
         const resumeBudget = this.fitResumeBudgetForToolCall({
           resumeContext,
           toolDefinitions: tools,

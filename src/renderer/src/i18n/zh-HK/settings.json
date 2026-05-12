@@ -1400,10 +1400,12 @@
       "eventCount": "{count} 條",
       "eventKinds": {
         "error": "錯誤",
+        "lifecycle": "生命週期",
         "notification": "通知",
         "permission": "權限",
         "request": "請求",
-        "response": "響應"
+        "response": "響應",
+        "stderr": "stderr"
       },
       "events": "事件",
       "format": "格式化 JSON",
