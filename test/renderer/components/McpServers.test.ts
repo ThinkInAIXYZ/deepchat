@@ -20,7 +20,25 @@ const dropdownItemStub = defineComponent({
   template: '<button data-testid="dropdown-item" @click="$emit(\'click\')"><slot /></button>'
 })
 
-const setup = async () => {
+const mcpServerCardStub = defineComponent({
+  name: 'McpServerCard',
+  props: {
+    server: {
+      type: Object,
+      required: true
+    }
+  },
+  template: '<div data-testid="server-card">{{ server.name }}</div>'
+})
+
+const setup = async (
+  overrides: Partial<{
+    serverList: Array<{ name: string }>
+    config: {
+      mcpServers: Record<string, Record<string, unknown>>
+    }
+  }> = {}
+) => {
   vi.resetModules()
 
   const router = {
@@ -33,13 +51,17 @@ const setup = async () => {
   }
 
   const toast = vi.fn()
+  const serverList = overrides.serverList ?? []
+  const config = {
+    mcpServers: {
+      ...(overrides.config?.mcpServers ?? {})
+    }
+  }
   const mcpStore = reactive({
     mcpInstallCache: '',
     clearMcpInstallCache: vi.fn(),
-    serverList: [],
-    config: {
-      mcpServers: {}
-    },
+    serverList,
+    config,
     configLoading: false,
     tools: [],
     visibleTools: [],
@@ -92,7 +114,7 @@ const setup = async () => {
         DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
         DropdownMenuContent: passthrough('DropdownMenuContent'),
         DropdownMenuItem: dropdownItemStub,
-        McpServerCard: true,
+        McpServerCard: mcpServerCardStub,
         McpServerForm: true,
         McpToolPanel: true,
         McpPromptPanel: true,
@@ -136,5 +158,55 @@ describe('McpServers', () => {
 
     await dropdownItems[1]?.trigger('click')
     expect(window.open).toHaveBeenCalledWith('https://mcp.higress.ai/?from=deepchat', '_blank')
+  })
+
+  it('hides plugin-owned MCP servers from the global settings list', async () => {
+    const { wrapper } = await setup({
+      serverList: [{ name: 'feishu-tools' }, { name: 'user-server' }],
+      config: {
+        mcpServers: {
+          'feishu-tools': {
+            type: 'stdio',
+            command: 'node',
+            args: [],
+            enabled: true,
+            source: 'plugin',
+            ownerPluginId: 'com.deepchat.plugins.feishu'
+          },
+          'user-server': {
+            type: 'stdio',
+            command: 'node',
+            args: [],
+            enabled: true
+          }
+        }
+      }
+    })
+
+    const cards = wrapper.findAll('[data-testid="server-card"]').map((card) => card.text())
+
+    expect(cards).toEqual(['user-server'])
+    expect(wrapper.text()).not.toContain('feishu-tools')
+  })
+
+  it('shows the empty state when only plugin-owned MCP servers exist', async () => {
+    const { wrapper } = await setup({
+      serverList: [{ name: 'feishu-tools' }],
+      config: {
+        mcpServers: {
+          'feishu-tools': {
+            type: 'stdio',
+            command: 'node',
+            args: [],
+            enabled: true,
+            source: 'plugin',
+            ownerPluginId: 'com.deepchat.plugins.feishu'
+          }
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('settings.mcp.noServersFound')
+    expect(wrapper.findAll('[data-testid="server-card"]')).toHaveLength(0)
   })
 })
