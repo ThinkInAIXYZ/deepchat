@@ -1093,7 +1093,7 @@
     "removeDefaultFirst": "Fjern nogle standardservere først",
     "higressMarket": "Gå til Higress MCP-installation",
     "npmRegistry": {
-      "title": "Konfiguration af NPM-registry",
+      "title": "NPM-kilde",
       "currentSource": "Aktuel kilde",
       "cached": "Cachelagret",
       "lastChecked": "Sidst kontrolleret",

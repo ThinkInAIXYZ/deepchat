@@ -25,6 +25,10 @@
             </p>
           </div>
           <div class="flex shrink-0 items-center gap-3">
+            <Button v-if="mcpEnabled" size="sm" @click="openAddServerDialog">
+              <Icon icon="lucide:plus" class="size-4" />
+              {{ t('common.add') }}
+            </Button>
             <Button variant="outline" size="sm" @click="openMarketView">
               <Icon icon="lucide:shopping-bag" class="size-4" />
               {{ t('routes.settings-mcp-market') }}
@@ -43,7 +47,7 @@
     <!-- Server list -->
     <div class="flex-1 overflow-y-auto">
       <div v-if="mcpEnabled" class="h-full">
-        <McpServers>
+        <McpServers ref="mcpServersRef" :show-footer-add-button="false">
           <template #status-bar>
             <div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
               <span class="text-xs text-muted-foreground">
@@ -189,6 +193,7 @@ const mcpStore = useMcpStore()
 const { toast } = useToast()
 const route = useRoute()
 const router = useRouter()
+const mcpServersRef = ref<{ openAddServerDialog: () => void } | null>(null)
 
 const mcpEnabled = computed(() => mcpStore.mcpEnabled)
 const isMarketView = computed(() => route.query.view === 'market')
@@ -223,6 +228,10 @@ const customCount = computed(() => Math.max(mcpStore.serverList.length - builtIn
 
 const handleMcpEnabledChange = async (enabled: boolean) => {
   await mcpStore.setMcpEnabled(enabled)
+}
+
+const openAddServerDialog = () => {
+  mcpServersRef.value?.openAddServerDialog()
 }
 
 const loadNpmRegistryStatus = async () => {

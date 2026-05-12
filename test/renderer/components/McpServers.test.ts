@@ -14,7 +14,7 @@ const buttonStub = defineComponent({
   template: '<button data-testid="action-button" @click="$emit(\'click\')"><slot /></button>'
 })
 
-const setup = async (options: { withServers?: boolean } = {}) => {
+const setup = async (options: { withServers?: boolean; showFooterAddButton?: boolean } = {}) => {
   vi.resetModules()
 
   const router = {
@@ -97,6 +97,9 @@ const setup = async (options: { withServers?: boolean } = {}) => {
   const McpServers = (await import('@/components/mcp-config/components/McpServers.vue')).default
 
   const wrapper = mount(McpServers, {
+    props: {
+      showFooterAddButton: options.showFooterAddButton
+    },
     global: {
       stubs: {
         Button: buttonStub,
@@ -136,6 +139,12 @@ describe('McpServers', () => {
     const actionButtons = wrapper.findAll('[data-testid="action-button"]')
 
     expect(actionButtons[0]?.text()).toContain('common.add')
+  })
+
+  it('can hide the footer add button for settings header ownership', async () => {
+    const { wrapper } = await setup({ showFooterAddButton: false })
+
+    expect(wrapper.text()).not.toContain('common.add')
   })
 
   it('only shows all, running, and stopped filters', async () => {

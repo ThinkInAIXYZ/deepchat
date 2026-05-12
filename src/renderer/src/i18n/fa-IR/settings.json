@@ -1160,7 +1160,7 @@
     "removeDefaultFirst": "لطفاً ابتدا برخی کارسازهای پیش‌فرض را بردارید",
     "higressMarket": "رفتن به نصب MCP هایگرس",
     "npmRegistry": {
-      "title": "تنظیمات منابع NPM",
+      "title": "منبع NPM",
       "currentSource": "منبع فعلی",
       "cached": "ذخیره شده",
       "lastChecked": "آخرین بررسی",

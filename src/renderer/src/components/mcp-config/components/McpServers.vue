@@ -35,6 +35,14 @@ const mcpStore = useMcpStore()
 const { t } = useI18n()
 const { toast } = useToast()
 const router = useRouter()
+const props = withDefaults(
+  defineProps<{
+    showFooterAddButton?: boolean
+  }>(),
+  {
+    showFooterAddButton: true
+  }
+)
 
 const isAddServerDialogOpen = ref(false)
 const isEditServerDialogOpen = ref(false)
@@ -113,6 +121,10 @@ const handleAddServer = async (serverName: string, serverConfig: MCPServerConfig
   if (result.success) {
     isAddServerDialogOpen.value = false
   }
+}
+
+const openAddServerDialog = () => {
+  isAddServerDialogOpen.value = true
 }
 
 const handleEditServer = async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
@@ -216,6 +228,10 @@ const handleViewResources = async (serverName: string) => {
 const openDetail = (serverName: string) => {
   selectedDetailServerName.value = serverName
 }
+
+defineExpose({
+  openAddServerDialog
+})
 </script>
 
 <template>
@@ -299,9 +315,9 @@ const openDetail = (serverName: string) => {
 
     <!-- Footer actions -->
     <div
-      class="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+      class="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
     >
-      <div class="flex items-center justify-between p-3">
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div class="flex min-w-0 flex-1 items-center gap-3">
           <slot name="status-bar">
             <div class="flex items-center space-x-3">
@@ -324,7 +340,7 @@ const openDetail = (serverName: string) => {
         <!-- Action buttons -->
         <div class="flex space-x-2">
           <Dialog v-model:open="isAddServerDialogOpen">
-            <DialogTrigger as-child>
+            <DialogTrigger v-if="props.showFooterAddButton" as-child>
               <Button size="sm" class="h-8 px-3 text-xs">
                 <Icon icon="lucide:plus" class="mr-1.5 h-3 w-3" />
                 {{ t('common.add') }}

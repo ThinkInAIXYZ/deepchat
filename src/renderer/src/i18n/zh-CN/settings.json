@@ -1223,7 +1223,7 @@
     "higressMarket": "前往 Higress MCP 安装",
     "totalServers": "服务器总数",
     "npmRegistry": {
-      "title": "NPM源配置",
+      "title": "NPM 源",
       "currentSource": "当前源",
       "cached": "缓存",
       "lastChecked": "上次检测",

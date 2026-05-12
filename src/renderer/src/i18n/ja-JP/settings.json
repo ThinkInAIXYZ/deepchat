@@ -1153,7 +1153,7 @@
     "removeDefaultFirst": "最初にいくつかのデフォルトサーバーを削除してください",
     "higressMarket": "Higress MCPのインストールに移動します",
     "npmRegistry": {
-      "title": "NPMソース設定",
+      "title": "NPMソース",
       "currentSource": "現在のソース",
       "cached": "キャッシュ",
       "lastChecked": "最終チェック",

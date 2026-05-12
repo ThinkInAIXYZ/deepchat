@@ -1223,7 +1223,7 @@
     "removeDefaultFirst": "Please remove some default servers first",
     "higressMarket": "Go to Higress MCP Installation",
     "npmRegistry": {
-      "title": "NPM Registry Configuration",
+      "title": "NPM Source",
       "currentSource": "Current Source",
       "cached": "Cached",
       "lastChecked": "Last Checked",

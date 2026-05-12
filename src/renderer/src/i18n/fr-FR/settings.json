@@ -1153,7 +1153,7 @@
     "removeDefaultFirst": "Veuillez supprimer d'abord certains serveurs par défaut",
     "higressMarket": "Aller à l'installation de Higress MCP",
     "npmRegistry": {
-      "title": "Configuration des sources NPM",
+      "title": "Source NPM",
       "currentSource": "Source actuelle",
       "cached": "En cache",
       "lastChecked": "Dernière vérification",

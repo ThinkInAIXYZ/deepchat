@@ -1160,7 +1160,7 @@
     "removeDefaultFirst": "אנא הסר תחילה מספר שרתי ברירת מחדל",
     "higressMarket": "עבור להתקנת Higress MCP",
     "npmRegistry": {
-      "title": "תצורת NPM Registry",
+      "title": "מקור NPM",
       "currentSource": "מקור נוכחי",
       "cached": "במטמון",
       "lastChecked": "נבדק לאחרונה",

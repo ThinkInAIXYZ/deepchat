@@ -6,11 +6,6 @@
   >
     <div class="flex w-full flex-col gap-4">
       <div class="rounded-xl border border-border bg-card/30 p-4">
-        <div class="mb-4 flex items-center gap-2" :dir="languageStore.dir">
-          <Icon icon="lucide:refresh-cw" class="h-4 w-4 text-muted-foreground" />
-          <h2 class="text-sm font-semibold">{{ t('settings.data.syncSectionTitle') }}</h2>
-        </div>
-
         <div class="flex flex-col gap-4">
           <div
             class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
@@ -175,11 +170,6 @@
       <PrivacySettingsSection />
 
       <div class="rounded-xl border border-border bg-card/30 p-4">
-        <div class="mb-4 flex items-center gap-2" :dir="languageStore.dir">
-          <Icon icon="lucide:wrench" class="h-4 w-4 text-muted-foreground" />
-          <h2 class="text-sm font-semibold">{{ t('settings.data.operationsSectionTitle') }}</h2>
-        </div>
-
         <div class="flex flex-col divide-y divide-border">
           <div
             class="flex flex-col gap-3 py-4 first:pt-0 lg:flex-row lg:items-center lg:justify-between"

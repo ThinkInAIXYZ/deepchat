@@ -1153,7 +1153,7 @@
     "removeDefaultFirst": "Сначала удалите несколько серверов по умолчанию",
     "higressMarket": "Перейти к установке Higress MCP",
     "npmRegistry": {
-      "title": "Настройка источников NPM",
+      "title": "Источник NPM",
       "currentSource": "Текущий источник",
       "cached": "Кэшировано",
       "lastChecked": "Последняя проверка",

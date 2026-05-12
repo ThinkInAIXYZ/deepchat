@@ -1153,7 +1153,7 @@
     "removeDefaultFirst": "請先移除一些默認服務器",
     "higressMarket": "前往 Higress MCP 安裝",
     "npmRegistry": {
-      "title": "NPM源設定",
+      "title": "NPM 源",
       "currentSource": "目前來源",
       "cached": "快取",
       "lastChecked": "上次檢測",
