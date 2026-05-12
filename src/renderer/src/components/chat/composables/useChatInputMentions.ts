@@ -194,11 +194,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
         isGenerating: options.isGenerating?.value
       })
     ) {
-      items.push(
-        createManualCompactionSuggestion(
-          options.compactCommandDescription?.value ?? 'Compact conversation context'
-        )
-      )
+      items.push(createManualCompactionSuggestion(options.compactCommandDescription?.value ?? ''))
     }
 
     for (const command of acpCommands.value) {
