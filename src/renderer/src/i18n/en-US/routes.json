@@ -19,5 +19,6 @@
   "settings-dashboard": "Dashboard",
   "settings-environments": "Environments",
   "settings-remote": "Remote",
-  "settings-plugins": "Plugins"
+  "settings-plugins": "Plugins",
+  "settings-overview": "Settings Overview"
 }

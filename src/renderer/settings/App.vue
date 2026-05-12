@@ -24,19 +24,32 @@
       <div
         class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
       ></div>
-      <div class="w-52 h-full border-r border-border p-4 space-y-1 shrink-0 overflow-y-auto">
-        <div
-          v-for="setting in settings"
-          :key="setting.name"
-          :data-testid="getSettingsTabTestId(setting.name)"
-          :class="[
-            'flex flex-row items-center hover:bg-accent gap-2 rounded-lg p-2 cursor-pointer',
-            route.name === setting.name ? 'bg-accent' : ''
-          ]"
-          @click="handleClick(setting.path)"
-        >
-          <Icon :icon="setting.icon" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t(setting.title) }}</span>
+      <div
+        data-testid="settings-navigation"
+        class="w-60 h-full border-r border-border shrink-0 overflow-y-auto bg-muted/10"
+      >
+        <div class="flex flex-col gap-4 p-3">
+          <div v-for="group in settingGroups" :key="group.key" class="flex flex-col gap-1">
+            <div class="px-2 text-xs font-medium text-muted-foreground">
+              {{ t(group.titleKey) }}
+            </div>
+            <div class="flex flex-col gap-1">
+              <button
+                v-for="setting in group.items"
+                :key="setting.name"
+                type="button"
+                :data-testid="getSettingsTabTestId(setting.name)"
+                :class="[
+                  'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent cursor-pointer',
+                  route.name === setting.name ? 'bg-accent text-accent-foreground' : ''
+                ]"
+                @click="handleClick(setting.path)"
+              >
+                <Icon :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
+                <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       <RouterView />
@@ -98,7 +111,8 @@ import type {
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
 import {
-  getSettingsNavigationItems,
+  getSettingsNavigationGroups,
+  getSettingsRouteItems,
   resolveSettingsNavigationPath
 } from '@shared/settingsNavigation'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
@@ -446,11 +460,24 @@ const settings: Ref<
     path: string
   }[]
 > = ref(
-  getSettingsNavigationItems(window.electron?.process?.platform).map((item) => ({
+  getSettingsRouteItems(window.electron?.process?.platform).map((item) => ({
     title: item.titleKey,
     name: item.routeName,
     icon: item.icon,
     path: resolveSettingsNavigationPath(item.routeName)
+  }))
+)
+
+const settingGroups = ref(
+  getSettingsNavigationGroups(window.electron?.process?.platform).map((group) => ({
+    key: group.key,
+    titleKey: group.titleKey,
+    items: group.items.map((item) => ({
+      title: item.titleKey,
+      name: item.routeName,
+      icon: item.icon,
+      path: resolveSettingsNavigationPath(item.routeName)
+    }))
   }))
 )
 
@@ -493,6 +520,7 @@ const handleClick = (path: string) => {
 }
 
 const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
+  'settings-overview': 'settings-tab-overview',
   'settings-common': 'settings-tab-general',
   'settings-display': 'settings-tab-appearance',
   'settings-provider': 'settings-tab-model-providers',

@@ -161,6 +161,7 @@ import {
   pluginsListRoute
 } from './routes/plugins.routes'
 import {
+  settingsActivityListRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute
@@ -407,6 +408,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [settingsGetSnapshotRoute.name]: settingsGetSnapshotRoute,
   [settingsListSystemFontsRoute.name]: settingsListSystemFontsRoute,
   [settingsUpdateRoute.name]: settingsUpdateRoute,
+  [settingsActivityListRoute.name]: settingsActivityListRoute,
   [startupGetBootstrapRoute.name]: startupGetBootstrapRoute,
   [sessionsCreateRoute.name]: sessionsCreateRoute,
   [sessionsRestoreRoute.name]: sessionsRestoreRoute,

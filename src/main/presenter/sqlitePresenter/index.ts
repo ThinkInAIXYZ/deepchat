@@ -34,7 +34,9 @@ import { AgentsTable } from './tables/agents'
 import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
+import { SettingsActivityTable } from './tables/settingsActivity'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
+import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
@@ -230,6 +232,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public configTables!: ConfigTables
   public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
   public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
+  public settingsActivityTable!: SettingsActivityTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -262,7 +265,24 @@ export class SQLitePresenter implements ISQLitePresenter {
   }
 
   public async repairSchema(): Promise<DatabaseRepairReport> {
-    return new DatabaseRepairService(this.db, this.dbPath).repair()
+    const report = new DatabaseRepairService(this.db, this.dbPath).repair()
+    try {
+      this.settingsActivityTable?.record({
+        category: 'data',
+        action: 'repaired',
+        targetType: 'database',
+        targetId: 'schema',
+        targetLabel: 'Database schema',
+        routeName: 'settings-database',
+        summaryKey: 'settings.controlCenter.activity.databaseRepaired',
+        summaryParams: {
+          status: report.status
+        }
+      })
+    } catch (error) {
+      console.warn('[SettingsActivity] Failed to record repair event:', error)
+    }
+    return report
   }
 
   private initializeDatabase(): void {
@@ -372,6 +392,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.configTables = new ConfigTables(this.db)
     this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
     this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
+    this.settingsActivityTable = new SettingsActivityTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -394,6 +415,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.configTables.createTable()
     this.newSessionActiveSkillsTable.createTable()
     this.newSessionDisabledAgentToolsTable.createTable()
+    this.settingsActivityTable.createTable()
   }
 
   private initVersionTable() {
@@ -434,7 +456,8 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.agentsTable,
       this.configTables,
       this.newSessionActiveSkillsTable,
-      this.newSessionDisabledAgentToolsTable
+      this.newSessionDisabledAgentToolsTable,
+      this.settingsActivityTable
     ]
 
     // 获取最新的迁移版本
@@ -526,6 +549,16 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM new_sessions;
       `)
     })
+  }
+
+  public async recordSettingsActivity(
+    input: SettingsActivityInput
+  ): Promise<SettingsActivityRecord> {
+    return this.settingsActivityTable.record(input)
+  }
+
+  public async listSettingsActivity(limit?: number): Promise<SettingsActivityRecord[]> {
+    return this.settingsActivityTable.list(limit)
   }
 
   public async importLegacyChatDb(

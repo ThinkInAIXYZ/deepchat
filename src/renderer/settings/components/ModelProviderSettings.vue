@@ -23,8 +23,13 @@
   </div>
   <div v-else data-testid="settings-provider-page" class="w-full h-full flex flex-row">
     <ScrollArea class="w-80 border-r h-full">
-      <div class="space-y-4 p-4">
-        <!-- 搜索框 -->
+      <div class="flex flex-col gap-4 p-4">
+        <div class="flex flex-col gap-1">
+          <h1 class="text-lg font-semibold">{{ t('settings.provider.center.title') }}</h1>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.provider.center.description') }}
+          </p>
+        </div>
         <div class="sticky top-4 z-10">
           <div class="relative">
             <Input
@@ -48,9 +53,8 @@
             />
           </div>
         </div>
-        <!-- 启用的服务商区域 -->
-        <div v-if="enabledProviders.length > 0">
-          <div class="text-xs font-medium text-muted-foreground mb-2 px-2">
+        <div v-if="enabledProviders.length > 0" class="flex flex-col gap-2">
+          <div class="text-xs font-medium text-muted-foreground px-2">
             {{ t('settings.provider.enabled') }} ({{ enabledProviders.length }})
           </div>
           <draggable
@@ -112,9 +116,8 @@
           </draggable>
         </div>
 
-        <!-- 禁用的服务商区域 -->
-        <div v-if="disabledProviders.length > 0">
-          <div class="text-xs font-medium text-muted-foreground mb-2 px-2">
+        <div v-if="disabledProviders.length > 0" class="flex flex-col gap-2">
+          <div class="text-xs font-medium text-muted-foreground px-2">
             {{ t('settings.provider.disabled') }} ({{ disabledProviders.length }})
           </div>
           <draggable
