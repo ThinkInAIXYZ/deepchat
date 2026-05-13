@@ -2,6 +2,7 @@
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { createConfigClient } from '@api/ConfigClient'
+import { createOnboardingClient } from '@api/OnboardingClient'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useSessionStore } from '@/stores/ui/session'
@@ -33,6 +34,14 @@ import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
+import {
+  clearGuidedOnboardingResumeIntent,
+  GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+  readGuidedOnboardingResumeIntent,
+  type GuidedOnboardingResumeRequestDetail,
+  type GuidedOnboardingResumeTrigger
+} from '@/lib/onboardingResume'
+import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
 import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
 import { createWindowClient } from '@api/WindowClient'
 
@@ -40,6 +49,7 @@ const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
 const route = useRoute()
 const configClient = createConfigClient()
+const onboardingClient = createOnboardingClient()
 const windowClient = createWindowClient()
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
@@ -198,7 +208,30 @@ const ensureStartupWelcomeState = async () => {
     }
 
     const initComplete = Boolean(await configClient.getSetting('init_complete'))
-    if (!initComplete) {
+    let onboardingState: Awaited<ReturnType<typeof onboardingClient.getState>> | null = null
+
+    try {
+      onboardingState = await onboardingClient.getState()
+    } catch (error) {
+      console.warn('[App] Failed to load onboarding state during startup:', error)
+    }
+
+    if (onboardingState?.status === 'completed') {
+      if (isWelcomeRoute) {
+        await router.replace({ name: 'chat' })
+      }
+      return
+    }
+
+    if (!initComplete || onboardingState?.status === 'active') {
+      if (!initComplete && onboardingState?.status !== 'active') {
+        try {
+          onboardingState = await onboardingClient.start()
+        } catch (error) {
+          console.warn('[App] Failed to start onboarding during startup:', error)
+        }
+      }
+
       if (!isWelcomeRoute) {
         await router.replace({ name: 'welcome' })
       }
@@ -320,10 +353,90 @@ const handleDatabaseRepairSuggested = (payload: unknown) => {
   })
 }
 
+const handleStartGuidedOnboardingDev = async () => {
+  if (!import.meta.env.DEV) {
+    return
+  }
+
+  try {
+    clearGuidedOnboardingResumeIntent()
+    await onboardingClient.start({
+      force: true,
+      stepId: 'select-provider'
+    })
+
+    if (router.currentRoute.value.name !== 'welcome') {
+      await router.replace({ name: 'welcome' })
+    }
+  } catch (error) {
+    console.warn('[App] Failed to start guided onboarding from dev trigger:', error)
+  }
+}
+
+const CHAT_GUIDED_ONBOARDING_STEP_IDS = new Set<GuidedOnboardingStepId>([
+  'switch-agent',
+  'switch-model',
+  'first-chat'
+])
+
+const routeToGuidedOnboardingStep = async (stepId: GuidedOnboardingStepId | null) => {
+  if (stepId && CHAT_GUIDED_ONBOARDING_STEP_IDS.has(stepId)) {
+    if (router.currentRoute.value.name !== 'chat') {
+      await router.replace({ name: 'chat' })
+    }
+
+    pageRouterStore.goToNewThread({ refresh: true })
+    return
+  }
+
+  if (router.currentRoute.value.name !== 'welcome') {
+    await router.replace({ name: 'welcome' })
+  }
+}
+
+const handleResumeGuidedOnboarding = async (trigger: GuidedOnboardingResumeTrigger) => {
+  const resumeIntent = readGuidedOnboardingResumeIntent()
+  if (!resumeIntent || resumeIntent.trigger !== trigger) {
+    return
+  }
+
+  try {
+    const onboardingState = await onboardingClient.getState()
+
+    if (onboardingState.status !== 'active') {
+      clearGuidedOnboardingResumeIntent()
+      if (onboardingState.status === 'completed') {
+        if (router.currentRoute.value.name !== 'chat') {
+          await router.replace({ name: 'chat' })
+        }
+
+        pageRouterStore.goToNewThread({ refresh: true })
+      }
+      return
+    }
+
+    clearGuidedOnboardingResumeIntent()
+    await routeToGuidedOnboardingStep(onboardingState.currentStepId)
+  } catch (error) {
+    console.warn('[App] Failed to resume guided onboarding:', error)
+  }
+}
+
+const handleGuidedOnboardingResumeRequested = (event: Event) => {
+  const detail = (event as CustomEvent<GuidedOnboardingResumeRequestDetail>).detail
+  if (!detail?.trigger) {
+    return
+  }
+
+  void handleResumeGuidedOnboarding(detail.trigger)
+}
+
 const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRuntime({
   handleStartDeeplink: (event, payload) => {
     handleStartDeeplink(event, payload as Omit<StartDeeplinkPayload, 'token'> | undefined)
   },
+  handleStartGuidedOnboardingDev,
+  handleWindowFocused: () => handleResumeGuidedOnboarding('window-focus'),
   showErrorToast,
   handleDatabaseRepairSuggested,
   handleZoomIn,
@@ -390,6 +503,10 @@ watch(
 
 onMounted(() => {
   window.addEventListener('keydown', handleEscKey)
+  window.addEventListener(
+    GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+    handleGuidedOnboardingResumeRequested as EventListener
+  )
 
   // Ensure icons are loaded (load asynchronously, can happen in parallel with store init)
   void ensureIconsLoaded()
@@ -443,6 +560,10 @@ onBeforeUnmount(() => {
   }
 
   window.removeEventListener('keydown', handleEscKey)
+  window.removeEventListener(
+    GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+    handleGuidedOnboardingResumeRequested as EventListener
+  )
   cleanupAppIpcRuntime()
   cleanupMcpDeeplink()
 })

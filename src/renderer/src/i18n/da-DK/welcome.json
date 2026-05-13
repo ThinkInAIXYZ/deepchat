@@ -37,6 +37,24 @@
   "page": {
     "title": "Velkommen til DeepChat Agent",
     "description": "Tilslut en modeludbyder for at komme i gang",
+    "guide": {
+      "title": "Opsætningsguide",
+      "description": "Nuværende trin: {step}",
+      "coreProgress": "Fremdrift for kernesetup",
+      "optional": "Valgfrie næste trin",
+      "actions": {
+        "continueSetup": "Fortsæt opsætning",
+        "goToChat": "Gå til chat"
+      },
+      "steps": {
+        "provider": "Udbyder",
+        "first-chat": "Første chat",
+        "switch-model": "Skift model",
+        "mcp": "MCP",
+        "skills": "Færdigheder",
+        "plugins": "Plugins"
+      }
+    },
     "browseProviders": "Gennemse alle udbydere...",
     "connectAgent": "eller tilslut en agent",
     "acpTitle": "Sæt en ACP-agent op",

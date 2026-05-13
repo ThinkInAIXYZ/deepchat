@@ -115,7 +115,7 @@
           <PopoverContent
             align="start"
             :class="[
-              'max-w-[calc(100vw-1rem)] overflow-hidden p-0',
+              'z-72 max-w-[calc(100vw-1rem)] overflow-hidden p-0',
               isModelSettingsExpanded ? 'w-[38rem]' : 'w-[20rem]'
             ]"
           >
@@ -951,8 +951,10 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
 import { createConfigClient } from '@api/ConfigClient'
 import { createModelClient } from '@api/ModelClient'
+import { createOnboardingClient } from '@api/OnboardingClient'
 import { createProviderClient } from '@api/ProviderClient'
 import { createSessionClient } from '@api/SessionClient'
+import { requestGuidedOnboardingResume } from '@/lib/onboardingResume'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useThemeStore } from '@/stores/theme'
@@ -1020,6 +1022,7 @@ const draftStore = useDraftStore()
 const projectStore = useProjectStore()
 const configClient = createConfigClient()
 const modelClient = createModelClient()
+const onboardingClient = createOnboardingClient()
 const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
@@ -2450,34 +2453,74 @@ function isModelSelected(providerId: string, modelId: string) {
   )
 }
 
-async function changeModelSelection(providerId: string, modelId: string): Promise<boolean> {
+async function completeSwitchModelOnboardingIfNeeded(previousSelection: ModelSelection | null) {
+  const currentSelection = getEffectiveModelSelectionSnapshot()
+  const alreadySelected =
+    previousSelection?.providerId === currentSelection?.providerId &&
+    previousSelection?.modelId === currentSelection?.modelId
+
+  if (alreadySelected) {
+    return
+  }
+
+  try {
+    const state = await onboardingClient.getState()
+    if (state.status !== 'active' || state.currentStepId !== 'switch-model') {
+      return
+    }
+
+    const nextState = await onboardingClient.setStepStatus({
+      stepId: 'switch-model',
+      status: 'completed'
+    })
+
+    if (nextState.currentStepId === null) {
+      await onboardingClient.complete()
+    }
+
+    requestGuidedOnboardingResume('step-completed')
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to complete switch-model onboarding step:', error)
+  }
+}
+
+async function changeModelSelection(
+  providerId: string,
+  modelId: string
+): Promise<{
+  applied: boolean
+  selectionChanged: boolean
+  previousSelection: ModelSelection | null
+}> {
   const ready = await ensureCompleteModelOptionsReady()
+  const previousSelection = getEffectiveModelSelectionSnapshot()
+
   if (!ready) {
-    return false
+    return { applied: false, selectionChanged: false, previousSelection }
   }
 
   if (isModelSelectionLocked.value) {
-    return false
+    return { applied: false, selectionChanged: false, previousSelection }
   }
 
   if (
     effectiveModelSelection.value?.providerId === providerId &&
     effectiveModelSelection.value?.modelId === modelId
   ) {
-    return true
+    return { applied: true, selectionChanged: false, previousSelection }
   }
 
   if (hasActiveSession.value) {
     const sessionId = sessionStore.activeSessionId
     if (!sessionId) {
-      return false
+      return { applied: false, selectionChanged: false, previousSelection }
     }
     try {
       await sessionStore.setSessionModel(sessionId, providerId, modelId)
-      return true
+      return { applied: true, selectionChanged: true, previousSelection }
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to switch active session model:', error)
-      return false
+      return { applied: false, selectionChanged: false, previousSelection }
     }
   }
 
@@ -2517,21 +2560,25 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     draftStore.providerId = providerId
     draftStore.modelId = modelId
     await configClient.setSetting('preferredModel', { providerId, modelId })
-    return true
+    return { applied: true, selectionChanged: true, previousSelection }
   } catch (error) {
     draftModelSelection.value = previousDraftSelection
     draftStore.providerId = previousDraftProviderId
     draftStore.modelId = previousDraftModelId
     draftStore.updateGenerationSettings(previousDraftGenerationSettings)
     console.warn('[ChatStatusBar] Failed to switch draft model:', error)
-    return false
+    return { applied: false, selectionChanged: false, previousSelection }
   }
 }
 
 async function handleModelQuickSelect(providerId: string, modelId: string) {
-  const changed = await changeModelSelection(providerId, modelId)
-  if (!changed) {
+  const result = await changeModelSelection(providerId, modelId)
+  if (!result.applied) {
     return
+  }
+
+  if (result.selectionChanged) {
+    await completeSwitchModelOnboardingIfNeeded(result.previousSelection)
   }
 
   modelSettingsSelection.value = { providerId, modelId }
@@ -2540,11 +2587,15 @@ async function handleModelQuickSelect(providerId: string, modelId: string) {
 }
 
 async function openModelSettings(providerId: string, modelId: string) {
-  const changed = await changeModelSelection(providerId, modelId)
-  if (!changed) {
+  const result = await changeModelSelection(providerId, modelId)
+  if (!result.applied) {
     modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
     isModelSettingsExpanded.value = false
     return
+  }
+
+  if (result.selectionChanged) {
+    await completeSwitchModelOnboardingIfNeeded(result.previousSelection)
   }
 
   modelSettingsSelection.value = { providerId, modelId }

@@ -37,6 +37,24 @@
   "page": {
     "title": "欢迎使用 DeepChat Agent",
     "description": "连接一个模型服务商即可开始使用",
+    "guide": {
+      "title": "引导进度",
+      "description": "当前步骤：{step}",
+      "coreProgress": "核心配置进度",
+      "optional": "可选的下一步",
+      "actions": {
+        "continueSetup": "继续配置",
+        "goToChat": "前往聊天"
+      },
+      "steps": {
+        "provider": "服务商",
+        "first-chat": "首次聊天",
+        "switch-model": "切换模型",
+        "mcp": "MCP",
+        "skills": "技能",
+        "plugins": "插件"
+      }
+    },
     "browseProviders": "浏览所有服务商...",
     "connectAgent": "或连接一个 Agent",
     "acpTitle": "设置 ACP Agent",

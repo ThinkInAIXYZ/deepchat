@@ -1,8 +1,16 @@
-import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from '@/events'
+import {
+  APP_RUNTIME_EVENTS,
+  DEEPLINK_EVENTS,
+  DEV_EVENTS,
+  NOTIFICATION_EVENTS,
+  SHORTCUT_EVENTS
+} from '@/events'
 import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 
 interface UseAppIpcRuntimeOptions {
   handleStartDeeplink: (event: unknown, payload?: unknown) => void
+  handleStartGuidedOnboardingDev: () => void | Promise<void>
+  handleWindowFocused: () => void | Promise<void>
   showErrorToast: (error: { id: string; title: string; message: string; type: string }) => void
   handleDatabaseRepairSuggested: (payload: unknown) => void
   handleZoomIn: () => void
@@ -25,6 +33,12 @@ export function useAppIpcRuntime(options: UseAppIpcRuntimeOptions) {
     const scope = createIpcSubscriptionScope()
 
     scope.on(DEEPLINK_EVENTS.START, options.handleStartDeeplink)
+    scope.on(DEV_EVENTS.START_GUIDED_ONBOARDING, () => {
+      void options.handleStartGuidedOnboardingDev()
+    })
+    scope.on(APP_RUNTIME_EVENTS.WINDOW_FOCUSED, () => {
+      void options.handleWindowFocused()
+    })
     scope.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
       options.showErrorToast(error as { id: string; title: string; message: string; type: string })
     })

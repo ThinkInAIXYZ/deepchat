@@ -1,5 +1,9 @@
 import { reactive } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+  GUIDED_ONBOARDING_RESUME_STORAGE_KEY
+} from '@/lib/onboardingResume'
 
 type SetupStoreOptions = {
   initialSettings?: Record<string, unknown>
@@ -7,9 +11,21 @@ type SetupStoreOptions = {
   failSetSetting?: boolean
   selectedAgentId?: string | null
   enabledAgents?: Array<{ id: string; name?: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
+  onboardingCurrentStepId?:
+    | 'provider'
+    | 'first-chat'
+    | 'switch-model'
+    | 'mcp'
+    | 'skills'
+    | 'plugins'
+    | null
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
+
+afterEach(() => {
+  window.sessionStorage.removeItem(GUIDED_ONBOARDING_RESUME_STORAGE_KEY)
+})
 
 const createSession = (overrides: Record<string, unknown> = {}) => ({
   id: 'session-1',
@@ -47,6 +63,11 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     create: vi.fn().mockResolvedValue({
       session: createSession()
     }),
+    setSessionModel: vi
+      .fn()
+      .mockImplementation(async (_sessionId: string, providerId: string, modelId: string) =>
+        createSession({ providerId, modelId })
+      ),
     activate: vi.fn().mockResolvedValue({ activated: true }),
     deactivate: vi.fn().mockResolvedValue({ deactivated: true }),
     onUpdated: vi.fn((listener: (payload: any) => void) => {
@@ -73,6 +94,139 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     goToChat: vi.fn(),
     goToNewThread: vi.fn(),
     currentRoute: 'chat'
+  }
+  const onboardingCurrentStepId = options.onboardingCurrentStepId ?? null
+  const resolveOnboardingStateAfterCompletion = (stepId: 'first-chat' | 'switch-model') => ({
+    version: 1,
+    status: 'active' as const,
+    startedAt: 1,
+    completedAt: null,
+    lastActiveAt: 2,
+    currentStepId: stepId === 'switch-model' ? 'first-chat' : null,
+    steps: [
+      {
+        id: 'provider',
+        required: true,
+        status: 'completed' as const,
+        startedAt: 1,
+        completedAt: 1,
+        skippedAt: null
+      },
+      {
+        id: 'mcp',
+        required: false,
+        status: 'skipped' as const,
+        startedAt: null,
+        completedAt: null,
+        skippedAt: 1
+      },
+      {
+        id: 'skills',
+        required: false,
+        status: 'skipped' as const,
+        startedAt: null,
+        completedAt: null,
+        skippedAt: 1
+      },
+      {
+        id: 'plugins',
+        required: false,
+        status: 'skipped' as const,
+        startedAt: null,
+        completedAt: null,
+        skippedAt: 1
+      },
+      {
+        id: 'switch-model',
+        required: true,
+        status: stepId === 'switch-model' ? ('completed' as const) : ('completed' as const),
+        startedAt: 1,
+        completedAt: 2,
+        skippedAt: null
+      },
+      {
+        id: 'first-chat',
+        required: true,
+        status: stepId === 'first-chat' ? ('completed' as const) : ('pending' as const),
+        startedAt: stepId === 'first-chat' ? 1 : null,
+        completedAt: stepId === 'first-chat' ? 2 : null,
+        skippedAt: null
+      }
+    ]
+  })
+  const onboardingClient = {
+    getState: vi.fn().mockResolvedValue({
+      version: 1,
+      status: onboardingCurrentStepId ? 'active' : 'idle',
+      startedAt: onboardingCurrentStepId ? 1 : null,
+      completedAt: null,
+      lastActiveAt: 1,
+      currentStepId: onboardingCurrentStepId,
+      steps: [
+        {
+          id: 'provider',
+          required: true,
+          status: onboardingCurrentStepId === 'provider' ? 'in_progress' : 'pending',
+          startedAt: onboardingCurrentStepId === 'provider' ? 1 : null,
+          completedAt: null,
+          skippedAt: null
+        },
+        {
+          id: 'mcp',
+          required: false,
+          status: onboardingCurrentStepId === 'mcp' ? 'in_progress' : 'pending',
+          startedAt: onboardingCurrentStepId === 'mcp' ? 1 : null,
+          completedAt: null,
+          skippedAt: null
+        },
+        {
+          id: 'skills',
+          required: false,
+          status: onboardingCurrentStepId === 'skills' ? 'in_progress' : 'pending',
+          startedAt: onboardingCurrentStepId === 'skills' ? 1 : null,
+          completedAt: null,
+          skippedAt: null
+        },
+        {
+          id: 'plugins',
+          required: false,
+          status: onboardingCurrentStepId === 'plugins' ? 'in_progress' : 'pending',
+          startedAt: onboardingCurrentStepId === 'plugins' ? 1 : null,
+          completedAt: null,
+          skippedAt: null
+        },
+        {
+          id: 'switch-model',
+          required: true,
+          status: onboardingCurrentStepId === 'switch-model' ? 'in_progress' : 'pending',
+          startedAt: onboardingCurrentStepId === 'switch-model' ? 1 : null,
+          completedAt: null,
+          skippedAt: null
+        },
+        {
+          id: 'first-chat',
+          required: true,
+          status: onboardingCurrentStepId === 'first-chat' ? 'in_progress' : 'pending',
+          startedAt: onboardingCurrentStepId === 'first-chat' ? 1 : null,
+          completedAt: null,
+          skippedAt: null
+        }
+      ]
+    }),
+    setStepStatus: vi
+      .fn()
+      .mockImplementation(async ({ stepId }: { stepId: 'first-chat' | 'switch-model' }) =>
+        resolveOnboardingStateAfterCompletion(stepId)
+      ),
+    complete: vi.fn().mockResolvedValue({
+      version: 1,
+      status: 'completed',
+      startedAt: 1,
+      completedAt: 3,
+      lastActiveAt: 3,
+      currentStepId: null,
+      steps: []
+    })
   }
   const agentStore = reactive({
     selectedAgentId: options.selectedAgentId ?? null,
@@ -111,6 +265,9 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
 
   vi.doMock('../../../src/renderer/api/ConfigClient', () => ({
     createConfigClient: vi.fn(() => configClient)
+  }))
+  vi.doMock('../../../src/renderer/api/OnboardingClient', () => ({
+    createOnboardingClient: vi.fn(() => onboardingClient)
   }))
   vi.doMock('../../../src/renderer/api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
@@ -161,6 +318,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     setCurrentSessionId,
     sessionClient,
     chatClient,
+    onboardingClient,
     agentStore,
     pageRouter,
     emitSessionUpdate,
@@ -461,6 +619,108 @@ describe('sessionStore.startNewConversation', () => {
     expect(agentStore.setSelectedAgent).not.toHaveBeenCalled()
     expect(sessionClient.deactivate).not.toHaveBeenCalled()
     expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
+  })
+})
+
+describe('sessionStore onboarding progress', () => {
+  it('marks the first-chat step complete after creating the first session', async () => {
+    const { store, onboardingClient, pageRouter, sessionClient } = await setupStore({
+      onboardingCurrentStepId: 'first-chat'
+    })
+
+    await store.createSession({
+      agentId: 'deepchat',
+      message: 'hello onboarding',
+      projectDir: '/tmp/workspace',
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+
+    expect(sessionClient.create).toHaveBeenCalledWith({
+      agentId: 'deepchat',
+      message: 'hello onboarding',
+      projectDir: '/tmp/workspace',
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
+    expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
+    expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
+      stepId: 'first-chat',
+      status: 'completed'
+    })
+  })
+
+  it('marks the first-chat step complete after a successful send', async () => {
+    const { store, chatClient, onboardingClient } = await setupStore({
+      onboardingCurrentStepId: 'first-chat'
+    })
+
+    await store.sendMessage('session-1', 'hello onboarding')
+
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('session-1', 'hello onboarding')
+    expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
+    expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
+      stepId: 'first-chat',
+      status: 'completed'
+    })
+  })
+
+  it('requests a welcome-guide resume when a pending chat onboarding step completes', async () => {
+    window.sessionStorage.setItem(
+      GUIDED_ONBOARDING_RESUME_STORAGE_KEY,
+      JSON.stringify({
+        stepId: 'first-chat',
+        trigger: 'step-completed',
+        createdAt: Date.now()
+      })
+    )
+
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+    const { store } = await setupStore({
+      onboardingCurrentStepId: 'first-chat'
+    })
+
+    await store.sendMessage('session-1', 'hello onboarding')
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+        detail: {
+          trigger: 'step-completed'
+        }
+      })
+    )
+
+    dispatchSpy.mockRestore()
+  })
+
+  it('marks the switch-model step complete after a successful model change', async () => {
+    const { store, sessionClient, onboardingClient } = await setupStore({
+      onboardingCurrentStepId: 'switch-model'
+    })
+
+    await store.setSessionModel('session-1', 'anthropic', 'claude-3-7-sonnet')
+
+    expect(sessionClient.setSessionModel).toHaveBeenCalledWith(
+      'session-1',
+      'anthropic',
+      'claude-3-7-sonnet'
+    )
+    expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
+    expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
+      stepId: 'switch-model',
+      status: 'completed'
+    })
+  })
+
+  it('does not update onboarding progress when the guide is idle', async () => {
+    const { store, onboardingClient } = await setupStore()
+
+    await store.sendMessage('session-1', 'outside onboarding')
+
+    expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
+    expect(onboardingClient.setStepStatus).not.toHaveBeenCalled()
   })
 })
 

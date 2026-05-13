@@ -1389,6 +1389,25 @@ export class WindowPresenter implements IWindowPresenter {
     return null
   }
 
+  public focusMainWindow(): boolean {
+    if (this.mainWindowId == null) {
+      return false
+    }
+
+    const mainWindow = BrowserWindow.fromId(this.mainWindowId)
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
+      return false
+    }
+
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
+
+    mainWindow.show()
+    mainWindow.focus()
+    return true
+  }
+
   public setPendingSettingsProviderInstall(preview: ProviderInstallPreview): void {
     this.pendingSettingsProviderInstalls.push(this.clonePendingSettingsProviderInstall(preview))
   }

@@ -351,5 +351,20 @@
     "previous": "上一個匹配",
     "next": "下一個匹配",
     "close": "關閉搜尋"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "切換到 DeepChat Agent",
+      "description": "開始聊天前，先從 ACP Agent 切回 DeepChat 對話流程。",
+      "caption": "點擊側邊欄中高亮的 Agent 按鈕即可繼續。"
+    },
+    "switchModel": {
+      "description": "為第一次 DeepChat 對話選擇你想使用的模型。",
+      "caption": "使用高亮的模型切換器，選擇任意可用模型即可。"
+    },
+    "firstChat": {
+      "description": "現在已經準備好了，在這裡傳送第一條訊息即可完成引導。",
+      "caption": "聚光會一直停留在輸入框，直到你真正送出第一條訊息。"
+    }
   }
 }

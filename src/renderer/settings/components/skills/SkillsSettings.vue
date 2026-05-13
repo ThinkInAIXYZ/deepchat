@@ -28,7 +28,7 @@
       </Button>
     </template>
 
-    <div>
+    <div ref="guideRootRef">
       <Separator class="my-4" />
 
       <div class="mb-4 rounded-lg border px-4 py-3 flex items-start justify-between gap-4">
@@ -46,7 +46,7 @@
         />
       </div>
 
-      <div class="mb-4">
+      <div ref="skillsSyncRef" class="mb-4" @click="handleSkillsGuideTargetInteract">
         <SyncStatusSection @import="handleQuickImport" @import-new="handleImportNew" />
       </div>
 
@@ -125,11 +125,33 @@
     <!-- First-launch sync prompt -->
     <SyncPromptDialog @import="handlePromptImport" @close="handlePromptClose" />
   </SettingsPageShell>
+
+  <GuidedOnboardingOverlay
+    :visible="showSkillsGuide"
+    :container-el="guideRootRef"
+    :target-el="skillsSyncRef"
+    :eyebrow="t('welcome.page.guide.title')"
+    :title="t('welcome.page.guide.steps.skills')"
+    :description="t('settings.skills.description')"
+    :step-index="skillsGuide.stepIndex.value"
+    :total-steps="skillsGuide.totalSteps.value"
+    :close-label="t('common.close')"
+    :back-label="skillsGuide.canGoPrevious?.value ? t('common.back') : undefined"
+    :secondary-label="t('settings.skills.syncPrompt.skip')"
+    :expert-label="t('settings.skills.sync.skipAll')"
+    :primary-label="t('common.next')"
+    @close="skillsGuide.dismissGuide"
+    @back="handleSkillsGuideBack"
+    @secondary="handleSkillsGuideSkip"
+    @expert="handleSkillsGuideExpert"
+    @primary="handleSkillsGuidePrimary"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Icon } from '@iconify/vue'
 import { Separator } from '@shadcn/components/ui/separator'
@@ -158,11 +180,19 @@ import SyncStatusSection from './SyncStatusSection.vue'
 import SyncPromptDialog from './SyncPromptDialog.vue'
 import { SkillSyncDialog } from './SkillSyncDialog'
 import SettingsPageShell from '../control-center/SettingsPageShell.vue'
+import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
+import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
+import { continueGuidedOnboardingFromSettings } from '../../lib/guidedOnboardingSettings'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
 const configPresenter = useLegacyPresenter('configPresenter')
+const windowPresenter = useLegacyPresenter('windowPresenter')
+const guideRootRef = ref<HTMLElement | null>(null)
+const skillsSyncRef = ref<HTMLElement | null>(null)
+const skillsGuide = useGuidedOnboardingStep('skills')
+const showSkillsGuide = computed(() => skillsGuide.showGuide.value && Boolean(skillsSyncRef.value))
 
 const { skills, skillExtensions, skillScripts, loading } = storeToRefs(skillsStore)
 
@@ -197,6 +227,57 @@ const editingSkill = ref<SkillMetadata | null>(null)
 // Delete dialog
 const deleteDialogOpen = ref(false)
 const deletingSkill = ref<SkillMetadata | null>(null)
+
+const router = useRouter()
+
+const handleSkillsGuidePrimary = async () => {
+  if (skillsGuide.currentStepId.value !== 'skills') {
+    return
+  }
+
+  const stepStatus = skillsGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  const state = await skillsGuide.completeStep()
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    windowPresenter
+  })
+}
+
+const handleSkillsGuideTargetInteract = async () => {
+  await handleSkillsGuidePrimary()
+}
+
+const handleSkillsGuideBack = async () => {
+  const state = await skillsGuide.activatePreviousStep()
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    windowPresenter
+  })
+}
+
+const handleSkillsGuideSkip = async () => {
+  const state = await skillsGuide.skipStep()
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    windowPresenter
+  })
+}
+
+const handleSkillsGuideExpert = async () => {
+  const state = await skillsGuide.forceComplete()
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    windowPresenter
+  })
+}
 
 // Event handling
 const eventCleanup = ref<(() => void) | null>(null)

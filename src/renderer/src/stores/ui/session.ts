@@ -2,10 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
 import { createChatClient } from '../../../api/ChatClient'
 import { createConfigClient } from '../../../api/ConfigClient'
+import { createOnboardingClient } from '../../../api/OnboardingClient'
 import { createSessionClient } from '../../../api/SessionClient'
 import { createTabClient } from '@api/TabClient'
 import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
+import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
@@ -15,6 +17,10 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import { downloadBlob } from '@/lib/download'
+import {
+  readGuidedOnboardingResumeIntent,
+  requestGuidedOnboardingResume
+} from '@/lib/onboardingResume'
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
@@ -228,6 +234,7 @@ export const useSessionStore = defineStore('session', () => {
   const sessionClient = createSessionClient()
   const chatClient = createChatClient()
   const configClient = createConfigClient()
+  const onboardingClient = createOnboardingClient()
   const tabClient = createTabClient()
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
@@ -589,6 +596,7 @@ export const useSessionStore = defineStore('session', () => {
       activeSessionSummary.value = mapToUIActiveSessionSummary(session)
       syncSelectedAgentToSession(session.id)
       pageRouter.goToChat(session.id)
+      await completeOnboardingStep('first-chat')
     } catch (createError) {
       error.value = `Failed to create session: ${createError}`
       throw createError
@@ -644,10 +652,43 @@ export const useSessionStore = defineStore('session', () => {
     pageRouter.goToNewThread({ refresh: options.refresh ?? true })
   }
 
+  async function completeOnboardingStep(stepId: GuidedOnboardingStepId): Promise<void> {
+    try {
+      const state = await onboardingClient.getState()
+
+      if (state.status !== 'active') {
+        return
+      }
+
+      const step = state.steps.find((candidate) => candidate.id === stepId)
+
+      if (!step || step.status === 'completed' || step.status === 'skipped') {
+        return
+      }
+
+      const nextState = await onboardingClient.setStepStatus({
+        stepId,
+        status: 'completed'
+      })
+
+      if (nextState.status === 'active' && nextState.currentStepId === null) {
+        await onboardingClient.complete()
+      }
+
+      const resumeIntent = readGuidedOnboardingResumeIntent()
+      if (resumeIntent?.trigger === 'step-completed' && resumeIntent.stepId === stepId) {
+        requestGuidedOnboardingResume('step-completed')
+      }
+    } catch (completionError) {
+      console.warn(`[SessionStore] Failed to complete onboarding step ${stepId}:`, completionError)
+    }
+  }
+
   async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
     error.value = null
     try {
       await chatClient.sendMessage(sessionId, content)
+      await completeOnboardingStep('first-chat')
     } catch (sendError) {
       error.value = `Failed to send message: ${sendError}`
       throw sendError
@@ -666,6 +707,7 @@ export const useSessionStore = defineStore('session', () => {
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
       }
+      await completeOnboardingStep('switch-model')
     } catch (updateError) {
       error.value = `Failed to set session model: ${updateError}`
       throw updateError

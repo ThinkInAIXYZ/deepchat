@@ -12,6 +12,7 @@
   },
   "disclaimerButton": "Avertissement",
   "clearMockUpdateButton": "Effacer la mise à jour simulée",
+  "mockOnboardingButton": "Simuler le premier lancement du guide",
   "disclaimerTitle": "Conditions d'utilisation",
   "checkUpdateButton": "Vérifier les mises à jour",
   "mockUpdateButton": "Simuler une mise à jour téléchargée",

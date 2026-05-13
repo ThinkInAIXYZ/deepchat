@@ -275,6 +275,7 @@ export interface IWindowPresenter {
   ): Promise<number | null>
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
+  focusMainWindow(): boolean
   setPendingSettingsProviderInstall(
     preview: import('@shared/providerDeeplink').ProviderInstallPreview
   ): void

@@ -75,12 +75,21 @@ export const WINDOW_EVENTS = {
   WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen'
 }
 
+export const APP_RUNTIME_EVENTS = {
+  WINDOW_FOCUSED: 'window-focused',
+  WINDOW_BLURRED: 'window-blurred'
+}
+
 // Settings related events
 export const SETTINGS_EVENTS = {
   READY: 'settings:ready',
   NAVIGATE: 'settings:navigate',
   CHECK_FOR_UPDATES: 'settings:check-for-updates',
   PROVIDER_INSTALL: 'settings:provider-install'
+}
+
+export const DEV_EVENTS = {
+  START_GUIDED_ONBOARDING: 'dev:start-guided-onboarding'
 }
 
 // ollama 相关事件

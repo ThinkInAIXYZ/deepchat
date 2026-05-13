@@ -54,6 +54,7 @@
       <Switch
         v-if="!hideEnableToggle"
         :key="`${providerId}:${modelId}`"
+        :data-testid="`provider-model-toggle-${providerId}-${modelId}`"
         :model-value="enabled"
         @update:model-value="onEnabledChange"
       />

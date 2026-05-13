@@ -21,7 +21,12 @@
       <div class="h-72 rounded-xl bg-muted/30"></div>
     </div>
   </div>
-  <div v-else data-testid="settings-provider-page" class="w-full h-full flex flex-row">
+  <div
+    v-else
+    ref="guideRootRef"
+    data-testid="settings-provider-page"
+    class="w-full h-full flex flex-row"
+  >
     <ScrollArea class="w-80 border-r h-full">
       <div class="flex flex-col gap-4 p-4">
         <div class="flex flex-col gap-1">
@@ -73,7 +78,7 @@
                   'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 cursor-pointer group',
                   route.params?.providerId === provider.id ? 'bg-accent text-accent-foreground' : ''
                 ]"
-                @click="setActiveProvider(provider.id)"
+                @click="handleProviderRowClick(provider.id)"
               >
                 <Icon
                   icon="lucide:grip-vertical"
@@ -136,7 +141,7 @@
                   'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 cursor-pointer group opacity-60',
                   route.params?.providerId === provider.id ? 'bg-accent text-accent-foreground' : ''
                 ]"
-                @click="setActiveProvider(provider.id)"
+                @click="handleProviderRowClick(provider.id)"
               >
                 <Icon
                   icon="lucide:grip-vertical"
@@ -192,35 +197,106 @@
         </div>
       </div>
     </ScrollArea>
-    <template v-if="activeProvider">
+    <div v-if="activeProvider" ref="providerDetailRef" class="flex min-w-0 flex-1">
       <OllamaProviderSettingsDetail
         v-if="activeProvider.apiType === 'ollama'"
         :key="`ollama-${activeProvider.id}`"
         :provider="activeProvider"
         class="flex-1"
+        @provider-configured="handleProviderConfigured"
+        @provider-model-enabled="handleProviderModelEnabled"
       />
       <BedrockProviderSettingsDetail
         v-else-if="activeProvider.apiType === 'aws-bedrock'"
         :key="`bedrock-${activeProvider.id}`"
         :provider="activeProvider as AWS_BEDROCK_PROVIDER"
         class="flex-1"
+        @provider-configured="handleProviderConfigured"
+        @provider-model-enabled="handleProviderModelEnabled"
       />
       <ModelProviderSettingsDetail
         v-else
         :key="`standard-${activeProvider.id}`"
         :provider="activeProvider"
+        :active-onboarding-step-id="detailGuideStepId"
         class="flex-1"
+        @provider-configured="handleProviderConfigured"
+        @provider-model-enabled="handleProviderModelEnabled"
       />
-    </template>
+    </div>
     <AddCustomProviderDialog
       v-model:open="isAddProviderDialogOpen"
       @provider-added="handleProviderAdded"
     />
   </div>
+
+  <GuidedOnboardingOverlay
+    :visible="showSelectProviderGuide"
+    :container-el="guideRootRef"
+    :target-el="providerListGuideTargetRef"
+    :eyebrow="t('welcome.page.guide.title')"
+    :title="t('welcome.provider.select')"
+    :description="t('settings.provider.center.description')"
+    :step-index="selectProviderGuide.stepIndex.value"
+    :total-steps="selectProviderGuide.totalSteps.value"
+    :close-label="t('common.close')"
+    :back-label="selectProviderGuide.canGoPrevious?.value ? t('common.back') : undefined"
+    :expert-label="t('settings.skills.sync.skipAll')"
+    :primary-label="t('common.next')"
+    :primary-disabled="!canAdvanceProviderSelection"
+    @close="selectProviderGuide.dismissGuide"
+    @back="handleSelectProviderGuideBack"
+    @expert="handleSelectProviderGuideExpert"
+    @primary="handleSelectProviderGuidePrimary"
+  />
+
+  <GuidedOnboardingOverlay
+    :visible="showProviderApiKeyGuide"
+    :container-el="guideRootRef"
+    :target-el="providerApiKeyTargetRef"
+    :eyebrow="t('welcome.page.guide.title')"
+    :title="t('welcome.provider.apiKey')"
+    :description="t('settings.provider.center.description')"
+    :step-index="providerApiKeyGuide.stepIndex.value"
+    :total-steps="providerApiKeyGuide.totalSteps.value"
+    :close-label="t('common.close')"
+    :back-label="providerApiKeyGuide.canGoPrevious?.value ? t('common.back') : undefined"
+    :secondary-label="t('settings.skills.syncPrompt.skip')"
+    :expert-label="t('settings.skills.sync.skipAll')"
+    :primary-label="t('common.next')"
+    :primary-disabled="!canAdvanceProviderApiKey"
+    @close="providerApiKeyGuide.dismissGuide"
+    @back="handleProviderApiKeyGuideBack"
+    @secondary="handleProviderApiKeyGuideSkip"
+    @expert="handleProviderApiKeyGuideExpert"
+    @primary="handleProviderApiKeyGuidePrimary"
+  />
+
+  <GuidedOnboardingOverlay
+    :visible="showProviderModelGuide"
+    :container-el="guideRootRef"
+    :target-el="providerModelTargetRef"
+    :eyebrow="t('welcome.page.guide.title')"
+    :title="t('settings.provider.center.tabs.models')"
+    :description="t('settings.provider.center.description')"
+    :step-index="providerModelGuide.stepIndex.value"
+    :total-steps="providerModelGuide.totalSteps.value"
+    :close-label="t('common.close')"
+    :back-label="providerModelGuide.canGoPrevious?.value ? t('common.back') : undefined"
+    :secondary-label="t('settings.skills.syncPrompt.skip')"
+    :expert-label="t('settings.skills.sync.skipAll')"
+    :primary-label="t('common.next')"
+    :primary-disabled="!canAdvanceProviderModel"
+    @close="providerModelGuide.dismissGuide"
+    @back="handleProviderModelGuideBack"
+    @secondary="handleProviderModelGuideSkip"
+    @expert="handleProviderModelGuideExpert"
+    @primary="handleProviderModelGuidePrimary"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useRoute, useRouter } from 'vue-router'
@@ -240,16 +316,48 @@ import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
-import { onMounted, watch } from 'vue'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
+import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
+import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
+import { useLegacyPresenter } from '@api/legacy/presenters'
+import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const windowPresenter = useLegacyPresenter('windowPresenter')
 const languageStore = useLanguageStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
+const guideRootRef = ref<HTMLElement | null>(null)
+const providerDetailRef = ref<HTMLElement | null>(null)
+const providerListGuideTargetRef = ref<HTMLElement | null>(null)
+const providerApiKeyTargetRef = ref<HTMLElement | null>(null)
+const providerModelTargetRef = ref<HTMLElement | null>(null)
+const selectProviderGuide = useGuidedOnboardingStep('select-provider')
+const providerApiKeyGuide = useGuidedOnboardingStep('provider-api-key')
+const providerModelGuide = useGuidedOnboardingStep('provider-model')
+const showSelectProviderGuide = computed(
+  () => selectProviderGuide.showGuide.value && Boolean(providerListGuideTargetRef.value)
+)
+const showProviderApiKeyGuide = computed(
+  () => providerApiKeyGuide.showGuide.value && Boolean(providerApiKeyTargetRef.value)
+)
+const showProviderModelGuide = computed(
+  () => providerModelGuide.showGuide.value && Boolean(providerModelTargetRef.value)
+)
+const detailGuideStepId = computed(() => {
+  if (providerModelGuide.currentStepId.value === 'provider-model') {
+    return 'provider-model'
+  }
+
+  if (providerApiKeyGuide.currentStepId.value === 'provider-api-key') {
+    return 'provider-api-key'
+  }
+
+  return null
+})
 const startupWorkloadStore = (() => {
   try {
     return useStartupWorkloadStore()
@@ -258,6 +366,113 @@ const startupWorkloadStore = (() => {
   }
 })()
 const isAddProviderDialogOpen = ref(false)
+
+const continueProviderGuide = async (
+  state: Awaited<ReturnType<typeof selectProviderGuide.completeStep>> | null | undefined
+) => {
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    currentRoute: route,
+    windowPresenter
+  })
+}
+
+const handleSelectProviderGuidePrimary = async () => {
+  const firstProviderId = visibleProviders.value[0]?.id
+  if (firstProviderId && activeProvider.value?.id !== firstProviderId) {
+    await setActiveProvider(firstProviderId)
+    await nextTick()
+  }
+
+  const state = await selectProviderGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const handleSelectProviderGuideBack = async () => {
+  const state = await selectProviderGuide.activatePreviousStep()
+  await continueProviderGuide(state)
+}
+
+const handleSelectProviderGuideExpert = async () => {
+  const state = await selectProviderGuide.forceComplete()
+  await continueProviderGuide(state)
+}
+
+const handleProviderApiKeyGuidePrimary = async () => {
+  const state = await providerApiKeyGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderApiKeyGuideBack = async () => {
+  const state = await providerApiKeyGuide.activatePreviousStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderApiKeyGuideSkip = async () => {
+  const skippedApiKeyState = await providerApiKeyGuide.skipStep()
+  if (skippedApiKeyState?.currentStepId === 'provider-model') {
+    const skippedModelState = await providerModelGuide.skipStep()
+    await continueProviderGuide(skippedModelState)
+    return
+  }
+
+  await continueProviderGuide(skippedApiKeyState)
+}
+
+const handleProviderApiKeyGuideExpert = async () => {
+  const state = await providerApiKeyGuide.forceComplete()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelGuidePrimary = async () => {
+  const state = await providerModelGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelGuideBack = async () => {
+  const state = await providerModelGuide.activatePreviousStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelGuideSkip = async () => {
+  const state = await providerModelGuide.skipStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelGuideExpert = async () => {
+  const state = await providerModelGuide.forceComplete()
+  await continueProviderGuide(state)
+}
+
+const handleProviderConfigured = async () => {
+  if (providerApiKeyGuide.currentStepId.value !== 'provider-api-key') {
+    return
+  }
+
+  const stepStatus = providerApiKeyGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  const state = await providerApiKeyGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelEnabled = async () => {
+  if (providerModelGuide.currentStepId.value !== 'provider-model') {
+    return
+  }
+
+  const stepStatus = providerModelGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  const state = await providerModelGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
 const searchQueryBase = ref('')
 const searchQuery = refDebounced(searchQueryBase, 150)
 const showClearButton = computed(() => searchQueryBase.value.trim().length > 0)
@@ -315,12 +530,122 @@ const filterProviders = (providers: LLM_PROVIDER[]) => {
 const visibleProviders = computed(() =>
   providerStore.sortedProviders.filter((provider) => provider.id !== 'acp')
 )
+const canAdvanceProviderSelection = computed(() =>
+  Boolean(activeProvider.value ?? visibleProviders.value[0])
+)
+const canAdvanceProviderApiKey = computed(() => Boolean(activeProvider.value?.apiKey?.trim()))
+const getCurrentProviderModels = () => {
+  const providerId = typeof route.params.providerId === 'string' ? route.params.providerId : null
+  if (!providerId) {
+    return []
+  }
+
+  const providerModels =
+    modelStore.allProviderModels.find((provider) => provider.providerId === providerId)?.models ??
+    []
+  const customModels =
+    modelStore.customModels?.find((provider) => provider.providerId === providerId)?.models ?? []
+
+  return [...providerModels, ...customModels]
+}
+const canAdvanceProviderModel = computed(() => {
+  return getCurrentProviderModels().some((model) => model.enabled)
+})
+const currentProviderModelGuideSignature = computed(() => {
+  const providerId = typeof route.params.providerId === 'string' ? route.params.providerId : ''
+  if (!providerId) {
+    return ''
+  }
+
+  return getCurrentProviderModels()
+    .map((model) => `${model.id}:${model.enabled ? '1' : '0'}`)
+    .join('|')
+})
 const showProviderSkeleton = computed(
   () =>
     (!providerStore.initialized ||
       startupWorkloadStore?.isTaskRunning('settings.providers.summary')) &&
     visibleProviders.value.length === 0
 )
+
+let guideTargetSyncPending = false
+let providerDetailMutationObserver: MutationObserver | null = null
+
+const scheduleGuideTargetSync = () => {
+  if (guideTargetSyncPending) {
+    return
+  }
+
+  guideTargetSyncPending = true
+  void nextTick(() => {
+    const runSync = () => {
+      guideTargetSyncPending = false
+      syncGuideTargets()
+    }
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => runSync())
+      return
+    }
+
+    runSync()
+  })
+}
+
+const stopObservingProviderDetail = () => {
+  providerDetailMutationObserver?.disconnect()
+  providerDetailMutationObserver = null
+}
+
+const observeProviderDetailGuideTargets = () => {
+  stopObservingProviderDetail()
+
+  if (
+    typeof MutationObserver === 'undefined' ||
+    (!providerApiKeyGuide.showGuide.value && !providerModelGuide.showGuide.value) ||
+    !providerDetailRef.value
+  ) {
+    return
+  }
+
+  providerDetailMutationObserver = new MutationObserver(() => {
+    scheduleGuideTargetSync()
+  })
+
+  providerDetailMutationObserver.observe(providerDetailRef.value, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'data-state', 'hidden', 'style']
+  })
+}
+
+const syncGuideTargets = () => {
+  const activeProviderId =
+    typeof route.params.providerId === 'string' ? route.params.providerId : null
+  const firstProviderId = visibleProviders.value[0]?.id
+  const detailRoot = providerDetailRef.value
+
+  providerListGuideTargetRef.value = firstProviderId
+    ? (document.querySelector(`[data-provider-id="${firstProviderId}"]`) as HTMLElement | null)
+    : null
+  providerApiKeyTargetRef.value =
+    (detailRoot?.querySelector('[data-testid="provider-api-key-input"]') as HTMLElement | null) ??
+    (document.querySelector('[data-testid="provider-api-key-input"]') as HTMLElement | null)
+  providerModelTargetRef.value =
+    (activeProviderId
+      ? ((detailRoot?.querySelector(
+          `[data-testid^="provider-model-toggle-${activeProviderId}-"]`
+        ) as HTMLElement | null) ??
+        (document.querySelector(
+          `[data-testid^="provider-model-toggle-${activeProviderId}-"]`
+        ) as HTMLElement | null))
+      : null) ??
+    (detailRoot?.querySelector(
+      '[data-testid="provider-models-tab-trigger"]'
+    ) as HTMLElement | null) ??
+    (document.querySelector('[data-testid="provider-models-tab-trigger"]') as HTMLElement | null)
+}
 
 const allEnabledProviders = computed(() => visibleProviders.value.filter((p) => p.enable))
 const allDisabledProviders = computed(() => visibleProviders.value.filter((p) => !p.enable))
@@ -367,12 +692,34 @@ const disabledProviders = computed({
 })
 
 const setActiveProvider = (providerId: string) => {
-  router.push({
+  return router.push({
     name: 'settings-provider',
     params: {
       providerId
     }
   })
+}
+
+const handleProviderRowClick = async (providerId: string) => {
+  await setActiveProvider(providerId)
+
+  if (selectProviderGuide.currentStepId.value !== 'select-provider') {
+    return
+  }
+
+  const stepStatus = selectProviderGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  const firstProviderId = visibleProviders.value[0]?.id
+  if (!firstProviderId || providerId !== firstProviderId) {
+    return
+  }
+
+  await nextTick()
+  const state = await selectProviderGuide.completeStep()
+  await continueProviderGuide(state)
 }
 
 const scrollToProvider = (providerId: string) => {
@@ -422,6 +769,13 @@ onMounted(async () => {
   if (!route.params.providerId && visibleProviders.value.length > 0) {
     setActiveProvider(visibleProviders.value[0].id)
   }
+
+  scheduleGuideTargetSync()
+  observeProviderDetailGuideTargets()
+})
+
+onBeforeUnmount(() => {
+  stopObservingProviderDetail()
 })
 
 watch(
@@ -434,6 +788,38 @@ watch(
     await modelStore.ensureProviderModelsReady(providerId)
   },
   { immediate: true }
+)
+
+watch(
+  () =>
+    [
+      route.params.providerId,
+      visibleProviders.value.map((provider) => provider.id).join('|'),
+      selectProviderGuide.showGuide.value,
+      providerApiKeyGuide.showGuide.value,
+      providerModelGuide.showGuide.value,
+      activeProvider.value?.apiKey ?? '',
+      currentProviderModelGuideSignature.value
+    ] as const,
+  () => {
+    scheduleGuideTargetSync()
+  },
+  { flush: 'post', immediate: true }
+)
+
+watch(
+  () =>
+    [
+      providerDetailRef.value,
+      route.params.providerId,
+      providerApiKeyGuide.showGuide.value,
+      providerModelGuide.showGuide.value
+    ] as const,
+  () => {
+    observeProviderDetailGuideTargets()
+    scheduleGuideTargetSync()
+  },
+  { flush: 'post', immediate: true }
 )
 
 // 处理拖拽结束事件

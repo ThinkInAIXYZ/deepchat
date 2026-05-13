@@ -351,5 +351,20 @@
     "previous": "Предыдущее совпадение",
     "next": "Следующее совпадение",
     "close": "Закрыть поиск"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Switch to DeepChat Agent",
+      "description": "Before chatting, switch away from ACP and return to the built-in DeepChat flow.",
+      "caption": "Click the highlighted agent button in the sidebar to continue."
+    },
+    "switchModel": {
+      "description": "Pick the model you want to use for your first DeepChat conversation.",
+      "caption": "Use the highlighted model switcher and choose any available model."
+    },
+    "firstChat": {
+      "description": "Everything is ready. Type your first message here to finish the onboarding flow.",
+      "caption": "The spotlight stays on the input box until you send your first message."
+    }
   }
 }

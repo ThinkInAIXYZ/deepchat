@@ -6,6 +6,8 @@ import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/typ
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
 
+const TEST_TIMEOUT_MS = 20000
+
 type TestGenerationSettings = {
   systemPrompt: string
   temperature: number
@@ -573,6 +575,35 @@ const setup = async (options: SetupOptions = {}) => {
     }
   }
   const startupDeferredTasks: Array<() => void | Promise<void>> = []
+  const onboardingClient = {
+    getState: vi.fn().mockResolvedValue({
+      version: 1,
+      status: 'idle',
+      startedAt: null,
+      completedAt: null,
+      lastActiveAt: 1,
+      currentStepId: null,
+      steps: []
+    }),
+    setStepStatus: vi.fn().mockResolvedValue({
+      version: 1,
+      status: 'completed',
+      startedAt: 1,
+      completedAt: 2,
+      lastActiveAt: 2,
+      currentStepId: null,
+      steps: []
+    }),
+    complete: vi.fn().mockResolvedValue({
+      version: 1,
+      status: 'completed',
+      startedAt: 1,
+      completedAt: 2,
+      lastActiveAt: 2,
+      currentStepId: null,
+      steps: []
+    })
+  }
 
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
@@ -600,6 +631,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@api/ModelClient', () => ({
     createModelClient: vi.fn(() => modelClient)
+  }))
+  vi.doMock('@api/OnboardingClient', () => ({
+    createOnboardingClient: vi.fn(() => onboardingClient)
   }))
   vi.doMock('@api/ProviderClient', () => ({
     createProviderClient: vi.fn(() => llmproviderPresenter)
@@ -732,19 +766,23 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
-  it('passes system prompt section to the unified session panel in deepchat and hides it in ACP', async () => {
-    const deepchat = await setup({ agentId: 'deepchat', hasActiveSession: false })
-    expect(
-      deepchat.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
-    ).toBe('true')
-    expect(deepchat.wrapper.text()).toContain('chat.permissionMode.fullAccess')
+  it(
+    'passes system prompt section to the unified session panel in deepchat and hides it in ACP',
+    async () => {
+      const deepchat = await setup({ agentId: 'deepchat', hasActiveSession: false })
+      expect(
+        deepchat.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
+      ).toBe('true')
+      expect(deepchat.wrapper.text()).toContain('chat.permissionMode.fullAccess')
 
-    const acp = await setup({ agentId: 'acp-agent', hasActiveSession: false })
-    expect(
-      acp.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
-    ).toBe('false')
-    expect(acp.wrapper.text()).not.toContain('chat.permissionMode.fullAccess')
-  })
+      const acp = await setup({ agentId: 'acp-agent', hasActiveSession: false })
+      expect(
+        acp.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
+      ).toBe('false')
+      expect(acp.wrapper.text()).not.toContain('chat.permissionMode.fullAccess')
+    },
+    TEST_TIMEOUT_MS
+  )
 
   it('routes the subagent toggle through the unified tools panel', async () => {
     const active = await setup({

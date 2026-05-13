@@ -37,6 +37,24 @@
   "page": {
     "title": "Добро пожаловать в DeepChat Agent",
     "description": "Подключите провайдера моделей, чтобы начать",
+    "guide": {
+      "title": "Гид по настройке",
+      "description": "Текущий шаг: {step}",
+      "coreProgress": "Прогресс основной настройки",
+      "optional": "Необязательные следующие шаги",
+      "actions": {
+        "continueSetup": "Продолжить настройку",
+        "goToChat": "Перейти в чат"
+      },
+      "steps": {
+        "provider": "Провайдер",
+        "first-chat": "Первый чат",
+        "switch-model": "Сменить модель",
+        "mcp": "MCP",
+        "skills": "Навыки",
+        "plugins": "Плагины"
+      }
+    },
     "browseProviders": "Посмотреть всех провайдеров...",
     "connectAgent": "или подключить агента",
     "acpTitle": "Настроить ACP-агента",

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const buttonStub = defineComponent({
@@ -17,6 +17,29 @@ const pluginClient = {
 
 vi.mock('@api/PluginClient', () => ({
   createPluginClient: () => pluginClient
+}))
+
+vi.mock('@/composables/useGuidedOnboardingStep', () => ({
+  useGuidedOnboardingStep: () => ({
+    showGuide: ref(false),
+    stepIndex: ref(1),
+    totalSteps: ref(6),
+    dismissGuide: vi.fn(),
+    completeStep: vi.fn().mockResolvedValue(null),
+    skipStep: vi.fn().mockResolvedValue(null)
+  })
+}))
+
+vi.mock('@api/legacy/presenters', () => ({
+  useLegacyPresenter: () => ({
+    focusMainWindow: vi.fn().mockResolvedValue(true)
+  })
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: vi.fn()
+  })
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -65,6 +88,7 @@ describe('PluginsSettings', () => {
       global: {
         stubs: {
           Button: buttonStub,
+          GuidedOnboardingOverlay: true,
           Icon: true
         }
       }
@@ -89,6 +113,7 @@ describe('PluginsSettings', () => {
       global: {
         stubs: {
           Button: buttonStub,
+          GuidedOnboardingOverlay: true,
           Icon: true
         }
       }

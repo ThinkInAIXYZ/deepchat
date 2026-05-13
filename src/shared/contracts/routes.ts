@@ -129,6 +129,13 @@ import {
   modelsUpdateCustomRoute
 } from './routes/models.routes'
 import {
+  onboardingCompleteRoute,
+  onboardingGetStateRoute,
+  onboardingResetRoute,
+  onboardingSetStepStatusRoute,
+  onboardingStartRoute
+} from './routes/onboarding.routes'
+import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
   providersGetRateLimitStatusRoute,
@@ -288,6 +295,7 @@ export * from './routes/device.routes'
 export * from './routes/file.routes'
 export * from './routes/mcp.routes'
 export * from './routes/models.routes'
+export * from './routes/onboarding.routes'
 export * from './routes/plugins.routes'
 export * from './routes/providers.routes'
 export * from './routes/project.routes'
@@ -319,6 +327,11 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [projectListEnvironmentsRoute.name]: projectListEnvironmentsRoute,
   [projectOpenDirectoryRoute.name]: projectOpenDirectoryRoute,
   [projectSelectDirectoryRoute.name]: projectSelectDirectoryRoute,
+  [onboardingGetStateRoute.name]: onboardingGetStateRoute,
+  [onboardingStartRoute.name]: onboardingStartRoute,
+  [onboardingSetStepStatusRoute.name]: onboardingSetStepStatusRoute,
+  [onboardingCompleteRoute.name]: onboardingCompleteRoute,
+  [onboardingResetRoute.name]: onboardingResetRoute,
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,
