@@ -80,7 +80,7 @@
         </DropdownMenu>
 
         <!-- Input area -->
-<<<<<<< Updated upstream
+        <<<<<<< Updated upstream
         <ChatInputBox
           ref="chatInputRef"
           v-model="message"
@@ -102,7 +102,7 @@
             />
           </template>
         </ChatInputBox>
-=======
+        =======
         <div ref="firstChatGuideHostRef" :class="['w-full max-w-4xl flex justify-center']">
           <ChatInputBox
             :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
@@ -127,7 +127,7 @@
             </template>
           </ChatInputBox>
         </div>
->>>>>>> Stashed changes
+        >>>>>>> Stashed changes
 
         <!-- Status bar -->
         <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
