@@ -32,6 +32,7 @@
     "agentWorkspaceTooltip": "Set Agent workspace directory",
     "agentWorkspaceSelect": "Select a folder to use as the workspace",
     "agentWorkspaceCurrent": "Current workspace: {path}",
+    "workspaceUnavailableTooltip": "Directory does not exist or cannot be accessed: {path}",
     "mcp": {
       "badge": "MCP {count}",
       "title": "Enabled MCP",

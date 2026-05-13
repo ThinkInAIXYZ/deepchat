@@ -30,12 +30,18 @@ const createChatInputBoxStub = () =>
       'command-submit',
       'pending-skills-change'
     ],
-    setup(_props, { expose }) {
+    setup(props, { expose }) {
       expose({
         triggerAttach: chatInputTriggerAttachMock,
         getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value]
       })
-      return () => h('div')
+      return () =>
+        h('div', {
+          'data-testid': 'chat-input-box',
+          'data-submit-disabled': String(props.submitDisabled),
+          'data-workspace-path': props.workspacePath ?? '',
+          'data-is-acp-session': String(props.isAcpSession)
+        })
     }
   })
 
@@ -48,7 +54,8 @@ const setup = async (options?: {
   selectedProject?: {
     path: string
     name: string
-  }
+  } | null
+  isDirectory?: boolean | ((path: string) => Promise<boolean> | boolean)
   defaultProjectPath?: string | null
   defaultModel?: { providerId: string; modelId: string }
   preferredModel?: { providerId: string; modelId: string }
@@ -67,9 +74,11 @@ const setup = async (options?: {
       name: 'workspace'
     }) as { path: string; name: string } | null,
     selectedProjectName: options?.selectedProject?.name ?? 'workspace',
+    selectionSource: 'manual' as 'manual' | 'default',
     defaultProjectPath: options?.defaultProjectPath ?? null,
     projects: [],
-    selectProject: vi.fn((path: string | null) => {
+    selectProject: vi.fn((path: string | null, source: 'manual' | 'default' = 'manual') => {
+      projectStore.selectionSource = source
       projectStore.selectedProject = path
         ? {
             path,
@@ -169,6 +178,10 @@ const setup = async (options?: {
         })
     )
   }
+  const isDirectoryMock = vi.fn((path: string) => {
+    const resolver = options?.isDirectory ?? true
+    return Promise.resolve(typeof resolver === 'function' ? resolver(path) : resolver)
+  })
   const startupDeferredTasks: Array<() => void | Promise<void>> = []
 
   vi.doMock('@/stores/ui/project', () => ({
@@ -191,6 +204,11 @@ const setup = async (options?: {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('@api/FileClient', () => ({
+    createFileClient: vi.fn(() => ({
+      isDirectory: isDirectoryMock
+    }))
   }))
   vi.doMock('@/lib/startupDeferred', () => ({
     scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
@@ -226,14 +244,14 @@ const setup = async (options?: {
   const wrapper = mount(NewThreadPage, {
     global: {
       stubs: {
-        TooltipProvider: true,
-        Button: true,
-        DropdownMenu: true,
-        DropdownMenuTrigger: true,
-        DropdownMenuContent: true,
-        DropdownMenuItem: true,
-        DropdownMenuLabel: true,
-        DropdownMenuSeparator: true,
+        TooltipProvider: passthrough('TooltipProvider'),
+        Button: passthrough('Button'),
+        DropdownMenu: passthrough('DropdownMenu'),
+        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+        DropdownMenuContent: passthrough('DropdownMenuContent'),
+        DropdownMenuItem: passthrough('DropdownMenuItem'),
+        DropdownMenuLabel: passthrough('DropdownMenuLabel'),
+        DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
         Icon: true,
         ChatInputToolbar: true,
         ChatStatusBar: true
@@ -251,6 +269,7 @@ const setup = async (options?: {
     modelStore,
     draftStore,
     sessionClient,
+    isDirectoryMock,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
         const task = startupDeferredTasks.shift()
@@ -305,6 +324,81 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     })
 
     expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-1')
+  })
+
+  it('shows a warning and blocks ACP draft/send when the selected workdir is invalid', async () => {
+    const { wrapper, sessionClient, sessionStore } = await setup({
+      isDirectory: false
+    })
+
+    expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'true'
+    )
+    expect(sessionClient.ensureAcpDraftSession).not.toHaveBeenCalled()
+
+    ;(wrapper.vm as any).message = 'hello invalid acp'
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).not.toHaveBeenCalled()
+    expect(sessionStore.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('shows the same invalid-directory warning for DeepChat without blocking send', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup({
+      isDirectory: false
+    })
+
+    agentStore.selectedAgentId = 'deepchat'
+    await flushPromises()
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'gpt-4'
+    ;(wrapper.vm as any).message = 'hello deepchat invalid workdir'
+
+    expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'false'
+    )
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'hello deepchat invalid workdir',
+        agentId: 'deepchat',
+        projectDir: '/tmp/workspace'
+      })
+    )
+  })
+
+  it('clears the warning and resumes ACP draft creation after switching to a valid workdir', async () => {
+    const { wrapper, projectStore, sessionClient } = await setup({
+      isDirectory: (path) => path === '/tmp/valid-workspace'
+    })
+
+    expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(true)
+    expect(sessionClient.ensureAcpDraftSession).not.toHaveBeenCalled()
+
+    projectStore.selectedProject = {
+      path: '/tmp/valid-workspace',
+      name: 'valid-workspace'
+    }
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(false)
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
+      agentId: 'acp-agent',
+      projectDir: '/tmp/valid-workspace',
+      permissionMode: 'full_access'
+    })
   })
 
   it('reuses ensured draft session on first submit', async () => {
@@ -597,10 +691,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
       }
     ]
     ;(wrapper.vm as any).onPendingSkillsChange(['stale-skill'])
-    ;(wrapper.vm as any).chatInputRef = {
-      triggerAttach: vi.fn(),
-      getPendingSkillsSnapshot: () => ['live-skill', 'live-skill']
-    }
+    chatInputPendingSkillsSnapshotRef.value = ['live-skill', 'live-skill']
     ;(wrapper.vm as any).message = 'hello deepchat'
 
     await (wrapper.vm as any).onSubmit()

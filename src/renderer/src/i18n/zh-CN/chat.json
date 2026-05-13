@@ -32,6 +32,7 @@
     "agentWorkspaceTooltip": "设置 Agent 工作目录",
     "agentWorkspaceSelect": "选择工作目录",
     "agentWorkspaceCurrent": "当前工作目录：{path}",
+    "workspaceUnavailableTooltip": "目录不存在或无法访问：{path}",
     "mcp": {
       "badge": "MCP {count}",
       "title": "已启用 MCP",

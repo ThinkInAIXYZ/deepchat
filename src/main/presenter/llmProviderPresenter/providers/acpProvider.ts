@@ -98,6 +98,23 @@ type AcpConnectionWithModelSelection = {
   ) => Promise<schema.SetSessionModelResponse>
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const summarizePromptBlocks = (blocks: schema.ContentBlock[]) =>
+  blocks.map((block) => {
+    if (!isRecord(block)) {
+      return { type: 'unknown', keys: [] }
+    }
+    const record = block as unknown as Record<string, unknown>
+    const text = typeof record.text === 'string' ? record.text : undefined
+    return {
+      type: typeof record.type === 'string' ? record.type : 'unknown',
+      textLength: text?.length,
+      keys: Object.keys(record)
+    }
+  })
+
 async function setSessionModelCompat(
   connection: AcpConnectionWithModelSelection,
   params: schema.SetSessionModelRequest
@@ -920,6 +937,22 @@ export class AcpProvider extends BaseLLMProvider {
         sessionId: session.sessionId,
         prompt
       }
+      const promptSummary = {
+        sessionId: session.sessionId,
+        conversationId,
+        agentId: session.agentId,
+        turnId: turn.id,
+        blockCount: prompt.length,
+        blocks: summarizePromptBlocks(prompt),
+        timeoutMs
+      }
+      console.info(`[ACP] Sending prompt to ACP session ${session.sessionId}:`, promptSummary)
+      this.processManager?.appendDebugEvent?.(session.agentId, {
+        kind: 'request',
+        action: 'session/prompt',
+        sessionId: session.sessionId,
+        payload: promptSummary
+      })
       await this.emitRequestTrace(modelConfig, {
         endpoint: 'acp://session/prompt',
         headers: {},
@@ -940,7 +973,21 @@ export class AcpProvider extends BaseLLMProvider {
             })
           ])
         : promptRequest)
-      console.log('[ACP] runPrompt: response:', response)
+      const responseSummary = {
+        sessionId: session.sessionId,
+        conversationId,
+        agentId: session.agentId,
+        turnId: turn.id,
+        stopReason: response.stopReason,
+        keys: Object.keys(response as Record<string, unknown>)
+      }
+      console.info(`[ACP] Prompt completed for ACP session ${session.sessionId}:`, responseSummary)
+      this.processManager?.appendDebugEvent?.(session.agentId, {
+        kind: 'response',
+        action: 'session/prompt',
+        sessionId: session.sessionId,
+        payload: responseSummary
+      })
       const completedTurn = this.promptController.complete(session.sessionId, response.stopReason)
       if (completedTurn) {
         await this.persistTurnFinish({
@@ -980,6 +1027,14 @@ export class AcpProvider extends BaseLLMProvider {
       }
       const message =
         error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
+      console.error(`[ACP] Prompt failed for ACP session ${session.sessionId}:`, error)
+      this.processManager?.appendDebugEvent?.(session.agentId, {
+        kind: 'error',
+        action: 'session/prompt',
+        sessionId: session.sessionId,
+        message,
+        payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+      })
       queue.push(createStreamEvent.error(`ACP: ${message}`))
     } finally {
       if (timeoutId) {
