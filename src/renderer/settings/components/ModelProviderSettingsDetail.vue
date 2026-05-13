@@ -202,17 +202,7 @@ const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
 const activeTab = ref<'connection' | 'models' | 'advanced'>('connection')
 const syncActiveTabFromOnboardingStep = (stepId?: string | null) => {
-  if (stepId === 'provider-model') {
-    activeTab.value = 'models'
-    return
-  }
-
-  if (stepId === 'provider-api-key') {
-    activeTab.value = 'connection'
-    return
-  }
-
-  activeTab.value = 'connection'
+  activeTab.value = stepId === 'provider-model' ? 'models' : 'connection'
 }
 
 const providerWebsites = computed<ProviderWebsites | undefined>(
