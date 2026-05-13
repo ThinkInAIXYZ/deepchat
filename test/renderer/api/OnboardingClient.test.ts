@@ -111,5 +111,20 @@ describe('OnboardingClient', () => {
     await expect(client.getState()).rejects.toThrow(
       '[OnboardingClient] Invalid state response from onboarding.getState'
     )
+    await expect(client.start()).rejects.toThrow(
+      '[OnboardingClient] Invalid state response from onboarding.start'
+    )
+    await expect(
+      client.setStepStatus({
+        stepId: 'select-provider',
+        status: 'completed'
+      })
+    ).rejects.toThrow('[OnboardingClient] Invalid state response from onboarding.setStepStatus')
+    await expect(client.complete()).rejects.toThrow(
+      '[OnboardingClient] Invalid state response from onboarding.complete'
+    )
+    await expect(client.reset()).rejects.toThrow(
+      '[OnboardingClient] Invalid state response from onboarding.reset'
+    )
   })
 })
