@@ -810,11 +810,17 @@ export function startGuidedOnboarding(
     options.stepId && SHARED_GUIDED_ONBOARDING_STEP_IDS.includes(options.stepId)
       ? options.stepId
       : undefined
-  const nextStepId =
+  const candidateStepId =
     requestedStepId ??
     baseState.currentStepId ??
     baseState.steps.find((step) => step.status === 'in_progress')?.id ??
     findNextPendingStepId(baseState)
+  const candidateStep =
+    candidateStepId ? baseState.steps.find((step) => step.id === candidateStepId) : undefined
+  const nextStepId =
+    candidateStep && (candidateStep.status === 'completed' || candidateStep.status === 'skipped')
+      ? findNextPendingStepId(baseState)
+      : candidateStepId
 
   const steps: GuidedOnboardingStepState[] = baseState.steps.map((step) => {
     if (step.id !== nextStepId) {

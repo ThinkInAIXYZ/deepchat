@@ -201,6 +201,9 @@ const enabledModels = computed(() => {
 const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
 const activeTab = ref<'connection' | 'models' | 'advanced'>('connection')
+const syncActiveTabFromOnboardingStep = (stepId?: string | null) => {
+  activeTab.value = stepId === 'provider-model' ? 'models' : 'connection'
+}
 
 const providerWebsites = computed<ProviderWebsites | undefined>(
   () =>
@@ -344,7 +347,7 @@ const initProviderSettings = async () => {
 watch(
   () => props.provider.id,
   () => {
-    activeTab.value = 'connection'
+    syncActiveTabFromOnboardingStep(props.activeOnboardingStepId)
     initProviderSettings()
   },
   { immediate: true }
@@ -353,14 +356,7 @@ watch(
 watch(
   () => props.activeOnboardingStepId,
   (stepId) => {
-    if (stepId === 'provider-model') {
-      activeTab.value = 'models'
-      return
-    }
-
-    if (stepId === 'provider-api-key') {
-      activeTab.value = 'connection'
-    }
+    syncActiveTabFromOnboardingStep(stepId)
   },
   { immediate: true }
 )

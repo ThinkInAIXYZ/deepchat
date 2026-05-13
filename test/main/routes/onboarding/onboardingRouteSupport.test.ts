@@ -122,6 +122,25 @@ describe('onboardingRouteSupport', () => {
     expect(afterSkills.currentStepId).toBe('switch-agent')
   })
 
+  it('falls back to the next pending step when start targets a terminal step', () => {
+    const { presenter } = createConfigPresenter()
+
+    startGuidedOnboarding(presenter, {}, 450)
+    setGuidedOnboardingStepStatus(
+      presenter,
+      { stepId: 'select-provider', status: 'completed' },
+      451
+    )
+    setGuidedOnboardingStepStatus(presenter, { stepId: 'provider-api-key', status: 'skipped' }, 452)
+
+    const state = startGuidedOnboarding(presenter, { stepId: 'provider-api-key' }, 453)
+
+    expect(state.currentStepId).toBe('provider-model')
+    expect(state.steps.find((step) => step.id === 'provider-model')).toEqual(
+      expect.objectContaining({ status: 'in_progress' })
+    )
+  })
+
   it('completes onboarding and marks remaining optional steps skipped', () => {
     const { presenter, store } = createConfigPresenter()
 

@@ -354,17 +354,17 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "Switch to DeepChat Agent",
-      "description": "Before chatting, switch away from ACP and return to the built-in DeepChat flow.",
-      "caption": "Click the highlighted agent button in the sidebar to continue."
+      "title": "DeepChat Agent に切り替える",
+      "description": "チャットを始める前に ACP から切り替え、組み込みの DeepChat フローに戻ってください。",
+      "caption": "続行するには、サイドバーでハイライトされたエージェントボタンをクリックしてください。"
     },
     "switchModel": {
-      "description": "Pick the model you want to use for your first DeepChat conversation.",
-      "caption": "Use the highlighted model switcher and choose any available model."
+      "description": "最初の DeepChat 会話で使用するモデルを選択してください。",
+      "caption": "ハイライトされたモデル切り替えを使って、利用可能な任意のモデルを選んでください。"
     },
     "firstChat": {
-      "description": "Everything is ready. Type your first message here to finish the onboarding flow.",
-      "caption": "The spotlight stays on the input box until you send your first message."
+      "description": "準備は完了です。ここに最初のメッセージを入力してオンボーディングを完了しましょう。",
+      "caption": "最初のメッセージを送信するまで、スポットライトは入力欄に表示されたままです。"
     }
   }
 }
