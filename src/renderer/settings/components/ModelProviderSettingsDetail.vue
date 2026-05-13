@@ -207,6 +207,11 @@ const syncActiveTabFromOnboardingStep = (stepId?: string | null) => {
     return
   }
 
+  if (stepId === 'provider-api-key') {
+    activeTab.value = 'connection'
+    return
+  }
+
   activeTab.value = 'connection'
 }
 

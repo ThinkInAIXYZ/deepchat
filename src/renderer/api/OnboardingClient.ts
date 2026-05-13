@@ -19,7 +19,7 @@ export function createOnboardingClient(bridge: DeepchatBridge = getDeepchatBridg
     state: GuidedOnboardingState
   } => {
     if (!result || typeof result !== 'object') {
-      throw new Error(`[OnboardingClient] Invalid response from ${routeName}`)
+      throw new Error(`[OnboardingClient] Invalid response shape from ${routeName}`)
     }
 
     const maybeState = (result as { state?: unknown }).state
