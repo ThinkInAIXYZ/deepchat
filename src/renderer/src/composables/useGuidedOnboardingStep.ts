@@ -48,7 +48,7 @@ export function useGuidedOnboardingStep(stepId: GuidedOnboardingStepId) {
   )
 
   const finalizeIfNeeded = async (state: GuidedOnboardingState | null) => {
-    if (state?.status === 'active' && state.currentStepId === null) {
+    if (state?.status === 'active' && state.currentStepId == null) {
       try {
         onboardingState.value = await onboardingClient.complete()
       } catch (error) {

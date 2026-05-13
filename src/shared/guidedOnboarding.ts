@@ -184,5 +184,9 @@ export const resolveCurrentGuidedOnboardingStepId = <
     return state.currentStepId
   }
 
-  return state?.steps.find((step) => step.status === 'pending')?.id ?? null
+  const fallbackStep =
+    state?.steps.find((step) => step.status === 'in_progress') ??
+    state?.steps.find((step) => step.status === 'pending')
+
+  return fallbackStep?.id ?? null
 }
