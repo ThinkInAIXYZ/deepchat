@@ -983,6 +983,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       launchSignature
     }
     readyHandle = handle
+    if (!this.isHandleAlive(handle)) {
+      this.removeHandleReferences(handle)
+      this.clearSessionsForAgent(agent.id)
+      throw new Error(
+        `[ACP] Agent process ${agent.id} exited before becoming ready (PID: ${child.pid})`
+      )
+    }
     this.debugLog.append(agent.id, {
       kind: 'lifecycle',
       action: 'process.ready',

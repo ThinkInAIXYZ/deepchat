@@ -24,7 +24,7 @@
     "acpMode": "דֶגֶם",
     "acpModeTooltip": "מצב נוכחי: {mode}",
     "agentWorkspaceCurrent": "ספריית עבודה נוכחית: {path}",
-    "workspaceUnavailableTooltip": "Directory does not exist or cannot be accessed: {path}",
+    "workspaceUnavailableTooltip": "התיקייה אינה קיימת או לא ניתנת לגישה: {path}",
     "agentWorkspaceSelect": "בחר ספריית עבודה",
     "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
     "attach": "צרף",

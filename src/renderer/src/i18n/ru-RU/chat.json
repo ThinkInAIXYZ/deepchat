@@ -24,7 +24,7 @@
     "acpMode": "Режим",
     "acpModeTooltip": "Текущий режим: {mode}",
     "agentWorkspaceCurrent": "Текущий рабочий каталог: {path}",
-    "workspaceUnavailableTooltip": "Directory does not exist or cannot be accessed: {path}",
+    "workspaceUnavailableTooltip": "Каталог не существует или недоступен: {path}",
     "agentWorkspaceSelect": "Выберите рабочий каталог",
     "agentWorkspaceTooltip": "Установить рабочий каталог агента",
     "attach": "Прикрепить",

@@ -454,11 +454,11 @@ describe('AcpProcessManager config cache fallback', () => {
     const badHashDir = `${npxRoot}/286fc3b7ffd18687`
     const otherHashDir = `${npxRoot}/keep-me`
     const existingDirs = new Set([badHashDir, otherHashDir])
-    const renameSync = vi.fn((from: string, to: string) => {
+    const renameImpl = vi.fn((from: string, to: string) => {
       existingDirs.delete(from)
       existingDirs.add(to)
     })
-    ;(fs as unknown as { renameSync: typeof renameSync }).renameSync = renameSync
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation(renameImpl)
     const existsSpy = vi
       .spyOn(fs, 'existsSync')
       .mockImplementation((input) => existingDirs.has(String(input)))
@@ -507,13 +507,14 @@ describe('AcpProcessManager config cache fallback', () => {
       ).resolves.toBe(readyHandle)
 
       expect(spawnOnceSpy).toHaveBeenCalledTimes(2)
-      expect(renameSync).toHaveBeenCalledWith(
+      expect(renameImpl).toHaveBeenCalledWith(
         badHashDir,
         expect.stringMatching(/\/286fc3b7ffd18687\.bad-\d+$/)
       )
       expect(existingDirs.has(badHashDir)).toBe(false)
       expect(existingDirs.has(otherHashDir)).toBe(true)
     } finally {
+      renameSpy.mockRestore()
       existsSpy.mockRestore()
       statSpy.mockRestore()
     }
@@ -523,8 +524,8 @@ describe('AcpProcessManager config cache fallback', () => {
     const tmpRoot = '/tmp/deepchat-acp-npx-skip'
     const npxRoot = `${tmpRoot}/_npx`
     const badHashDir = `${npxRoot}/286fc3b7ffd18687`
-    const renameSync = vi.fn()
-    ;(fs as unknown as { renameSync: typeof renameSync }).renameSync = renameSync
+    const renameImpl = vi.fn()
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation(renameImpl)
 
     try {
       const cases = [
@@ -570,10 +571,10 @@ describe('AcpProcessManager config cache fallback', () => {
         ).rejects.toBe(error)
 
         expect(spawnOnceSpy).toHaveBeenCalledTimes(1)
-        expect(renameSync).not.toHaveBeenCalled()
+        expect(renameImpl).not.toHaveBeenCalled()
       }
     } finally {
-      renameSync.mockReset()
+      renameSpy.mockRestore()
     }
   })
 
