@@ -24,6 +24,7 @@
     "acpMode": "モード",
     "acpModeTooltip": "現在のモード：{mode}",
     "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
+    "workspaceUnavailableTooltip": "ディレクトリが存在しないかアクセスできません: {path}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
     "attach": "添付",

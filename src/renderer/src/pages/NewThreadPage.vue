@@ -24,6 +24,13 @@
             >
               <Icon icon="lucide:folder" class="w-3.5 h-3.5" />
               <span>{{ selectedProjectName }}</span>
+              <Icon
+                v-if="selectedProjectDirectoryInvalid"
+                icon="lucide:circle-alert"
+                data-testid="new-thread-project-missing-warning"
+                class="w-3.5 h-3.5 text-amber-500"
+                :title="selectedProjectUnavailableTooltip"
+              />
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
@@ -46,10 +53,17 @@
               @click="projectStore.selectProject(project.path)"
             >
               <Icon icon="lucide:folder" class="w-3.5 h-3.5 text-muted-foreground" />
-              <div class="flex flex-col min-w-0">
+              <div class="flex flex-col min-w-0 flex-1">
                 <span class="truncate">{{ project.name }}</span>
                 <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
               </div>
+              <Icon
+                v-if="isSelectedInvalidProjectPath(project.path)"
+                icon="lucide:circle-alert"
+                data-testid="new-thread-project-menu-missing-warning"
+                class="w-3.5 h-3.5 text-amber-500 shrink-0"
+                :title="selectedProjectUnavailableTooltip"
+              />
             </DropdownMenuItem>
             <DropdownMenuItem
               class="gap-2 text-xs py-1.5 px-2"
@@ -69,7 +83,7 @@
           :session-id="acpDraftSessionId"
           :workspace-path="projectStore.selectedProject?.path ?? null"
           :is-acp-session="isAcpSelectedAgent"
-          :submit-disabled="isAcpWorkdirMissing"
+          :submit-disabled="isAcpWorkdirUnavailable"
           @update:files="onFilesChange"
           @pending-skills-change="onPendingSkillsChange"
           @command-submit="onCommandSubmit"
@@ -77,7 +91,7 @@
         >
           <template #toolbar>
             <ChatInputToolbar
-              :send-disabled="isAcpWorkdirMissing || !message.trim()"
+              :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
               @attach="onAttach"
               @send="onSubmit"
             />
@@ -114,6 +128,7 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { createConfigClient } from '@api/ConfigClient'
+import { createFileClient } from '@api/FileClient'
 import { createSessionClient } from '@api/SessionClient'
 import type {
   DeepChatAgentConfig,
@@ -135,6 +150,7 @@ const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configClient = createConfigClient()
+const fileClient = createFileClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
 
@@ -186,6 +202,7 @@ const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
+const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
 const hasExplicitNoProjectSelection = computed(
   () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )
@@ -196,12 +213,41 @@ const selectedProjectName = computed(() => {
   return hasExplicitNoProjectSelection.value ? t('common.project.none') : t('common.project.select')
 })
 const canClearProjectSelection = computed(() => Boolean(projectStore.selectedProject?.path?.trim()))
+type ProjectDirectoryStatus = 'none' | 'checking' | 'valid' | 'invalid'
+const selectedProjectDirectoryStatus = ref<ProjectDirectoryStatus>('none')
+const selectedProjectDirectoryCheckSeq = ref(0)
+const selectedProjectDirectoryInvalid = computed(
+  () => selectedProjectDirectoryStatus.value === 'invalid'
+)
+const selectedProjectUnavailableTooltip = computed(() =>
+  selectedProjectPath.value
+    ? t('chat.input.workspaceUnavailableTooltip', { path: selectedProjectPath.value })
+    : ''
+)
+const isSelectedInvalidProjectPath = (projectPath: string | null | undefined): boolean =>
+  selectedProjectDirectoryInvalid.value &&
+  normalizeProjectPath(projectPath) === selectedProjectPath.value
 const isAcpWorkdirMissing = computed(() => {
   if (!isAcpSelectedAgent.value) {
     return false
   }
-  return !projectStore.selectedProject?.path?.trim()
+  return !selectedProjectPath.value
 })
+const isAcpWorkdirInvalid = computed(
+  () =>
+    isAcpSelectedAgent.value &&
+    Boolean(selectedProjectPath.value) &&
+    selectedProjectDirectoryInvalid.value
+)
+const isAcpWorkdirChecking = computed(
+  () =>
+    isAcpSelectedAgent.value &&
+    Boolean(selectedProjectPath.value) &&
+    selectedProjectDirectoryStatus.value === 'checking'
+)
+const isAcpWorkdirUnavailable = computed(
+  () => isAcpWorkdirMissing.value || isAcpWorkdirInvalid.value || isAcpWorkdirChecking.value
+)
 
 const ensureEnabledModelsReady = async (): Promise<boolean> => {
   if (modelStore.initialized) {
@@ -288,7 +334,7 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 }
 
 async function onSubmit() {
-  if (isAcpWorkdirMissing.value) return
+  if (isAcpWorkdirUnavailable.value) return
 
   const text = message.value.trim()
   if (!text) return
@@ -305,7 +351,7 @@ async function onSubmit() {
 }
 
 async function onCommandSubmit(command: string) {
-  if (isAcpWorkdirMissing.value) return
+  if (isAcpWorkdirUnavailable.value) return
   const text = command.trim()
   if (!text) return
   if (shouldIgnoreManualCompactionDraft(text)) return
@@ -324,6 +370,7 @@ function shouldIgnoreManualCompactionDraft(text: string): boolean {
 
 async function submitText(text: string, files: MessageFile[]) {
   if (!text.trim()) return
+  if (isAcpWorkdirUnavailable.value) return
 
   const agentId = selectedAgent.value.id
   const isAcp = isAcpSelectedAgent.value
@@ -521,12 +568,49 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
 }
 
 watch(
-  () => [agentStore.selectedAgentId, projectStore.selectedProject?.path] as const,
-  ([selectedAgentId, projectPath]) => {
+  () => selectedProjectPath.value,
+  async (projectPath) => {
+    const requestSeq = ++selectedProjectDirectoryCheckSeq.value
+    if (!projectPath) {
+      selectedProjectDirectoryStatus.value = 'none'
+      return
+    }
+
+    selectedProjectDirectoryStatus.value = 'checking'
+    try {
+      const isDirectory = await fileClient.isDirectory(projectPath)
+      if (requestSeq !== selectedProjectDirectoryCheckSeq.value) {
+        return
+      }
+      selectedProjectDirectoryStatus.value = isDirectory ? 'valid' : 'invalid'
+    } catch (error) {
+      if (requestSeq !== selectedProjectDirectoryCheckSeq.value) {
+        return
+      }
+      console.warn('[NewThreadPage] Failed to validate selected project directory:', error)
+      selectedProjectDirectoryStatus.value = 'invalid'
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () =>
+    [
+      agentStore.selectedAgentId,
+      selectedProjectPath.value,
+      selectedProjectDirectoryStatus.value
+    ] as const,
+  ([selectedAgentId, projectPath, directoryStatus]) => {
     acpDraftRequestSeq.value += 1
     cancelEnsureDraftTask?.()
     cancelEnsureDraftTask = null
-    if (!selectedAgentId || selectedAgent.value.type === 'deepchat' || !projectPath?.trim()) {
+    if (
+      !selectedAgentId ||
+      selectedAgent.value.type === 'deepchat' ||
+      !projectPath ||
+      directoryStatus !== 'valid'
+    ) {
       acpDraftSessionId.value = null
       lastAcpDraftKey.value = null
       return

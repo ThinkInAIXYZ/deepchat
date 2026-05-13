@@ -24,6 +24,7 @@
     "acpMode": "모드",
     "acpModeTooltip": "현재 모드: {mode}",
     "agentWorkspaceCurrent": "현재 작업 디렉터리: {path}",
+    "workspaceUnavailableTooltip": "디렉터리가 없거나 접근할 수 없습니다: {path}",
     "agentWorkspaceSelect": "작업 디렉터리 선택",
     "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
     "attach": "첨부",

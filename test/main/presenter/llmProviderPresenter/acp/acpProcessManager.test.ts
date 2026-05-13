@@ -315,6 +315,8 @@ describe('AcpProcessManager config cache fallback', () => {
   it('keeps explicit PATH overrides ahead of bundled runtime and shell PATH', async () => {
     const originalPath = process.env.PATH
     process.env.PATH = '/usr/bin:/bin'
+    let existsSpy: { mockRestore: () => void } | null = null
+    let statSpy: { mockRestore: () => void } | null = null
 
     try {
       const launchSpec = {
@@ -365,7 +367,10 @@ describe('AcpProcessManager config cache fallback', () => {
         false
       )
       vi.spyOn((manager as any).runtimeHelper, 'getUserNpmPrefix').mockReturnValue(null)
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      statSpy = vi.spyOn(fs, 'statSync').mockReturnValue({
+        isDirectory: () => true
+      } as fs.Stats)
 
       await (manager as any).spawnAgentProcess(
         {
@@ -398,6 +403,178 @@ describe('AcpProcessManager config cache fallback', () => {
       expect(pathValue.indexOf('/launch/bin')).toBeLessThan(pathValue.indexOf('/runtime/bin'))
     } finally {
       process.env.PATH = originalPath
+      existsSpy?.mockRestore()
+      statSpy?.mockRestore()
+    }
+  })
+
+  it('throws for a missing explicit workdir instead of falling back to home', async () => {
+    const manager = createManager()
+    const launchSpec = {
+      agentId: 'agent-1',
+      source: 'manual',
+      distributionType: 'manual' as const,
+      command: 'agent',
+      args: [],
+      env: {}
+    }
+    const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    vi.mocked(spawn).mockClear()
+    vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
+      PATH: '/shell/bin'
+    })
+    vi.spyOn((manager as any).runtimeHelper, 'initializeRuntimes').mockImplementation(() => {})
+    vi.spyOn((manager as any).runtimeHelper, 'expandPath').mockImplementation(
+      (value: string) => value
+    )
+    vi.spyOn((manager as any).runtimeHelper, 'replaceWithRuntimeCommand').mockImplementation(
+      (value: string) => value
+    )
+
+    try {
+      await expect(
+        (manager as any).spawnAgentProcess(
+          {
+            id: 'agent-1',
+            name: 'Agent One',
+            command: 'agent'
+          },
+          '/tmp/missing-workspace',
+          launchSpec
+        )
+      ).rejects.toThrow('[ACP] workdir "/tmp/missing-workspace" does not exist for agent agent-1')
+      expect(spawn).not.toHaveBeenCalled()
+    } finally {
+      existsSpy.mockRestore()
+    }
+  })
+
+  it('moves only the broken npx hash directory and retries once', async () => {
+    const npxRoot = '/tmp/deepchat-acp-npx/_npx'
+    const badHashDir = `${npxRoot}/286fc3b7ffd18687`
+    const otherHashDir = `${npxRoot}/keep-me`
+    const existingDirs = new Set([badHashDir, otherHashDir])
+    const renameImpl = vi.fn((from: string, to: string) => {
+      existingDirs.delete(from)
+      existingDirs.add(to)
+    })
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation(renameImpl)
+    const existsSpy = vi
+      .spyOn(fs, 'existsSync')
+      .mockImplementation((input) => existingDirs.has(String(input)))
+    const statSpy = vi.spyOn(fs, 'statSync').mockImplementation((input) => {
+      if (existingDirs.has(String(input))) {
+        return { isDirectory: () => true } as fs.Stats
+      }
+      const error = new Error('ENOENT') as NodeJS.ErrnoException
+      error.code = 'ENOENT'
+      throw error
+    })
+
+    try {
+      const manager = createManager()
+      const launchSpec = {
+        agentId: 'agent-1',
+        source: 'manual',
+        distributionType: 'npx' as const,
+        command: 'npx',
+        args: ['-y', 'agent'],
+        env: {}
+      }
+      const firstError = new Error('initialization failed')
+      ;(firstError as Error & { acpStderr?: string }).acpStderr = [
+        'npm error code ENOENT',
+        `npm error path ${badHashDir}/package.json`,
+        'npm error enoent Could not read package.json'
+      ].join('\n')
+      const readyHandle = { agentId: 'agent-1', status: 'ready' }
+      const spawnOnceSpy = vi
+        .spyOn(manager as any, 'spawnProcessOnce')
+        .mockRejectedValueOnce(firstError)
+        .mockResolvedValueOnce(readyHandle)
+
+      await expect(
+        (manager as any).spawnProcess(
+          {
+            id: 'agent-1',
+            name: 'Agent One',
+            command: 'npx'
+          },
+          '/tmp/workspace',
+          launchSpec,
+          'signature'
+        )
+      ).resolves.toBe(readyHandle)
+
+      expect(spawnOnceSpy).toHaveBeenCalledTimes(2)
+      expect(renameImpl).toHaveBeenCalledWith(
+        badHashDir,
+        expect.stringMatching(/\/286fc3b7ffd18687\.bad-\d+$/)
+      )
+      expect(existingDirs.has(badHashDir)).toBe(false)
+      expect(existingDirs.has(otherHashDir)).toBe(true)
+    } finally {
+      renameSpy.mockRestore()
+      existsSpy.mockRestore()
+      statSpy.mockRestore()
+    }
+  })
+
+  it('does not repair npx cache for non-npx or unrelated ENOENT failures', async () => {
+    const tmpRoot = '/tmp/deepchat-acp-npx-skip'
+    const npxRoot = `${tmpRoot}/_npx`
+    const badHashDir = `${npxRoot}/286fc3b7ffd18687`
+    const renameImpl = vi.fn()
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation(renameImpl)
+
+    try {
+      const cases = [
+        {
+          distributionType: 'manual' as const,
+          stderr: ['npm error code ENOENT', `npm error path ${badHashDir}/package.json`].join('\n')
+        },
+        {
+          distributionType: 'npx' as const,
+          stderr: `npm error path ${badHashDir}/package.json`
+        },
+        {
+          distributionType: 'npx' as const,
+          stderr: `npm error code ENOENT\nnpm error path ${tmpRoot}/package.json`
+        }
+      ]
+
+      for (const testCase of cases) {
+        const manager = createManager()
+        const launchSpec = {
+          agentId: 'agent-1',
+          source: 'manual',
+          distributionType: testCase.distributionType,
+          command: 'npx',
+          args: [],
+          env: {}
+        }
+        const error = new Error('initialization failed')
+        ;(error as Error & { acpStderr?: string }).acpStderr = testCase.stderr
+        const spawnOnceSpy = vi.spyOn(manager as any, 'spawnProcessOnce').mockRejectedValue(error)
+
+        await expect(
+          (manager as any).spawnProcess(
+            {
+              id: 'agent-1',
+              name: 'Agent One',
+              command: 'npx'
+            },
+            '/tmp/workspace',
+            launchSpec,
+            'signature'
+          )
+        ).rejects.toBe(error)
+
+        expect(spawnOnceSpy).toHaveBeenCalledTimes(1)
+        expect(renameImpl).not.toHaveBeenCalled()
+      }
+    } finally {
+      renameSpy.mockRestore()
     }
   })
 

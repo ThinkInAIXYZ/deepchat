@@ -33,6 +33,27 @@ interface SessionHooks {
   onPermission: PermissionResolver
 }
 
+const summarizeMcpServers = (mcpServers: schema.McpServer[]) =>
+  mcpServers.map((server) => {
+    const record = server as Record<string, unknown>
+    return {
+      name: typeof record.name === 'string' ? record.name : 'unknown',
+      type: typeof record.type === 'string' ? record.type : 'stdio'
+    }
+  })
+
+const summarizeSessionResponse = (
+  response: schema.LoadSessionResponse | schema.NewSessionResponse
+) => ({
+  sessionId: 'sessionId' in response ? response.sessionId : undefined,
+  keys: Object.keys(response as Record<string, unknown>),
+  configOptionCount: response.configOptions?.length ?? 0,
+  modelCount: response.models?.availableModels?.length ?? 0,
+  currentModelId: response.models?.currentModelId,
+  modeCount: response.modes?.availableModes?.length ?? 0,
+  currentModeId: response.modes?.currentModeId
+})
+
 export interface AcpSessionRecord extends AgentSessionState {
   connection: ClientSideConnectionType
   detachHandlers: Array<() => void>
@@ -338,8 +359,31 @@ export class AcpSessionManager {
       let sessionResponse: schema.LoadSessionResponse | schema.NewSessionResponse | undefined
 
       const canLoadSession = Boolean(handle.supportsLoadSession)
+      console.info(`[ACP] Initializing ACP session for agent ${agent.id}:`, {
+        conversationId,
+        workdir,
+        canLoadSession,
+        persistedSessionId,
+        mcpServerCount: mcpServers.length
+      })
       if (canLoadSession && persistedSessionId) {
         try {
+          const loadRequestSummary = {
+            cwd: workdir,
+            sessionId: persistedSessionId,
+            mcpServerCount: mcpServers.length,
+            mcpServers: summarizeMcpServers(mcpServers)
+          }
+          console.info(
+            `[ACP] Loading persisted ACP session ${persistedSessionId} for conversation ${conversationId}`,
+            loadRequestSummary
+          )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'request',
+            action: 'session/load',
+            sessionId: persistedSessionId,
+            payload: loadRequestSummary
+          })
           this.processManager.registerSessionWorkdir(persistedSessionId, workdir, conversationId)
           detachHandlers = this.attachSessionHooks(agent.id, persistedSessionId, hooks)
           const loadResponse = await handle.connection.loadSession({
@@ -361,6 +405,12 @@ export class AcpSessionManager {
           console.info(
             `[ACP] Loaded persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
           )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'response',
+            action: 'session/load',
+            sessionId,
+            payload: summarizeSessionResponse(loadResponse)
+          })
         } catch (error) {
           detachHandlers?.forEach((dispose) => {
             try {
@@ -375,10 +425,31 @@ export class AcpSessionManager {
             `[ACP] Failed to load persisted session ${persistedSessionId} for conversation ${conversationId}; falling back to newSession.`,
             error
           )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'error',
+            action: 'session/load',
+            sessionId: persistedSessionId,
+            message: error instanceof Error ? error.message : String(error),
+            payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+          })
         }
       }
 
       if (!sessionId) {
+        const newSessionRequestSummary = {
+          cwd: workdir,
+          mcpServerCount: mcpServers.length,
+          mcpServers: summarizeMcpServers(mcpServers)
+        }
+        console.info(
+          `[ACP] Creating new ACP session for conversation ${conversationId} (agent ${agent.id})`,
+          newSessionRequestSummary
+        )
+        this.processManager.appendDebugEvent?.(agent.id, {
+          kind: 'request',
+          action: 'session/new',
+          payload: newSessionRequestSummary
+        })
         const response = await handle.connection.newSession({
           cwd: workdir,
           mcpServers
@@ -394,6 +465,15 @@ export class AcpSessionManager {
         if (hasAcpConfigStateData(nextConfigState)) {
           configState = nextConfigState
         }
+        console.info(
+          `[ACP] Created new ACP session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
+        )
+        this.processManager.appendDebugEvent?.(agent.id, {
+          kind: 'response',
+          action: 'session/new',
+          sessionId,
+          payload: summarizeSessionResponse(response)
+        })
       }
 
       if (!sessionResponse) {
@@ -453,6 +533,12 @@ export class AcpSessionManager {
       }
     } catch (error) {
       console.error(`[ACP] Failed to initialize session for agent ${agent.id}:`, error)
+      this.processManager.appendDebugEvent?.(agent.id, {
+        kind: 'error',
+        action: 'session/initialize',
+        message: error instanceof Error ? error.message : String(error),
+        payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+      })
       throw error
     }
   }

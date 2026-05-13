@@ -24,6 +24,7 @@
     "acpMode": "Modo",
     "acpModeTooltip": "Modo atual: {mode}",
     "agentWorkspaceCurrent": "Diretório de trabalho atual: {path}",
+    "workspaceUnavailableTooltip": "O diretório não existe ou não pode ser acessado: {path}",
     "agentWorkspaceSelect": "Selecione o diretório de trabalho",
     "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
     "attach": "Anexar",

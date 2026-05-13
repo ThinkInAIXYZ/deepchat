@@ -4,7 +4,7 @@ import { Readable, Writable } from 'node:stream'
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import { ClientSideConnection, PROTOCOL_VERSION, ndJsonStream } from '@agentclientprotocol/sdk'
+import { ClientSideConnection, PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import type {
   ClientSideConnection as ClientSideConnectionType,
   Client
@@ -79,6 +79,19 @@ interface SessionListenerEntry {
   handlers: Set<SessionNotificationHandler>
 }
 
+interface NpxCacheRepairTarget {
+  packageJsonPath: string
+  cacheDir: string
+  npxRoot: string
+}
+
+interface NpxCacheRepairResult {
+  repaired: boolean
+  message: string
+  target?: NpxCacheRepairTarget
+  movedTo?: string
+}
+
 /**
  * Check if running in Electron environment.
  * Reference: @modelcontextprotocol/sdk/client/stdio.js
@@ -91,6 +104,44 @@ interface PermissionResolverEntry {
   agentId: string
   resolver: PermissionResolver
 }
+
+type JsonRpcId = string | number
+type JsonRpcMessageRecord = Record<string, unknown>
+type ProtocolDirection = 'in' | 'out'
+type ErrorWithAcpStderr = Error & { acpStderr?: string }
+
+interface ProtocolMessageSummary {
+  direction: ProtocolDirection
+  kind: 'request' | 'notification' | 'response' | 'unknown'
+  id?: JsonRpcId
+  method?: string
+  paramsKeys?: string[]
+  resultKeys?: string[]
+  error?: {
+    code?: unknown
+    message?: string
+  }
+  keys: string[]
+  label: string
+}
+
+const MAX_PROTOCOL_LOG_LINE_LENGTH = 4000
+const IMPORTANT_PROTOCOL_METHODS = new Set([
+  'initialize',
+  'session/new',
+  'session/load',
+  'session/prompt',
+  'session/cancel',
+  'authenticate'
+])
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const truncateForLog = (value: string): string =>
+  value.length > MAX_PROTOCOL_LOG_LINE_LENGTH
+    ? `${value.slice(0, MAX_PROTOCOL_LOG_LINE_LENGTH)}...<truncated ${value.length - MAX_PROTOCOL_LOG_LINE_LENGTH} chars>`
+    : value
 
 export const parseLoadSessionCapability = (initializeResult: unknown): boolean | undefined => {
   if (!initializeResult || typeof initializeResult !== 'object') {
@@ -148,6 +199,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
   >()
   private readonly debugLog = new AcpDebugLog()
+  private readonly protocolRequestsToAgent = new Map<string, Map<JsonRpcId, string>>()
+  private readonly protocolRequestsFromAgent = new Map<string, Map<JsonRpcId, string>>()
   private shuttingDown = false
 
   constructor(options: AcpProcessManagerOptions) {
@@ -670,11 +723,89 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     launchSpec: AcpResolvedLaunchSpec,
     launchSignature: string
   ): Promise<AcpProcessHandle> {
+    try {
+      return await this.spawnProcessOnce(agent, workdir, launchSpec, launchSignature)
+    } catch (error) {
+      const repairResult = this.repairNpxCacheIfNeeded(agent.id, launchSpec, error)
+      if (!repairResult.repaired) {
+        throw error
+      }
+
+      console.warn(
+        `[ACP] Retrying npx agent ${agent.id} after cache repair: ${repairResult.message}`
+      )
+      try {
+        return await this.spawnProcessOnce(agent, workdir, launchSpec, launchSignature)
+      } catch (retryError) {
+        throw this.createNpxRepairRetryError(agent.id, error, retryError, repairResult)
+      }
+    }
+  }
+
+  private async spawnProcessOnce(
+    agent: AcpAgentConfig,
+    workdir: string,
+    launchSpec: AcpResolvedLaunchSpec,
+    launchSignature: string
+  ): Promise<AcpProcessHandle> {
     const child = await this.spawnAgentProcess(agent, workdir, launchSpec)
-    const stream = this.createAgentStream(child)
+    const stderrChunks: string[] = []
+    const stream = this.createAgentStream(agent.id, child)
     const client = this.createClientProxy()
     const connection = new ClientSideConnection(() => client, stream)
     const handleSeed: Partial<AcpProcessHandle> = {}
+    let readyHandle: AcpProcessHandle | null = null
+
+    const handleProcessExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      console.warn(
+        `[ACP] Agent process for ${agent.id} exited (PID: ${child.pid}, code=${code ?? 'null'}, signal=${signal ?? 'null'})`
+      )
+      this.debugLog.append(agent.id, {
+        kind: 'lifecycle',
+        action: 'process.exit',
+        payload: { pid: child.pid, code, signal, workdir }
+      })
+      if (readyHandle) {
+        this.removeHandleReferences(readyHandle)
+        this.clearSessionsForAgent(agent.id)
+      }
+    }
+
+    child.on('exit', handleProcessExit)
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const error = chunk.toString().trim()
+      if (error) {
+        stderrChunks.push(error)
+        console.error(`[ACP] ${agent.id} stderr: ${error}`)
+        this.debugLog.append(agent.id, {
+          kind: 'stderr',
+          action: 'process.stderr',
+          message: error,
+          payload: error
+        })
+      }
+    })
+    child.on('error', (error) => {
+      console.error(`[ACP] Agent process ${agent.id} encountered error:`, error)
+      this.debugLog.append(agent.id, {
+        kind: 'error',
+        action: 'process.error',
+        message: error.message,
+        payload: { name: error.name, stack: error.stack, workdir }
+      })
+    })
+    console.info(`[ACP] Process monitoring set up for agent ${agent.id} (PID: ${child.pid})`)
+    this.debugLog.append(agent.id, {
+      kind: 'lifecycle',
+      action: 'process.spawned',
+      payload: {
+        pid: child.pid,
+        workdir,
+        command: launchSpec.command,
+        argsCount: launchSpec.args?.length ?? 0,
+        distributionType: launchSpec.distributionType
+      }
+    })
 
     // Add process health check before initialization
     if (child.killed) {
@@ -704,6 +835,27 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       const initPromise = connection.initialize(initPayload)
 
       let timeoutHandle: NodeJS.Timeout | null = null
+      let initializationSettled = false
+      let cleanupInitExitListener: (() => void) | null = null
+      const processExitPromise = new Promise<never>((_, reject) => {
+        const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+          reject(
+            new Error(
+              `[ACP] Agent process ${agent.id} exited during initialization (PID: ${child.pid}, code=${code ?? 'null'}, signal=${signal ?? 'null'})`
+            )
+          )
+        }
+        child.once('exit', onExit)
+        cleanupInitExitListener = () => child.removeListener('exit', onExit)
+      })
+      const connectionClosedPromise = connection.closed.then(() => {
+        if (!initializationSettled) {
+          throw new Error(
+            `[ACP] Protocol stream closed before initialization completed for agent ${agent.id}`
+          )
+        }
+        return new Promise<never>(() => {})
+      })
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutHandle = setTimeout(() => {
           reject(
@@ -714,7 +866,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         }, timeoutMs)
       })
 
-      const initResult = await Promise.race([initPromise, timeoutPromise]).finally(() => {
+      const initResult = await Promise.race([
+        initPromise,
+        timeoutPromise,
+        processExitPromise,
+        connectionClosedPromise
+      ]).finally(() => {
+        initializationSettled = true
+        cleanupInitExitListener?.()
         if (timeoutHandle) {
           clearTimeout(timeoutHandle)
         }
@@ -795,6 +954,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         }
       }
 
+      this.attachStderrToError(error, stderrChunks)
       throw error
     }
 
@@ -822,52 +982,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       supportsLoadSession: handleSeed.supportsLoadSession,
       launchSignature
     }
-
-    child.on('exit', (code, signal) => {
-      console.warn(
-        `[ACP] Agent process for ${agent.id} exited (PID: ${child.pid}, code=${code ?? 'null'}, signal=${signal ?? 'null'})`
-      )
-      this.debugLog.append(agent.id, {
-        kind: 'lifecycle',
-        action: 'process.exit',
-        payload: { pid: child.pid, code, signal }
-      })
+    readyHandle = handle
+    if (!this.isHandleAlive(handle)) {
       this.removeHandleReferences(handle)
       this.clearSessionsForAgent(agent.id)
-    })
-
-    // child.stdout?.on('data', (chunk: Buffer) => {
-    //   const output = chunk.toString().trim()
-    //   if (output) {
-    //     console.info(`[ACP] ${agent.id} stdout: ${output}`)
-    //   }
-    // })
-
-    child.stderr?.on('data', (chunk: Buffer) => {
-      const error = chunk.toString().trim()
-      if (error) {
-        console.error(`[ACP] ${agent.id} stderr: ${error}`)
-        this.debugLog.append(agent.id, {
-          kind: 'stderr',
-          action: 'process.stderr',
-          message: error,
-          payload: error
-        })
-      }
-    })
-
-    // Add additional process monitoring
-    child.on('error', (error) => {
-      console.error(`[ACP] Agent process ${agent.id} encountered error:`, error)
-      this.debugLog.append(agent.id, {
-        kind: 'error',
-        action: 'process.error',
-        message: error.message,
-        payload: { name: error.name, stack: error.stack }
-      })
-    })
-
-    console.info(`[ACP] Process monitoring set up for agent ${agent.id} (PID: ${child.pid})`)
+      throw new Error(
+        `[ACP] Agent process ${agent.id} exited before becoming ready (PID: ${child.pid})`
+      )
+    }
     this.debugLog.append(agent.id, {
       kind: 'lifecycle',
       action: 'process.ready',
@@ -875,6 +997,180 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     })
 
     return handle
+  }
+
+  private attachStderrToError(error: unknown, stderrChunks: string[]): void {
+    if (!stderrChunks.length || !(error instanceof Error)) {
+      return
+    }
+    ;(error as ErrorWithAcpStderr).acpStderr = stderrChunks.join('\n')
+  }
+
+  private repairNpxCacheIfNeeded(
+    agentId: string,
+    launchSpec: AcpResolvedLaunchSpec,
+    error: unknown
+  ): NpxCacheRepairResult {
+    if (launchSpec.distributionType !== 'npx') {
+      return { repaired: false, message: 'agent distribution is not npx' }
+    }
+
+    const target = this.findNpxCacheRepairTarget(error)
+    if (!target) {
+      return { repaired: false, message: 'error is not a _npx package.json ENOENT' }
+    }
+
+    const result = this.repairNpxCacheDirectory(target)
+    this.debugLog.append(agentId, {
+      kind: result.repaired ? 'lifecycle' : 'error',
+      action: 'npx.cache.repair',
+      message: result.message,
+      payload: {
+        packageJsonPath: target.packageJsonPath,
+        cacheDir: target.cacheDir,
+        movedTo: result.movedTo,
+        repaired: result.repaired
+      }
+    })
+    return result
+  }
+
+  private findNpxCacheRepairTarget(error: unknown): NpxCacheRepairTarget | null {
+    const text = this.stringifyErrorWithStderr(error)
+    if (!/\bENOENT\b/i.test(text)) {
+      return null
+    }
+
+    const packageJsonPathPattern =
+      /((?:[A-Za-z]:)?[\\/][^'"\r\n]*[\\/]_npx[\\/][^\\/ "'\r\n]+[\\/]package\.json)/i
+    const packageJsonPath = text.match(packageJsonPathPattern)?.[1]
+    if (!packageJsonPath) {
+      return null
+    }
+
+    const normalizedPackageJsonPath = path.normalize(packageJsonPath)
+    if (path.basename(normalizedPackageJsonPath) !== 'package.json') {
+      return null
+    }
+
+    const cacheDir = path.dirname(normalizedPackageJsonPath)
+    const npxRoot = path.dirname(cacheDir)
+    if (path.basename(npxRoot) !== '_npx') {
+      return null
+    }
+
+    const relativeCacheDir = path.relative(npxRoot, cacheDir)
+    if (
+      !relativeCacheDir ||
+      relativeCacheDir.startsWith('..') ||
+      path.isAbsolute(relativeCacheDir) ||
+      relativeCacheDir.includes(path.sep)
+    ) {
+      return null
+    }
+
+    return {
+      packageJsonPath: normalizedPackageJsonPath,
+      cacheDir,
+      npxRoot
+    }
+  }
+
+  private repairNpxCacheDirectory(target: NpxCacheRepairTarget): NpxCacheRepairResult {
+    let cacheStat: fs.Stats | null = null
+    try {
+      cacheStat = fs.statSync(target.cacheDir)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ENOENT') {
+        return {
+          repaired: true,
+          message: `npx cache directory was already missing: ${target.cacheDir}`,
+          target
+        }
+      }
+      return {
+        repaired: false,
+        message: `failed to inspect npx cache directory "${target.cacheDir}": ${error instanceof Error ? error.message : String(error)}`,
+        target
+      }
+    }
+
+    if (!cacheStat.isDirectory()) {
+      return {
+        repaired: false,
+        message: `npx cache path is not a directory: ${target.cacheDir}`,
+        target
+      }
+    }
+
+    const movedTo = this.createBadNpxCachePath(target.cacheDir)
+    try {
+      fs.renameSync(target.cacheDir, movedTo)
+      return {
+        repaired: true,
+        message: `moved broken npx cache directory "${target.cacheDir}" to "${movedTo}"`,
+        target,
+        movedTo
+      }
+    } catch (error) {
+      return {
+        repaired: false,
+        message: `failed to move npx cache directory "${target.cacheDir}": ${error instanceof Error ? error.message : String(error)}`,
+        target
+      }
+    }
+  }
+
+  private createBadNpxCachePath(cacheDir: string): string {
+    const base = `${cacheDir}.bad-${Date.now()}`
+    let candidate = base
+    let suffix = 1
+    while (fs.existsSync(candidate)) {
+      candidate = `${base}-${suffix}`
+      suffix += 1
+    }
+    return candidate
+  }
+
+  private createNpxRepairRetryError(
+    agentId: string,
+    originalError: unknown,
+    retryError: unknown,
+    repairResult: NpxCacheRepairResult
+  ): Error {
+    const error = new Error(
+      `[ACP] npx cache repair for agent ${agentId} was attempted but retry failed. Repair: ${repairResult.message}. Original error: ${this.stringifyErrorWithStderr(originalError)}. Retry error: ${this.stringifyErrorWithStderr(retryError)}`
+    )
+    ;(error as Error & { cause?: unknown }).cause = retryError
+    return error
+  }
+
+  private stringifyErrorWithStderr(error: unknown): string {
+    if (error instanceof Error) {
+      const stderr = (error as ErrorWithAcpStderr).acpStderr
+      return [error.message, stderr].filter(Boolean).join('\n')
+    }
+    return String(error)
+  }
+
+  private validateSpawnCwd(agentId: string, cwd: string, source: 'configured cwd' | 'workdir') {
+    if (!fs.existsSync(cwd)) {
+      throw new Error(`[ACP] ${source} "${cwd}" does not exist for agent ${agentId}`)
+    }
+
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(cwd)
+    } catch (error) {
+      throw new Error(
+        `[ACP] ${source} "${cwd}" is not accessible for agent ${agentId}: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+
+    if (!stat.isDirectory()) {
+      throw new Error(`[ACP] ${source} "${cwd}" is not a directory for agent ${agentId}`)
+    }
   }
 
   private async spawnAgentProcess(
@@ -930,7 +1226,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Use expanded args
     const processedArgs = expandedArgs
 
-    const HOME_DIR = app.getPath('home')
     let env = mergeCommandEnvironment()
 
     let shellEnv: Record<string, string> = {}
@@ -1018,12 +1313,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       userOverrideKeys: Object.keys(userEnvOverride ?? {})
     })
 
-    // Use the provided workdir as cwd if it exists, otherwise fall back to home directory
-    let cwd = launchSpec.cwd?.trim() ? launchSpec.cwd : workdir
-    if (!fs.existsSync(cwd)) {
-      console.warn(`[ACP] Workdir "${cwd}" does not exist for agent ${agent.id}, using HOME_DIR`)
-      cwd = HOME_DIR
-    }
+    const configuredCwd = launchSpec.cwd?.trim()
+    const cwd = configuredCwd || workdir
+    this.validateSpawnCwd(agent.id, cwd, configuredCwd ? 'configured cwd' : 'workdir')
     console.info(`[ACP] Using workdir as cwd for agent ${agent.id}: ${cwd}`)
 
     console.info(`[ACP] Spawning process with options:`, {
@@ -1046,7 +1338,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return child
   }
 
-  private createAgentStream(child: ChildProcessWithoutNullStreams): Stream {
+  private createAgentStream(agentId: string, child: ChildProcessWithoutNullStreams): Stream {
     // Add error handler for stdin to prevent EPIPE errors when process exits
     child.stdin.on('error', (error: NodeJS.ErrnoException) => {
       // EPIPE errors occur when trying to write to a closed pipe (process already exited)
@@ -1058,7 +1350,200 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     const writable = Writable.toWeb(child.stdin) as unknown as WritableStream<Uint8Array>
     const readable = Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>
-    return ndJsonStream(writable, readable)
+    return this.createTracedNdJsonStream(agentId, writable, readable)
+  }
+
+  private createTracedNdJsonStream(
+    agentId: string,
+    output: WritableStream<Uint8Array>,
+    input: ReadableStream<Uint8Array>
+  ): Stream {
+    const textEncoder = new TextEncoder()
+    const textDecoder = new TextDecoder()
+
+    const readable = new ReadableStream<JsonRpcMessageRecord>({
+      start: async (controller) => {
+        let content = ''
+        let didError = false
+        const reader = input.getReader()
+
+        const emitLine = (line: string, action: string) => {
+          const trimmedLine = line.trim()
+          if (!trimmedLine) return
+          try {
+            const message = JSON.parse(trimmedLine) as JsonRpcMessageRecord
+            this.logProtocolMessage(agentId, 'in', message)
+            controller.enqueue(message)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            console.error(`[ACP] ${agentId} protocol parse error from stdout:`, {
+              error: errorMessage,
+              line: truncateForLog(trimmedLine),
+              length: trimmedLine.length
+            })
+            this.debugLog.append(agentId, {
+              kind: 'error',
+              action,
+              message: errorMessage,
+              payload: {
+                line: truncateForLog(trimmedLine),
+                length: trimmedLine.length
+              }
+            })
+          }
+        }
+
+        try {
+          while (true) {
+            const { value, done } = await reader.read()
+            if (done) {
+              break
+            }
+            if (!value) {
+              continue
+            }
+            content += textDecoder.decode(value, { stream: true })
+            const lines = content.split('\n')
+            content = lines.pop() || ''
+            lines.forEach((line) => emitLine(line, 'protocol.stdout.parse'))
+          }
+
+          if (content.trim()) {
+            emitLine(content, 'protocol.stdout.trailing_parse')
+          }
+        } catch (error) {
+          didError = true
+          console.error(`[ACP] ${agentId} protocol stdout stream failed:`, error)
+          this.debugLog.append(agentId, {
+            kind: 'error',
+            action: 'protocol.stdout.stream',
+            message: error instanceof Error ? error.message : String(error),
+            payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+          })
+          controller.error(error)
+        } finally {
+          reader.releaseLock()
+          if (!didError) {
+            controller.close()
+          }
+        }
+      }
+    })
+
+    const writable = new WritableStream<JsonRpcMessageRecord>({
+      write: async (message) => {
+        this.logProtocolMessage(agentId, 'out', message)
+        const content = `${JSON.stringify(message)}\n`
+        const writer = output.getWriter()
+        try {
+          await writer.write(textEncoder.encode(content))
+        } finally {
+          writer.releaseLock()
+        }
+      }
+    })
+
+    return { readable, writable } as unknown as Stream
+  }
+
+  private getProtocolRequestMap(
+    store: Map<string, Map<JsonRpcId, string>>,
+    agentId: string
+  ): Map<JsonRpcId, string> {
+    const existing = store.get(agentId)
+    if (existing) return existing
+
+    const created = new Map<JsonRpcId, string>()
+    store.set(agentId, created)
+    return created
+  }
+
+  private summarizeProtocolMessage(
+    agentId: string,
+    direction: ProtocolDirection,
+    message: unknown
+  ): ProtocolMessageSummary {
+    const record = isRecord(message) ? message : {}
+    const keys = Object.keys(record)
+    const idValue = record.id
+    const id = typeof idValue === 'string' || typeof idValue === 'number' ? idValue : undefined
+    const directMethod = typeof record.method === 'string' ? record.method : undefined
+    const paramsKeys = isRecord(record.params) ? Object.keys(record.params) : undefined
+    const resultKeys = isRecord(record.result) ? Object.keys(record.result) : undefined
+    const errorRecord = isRecord(record.error) ? record.error : undefined
+    const error = errorRecord
+      ? {
+          code: errorRecord.code,
+          message: typeof errorRecord.message === 'string' ? errorRecord.message : undefined
+        }
+      : undefined
+
+    let kind: ProtocolMessageSummary['kind'] = 'unknown'
+    let method = directMethod
+    if (directMethod && id !== undefined) {
+      kind = 'request'
+      const store =
+        direction === 'out' ? this.protocolRequestsToAgent : this.protocolRequestsFromAgent
+      this.getProtocolRequestMap(store, agentId).set(id, directMethod)
+    } else if (directMethod) {
+      kind = 'notification'
+    } else if (id !== undefined) {
+      kind = 'response'
+      const store =
+        direction === 'in' ? this.protocolRequestsToAgent : this.protocolRequestsFromAgent
+      const requests = store.get(agentId)
+      method = requests?.get(id)
+      requests?.delete(id)
+    }
+
+    const labelParts: string[] = [kind]
+    if (method) {
+      labelParts.push(method)
+    }
+    if (id !== undefined) {
+      labelParts.push(`#${id}`)
+    }
+    if (error?.message) {
+      labelParts.push(`error=${error.message}`)
+    }
+
+    return {
+      direction,
+      kind,
+      id,
+      method,
+      paramsKeys,
+      resultKeys,
+      error,
+      keys,
+      label: labelParts.join(' ')
+    }
+  }
+
+  private logProtocolMessage(
+    agentId: string,
+    direction: ProtocolDirection,
+    message: unknown
+  ): void {
+    const summary = this.summarizeProtocolMessage(agentId, direction, message)
+    const route = direction === 'out' ? 'client->agent' : 'agent->client'
+    const isImportant =
+      Boolean(summary.error) ||
+      (summary.method ? IMPORTANT_PROTOCOL_METHODS.has(summary.method) : false)
+    const logMessage = `[ACP] ${agentId} protocol ${route}: ${summary.label}`
+
+    if (isImportant) {
+      console.info(logMessage, summary)
+    } else {
+      console.debug(logMessage, summary)
+    }
+
+    this.debugLog.append(agentId, {
+      kind: 'lifecycle',
+      action: `protocol.${direction}`,
+      message: summary.label,
+      payload: summary
+    })
   }
 
   private createClientProxy(): Client {
@@ -1280,6 +1765,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private clearSessionsForAgent(agentId: string): void {
+    this.protocolRequestsToAgent.delete(agentId)
+    this.protocolRequestsFromAgent.delete(agentId)
+
     for (const [sessionId, entry] of this.sessionListeners.entries()) {
       if (entry.agentId === agentId) {
         this.sessionListeners.delete(sessionId)

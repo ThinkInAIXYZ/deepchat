@@ -24,6 +24,7 @@
     "acpMode": "حالت",
     "acpModeTooltip": "حالت فعلی: {mode}",
     "agentWorkspaceCurrent": "فهرست کاری فعلی: {path}",
+    "workspaceUnavailableTooltip": "فهرست وجود ندارد یا قابل دسترسی نیست: {path}",
     "agentWorkspaceSelect": "پوشه کاری را انتخاب کنید",
     "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
     "attach": "پیوست",
