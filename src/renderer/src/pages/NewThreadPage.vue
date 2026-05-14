@@ -80,39 +80,16 @@
         </DropdownMenu>
 
         <!-- Input area -->
-        <<<<<<< Updated upstream
-        <ChatInputBox
-          ref="chatInputRef"
-          v-model="message"
-          :files="attachedFiles"
-          :session-id="acpDraftSessionId"
-          :workspace-path="projectStore.selectedProject?.path ?? null"
-          :is-acp-session="isAcpSelectedAgent"
-          :submit-disabled="isAcpWorkdirUnavailable"
-          @update:files="onFilesChange"
-          @pending-skills-change="onPendingSkillsChange"
-          @command-submit="onCommandSubmit"
-          @submit="onSubmit"
-        >
-          <template #toolbar>
-            <ChatInputToolbar
-              :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
-              @attach="onAttach"
-              @send="onSubmit"
-            />
-          </template>
-        </ChatInputBox>
-        =======
         <div ref="firstChatGuideHostRef" :class="['w-full max-w-4xl flex justify-center']">
           <ChatInputBox
-            :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
             ref="chatInputRef"
+            :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
             v-model="message"
             :files="attachedFiles"
             :session-id="acpDraftSessionId"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
-            :submit-disabled="isAcpWorkdirMissing"
+            :submit-disabled="isAcpWorkdirUnavailable"
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
             @command-submit="onCommandSubmit"
@@ -120,14 +97,13 @@
           >
             <template #toolbar>
               <ChatInputToolbar
-                :send-disabled="isAcpWorkdirMissing || !message.trim()"
+                :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
                 @attach="onAttach"
                 @send="onSubmit"
               />
             </template>
           </ChatInputBox>
         </div>
-        >>>>>>> Stashed changes
 
         <!-- Status bar -->
         <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
