@@ -422,6 +422,10 @@
       },
       "createTitle": "Add Custom Model",
       "editTitle": "Edit Model Configuration - {name}",
+      "speechRecognition": {
+        "label": "Reconhecimento de voz",
+        "description": "Controla se este modelo permite entrada por voz com transcrição local para texto."
+      },
       "functionCall": {
         "description": "Se o modelo suporta chamadas de função nativamente (o DeepChat simulará automaticamente chamadas de função após desativar esta opção)",
         "label": "Chamadas de Função"

@@ -355,6 +355,10 @@
       },
       "createTitle": "Tilføj brugerdefineret model",
       "editTitle": "Rediger modelkonfiguration - {name}",
+      "speechRecognition": {
+        "label": "Stemmegenkendelse",
+        "description": "Styrer om denne model tillader stemmeinput med lokal tale-til-tekst."
+      },
       "functionCall": {
         "description": "Om modellen understøtter funktionskald direkte (DeepChat simulerer automatisk funktionskald, hvis denne mulighed slås fra)",
         "label": "Funktionskald"

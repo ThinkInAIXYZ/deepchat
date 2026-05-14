@@ -186,3 +186,17 @@ export const modelsGetCapabilitiesRoute = defineRouteContract({
     capabilities: ModelCapabilitiesSchema
   })
 })
+
+export const modelsTranscribeAudioRoute = defineRouteContract({
+  name: 'models.transcribeAudio',
+  input: z.object({
+    providerId: EntityIdSchema,
+    modelId: z.string().min(1),
+    audioBase64: z.string().min(1),
+    mimeType: z.string().min(1),
+    filename: z.string().min(1).optional()
+  }),
+  output: z.object({
+    text: z.string()
+  })
+})

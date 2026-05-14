@@ -216,6 +216,12 @@ describe('ChatInputBox attachments', () => {
     expect(openFilePickerMock).toHaveBeenCalledTimes(1)
   })
 
+  it('exposes insertRecognizedText and inserts text into the editor', async () => {
+    const wrapper = await mountComponent()
+    ;(wrapper.vm as any).insertRecognizedText('hello world')
+    expect(insertContentMock).toHaveBeenCalledWith('hello world')
+  })
+
   it('handles paste files via composable', async () => {
     const wrapper = await mountComponent()
     await wrapper.find('.chat-input-editor').trigger('paste')

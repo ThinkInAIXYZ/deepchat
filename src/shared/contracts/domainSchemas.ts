@@ -205,6 +205,7 @@ export const ReasoningPortraitSchema = z
   .passthrough()
 
 export const ModelCapabilitiesSchema = z.object({
+  supportsAudioInput: z.boolean().nullable(),
   supportsReasoning: z.boolean().nullable(),
   reasoningPortrait: ReasoningPortraitSchema.nullable(),
   thinkingBudgetRange: z
@@ -232,6 +233,7 @@ export const ModelConfigSchema = z
     contextLength: z.number().int(),
     temperature: z.number().optional(),
     vision: z.boolean(),
+    speechRecognition: z.boolean().optional(),
     functionCall: z.boolean(),
     reasoning: z.boolean(),
     type: z.nativeEnum(ModelType),

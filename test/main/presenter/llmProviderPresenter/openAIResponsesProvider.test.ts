@@ -177,4 +177,46 @@ describe('OpenAIResponsesProvider', () => {
     ).toBe(false)
     expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
   })
+
+  it('submits audio transcriptions to the OpenAI audio endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ text: 'transcribed text' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    const text = await provider.transcribeAudio('gpt-4o-mini-transcribe', 'AQID', 'audio/wav')
+
+    expect(text).toBe('transcribed text')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.openai.com/v1/audio/transcriptions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+  })
+
+  it('surfaces official OpenAI audio transcription errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: vi.fn().mockResolvedValue('openai transcription failed')
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    await expect(
+      provider.transcribeAudio('gpt-4o-mini-transcribe', 'AQID', 'audio/wav')
+    ).rejects.toThrow('openai transcription failed')
+  })
 })

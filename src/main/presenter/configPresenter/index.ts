@@ -1032,6 +1032,13 @@ export class ConfigPresenter implements IConfigPresenter {
     return modelCapabilities.getSearchDefaults(providerId, modelId)
   }
 
+  supportsAudioInputCapability(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsAudioInput(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
+  }
+
   supportsReasoningEffortCapability(providerId: string, modelId: string): boolean {
     return modelCapabilities.supportsReasoningEffort(
       this.getCapabilityProviderId(providerId, modelId),

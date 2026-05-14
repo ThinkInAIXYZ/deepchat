@@ -304,6 +304,15 @@ export interface ILlmProviderPresenter {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
+    options?: { signal?: AbortSignal; swallowErrors?: boolean }
+  ): Promise<string>
+
+  transcribeAudioStandalone(
+    providerId: string,
+    modelId: string,
+    audioBase64: string,
+    mimeType: string,
+    filename?: string,
     options?: { signal?: AbortSignal }
   ): Promise<string>
 

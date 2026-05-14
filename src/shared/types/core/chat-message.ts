@@ -16,6 +16,16 @@ export type ChatMessageContent =
       image_url: { url: string; detail?: 'auto' | 'low' | 'high' }
       provider_options?: ChatMessageProviderOptions
     }
+  | {
+      type: 'input_audio'
+      input_audio: {
+        data: string
+        media_type: string
+        filename?: string
+        estimated_tokens?: number
+      }
+      provider_options?: ChatMessageProviderOptions
+    }
 
 export type ChatMessage = {
   role: ChatMessageRole

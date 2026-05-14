@@ -20,6 +20,7 @@ import {
   modelsSetBatchStatusRoute,
   modelsSetConfigRoute,
   modelsSetStatusRoute,
+  modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from '@shared/contracts/routes'
 import type { IModelConfig, ModelConfig, RENDERER_MODEL_META } from '@shared/presenter'
@@ -218,6 +219,23 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     }
   }
 
+  async function transcribeAudio(
+    providerId: string,
+    modelId: string,
+    audioBase64: string,
+    mimeType: string,
+    filename?: string
+  ) {
+    const result = await bridge.invoke(modelsTranscribeAudioRoute.name, {
+      providerId,
+      modelId,
+      audioBase64,
+      mimeType,
+      ...(filename ? { filename } : {})
+    })
+    return result.text
+  }
+
   async function supportsReasoningCapability(providerId: string, modelId: string) {
     return (await getCapabilities(providerId, modelId)).supportsReasoning
   }
@@ -316,6 +334,7 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     exportModelConfigs,
     importModelConfigs,
     getCapabilities,
+    transcribeAudio,
     supportsReasoningCapability,
     getReasoningPortrait,
     getThinkingBudgetRange,

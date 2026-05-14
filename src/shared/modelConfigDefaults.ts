@@ -5,6 +5,7 @@ export const MODEL_TIMEOUT_MAX_MS = 3600000
 export const DEFAULT_MODEL_TIMEOUT = 600000
 export const DERIVED_MODEL_MAX_TOKENS_CAP = 32000
 export const DEFAULT_MODEL_VISION = false
+export const DEFAULT_MODEL_SPEECH_RECOGNITION = false
 export const DEFAULT_MODEL_FUNCTION_CALL = true
 export const DEFAULT_MODEL_REASONING = false
 

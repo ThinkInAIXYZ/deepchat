@@ -109,4 +109,20 @@ describe('ChatInputToolbar', () => {
     expect(wrapper.find('[data-icon="lucide:compass"]').exists()).toBe(true)
     expect(wrapper.emitted('steer')).toEqual([[]])
   })
+
+  it('emits voice-input and switches icon while listening', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        showVoiceInput: true,
+        isVoiceInputListening: false
+      }
+    })
+
+    await wrapper.get('[data-testid="chat-voice-input-button"]').trigger('click')
+    expect(wrapper.emitted('voice-input')).toEqual([[]])
+
+    await wrapper.setProps({ isVoiceInputListening: true })
+    expect(wrapper.find('[data-testid="chat-voice-recording-wave"]').exists()).toBe(true)
+  })
 })

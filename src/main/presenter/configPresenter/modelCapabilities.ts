@@ -560,6 +560,13 @@ export class ModelCapabilities {
     return inputs.includes('image')
   }
 
+  supportsAudioInput(providerId: string, modelId: string): boolean {
+    const model = this.getModel(providerId, modelId)
+    const inputs = model?.modalities?.input
+    if (!Array.isArray(inputs)) return false
+    return inputs.includes('audio')
+  }
+
   supportsToolCall(providerId: string, modelId: string): boolean {
     const model = this.getModel(providerId, modelId)
     return model?.tool_call === true

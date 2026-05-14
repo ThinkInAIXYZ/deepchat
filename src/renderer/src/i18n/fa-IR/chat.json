@@ -29,6 +29,13 @@
     "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
     "attach": "پیوست",
     "voiceInput": "ورودی صوتی",
+    "voiceInputStop": "توقف ورودی صوتی",
+    "voiceRecognitionUnsupportedTitle": "محیط فعلی از تشخیص گفتار پشتیبانی نمی‌کند",
+    "voiceRecognitionUnsupportedDescription": "از این قابلیت در مرورگر یا محیط دسکتاپی که از تشخیص گفتار پشتیبانی می‌کند استفاده کنید.",
+    "voiceRecognitionPermissionDeniedTitle": "امکان دسترسی به میکروفون وجود ندارد",
+    "voiceRecognitionPermissionDeniedDescription": "اجازه استفاده از میکروفون را به DeepChat بدهید و دوباره تلاش کنید.",
+    "voiceRecognitionErrorTitle": "تشخیص گفتار ناموفق بود",
+    "voiceRecognitionErrorDescription": "تشخیص گفتار کامل نشد. لطفاً بعداً دوباره تلاش کنید.",
     "send": "ارسال",
     "steer": "هدایت",
     "queue": "افزودن به صف",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "خطا در پردازش پیوست",
     "fileUploadFailedDesc": "امکان پردازش {count} فایل وجود نداشت: {names}",
     "fileUploadFailedMore": " و {count} مورد دیگر",
-    "unnamedFile": "فایل بدون نام"
+    "unnamedFile": "فایل بدون نام",
+    "audioInputUnsupportedTitle": "مدل فعلی از پیوست صوتی پشتیبانی نمی‌کند",
+    "audioInputUnsupportedDescription": "مدل {model} از ورودی صوتی پشتیبانی نمی‌کند. {count} پیوست صوتی نادیده گرفته شد."
   },
   "pendingInput": {
     "steer": "هدایت",
@@ -253,7 +262,8 @@
     }
   },
   "modelPicker": {
-    "empty": "هیچ مدلی پیدا نشد"
+    "empty": "هیچ مدلی پیدا نشد",
+    "audioInputSupported": "پشتیبانی از ورودی صوتی"
   },
   "audio": {
     "play": "پخش",

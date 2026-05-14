@@ -422,6 +422,10 @@
       },
       "createTitle": "Add Custom Model",
       "editTitle": "Edit Model Configuration - {name}",
+      "speechRecognition": {
+        "label": "음성 인식",
+        "description": "이 모델에서 로컬 음성 인식을 통한 텍스트 입력을 허용할지 제어합니다."
+      },
       "functionCall": {
         "description": "모델이 기능을 지원하는지 여부는 기본적으로 호출을 지원합니다 (DeepChat은이 옵션을 끄면 기능 호출을 자동으로 시뮬레이션합니다).",
         "label": "기능 호출"

@@ -28,7 +28,7 @@ import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
-import { BaseLLMProvider } from './baseProvider'
+import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
 import { RateLimitManager } from './managers/rateLimitManager'
 import { ProviderInstanceManager } from './managers/providerInstanceManager'
@@ -78,6 +78,15 @@ const createAbortPromise = (
     }
   }
 }
+
+const AUDIO_TRANSCRIPTION_PROMPT = [
+  'Transcribe the provided audio.',
+  'Return only the transcription text of the audio content.',
+  'Do not translate, summarize, explain, add speaker labels, or use markdown.',
+  'If there is no discernible speech, return an empty string.',
+  '请只返回音频中的转写文本，不要翻译、总结、解释、添加说话人标签或 Markdown。',
+  '如果没有可辨识的语音，请返回空字符串。'
+].join(' ')
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
@@ -332,11 +341,12 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
-    options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal; swallowErrors?: boolean }
   ): Promise<string> {
     const provider = this.getProviderInstance(providerId)
     let response = ''
     const signal = options?.signal
+    const shouldSwallowErrors = options?.swallowErrors !== false
 
     if (signal?.aborted) {
       throw createAbortError()
@@ -362,9 +372,90 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
         throw error
       }
+
       console.error('Stream error:', error)
+
+      if (!shouldSwallowErrors) {
+        throw error instanceof Error ? error : new Error('Standalone completion failed')
+      }
+
       return ''
     }
+  }
+
+  async transcribeAudioStandalone(
+    providerId: string,
+    modelId: string,
+    audioBase64: string,
+    mimeType: string,
+    filename?: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<string> {
+    const normalizedAudioBase64 = audioBase64.trim()
+    const normalizedMimeType = mimeType.trim()
+
+    if (!normalizedAudioBase64) {
+      throw new Error('Audio data is required for transcription')
+    }
+
+    if (!normalizedMimeType.startsWith('audio/')) {
+      throw new Error(`Invalid audio MIME type for transcription: ${mimeType}`)
+    }
+
+    const signal = options?.signal
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+
+    await this.executeWithRateLimit(providerId, { signal })
+
+    const provider = this.getProviderInstance(providerId)
+    try {
+      return (
+        await provider.transcribeAudio(
+          modelId,
+          normalizedAudioBase64,
+          normalizedMimeType,
+          filename,
+          {
+            signal
+          }
+        )
+      ).trim()
+    } catch (error) {
+      if (!isAudioTranscriptionNotSupportedError(error)) {
+        throw error
+      }
+    }
+
+    const text = await this.generateCompletionStandalone(
+      providerId,
+      [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: AUDIO_TRANSCRIPTION_PROMPT
+            },
+            {
+              type: 'input_audio',
+              input_audio: {
+                data: normalizedAudioBase64,
+                media_type: normalizedMimeType,
+                ...(filename?.trim() ? { filename: filename.trim() } : {})
+              }
+            }
+          ]
+        }
+      ],
+      modelId,
+      0,
+      undefined,
+      { signal, swallowErrors: false }
+    )
+
+    return text.trim()
   }
 
   async generateImageStandalone(

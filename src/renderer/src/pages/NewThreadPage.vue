@@ -80,29 +80,6 @@
         </DropdownMenu>
 
         <!-- Input area -->
-        <<<<<<< Updated upstream
-        <ChatInputBox
-          ref="chatInputRef"
-          v-model="message"
-          :files="attachedFiles"
-          :session-id="acpDraftSessionId"
-          :workspace-path="projectStore.selectedProject?.path ?? null"
-          :is-acp-session="isAcpSelectedAgent"
-          :submit-disabled="isAcpWorkdirUnavailable"
-          @update:files="onFilesChange"
-          @pending-skills-change="onPendingSkillsChange"
-          @command-submit="onCommandSubmit"
-          @submit="onSubmit"
-        >
-          <template #toolbar>
-            <ChatInputToolbar
-              :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
-              @attach="onAttach"
-              @send="onSubmit"
-            />
-          </template>
-        </ChatInputBox>
-        =======
         <div ref="firstChatGuideHostRef" :class="['w-full max-w-4xl flex justify-center']">
           <ChatInputBox
             :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
@@ -112,22 +89,26 @@
             :session-id="acpDraftSessionId"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
-            :submit-disabled="isAcpWorkdirMissing"
+            :submit-disabled="isAcpWorkdirUnavailable"
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
             @command-submit="onCommandSubmit"
             @submit="onSubmit"
+            @toggle-voice-input="onToggleVoiceInput"
           >
             <template #toolbar>
               <ChatInputToolbar
-                :send-disabled="isAcpWorkdirMissing || !message.trim()"
+                :show-voice-input="isVoiceInputEnabled"
+                :is-voice-input-listening="isVoiceInputListening"
+                :is-voice-input-transcribing="isVoiceInputTranscribing"
+                :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
                 @attach="onAttach"
+                @voice-input="onToggleVoiceInput"
                 @send="onSubmit"
               />
             </template>
           </ChatInputBox>
         </div>
-        >>>>>>> Stashed changes
 
         <!-- Status bar -->
         <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
@@ -176,6 +157,7 @@ import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
+import { useToast } from '@/components/use-toast'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
@@ -183,6 +165,7 @@ import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { createConfigClient } from '@api/ConfigClient'
 import { createFileClient } from '@api/FileClient'
+import { createModelClient } from '@api/ModelClient'
 import { createSessionClient } from '@api/SessionClient'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
@@ -200,6 +183,8 @@ import {
 } from '@/lib/chatModelSelection'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
+import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -208,8 +193,10 @@ const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configClient = createConfigClient()
 const fileClient = createFileClient()
+const modelClient = createModelClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
+const { toast } = useToast()
 const switchAgentGuide = useGuidedOnboardingStep('switch-agent')
 const switchModelGuide = useGuidedOnboardingStep('switch-model')
 const firstChatGuide = useGuidedOnboardingStep('first-chat')
@@ -222,8 +209,10 @@ const agentGuideTargetRef = ref<HTMLElement | null>(null)
 const modelGuideTargetRef = ref<HTMLElement | null>(null)
 const firstChatGuideHostRef = ref<HTMLElement | null>(null)
 const firstChatGuideTargetRef = ref<HTMLElement | null>(null)
+const isVoiceInputEnabled = ref(false)
 const chatInputRef = ref<{
   triggerAttach: () => void
+  insertRecognizedText?: (text: string) => void
   getPendingSkillsSnapshot?: () => string[]
   focusInput?: () => void
 } | null>(null)
@@ -233,7 +222,61 @@ const acpDraftRequestSeq = ref(0)
 const isCompletingSwitchAgentGuide = ref(false)
 let currentDraftDefaultsTask: Promise<void> | null = null
 let cancelEnsureDraftTask: (() => void) | null = null
+let voiceInputConfigToken = 0
+let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+
+const handleVoiceInputError = (code: string) => {
+  if (code === 'aborted') {
+    return
+  }
+
+  if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture') {
+    toast({
+      title: t('chat.input.voiceRecognitionPermissionDeniedTitle'),
+      description: t('chat.input.voiceRecognitionPermissionDeniedDescription'),
+      variant: 'destructive'
+    })
+    return
+  }
+
+  toast({
+    title: t('chat.input.voiceRecognitionErrorTitle'),
+    description: t('chat.input.voiceRecognitionErrorDescription'),
+    variant: 'destructive'
+  })
+}
+
+const voiceInput = useSpeechRecognition({
+  onTranscript: (text) => {
+    chatInputRef.value?.insertRecognizedText?.(text)
+  },
+  transcribe: async ({ audioBase64, mimeType, filename }) => {
+    const explicitSelection = resolveVoiceInputSelection()
+    const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
+    if (!selection) {
+      throw new Error('transcription-target-unavailable')
+    }
+
+    return await modelClient.transcribeAudio(
+      selection.providerId,
+      selection.modelId,
+      audioBase64,
+      mimeType,
+      filename
+    )
+  },
+  onUnsupported: () => {
+    toast({
+      title: t('chat.input.voiceRecognitionUnsupportedTitle'),
+      description: t('chat.input.voiceRecognitionUnsupportedDescription'),
+      variant: 'destructive'
+    })
+  },
+  onError: handleVoiceInputError
+})
+const isVoiceInputListening = computed(() => voiceInput.isListening.value)
+const isVoiceInputTranscribing = computed(() => voiceInput.isTranscribing.value)
 const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
   if (!agentId) {
     return 'deepchat'
@@ -542,6 +585,72 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
   return null
 }
 
+function resolveVoiceInputSelection(): { providerId: string; modelId: string } | null {
+  if (isAcpSelectedAgent.value) {
+    return null
+  }
+
+  if (draftStore.providerId && draftStore.modelId) {
+    return {
+      providerId: draftStore.providerId,
+      modelId: draftStore.modelId
+    }
+  }
+
+  return null
+}
+
+async function refreshVoiceInputAvailability() {
+  const token = ++voiceInputConfigToken
+
+  if (isAcpSelectedAgent.value) {
+    isVoiceInputEnabled.value = false
+    voiceInput.stop()
+    return
+  }
+
+  const explicitSelection = resolveVoiceInputSelection()
+  const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
+
+  if (!selection) {
+    isVoiceInputEnabled.value = false
+    voiceInput.stop()
+    return
+  }
+
+  try {
+    const modelConfig = await modelClient.getModelConfig(selection.modelId, selection.providerId)
+    if (token !== voiceInputConfigToken) {
+      return
+    }
+
+    isVoiceInputEnabled.value = modelConfig.speechRecognition === true
+    if (!isVoiceInputEnabled.value) {
+      voiceInput.stop()
+    }
+  } catch (error) {
+    if (token !== voiceInputConfigToken) {
+      return
+    }
+
+    console.warn('[NewThreadPage] Failed to resolve voice input setting:', error)
+    isVoiceInputEnabled.value = false
+    voiceInput.stop()
+  }
+}
+
+watch(
+  () => [selectedAgent.value.id, draftStore.providerId, draftStore.modelId, modelStore.initialized],
+  () => {
+    void refreshVoiceInputAvailability()
+  },
+  { immediate: true }
+)
+
+const removeModelConfigChangedListener = modelClient.onModelConfigChanged(() => {
+  void refreshVoiceInputAvailability()
+})
+
 const normalizeStartMention = (mention: string): string => {
   const normalized = mention.trim().replace(/^@+/, '')
   return normalized ? `@${normalized}` : ''
@@ -590,7 +699,7 @@ async function onSubmit() {
   const text = message.value.trim()
   if (!text) return
   if (shouldIgnoreManualCompactionDraft(text)) return
-  const files = [...attachedFiles.value].map((f) => toRaw(f))
+  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
 
   try {
     await submitText(text, files)
@@ -606,7 +715,7 @@ async function onCommandSubmit(command: string) {
   const text = command.trim()
   if (!text) return
   if (shouldIgnoreManualCompactionDraft(text)) return
-  const files = [...attachedFiles.value].map((f) => toRaw(f))
+  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
   try {
     await submitText(text, files)
     attachedFiles.value = []
@@ -758,8 +867,64 @@ function onAttach() {
   chatInputRef.value?.triggerAttach()
 }
 
-function onFilesChange(files: MessageFile[]) {
-  attachedFiles.value = files
+function onToggleVoiceInput() {
+  if (!isVoiceInputEnabled.value) {
+    return
+  }
+
+  void voiceInput.toggle()
+}
+
+function notifyUnsupportedAudioAttachments(
+  selection: { providerId: string; modelId: string },
+  rejectedAudioFiles: MessageFile[]
+) {
+  if (rejectedAudioFiles.length === 0) {
+    return
+  }
+
+  const modelLabel =
+    modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
+    selection.modelId
+
+  toast({
+    title: t('chat.input.audioInputUnsupportedTitle'),
+    description: t('chat.input.audioInputUnsupportedDescription', {
+      count: rejectedAudioFiles.length,
+      model: modelLabel
+    })
+  })
+}
+
+async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<MessageFile[]> {
+  const selection = await resolveModel()
+  if (!selection || files.length === 0) {
+    return files
+  }
+
+  try {
+    const capabilities = await modelClient.getCapabilities(selection.providerId, selection.modelId)
+    if (capabilities.supportsAudioInput !== false) {
+      return files
+    }
+
+    const { acceptedFiles, rejectedAudioFiles } = filterUnsupportedAudioAttachments(files, false)
+    notifyUnsupportedAudioAttachments(selection, rejectedAudioFiles)
+    return acceptedFiles
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to resolve audio input capability:', error)
+    return files
+  }
+}
+
+async function onFilesChange(files: MessageFile[]) {
+  const token = ++attachmentFilterToken
+  const filteredFiles = await prepareFilesForCurrentModel(files)
+  if (token !== attachmentFilterToken) {
+    return
+  }
+
+  attachedFiles.value = filteredFiles
 }
 
 function onPendingSkillsChange(skills: string[]) {
@@ -913,6 +1078,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  removeModelConfigChangedListener()
+  voiceInput.cleanup()
   cancelEnsureDraftTask?.()
   cancelEnsureDraftTask = null
   window.removeEventListener('resize', syncGuideTargets)

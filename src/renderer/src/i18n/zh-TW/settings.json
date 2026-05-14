@@ -422,6 +422,10 @@
       },
       "createTitle": "新增自訂模型",
       "editTitle": "編輯模型配置 - {name}",
+      "speechRecognition": {
+        "label": "語音辨識",
+        "description": "控制此模型是否允許透過本地語音辨識轉成文字輸入。"
+      },
       "functionCall": {
         "description": "模型是否原生支持函數調用(關閉這個選項後DeepChat會自動模擬函數調用)",
         "label": "函數調用"

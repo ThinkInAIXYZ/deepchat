@@ -29,6 +29,13 @@
     "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent",
     "attach": "Joindre",
     "voiceInput": "Saisie vocale",
+    "voiceInputStop": "Arrêter la saisie vocale",
+    "voiceRecognitionUnsupportedTitle": "L'environnement actuel ne prend pas en charge la reconnaissance vocale",
+    "voiceRecognitionUnsupportedDescription": "Utilisez cette fonctionnalité dans un navigateur ou un environnement de bureau compatible avec la reconnaissance vocale.",
+    "voiceRecognitionPermissionDeniedTitle": "Impossible d'accéder au microphone",
+    "voiceRecognitionPermissionDeniedDescription": "Autorisez DeepChat à utiliser le microphone puis réessayez.",
+    "voiceRecognitionErrorTitle": "Échec de la reconnaissance vocale",
+    "voiceRecognitionErrorDescription": "La reconnaissance vocale n'a pas pu être terminée. Réessayez plus tard.",
     "send": "Envoyer",
     "steer": "Guider",
     "queue": "Ajouter à la file",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "Échec du traitement de la pièce jointe",
     "fileUploadFailedDesc": "Impossible de traiter {count} fichiers : {names}",
     "fileUploadFailedMore": " et {count} de plus",
-    "unnamedFile": "fichier sans nom"
+    "unnamedFile": "fichier sans nom",
+    "audioInputUnsupportedTitle": "Le modèle actuel ne prend pas en charge les pièces jointes audio",
+    "audioInputUnsupportedDescription": "Le modèle {model} ne prend pas en charge l'entrée audio. {count} pièce(s) jointe(s) audio ont été ignorées."
   },
   "pendingInput": {
     "steer": "Guidage",
@@ -253,7 +262,8 @@
     }
   },
   "modelPicker": {
-    "empty": "Aucun modèle trouvé"
+    "empty": "Aucun modèle trouvé",
+    "audioInputSupported": "Entrée audio prise en charge"
   },
   "audio": {
     "play": "Lire",

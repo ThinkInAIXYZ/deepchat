@@ -159,6 +159,7 @@ export interface ModelConfig {
   timeout?: number
   temperature?: number
   vision: boolean
+  speechRecognition?: boolean
   functionCall: boolean
   reasoning: boolean
   type: ModelType
@@ -552,6 +553,7 @@ export interface IConfigPresenter {
     providerId: string,
     modelId: string
   ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' }
+  supportsAudioInputCapability?(providerId: string, modelId: string): boolean
   supportsReasoningEffortCapability?(providerId: string, modelId: string): boolean
   getReasoningEffortDefault?(providerId: string, modelId: string): ReasoningEffort | undefined
   supportsVerbosityCapability?(providerId: string, modelId: string): boolean
@@ -1252,6 +1254,14 @@ export interface ILlmProviderPresenter {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
+    options?: { signal?: AbortSignal; swallowErrors?: boolean }
+  ): Promise<string>
+  transcribeAudioStandalone(
+    providerId: string,
+    modelId: string,
+    audioBase64: string,
+    mimeType: string,
+    filename?: string,
     options?: { signal?: AbortSignal }
   ): Promise<string>
   generateImageStandalone(

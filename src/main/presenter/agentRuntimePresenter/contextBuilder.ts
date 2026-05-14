@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { approximateTokenSize } from 'tokenx'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
@@ -11,6 +13,7 @@ import type {
 import type { DeepChatMessageStore } from './messageStore'
 
 const IMAGE_TOKEN_ESTIMATE = 512
+const AUDIO_TOKEN_ESTIMATE = 512
 const UNKNOWN_ASSISTANT_ERROR = 'Unknown error'
 const KNOWN_ERROR_REASON_TEXT: Record<string, string> = {
   'common.error.userCanceledGeneration': 'User canceled generation',
@@ -26,6 +29,7 @@ export type ContextBuildOptions = {
   preserveInterleavedReasoning?: boolean
   preserveEmptyInterleavedReasoning?: boolean
   extraReserveTokens?: number
+  supportsAudioInput?: boolean
 }
 
 type TokenizedTurn = {
@@ -80,6 +84,45 @@ function isImageFile(file: MessageFile): boolean {
   return resolveFileMimeType(file).startsWith('image/')
 }
 
+function inferAudioMimeTypeFromPath(filePath: string): string | null {
+  switch (path.extname(filePath).toLowerCase()) {
+    case '.mp3':
+      return 'audio/mpeg'
+    case '.wav':
+      return 'audio/wav'
+    case '.flac':
+      return 'audio/flac'
+    case '.m4a':
+      return 'audio/m4a'
+    case '.mp4':
+      return 'audio/mp4'
+    case '.ogg':
+      return 'audio/ogg'
+    default:
+      return null
+  }
+}
+
+function resolveAudioMimeType(file: MessageFile): string {
+  const mimeType = resolveFileMimeType(file)
+  if (mimeType.startsWith('audio/')) {
+    return mimeType
+  }
+
+  const fileSource =
+    typeof file.path === 'string' && file.path.trim()
+      ? file.path
+      : typeof file.name === 'string'
+        ? file.name
+        : ''
+
+  return inferAudioMimeTypeFromPath(fileSource) ?? mimeType
+}
+
+function isAudioFile(file: MessageFile): boolean {
+  return resolveAudioMimeType(file).startsWith('audio/')
+}
+
 export function normalizeUserInput(input: string | SendMessageInput): SendMessageInput {
   if (typeof input === 'string') {
     return { text: input, files: [] }
@@ -123,8 +166,10 @@ export function isContextHistoryRecord(record: ChatMessageRecord): boolean {
   return record.role === 'assistant' && record.status === 'error'
 }
 
-function buildNonImageFileContext(files: MessageFile[]): string {
-  const nonImageFiles = files.filter((file) => !isImageFile(file))
+function buildNonImageFileContext(files: MessageFile[], excludeAudio: boolean = false): string {
+  const nonImageFiles = files.filter(
+    (file) => !isImageFile(file) && (!excludeAudio || !isAudioFile(file))
+  )
   if (nonImageFiles.length === 0) {
     return ''
   }
@@ -148,6 +193,126 @@ function buildNonImageFileContext(files: MessageFile[]): string {
   })
 
   return blocks.join('\n\n')
+}
+
+function buildAudioMetadataContext(files: MessageFile[]): string {
+  const audioFiles = files.filter((file) => isAudioFile(file))
+  if (audioFiles.length === 0) {
+    return ''
+  }
+
+  return audioFiles
+    .map((file, index) => {
+      const fileName = typeof file.name === 'string' ? file.name : `audio-${index + 1}`
+      const filePath = typeof file.path === 'string' ? file.path : ''
+      const mimeType = resolveAudioMimeType(file)
+      return [
+        `[Attached Audio ${index + 1}]`,
+        `name: ${fileName}`,
+        filePath ? `path: ${filePath}` : '',
+        `mime: ${mimeType}`
+      ]
+        .filter(Boolean)
+        .join('\n')
+    })
+    .join('\n\n')
+}
+
+function parseAudioDataUrl(value: string): { data: string; mediaType: string } | null {
+  const match = value.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
+  if (!match?.[1] || !match[2]) {
+    return null
+  }
+
+  const mediaType = match[1].trim().toLowerCase()
+  if (!mediaType.startsWith('audio/')) {
+    return null
+  }
+
+  return {
+    data: match[2],
+    mediaType
+  }
+}
+
+function resolveFileByteSize(file: MessageFile): number | undefined {
+  if (typeof file.size === 'number' && Number.isFinite(file.size) && file.size > 0) {
+    return file.size
+  }
+
+  if (
+    typeof file.metadata?.fileSize === 'number' &&
+    Number.isFinite(file.metadata.fileSize) &&
+    file.metadata.fileSize > 0
+  ) {
+    return file.metadata.fileSize
+  }
+
+  return undefined
+}
+
+type AudioAttachmentPayload = {
+  data: string
+  mediaType: string
+  byteLength: number
+}
+
+function resolveAudioAttachmentPayload(file: MessageFile): AudioAttachmentPayload | null {
+  const inlineContent = typeof file.content === 'string' ? file.content.trim() : ''
+  const inlineDataUrl = parseAudioDataUrl(inlineContent)
+  if (inlineDataUrl) {
+    try {
+      const byteLength = Buffer.from(inlineDataUrl.data, 'base64').byteLength
+      return {
+        data: inlineDataUrl.data,
+        mediaType: inlineDataUrl.mediaType,
+        byteLength
+      }
+    } catch {
+      return null
+    }
+  }
+
+  const filePath = typeof file.path === 'string' ? file.path.trim() : ''
+  if (!filePath) {
+    return null
+  }
+
+  try {
+    const buffer = fs.readFileSync(filePath)
+    return {
+      data: buffer.toString('base64'),
+      mediaType: resolveAudioMimeType(file),
+      byteLength: buffer.byteLength
+    }
+  } catch {
+    return null
+  }
+}
+
+function estimateAudioInputTokens(file: MessageFile, byteLength: number): number {
+  const storedTokens =
+    typeof file.token === 'number' && Number.isFinite(file.token) ? Math.ceil(file.token) : 0
+  const fileSize = resolveFileByteSize(file) ?? byteLength
+  const sizeBasedEstimate = fileSize > 0 ? Math.ceil(fileSize / 1024) : 0
+
+  return Math.max(AUDIO_TOKEN_ESTIMATE, storedTokens, sizeBasedEstimate)
+}
+
+function buildStructuredAttachmentText(imageCount: number, audioCount: number): string {
+  if (imageCount > 0 && audioCount > 0) {
+    return 'User attached media for analysis.'
+  }
+
+  if (imageCount > 0) {
+    return 'User attached images for analysis.'
+  }
+
+  if (audioCount > 0) {
+    return 'User attached audio for analysis.'
+  }
+
+  return 'User attached files for analysis.'
 }
 
 function buildImageMetadataContext(files: MessageFile[]): string {
@@ -175,15 +340,51 @@ function buildImageMetadataContext(files: MessageFile[]): string {
 
 export function buildUserMessageContent(
   input: SendMessageInput,
-  supportsVision: boolean
+  supportsVision: boolean,
+  supportsAudioInput: boolean = false
 ): ChatMessage['content'] {
   const text = input.text ?? ''
   const files = Array.isArray(input.files) ? input.files : []
-  const nonImageContext = buildNonImageFileContext(files)
-  const baseText = [text, nonImageContext].filter((value) => value.trim()).join('\n\n')
 
   const imageFiles = files.filter((file) => isImageFile(file))
-  if (!supportsVision || imageFiles.length === 0) {
+  const audioFiles = files.filter((file) => isAudioFile(file))
+  const audioParts: Array<{
+    type: 'input_audio'
+    input_audio: {
+      data: string
+      media_type: string
+      filename?: string
+      estimated_tokens?: number
+    }
+  }> = supportsAudioInput
+    ? audioFiles.flatMap((file) => {
+        const payload = resolveAudioAttachmentPayload(file)
+        if (!payload) {
+          return []
+        }
+
+        return [
+          {
+            type: 'input_audio' as const,
+            input_audio: {
+              data: payload.data,
+              media_type: payload.mediaType,
+              ...(typeof file.name === 'string' && file.name.trim() ? { filename: file.name } : {}),
+              estimated_tokens: estimateAudioInputTokens(file, payload.byteLength)
+            }
+          }
+        ]
+      })
+    : []
+
+  const excludeAudioFromFallback = supportsAudioInput && audioParts.length > 0
+  const nonImageContext = buildNonImageFileContext(files, excludeAudioFromFallback)
+  const audioMetadata = excludeAudioFromFallback ? buildAudioMetadataContext(audioFiles) : ''
+  const baseText = [text, nonImageContext, audioMetadata]
+    .filter((value) => value.trim())
+    .join('\n\n')
+
+  if ((!supportsVision || imageFiles.length === 0) && audioParts.length === 0) {
     const imageMetadata = buildImageMetadataContext(imageFiles)
     return [baseText, imageMetadata].filter((value) => value.trim()).join('\n\n')
   }
@@ -191,39 +392,59 @@ export function buildUserMessageContent(
   const parts: Array<
     | { type: 'text'; text: string }
     | { type: 'image_url'; image_url: { url: string; detail?: 'auto' | 'low' | 'high' } }
+    | {
+        type: 'input_audio'
+        input_audio: {
+          data: string
+          media_type: string
+          filename?: string
+          estimated_tokens?: number
+        }
+      }
   > = []
-  const textPart = baseText || 'User attached images for analysis.'
-  parts.push({ type: 'text', text: textPart })
 
-  for (const file of imageFiles) {
-    const primaryData = typeof file.content === 'string' ? file.content : ''
-    const fallbackData = typeof file.thumbnail === 'string' ? file.thumbnail : ''
-    const dataUrl = primaryData.startsWith('data:image/') ? primaryData : fallbackData
-    if (!dataUrl) {
-      continue
+  const imageParts: Array<{
+    type: 'image_url'
+    image_url: { url: string; detail?: 'auto' | 'low' | 'high' }
+  }> = []
+
+  if (supportsVision) {
+    for (const file of imageFiles) {
+      const primaryData = typeof file.content === 'string' ? file.content : ''
+      const fallbackData = typeof file.thumbnail === 'string' ? file.thumbnail : ''
+      const dataUrl = primaryData.startsWith('data:image/') ? primaryData : fallbackData
+      if (!dataUrl) {
+        continue
+      }
+      imageParts.push({
+        type: 'image_url',
+        image_url: { url: dataUrl, detail: 'auto' }
+      })
     }
-    parts.push({
-      type: 'image_url',
-      image_url: { url: dataUrl, detail: 'auto' }
-    })
   }
 
-  if (parts.length === 1) {
+  const hasStructuredParts = imageParts.length > 0 || audioParts.length > 0
+  if (!hasStructuredParts) {
     const imageMetadata = buildImageMetadataContext(imageFiles)
-    return [textPart, imageMetadata].filter((value) => value.trim()).join('\n\n')
+    return [baseText, imageMetadata].filter((value) => value.trim()).join('\n\n')
   }
+
+  const textPart = baseText || buildStructuredAttachmentText(imageParts.length, audioParts.length)
+  parts.push({ type: 'text', text: textPart })
+  parts.push(...imageParts, ...audioParts)
 
   return parts
 }
 
 export function createUserChatMessage(
   input: string | SendMessageInput,
-  supportsVision: boolean
+  supportsVision: boolean,
+  supportsAudioInput: boolean = false
 ): ChatMessage {
   const normalizedInput = normalizeUserInput(input)
   return {
     role: 'user',
-    content: buildUserMessageContent(normalizedInput, supportsVision)
+    content: buildUserMessageContent(normalizedInput, supportsVision, supportsAudioInput)
   }
 }
 
@@ -240,6 +461,8 @@ function estimateMessageTokens(message: ChatMessage): number {
       total += approximateTokenSize(part.text)
     } else if (part.type === 'image_url') {
       total += IMAGE_TOKEN_ESTIMATE
+    } else if (part.type === 'input_audio') {
+      total += part.input_audio.estimated_tokens ?? AUDIO_TOKEN_ESTIMATE
     }
   }
   if (Array.isArray(message.tool_calls)) {
@@ -336,7 +559,8 @@ export function recordToChatMessages(
   record: ChatMessageRecord,
   supportsVision: boolean,
   preserveInterleavedReasoning: boolean = false,
-  preserveEmptyInterleavedReasoning: boolean = false
+  preserveEmptyInterleavedReasoning: boolean = false,
+  supportsAudioInput: boolean = false
 ): ChatMessage[] {
   if (isCompactionRecord(record)) {
     return []
@@ -344,7 +568,12 @@ export function recordToChatMessages(
 
   if (record.role === 'user') {
     const parsed = parseUserRecordContent(record.content)
-    return [{ role: 'user', content: buildUserMessageContent(parsed, supportsVision) }]
+    return [
+      {
+        role: 'user',
+        content: buildUserMessageContent(parsed, supportsVision, supportsAudioInput)
+      }
+    ]
   }
 
   const blocks = JSON.parse(record.content) as AssistantMessageBlock[]
@@ -479,7 +708,8 @@ export function buildHistoryTurns(
   records: ChatMessageRecord[],
   supportsVision: boolean,
   preserveInterleavedReasoning: boolean = false,
-  preserveEmptyInterleavedReasoning: boolean = false
+  preserveEmptyInterleavedReasoning: boolean = false,
+  supportsAudioInput: boolean = false
 ): HistoryTurn[] {
   const sortedRecords = [...records].sort((a, b) => a.orderSeq - b.orderSeq)
   const turns: ChatMessageRecord[][] = []
@@ -510,7 +740,8 @@ export function buildHistoryTurns(
         record,
         supportsVision,
         preserveInterleavedReasoning,
-        preserveEmptyInterleavedReasoning
+        preserveEmptyInterleavedReasoning,
+        supportsAudioInput
       )
     )
     return {
@@ -638,6 +869,7 @@ export function buildContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
+  const supportsAudioInput = options.supportsAudioInput === true
   const candidateRecords = options.historyRecords ?? messageStore.getMessages(sessionId)
   const historyRecords = filterRecordsFromCursor(
     candidateRecords.filter(isContextHistoryRecord),
@@ -647,10 +879,11 @@ export function buildContext(
     historyRecords,
     supportsVision,
     options.preserveInterleavedReasoning ?? false,
-    options.preserveEmptyInterleavedReasoning ?? false
+    options.preserveEmptyInterleavedReasoning ?? false,
+    supportsAudioInput
   )
 
-  const newUserMessage = createUserChatMessage(newUserContent, supportsVision)
+  const newUserMessage = createUserChatMessage(newUserContent, supportsVision, supportsAudioInput)
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
   const newUserTokens = estimateMessageTokens(newUserMessage)
   const available =
@@ -725,6 +958,7 @@ export function buildResumeContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
+  const supportsAudioInput = options.supportsAudioInput === true
   const allMessages = messageStore.getMessages(sessionId)
   const targetMessage = allMessages.find((message) => message.id === assistantMessageId)
   const targetOrderSeq = targetMessage?.orderSeq
@@ -747,7 +981,8 @@ export function buildResumeContext(
     historyRecords,
     supportsVision,
     options.preserveInterleavedReasoning ?? false,
-    options.preserveEmptyInterleavedReasoning ?? false
+    options.preserveEmptyInterleavedReasoning ?? false,
+    supportsAudioInput
   )
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
   const available =

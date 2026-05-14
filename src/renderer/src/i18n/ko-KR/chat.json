@@ -29,6 +29,13 @@
     "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
     "attach": "첨부",
     "voiceInput": "음성 입력",
+    "voiceInputStop": "음성 입력 중지",
+    "voiceRecognitionUnsupportedTitle": "현재 환경은 음성 인식을 지원하지 않습니다",
+    "voiceRecognitionUnsupportedDescription": "음성 인식을 지원하는 브라우저 또는 데스크톱 환경에서 이 기능을 사용하세요.",
+    "voiceRecognitionPermissionDeniedTitle": "마이크에 접근할 수 없습니다",
+    "voiceRecognitionPermissionDeniedDescription": "DeepChat이 마이크를 사용할 수 있도록 허용한 뒤 다시 시도하세요.",
+    "voiceRecognitionErrorTitle": "음성 인식 실패",
+    "voiceRecognitionErrorDescription": "음성 인식을 완료하지 못했습니다. 잠시 후 다시 시도하세요.",
     "send": "보내기",
     "steer": "유도",
     "queue": "대기열에 추가",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "첨부 파일 처리 실패",
     "fileUploadFailedDesc": "파일 {count}개를 처리할 수 없습니다: {names}",
     "fileUploadFailedMore": " 외 {count}개",
-    "unnamedFile": "이름 없는 파일"
+    "unnamedFile": "이름 없는 파일",
+    "audioInputUnsupportedTitle": "현재 모델은 오디오 첨부를 지원하지 않습니다",
+    "audioInputUnsupportedDescription": "모델 {model}은 오디오 입력을 지원하지 않습니다. 오디오 첨부 {count}개를 무시했습니다."
   },
   "pendingInput": {
     "steer": "유도",
@@ -253,7 +262,8 @@
     }
   },
   "modelPicker": {
-    "empty": "모델을 찾을 수 없습니다"
+    "empty": "모델을 찾을 수 없습니다",
+    "audioInputSupported": "오디오 입력 지원"
   },
   "audio": {
     "play": "재생",
