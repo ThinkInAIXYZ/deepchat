@@ -72,6 +72,133 @@ describe('AI SDK message mapper', () => {
     ])
   })
 
+  it('maps input_audio parts to AI SDK file parts for supported audio media types', () => {
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'listen' },
+            {
+              type: 'input_audio',
+              input_audio: {
+                data: 'QUJD',
+                media_type: 'audio/wav',
+                filename: 'clip.wav'
+              }
+            }
+          ]
+        } as any
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true
+      }
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'listen' },
+          {
+            type: 'file',
+            data: 'QUJD',
+            mediaType: 'audio/wav',
+            filename: 'clip.wav'
+          }
+        ]
+      }
+    ])
+  })
+
+  it('adds openai-compatible audio data url overrides for unsupported audio media types', () => {
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'listen' },
+            {
+              type: 'input_audio',
+              input_audio: {
+                data: 'QUJD',
+                media_type: 'audio/flac',
+                filename: 'clip.flac'
+              }
+            }
+          ]
+        } as any
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true,
+        preferOpenAICompatibleAudioDataUrl: true
+      }
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'listen' },
+          {
+            type: 'file',
+            data: 'QUJD',
+            mediaType: 'audio/mpeg',
+            filename: 'clip.flac',
+            providerOptions: {
+              openaiCompatible: {
+                input_audio: {
+                  data: 'data:audio/mpeg;base64,QUJD'
+                }
+              }
+            }
+          }
+        ]
+      }
+    ])
+    expect(result.every((message) => modelMessageSchema.safeParse(message).success)).toBe(true)
+  })
+
+  it('keeps non-openai-compatible audio/* media types for standard runtimes', () => {
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'metadata fallback' },
+            {
+              type: 'input_audio',
+              input_audio: {
+                data: 'QUJD',
+                media_type: 'audio/flac'
+              }
+            }
+          ]
+        } as any
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true
+      }
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'metadata fallback' },
+          {
+            type: 'file',
+            data: 'QUJD',
+            mediaType: 'audio/flac'
+          }
+        ]
+      }
+    ])
+  })
+
   it('maps interleaved reasoning and native tool calls into assistant parts', () => {
     const result = mapMessagesToModelMessages(
       [

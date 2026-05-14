@@ -498,6 +498,10 @@
         "label": "视觉能力",
         "description": "模型是否支持视觉能力"
       },
+      "speechRecognition": {
+        "label": "语音识别",
+        "description": "控制此模型是否允许通过本地语音识别转成文字输入。"
+      },
       "functionCall": {
         "label": "函数调用",
         "description": "模型是否原生支持函数调用(关闭这个选项后DeepChat会自动模拟函数调用)"

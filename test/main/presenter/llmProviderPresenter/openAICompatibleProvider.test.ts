@@ -4,6 +4,7 @@ import {
   AiSdkProvider,
   normalizeExtractedImageText
 } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+import { AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR } from '../../../../src/main/presenter/llmProviderPresenter/baseProvider'
 
 const {
   mockGetProxyUrl,
@@ -179,6 +180,63 @@ describe('AiSdkProvider openai-compatible', () => {
       512,
       []
     )
+  })
+
+  it('submits audio transcriptions using OpenAI multipart format', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ text: 'hello world' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    const result = await provider.transcribeAudio(
+      'distil-whisper-large-v3-en',
+      'AQID',
+      'audio/mpeg',
+      'audio.mp3'
+    )
+
+    expect(result).toBe('hello world')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://mock.example.com/v1/audio/transcriptions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const body = requestInit.body as FormData
+    expect(body).toBeInstanceOf(FormData)
+    expect(body.get('model')).toBe('distil-whisper-large-v3-en')
+
+    const file = body.get('file') as Blob & { name?: string }
+    expect(file).toBeInstanceOf(Blob)
+    expect(file.type).toBe('audio/mpeg')
+    expect(file.name).toBe('audio.mp3')
+  })
+
+  it('marks unsupported audio transcription endpoints for fallback', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: vi.fn().mockResolvedValue('Not Found')
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    await expect(
+      provider.transcribeAudio('distil-whisper-large-v3-en', 'AQID', 'audio/wav')
+    ).rejects.toThrow(AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR)
   })
 
   it('uses image generation for OpenAI-compatible models declared by type', async () => {

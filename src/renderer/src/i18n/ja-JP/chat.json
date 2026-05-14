@@ -29,6 +29,13 @@
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
     "attach": "添付",
     "voiceInput": "音声入力",
+    "voiceInputStop": "音声入力を停止",
+    "voiceRecognitionUnsupportedTitle": "現在の環境は音声認識に対応していません",
+    "voiceRecognitionUnsupportedDescription": "音声認識に対応したブラウザまたはデスクトップ環境でこの機能を使用してください。",
+    "voiceRecognitionPermissionDeniedTitle": "マイクにアクセスできません",
+    "voiceRecognitionPermissionDeniedDescription": "DeepChat にマイクの使用を許可してからもう一度お試しください。",
+    "voiceRecognitionErrorTitle": "音声認識に失敗しました",
+    "voiceRecognitionErrorDescription": "音声認識を完了できませんでした。しばらくしてからもう一度お試しください。",
     "send": "送信",
     "steer": "誘導",
     "queue": "キューに追加",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "添付ファイルの処理に失敗しました",
     "fileUploadFailedDesc": "次の {count} 件のファイルを処理できませんでした: {names}",
     "fileUploadFailedMore": " ほか {count} 件",
-    "unnamedFile": "名前のないファイル"
+    "unnamedFile": "名前のないファイル",
+    "audioInputUnsupportedTitle": "現在のモデルは音声添付をサポートしていません",
+    "audioInputUnsupportedDescription": "モデル {model} は音声入力をサポートしていないため、{count} 件の音声添付を無視しました。"
   },
   "pendingInput": {
     "steer": "誘導",
@@ -253,7 +262,8 @@
     }
   },
   "modelPicker": {
-    "empty": "モデルが見つかりません"
+    "empty": "モデルが見つかりません",
+    "audioInputSupported": "音声入力をサポート"
   },
   "audio": {
     "play": "再生",

@@ -126,6 +126,7 @@ import {
   modelsSetBatchStatusRoute,
   modelsSetConfigRoute,
   modelsSetStatusRoute,
+  modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from './routes/models.routes'
 import {
@@ -500,6 +501,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [modelsExportConfigsRoute.name]: modelsExportConfigsRoute,
   [modelsImportConfigsRoute.name]: modelsImportConfigsRoute,
   [modelsGetCapabilitiesRoute.name]: modelsGetCapabilitiesRoute,
+  [modelsTranscribeAudioRoute.name]: modelsTranscribeAudioRoute,
   [chatSendMessageRoute.name]: chatSendMessageRoute,
   [chatSteerActiveTurnRoute.name]: chatSteerActiveTurnRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,

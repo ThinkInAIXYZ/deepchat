@@ -14,6 +14,7 @@ import {
   modelsSetBatchStatusRoute,
   modelsSetConfigRoute,
   modelsSetStatusRoute,
+  modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from '@shared/contracts/routes'
 import { readModelCapabilities } from '../config/configRouteSupport'
@@ -153,6 +154,19 @@ export async function dispatchModelRoute(
       const input = modelsGetCapabilitiesRoute.input.parse(rawInput)
       return modelsGetCapabilitiesRoute.output.parse({
         capabilities: readModelCapabilities(configPresenter, input.providerId, input.modelId)
+      })
+    }
+
+    case modelsTranscribeAudioRoute.name: {
+      const input = modelsTranscribeAudioRoute.input.parse(rawInput)
+      return modelsTranscribeAudioRoute.output.parse({
+        text: await llmProviderPresenter.transcribeAudioStandalone(
+          input.providerId,
+          input.modelId,
+          input.audioBase64,
+          input.mimeType,
+          input.filename
+        )
       })
     }
 

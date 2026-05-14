@@ -16,9 +16,8 @@ const browserOverlayApi = Object.freeze({
   }
 })
 
-if (process.contextIsolated) {
-  contextBridge.exposeInMainWorld('yoBrowserOverlay', browserOverlayApi)
-} else {
-  // @ts-ignore Defined for the dedicated browser overlay renderer.
-  window.yoBrowserOverlay = browserOverlayApi
+if (!process.contextIsolated) {
+  throw new Error('YoBrowser overlay preload requires contextIsolation')
 }
+
+contextBridge.exposeInMainWorld('yoBrowserOverlay', browserOverlayApi)

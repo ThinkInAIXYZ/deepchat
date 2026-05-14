@@ -51,6 +51,12 @@ const completeActivity = (id: string) => {
 }
 
 const startActivity = (payload: YoBrowserActivityPayload) => {
+  const existingCleanupTimer = activityCleanupTimers.get(payload.id)
+  if (existingCleanupTimer !== undefined) {
+    window.clearTimeout(existingCleanupTimer)
+    activityCleanupTimers.delete(payload.id)
+  }
+
   pendingActivities.set(payload.id, Date.now())
   setHaloActive()
 

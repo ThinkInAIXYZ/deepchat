@@ -93,6 +93,7 @@
               @command-submit="onCommandSubmit"
               @queue-submit="onQueueSubmit"
               @submit="onSubmit"
+              @toggle-voice-input="onToggleVoiceInput"
             >
               <template #toolbar>
                 <ChatInputToolbar
@@ -100,7 +101,11 @@
                   :has-input="hasDraftInput"
                   :send-disabled="isInputSubmitDisabled"
                   :queue-disabled="isQueueSubmitDisabled"
+                  :show-voice-input="isVoiceInputEnabled"
+                  :is-voice-input-listening="isVoiceInputListening"
+                  :is-voice-input-transcribing="isVoiceInputTranscribing"
                   @attach="onAttach"
+                  @voice-input="onToggleVoiceInput"
                   @queue="onQueueSubmit"
                   @steer="onSteer"
                   @send="onSubmit"
@@ -136,6 +141,7 @@ import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOve
 import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useToast } from '@/components/use-toast'
 import { createChatClient } from '../../api/ChatClient'
+import { createModelClient } from '@api/ModelClient'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
@@ -150,6 +156,8 @@ import {
   type ChatSearchMatch
 } from '@/lib/chatSearch'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -168,6 +176,7 @@ const pendingInputStore = usePendingInputStore()
 const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
 const chatClient = createChatClient()
+const modelClient = createModelClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
 const { toast } = useToast()
@@ -753,8 +762,117 @@ watch(
 
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
-const chatInputRef = ref<{ triggerAttach: () => void } | null>(null)
+const chatInputRef = ref<{
+  triggerAttach: () => void
+  insertRecognizedText?: (text: string) => void
+} | null>(null)
+const isVoiceInputEnabled = ref(false)
 const isHandlingInteraction = ref(false)
+
+const handleVoiceInputError = (code: string) => {
+  if (code === 'aborted') {
+    return
+  }
+
+  if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture') {
+    toast({
+      title: t('chat.input.voiceRecognitionPermissionDeniedTitle'),
+      description: t('chat.input.voiceRecognitionPermissionDeniedDescription'),
+      variant: 'destructive'
+    })
+    return
+  }
+
+  toast({
+    title: t('chat.input.voiceRecognitionErrorTitle'),
+    description: t('chat.input.voiceRecognitionErrorDescription'),
+    variant: 'destructive'
+  })
+}
+
+const voiceInput = useSpeechRecognition({
+  onTranscript: (text) => {
+    chatInputRef.value?.insertRecognizedText?.(text)
+  },
+  transcribe: async ({ audioBase64, mimeType, filename }) => {
+    const selection = getActiveModelSelection()
+    if (!selection) {
+      throw new Error('transcription-target-unavailable')
+    }
+
+    return await modelClient.transcribeAudio(
+      selection.providerId,
+      selection.modelId,
+      audioBase64,
+      mimeType,
+      filename
+    )
+  },
+  onUnsupported: () => {
+    toast({
+      title: t('chat.input.voiceRecognitionUnsupportedTitle'),
+      description: t('chat.input.voiceRecognitionUnsupportedDescription'),
+      variant: 'destructive'
+    })
+  },
+  onError: handleVoiceInputError
+})
+const isVoiceInputListening = computed(() => voiceInput.isListening.value)
+const isVoiceInputTranscribing = computed(() => voiceInput.isTranscribing.value)
+let voiceInputConfigToken = 0
+let attachmentFilterToken = 0
+
+async function refreshVoiceInputAvailability() {
+  const selection = getActiveModelSelection()
+  const token = ++voiceInputConfigToken
+
+  if (!selection) {
+    isVoiceInputEnabled.value = false
+    voiceInput.stop()
+    return
+  }
+
+  try {
+    const modelConfig = await modelClient.getModelConfig(selection.modelId, selection.providerId)
+    if (token !== voiceInputConfigToken) {
+      return
+    }
+
+    isVoiceInputEnabled.value = modelConfig.speechRecognition === true
+    if (!isVoiceInputEnabled.value) {
+      voiceInput.stop()
+    }
+  } catch (error) {
+    if (token !== voiceInputConfigToken) {
+      return
+    }
+
+    console.warn('[ChatPage] Failed to resolve voice input setting:', error)
+    isVoiceInputEnabled.value = false
+    voiceInput.stop()
+  }
+}
+
+watch(
+  () => [sessionStore.activeSession?.providerId, sessionStore.activeSession?.modelId],
+  () => {
+    void refreshVoiceInputAvailability()
+  },
+  { immediate: true }
+)
+
+const removeModelConfigChangedListener = modelClient.onModelConfigChanged((payload) => {
+  const selection = getActiveModelSelection()
+  if (!selection) {
+    return
+  }
+
+  if (payload.providerId !== selection.providerId || payload.modelId !== selection.modelId) {
+    return
+  }
+
+  void refreshVoiceInputAvailability()
+})
 
 const handleContextMenuAskAI = (event: Event) => {
   if (isReadOnlySession.value) {
@@ -925,12 +1043,66 @@ const showResumePendingQueue = computed(
     pendingInputStore.queueItems.length > 0
 )
 
+function getActiveModelSelection(): { providerId: string; modelId: string } | null {
+  const activeSession = sessionStore.activeSession
+  if (!activeSession?.providerId || !activeSession?.modelId) {
+    return null
+  }
+
+  return {
+    providerId: activeSession.providerId,
+    modelId: activeSession.modelId
+  }
+}
+
+function notifyUnsupportedAudioAttachments(
+  selection: { providerId: string; modelId: string },
+  rejectedAudioFiles: MessageFile[]
+) {
+  if (rejectedAudioFiles.length === 0) {
+    return
+  }
+
+  const modelLabel =
+    modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
+    selection.modelId
+
+  toast({
+    title: t('chat.input.audioInputUnsupportedTitle'),
+    description: t('chat.input.audioInputUnsupportedDescription', {
+      count: rejectedAudioFiles.length,
+      model: modelLabel
+    })
+  })
+}
+
+async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<MessageFile[]> {
+  const selection = getActiveModelSelection()
+  if (!selection || files.length === 0) {
+    return files
+  }
+
+  try {
+    const capabilities = await modelClient.getCapabilities(selection.providerId, selection.modelId)
+    if (capabilities.supportsAudioInput !== false) {
+      return files
+    }
+
+    const { acceptedFiles, rejectedAudioFiles } = filterUnsupportedAudioAttachments(files, false)
+    notifyUnsupportedAudioAttachments(selection, rejectedAudioFiles)
+    return acceptedFiles
+  } catch (error) {
+    console.warn('[ChatPage] Failed to resolve audio input capability:', error)
+    return files
+  }
+}
+
 async function onSubmit() {
   if (isReadOnlySession.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
-  const files = [...attachedFiles.value].map((f) => toRaw(f))
+  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
   if (!text && files.length === 0) return
   if (await handleManualCompactionCommand(text)) {
     if (!isGenerating.value) {
@@ -958,7 +1130,7 @@ async function onCommandSubmit(command: string) {
     return
   }
 
-  const files = [...attachedFiles.value]
+  const files = await prepareFilesForCurrentModel([...attachedFiles.value])
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, { text, files })
   } else {
@@ -1003,7 +1175,7 @@ async function onQueueSubmit() {
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
-  const files = [...attachedFiles.value].map((f) => toRaw(f))
+  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
   if (!text && files.length === 0) return
   if (await handleManualCompactionCommand(text)) {
     return
@@ -1018,7 +1190,7 @@ async function onSteer() {
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
-  const files = [...attachedFiles.value].map((f) => toRaw(f))
+  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
   if (!text && files.length === 0) return
   if (await handleManualCompactionCommand(text)) {
     return
@@ -1032,8 +1204,22 @@ function onAttach() {
   chatInputRef.value?.triggerAttach()
 }
 
-function onFilesChange(files: MessageFile[]) {
-  attachedFiles.value = files
+function onToggleVoiceInput() {
+  if (!isVoiceInputEnabled.value) {
+    return
+  }
+
+  void voiceInput.toggle()
+}
+
+async function onFilesChange(files: MessageFile[]) {
+  const token = ++attachmentFilterToken
+  const filteredFiles = await prepareFilesForCurrentModel(files)
+  if (token !== attachmentFilterToken) {
+    return
+  }
+
+  attachedFiles.value = filteredFiles
 }
 
 async function onToolInteractionRespond(response: ToolInteractionResponse) {
@@ -1174,6 +1360,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  removeModelConfigChangedListener()
+  voiceInput.cleanup()
   cancelSessionRestoreTask?.()
   cancelSessionRestoreTask = null
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)

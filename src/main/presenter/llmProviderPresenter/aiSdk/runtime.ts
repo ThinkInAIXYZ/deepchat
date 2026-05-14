@@ -292,7 +292,8 @@ async function buildPromptRuntime(
     tools,
     supportsNativeTools,
     buildLegacyFunctionCallPrompt: context.buildLegacyFunctionCallPrompt,
-    preserveOpenAICompatibleReasoningContent: context.providerKind === 'openai-compatible'
+    preserveOpenAICompatibleReasoningContent: context.providerKind === 'openai-compatible',
+    preferOpenAICompatibleAudioDataUrl: context.providerKind === 'openai-compatible'
   })
   const toolsMap = supportsNativeTools ? mcpToolsToAISDKTools(tools) : {}
   const providerOptionResult = buildProviderOptions({

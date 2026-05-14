@@ -93,9 +93,17 @@ export class YoBrowserOverlayWindow {
     }
 
     if (this.window && !this.window.isDestroyed() && this.hostWindowId === hostWindow.id) {
+      if (this.ready) {
+        return
+      }
+
       if (this.loadingPromise) {
         await this.loadingPromise
+        return
       }
+
+      this.loadingPromise = this.loadOverlay()
+      await this.loadingPromise
       return
     }
 

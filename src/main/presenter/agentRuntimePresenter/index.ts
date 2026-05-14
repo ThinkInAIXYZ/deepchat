@@ -605,6 +605,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const normalizedInput = this.normalizeUserMessageInput(content)
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
+    const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
     const projectDir = this.resolveProjectDir(sessionId, context?.projectDir)
     console.log(
       `[DeepChatAgent] processMessage session=${sessionId} content="${normalizedInput.text.slice(0, 60)}" projectDir=${projectDir ?? '<none>'}`
@@ -666,6 +667,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             reserveTokens: maxTokens,
             extraReserveTokens: toolReserveTokens,
             supportsVision,
+            supportsAudioInput,
             preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
             preserveEmptyInterleavedReasoning:
               interleavedReasoning.preserveEmptyReasoningContent === true,
@@ -731,6 +733,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           historyRecords,
+          supportsAudioInput,
           extraReserveTokens: toolReserveTokens,
           preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
           preserveEmptyInterleavedReasoning:
@@ -1663,6 +1666,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         reserveTokens: maxTokens,
         extraReserveTokens: toolReserveTokens,
         supportsVision: this.supportsVision(state.providerId, state.modelId),
+        supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
         preserveEmptyInterleavedReasoning:
           interleavedReasoning.preserveEmptyReasoningContent === true
@@ -1912,6 +1916,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const tools = providedTools ?? (await this.loadToolDefinitionsForSession(sessionId, projectDir))
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
+    const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
 
     const abortController = new AbortController()
     const activeGeneration = this.registerActiveGeneration(sessionId, messageId, abortController)
@@ -1947,6 +1952,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             requestMessages,
             claimedSteerBatch,
             supportsVision,
+            supportsAudioInput,
             bypassContextBudget ? Number.MAX_SAFE_INTEGER : requestModelConfig.contextLength,
             requestMaxTokens
           )
@@ -1984,6 +1990,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                   requestedMaxTokens: requestPreflight.requestedMaxTokens,
                   tools: requestTools,
                   supportsVision,
+                  supportsAudioInput,
                   interleavedReasoning,
                   minimumProtectedTailCount: protectedSteerTailCount,
                   signal: abortController.signal
@@ -2178,6 +2185,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     requestedMaxTokens: number
     tools: MCPToolDefinition[]
     supportsVision: boolean
+    supportsAudioInput: boolean
     interleavedReasoning: InterleavedReasoningConfig
     minimumProtectedTailCount: number
     signal: AbortSignal
@@ -2194,6 +2202,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       reserveTokens: params.requestedMaxTokens,
       extraReserveTokens: estimateToolReserveTokens(params.tools),
       supportsVision: params.supportsVision,
+      supportsAudioInput: params.supportsAudioInput,
       preserveInterleavedReasoning: params.interleavedReasoning.preserveReasoningContent,
       preserveEmptyInterleavedReasoning:
         params.interleavedReasoning.preserveEmptyReasoningContent === true,
@@ -2259,6 +2268,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     messages: ChatMessage[],
     steerInputs: PendingSessionInputRecord[],
     supportsVision: boolean,
+    supportsAudioInput: boolean,
     contextLength: number,
     reserveTokens: number
   ): ChatMessage[] {
@@ -2267,7 +2277,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const steerMessages = steerInputs.map((input) =>
-      createUserChatMessage(input.payload, supportsVision)
+      createUserChatMessage(input.payload, supportsVision, supportsAudioInput)
     )
     const clonedMessages = [...messages]
     const lastMessage = clonedMessages[clonedMessages.length - 1]
@@ -2572,6 +2582,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             reserveTokens: maxTokens,
             extraReserveTokens: toolReserveTokens,
             supportsVision: this.supportsVision(state.providerId, state.modelId),
+            supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
             preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
             preserveEmptyInterleavedReasoning:
               interleavedReasoning.preserveEmptyReasoningContent === true,
@@ -2590,6 +2601,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           fallbackProtectedTurnCount: 1,
+          supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
           extraReserveTokens: toolReserveTokens,
           preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
           preserveEmptyInterleavedReasoning:
@@ -3862,6 +3874,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return Boolean(this.configPresenter.getModelConfig(modelId, providerId)?.vision)
   }
 
+  private supportsAudioInput(providerId: string, modelId: string): boolean {
+    return this.configPresenter.supportsAudioInputCapability?.(providerId, modelId) === true
+  }
+
   private buildEditedUserContent(rawContent: string, text: string): string {
     const fallback: UserMessageContent = {
       text,
@@ -4902,6 +4918,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     reserveTokens: number
     extraReserveTokens?: number
     supportsVision: boolean
+    supportsAudioInput: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     signal?: AbortSignal

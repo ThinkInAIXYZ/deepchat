@@ -17,6 +17,7 @@ import {
   providersListModelsRoute,
   providersListSummariesRoute,
   providersTestConnectionRoute,
+  modelsTranscribeAudioRoute,
   configListAgentsRoute,
   sessionsActivateRoute,
   sessionsCompactRoute,
@@ -167,6 +168,26 @@ describe('main kernel contracts', () => {
       pluginsInvokeActionRoute.input.parse({
         pluginId: '',
         actionId: 'runtime.getStatus'
+      })
+    ).toThrow()
+  })
+
+  it('bounds audio transcription route payload fields', () => {
+    expect(() =>
+      modelsTranscribeAudioRoute.input.parse({
+        providerId: 'openai',
+        modelId: 'gpt-4o-transcribe',
+        audioBase64: 'A'.repeat(15_000_001),
+        mimeType: 'audio/wav'
+      })
+    ).toThrow()
+
+    expect(() =>
+      modelsTranscribeAudioRoute.input.parse({
+        providerId: 'openai',
+        modelId: 'gpt-4o-transcribe',
+        audioBase64: 'AQID',
+        mimeType: 'a'.repeat(256)
       })
     ).toThrow()
   })
@@ -543,6 +564,7 @@ describe('main kernel contracts', () => {
           thinkingBudgetRange: null,
           supportsSearch: true,
           searchDefaults: { default: true, forced: false, strategy: 'turbo' },
+          supportsAudioInput: false,
           supportsTemperatureControl: true,
           temperatureCapability: true
         }
@@ -554,6 +576,7 @@ describe('main kernel contracts', () => {
         thinkingBudgetRange: null,
         supportsSearch: true,
         searchDefaults: { default: true, forced: false, strategy: 'turbo' },
+        supportsAudioInput: false,
         supportsTemperatureControl: true,
         temperatureCapability: true
       }

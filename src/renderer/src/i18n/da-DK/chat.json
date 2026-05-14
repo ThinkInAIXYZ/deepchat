@@ -36,6 +36,13 @@
     "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
     "attach": "Vedhæft",
     "voiceInput": "Stemmeinput",
+    "voiceInputStop": "Stop stemmeinput",
+    "voiceRecognitionUnsupportedTitle": "Det aktuelle miljø understøtter ikke stemmegenkendelse",
+    "voiceRecognitionUnsupportedDescription": "Brug denne funktion i en browser eller skrivebordsmiljø, der understøtter stemmegenkendelse.",
+    "voiceRecognitionPermissionDeniedTitle": "Kan ikke få adgang til mikrofonen",
+    "voiceRecognitionPermissionDeniedDescription": "Giv DeepChat adgang til mikrofonen, og prøv igen.",
+    "voiceRecognitionErrorTitle": "Stemmegenkendelse mislykkedes",
+    "voiceRecognitionErrorDescription": "Stemmegenkendelsen kunne ikke fuldføres. Prøv igen senere.",
     "send": "Send",
     "steer": "Styr",
     "queue": "Læg i kø",
@@ -66,7 +73,9 @@
     "fileUploadFailed": "Vedhæftning mislykkedes",
     "fileUploadFailedDesc": "Kunne ikke behandle {count} filer: {names}",
     "fileUploadFailedMore": " og {count} flere",
-    "unnamedFile": "unavngiven fil"
+    "unnamedFile": "unavngiven fil",
+    "audioInputUnsupportedTitle": "Den aktuelle model understøtter ikke lydvedhæftninger",
+    "audioInputUnsupportedDescription": "Modellen {model} understøtter ikke lydinput. {count} lydvedhæftning(er) blev ignoreret."
   },
   "pendingInput": {
     "steer": "Styring",
@@ -253,7 +262,8 @@
     }
   },
   "modelPicker": {
-    "empty": "Ingen modeller fundet"
+    "empty": "Ingen modeller fundet",
+    "audioInputSupported": "Understøtter lydinput"
   },
   "audio": {
     "play": "Afspil",

@@ -263,6 +263,7 @@ export function readModelCapabilities(
   providerId: string,
   modelId: string
 ): {
+  supportsAudioInput: boolean | null
   supportsReasoning: boolean | null
   reasoningPortrait: ReturnType<NonNullable<IConfigPresenter['getReasoningPortrait']>>
   thinkingBudgetRange: ReturnType<NonNullable<IConfigPresenter['getThinkingBudgetRange']>> | null
@@ -274,6 +275,10 @@ export function readModelCapabilities(
   const supportsReasoning =
     typeof configPresenter.supportsReasoningCapability === 'function'
       ? configPresenter.supportsReasoningCapability(providerId, modelId)
+      : null
+  const supportsAudioInput =
+    typeof configPresenter.supportsAudioInputCapability === 'function'
+      ? configPresenter.supportsAudioInputCapability(providerId, modelId)
       : null
   const reasoningPortrait =
     typeof configPresenter.getReasoningPortrait === 'function'
@@ -301,6 +306,7 @@ export function readModelCapabilities(
       : null
 
   return {
+    supportsAudioInput,
     supportsReasoning,
     reasoningPortrait,
     thinkingBudgetRange,

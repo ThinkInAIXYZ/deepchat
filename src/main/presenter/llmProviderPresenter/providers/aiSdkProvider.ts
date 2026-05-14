@@ -67,6 +67,25 @@ type RouteDecision = {
   supportsOfficialAnthropicReasoning?: boolean
 }
 
+type ProviderRequestOptions = {
+  timeout?: number
+  signal?: AbortSignal
+}
+
+type AudioTranscriptionResponse = {
+  text?: unknown
+}
+
+class ProviderHttpError extends Error {
+  status?: number
+
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'ProviderHttpError'
+    this.status = status
+  }
+}
+
 const isOpenAIImageGenerationModel = (modelId: string): boolean =>
   OPENAI_IMAGE_GENERATION_MODELS.includes(modelId) ||
   OPENAI_IMAGE_GENERATION_MODEL_PREFIXES.some((prefix) => modelId.startsWith(prefix))
@@ -574,7 +593,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   public async requestProviderJson<T>(
     url: string,
     init: RequestInit = {},
-    timeout?: number,
+    options?: number | ProviderRequestOptions,
     decision?: RouteDecision
   ): Promise<T> {
     const resolvedDecision = decision ?? { providerKind: this.definition.runtimeKind }
@@ -583,11 +602,27 @@ export class AiSdkProvider extends BaseLLMProvider {
       ...this.defaultHeaders,
       ...this.definition.defaultHeadersPatch
     }
+    const resolvedOptions =
+      typeof options === 'number'
+        ? { timeout: options }
+        : (options ?? ({} as ProviderRequestOptions))
     const controller = new AbortController()
     const timeoutId =
-      typeof timeout === 'number' && timeout > 0
-        ? setTimeout(() => controller.abort(), timeout)
+      typeof resolvedOptions.timeout === 'number' && resolvedOptions.timeout > 0
+        ? setTimeout(() => controller.abort(), resolvedOptions.timeout)
         : undefined
+    const externalSignal = resolvedOptions.signal
+    const onExternalAbort = () => {
+      controller.abort(externalSignal?.reason)
+    }
+
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort(externalSignal.reason)
+      } else {
+        externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+      }
+    }
 
     try {
       const dispatcher = this.getFetchDispatcher()
@@ -608,7 +643,10 @@ export class AiSdkProvider extends BaseLLMProvider {
 
       if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(errorText || `Request failed with status ${response.status}`)
+        throw new ProviderHttpError(
+          errorText || `Request failed with status ${response.status}`,
+          response.status
+        )
       }
 
       return (await response.json()) as T
@@ -616,7 +654,122 @@ export class AiSdkProvider extends BaseLLMProvider {
       if (timeoutId) {
         clearTimeout(timeoutId)
       }
+      externalSignal?.removeEventListener('abort', onExternalAbort)
     }
+  }
+
+  private supportsDirectAudioTranscription(decision: RouteDecision, runtimeProvider: LLM_PROVIDER) {
+    return (
+      !this.isAzureOpenAI(decision, runtimeProvider) &&
+      (decision.providerKind === 'openai-compatible' ||
+        decision.providerKind === 'openai-responses')
+    )
+  }
+
+  private buildAudioTranscriptionsUrl(runtimeProvider: LLM_PROVIDER): string {
+    const baseUrl = (runtimeProvider.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '')
+    return `${baseUrl}/audio/transcriptions`
+  }
+
+  private shouldFallbackAudioTranscription(
+    decision: RouteDecision,
+    runtimeProvider: LLM_PROVIDER,
+    error: unknown
+  ): boolean {
+    if (this.isOfficialOpenAIService(decision, runtimeProvider)) {
+      return false
+    }
+
+    if (error instanceof ProviderHttpError) {
+      return [400, 404, 405, 415, 422, 501].includes(error.status ?? -1)
+    }
+
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase()
+      return (
+        message.includes('audio/transcriptions') ||
+        message.includes('not found') ||
+        message.includes('unsupported') ||
+        message.includes('invalid audio transcription response')
+      )
+    }
+
+    return false
+  }
+
+  public override async transcribeAudio(
+    modelId: string,
+    audioBase64: string,
+    mimeType: string,
+    filename?: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<string> {
+    if (!this.isInitialized) {
+      throw new Error('Provider not initialized')
+    }
+
+    if (!modelId) {
+      throw new Error('Model ID is required')
+    }
+
+    const decision = this.resolveRouteDecision(modelId)
+    const runtimeProvider = this.getRuntimeProvider(decision)
+    if (!this.supportsDirectAudioTranscription(decision, runtimeProvider)) {
+      throw this.createAudioTranscriptionNotSupportedError()
+    }
+
+    const normalizedAudioBase64 = audioBase64.replace(/\s/g, '').trim()
+    if (!normalizedAudioBase64) {
+      throw new Error('Audio data is required for transcription')
+    }
+
+    const normalizedMimeType = mimeType.trim() || 'audio/wav'
+    const normalizedFilename = filename?.trim() || 'recording.wav'
+    const audioBuffer = Buffer.from(normalizedAudioBase64, 'base64')
+    const formData = new FormData()
+    formData.append(
+      'file',
+      new Blob([audioBuffer], { type: normalizedMimeType }),
+      normalizedFilename
+    )
+    formData.append('model', modelId)
+
+    let payload: AudioTranscriptionResponse
+    try {
+      payload = await this.requestProviderJson<AudioTranscriptionResponse>(
+        this.buildAudioTranscriptionsUrl(runtimeProvider),
+        {
+          method: 'POST',
+          body: formData
+        },
+        {
+          timeout: this.resolveModelRequestTimeout(this.getModelConfigForDecision(modelId)),
+          signal: options?.signal
+        },
+        decision
+      )
+    } catch (error) {
+      if (this.shouldFallbackAudioTranscription(decision, runtimeProvider, error)) {
+        throw this.createAudioTranscriptionNotSupportedError()
+      }
+
+      throw error
+    }
+
+    if (typeof payload.text !== 'string') {
+      if (
+        this.shouldFallbackAudioTranscription(
+          decision,
+          runtimeProvider,
+          new Error('invalid audio transcription response')
+        )
+      ) {
+        throw this.createAudioTranscriptionNotSupportedError()
+      }
+      throw new Error('Invalid audio transcription response')
+    }
+
+    return payload.text
   }
 
   public async fetchOpenAIModelRecords(

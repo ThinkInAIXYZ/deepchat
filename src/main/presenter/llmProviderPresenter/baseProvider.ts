@@ -19,6 +19,12 @@ import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './
 import type { ProviderMcpRuntimePort } from './runtimePorts'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
 
+export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
+
+export function isAudioTranscriptionNotSupportedError(error: unknown): boolean {
+  return error instanceof Error && error.message === AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR
+}
+
 /**
  * Base LLM Provider Abstract Class
  *
@@ -101,6 +107,10 @@ export abstract class BaseLLMProvider {
 
   protected createModelRequestTimeoutError(timeoutMs: number): Error {
     return this.createRequestAbortError(`Request timed out after ${timeoutMs}ms`)
+  }
+
+  protected createAudioTranscriptionNotSupportedError(): Error {
+    return new Error(AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR)
   }
 
   public updateConfig(provider: LLM_PROVIDER): void {
@@ -725,6 +735,16 @@ ${this.convertToolsToXml(tools)}
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async getEmbeddings(_modelId: string, _texts: string[]): Promise<number[][]> {
     throw new Error('embedding is not supported by this provider')
+  }
+
+  public async transcribeAudio(
+    _modelId: string,
+    _audioBase64: string,
+    _mimeType: string,
+    _filename?: string,
+    _options?: { signal?: AbortSignal }
+  ): Promise<string> {
+    throw this.createAudioTranscriptionNotSupportedError()
   }
 
   /**

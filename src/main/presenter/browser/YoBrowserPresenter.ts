@@ -870,6 +870,11 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     void state.overlay.updateBounds(hostWindow, state.lastBounds, true).then(() => {
+      if (hostWindow.isDestroyed() || !hostWindow.isVisible() || !hostWindow.isFocused()) {
+        state.overlay.hide()
+        return
+      }
+
       state.overlay.sendActivity(payload)
     })
   }

@@ -1,8 +1,10 @@
 import { mount } from '@vue/test-utils'
+import type { VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { YoBrowserActivityPayload } from '@shared/types/browser'
 
 let activityListener: ((payload: YoBrowserActivityPayload) => void) | null = null
+const mountedWrappers: VueWrapper[] = []
 
 const makePayload = (
   overrides: Partial<YoBrowserActivityPayload> = {}
@@ -35,6 +37,10 @@ describe('BrowserActivityOverlay', () => {
   })
 
   afterEach(() => {
+    for (const wrapper of mountedWrappers.splice(0)) {
+      wrapper.unmount()
+    }
+
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
@@ -44,7 +50,9 @@ describe('BrowserActivityOverlay', () => {
     const BrowserActivityOverlay = (
       await import('../../../src/renderer/browser-overlay/BrowserActivityOverlay.vue')
     ).default
-    return mount(BrowserActivityOverlay)
+    const wrapper = mount(BrowserActivityOverlay)
+    mountedWrappers.push(wrapper)
+    return wrapper
   }
 
   it('shows only the halo for browser activity', async () => {
@@ -89,6 +97,19 @@ describe('BrowserActivityOverlay', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.halo.active').exists()).toBe(false)
+  })
+
+  it('refreshes the safety ttl when an activity id starts again', async () => {
+    const wrapper = await setup()
+
+    activityListener?.(makePayload({ id: 'activity-a' }))
+    await vi.advanceTimersByTimeAsync(2000)
+    activityListener?.(makePayload({ id: 'activity-a' }))
+    await vi.advanceTimersByTimeAsync(500)
+    await vi.advanceTimersByTimeAsync(900)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.halo.active').exists()).toBe(true)
   })
 
   it('keeps the halo on until all pending activities finish', async () => {
