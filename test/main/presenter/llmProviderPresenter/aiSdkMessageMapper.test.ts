@@ -150,7 +150,7 @@ describe('AI SDK message mapper', () => {
             providerOptions: {
               openaiCompatible: {
                 input_audio: {
-                  data: 'data:audio/flac;base64,QUJD'
+                  data: 'data:audio/mpeg;base64,QUJD'
                 }
               }
             }

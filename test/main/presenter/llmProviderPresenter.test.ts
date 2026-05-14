@@ -401,6 +401,29 @@ describe('LLMProviderPresenter Integration Tests', () => {
       expect(transcript).toBe('mock completion')
     }, 15000)
 
+    it('normalizes audio MIME type casing before transcription validation', async () => {
+      const transcribeSpy = vi
+        .spyOn(AiSdkProvider.prototype, 'transcribeAudio')
+        .mockResolvedValue('mock transcript')
+
+      const transcript = await llmProviderPresenter.transcribeAudioStandalone(
+        'mock-openai-api',
+        'mock-gpt-thinking',
+        'AQID',
+        'Audio/WAV',
+        'recording.wav'
+      )
+
+      expect(transcript).toBe('mock transcript')
+      expect(transcribeSpy).toHaveBeenCalledWith(
+        'mock-gpt-thinking',
+        'AQID',
+        'audio/wav',
+        'recording.wav',
+        expect.any(Object)
+      )
+    }, 15000)
+
     it('should generate images through the standalone image runtime', async () => {
       mockConfigPresenter.getModelConfig = vi.fn().mockReturnValue({
         maxTokens: 4096,

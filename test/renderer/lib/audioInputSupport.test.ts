@@ -21,6 +21,18 @@ describe('audioInputSupport', () => {
     ).toBe(true)
   })
 
+  it('returns false for non-audio attachments', () => {
+    expect(
+      isAudioAttachment(
+        createFile({
+          name: 'report.pdf',
+          path: '/tmp/report.pdf',
+          mimeType: 'application/pdf'
+        })
+      )
+    ).toBe(false)
+  })
+
   it('detects audio attachments from file extensions when mime type is missing', () => {
     expect(
       isAudioAttachment(

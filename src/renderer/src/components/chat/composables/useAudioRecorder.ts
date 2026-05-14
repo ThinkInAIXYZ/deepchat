@@ -44,16 +44,28 @@ export function useAudioRecorder(options: {
 
   let mediaRecorder: MediaRecorder | null = null
   let mediaStream: MediaStream | null = null
+  const discardedRecorders = new WeakSet<MediaRecorder>()
 
-  const stopTracks = () => {
-    mediaStream?.getTracks().forEach((track) => track.stop())
-    mediaStream = null
+  const stopTracks = (stream: MediaStream | null = mediaStream) => {
+    stream?.getTracks().forEach((track) => track.stop())
+    if (!stream || mediaStream === stream) {
+      mediaStream = null
+    }
   }
 
-  const cleanupRecorder = () => {
-    mediaRecorder = null
-    isRecording.value = false
-    stopTracks()
+  const cleanupRecorder = (
+    recorder: MediaRecorder | null = mediaRecorder,
+    stream: MediaStream | null = mediaStream,
+    options?: { discardRecording?: boolean }
+  ) => {
+    if (options?.discardRecording && recorder) {
+      discardedRecorders.add(recorder)
+    }
+    if (!recorder || mediaRecorder === recorder) {
+      mediaRecorder = null
+      isRecording.value = false
+    }
+    stopTracks(stream)
   }
 
   const start = async (): Promise<boolean> => {
@@ -67,35 +79,38 @@ export function useAudioRecorder(options: {
     }
 
     try {
-      mediaStream = await recorderWindow!.navigator!.mediaDevices!.getUserMedia({ audio: true })
+      const stream = await recorderWindow!.navigator!.mediaDevices!.getUserMedia({ audio: true })
+      mediaStream = stream
       const preferredMimeType = resolvePreferredRecorderMimeType(recorderWindow)
-      mediaRecorder = preferredMimeType
-        ? new recorderWindow!.MediaRecorder!(mediaStream, { mimeType: preferredMimeType })
-        : new recorderWindow!.MediaRecorder!(mediaStream)
+      const recorder = preferredMimeType
+        ? new recorderWindow!.MediaRecorder!(stream, { mimeType: preferredMimeType })
+        : new recorderWindow!.MediaRecorder!(stream)
+      mediaRecorder = recorder
       const chunks: BlobPart[] = []
 
-      mediaRecorder.ondataavailable = (event) => {
+      recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunks.push(event.data)
         }
       }
 
-      mediaRecorder.onerror = () => {
+      recorder.onerror = () => {
         options.onError?.('recording-error')
-        cleanupRecorder()
+        cleanupRecorder(recorder, stream, { discardRecording: true })
       }
 
-      mediaRecorder.onstop = () => {
-        const mimeType = mediaRecorder?.mimeType || 'audio/webm'
+      recorder.onstop = () => {
+        const shouldEmitRecorded = !discardedRecorders.has(recorder)
+        const mimeType = recorder.mimeType || 'audio/webm'
         const blob = new Blob(chunks, { type: mimeType })
-        cleanupRecorder()
+        cleanupRecorder(recorder, stream)
 
-        if (blob.size > 0) {
+        if (shouldEmitRecorded && blob.size > 0) {
           options.onRecorded({ blob, mimeType })
         }
       }
 
-      mediaRecorder.start()
+      recorder.start()
       isRecording.value = true
       return true
     } catch (error) {
@@ -130,10 +145,13 @@ export function useAudioRecorder(options: {
   }
 
   const cleanup = () => {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop()
+    const recorder = mediaRecorder
+    const stream = mediaStream
+    if (recorder && recorder.state !== 'inactive') {
+      discardedRecorders.add(recorder)
+      recorder.stop()
     }
-    cleanupRecorder()
+    cleanupRecorder(recorder, stream, { discardRecording: true })
   }
 
   return {

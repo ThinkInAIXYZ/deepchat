@@ -6,6 +6,7 @@ export type SpeechRecognitionErrorCode =
   | 'audio-capture'
   | 'not-allowed'
   | 'transcription-failed'
+  | 'transcription-timeout'
   | 'decode-failed'
   | string
 
@@ -101,8 +102,9 @@ function normalizeTranscriptionErrorCode(error: unknown): SpeechRecognitionError
       case 'decode-failed':
       case 'decode-unsupported':
       case 'base64-unsupported':
-      case 'transcription-timeout':
         return 'decode-failed'
+      case 'transcription-timeout':
+        return 'transcription-timeout'
       default:
         return 'transcription-failed'
     }
@@ -246,8 +248,8 @@ async function awaitTranscriptionResult(
     removeAbortListener = () => options.signal.removeEventListener('abort', onAbort)
 
     timeoutId = setTimeout(() => {
-      options.onTimeout?.()
       reject(createTranscriptionTimeoutError())
+      options.onTimeout?.()
     }, options.timeoutMs)
   })
 

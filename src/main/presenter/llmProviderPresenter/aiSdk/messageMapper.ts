@@ -111,7 +111,7 @@ function supportsOpenAIAudioMediaType(value: string | undefined): boolean {
 function buildAudioProviderOptions(
   part: UserAudioContentPart,
   options: MapMessagesToModelMessagesOptions,
-  actualMediaType: string
+  mediaType: string
 ): AssistantProviderOptions | undefined {
   if (!options.preferOpenAICompatibleAudioDataUrl) {
     return sanitizeProviderOptions(part.provider_options)
@@ -127,7 +127,7 @@ function buildAudioProviderOptions(
     openaiCompatible: {
       ...existingOpenAICompatible,
       input_audio: {
-        data: `data:${actualMediaType};base64,${part.input_audio.data}`
+        data: `data:${mediaType};base64,${part.input_audio.data}`
       }
     }
   })
@@ -154,7 +154,7 @@ function mapAudioUserContentPart(
       : OPENAI_COMPATIBLE_AUDIO_FALLBACK_MEDIA_TYPE
     : actualMediaType
 
-  const providerOptions = buildAudioProviderOptions(part, options, actualMediaType)
+  const providerOptions = buildAudioProviderOptions(part, options, mediaType)
 
   return {
     type: 'file',

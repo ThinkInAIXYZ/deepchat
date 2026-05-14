@@ -201,6 +201,8 @@ const switchAgentGuide = useGuidedOnboardingStep('switch-agent')
 const switchModelGuide = useGuidedOnboardingStep('switch-model')
 const firstChatGuide = useGuidedOnboardingStep('first-chat')
 
+type SubmissionModelSelection = { providerId: string; modelId: string }
+
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
 const pendingSkills = ref<string[]>([])
@@ -217,6 +219,7 @@ const chatInputRef = ref<{
   focusInput?: () => void
 } | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
+const acpDraftModelSelection = ref<SubmissionModelSelection | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
 const isCompletingSwitchAgentGuide = ref(false)
@@ -557,7 +560,7 @@ const ensureEnabledModelsReady = async (): Promise<boolean> => {
   }
 }
 
-async function resolveModel(): Promise<{ providerId: string; modelId: string } | null> {
+async function resolveModel(): Promise<SubmissionModelSelection | null> {
   const ready = await ensureEnabledModelsReady()
   if (!ready) {
     return null
@@ -585,7 +588,7 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
   return null
 }
 
-function resolveVoiceInputSelection(): { providerId: string; modelId: string } | null {
+function resolveVoiceInputSelection(): SubmissionModelSelection | null {
   if (isAcpSelectedAgent.value) {
     return null
   }
@@ -598,6 +601,27 @@ function resolveVoiceInputSelection(): { providerId: string; modelId: string } |
   }
 
   return null
+}
+
+function resolveAcpSubmissionSelection(): SubmissionModelSelection | null {
+  if (!isAcpSelectedAgent.value) {
+    return null
+  }
+
+  if (acpDraftModelSelection.value) {
+    return acpDraftModelSelection.value
+  }
+
+  const agentId = selectedAgent.value.id?.trim()
+  return agentId ? { providerId: 'acp', modelId: agentId } : null
+}
+
+async function resolveSubmissionModelSelection(): Promise<SubmissionModelSelection | null> {
+  if (isAcpSelectedAgent.value) {
+    return resolveAcpSubmissionSelection()
+  }
+
+  return await resolveModel()
 }
 
 async function refreshVoiceInputAvailability() {
@@ -897,7 +921,7 @@ function notifyUnsupportedAudioAttachments(
 }
 
 async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<MessageFile[]> {
-  const selection = await resolveModel()
+  const selection = await resolveSubmissionModelSelection()
   if (!selection || files.length === 0) {
     return files
   }
@@ -945,6 +969,7 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
   }
   if (lastAcpDraftKey.value !== draftKey) {
     acpDraftSessionId.value = null
+    acpDraftModelSelection.value = null
     lastAcpDraftKey.value = null
   }
 
@@ -968,10 +993,18 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
     if (!sessionId) {
       console.warn('[NewThreadPage] ensureAcpDraftSession returned invalid session:', session)
       acpDraftSessionId.value = null
+      acpDraftModelSelection.value = null
       lastAcpDraftKey.value = null
       return
     }
     acpDraftSessionId.value = sessionId
+    acpDraftModelSelection.value =
+      typeof session.providerId === 'string' &&
+      session.providerId.trim() &&
+      typeof session.modelId === 'string' &&
+      session.modelId.trim()
+        ? { providerId: session.providerId.trim(), modelId: session.modelId.trim() }
+        : { providerId: 'acp', modelId: agentId }
     lastAcpDraftKey.value = draftKey
   } catch (error) {
     if (requestSeq !== acpDraftRequestSeq.value) {
@@ -979,6 +1012,7 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
     }
     console.warn('[NewThreadPage] Failed to ensure ACP draft session:', error)
     acpDraftSessionId.value = null
+    acpDraftModelSelection.value = null
     lastAcpDraftKey.value = null
   }
 }
@@ -1028,6 +1062,7 @@ watch(
       directoryStatus !== 'valid'
     ) {
       acpDraftSessionId.value = null
+      acpDraftModelSelection.value = null
       lastAcpDraftKey.value = null
       return
     }

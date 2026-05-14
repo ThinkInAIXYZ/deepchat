@@ -192,9 +192,9 @@ export const modelsTranscribeAudioRoute = defineRouteContract({
   input: z.object({
     providerId: EntityIdSchema,
     modelId: z.string().min(1),
-    audioBase64: z.string().min(1),
-    mimeType: z.string().min(1),
-    filename: z.string().min(1).optional()
+    audioBase64: z.string().min(1).max(15_000_000),
+    mimeType: z.string().min(1).max(255),
+    filename: z.string().min(1).max(255).optional()
   }),
   output: z.object({
     text: z.string()

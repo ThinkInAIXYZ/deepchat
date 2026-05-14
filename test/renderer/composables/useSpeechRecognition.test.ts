@@ -4,6 +4,7 @@ import {
   isSpeechRecognitionSupported,
   useSpeechRecognition
 } from '@/components/chat/composables/useSpeechRecognition'
+import { useAudioRecorder } from '@/components/chat/composables/useAudioRecorder'
 
 class FakeMediaRecorder {
   static isTypeSupported = vi.fn((mimeType: string) =>
@@ -55,9 +56,40 @@ class FakeAudioContext {
   close = vi.fn(async () => undefined)
 }
 
+class DeferredStopMediaRecorder {
+  static isTypeSupported = vi.fn(() => false)
+  static instances: DeferredStopMediaRecorder[] = []
+
+  mimeType = 'audio/webm'
+  state: 'inactive' | 'recording' = 'inactive'
+  ondataavailable: ((event: { data: Blob }) => void) | null = null
+  onerror: (() => void) | null = null
+  onstop: (() => void) | null = null
+
+  constructor() {
+    DeferredStopMediaRecorder.instances.push(this)
+  }
+
+  start = vi.fn(() => {
+    this.state = 'recording'
+  })
+
+  stop = vi.fn(() => {
+    this.state = 'inactive'
+  })
+
+  emitStop() {
+    this.ondataavailable?.({
+      data: new Blob([new Uint8Array([1, 2, 3])], { type: this.mimeType })
+    })
+    this.onstop?.()
+  }
+}
+
 describe('useSpeechRecognition', () => {
   afterEach(() => {
     vi.useRealTimers()
+    DeferredStopMediaRecorder.instances = []
   })
 
   it('detects browser speech recognition support', () => {
@@ -196,7 +228,7 @@ describe('useSpeechRecognition', () => {
     await vi.advanceTimersByTimeAsync(10)
 
     await vi.waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('transcription-failed')
+      expect(onError).toHaveBeenCalledWith('transcription-timeout')
       expect(recognition.isTranscribing.value).toBe(false)
     })
   })
@@ -212,5 +244,33 @@ describe('useSpeechRecognition', () => {
 
     expect(await recognition.start()).toBe(false)
     expect(onUnsupported).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('useAudioRecorder', () => {
+  it('does not emit recorded audio after cleanup disposes the active recorder', async () => {
+    const onRecorded = vi.fn()
+    const stopTrack = vi.fn()
+    const recorder = useAudioRecorder({
+      recorderWindow: {
+        MediaRecorder: DeferredStopMediaRecorder as any,
+        navigator: {
+          mediaDevices: {
+            getUserMedia: vi.fn(async () => ({
+              getTracks: () => [{ stop: stopTrack }]
+            }))
+          }
+        } as any
+      },
+      onRecorded
+    })
+
+    expect(await recorder.start()).toBe(true)
+    recorder.cleanup()
+
+    DeferredStopMediaRecorder.instances[0].emitStop()
+
+    expect(onRecorded).not.toHaveBeenCalled()
+    expect(stopTrack).toHaveBeenCalled()
   })
 })

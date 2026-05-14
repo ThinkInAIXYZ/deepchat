@@ -392,7 +392,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     options?: { signal?: AbortSignal }
   ): Promise<string> {
     const normalizedAudioBase64 = audioBase64.trim()
-    const normalizedMimeType = mimeType.trim()
+    const normalizedMimeType = mimeType.trim().toLowerCase()
 
     if (!normalizedAudioBase64) {
       throw new Error('Audio data is required for transcription')

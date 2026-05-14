@@ -68,7 +68,7 @@
     "fileUploadFailedMore": " и ещё {count}",
     "unnamedFile": "файл без имени",
     "audioInputUnsupportedTitle": "Текущая модель не поддерживает аудиовложения",
-    "audioInputUnsupportedDescription": "Модель {model} не поддерживает аудиоввод. {count} аудиовложение(й) было пропущено."
+    "audioInputUnsupportedDescription": "Модель {model} не поддерживает аудиоввод. Пропущено аудиофайлов: {count}."
   },
   "pendingInput": {
     "steer": "Направление",

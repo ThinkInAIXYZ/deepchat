@@ -23,6 +23,9 @@ Users can click the chat mic button, speak directly, and have recognized text in
 - Unsupported browsers, denied microphone permissions, or transcription failures show an i18n user-facing explanation instead of failing silently.
 - Provider/runtime transcription errors surface a user-facing failure state instead of being collapsed into an empty transcript.
 - If transcription stalls, the UI must leave the loading state after a bounded timeout or user cancellation instead of spinning indefinitely.
+- Transcription payload validation must reject oversized audio/base64 metadata before crossing the main-process route boundary.
+- Cleanup/disposal must not emit stale recording callbacks after the voice-input lifecycle has been torn down.
+- Audio attachment filtering in new-thread ACP drafts must use the draft submission target, not an unrelated fallback chat model.
 
 ## Constraints
 
@@ -33,6 +36,7 @@ Users can click the chat mic button, speak directly, and have recognized text in
 - Prefer OpenAI-style audio transcription compatibility when the selected provider/runtime exposes that endpoint.
 - Preserve current send, queue, and command-submission behavior.
 - Do not persist raw microphone audio after transcription completes.
+- Keep review-fix changes narrow and compatible with existing typed routes, provider message mapping, and page submission flow.
 
 ## Non-Goals
 

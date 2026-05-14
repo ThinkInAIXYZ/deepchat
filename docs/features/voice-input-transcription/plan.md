@@ -11,6 +11,7 @@
 7. Race the renderer transcription await against local abort/timeout handling so loading clears on cancellation or stalled provider calls.
 8. Render recording mode with a waveform-style SVG animation so active capture is obvious.
 9. Update existing i18n/button copy from generic voice input wording to local recording wording where needed.
+10. Apply review hardening by aligning OpenAI-compatible audio fallback MIME data URLs, bounding typed route payload fields, guarding disposed recorder callbacks, and using ACP draft session model state for new-thread audio attachment filtering.
 
 ## Affected Areas
 
@@ -39,4 +40,5 @@
 - Update the focused speech-recognition composable test to cover local recording, wav conversion, transcription success, failure handling, and stalled-request timeout cleanup.
 - Add a focused main-presenter test ensuring standalone audio transcription propagates provider errors.
 - Run a focused renderer test for the composable first.
+- Add focused regression coverage for timeout classification, recorder cleanup suppression, audio attachment negative detection, and ACP draft-target filtering.
 - Run a narrow type-aware validation for the touched route/presenter/renderer files, then finish with repo-required format/i18n/lint.

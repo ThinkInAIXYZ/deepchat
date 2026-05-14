@@ -231,7 +231,7 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       modelId,
       audioBase64,
       mimeType,
-      ...(filename ? { filename } : {})
+      ...(filename && { filename })
     })
     return result.text
   }

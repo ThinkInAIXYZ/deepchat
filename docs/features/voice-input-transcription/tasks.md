@@ -11,4 +11,6 @@
 - [x] Replace the recording-state icon with a waveform-style SVG animation.
 - [x] Make standalone transcription surface provider/runtime errors instead of silently returning an empty transcript.
 - [x] Add renderer-side abort/timeout cleanup so stalled transcription requests do not leave the mic button loading forever.
+- [x] Apply PR review hardening for MIME fallback consistency, recorder cleanup, timeout classification, payload limits, ACP draft attachment filtering, and locale copy.
+- [x] Add focused regression tests for the review hardening items.
 - [x] Run focused tests, then format/i18n/lint.
