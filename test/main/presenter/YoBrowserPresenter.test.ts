@@ -555,6 +555,21 @@ describe('YoBrowserPresenter', () => {
     )
   })
 
+  it('maps Runtime.evaluate client coordinates by axis name', async () => {
+    const { presenter } = await setupPresenter()
+    const extractPoint = (presenter as any).extractPointFromRuntimeExpression.bind(presenter)
+
+    expect(
+      extractPoint(
+        'document.dispatchEvent(new MouseEvent("click", { clientY: 12.4, clientX: 98.6 }))'
+      )
+    ).toEqual({ x: 99, y: 12 })
+    expect(
+      extractPoint('document.dispatchEvent(new MouseEvent("click", { clientX: 10, clientX: 20 }))')
+    ).toBeUndefined()
+    expect(extractPoint('document.querySelector("button")?.click()')).toBeUndefined()
+  })
+
   it('returns focus to the host renderer after attaching the browser view', async () => {
     const { presenter, windows, getSessionWebContents } = await setupPresenter()
     const hostWindow = new MockBrowserWindow(1)

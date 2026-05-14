@@ -1030,24 +1030,32 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private extractPointFromRuntimeExpression(
     expression: string
   ): YoBrowserActivityPoint | undefined {
-    const clientPointMatch = /client[XY]\s*:\s*(-?\d+(?:\.\d+)?)/gi
-    const values: number[] = []
+    const clientPointMatch = /client([XY])\s*:\s*(-?\d+(?:\.\d+)?)/gi
+    const point: Partial<Record<'x' | 'y', number>> = {}
     let match: RegExpExecArray | null
 
     while ((match = clientPointMatch.exec(expression)) !== null) {
-      values.push(Number(match[1]))
-      if (values.length >= 2) {
+      const axis = match[1].toLowerCase() as 'x' | 'y'
+      if (point[axis] == null) {
+        point[axis] = Number(match[2])
+      }
+      if (point.x != null && point.y != null) {
         break
       }
     }
 
-    if (values.length < 2 || values.some((value) => !Number.isFinite(value))) {
+    if (
+      point.x == null ||
+      point.y == null ||
+      !Number.isFinite(point.x) ||
+      !Number.isFinite(point.y)
+    ) {
       return undefined
     }
 
     return {
-      x: Math.round(values[0]),
-      y: Math.round(values[1])
+      x: Math.round(point.x),
+      y: Math.round(point.y)
     }
   }
 
