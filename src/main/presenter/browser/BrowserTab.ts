@@ -705,14 +705,25 @@ export class BrowserTab {
 
   destroy(): void {
     try {
-      if (this.webContents.debugger && this.webContents.debugger.isAttached()) {
-        this.webContents.debugger.detach()
+      if (this.webContents.isDestroyed()) {
+        return
+      }
+
+      const debuggerSession = this.webContents.debugger
+      if (debuggerSession && debuggerSession.isAttached()) {
+        debuggerSession.detach()
       }
     } catch (error) {
-      console.warn(`[YoBrowser][${this.pageId}] failed to detach debugger:`, error)
+      if (!this.isDestroyedObjectError(error)) {
+        console.warn(`[YoBrowser][${this.pageId}] failed to detach debugger:`, error)
+      }
     } finally {
       this.isAttached = false
     }
+  }
+
+  private isDestroyedObjectError(error: unknown): boolean {
+    return error instanceof Error && /Object has been destroyed/i.test(error.message)
   }
 
   private async ensureSession() {
