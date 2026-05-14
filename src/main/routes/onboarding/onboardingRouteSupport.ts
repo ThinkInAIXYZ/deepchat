@@ -815,8 +815,9 @@ export function startGuidedOnboarding(
     baseState.currentStepId ??
     baseState.steps.find((step) => step.status === 'in_progress')?.id ??
     findNextPendingStepId(baseState)
-  const candidateStep =
-    candidateStepId ? baseState.steps.find((step) => step.id === candidateStepId) : undefined
+  const candidateStep = candidateStepId
+    ? baseState.steps.find((step) => step.id === candidateStepId)
+    : undefined
   const nextStepId =
     candidateStep && (candidateStep.status === 'completed' || candidateStep.status === 'skipped')
       ? findNextPendingStepId(baseState)
