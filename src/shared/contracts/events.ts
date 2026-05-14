@@ -1,6 +1,10 @@
 import type { z } from 'zod'
 import type { EventContract } from './common'
-import { browserOpenRequestedEvent, browserStatusChangedEvent } from './events/browser.events'
+import {
+  browserActivityChangedEvent,
+  browserOpenRequestedEvent,
+  browserStatusChangedEvent
+} from './events/browser.events'
 import {
   chatStreamCompletedEvent,
   chatStreamFailedEvent,
@@ -85,6 +89,7 @@ export * from './events/workspace.events'
 export const DEEPCHAT_EVENT_CATALOG = {
   [windowStateChangedEvent.name]: windowStateChangedEvent,
   [workspaceInvalidatedEvent.name]: workspaceInvalidatedEvent,
+  [browserActivityChangedEvent.name]: browserActivityChangedEvent,
   [browserOpenRequestedEvent.name]: browserOpenRequestedEvent,
   [browserStatusChangedEvent.name]: browserStatusChangedEvent,
   [settingsChangedEvent.name]: settingsChangedEvent,

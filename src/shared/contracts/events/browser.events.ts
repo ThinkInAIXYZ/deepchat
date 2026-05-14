@@ -31,3 +31,42 @@ export const browserStatusChangedEvent = defineEventContract({
     version: TimestampMsSchema
   })
 })
+
+export const browserActivityChangedEvent = defineEventContract({
+  name: 'browser.activity.changed',
+  payload: z.object({
+    id: z.string().min(1),
+    sessionId: z.string().min(1),
+    windowId: z.number().int().nullable(),
+    pageId: z.string().optional(),
+    kind: z.enum(['navigation', 'vision', 'pointer', 'scroll', 'keyboard']),
+    action: z.enum([
+      'navigate',
+      'reload',
+      'screenshot',
+      'dom',
+      'runtime',
+      'mouse_move',
+      'mouse_click',
+      'mouse_wheel',
+      'key'
+    ]),
+    phase: z.enum(['started', 'completed', 'failed']),
+    point: z
+      .object({
+        x: z.number(),
+        y: z.number()
+      })
+      .optional(),
+    rect: z
+      .object({
+        x: z.number(),
+        y: z.number(),
+        width: z.number(),
+        height: z.number()
+      })
+      .optional(),
+    direction: z.enum(['up', 'down', 'left', 'right']).optional(),
+    timestamp: TimestampMsSchema
+  })
+})

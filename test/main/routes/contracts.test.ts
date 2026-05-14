@@ -642,6 +642,7 @@ describe('main kernel contracts', () => {
 
     expect(eventKeys).toEqual(
       expect.arrayContaining([
+        'browser.activity.changed',
         'browser.open.requested',
         'browser.status.changed',
         'chat.stream.completed',

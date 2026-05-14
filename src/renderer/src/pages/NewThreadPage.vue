@@ -82,8 +82,8 @@
         <!-- Input area -->
         <div ref="firstChatGuideHostRef" :class="['w-full max-w-4xl flex justify-center']">
           <ChatInputBox
-            :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
             ref="chatInputRef"
+            :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
             v-model="message"
             :files="attachedFiles"
             :session-id="acpDraftSessionId"
