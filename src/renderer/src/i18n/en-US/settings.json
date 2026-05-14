@@ -485,6 +485,10 @@
       },
       "createTitle": "Add Custom Model",
       "editTitle": "Edit Model Configuration - {name}",
+      "speechRecognition": {
+        "label": "Speech Recognition",
+        "description": "Controls whether this model allows voice input with local speech-to-text transcription."
+      },
       "functionCall": {
         "description": "Whether the model supports function calls natively (DeepChat will automatically simulate function calls after turning off this option)",
         "label": "Function Calls"

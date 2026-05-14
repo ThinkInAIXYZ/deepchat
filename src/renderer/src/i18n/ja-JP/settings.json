@@ -422,6 +422,10 @@
       },
       "createTitle": "Add Custom Model",
       "editTitle": "Edit Model Configuration - {name}",
+      "speechRecognition": {
+        "label": "音声認識",
+        "description": "このモデルでローカル音声認識によるテキスト入力を許可するかどうかを制御します。"
+      },
       "functionCall": {
         "description": "モデルが機能コールをネイティブにサポートするかどうか（このオプションをオフにした後、DeepChatは機能コールを自動的にシミュレートします）",
         "label": "関数呼び出し"

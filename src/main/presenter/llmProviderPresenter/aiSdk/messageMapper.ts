@@ -16,6 +16,18 @@ type PendingToolCall = {
 }
 
 type AssistantProviderOptions = Record<string, Record<string, unknown>>
+type UserAudioContentPart = {
+  type: 'input_audio'
+  input_audio: {
+    data: string
+    media_type: string
+    filename?: string
+  }
+  provider_options?: Record<string, unknown>
+}
+
+const OPENAI_AUDIO_MEDIA_TYPES = new Set(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+const OPENAI_COMPATIBLE_AUDIO_FALLBACK_MEDIA_TYPE = 'audio/mpeg'
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -73,7 +85,92 @@ function resolveImageMediaType(value: string): string | undefined {
   return undefined
 }
 
-function mapUserContent(content: ChatMessage['content']): any[] {
+function normalizeAudioMediaType(value: string | undefined): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) {
+    return undefined
+  }
+
+  const [mediaType] = normalized.split(';', 1)
+  return mediaType?.trim() || undefined
+}
+
+function supportsOpenAIAudioMediaType(value: string | undefined): boolean {
+  const mediaType = normalizeAudioMediaType(value)
+  if (!mediaType) {
+    return false
+  }
+
+  return OPENAI_AUDIO_MEDIA_TYPES.has(mediaType)
+}
+
+function buildAudioProviderOptions(
+  part: UserAudioContentPart,
+  options: MapMessagesToModelMessagesOptions,
+  mediaType: string
+): AssistantProviderOptions | undefined {
+  if (!options.preferOpenAICompatibleAudioDataUrl) {
+    return sanitizeProviderOptions(part.provider_options)
+  }
+
+  const baseProviderOptions = isPlainObject(part.provider_options) ? part.provider_options : {}
+  const existingOpenAICompatible = isPlainObject(baseProviderOptions.openaiCompatible)
+    ? baseProviderOptions.openaiCompatible
+    : {}
+
+  return sanitizeProviderOptions({
+    ...baseProviderOptions,
+    openaiCompatible: {
+      ...existingOpenAICompatible,
+      input_audio: {
+        data: `data:${mediaType};base64,${part.input_audio.data}`
+      }
+    }
+  })
+}
+
+function mapAudioUserContentPart(
+  part: UserAudioContentPart,
+  options: MapMessagesToModelMessagesOptions
+): {
+  type: 'file'
+  data: string
+  mediaType: string
+  filename?: string
+  providerOptions?: AssistantProviderOptions
+} | null {
+  const actualMediaType = normalizeAudioMediaType(part.input_audio.media_type)
+  if (!actualMediaType?.startsWith('audio/') || !part.input_audio.data) {
+    return null
+  }
+
+  const mediaType = options.preferOpenAICompatibleAudioDataUrl
+    ? supportsOpenAIAudioMediaType(actualMediaType)
+      ? actualMediaType
+      : OPENAI_COMPATIBLE_AUDIO_FALLBACK_MEDIA_TYPE
+    : actualMediaType
+
+  const providerOptions = buildAudioProviderOptions(part, options, mediaType)
+
+  return {
+    type: 'file',
+    data: part.input_audio.data,
+    mediaType,
+    ...(typeof part.input_audio.filename === 'string' && part.input_audio.filename.trim()
+      ? { filename: part.input_audio.filename }
+      : {}),
+    ...(providerOptions ? { providerOptions } : {})
+  }
+}
+
+function mapUserContent(
+  content: ChatMessage['content'],
+  options: MapMessagesToModelMessagesOptions
+): any[] {
   if (typeof content === 'string' || content == null) {
     return [
       {
@@ -108,6 +205,10 @@ function mapUserContent(content: ChatMessage['content']): any[] {
         }
       }
 
+      if (part.type === 'input_audio') {
+        return mapAudioUserContentPart(part, options)
+      }
+
       return null
     })
     .filter(
@@ -115,7 +216,14 @@ function mapUserContent(content: ChatMessage['content']): any[] {
         part
       ): part is
         | { type: 'text'; text: string }
-        | { type: 'image'; image: string | URL; mediaType?: string } => part !== null
+        | { type: 'image'; image: string | URL; mediaType?: string }
+        | {
+            type: 'file'
+            data: string
+            mediaType: string
+            filename?: string
+            providerOptions?: AssistantProviderOptions
+          } => part !== null
     )
 }
 
@@ -169,6 +277,7 @@ export interface MapMessagesToModelMessagesOptions {
   supportsNativeTools: boolean
   buildLegacyFunctionCallPrompt?: (tools: MCPToolDefinition[]) => string
   preserveOpenAICompatibleReasoningContent?: boolean
+  preferOpenAICompatibleAudioDataUrl?: boolean
 }
 
 function buildAssistantProviderOptions(
@@ -242,7 +351,7 @@ export function mapMessagesToModelMessages(
     if (message.role === 'user') {
       acc.push({
         role: 'user',
-        content: mapUserContent(message.content)
+        content: mapUserContent(message.content, options)
       } as ModelMessage)
       return acc
     }

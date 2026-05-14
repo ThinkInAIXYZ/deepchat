@@ -50,7 +50,7 @@ const setup = async (options?: {
     agentId: string
     projectDir: string
     permissionMode?: string
-  }) => Promise<{ id: string } | null>
+  }) => Promise<{ id: string; providerId?: string; modelId?: string } | null>
   selectedProject?: {
     path: string
     name: string
@@ -63,6 +63,7 @@ const setup = async (options?: {
   deferStartupTasks?: boolean
   modelStoreInitialized?: boolean
   initializeModels?: () => Promise<void>
+  modelCapabilities?: Record<string, { supportsAudioInput: boolean | null }>
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
@@ -178,6 +179,17 @@ const setup = async (options?: {
         })
     )
   }
+  const modelClient = {
+    getCapabilities: vi.fn((providerId: string, modelId: string) => {
+      const capabilities = options?.modelCapabilities?.[`${providerId}:${modelId}`]
+      return Promise.resolve(capabilities ?? { supportsAudioInput: true })
+    }),
+    getModelConfig: vi.fn().mockResolvedValue({ speechRecognition: false }),
+    transcribeAudio: vi.fn(),
+    onModelConfigChanged: vi.fn(() => vi.fn()),
+    onModelsChanged: vi.fn(() => vi.fn()),
+    onModelStatusChanged: vi.fn(() => vi.fn())
+  }
   const isDirectoryMock = vi.fn((path: string) => {
     const resolver = options?.isDirectory ?? true
     return Promise.resolve(typeof resolver === 'function' ? resolver(path) : resolver)
@@ -204,6 +216,9 @@ const setup = async (options?: {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('@api/ModelClient', () => ({
+    createModelClient: vi.fn(() => modelClient)
   }))
   vi.doMock('@api/FileClient', () => ({
     createFileClient: vi.fn(() => ({
@@ -268,6 +283,7 @@ const setup = async (options?: {
     agentStore,
     modelStore,
     draftStore,
+    modelClient,
     sessionClient,
     isDirectoryMock,
     flushStartupDeferredTasks: async () => {
@@ -416,6 +432,34 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
       files: [{ name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }]
     })
     expect(sessionStore.createSession).not.toHaveBeenCalled()
+  })
+
+  it('filters ACP draft attachments using the ensured draft model target', async () => {
+    const textFile = { name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }
+    const audioFile = { name: 'clip.wav', path: '/tmp/clip.wav', mimeType: 'audio/wav' }
+    const { wrapper, sessionStore, modelClient } = await setup({
+      ensureAcpDraftSession: () =>
+        Promise.resolve({
+          id: 'draft-1',
+          providerId: 'acp',
+          modelId: 'runtime-agent'
+        }),
+      modelCapabilities: {
+        'acp:runtime-agent': { supportsAudioInput: false }
+      }
+    })
+
+    ;(wrapper.vm as any).message = 'hello from draft'
+    ;(wrapper.vm as any).attachedFiles = [textFile, audioFile]
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(modelClient.getCapabilities).toHaveBeenCalledWith('acp', 'runtime-agent')
+    expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', {
+      text: 'hello from draft',
+      files: [textFile]
+    })
   })
 
   it('keeps draft input when ACP draft send fails', async () => {

@@ -152,6 +152,20 @@ const setup = async (options: SetupOptions) => {
 }
 
 describe('ModelConfigDialog reasoning portraits', () => {
+  it('renders the speech recognition model setting for chat models', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1',
+      modelConfig: {
+        speechRecognition: true
+      }
+    })
+
+    expect(wrapper.text()).toContain('settings.model.modelConfig.speechRecognition.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.speechRecognition.description')
+  })
+
   it('shows interleaved thinking when an OpenAI-compatible model defaults to interleaved mode', async () => {
     const { wrapper } = await setup({
       providerId: 'zenmux',

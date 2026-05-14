@@ -365,6 +365,65 @@ describe('LLMProviderPresenter Integration Tests', () => {
       expect(response.length).toBeGreaterThan(0)
     }, 15000)
 
+    it('falls back to completion transcription when audio endpoint is unsupported', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async (input: string | URL | Request) => {
+          const url =
+            typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+          if (url.endsWith('/audio/transcriptions')) {
+            return {
+              ok: false,
+              status: 404,
+              text: vi.fn().mockResolvedValue('mock transcription failure')
+            }
+          }
+
+          return {
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+              data: [{ id: 'mock-gpt-thinking' }, { id: 'gpt-4-mock' }, { id: 'mock-gpt-markdown' }]
+            }),
+            text: vi.fn().mockResolvedValue('')
+          }
+        })
+      )
+
+      const transcript = await llmProviderPresenter.transcribeAudioStandalone(
+        'mock-openai-api',
+        'mock-gpt-thinking',
+        'AQID',
+        'audio/wav',
+        'recording.wav'
+      )
+
+      expect(transcript).toBe('mock completion')
+    }, 15000)
+
+    it('normalizes audio MIME type casing before transcription validation', async () => {
+      const transcribeSpy = vi
+        .spyOn(AiSdkProvider.prototype, 'transcribeAudio')
+        .mockResolvedValue('mock transcript')
+
+      const transcript = await llmProviderPresenter.transcribeAudioStandalone(
+        'mock-openai-api',
+        'mock-gpt-thinking',
+        'AQID',
+        'Audio/WAV',
+        'recording.wav'
+      )
+
+      expect(transcript).toBe('mock transcript')
+      expect(transcribeSpy).toHaveBeenCalledWith(
+        'mock-gpt-thinking',
+        'AQID',
+        'audio/wav',
+        'recording.wav',
+        expect.any(Object)
+      )
+    }, 15000)
+
     it('should generate images through the standalone image runtime', async () => {
       mockConfigPresenter.getModelConfig = vi.fn().mockReturnValue({
         maxTokens: 4096,

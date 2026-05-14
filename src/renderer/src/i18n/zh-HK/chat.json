@@ -28,7 +28,14 @@
     "agentWorkspaceSelect": "選擇工作目錄",
     "agentWorkspaceTooltip": "設置 Agent 工作目錄",
     "attach": "添加附件",
-    "voiceInput": "語音輸入",
+    "voiceInput": "本地錄音",
+    "voiceInputStop": "停止本地錄音",
+    "voiceRecognitionUnsupportedTitle": "目前環境不支援本地錄音",
+    "voiceRecognitionUnsupportedDescription": "請在支援麥克風錄音的瀏覽器或桌面環境中使用此功能。",
+    "voiceRecognitionPermissionDeniedTitle": "無法存取麥克風",
+    "voiceRecognitionPermissionDeniedDescription": "請允許 DeepChat 使用麥克風後再試一次。",
+    "voiceRecognitionErrorTitle": "音訊轉寫失敗",
+    "voiceRecognitionErrorDescription": "無法完成音訊轉寫，請稍後再試。",
     "send": "傳送",
     "steer": "引導",
     "queue": "加入佇列",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "附件處理失敗",
     "fileUploadFailedDesc": "無法處理 {count} 個文件：{names}",
     "fileUploadFailedMore": " 等 {count} 個",
-    "unnamedFile": "未命名文件"
+    "unnamedFile": "未命名文件",
+    "audioInputUnsupportedTitle": "目前模型不支援音訊附件",
+    "audioInputUnsupportedDescription": "模型 {model} 不支援音訊輸入，已忽略 {count} 個音訊附件。"
   },
   "pendingInput": {
     "steer": "引導",
@@ -261,7 +270,8 @@
     }
   },
   "modelPicker": {
-    "empty": "未找到模型"
+    "empty": "未找到模型",
+    "audioInputSupported": "支援音訊輸入"
   },
   "audio": {
     "play": "播放",

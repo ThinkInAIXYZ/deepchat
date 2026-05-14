@@ -135,6 +135,7 @@ const emit = defineEmits<{
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'pending-skills-change': [skills: string[]]
+  'toggle-voice-input': []
 }>()
 
 const isComposing = ref(false)
@@ -313,6 +314,13 @@ function onCompositionEnd() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  const isVoiceShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm'
+  if (isVoiceShortcut) {
+    e.preventDefault()
+    emit('toggle-voice-input')
+    return
+  }
+
   const isPlainTab = e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey
   if (isPlainTab && props.queueSubmitEnabled && !props.queueSubmitDisabled) {
     if (mentions.isSuggestionMenuOpen.value || mentions.shouldSuppressSubmit()) {
@@ -403,6 +411,15 @@ function triggerAttach() {
   files.openFilePicker()
 }
 
+function insertRecognizedText(text: string) {
+  const normalizedText = text.trim()
+  if (!normalizedText) {
+    return
+  }
+
+  editor.chain().focus().insertContent(normalizedText).run()
+}
+
 function getPendingSkillsSnapshot(): string[] {
   return Array.from(new Set(skillsData.pendingSkills.value))
 }
@@ -414,6 +431,7 @@ function focusInput() {
 
 defineExpose({
   triggerAttach,
+  insertRecognizedText,
   getPendingSkillsSnapshot,
   focusInput
 })

@@ -422,6 +422,10 @@
       },
       "createTitle": "Add Custom Model",
       "editTitle": "Edit Model Configuration - {name}",
+      "speechRecognition": {
+        "label": "تشخیص گفتار",
+        "description": "مشخص می‌کند آیا این مدل ورودی صوتی با تبدیل محلی گفتار به متن را مجاز می‌کند یا نه."
+      },
       "functionCall": {
         "description": "این که آیا مدل از عملکردهای عملکردی پشتیبانی می کند (DeepChat پس از خاموش کردن این گزینه ، به طور خودکار تماس های عملکردی را شبیه سازی می کند)",
         "label": "تماسهای عملکردی"

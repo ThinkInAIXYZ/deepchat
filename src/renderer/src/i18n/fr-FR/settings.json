@@ -422,6 +422,10 @@
       },
       "createTitle": "Add Custom Model",
       "editTitle": "Edit Model Configuration - {name}",
+      "speechRecognition": {
+        "label": "Reconnaissance vocale",
+        "description": "Contrôle si ce modèle autorise la saisie vocale avec transcription locale en texte."
+      },
       "functionCall": {
         "description": "Si le modèle prend en charge les appels de fonction nativement (Deepchat simulera automatiquement les appels de fonction après avoir désactivé cette option)",
         "label": "Appels de fonction"

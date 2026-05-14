@@ -29,6 +29,13 @@
     "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
     "attach": "צרף",
     "voiceInput": "קלט קולי",
+    "voiceInputStop": "עצור קלט קולי",
+    "voiceRecognitionUnsupportedTitle": "הסביבה הנוכחית לא תומכת בזיהוי דיבור",
+    "voiceRecognitionUnsupportedDescription": "השתמש בתכונה זו בדפדפן או בסביבת שולחן עבודה שתומכים בזיהוי דיבור.",
+    "voiceRecognitionPermissionDeniedTitle": "לא ניתן לגשת למיקרופון",
+    "voiceRecognitionPermissionDeniedDescription": "אפשר ל-DeepChat להשתמש במיקרופון ונסה שוב.",
+    "voiceRecognitionErrorTitle": "זיהוי הדיבור נכשל",
+    "voiceRecognitionErrorDescription": "לא ניתן היה להשלים את זיהוי הדיבור. נסה שוב מאוחר יותר.",
     "send": "שלח",
     "steer": "כוון",
     "queue": "הוסף לתור",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "עיבוד הקובץ המצורף נכשל",
     "fileUploadFailedDesc": "לא ניתן לעבד {count} קבצים: {names}",
     "fileUploadFailedMore": " ועוד {count} נוספים",
-    "unnamedFile": "קובץ ללא שם"
+    "unnamedFile": "קובץ ללא שם",
+    "audioInputUnsupportedTitle": "המודל הנוכחי לא תומך בקבצי אודיו מצורפים",
+    "audioInputUnsupportedDescription": "המודל {model} לא תומך בקלט אודיו. {count} קובץ/י אודיו צורף/ו והתעלמנו מהם."
   },
   "pendingInput": {
     "steer": "הכוונה",
@@ -253,7 +262,8 @@
     }
   },
   "modelPicker": {
-    "empty": "לא נמצאו מודלים"
+    "empty": "לא נמצאו מודלים",
+    "audioInputSupported": "קלט אודיו נתמך"
   },
   "audio": {
     "play": "נגן",

@@ -5,7 +5,14 @@
     "inputArea": "输入区域",
     "functionSwitch": "功能开关",
     "attach": "添加附件",
-    "voiceInput": "语音输入",
+    "voiceInput": "本地录音",
+    "voiceInputStop": "停止本地录音",
+    "voiceRecognitionUnsupportedTitle": "当前环境不支持本地录音",
+    "voiceRecognitionUnsupportedDescription": "请在支持麦克风录音的浏览器或桌面环境中使用该功能。",
+    "voiceRecognitionPermissionDeniedTitle": "无法访问麦克风",
+    "voiceRecognitionPermissionDeniedDescription": "请允许 DeepChat 使用麦克风后重试。",
+    "voiceRecognitionErrorTitle": "音频转写失败",
+    "voiceRecognitionErrorDescription": "未能完成音频转写，请稍后重试。",
     "send": "发送",
     "steer": "引导",
     "queue": "加入队列",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "附件处理失败",
     "fileUploadFailedDesc": "无法处理 {count} 个文件：{names}",
     "fileUploadFailedMore": " 等 {count} 个",
-    "unnamedFile": "未命名文件"
+    "unnamedFile": "未命名文件",
+    "audioInputUnsupportedTitle": "当前模型不支持音频附件",
+    "audioInputUnsupportedDescription": "模型 {model} 不支持音频输入，已忽略 {count} 个音频附件。"
   },
   "pendingInput": {
     "steer": "引导",
@@ -188,7 +197,8 @@
     }
   },
   "modelPicker": {
-    "empty": "未找到模型"
+    "empty": "未找到模型",
+    "audioInputSupported": "支持音频输入"
   },
   "audio": {
     "play": "播放",

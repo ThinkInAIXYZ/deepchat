@@ -256,6 +256,20 @@
             />
           </div>
 
+          <div v-if="!showOpenAIImageGenerationSettings" class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label>{{ t('settings.model.modelConfig.speechRecognition.label') }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.model.modelConfig.speechRecognition.description') }}
+              </p>
+            </div>
+            <Switch
+              data-setting-control="speechRecognition-toggle"
+              :model-value="config.speechRecognition === true"
+              @update:model-value="(value) => (config.speechRecognition = Boolean(value))"
+            />
+          </div>
+
           <!-- 函数调用 -->
           <div v-if="!showOpenAIImageGenerationSettings" class="flex items-center justify-between">
             <div class="space-y-0.5">
@@ -527,6 +541,7 @@ import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_FUNCTION_CALL,
   DEFAULT_MODEL_MAX_TOKENS,
+  DEFAULT_MODEL_SPEECH_RECOGNITION,
   DEFAULT_MODEL_TIMEOUT,
   DEFAULT_MODEL_VISION,
   MODEL_TIMEOUT_MAX_MS,
@@ -643,6 +658,7 @@ const createDefaultConfig = (): ModelConfig => ({
   timeout: DEFAULT_MODEL_TIMEOUT,
   temperature: 0.7,
   vision: DEFAULT_MODEL_VISION,
+  speechRecognition: DEFAULT_MODEL_SPEECH_RECOGNITION,
   functionCall: DEFAULT_MODEL_FUNCTION_CALL,
   reasoning: false,
   forceInterleavedThinkingCompat: undefined,

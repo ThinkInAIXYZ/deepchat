@@ -29,6 +29,13 @@
     "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
     "attach": "Anexar",
     "voiceInput": "Entrada de voz",
+    "voiceInputStop": "Parar entrada de voz",
+    "voiceRecognitionUnsupportedTitle": "O ambiente atual não oferece suporte a reconhecimento de voz",
+    "voiceRecognitionUnsupportedDescription": "Use este recurso em um navegador ou ambiente de desktop com suporte a reconhecimento de voz.",
+    "voiceRecognitionPermissionDeniedTitle": "Não foi possível acessar o microfone",
+    "voiceRecognitionPermissionDeniedDescription": "Permita que o DeepChat use o microfone e tente novamente.",
+    "voiceRecognitionErrorTitle": "Falha no reconhecimento de voz",
+    "voiceRecognitionErrorDescription": "Não foi possível concluir o reconhecimento de voz. Tente novamente mais tarde.",
     "send": "Enviar",
     "steer": "Direcionar",
     "queue": "Enfileirar",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "Falha ao processar anexo",
     "fileUploadFailedDesc": "Não foi possível processar {count} arquivos: {names}",
     "fileUploadFailedMore": " e mais {count} arquivos",
-    "unnamedFile": "arquivo sem nome"
+    "unnamedFile": "arquivo sem nome",
+    "audioInputUnsupportedTitle": "O modelo atual não oferece suporte a anexos de áudio",
+    "audioInputUnsupportedDescription": "O modelo {model} não oferece suporte a entrada de áudio. {count} anexo(s) de áudio foram ignorados."
   },
   "pendingInput": {
     "steer": "Direcionamento",
@@ -253,7 +262,8 @@
     }
   },
   "modelPicker": {
-    "empty": "Nenhum modelo encontrado"
+    "empty": "Nenhum modelo encontrado",
+    "audioInputSupported": "Suporte a entrada de áudio"
   },
   "audio": {
     "play": "Reproduzir",

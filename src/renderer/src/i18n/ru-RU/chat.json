@@ -29,6 +29,13 @@
     "agentWorkspaceTooltip": "Установить рабочий каталог агента",
     "attach": "Прикрепить",
     "voiceInput": "Голосовой ввод",
+    "voiceInputStop": "Остановить голосовой ввод",
+    "voiceRecognitionUnsupportedTitle": "Текущая среда не поддерживает распознавание речи",
+    "voiceRecognitionUnsupportedDescription": "Используйте эту функцию в браузере или настольной среде с поддержкой распознавания речи.",
+    "voiceRecognitionPermissionDeniedTitle": "Не удалось получить доступ к микрофону",
+    "voiceRecognitionPermissionDeniedDescription": "Разрешите DeepChat использовать микрофон и попробуйте снова.",
+    "voiceRecognitionErrorTitle": "Ошибка распознавания речи",
+    "voiceRecognitionErrorDescription": "Не удалось завершить распознавание речи. Повторите попытку позже.",
     "send": "Отправить",
     "steer": "Направить",
     "queue": "В очередь",
@@ -59,7 +66,9 @@
     "fileUploadFailed": "Не удалось обработать вложение",
     "fileUploadFailedDesc": "Не удалось обработать {count} файлов: {names}",
     "fileUploadFailedMore": " и ещё {count}",
-    "unnamedFile": "файл без имени"
+    "unnamedFile": "файл без имени",
+    "audioInputUnsupportedTitle": "Текущая модель не поддерживает аудиовложения",
+    "audioInputUnsupportedDescription": "Модель {model} не поддерживает аудиоввод. Пропущено аудиофайлов: {count}."
   },
   "pendingInput": {
     "steer": "Направление",
@@ -253,7 +262,8 @@
     }
   },
   "modelPicker": {
-    "empty": "Модели не найдены"
+    "empty": "Модели не найдены",
+    "audioInputSupported": "Поддерживается аудиоввод"
   },
   "audio": {
     "play": "Воспроизвести",

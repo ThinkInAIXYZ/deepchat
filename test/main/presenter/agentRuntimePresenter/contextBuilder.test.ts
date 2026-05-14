@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   buildContext,
   buildResumeContext,
@@ -845,6 +845,89 @@ describe('buildContext', () => {
     const userHistory = result[0]
     expect(Array.isArray(userHistory.content)).toBe(true)
     expect((userHistory.content as any[]).some((part) => part.type === 'image_url')).toBe(true)
+  })
+
+  it('converts audio files to input_audio when audio input is enabled', () => {
+    const store = createMockMessageStore([])
+    const result = buildContext(
+      's1',
+      {
+        text: 'Please transcribe this clip',
+        files: [
+          {
+            name: 'clip.wav',
+            path: '/tmp/clip.wav',
+            mimeType: 'audio/wav',
+            content: 'data:audio/wav;base64,YXVkaW8tYnl0ZXM='
+          } as any
+        ]
+      },
+      '',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        supportsAudioInput: true
+      }
+    )
+
+    const userMessageParts = result[0].content as any[]
+    expect(Array.isArray(userMessageParts)).toBe(true)
+    expect(userMessageParts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'input_audio',
+          input_audio: expect.objectContaining({
+            data: 'YXVkaW8tYnl0ZXM=',
+            media_type: 'audio/wav',
+            filename: 'clip.wav'
+          })
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('[Attached Audio 1]')
+        })
+      ])
+    )
+    expect(
+      userMessageParts.some(
+        (part) =>
+          part.type === 'text' &&
+          typeof part.text === 'string' &&
+          part.text.includes('Audio file path:')
+      )
+    ).toBe(false)
+  })
+
+  it('falls back to text-only audio context when audio input is disabled', () => {
+    const store = createMockMessageStore([])
+    const result = buildContext(
+      's1',
+      {
+        text: 'Please review this clip',
+        files: [
+          {
+            name: 'clip.wav',
+            path: '/tmp/clip.wav',
+            mimeType: 'audio/wav',
+            content: 'Audio file path: /tmp/clip.wav'
+          } as any
+        ]
+      },
+      '',
+      10000,
+      4096,
+      store
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: expect.stringContaining('Audio file path:')
+      }
+    ])
+    expect(result[0].content).not.toEqual(expect.stringContaining('[Attached Audio 1]'))
   })
 })
 

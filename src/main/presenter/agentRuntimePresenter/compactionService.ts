@@ -251,6 +251,7 @@ export class CompactionService {
     reserveTokens: number
     extraReserveTokens?: number
     supportsVision: boolean
+    supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     newUserContent: string | SendMessageInput
@@ -273,7 +274,13 @@ export class CompactionService {
       records: historyRecords,
       protectedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
-      projectedMessages: [createUserChatMessage(params.newUserContent, params.supportsVision)]
+      projectedMessages: [
+        createUserChatMessage(
+          params.newUserContent,
+          params.supportsVision,
+          params.supportsAudioInput === true
+        )
+      ]
     })
   }
 
@@ -287,6 +294,7 @@ export class CompactionService {
     reserveTokens: number
     extraReserveTokens?: number
     supportsVision: boolean
+    supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     signal?: AbortSignal
@@ -335,6 +343,7 @@ export class CompactionService {
     reserveTokens: number
     extraReserveTokens?: number
     supportsVision: boolean
+    supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     projectedMessages: ChatMessage[]
@@ -371,6 +380,7 @@ export class CompactionService {
     reserveTokens: number
     extraReserveTokens?: number
     supportsVision: boolean
+    supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     signal?: AbortSignal
@@ -451,6 +461,7 @@ export class CompactionService {
     reserveTokens: number
     extraReserveTokens?: number
     supportsVision: boolean
+    supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     records: ChatMessageRecord[]
@@ -471,7 +482,8 @@ export class CompactionService {
       scopedRecords,
       params.supportsVision,
       params.preserveInterleavedReasoning,
-      params.preserveEmptyInterleavedReasoning === true
+      params.preserveEmptyInterleavedReasoning === true,
+      params.supportsAudioInput === true
     )
     if (turns.length === 0) {
       return null
