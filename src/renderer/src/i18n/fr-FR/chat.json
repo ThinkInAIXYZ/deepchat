@@ -351,5 +351,20 @@
     "previous": "Résultat précédent",
     "next": "Résultat suivant",
     "close": "Fermer la recherche"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Passer à l’agent DeepChat",
+      "description": "Avant de discuter, quittez ACP et revenez au flux intégré de DeepChat.",
+      "caption": "Cliquez sur le bouton d’agent mis en évidence dans la barre latérale pour continuer."
+    },
+    "switchModel": {
+      "description": "Choisissez le modèle à utiliser pour votre première conversation DeepChat.",
+      "caption": "Utilisez le sélecteur de modèle mis en évidence et choisissez n’importe quel modèle disponible."
+    },
+    "firstChat": {
+      "description": "Tout est prêt. Saisissez ici votre premier message pour terminer l’onboarding.",
+      "caption": "Le projecteur reste sur la zone de saisie jusqu’à l’envoi de votre premier message."
+    }
   }
 }

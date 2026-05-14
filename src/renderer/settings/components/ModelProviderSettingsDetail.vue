@@ -22,12 +22,12 @@
           </div>
         </div>
 
-        <Tabs default-value="connection" class="flex min-h-0 flex-1 flex-col gap-4">
+        <Tabs v-model="activeTab" class="flex min-h-0 flex-1 flex-col gap-4">
           <TabsList class="grid w-full grid-cols-3">
-            <TabsTrigger value="connection">
+            <TabsTrigger data-testid="provider-connection-tab-trigger" value="connection">
               {{ t('settings.provider.center.tabs.connection') }}
             </TabsTrigger>
-            <TabsTrigger value="models">
+            <TabsTrigger data-testid="provider-models-tab-trigger" value="models">
               {{ t('settings.provider.center.tabs.models') }}
             </TabsTrigger>
             <TabsTrigger value="advanced">
@@ -50,6 +50,7 @@
 
           <TabsContent value="models" class="mt-0">
             <ProviderModelManager
+              data-testid="provider-model-manager"
               :provider="provider"
               :enabled-models="enabledModels"
               :total-models-count="providerModels.length + customModels.length"
@@ -155,6 +156,12 @@ const valueToLevelMap: Record<SafetySettingValue, number> = {
 
 const props = defineProps<{
   provider: LLM_PROVIDER
+  activeOnboardingStepId?: string | null
+}>()
+
+const emit = defineEmits<{
+  'provider-configured': []
+  'provider-model-enabled': []
 }>()
 
 const { t } = useI18n()
@@ -193,6 +200,10 @@ const enabledModels = computed(() => {
 })
 const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
+const activeTab = ref<'connection' | 'models' | 'advanced'>('connection')
+const syncActiveTabFromOnboardingStep = (stepId?: string | null) => {
+  activeTab.value = stepId === 'provider-model' ? 'models' : 'connection'
+}
 
 const providerWebsites = computed<ProviderWebsites | undefined>(
   () =>
@@ -211,9 +222,34 @@ const customModelsSource = computed(
     modelStore.customModels.find((p) => p.providerId === props.provider.id)?.models ?? emptyModels
 )
 
+const isProviderReadyForOnboarding = (
+  provider: Pick<LLM_PROVIDER, 'apiKey' | 'baseUrl' | 'custom' | 'enable'>
+) => {
+  if (!provider.enable) {
+    return false
+  }
+
+  const hasApiKey = provider.apiKey?.trim().length > 0
+  if (!hasApiKey) {
+    return false
+  }
+
+  if (provider.custom) {
+    return Boolean(provider.baseUrl?.trim())
+  }
+
+  return true
+}
+
+const maybeEmitProviderConfigured = (provider: LLM_PROVIDER) => {
+  if (isProviderReadyForOnboarding(provider)) {
+    emit('provider-configured')
+  }
+}
+
 const validateApiKey = async () => {
   if (!props.provider.enable) {
-    return
+    return false
   }
 
   try {
@@ -224,15 +260,18 @@ const validateApiKey = async () => {
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
       await modelStore.refreshProviderModels(props.provider.id)
+      return true
     } else {
       console.log('验证失败', resp.errorMsg)
       checkResult.value = false
       showCheckModelDialog.value = true
+      return false
     }
   } catch (error) {
     console.error('Failed to validate API key:', error)
     checkResult.value = false
     showCheckModelDialog.value = true
+    return false
   }
 }
 
@@ -308,16 +347,29 @@ const initProviderSettings = async () => {
 watch(
   () => props.provider.id,
   () => {
+    syncActiveTabFromOnboardingStep(props.activeOnboardingStepId)
     initProviderSettings()
   },
   { immediate: true }
 )
 
-const handleApiKeyChange = (value: string) =>
-  providerStore.updateProviderApi(props.provider.id, value, undefined)
+watch(
+  () => props.activeOnboardingStepId,
+  (stepId) => {
+    syncActiveTabFromOnboardingStep(stepId)
+  },
+  { immediate: true }
+)
 
-const handleApiHostChange = (value: string) =>
-  providerStore.updateProviderApi(props.provider.id, undefined, value)
+const handleApiKeyChange = async (value: string) => {
+  const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
+  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
+}
+
+const handleApiHostChange = async (value: string) => {
+  const result = await providerStore.updateProviderApi(props.provider.id, undefined, value)
+  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
+}
 
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
 const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
@@ -357,6 +409,10 @@ const handleModelEnabledChange = async (
   })
 
   await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+
+  if (enabled) {
+    emit('provider-model-enabled')
+  }
 
   const storeComplete = getPerfNow()
   if (!uiSettingsStore.traceDebugEnabled) {
@@ -447,7 +503,9 @@ const handleOAuthSuccess = async () => {
   await initProviderSettings()
   syncModels()
   // 可以自动验证一次
-  await validateApiKey()
+  if (await validateApiKey()) {
+    emit('provider-configured')
+  }
 }
 
 // Handler for OAuth error

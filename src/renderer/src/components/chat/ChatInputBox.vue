@@ -407,9 +407,15 @@ function getPendingSkillsSnapshot(): string[] {
   return Array.from(new Set(skillsData.pendingSkills.value))
 }
 
+function focusInput() {
+  editor.chain().focus().scrollIntoView().run()
+  setCaretToEnd(editor)
+}
+
 defineExpose({
   triggerAttach,
-  getPendingSkillsSnapshot
+  getPendingSkillsSnapshot,
+  focusInput
 })
 </script>
 

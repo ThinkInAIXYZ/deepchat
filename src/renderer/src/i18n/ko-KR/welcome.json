@@ -37,6 +37,24 @@
   "page": {
     "title": "DeepChat Agent에 오신 것을 환영합니다",
     "description": "시작하려면 모델 제공자를 연결하세요",
+    "guide": {
+      "title": "설정 가이드",
+      "description": "현재 단계: {step}",
+      "coreProgress": "핵심 설정 진행도",
+      "optional": "선택 가능한 다음 단계",
+      "actions": {
+        "continueSetup": "설정 계속하기",
+        "goToChat": "채팅으로 이동"
+      },
+      "steps": {
+        "provider": "제공자",
+        "first-chat": "첫 채팅",
+        "switch-model": "모델 전환",
+        "mcp": "MCP",
+        "skills": "스킬",
+        "plugins": "플러그인"
+      }
+    },
     "browseProviders": "모든 제공자 보기...",
     "connectAgent": "또는 에이전트 연결",
     "acpTitle": "ACP 에이전트 설정",

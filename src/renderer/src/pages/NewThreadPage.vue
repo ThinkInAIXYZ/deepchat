@@ -1,6 +1,10 @@
 <template>
   <TooltipProvider :delay-duration="200">
-    <div data-testid="new-thread-page" class="h-full w-full flex flex-col">
+    <div
+      ref="guideRootRef"
+      data-testid="new-thread-page"
+      class="relative h-full w-full flex flex-col"
+    >
       <!-- Main content area (centered) -->
       <div class="flex-1 flex flex-col items-center justify-center px-6">
         <!-- Logo -->
@@ -76,6 +80,7 @@
         </DropdownMenu>
 
         <!-- Input area -->
+        <<<<<<< Updated upstream
         <ChatInputBox
           ref="chatInputRef"
           v-model="message"
@@ -97,10 +102,58 @@
             />
           </template>
         </ChatInputBox>
+        =======
+        <div ref="firstChatGuideHostRef" :class="['w-full max-w-4xl flex justify-center']">
+          <ChatInputBox
+            :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
+            ref="chatInputRef"
+            v-model="message"
+            :files="attachedFiles"
+            :session-id="acpDraftSessionId"
+            :workspace-path="projectStore.selectedProject?.path ?? null"
+            :is-acp-session="isAcpSelectedAgent"
+            :submit-disabled="isAcpWorkdirMissing"
+            @update:files="onFilesChange"
+            @pending-skills-change="onPendingSkillsChange"
+            @command-submit="onCommandSubmit"
+            @submit="onSubmit"
+          >
+            <template #toolbar>
+              <ChatInputToolbar
+                :send-disabled="isAcpWorkdirMissing || !message.trim()"
+                @attach="onAttach"
+                @send="onSubmit"
+              />
+            </template>
+          </ChatInputBox>
+        </div>
+        >>>>>>> Stashed changes
 
         <!-- Status bar -->
         <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
       </div>
+
+      <GuidedOnboardingOverlay
+        :visible="Boolean(activeChatGuide?.targetEl)"
+        :container-el="guideRootRef"
+        :target-el="activeChatGuide?.targetEl ?? null"
+        :preferred-panel-placement="activeChatGuide?.preferredPanelPlacement ?? 'auto'"
+        :eyebrow="t('welcome.page.guide.title')"
+        :title="activeChatGuide?.title ?? ''"
+        :description="activeChatGuide?.description ?? ''"
+        :caption="activeChatGuide?.caption"
+        :step-index="activeChatGuide?.stepIndex ?? 1"
+        :total-steps="activeChatGuide?.totalSteps ?? 1"
+        :close-label="t('common.close')"
+        :back-label="activeChatGuide ? t('common.back') : undefined"
+        :expert-label="activeChatGuide ? t('settings.skills.sync.skipAll') : undefined"
+        :primary-label="activeChatGuidePrimaryLabel"
+        :primary-disabled="activeChatGuidePrimaryDisabled"
+        @close="activeChatGuide?.dismiss()"
+        @back="handleActiveChatGuideBack"
+        @expert="handleActiveChatGuideExpert"
+        @primary="handleActiveChatGuidePrimary"
+      />
     </div>
   </TooltipProvider>
 </template>
@@ -108,6 +161,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
 import {
@@ -130,6 +184,9 @@ import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { createConfigClient } from '@api/ConfigClient'
 import { createFileClient } from '@api/FileClient'
 import { createSessionClient } from '@api/SessionClient'
+import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
+import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
+import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -153,17 +210,27 @@ const configClient = createConfigClient()
 const fileClient = createFileClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
+const switchAgentGuide = useGuidedOnboardingStep('switch-agent')
+const switchModelGuide = useGuidedOnboardingStep('switch-model')
+const firstChatGuide = useGuidedOnboardingStep('first-chat')
 
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
 const pendingSkills = ref<string[]>([])
+const guideRootRef = ref<HTMLElement | null>(null)
+const agentGuideTargetRef = ref<HTMLElement | null>(null)
+const modelGuideTargetRef = ref<HTMLElement | null>(null)
+const firstChatGuideHostRef = ref<HTMLElement | null>(null)
+const firstChatGuideTargetRef = ref<HTMLElement | null>(null)
 const chatInputRef = ref<{
   triggerAttach: () => void
   getPendingSkillsSnapshot?: () => string[]
+  focusInput?: () => void
 } | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
+const isCompletingSwitchAgentGuide = ref(false)
 let currentDraftDefaultsTask: Promise<void> | null = null
 let cancelEnsureDraftTask: (() => void) | null = null
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
@@ -198,6 +265,7 @@ const selectedAgent = computed(() => {
   return { id: selectedAgentId, type: resolveAgentType(selectedAgentId) }
 })
 const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
+const isDeepChatSelectedAgent = computed(() => selectedAgent.value.type === 'deepchat')
 const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
@@ -248,6 +316,189 @@ const isAcpWorkdirChecking = computed(
 const isAcpWorkdirUnavailable = computed(
   () => isAcpWorkdirMissing.value || isAcpWorkdirInvalid.value || isAcpWorkdirChecking.value
 )
+
+const syncGuideTargets = () => {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  agentGuideTargetRef.value =
+    (document.querySelector(
+      '[data-testid="sidebar-agent-button"][data-agent-id="deepchat"]'
+    ) as HTMLElement | null) ??
+    (document.querySelector(
+      '[data-testid="sidebar-agent-button"][data-agent-type="deepchat"]'
+    ) as HTMLElement | null)
+  modelGuideTargetRef.value = document.querySelector(
+    '[data-testid="app-model-switcher"]'
+  ) as HTMLElement | null
+  firstChatGuideTargetRef.value =
+    (firstChatGuideHostRef.value?.querySelector(
+      '[data-testid="chat-input-box"]'
+    ) as HTMLElement | null) ?? firstChatGuideHostRef.value
+}
+
+const activeChatGuide = computed(() => {
+  if (
+    switchAgentGuide.showGuide.value &&
+    !isDeepChatSelectedAgent.value &&
+    agentGuideTargetRef.value
+  ) {
+    return {
+      key: 'switch-agent',
+      title: t('chat.onboarding.agentSwitch.title'),
+      description: t('chat.onboarding.agentSwitch.description'),
+      caption: t('chat.onboarding.agentSwitch.caption'),
+      targetEl: agentGuideTargetRef.value,
+      stepIndex: switchAgentGuide.stepIndex.value,
+      totalSteps: switchAgentGuide.totalSteps.value,
+      dismiss: switchAgentGuide.dismissGuide
+    }
+  }
+
+  if (switchModelGuide.showGuide.value && modelGuideTargetRef.value) {
+    return {
+      key: 'switch-model',
+      preferredPanelPlacement: 'above' as const,
+      title: t('welcome.page.guide.steps.switch-model'),
+      description: t('chat.onboarding.switchModel.description'),
+      caption: t('chat.onboarding.switchModel.caption'),
+      targetEl: modelGuideTargetRef.value,
+      stepIndex: switchModelGuide.stepIndex.value,
+      totalSteps: switchModelGuide.totalSteps.value,
+      dismiss: switchModelGuide.dismissGuide
+    }
+  }
+
+  if (firstChatGuide.showGuide.value && firstChatGuideTargetRef.value) {
+    return {
+      key: 'first-chat',
+      title: t('welcome.complete.title'),
+      description: t('welcome.complete.description'),
+      caption: t('chat.onboarding.firstChat.caption'),
+      targetEl: firstChatGuideTargetRef.value,
+      stepIndex: firstChatGuide.stepIndex.value,
+      totalSteps: firstChatGuide.totalSteps.value,
+      dismiss: firstChatGuide.dismissGuide
+    }
+  }
+
+  return null
+})
+
+const activeChatGuidePrimaryLabel = computed(() => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent':
+    case 'switch-model':
+      return t('common.next')
+    default:
+      return undefined
+  }
+})
+
+const activeChatGuidePrimaryDisabled = computed(() => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent':
+      return !isDeepChatSelectedAgent.value
+    case 'switch-model':
+      return !modelGuideTargetRef.value
+    default:
+      return false
+  }
+})
+
+const continueChatGuide = async (
+  state: Awaited<ReturnType<typeof switchAgentGuide.completeStep>> | null | undefined
+) => {
+  const stepId = state?.status === 'completed' ? 'first-chat' : state?.currentStepId
+  const target = resolveGuidedOnboardingStepTarget(stepId)
+  if (target?.surface !== 'settings' || !target.routeName) {
+    return
+  }
+
+  persistGuidedOnboardingResumeIntent({
+    stepId: target.stepId,
+    trigger: 'window-focus'
+  })
+  await configClient.openSettings({ routeName: target.routeName })
+}
+
+const completeSwitchAgentStep = async () => {
+  if (
+    isCompletingSwitchAgentGuide.value ||
+    switchAgentGuide.currentStepId.value !== 'switch-agent'
+  ) {
+    return
+  }
+
+  const stepStatus = switchAgentGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  isCompletingSwitchAgentGuide.value = true
+  try {
+    const state = await switchAgentGuide.completeStep()
+    await continueChatGuide(state)
+  } finally {
+    isCompletingSwitchAgentGuide.value = false
+  }
+}
+
+const handleActiveChatGuideBack = async () => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent': {
+      const state = await switchAgentGuide.activatePreviousStep()
+      await continueChatGuide(state)
+      break
+    }
+    case 'switch-model': {
+      const state = await switchModelGuide.activatePreviousStep()
+      await continueChatGuide(state)
+      break
+    }
+    case 'first-chat': {
+      const state = await firstChatGuide.activatePreviousStep()
+      await continueChatGuide(state)
+      break
+    }
+  }
+}
+
+const handleActiveChatGuideExpert = async () => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent': {
+      const state = await switchAgentGuide.forceComplete()
+      await continueChatGuide(state)
+      break
+    }
+    case 'switch-model': {
+      const state = await switchModelGuide.forceComplete()
+      await continueChatGuide(state)
+      break
+    }
+    case 'first-chat': {
+      const state = await firstChatGuide.forceComplete()
+      await continueChatGuide(state)
+      break
+    }
+  }
+}
+
+const handleActiveChatGuidePrimary = async () => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent':
+      if (isDeepChatSelectedAgent.value) {
+        await completeSwitchAgentStep()
+      }
+      break
+    case 'switch-model': {
+      const state = await switchModelGuide.completeStep()
+      await continueChatGuide(state)
+      break
+    }
+  }
+}
 
 const ensureEnabledModelsReady = async (): Promise<boolean> => {
   if (modelStore.initialized) {
@@ -657,10 +908,36 @@ watch(
 
 onMounted(() => {
   draftStore.projectDir = projectStore.selectedProject?.path
+  void nextTick(syncGuideTargets)
+  window.addEventListener('resize', syncGuideTargets)
 })
 
 onUnmounted(() => {
   cancelEnsureDraftTask?.()
   cancelEnsureDraftTask = null
+  window.removeEventListener('resize', syncGuideTargets)
 })
+
+watch(
+  [
+    () => switchAgentGuide.showGuide.value,
+    () => switchModelGuide.showGuide.value,
+    () => firstChatGuide.showGuide.value,
+    () => selectedAgent.value.type
+  ],
+  () => {
+    void nextTick(syncGuideTargets)
+  },
+  { flush: 'post', immediate: true }
+)
+
+watch(
+  () => [switchAgentGuide.currentStepId.value, isDeepChatSelectedAgent.value] as const,
+  ([currentStepId, isDeepChatSelected]) => {
+    if (currentStepId === 'switch-agent' && isDeepChatSelected) {
+      void completeSwitchAgentStep()
+    }
+  },
+  { immediate: true }
+)
 </script>

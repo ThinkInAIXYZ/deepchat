@@ -14,7 +14,12 @@
     <div class="flex-1 rounded-xl bg-muted/20"></div>
   </div>
 
-  <div v-else data-testid="settings-mcp-page" class="w-full h-full min-h-0 flex flex-col">
+  <div
+    v-else
+    ref="guideRootRef"
+    data-testid="settings-mcp-page"
+    class="w-full h-full min-h-0 flex flex-col"
+  >
     <div class="shrink-0 px-4 pt-4">
       <div class="flex flex-col gap-3">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -24,7 +29,11 @@
               {{ t('settings.mcp.enabledDescription') }}
             </p>
           </div>
-          <div class="flex shrink-0 items-center gap-3">
+          <div
+            ref="mcpActionsRef"
+            class="flex shrink-0 items-center gap-3"
+            @click="handleMcpGuideTargetInteract"
+          >
             <Button v-if="mcpEnabled" size="sm" @click="openAddServerDialog">
               <Icon icon="lucide:plus" class="size-4" />
               {{ t('common.add') }}
@@ -162,6 +171,27 @@
       </div>
     </div>
   </div>
+
+  <GuidedOnboardingOverlay
+    :visible="showMcpGuide"
+    :container-el="guideRootRef"
+    :target-el="mcpActionsRef"
+    :eyebrow="t('welcome.page.guide.title')"
+    :title="t('welcome.page.guide.steps.mcp')"
+    :description="t('settings.mcp.enabledDescription')"
+    :step-index="mcpGuide.stepIndex.value"
+    :total-steps="mcpGuide.totalSteps.value"
+    :close-label="t('common.close')"
+    :back-label="mcpGuide.canGoPrevious?.value ? t('common.back') : undefined"
+    :secondary-label="t('settings.skills.syncPrompt.skip')"
+    :expert-label="t('settings.skills.sync.skipAll')"
+    :primary-label="t('common.next')"
+    @close="mcpGuide.dismissGuide"
+    @back="handleMcpGuideBack"
+    @secondary="handleMcpGuideSkip"
+    @expert="handleMcpGuideExpert"
+    @primary="handleMcpGuidePrimary"
+  />
 </template>
 
 <script setup lang="ts">
@@ -186,6 +216,10 @@ import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/use-toast'
 import { useRoute, useRouter } from 'vue-router'
+import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
+import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
+import { useLegacyPresenter } from '@api/legacy/presenters'
+import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
@@ -193,7 +227,12 @@ const mcpStore = useMcpStore()
 const { toast } = useToast()
 const route = useRoute()
 const router = useRouter()
+const windowPresenter = useLegacyPresenter('windowPresenter')
 const mcpServersRef = ref<{ openAddServerDialog: () => void } | null>(null)
+const guideRootRef = ref<HTMLElement | null>(null)
+const mcpActionsRef = ref<HTMLElement | null>(null)
+const mcpGuide = useGuidedOnboardingStep('mcp')
+const showMcpGuide = computed(() => mcpGuide.showGuide.value && Boolean(mcpActionsRef.value))
 
 const mcpEnabled = computed(() => mcpStore.mcpEnabled)
 const isMarketView = computed(() => route.query.view === 'market')
@@ -225,6 +264,55 @@ const builtInCount = computed(
     }).length
 )
 const customCount = computed(() => Math.max(mcpStore.serverList.length - builtInCount.value, 0))
+
+const handleMcpGuidePrimary = async () => {
+  if (mcpGuide.currentStepId.value !== 'mcp') {
+    return
+  }
+
+  const stepStatus = mcpGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  const state = await mcpGuide.completeStep()
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    windowPresenter
+  })
+}
+
+const handleMcpGuideTargetInteract = async () => {
+  await handleMcpGuidePrimary()
+}
+
+const handleMcpGuideBack = async () => {
+  const state = await mcpGuide.activatePreviousStep()
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    windowPresenter
+  })
+}
+
+const handleMcpGuideSkip = async () => {
+  const state = await mcpGuide.skipStep()
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    windowPresenter
+  })
+}
+
+const handleMcpGuideExpert = async () => {
+  const state = await mcpGuide.forceComplete()
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    windowPresenter
+  })
+}
 
 const handleMcpEnabledChange = async (enabled: boolean) => {
   await mcpStore.setMcpEnabled(enabled)

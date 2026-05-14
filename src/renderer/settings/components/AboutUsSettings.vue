@@ -136,6 +136,16 @@
         </Button>
 
         <Button
+          v-if="showMockUpdateControls"
+          variant="outline"
+          size="sm"
+          class="mb-2 text-xs"
+          @click="handleStartMockOnboarding"
+        >
+          {{ t('about.mockOnboardingButton') }}
+        </Button>
+
+        <Button
           v-if="upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -241,7 +251,7 @@ import { useLanguageStore } from '@/stores/language'
 import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/components/use-toast'
-import { SETTINGS_EVENTS } from '@/events'
+import { DEV_EVENTS, SETTINGS_EVENTS } from '@/events'
 import { useRoute } from 'vue-router'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
@@ -252,6 +262,7 @@ const languageStore = useLanguageStore()
 const route = useRoute()
 const devicePresenter = useLegacyPresenter('devicePresenter')
 const configPresenter = useLegacyPresenter('configPresenter')
+const windowPresenter = useLegacyPresenter('windowPresenter')
 const appVersion = ref('')
 const upgrade = useUpgradeStore()
 const updateChannel = ref('stable')
@@ -325,6 +336,11 @@ const handleClearMockUpdate = async () => {
   if (status === 'error' && upgrade.updateError) {
     showUpdateErrorToast(upgrade.updateError)
   }
+}
+
+const handleStartMockOnboarding = async () => {
+  await windowPresenter.sendToAllWindows(DEV_EVENTS.START_GUIDED_ONBOARDING)
+  await windowPresenter.focusMainWindow()
 }
 
 const handleExternalCheckUpdate = async () => {

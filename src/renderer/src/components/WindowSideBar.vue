@@ -36,6 +36,7 @@
             <Button
               data-testid="sidebar-agent-button"
               :data-agent-id="agent.id"
+              :data-agent-type="agent.agentType ?? agent.type"
               :data-selected="String(sidebarSelectedAgentId === agent.id)"
               size="icon"
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"

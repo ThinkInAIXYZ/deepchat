@@ -128,6 +128,10 @@ export const SETTINGS_EVENTS = {
   PROVIDER_INSTALL: 'settings:provider-install'
 }
 
+export const DEV_EVENTS = {
+  START_GUIDED_ONBOARDING: 'dev:start-guided-onboarding'
+}
+
 // ollama 相关事件
 export const OLLAMA_EVENTS = {
   PULL_MODEL_PROGRESS: 'ollama:pull-model-progress'

@@ -8,6 +8,7 @@
           >
           <div class="relative w-full">
             <Input
+              data-testid="provider-api-key-input"
               :id="`${provider.id}-accessKeyId`"
               :model-value="accessKeyId"
               :type="showAccessKeyId ? 'text' : 'password'"
@@ -154,6 +155,11 @@ const props = defineProps<{
   provider: AWS_BEDROCK_PROVIDER
 }>()
 
+const emit = defineEmits<{
+  'provider-configured': []
+  'provider-model-enabled': []
+}>()
+
 const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
@@ -176,6 +182,27 @@ const showConfirmDialog = ref(false)
 const showCheckModelDialog = ref(false)
 const showDisableAllConfirmDialog = ref(false)
 const showDeleteProviderDialog = ref(false)
+
+const isProviderReadyForOnboarding = (
+  provider: Pick<AWS_BEDROCK_PROVIDER, 'credential' | 'enable'>
+) => {
+  if (!provider.enable) {
+    return false
+  }
+
+  const credential = provider.credential
+  return Boolean(
+    credential?.accessKeyId?.trim() &&
+    credential?.secretAccessKey?.trim() &&
+    credential?.region?.trim()
+  )
+}
+
+const maybeEmitProviderConfigured = (provider: AWS_BEDROCK_PROVIDER) => {
+  if (isProviderReadyForOnboarding(provider)) {
+    emit('provider-configured')
+  }
+}
 
 const enabledModels = computed(() => {
   const enabledCustom = customModels.value.filter((m) => m.enabled)
@@ -228,34 +255,37 @@ watch(
   { deep: true }
 )
 
-const handleAccessKeyIdChange = (value: string) => {
-  providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
+const handleAccessKeyIdChange = async (value: string) => {
+  const result = await providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
     credential: {
       accessKeyId: value,
       secretAccessKey: secretAccessKey.value,
       region: region.value
     }
   })
+  maybeEmitProviderConfigured(result.updated as AWS_BEDROCK_PROVIDER)
 }
 
-const handleSecretAccessKeyChange = (value: string) => {
-  providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
+const handleSecretAccessKeyChange = async (value: string) => {
+  const result = await providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
     credential: {
       accessKeyId: accessKeyId.value,
       secretAccessKey: value,
       region: region.value
     }
   })
+  maybeEmitProviderConfigured(result.updated as AWS_BEDROCK_PROVIDER)
 }
 
-const handleRegionChange = (value: string) => {
-  providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
+const handleRegionChange = async (value: string) => {
+  const result = await providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
     credential: {
       accessKeyId: accessKeyId.value,
       secretAccessKey: secretAccessKey.value,
       region: value || undefined
     }
   })
+  maybeEmitProviderConfigured(result.updated as AWS_BEDROCK_PROVIDER)
 }
 
 const validateCredential = async () => {
@@ -284,7 +314,8 @@ const validateCredential = async () => {
 }
 
 const handleVerifyCredential = async (updates: Partial<AWS_BEDROCK_PROVIDER>) => {
-  await providerStore.updateAwsBedrockProviderConfig(props.provider.id, updates)
+  const result = await providerStore.updateAwsBedrockProviderConfig(props.provider.id, updates)
+  maybeEmitProviderConfigured(result.updated as AWS_BEDROCK_PROVIDER)
   await validateCredential()
 }
 
@@ -314,6 +345,9 @@ const handleModelEnabledChange = async (
     disableModel(model)
   } else {
     await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+    if (enabled) {
+      emit('provider-model-enabled')
+    }
   }
 }
 

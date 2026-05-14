@@ -37,6 +37,24 @@
   "page": {
     "title": "Boas-vindas ao DeepChat Agent",
     "description": "Conecte um provedor de modelo para começar",
+    "guide": {
+      "title": "Guia de configuração",
+      "description": "Etapa atual: {step}",
+      "coreProgress": "Progresso da configuração principal",
+      "optional": "Próximas etapas opcionais",
+      "actions": {
+        "continueSetup": "Continuar configuração",
+        "goToChat": "Ir para o chat"
+      },
+      "steps": {
+        "provider": "Provedor",
+        "first-chat": "Primeiro chat",
+        "switch-model": "Trocar modelo",
+        "mcp": "MCP",
+        "skills": "Habilidades",
+        "plugins": "Plugins"
+      }
+    },
     "browseProviders": "Ver todos os provedores...",
     "connectAgent": "ou conectar um agente",
     "acpTitle": "Configurar um agente ACP",

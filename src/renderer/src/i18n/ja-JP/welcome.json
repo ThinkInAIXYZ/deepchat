@@ -37,6 +37,24 @@
   "page": {
     "title": "DeepChat Agentへようこそ",
     "description": "始めるにはモデルプロバイダーを接続してください",
+    "guide": {
+      "title": "セットアップガイド",
+      "description": "現在のステップ: {step}",
+      "coreProgress": "主要セットアップの進捗",
+      "optional": "任意の次のステップ",
+      "actions": {
+        "continueSetup": "セットアップを続ける",
+        "goToChat": "チャットへ"
+      },
+      "steps": {
+        "provider": "プロバイダー",
+        "first-chat": "最初のチャット",
+        "switch-model": "モデル切り替え",
+        "mcp": "MCP",
+        "skills": "スキル",
+        "plugins": "プラグイン"
+      }
+    },
     "browseProviders": "すべてのプロバイダーを見る...",
     "connectAgent": "またはエージェントを接続",
     "acpTitle": "ACP エージェントを設定",

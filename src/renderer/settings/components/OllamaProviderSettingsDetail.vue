@@ -58,6 +58,7 @@
         <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">API Key</Label>
         <div class="relative w-full">
           <Input
+            data-testid="provider-api-key-input"
             :id="`${provider.id}-apikey`"
             v-model="apiKey"
             :type="showApiKey ? 'text' : 'password'"
@@ -333,6 +334,11 @@ const props = defineProps<{
   provider: LLM_PROVIDER
 }>()
 
+const emit = defineEmits<{
+  'provider-configured': []
+  'provider-model-enabled': []
+}>()
+
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
 const providerStore = useProviderStore()
@@ -347,6 +353,31 @@ const checkResult = ref<boolean>(false)
 const showDeleteProviderDialog = ref(false)
 const defaultBaseUrl = 'http://127.0.0.1:11434'
 const hasDefaultBaseUrl = defaultBaseUrl.length > 0
+
+const isProviderReadyForOnboarding = (
+  provider: Pick<LLM_PROVIDER, 'apiKey' | 'baseUrl' | 'custom' | 'enable'>
+) => {
+  if (!provider.enable) {
+    return false
+  }
+
+  const hasApiKey = provider.apiKey?.trim().length > 0
+  if (!hasApiKey) {
+    return false
+  }
+
+  if (provider.custom) {
+    return Boolean(provider.baseUrl?.trim())
+  }
+
+  return true
+}
+
+const maybeEmitProviderConfigured = (provider: LLM_PROVIDER) => {
+  if (isProviderReadyForOnboarding(provider)) {
+    emit('provider-configured')
+  }
+}
 
 // 模型列表 - 从 settings store 获取
 const runningModels = computed(() => ollamaStore.getOllamaRunningModels(props.provider.id))
@@ -616,6 +647,9 @@ const pullModel = async (modelName: string) => {
 const handleModelEnabledChange = async (modelName: string, enabled: boolean) => {
   try {
     await modelStore.updateModelStatus(props.provider.id, modelName, enabled)
+    if (enabled) {
+      emit('provider-model-enabled')
+    }
   } catch (error) {
     console.error(`Failed to update model status for ${modelName}:`, error)
   }
@@ -649,7 +683,8 @@ const isModelLocal = (modelName: string): boolean => {
 
 // API URL 处理
 const handleApiHostChange = async (value: string) => {
-  await providerStore.updateProviderApi(props.provider.id, undefined, value)
+  const result = await providerStore.updateProviderApi(props.provider.id, undefined, value)
+  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
 }
 
 const fillDefaultBaseUrl = async () => {
@@ -660,7 +695,8 @@ const fillDefaultBaseUrl = async () => {
 
 // API Key 处理
 const handleApiKeyChange = async (value: string) => {
-  await providerStore.updateProviderApi(props.provider.id, value, undefined)
+  const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
+  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
 }
 
 const handleApiKeyEnter = async (value: string) => {
@@ -668,7 +704,8 @@ const handleApiKeyEnter = async (value: string) => {
   if (inputElement) {
     inputElement.blur()
   }
-  await providerStore.updateProviderApi(props.provider.id, value, undefined)
+  const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
+  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
   await validateApiKey()
 }
 

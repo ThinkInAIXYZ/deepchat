@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { DEV_EVENTS } from '@/events'
 
 const buttonStub = defineComponent({
   name: 'Button',
@@ -25,6 +26,10 @@ const presenterMocks = {
   configPresenter: {
     getUpdateChannel: vi.fn().mockResolvedValue('stable'),
     setUpdateChannel: vi.fn().mockResolvedValue(undefined)
+  },
+  windowPresenter: {
+    sendToAllWindows: vi.fn().mockResolvedValue(undefined),
+    focusMainWindow: vi.fn().mockResolvedValue(true)
   }
 }
 
@@ -92,6 +97,7 @@ vi.mock('vue-i18n', () => ({
         'about.disclaimerTitle': '免责声明',
         'about.mockUpdateButton': '模拟已下载更新',
         'about.clearMockUpdateButton': '清除模拟更新',
+        'about.mockOnboardingButton': '模拟首次进入引导',
         'update.versionAvailable': `${params?.version ?? ''} 可用`,
         'update.autoUpdateFailed': '自动更新可能不稳定，请手动下载更新',
         'update.githubDownload': 'GitHub 下载',
@@ -177,6 +183,7 @@ describe('AboutUsSettings', () => {
       '意见反馈',
       '免责声明',
       '模拟已下载更新',
+      '模拟首次进入引导',
       'GitHub 下载',
       '官网下载',
       '关闭'
@@ -325,5 +332,46 @@ describe('AboutUsSettings', () => {
     await mockButton!.trigger('click')
 
     expect(upgradeStoreMock.mockDownloadedUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts the dev onboarding guide from the about page', async () => {
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          Button: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: passthroughStub('Select'),
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const onboardingButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === '模拟首次进入引导')
+
+    expect(onboardingButton).toBeTruthy()
+
+    await onboardingButton!.trigger('click')
+
+    expect(presenterMocks.windowPresenter.sendToAllWindows).toHaveBeenCalledWith(
+      DEV_EVENTS.START_GUIDED_ONBOARDING
+    )
+    expect(presenterMocks.windowPresenter.focusMainWindow).toHaveBeenCalledTimes(1)
   })
 })

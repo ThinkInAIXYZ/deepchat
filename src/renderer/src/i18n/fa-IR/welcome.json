@@ -37,6 +37,24 @@
   "page": {
     "title": "به DeepChat Agent خوش آمدید",
     "description": "برای شروع، یک ارائه‌دهنده مدل متصل کنید",
+    "guide": {
+      "title": "راهنمای راه‌اندازی",
+      "description": "گام فعلی: {step}",
+      "coreProgress": "پیشرفت راه‌اندازی اصلی",
+      "optional": "گام‌های اختیاری بعدی",
+      "actions": {
+        "continueSetup": "ادامه راه‌اندازی",
+        "goToChat": "رفتن به چت"
+      },
+      "steps": {
+        "provider": "ارائه‌دهنده",
+        "first-chat": "اولین چت",
+        "switch-model": "تغییر مدل",
+        "mcp": "MCP",
+        "skills": "مهارت‌ها",
+        "plugins": "افزونه‌ها"
+      }
+    },
     "browseProviders": "مرور همه ارائه‌دهنده‌ها...",
     "connectAgent": "یا یک ایجنت متصل کنید",
     "acpTitle": "یک ایجنت ACP راه‌اندازی کنید",

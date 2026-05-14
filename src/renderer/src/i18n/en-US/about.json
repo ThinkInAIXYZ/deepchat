@@ -16,6 +16,7 @@
   "checkUpdateButton": "Check for Updates",
   "mockUpdateButton": "Mock Downloaded Update",
   "clearMockUpdateButton": "Clear Mock Update",
+  "mockOnboardingButton": "Mock First-Run Guide",
   "updateChannel": "Update Channel",
   "stableChannel": "Stable",
   "betaChannel": "Beta"

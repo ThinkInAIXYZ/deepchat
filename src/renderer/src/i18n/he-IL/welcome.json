@@ -37,6 +37,24 @@
   "page": {
     "title": "ברוכים הבאים ל-DeepChat Agent",
     "description": "חברו ספק מודלים כדי להתחיל",
+    "guide": {
+      "title": "מדריך הגדרה",
+      "description": "השלב הנוכחי: {step}",
+      "coreProgress": "התקדמות ההגדרה הראשית",
+      "optional": "השלבים הבאים האופציונליים",
+      "actions": {
+        "continueSetup": "המשך הגדרה",
+        "goToChat": "עבור לצ'אט"
+      },
+      "steps": {
+        "provider": "ספק",
+        "first-chat": "צ'אט ראשון",
+        "switch-model": "החלפת מודל",
+        "mcp": "MCP",
+        "skills": "מיומנויות",
+        "plugins": "תוספים"
+      }
+    },
     "browseProviders": "עיינו בכל הספקים...",
     "connectAgent": "או חברו סוכן",
     "acpTitle": "הגדירו סוכן ACP",

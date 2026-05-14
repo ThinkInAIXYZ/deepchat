@@ -97,6 +97,7 @@
         <Label :for="`${provider.id}-apikey`" class="w-full cursor-pointer">API Key</Label>
         <div class="relative w-full">
           <Input
+            data-testid="provider-api-key-input"
             :id="`${provider.id}-apikey`"
             :model-value="apiKey"
             :type="showApiKey ? 'text' : 'password'"

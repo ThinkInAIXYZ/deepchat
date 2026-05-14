@@ -89,6 +89,11 @@ import {
   mcpSubmitSamplingDecisionRoute,
   mcpUpdateServerRoute,
   modelsGetProviderCatalogRoute,
+  onboardingCompleteRoute,
+  onboardingGetStateRoute,
+  onboardingResetRoute,
+  onboardingSetStepStatusRoute,
+  onboardingStartRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
@@ -216,6 +221,13 @@ import { ChatService } from './chat/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import { createPresenterHotPathPorts } from './hotPathPorts'
 import { dispatchModelRoute } from './models/modelRouteHandler'
+import {
+  completeGuidedOnboarding,
+  readGuidedOnboardingState,
+  resetGuidedOnboarding,
+  setGuidedOnboardingStepStatus,
+  startGuidedOnboarding
+} from './onboarding/onboardingRouteSupport'
 import { dispatchProviderRoute } from './providers/providerRouteHandler'
 import { createNodeScheduler } from './scheduler'
 import { ProviderService } from './providers/providerService'
@@ -1407,6 +1419,38 @@ export async function dispatchDeepchatRoute(
       const input = settingsActivityListRoute.input.parse(rawInput)
       const activities = await runtime.sqlitePresenter.listSettingsActivity(input.limit)
       return settingsActivityListRoute.output.parse({ activities })
+    }
+
+    case onboardingGetStateRoute.name: {
+      onboardingGetStateRoute.input.parse(rawInput)
+      const state = readGuidedOnboardingState(runtime.configPresenter)
+      return onboardingGetStateRoute.output.parse({ state })
+    }
+
+    case onboardingStartRoute.name: {
+      const input = onboardingStartRoute.input.parse(rawInput)
+      const state = startGuidedOnboarding(runtime.configPresenter, input)
+      return onboardingStartRoute.output.parse({ state })
+    }
+
+    case onboardingSetStepStatusRoute.name: {
+      const input = onboardingSetStepStatusRoute.input.parse(rawInput)
+      const state = setGuidedOnboardingStepStatus(runtime.configPresenter, input)
+      return onboardingSetStepStatusRoute.output.parse({ state })
+    }
+
+    case onboardingCompleteRoute.name: {
+      const input = onboardingCompleteRoute.input.parse(rawInput)
+      const state = completeGuidedOnboarding(runtime.configPresenter, Date.now(), {
+        force: input.force
+      })
+      return onboardingCompleteRoute.output.parse({ state })
+    }
+
+    case onboardingResetRoute.name: {
+      onboardingResetRoute.input.parse(rawInput)
+      const state = resetGuidedOnboarding(runtime.configPresenter)
+      return onboardingResetRoute.output.parse({ state })
     }
 
     case startupGetBootstrapRoute.name: {

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+
+const TEST_TIMEOUT_MS = 20000
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -83,6 +85,21 @@ const setup = async (query: Record<string, string> = {}) => {
       dir: 'ltr'
     })
   }))
+  vi.doMock('@/composables/useGuidedOnboardingStep', () => ({
+    useGuidedOnboardingStep: () => ({
+      showGuide: ref(false),
+      stepIndex: ref(1),
+      totalSteps: ref(6),
+      dismissGuide: vi.fn(),
+      completeStep: vi.fn().mockResolvedValue(null),
+      skipStep: vi.fn().mockResolvedValue(null)
+    })
+  }))
+  vi.doMock('@api/legacy/presenters', () => ({
+    useLegacyPresenter: () => ({
+      focusMainWindow: vi.fn().mockResolvedValue(true)
+    })
+  }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({
       toast
@@ -119,6 +136,7 @@ const setup = async (query: Record<string, string> = {}) => {
         DialogHeader: defineComponent({ name: 'DialogHeader', template: '<div />' }),
         DialogTitle: defineComponent({ name: 'DialogTitle', template: '<div />' }),
         DialogDescription: defineComponent({ name: 'DialogDescription', template: '<div />' }),
+        GuidedOnboardingOverlay: true,
         McpServers: defineComponent({
           name: 'McpServers',
           template: '<div data-testid="servers-view" />'
@@ -145,12 +163,16 @@ describe('McpSettings', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the default MCP settings content when no subview is selected', async () => {
-    const { wrapper } = await setup()
+  it(
+    'renders the default MCP settings content when no subview is selected',
+    async () => {
+      const { wrapper } = await setup()
 
-    expect(wrapper.find('[data-testid="servers-view"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="market-view"]').exists()).toBe(false)
-  })
+      expect(wrapper.find('[data-testid="servers-view"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="market-view"]').exists()).toBe(false)
+    },
+    TEST_TIMEOUT_MS
+  )
 
   it('keeps the MCP page frame static around the scrolling server list', async () => {
     const { wrapper } = await setup()

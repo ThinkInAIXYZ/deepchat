@@ -12,6 +12,7 @@
   },
   "disclaimerButton": "Aviso Legal",
   "clearMockUpdateButton": "Limpar atualização simulada",
+  "mockOnboardingButton": "Simular guia da primeira execução",
   "disclaimerTitle": "Declaração de Termos de Uso",
   "checkUpdateButton": "Verificar Atualizações",
   "mockUpdateButton": "Simular atualização baixada",
