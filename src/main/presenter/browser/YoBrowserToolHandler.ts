@@ -32,7 +32,9 @@ export class YoBrowserToolHandler {
           if (!url) {
             throw new Error('url is required')
           }
-          return JSON.stringify(await this.presenter.loadUrl(sessionId, url))
+          return JSON.stringify(
+            await this.presenter.loadUrl(sessionId, url, undefined, undefined, 'agent')
+          )
         }
         case 'cdp_send': {
           const method = typeof args.method === 'string' ? args.method : ''
@@ -47,7 +49,7 @@ export class YoBrowserToolHandler {
 
           try {
             const params = this.normalizeCdpParams(args.params)
-            const response = await this.presenter.sendCdpCommand(sessionId, method, params)
+            const response = await this.presenter.sendCdpCommand(sessionId, method, params, 'agent')
             return JSON.stringify(response ?? {})
           } catch (error) {
             if (error instanceof Error && error.name === 'YoBrowserNotReadyError') {

@@ -43,6 +43,7 @@ export default defineConfig({
         input: {
           index: resolve('src/preload/index.ts'),
           floating: resolve('src/preload/floating-preload.ts'),
+          browserOverlay: resolve('src/preload/browser-overlay-preload.ts'),
           pluginSettings: resolve('src/preload/plugin-settings-preload.ts')
         }
       }
@@ -128,6 +129,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
+          browserOverlay: resolve('src/renderer/browser-overlay/index.html'),
           floating: resolve('src/renderer/floating/index.html'),
           splash: resolve('src/renderer/splash/index.html'),
           settings: resolve('src/renderer/settings/index.html')

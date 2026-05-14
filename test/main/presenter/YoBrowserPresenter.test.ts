@@ -2,6 +2,10 @@ import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sendToRendererMock = vi.fn()
+const overlayUpdateBoundsMock = vi.fn(async () => undefined)
+const overlaySendActivityMock = vi.fn()
+const overlayHideMock = vi.fn()
+const overlayDestroyMock = vi.fn()
 
 class MockWebContents extends EventEmitter {
   id: number
@@ -96,9 +100,13 @@ class MockContentView {
 
 class MockBrowserWindow extends EventEmitter {
   contentView = new MockContentView()
+  webContents = {
+    focus: vi.fn(),
+    isDestroyed: vi.fn(() => false)
+  }
   destroyed = false
   visible = true
-  focused = false
+  focused = true
 
   constructor(public readonly id: number) {
     super()
@@ -121,6 +129,10 @@ describe('YoBrowserPresenter', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    overlayUpdateBoundsMock.mockClear()
+    overlaySendActivityMock.mockClear()
+    overlayHideMock.mockClear()
+    overlayDestroyMock.mockClear()
     vi.useFakeTimers()
   })
 
@@ -195,6 +207,15 @@ describe('YoBrowserPresenter', () => {
     vi.doMock('@/presenter/browser/yoBrowserSession', () => ({
       getYoBrowserSession: () => ({}),
       clearYoBrowserSessionData: vi.fn()
+    }))
+
+    vi.doMock('@/presenter/browser/YoBrowserOverlayWindow', () => ({
+      YoBrowserOverlayWindow: class {
+        updateBounds = overlayUpdateBoundsMock
+        sendActivity = overlaySendActivityMock
+        hide = overlayHideMock
+        destroy = overlayDestroyMock
+      }
     }))
 
     const { YoBrowserPresenter } = await import('@/presenter/browser/YoBrowserPresenter')
@@ -377,5 +398,257 @@ describe('YoBrowserPresenter', () => {
     expect(viewConfigs[0]?.webPreferences).toMatchObject({
       sandbox: true
     })
+  })
+
+  it('publishes agent navigation activity without exposing page content', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent'
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    const activityPayloads = sendToRendererMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, , envelope]) => envelope)
+      .filter((envelope: any) => envelope.name === 'browser.activity.changed')
+      .map((envelope: any) => envelope.payload)
+
+    expect(activityPayloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: 'session-a',
+          kind: 'navigation',
+          action: 'navigate',
+          phase: 'started'
+        }),
+        expect.objectContaining({
+          sessionId: 'session-a',
+          kind: 'navigation',
+          action: 'navigate',
+          phase: 'completed'
+        })
+      ])
+    )
+    expect(JSON.stringify(activityPayloads)).not.toContain('example.com')
+  })
+
+  it('maps agent CDP mouse and screenshot commands to overlay activity', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    sendToRendererMock.mockClear()
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Input.dispatchMouseEvent',
+      { type: 'mousePressed', x: 42, y: 84 },
+      'agent'
+    )
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Page.captureScreenshot',
+      { clip: { x: 4, y: 8, width: 120, height: 80, scale: 1 } },
+      'agent'
+    )
+    await Promise.resolve()
+
+    const activityPayloads = sendToRendererMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, , envelope]) => envelope)
+      .filter((envelope: any) => envelope.name === 'browser.activity.changed')
+      .map((envelope: any) => envelope.payload)
+
+    expect(activityPayloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'pointer',
+          action: 'mouse_click',
+          phase: 'started',
+          point: { x: 42, y: 84 }
+        }),
+        expect.objectContaining({
+          kind: 'vision',
+          action: 'screenshot',
+          phase: 'started',
+          rect: { x: 4, y: 8, width: 120, height: 80 }
+        })
+      ])
+    )
+    expect(overlaySendActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'pointer',
+        action: 'mouse_click',
+        point: { x: 42, y: 84 }
+      })
+    )
+  })
+
+  it('maps Runtime.evaluate click and scroll scripts to visible action cues', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    sendToRendererMock.mockClear()
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Runtime.evaluate',
+      { expression: 'document.querySelector("button")?.click()' },
+      'agent'
+    )
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Runtime.evaluate',
+      { expression: 'window.scrollBy(0, 600)' },
+      'agent'
+    )
+
+    const activityPayloads = sendToRendererMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, , envelope]) => envelope)
+      .filter((envelope: any) => envelope.name === 'browser.activity.changed')
+      .map((envelope: any) => envelope.payload)
+
+    expect(activityPayloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'pointer',
+          action: 'mouse_click',
+          phase: 'started'
+        }),
+        expect.objectContaining({
+          kind: 'scroll',
+          action: 'mouse_wheel',
+          direction: 'down',
+          phase: 'started'
+        })
+      ])
+    )
+  })
+
+  it('returns focus to the host renderer after attaching the browser view', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    const hostWindow = new MockBrowserWindow(1)
+    windows.set(1, hostWindow)
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    await presenter.attachSessionBrowser('session-a', 1)
+    await Promise.resolve()
+
+    expect(hostWindow.webContents.focus).toHaveBeenCalled()
+  })
+
+  it('does not show overlay activity when the host window is backgrounded', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    const hostWindow = new MockBrowserWindow(1)
+    hostWindow.focused = false
+    windows.set(1, hostWindow)
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    sendToRendererMock.mockClear()
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Input.dispatchMouseEvent',
+      { type: 'mousePressed', x: 42, y: 84 },
+      'agent'
+    )
+    await Promise.resolve()
+
+    const activityEvents = sendToRendererMock.mock.calls.filter(
+      ([event]) => event === 'deepchat:event'
+    )
+    expect(activityEvents.length).toBeGreaterThan(0)
+    expect(overlayUpdateBoundsMock).not.toHaveBeenCalled()
+    expect(overlaySendActivityMock).not.toHaveBeenCalled()
+    expect(hostWindow.webContents.focus).not.toHaveBeenCalled()
+  })
+
+  it('hides the overlay when the host window loses focus', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    const hostWindow = new MockBrowserWindow(1)
+    windows.set(1, hostWindow)
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    hostWindow.emit('blur')
+
+    expect(overlayHideMock).toHaveBeenCalled()
+  })
+
+  it('hides and destroys the overlay with the session browser lifecycle', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    await presenter.detachSessionBrowser('session-a')
+    expect(overlayHideMock).toHaveBeenCalled()
+
+    await presenter.destroySessionBrowser('session-a')
+    expect(overlayDestroyMock).toHaveBeenCalled()
   })
 })

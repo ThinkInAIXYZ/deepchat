@@ -370,4 +370,14 @@ describe('renderer api clients', () => {
       reactiveBounds
     )
   })
+
+  it('subscribes to browser activity events', () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+    const listener = vi.fn()
+
+    browserClient.onActivityChanged(listener)
+
+    expect(bridge.on).toHaveBeenCalledWith('browser.activity.changed', listener)
+  })
 })

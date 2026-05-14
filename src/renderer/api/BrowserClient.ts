@@ -1,5 +1,9 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { browserOpenRequestedEvent, browserStatusChangedEvent } from '@shared/contracts/events'
+import {
+  browserActivityChangedEvent,
+  browserOpenRequestedEvent,
+  browserStatusChangedEvent
+} from '@shared/contracts/events'
 import {
   browserAttachCurrentWindowRoute,
   browserDestroyRoute,
@@ -12,6 +16,7 @@ import {
   browserUpdateCurrentWindowBoundsRoute
 } from '@shared/contracts/routes'
 import type { YoBrowserStatus } from '@shared/types/browser'
+import type { YoBrowserActivityPayload } from '@shared/types/browser'
 import { getDeepchatBridge } from './core'
 import { getRuntimeWindowId, openRuntimeExternal } from './runtime'
 
@@ -134,6 +139,10 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(browserStatusChangedEvent.name, listener)
   }
 
+  function onActivityChanged(listener: (payload: YoBrowserActivityPayload) => void) {
+    return bridge.on(browserActivityChangedEvent.name, listener)
+  }
+
   return {
     getStatus,
     loadUrl,
@@ -147,7 +156,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     openExternal,
     onOpenRequested,
     onOpenRequestedForCurrentWindow,
-    onStatusChanged
+    onStatusChanged,
+    onActivityChanged
   }
 }
 

@@ -35,8 +35,35 @@ describe('YoBrowserToolHandler', () => {
 
     const result = await handler.callTool('load_url', { url: 'https://example.com' }, 'session-a')
 
-    expect(presenter.loadUrl).toHaveBeenCalledWith('session-a', 'https://example.com')
+    expect(presenter.loadUrl).toHaveBeenCalledWith(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent'
+    )
     expect(result).toBe(JSON.stringify({ initialized: true }))
+  })
+
+  it('marks CDP commands as agent activity', async () => {
+    const presenter = createPresenter()
+    const handler = new YoBrowserToolHandler(presenter)
+
+    await handler.callTool(
+      'cdp_send',
+      {
+        method: 'Input.dispatchMouseEvent',
+        params: { type: 'mousePressed', x: 24, y: 48 }
+      },
+      'session-a'
+    )
+
+    expect(presenter.sendCdpCommand).toHaveBeenCalledWith(
+      'session-a',
+      'Input.dispatchMouseEvent',
+      { type: 'mousePressed', x: 24, y: 48 },
+      'agent'
+    )
   })
 
   it('rejects old tool names as unknown tools', async () => {
