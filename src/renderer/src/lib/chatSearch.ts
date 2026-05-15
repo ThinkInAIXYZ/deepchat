@@ -177,7 +177,7 @@ export const setActiveChatSearchMatch = (
     activeMatch.scrollIntoView({
       block: 'center',
       inline: 'nearest',
-      behavior: options.behavior ?? 'smooth'
+      behavior: options.behavior ?? 'auto'
     })
   }
 

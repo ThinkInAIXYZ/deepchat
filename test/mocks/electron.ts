@@ -9,6 +9,8 @@ export const __resetElectronMockState = () => {
 export const app = {
   getName: () => 'DeepChat',
   getVersion: () => '0.0.0-test',
+  getLocale: () => 'en-US',
+  getSystemLocale: () => 'en-US',
   getAppPath: () => '/mock/app',
   getPath: (_: string) => '/mock/path',
   isPackaged: false,
@@ -76,7 +78,8 @@ export const screen = {
 }
 
 export const Menu = {
-  buildFromTemplate: (_: any[]) => ({ popup: () => {} })
+  buildFromTemplate: (_: any[]) => ({ popup: () => {} }),
+  setApplicationMenu: (_: any) => {}
 }
 
 export const Tray = function () {

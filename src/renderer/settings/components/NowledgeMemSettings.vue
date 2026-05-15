@@ -86,7 +86,7 @@
                 <div
                   v-if="!isEditingTimeout"
                   @click="startEditingTimeout"
-                  class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-accent rounded px-2"
+                  class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold hover:bg-accent rounded px-2"
                 >
                   {{ timeoutSeconds }}
                 </div>

@@ -851,7 +851,7 @@
     font-family: var(--dc-font-family);
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
     transition:
       color var(--dc-motion-default) var(--dc-ease-out-soft),
       background-color var(--dc-motion-default) var(--dc-ease-out-soft);

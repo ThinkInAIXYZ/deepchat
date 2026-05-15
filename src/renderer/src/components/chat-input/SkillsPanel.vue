@@ -13,9 +13,7 @@
       <TooltipProvider>
         <Tooltip v-for="skill in skills" :key="skill.name">
           <TooltipTrigger as-child>
-            <label
-              class="flex items-center gap-2 p-1.5 rounded hover:bg-muted transition-colors cursor-pointer"
-            >
+            <label class="flex items-center gap-2 p-1.5 rounded hover:bg-muted transition-colors">
               <Checkbox
                 :checked="isActive(skill.name)"
                 @update:checked="$emit('toggle', skill.name)"

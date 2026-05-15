@@ -2,7 +2,7 @@
   <div
     class="flex items-center justify-between p-2 border rounded-lg transition-colors"
     :class="{
-      'hover:bg-accent cursor-pointer': tool.available && skillCount > 0,
+      'hover:bg-accent': tool.available && skillCount > 0,
       'opacity-60': !tool.available
     }"
   >

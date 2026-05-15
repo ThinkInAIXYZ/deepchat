@@ -120,7 +120,7 @@
           <TableRow
             v-for="activity in activities"
             :key="activity.id"
-            class="cursor-pointer"
+            class=""
             @click="openActivity(activity)"
           >
             <TableCell class="whitespace-nowrap text-xs text-muted-foreground">

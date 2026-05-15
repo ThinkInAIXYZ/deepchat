@@ -26,7 +26,7 @@
 
         <TabsContent value="folder" class="mt-4">
           <div
-            class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+            class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors"
             @click="selectFolder"
           >
             <Icon
@@ -50,7 +50,7 @@
 
         <TabsContent value="zip" class="mt-4">
           <div
-            class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+            class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors"
             @click="selectZip"
           >
             <Icon

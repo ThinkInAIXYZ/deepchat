@@ -193,7 +193,7 @@ watch(watchDescription, () => {
       <!-- 描述 -->
       <p
         ref="descriptionRef"
-        class="text-xs text-secondary-foreground cursor-pointer overflow-hidden leading-5 break-all mb-2"
+        class="text-xs text-secondary-foreground overflow-hidden leading-5 break-all mb-2"
         :class="[
           !isDescriptionExpanded ? 'line-clamp-1' : '',
           needsExpansion ? 'hover:text-foreground transition-colors' : ''

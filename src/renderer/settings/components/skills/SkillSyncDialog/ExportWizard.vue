@@ -84,7 +84,7 @@
             <div
               v-for="tool in availableTools"
               :key="tool.id"
-              class="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+              class="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors"
               :class="{ 'border-primary bg-accent': selectedToolId === tool.id }"
               @click="selectedToolId = tool.id"
             >
@@ -124,7 +124,7 @@
                 <div class="flex items-start gap-2">
                   <RadioGroupItem value="on-demand" id="kiro-on-demand" class="mt-0.5" />
                   <div>
-                    <Label for="kiro-on-demand" class="text-sm font-normal cursor-pointer">
+                    <Label for="kiro-on-demand" class="text-sm font-normal">
                       {{ t('settings.skills.sync.kiroOnDemand') }}
                     </Label>
                     <p class="text-xs text-muted-foreground">
@@ -135,7 +135,7 @@
                 <div class="flex items-start gap-2">
                   <RadioGroupItem value="always" id="kiro-always" class="mt-0.5" />
                   <div>
-                    <Label for="kiro-always" class="text-sm font-normal cursor-pointer">
+                    <Label for="kiro-always" class="text-sm font-normal">
                       {{ t('settings.skills.sync.kiroAlways') }}
                     </Label>
                     <p class="text-xs text-muted-foreground">
@@ -146,7 +146,7 @@
                 <div class="flex items-start gap-2">
                   <RadioGroupItem value="conditional" id="kiro-conditional" class="mt-0.5" />
                   <div class="flex-1">
-                    <Label for="kiro-conditional" class="text-sm font-normal cursor-pointer">
+                    <Label for="kiro-conditional" class="text-sm font-normal">
                       {{ t('settings.skills.sync.kiroConditional') }}
                     </Label>
                     <p class="text-xs text-muted-foreground">

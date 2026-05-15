@@ -40,7 +40,7 @@
                 </span>
                 <span
                   :class="[
-                    'text-xs px-2 py-0.5 rounded-md cursor-pointer transition-colors',
+                    'text-xs px-2 py-0.5 rounded-md transition-colors',
                     prompt.enabled
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'

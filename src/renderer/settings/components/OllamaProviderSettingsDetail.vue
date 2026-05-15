@@ -3,7 +3,7 @@
     <div class="w-full h-full p-2 flex flex-col gap-2 overflow-y-auto">
       <div class="flex flex-col items-start p-2 gap-2">
         <div class="flex justify-between items-center w-full">
-          <Label :for="`${provider.id}-url`" class="flex-1 cursor-pointer">API URL</Label>
+          <Label :for="`${provider.id}-url`" class="flex-1">API URL</Label>
           <Button
             v-if="provider.custom"
             variant="destructive"
@@ -55,7 +55,7 @@
       </div>
 
       <div class="flex flex-col items-start p-2 gap-2">
-        <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">API Key</Label>
+        <Label :for="`${provider.id}-apikey`" class="flex-1">API Key</Label>
         <div class="relative w-full">
           <Input
             data-testid="provider-api-key-input"
@@ -94,7 +94,7 @@
       </div>
 
       <div class="flex flex-col items-start p-2 gap-2">
-        <Label :for="`${provider.id}-model`" class="flex-1 cursor-pointer">
+        <Label :for="`${provider.id}-model`" class="flex-1">
           {{ t('settings.provider.modelList') }}
         </Label>
         <div class="flex flex-row gap-2 items-center">

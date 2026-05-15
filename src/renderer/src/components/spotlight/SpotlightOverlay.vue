@@ -25,7 +25,7 @@
             v-for="(item, index) in spotlightStore.results"
             :key="item.id"
             type="button"
-            class="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors"
+            class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors"
             :class="
               index === spotlightStore.activeIndex
                 ? 'bg-accent text-accent-foreground'

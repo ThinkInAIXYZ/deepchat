@@ -1,7 +1,7 @@
 <template>
   <div :class="containerClass">
     <div v-if="block.extra?.needContinue" class="flex flex-row items-center gap-2 w-full">
-      <div class="flex flex-row gap-2 items-center cursor-pointer">
+      <div class="flex flex-row gap-2 items-center">
         <Icon icon="lucide:info" class="w-4 h-4 text-red-500/80" />
       </div>
       <div

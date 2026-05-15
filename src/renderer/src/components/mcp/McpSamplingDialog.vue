@@ -23,7 +23,7 @@
           <Collapsible v-if="store.request.systemPrompt" :default-open="false">
             <CollapsibleTrigger as-child>
               <div
-                class="flex items-center justify-between py-2 cursor-pointer hover:bg-muted/20 rounded-md px-3 -mx-3"
+                class="flex items-center justify-between py-2 hover:bg-muted/20 rounded-md px-3 -mx-3"
               >
                 <h4 class="text-sm font-semibold text-muted-foreground">
                   {{ t('mcp.sampling.systemPrompt') }}
@@ -99,7 +99,7 @@
           <Collapsible v-if="preferenceSummary.length > 0" :default-open="false">
             <CollapsibleTrigger as-child>
               <div
-                class="flex items-center justify-between py-2 cursor-pointer hover:bg-muted/20 rounded-md px-3 -mx-3"
+                class="flex items-center justify-between py-2 hover:bg-muted/20 rounded-md px-3 -mx-3"
               >
                 <h4 class="text-sm font-semibold text-muted-foreground">
                   {{ t('mcp.sampling.preferencesTitle') }}

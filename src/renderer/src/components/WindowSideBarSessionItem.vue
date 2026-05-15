@@ -117,7 +117,7 @@ const titleSegments = computed(() => {
 <template>
   <div
     data-testid="sidebar-session-item"
-    class="session-item no-drag flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 text-left transition-colors duration-150"
+    class="session-item no-drag flex w-full select-none items-center rounded-lg px-2.5 text-left transition-colors duration-150"
     :class="[
       active ? 'bg-accent text-accent-foreground' : 'text-foreground/80 hover:bg-accent/50',
       heroHidden && 'is-hero-hidden'

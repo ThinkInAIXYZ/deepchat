@@ -3,7 +3,7 @@
     class="text-xs leading-4 text-[rgba(37,37,37,0.5)] dark:text-white/50 flex flex-col gap-[6px]"
   >
     <div
-      class="inline-flex items-center gap-[10px] cursor-pointer select-none self-start"
+      class="inline-flex items-center gap-[10px] select-none self-start"
       @click="$emit('toggle')"
     >
       <span class="whitespace-nowrap">
