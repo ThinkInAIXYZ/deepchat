@@ -157,7 +157,7 @@
 
             <div class="space-y-4">
               <div
-                class="group border-2 border-dashed border-muted rounded-lg p-4 hover:border-primary/50 hover:bg-muted/20 transition-all cursor-pointer"
+                class="group border-2 border-dashed border-muted rounded-lg p-4 hover:border-primary/50 hover:bg-muted/20 transition-all"
                 @click="uploadFile"
               >
                 <div class="flex items-center gap-3">

@@ -40,7 +40,7 @@
                 type="button"
                 :data-testid="getSettingsTabTestId(setting.name)"
                 :class="[
-                  'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent cursor-pointer',
+                  'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent',
                   route.name === setting.name ? 'bg-accent text-accent-foreground' : ''
                 ]"
                 @click="handleClick(setting.path)"

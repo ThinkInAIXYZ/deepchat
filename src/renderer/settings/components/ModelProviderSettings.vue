@@ -53,7 +53,7 @@
             <Icon
               v-else
               icon="lucide:x"
-              class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground hover:text-foreground"
               @click="clearSearch"
             />
           </div>
@@ -75,7 +75,7 @@
               <div
                 :data-provider-id="provider.id"
                 :class="[
-                  'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 cursor-pointer group',
+                  'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 group',
                   route.params?.providerId === provider.id ? 'bg-accent text-accent-foreground' : ''
                 ]"
                 @click="handleProviderRowClick(provider.id)"
@@ -108,7 +108,7 @@
                   <Icon
                     v-if="provider.custom"
                     icon="lucide:pencil"
-                    class="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100! cursor-pointer shrink-0"
+                    class="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100! shrink-0"
                     @click="startEditingName(provider, $event)"
                   />
                 </template>
@@ -138,7 +138,7 @@
               <div
                 :data-provider-id="provider.id"
                 :class="[
-                  'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 cursor-pointer group opacity-60',
+                  'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 group opacity-60',
                   route.params?.providerId === provider.id ? 'bg-accent text-accent-foreground' : ''
                 ]"
                 @click="handleProviderRowClick(provider.id)"
@@ -171,7 +171,7 @@
                   <Icon
                     v-if="provider.custom"
                     icon="lucide:pencil"
-                    class="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100! cursor-pointer shrink-0"
+                    class="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100! shrink-0"
                     @click="startEditingName(provider, $event)"
                   />
                 </template>
@@ -188,7 +188,7 @@
           <Button
             data-testid="provider-add-button"
             variant="outline"
-            class="w-full flex flex-row items-center gap-2 rounded-lg p-2 backdrop-blur-lg cursor-pointer hover:bg-accent"
+            class="w-full flex flex-row items-center gap-2 rounded-lg p-2 backdrop-blur-lg hover:bg-accent"
             @click="openAddProviderDialog"
           >
             <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />

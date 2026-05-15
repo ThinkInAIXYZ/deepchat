@@ -58,7 +58,7 @@
           <div
             @dragover.prevent
             @drop.prevent="handleDrop"
-            class="h-20 border border-border cursor-pointer rounded-lg text-muted-foreground hover:bg-muted/0 transition-colors"
+            class="h-20 border border-border rounded-lg text-muted-foreground hover:bg-muted/0 transition-colors"
           >
             <div class="flex flex-col items-center justify-center h-full gap-2">
               <div class="flex items-center gap-1">

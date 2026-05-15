@@ -2,7 +2,7 @@
   <div class="w-full relative">
     <div class="flex w-full justify-between items-center sticky top-0 z-30 backdrop-blur">
       <div class="flex flex-col w-full gap-2">
-        <Label :for="`${provider.id}-model`" class="flex-1 cursor-pointer">{{
+        <Label :for="`${provider.id}-model`" class="flex-1">{{
           t('settings.provider.modelList')
         }}</Label>
         <div class="text-xs text-muted-foreground">

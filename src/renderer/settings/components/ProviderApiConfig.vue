@@ -15,7 +15,7 @@
     <!-- API URL 配置 -->
     <div class="flex flex-col items-start gap-2">
       <div class="flex justify-between items-center w-full">
-        <Label :for="`${provider.id}-url`" class="flex-1 cursor-pointer">API URL</Label>
+        <Label :for="`${provider.id}-url`" class="flex-1">API URL</Label>
         <Button
           v-if="provider.custom"
           variant="destructive"
@@ -94,7 +94,7 @@
     <!-- API Key 配置 (GitHub Copilot 时隐藏手动输入) -->
     <div v-else class="flex flex-col items-start gap-4">
       <div class="flex flex-col gap-2 w-full">
-        <Label :for="`${provider.id}-apikey`" class="w-full cursor-pointer">API Key</Label>
+        <Label :for="`${provider.id}-apikey`" class="w-full">API Key</Label>
         <div class="relative w-full">
           <Input
             data-testid="provider-api-key-input"

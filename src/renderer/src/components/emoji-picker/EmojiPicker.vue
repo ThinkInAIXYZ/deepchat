@@ -469,7 +469,7 @@ const selectEmoji = (emoji: string) => {
               v-for="category in categories"
               :key="category.id"
               :value="category.id"
-              class="w-0 grow py-1 cursor-pointer"
+              class="w-0 grow py-1"
               :title="category.name"
             >
               {{ category.icon }}

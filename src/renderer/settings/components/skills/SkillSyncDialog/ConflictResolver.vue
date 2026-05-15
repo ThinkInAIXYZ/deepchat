@@ -40,19 +40,19 @@
           >
             <div class="flex items-center space-x-2">
               <RadioGroupItem value="skip" :id="`${conflict.skillName}-skip`" />
-              <Label :for="`${conflict.skillName}-skip`" class="text-sm cursor-pointer">
+              <Label :for="`${conflict.skillName}-skip`" class="text-sm">
                 {{ t('settings.skills.sync.skip') }}
               </Label>
             </div>
             <div class="flex items-center space-x-2">
               <RadioGroupItem value="overwrite" :id="`${conflict.skillName}-overwrite`" />
-              <Label :for="`${conflict.skillName}-overwrite`" class="text-sm cursor-pointer">
+              <Label :for="`${conflict.skillName}-overwrite`" class="text-sm">
                 {{ t('settings.skills.sync.overwrite') }}
               </Label>
             </div>
             <div class="flex items-center space-x-2">
               <RadioGroupItem value="rename" :id="`${conflict.skillName}-rename`" />
-              <Label :for="`${conflict.skillName}-rename`" class="text-sm cursor-pointer">
+              <Label :for="`${conflict.skillName}-rename`" class="text-sm">
                 {{ t('settings.skills.sync.rename') }}
               </Label>
             </div>

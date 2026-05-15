@@ -2,7 +2,7 @@
   <div class="flex flex-col w-full">
     <div
       data-testid="tool-call-trigger"
-      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none cursor-pointer overflow-hidden bg-accent hover:bg-accent/40"
+      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none overflow-hidden bg-accent hover:bg-accent/40"
       @click="toggleExpanded"
     >
       <span
@@ -67,7 +67,7 @@
             :class="[
               'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] overflow-hidden',
               task.sessionId
-                ? 'cursor-pointer bg-background hover:bg-accent/60'
+                ? 'bg-background hover:bg-accent/60'
                 : 'cursor-default bg-background/80 opacity-70'
             ]"
             @click.stop="handleSubagentSessionOpen(task)"

@@ -32,7 +32,7 @@
               <Input
                 v-model="syncFolderPath"
                 :disabled="!syncStore.syncEnabled"
-                class="h-8! cursor-pointer"
+                class="h-8!"
                 @click="syncStore.selectSyncFolder"
               />
               <Button
@@ -326,12 +326,12 @@
                 <div class="p-4">
                   <RadioGroup v-model="resetType" class="flex flex-col gap-3">
                     <div
-                      class="flex cursor-pointer items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      class="flex items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
                       @click="resetType = 'chat'"
                     >
                       <RadioGroupItem value="chat" id="reset-chat" class="mt-1" />
                       <div class="flex flex-col">
-                        <Label for="reset-chat" class="cursor-pointer font-medium">{{
+                        <Label for="reset-chat" class="font-medium">{{
                           t('settings.data.resetChatData')
                         }}</Label>
                         <p class="text-xs text-muted-foreground">
@@ -340,12 +340,12 @@
                       </div>
                     </div>
                     <div
-                      class="flex cursor-pointer items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      class="flex items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
                       @click="resetType = 'knowledge'"
                     >
                       <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
                       <div class="flex flex-col">
-                        <Label for="reset-knowledge" class="cursor-pointer font-medium">{{
+                        <Label for="reset-knowledge" class="font-medium">{{
                           t('settings.data.resetKnowledgeData')
                         }}</Label>
                         <p class="text-xs text-muted-foreground">
@@ -354,12 +354,12 @@
                       </div>
                     </div>
                     <div
-                      class="flex cursor-pointer items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      class="flex items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
                       @click="resetType = 'config'"
                     >
                       <RadioGroupItem value="config" id="reset-config" class="mt-1" />
                       <div class="flex flex-col">
-                        <Label for="reset-config" class="cursor-pointer font-medium">{{
+                        <Label for="reset-config" class="font-medium">{{
                           t('settings.data.resetConfig')
                         }}</Label>
                         <p class="text-xs text-muted-foreground">
@@ -368,12 +368,12 @@
                       </div>
                     </div>
                     <div
-                      class="flex cursor-pointer items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      class="flex items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
                       @click="resetType = 'all'"
                     >
                       <RadioGroupItem value="all" id="reset-all" class="mt-1" />
                       <div class="flex flex-col">
-                        <Label for="reset-all" class="cursor-pointer font-medium">{{
+                        <Label for="reset-all" class="font-medium">{{
                           t('settings.data.resetAll')
                         }}</Label>
                         <p class="text-xs text-muted-foreground">

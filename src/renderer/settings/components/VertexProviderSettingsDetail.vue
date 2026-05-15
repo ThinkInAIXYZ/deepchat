@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col gap-4">
     <div class="flex flex-col items-start gap-2">
-      <Label :for="`${provider.id}-projectId`" class="flex-1 cursor-pointer">
+      <Label :for="`${provider.id}-projectId`" class="flex-1">
         {{ t('settings.provider.vertexProjectId') }}
       </Label>
       <Input
@@ -15,7 +15,7 @@
     </div>
 
     <div class="flex flex-col items-start gap-2">
-      <Label :for="`${provider.id}-location`" class="flex-1 cursor-pointer">
+      <Label :for="`${provider.id}-location`" class="flex-1">
         {{ t('settings.provider.vertexLocation') }}
       </Label>
       <Input
@@ -30,7 +30,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="flex flex-col items-start gap-2">
-        <Label :for="`${provider.id}-apiVersion`" class="flex-1 cursor-pointer">
+        <Label :for="`${provider.id}-apiVersion`" class="flex-1">
           {{ t('settings.provider.vertexApiVersion') }}
         </Label>
         <Select v-model="apiVersion" @update:model-value="handleApiVersionChange">
@@ -45,7 +45,7 @@
       </div>
 
       <div class="flex flex-col items-start gap-2">
-        <Label :for="`${provider.id}-endpointMode`" class="flex-1 cursor-pointer">
+        <Label :for="`${provider.id}-endpointMode`" class="flex-1">
           {{ t('settings.provider.vertexEndpointMode') }}
         </Label>
         <Select v-model="endpointMode" @update:model-value="handleEndpointModeChange">
@@ -65,7 +65,7 @@
     </div>
 
     <div class="flex flex-col items-start gap-2">
-      <Label :for="`${provider.id}-serviceEmail`" class="flex-1 cursor-pointer">
+      <Label :for="`${provider.id}-serviceEmail`" class="flex-1">
         {{ t('settings.provider.vertexServiceEmail') }}
       </Label>
       <Input
@@ -79,7 +79,7 @@
     </div>
 
     <div class="flex flex-col items-start gap-2">
-      <Label :for="`${provider.id}-privateKey`" class="flex-1 cursor-pointer">
+      <Label :for="`${provider.id}-privateKey`" class="flex-1">
         {{ t('settings.provider.vertexPrivateKey') }}
       </Label>
       <div class="relative w-full">

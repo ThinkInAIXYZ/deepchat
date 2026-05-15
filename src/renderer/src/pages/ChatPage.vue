@@ -358,7 +358,7 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
   target.scrollIntoView({
     block: 'center',
     inline: 'nearest',
-    behavior: 'smooth'
+    behavior: 'auto'
   })
   target.classList.add('message-highlight')
 

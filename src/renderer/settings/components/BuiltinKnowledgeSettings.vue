@@ -165,7 +165,7 @@
                       <TooltipTrigger as-child>
                         <Icon
                           icon="lucide:circle-question-mark"
-                          class="cursor-pointer text-primary outline-none focus:outline-none text-sm"
+                          class="text-primary outline-none focus:outline-none text-sm"
                         />
                       </TooltipTrigger>
                       <TooltipContent>
@@ -275,7 +275,7 @@
                         <TooltipTrigger as-child>
                           <Icon
                             icon="lucide:circle-question-mark"
-                            class="cursor-pointer text-primary outline-none focus:outline-none text-sm"
+                            class="text-primary outline-none focus:outline-none text-sm"
                           />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -305,7 +305,7 @@
                         <TooltipTrigger as-child>
                           <Icon
                             icon="lucide:circle-question-mark"
-                            class="cursor-pointer text-primary outline-none focus:outline-none text-sm"
+                            class="text-primary outline-none focus:outline-none text-sm"
                           />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -338,7 +338,7 @@
                         <TooltipTrigger as-child>
                           <Icon
                             icon="lucide:circle-question-mark"
-                            class="cursor-pointer text-primary outline-none focus:outline-none text-sm"
+                            class="text-primary outline-none focus:outline-none text-sm"
                           />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -374,7 +374,7 @@
                             <TooltipTrigger as-child>
                               <Icon
                                 icon="lucide:circle-question-mark"
-                                class="cursor-pointer text-primary outline-none focus:outline-none"
+                                class="text-primary outline-none focus:outline-none"
                               />
                             </TooltipTrigger>
                             <TooltipContent>
@@ -436,7 +436,7 @@
                             <TooltipTrigger as-child>
                               <Icon
                                 icon="lucide:circle-question-mark"
-                                class="cursor-pointer text-primary outline-none focus:outline-none"
+                                class="text-primary outline-none focus:outline-none"
                               />
                             </TooltipTrigger>
                             <TooltipContent>
@@ -468,7 +468,7 @@
                             <TooltipTrigger as-child>
                               <Icon
                                 icon="lucide:circle-question-mark"
-                                class="cursor-pointer text-primary outline-none focus:outline-none"
+                                class="text-primary outline-none focus:outline-none"
                               />
                             </TooltipTrigger>
                             <TooltipContent>
@@ -504,7 +504,7 @@
                               <TooltipTrigger as-child>
                                 <Icon
                                   icon="lucide:circle-question-mark"
-                                  class="cursor-pointer text-primary outline-none focus:outline-none"
+                                  class="text-primary outline-none focus:outline-none"
                                 />
                               </TooltipTrigger>
                               <TooltipContent>

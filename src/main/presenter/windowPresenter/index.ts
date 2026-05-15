@@ -647,9 +647,10 @@ export class WindowPresenter implements IWindowPresenter {
       show: false, // 先隐藏窗口，等待 ready-to-show 以避免白屏
       autoHideMenuBar: true, // 隐藏菜单栏
       icon: iconFile, // 设置图标
-      titleBarStyle: 'hiddenInset', // macOS 风格标题栏
+      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined, // macOS 风格标题栏
       transparent: process.platform === 'darwin', // macOS 标题栏透明
-      vibrancy: process.platform === 'darwin' ? 'hud' : undefined, // macOS 磨砂效果
+      vibrancy: process.platform === 'darwin' ? 'under-window' : undefined, // macOS 磨砂效果
+      visualEffectState: process.platform === 'darwin' ? 'followWindow' : undefined,
       backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined, // Windows 11 材质效果
       backgroundColor: '#00ffffff', // 透明背景色
       maximizable: true, // 允许最大化
@@ -1275,9 +1276,10 @@ export class WindowPresenter implements IWindowPresenter {
 
       icon: iconFile,
       title: 'DeepChat - Settings',
-      titleBarStyle: 'hiddenInset',
+      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
       transparent: process.platform === 'darwin',
-      vibrancy: process.platform === 'darwin' ? 'hud' : undefined,
+      vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
+      visualEffectState: process.platform === 'darwin' ? 'followWindow' : undefined,
       backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined,
       backgroundColor: '#00ffffff',
       maximizable: true,

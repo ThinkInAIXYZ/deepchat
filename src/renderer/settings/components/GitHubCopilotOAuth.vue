@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col items-start gap-2">
-    <Label class="flex-1 cursor-pointer">
+    <Label class="flex-1">
       {{ t('settings.provider.githubCopilotAuth') }}
     </Label>
 
