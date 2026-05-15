@@ -41,6 +41,7 @@
     "plugin:validate": "node scripts/plugin.mjs validate",
     "plugin:package": "node scripts/plugin.mjs package",
     "plugin:bundle": "node scripts/plugin.mjs bundle",
+    "plugin:verify": "node scripts/plugin.mjs verify",
     "plugin:bundle:clean": "node -e \"require('fs').rmSync('build/bundled-plugins',{recursive:true,force:true})\"",
     "plugin:cua:build": "node scripts/build-cua-plugin-runtime.mjs",
     "plugin:cua:build:mac:arm64": "node scripts/build-cua-plugin-runtime.mjs --arch arm64",

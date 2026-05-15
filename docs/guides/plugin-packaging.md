@@ -54,6 +54,16 @@ Package into `build/bundled-plugins/` for embedding into the Electron app.
 pnpm run plugin:bundle -- --name <plugin> --platform <platform> --arch <arch>
 ```
 
+### Verify
+
+Verify expected bundled official plugin artifacts from plugin metadata.
+
+```bash
+pnpm run plugin:verify -- --name <plugin> --platform <platform> --arch <arch> --plugin-root <plugins-dir>
+```
+
+When `--name` is omitted, the script verifies all official plugins supported by the target platform.
+
 ### Clean
 
 Remove all bundled plugin artifacts:
