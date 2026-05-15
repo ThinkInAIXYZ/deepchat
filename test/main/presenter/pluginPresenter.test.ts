@@ -1,11 +1,15 @@
 import { createHash } from 'node:crypto'
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { app, BrowserWindow } from 'electron'
 import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const execFileAsync = promisify(execFile)
 
 vi.mock('electron-store', () => ({
   default: class MockElectronStore {
@@ -71,6 +75,7 @@ const createPluginPresenter = async (
     stopServer: vi.fn().mockResolvedValue(undefined)
   }
   const skillPresenter = {
+    registerPluginSkill: vi.fn().mockResolvedValue(undefined),
     unregisterPluginSkillsByOwner: vi.fn().mockResolvedValue(undefined)
   }
   const presenter = new PluginPresenter({
@@ -310,6 +315,51 @@ const createDirectoryFixture = async (
   }
 }
 
+const createPackagedFeishuFixture = async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-feishu-plugin-test-'))
+  tempRoots.push(root)
+  const appPath = path.join(root, 'app')
+  const userDataPath = path.join(root, 'userData')
+  const packageRoot = path.join(appPath, 'build', 'bundled-plugins')
+  await mkdir(packageRoot, { recursive: true })
+  await mkdir(userDataPath, { recursive: true })
+
+  await execFileAsync(
+    process.execPath,
+    [
+      'scripts/package-plugin.mjs',
+      '--release-version-from-root',
+      '--target-platform',
+      'darwin',
+      '--target-arch',
+      process.arch,
+      '--out',
+      packageRoot,
+      'plugins/feishu'
+    ],
+    {
+      cwd: originalCwd
+    }
+  )
+
+  vi.mocked(app.getPath).mockImplementation((name: string) => {
+    if (name === 'userData') {
+      return userDataPath
+    }
+    if (name === 'temp' || name === 'home') {
+      return root
+    }
+    return '/mock/path'
+  })
+
+  return {
+    appPath,
+    userDataPath,
+    packageRoot,
+    pluginId: 'com.deepchat.plugins.feishu'
+  }
+}
+
 describe('PluginPresenter', () => {
   afterEach(async () => {
     process.chdir(originalCwd)
@@ -367,6 +417,46 @@ describe('PluginPresenter', () => {
       installed: true,
       enabled: false
     })
+  })
+
+  it('loads packaged Feishu in dev and activates its settings, MCP server, and skill', async () => {
+    const fixture = await createPackagedFeishuFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+
+    const plugin = (await presenter.listPlugins()).find((item) => item.id === fixture.pluginId)
+
+    expect(plugin).toMatchObject({
+      id: fixture.pluginId,
+      name: 'Feishu/Lark Integration',
+      enabled: false,
+      settings: {
+        id: 'feishu-settings',
+        ownerPluginId: fixture.pluginId,
+        title: 'Feishu/Lark Integration'
+      }
+    })
+
+    const result = await presenter.enablePlugin(fixture.pluginId)
+    const installRoot = path.join(fixture.userDataPath, 'plugins', fixture.pluginId)
+    const servers = await presenter.__mocks.configPresenter.getMcpServers()
+
+    expect(result.ok).toBe(true)
+    expect(servers['feishu-tools']).toMatchObject({
+      command: 'node',
+      args: [path.join(installRoot, 'mcp', 'serve.mjs')],
+      source: 'plugin',
+      sourceId: fixture.pluginId,
+      ownerPluginId: fixture.pluginId,
+      enabled: true
+    })
+    expect(presenter.__mocks.skillPresenter.registerPluginSkill).toHaveBeenCalledWith({
+      ownerPluginId: fixture.pluginId,
+      id: 'feishu-tools',
+      skillRoot: path.join(installRoot, 'skills', 'feishu-tools'),
+      pluginRoot: installRoot
+    })
+    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('feishu-tools')
+    expect(fs.existsSync(path.join(installRoot, 'settings', 'index.html'))).toBe(true)
   })
 
   it('restores plugin settings from the installed manifest when stored resources are missing', async () => {
@@ -982,28 +1072,77 @@ describe('PluginPresenter', () => {
     expect(source).toContain('TelemetryClient.shared.record(event: entryEvent)')
   })
 
-  it('wires CUA plugin packaging docs and release gates for both mac architectures', async () => {
+  it('wires official plugin packaging scripts, docs, and release gates', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8'))
     const buildWorkflow = await readFile('.github/workflows/build.yml', 'utf8')
     const releaseWorkflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const builderConfig = await readFile('electron-builder.yml', 'utf8')
+    const ensureScript = await readFile('scripts/ensure-official-plugins.mjs', 'utf8')
     const packageScript = await readFile('scripts/package-plugin.mjs', 'utf8')
     const guide = await readFile('docs/guides/plugin-packaging.md', 'utf8')
 
+    expect(packageJson.scripts.dev).toContain('plugin:official:ensure')
+    expect(packageJson.scripts['dev:trace']).toContain('plugin:official:ensure')
+    expect(packageJson.scripts['dev:inspect']).toContain('plugin:official:ensure')
+    expect(packageJson.scripts['dev:linux']).toContain('plugin:official:ensure')
+    expect(packageJson.scripts['plugin:official:bundle']).toContain('--clean')
+    expect(packageJson.scripts['plugin:official:package']).toContain('--out dist/plugins')
+    expect(packageJson.scripts['plugin:official:verify']).toContain('--verify')
+    expect(
+      Object.keys(packageJson.scripts).some((script) => script.startsWith('plugin:feishu'))
+    ).toBe(false)
+    expect(
+      Object.keys(packageJson.scripts).some((script) =>
+        /^plugin:official:bundle:(mac|linux|win)/.test(script)
+      )
+    ).toBe(false)
+    expect(
+      Object.keys(packageJson.scripts).some((script) => script.startsWith('plugin:cua:bundle'))
+    ).toBe(false)
     expect(packageJson.scripts['plugin:cua:package:mac:arm64']).toContain('--target-arch arm64')
     expect(packageJson.scripts['plugin:cua:package:mac:x64']).toContain('--target-arch x64')
     expect(packageJson.scripts['plugin:cua:build:mac:x64']).toContain('--arch x64')
-    expect(packageJson.scripts['plugin:cua:bundle:mac:arm64']).toContain('--target-arch arm64')
-    expect(packageJson.scripts['plugin:cua:bundle:mac:x64']).toContain('--target-arch x64')
-    expect(packageJson.scripts['build:mac:arm64']).toContain('plugin:cua:bundle:mac:arm64')
-    expect(buildWorkflow).toContain('pnpm run plugin:cua:bundle:mac:${{ matrix.arch }}')
-    expect(buildWorkflow).toContain('Verify bundled CUA plugin')
-    expect(buildWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')
-    expect(releaseWorkflow).toContain('pnpm run plugin:cua:bundle:mac:${{ matrix.arch }}')
+    expect(packageJson.scripts['build:mac:arm64']).toContain(
+      'plugin:official:bundle -- --target-platform darwin --target-arch arm64'
+    )
+    expect(packageJson.scripts['build:linux:x64']).toContain(
+      'plugin:official:bundle -- --target-platform linux --target-arch x64'
+    )
+    expect(packageJson.scripts['build:win:x64']).toContain(
+      'plugin:official:bundle -- --target-platform win32 --target-arch x64'
+    )
+    expect(buildWorkflow).toContain('pnpm run plugin:official:bundle -- --target-platform win32')
+    expect(buildWorkflow).toContain('pnpm run plugin:official:bundle -- --target-platform linux')
+    expect(buildWorkflow).toContain('pnpm run plugin:official:bundle -- --target-platform darwin')
+    expect(buildWorkflow).toContain('Verify bundled official plugins')
+    expect(buildWorkflow).toContain('pnpm run plugin:official:verify -- --target-platform win32')
+    expect(buildWorkflow).toContain('pnpm run plugin:official:verify -- --target-platform linux')
+    expect(buildWorkflow).toContain('pnpm run plugin:official:verify -- --target-platform darwin')
+    expect(buildWorkflow).not.toContain('deepchat-plugin-feishu-')
+    expect(buildWorkflow).not.toContain('deepchat-plugin-cua-')
+    expect(releaseWorkflow).toContain('pnpm run plugin:official:bundle -- --target-platform win32')
+    expect(releaseWorkflow).toContain('pnpm run plugin:official:bundle -- --target-platform linux')
+    expect(releaseWorkflow).toContain('pnpm run plugin:official:bundle -- --target-platform darwin')
+    expect(releaseWorkflow).toContain('pnpm run plugin:official:verify -- --target-platform win32')
+    expect(releaseWorkflow).toContain('pnpm run plugin:official:verify -- --target-platform linux')
+    expect(releaseWorkflow).toContain('pnpm run plugin:official:verify -- --target-platform darwin')
+    expect(releaseWorkflow).not.toContain('deepchat-plugin-feishu-')
+    expect(releaseWorkflow).not.toContain('deepchat-plugin-cua-')
     expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
     expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')
+    expect(builderConfig).toContain('from: ./build/bundled-plugins/')
+    expect(builderConfig).toContain('to: app.asar.unpacked/plugins')
+    expect(ensureScript).toContain('function discoverOfficialPlugins()')
+    expect(ensureScript).toContain('manifest.source?.type !== OFFICIAL_PLUGIN_SOURCE')
+    expect(ensureScript).toContain('function verifyPlugins(args)')
+    expect(ensureScript).toContain('--plugin-root')
+    expect(ensureScript).not.toContain("manifestId: 'com.deepchat.plugins.feishu'")
+    expect(ensureScript).toContain('fs.existsSync(outPath)')
+    expect(ensureScript).toContain('scripts/package-plugin.mjs')
     expect(packageScript).toContain("parts[0] === 'runtime'")
     expect(packageScript).toContain('parts[2] !== args.targetArch')
     expect(guide).toContain('build/bundled-plugins/')
     expect(guide).toContain('app.asar.unpacked/plugins/')
+    expect(guide).toContain('deepchat-plugin-feishu-<version>-linux-x64.dcplugin')
   })
 })

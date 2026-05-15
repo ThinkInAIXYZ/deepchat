@@ -23,6 +23,28 @@ Official packages keep DeepChat release asset URLs in their manifest metadata:
 https://github.com/ThinkInAIXYZ/deepchat/releases/download/v<version>/<asset-name>.dcplugin
 ```
 
+## Official Plugin Artifacts
+
+DeepChat bundles official plugins from `build/bundled-plugins/`. The official plugin script scans
+`plugins/*/plugin.json`, selects manifests with `source.type: deepchat-official`, and packages the
+plugins supported by the target platform:
+
+- Feishu/Lark on `darwin`, `linux`, and `win32`.
+- CUA on `darwin` only.
+
+Feishu packages are platform and architecture specific:
+
+```text
+deepchat-plugin-feishu-<version>-darwin-arm64.dcplugin
+deepchat-plugin-feishu-<version>-darwin-x64.dcplugin
+deepchat-plugin-feishu-<version>-linux-x64.dcplugin
+deepchat-plugin-feishu-<version>-win32-x64.dcplugin
+```
+
+Development startup runs the official plugin ensure step before Electron starts. The ensure step
+creates only missing expected artifacts; use the clean bundle command when plugin sources changed
+without a version bump.
+
 ## CUA Plugin Artifacts
 
 The CUA plugin ships one macOS helper app per CPU architecture. The bundled package filename
@@ -73,8 +95,20 @@ pnpm run plugin:cua:package:mac:x64
 Build the package that will be embedded into the macOS app:
 
 ```bash
-pnpm run plugin:cua:bundle:mac:arm64
-pnpm run plugin:cua:bundle:mac:x64
+pnpm run plugin:official:bundle -- --target-platform darwin --target-arch arm64
+pnpm run plugin:official:bundle -- --target-platform darwin --target-arch x64
+```
+
+Build package artifacts for one official plugin:
+
+```bash
+pnpm run plugin:official:package -- --plugin feishu --target-platform linux --target-arch x64
+```
+
+Refresh all bundled official plugins for the current platform and architecture:
+
+```bash
+pnpm run plugin:official:bundle
 ```
 
 Validate explicit macOS architectures after their helper runtimes have been staged:
@@ -98,15 +132,17 @@ build/bundled-plugins/
 
 ## CI And Release
 
-The macOS build matrix in `.github/workflows/build.yml` builds the matching CUA plugin bundle before
+The build matrix in `.github/workflows/build.yml` builds the matching official plugin bundle before
 running `electron-builder`. Electron Builder embeds it into:
 
 ```text
-DeepChat.app/Contents/Resources/app.asar.unpacked/plugins/
+resources/app.asar.unpacked/plugins/
 ```
 
-Each matrix job verifies the expected bundled `.dcplugin` exists inside the app before uploading
-artifacts.
+Each matrix job verifies the expected bundled `.dcplugin` files exist inside the app before
+uploading artifacts. The workflow calls the generic official plugin verifier once per platform; the
+script decides which plugin artifacts are expected from the manifests, so adding a normal official
+plugin does not require a new CI verification step.
 
 The release workflow repeats the same bundled package step. The final release uploads app artifacts
 only; `.dcplugin` files are not published as separate GitHub Release assets.
@@ -116,4 +152,8 @@ Expected embedded files:
 ```text
 app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-darwin-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-darwin-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-darwin-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-darwin-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-linux-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-win32-x64.dcplugin
 ```
