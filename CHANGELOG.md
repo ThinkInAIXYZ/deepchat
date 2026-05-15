@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.0.4 (2026-05-15)
+- Added guided onboarding, voice input transcription, and a redesigned settings control center to make first setup and daily configuration easier
+- Added agent image generation, OpenAI image settings, Mac computer use, manual compaction, and side panel fullscreen controls for more capable agent workflows
+- Added Mistral, Xiaomi Token Plan regions, refreshed provider data, and improved model capability controls for broader model access
+- Improved remote control across Feishu, Weixin, Discord, QQ Bot, Telegram, and WeChat iLink with richer media delivery and steadier streamed replies
+- Improved ACP and agent runtime reliability with safer working-directory handling, context budgeting, session routing, tool output limits, and persisted turn metadata
+- Improved chat and workspace responsiveness with smoother Markdown streaming, older-message pagination, YoBrowser activity feedback, and more native desktop interactions
+- Hardened plugin MCP isolation, SVG and external-link handling, provider verification, config import compatibility, and SQLite upgrade recovery
+- Updated bundled runtimes, AI SDK patch versions, Markstream rendering, provider registry data, and release packaging support for stable builds
+- 新增引导式上手、语音输入转写和重新设计的设置控制中心，让首次配置与日常设置更顺手
+- 新增 Agent 图片生成、OpenAI 图片设置、Mac 电脑使用、手动压缩和侧边栏全屏控制，提升 Agent 工作流能力
+- 新增 Mistral、小米 Token Plan 多区域支持，刷新 Provider 数据，并优化模型能力控制，扩展模型接入范围
+- 优化飞书、微信、Discord、QQ Bot、Telegram 与 WeChat iLink 远程控制，支持更丰富的媒体投递和更稳定的流式回复
+- 优化 ACP 与 Agent 运行时可靠性，包括工作目录保护、上下文预算、会话路由、工具输出限制和 turn 元数据持久化
+- 优化聊天与工作区响应表现，改进 Markdown 流式渲染、历史消息分页、YoBrowser 活动反馈和更原生的桌面交互
+- 加强 Plugin MCP 隔离、SVG 与外部链接处理、Provider 验证、配置导入兼容性和 SQLite 升级恢复
+- 更新内置运行时、AI SDK patch 版本、Markstream 渲染、Provider registry 数据与发布打包支持，面向稳定构建
+
 ## v1.0.4-beta.8 (2026-05-12)
 - Added a redesigned settings control center with overview cards, grouped navigation, settings activity, and refined MCP, provider, and data panels
 - Added a fullscreen toggle for the side panel and improved layout responsiveness across side panel and workspace views
