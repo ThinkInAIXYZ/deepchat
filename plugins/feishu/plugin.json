@@ -11,7 +11,7 @@
   "capabilities": ["runtime.manage", "mcp.register", "skills.register", "settings.contribute"],
   "source": {
     "type": "deepchat-official",
-    "url": "${github.release.download}/deepchat-plugin-feishu-${app.version}-${arch}.dcplugin",
+    "url": "${github.release.download}/deepchat-plugin-feishu-${app.version}-${target.platform}-${arch}.dcplugin",
     "publisher": "DeepChat"
   },
   "mcpServers": [
