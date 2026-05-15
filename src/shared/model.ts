@@ -5,13 +5,15 @@ export enum ModelType {
   Chat = 'chat',
   Embedding = 'embedding',
   Rerank = 'rerank',
-  ImageGeneration = 'imageGeneration'
+  ImageGeneration = 'imageGeneration',
+  TTS = 'tts'
 }
 
 export enum ApiEndpointType {
   Chat = 'chat',
   Image = 'image',
-  Video = 'video'
+  Video = 'video',
+  AudioSpeech = 'audio-speech'
 }
 
 export const NEW_API_ENDPOINT_TYPES = [
@@ -169,4 +171,7 @@ export const resolveProviderCapabilityProviderId = (
 }
 
 export const isChatSelectableModelType = (type: ModelType | undefined): boolean =>
-  type === undefined || type === ModelType.Chat || type === ModelType.ImageGeneration
+  type === undefined ||
+  type === ModelType.Chat ||
+  type === ModelType.ImageGeneration ||
+  type === ModelType.TTS

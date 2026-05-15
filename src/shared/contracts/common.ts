@@ -12,6 +12,7 @@ import {
   IMAGE_GENERATION_OUTPUT_FORMAT_VALUES,
   IMAGE_GENERATION_QUALITY_VALUES
 } from '../imageGenerationSettings'
+import { TTS_RESPONSE_FORMAT_VALUES } from '../ttsSettings'
 
 export type JsonValue =
   | string
@@ -55,6 +56,15 @@ export const ImageGenerationOptionsSchema = z
     outputCompression: z.number().int().min(0).max(100).optional(),
     background: z.enum(OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES).optional(),
     moderation: z.enum(IMAGE_GENERATION_MODERATION_VALUES).optional()
+  })
+  .optional()
+
+export const TtsSettingsSchema = z
+  .object({
+    voice: z.string().optional(),
+    responseFormat: z.enum(TTS_RESPONSE_FORMAT_VALUES).optional(),
+    speed: z.number().min(0.25).max(4.0).optional(),
+    instructions: z.string().optional()
   })
   .optional()
 

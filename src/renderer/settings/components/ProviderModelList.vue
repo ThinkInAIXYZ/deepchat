@@ -390,7 +390,8 @@ const TYPE_ICONS: Record<ModelType, string> = {
   [ModelType.Chat]: 'lucide:messages-square',
   [ModelType.Embedding]: 'lucide:database',
   [ModelType.Rerank]: 'lucide:arrow-up-wide-narrow',
-  [ModelType.ImageGeneration]: 'lucide:image'
+  [ModelType.ImageGeneration]: 'lucide:image',
+  [ModelType.TTS]: 'lucide:volume-2'
 }
 
 const props = defineProps<{
@@ -450,7 +451,12 @@ const hasModelCapability = (model: RENDERER_MODEL_META, capability: ModelCapabil
   }
 }
 
-const getModelTypeLabel = (type: ModelType) => t(`model.filter.typeOptions.${type}`)
+const getModelTypeLabel = (type: ModelType) => {
+  if (type === ModelType.TTS) {
+    return t('settings.provider.voiceai.title')
+  }
+  return t(`model.filter.typeOptions.${type}`)
+}
 const getCapabilityLabel = (capability: ModelCapabilityKey) =>
   t(`model.filter.capabilityOptions.${capability}`)
 

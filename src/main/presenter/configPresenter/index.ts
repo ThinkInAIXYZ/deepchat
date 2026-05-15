@@ -984,6 +984,8 @@ export class ConfigPresenter implements IConfigPresenter {
         return ModelType.Rerank
       case 'imageGeneration':
         return ModelType.ImageGeneration
+      case 'tts':
+        return ModelType.TTS
       case 'chat':
       default:
         return ModelType.Chat

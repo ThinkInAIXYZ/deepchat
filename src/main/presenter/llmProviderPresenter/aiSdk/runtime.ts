@@ -19,6 +19,13 @@ import {
   supportsOpenAIImageGenerationSettings,
   type ImageGenerationOptions
 } from '@shared/imageGenerationSettings'
+import {
+  isChatAudioTtsModel,
+  isStandardTtsModel,
+  isTtsModelConfig,
+  normalizeTtsSettings,
+  ttsFormatToMimeType
+} from '@shared/ttsSettings'
 import { presenter } from '@/presenter'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
@@ -53,6 +60,7 @@ export interface AiSdkRuntimeContext {
   cleanHeaders?: boolean
   supportsNativeTools?: (modelId: string, modelConfig: ModelConfig) => boolean
   shouldUseImageGeneration?: (modelId: string, modelConfig: ModelConfig) => boolean
+  shouldUseTts?: (modelId: string, modelConfig: ModelConfig) => boolean
 }
 
 function resolveCapabilityProviderId(context: AiSdkRuntimeContext, modelId: string): string {
@@ -156,6 +164,163 @@ function shouldUseImageGenerationRuntime(
   }
 
   return modelConfig.apiEndpoint === ApiEndpointType.Image
+}
+
+function shouldUseTtsRuntime(
+  context: AiSdkRuntimeContext,
+  modelId: string,
+  modelConfig: ModelConfig
+): boolean {
+  if (context.shouldUseTts) {
+    return context.shouldUseTts(modelId, modelConfig)
+  }
+
+  return (
+    modelConfig.apiEndpoint === ApiEndpointType.AudioSpeech ||
+    isTtsModelConfig(modelConfig) ||
+    isStandardTtsModel(modelId) ||
+    isChatAudioTtsModel(modelId)
+  )
+}
+
+/**
+ * Extracts the text to be synthesized from the last user message in the conversation.
+ */
+function extractTtsText(messages: ChatMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg.role === 'user') {
+      const text = normalizePromptValue(msg.content)
+      if (text.trim()) return text.trim()
+    }
+  }
+  return ''
+}
+
+/**
+ * Pattern A: calls the standard OpenAI-compatible /audio/speech endpoint.
+ */
+async function executeTtsPatternA(
+  provider: LLM_PROVIDER,
+  defaultHeaders: Record<string, string>,
+  text: string,
+  modelId: string,
+  modelConfig: ModelConfig,
+  timeout: number | undefined
+): Promise<{ base64: string; mimeType: string }> {
+  const tts = normalizeTtsSettings(modelConfig.tts)
+  const format = tts?.responseFormat ?? 'mp3'
+  const baseUrl = (provider.baseUrl || '').replace(/\/+$/, '').replace(/\/v1$/i, '')
+  const url = `${baseUrl}/v1/audio/speech`
+
+  const body: Record<string, unknown> = {
+    model: modelId,
+    input: text,
+    voice: tts?.voice ?? 'alloy',
+    response_format: format
+  }
+  if (tts?.speed !== undefined) {
+    body.speed = tts.speed
+  }
+  if (tts?.instructions) {
+    body.instructions = tts.instructions
+  }
+
+  const controller = new AbortController()
+  const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...defaultHeaders,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${provider.oauthToken || provider.apiKey || ''}`
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    })
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      throw new Error(`TTS request failed (${response.status}): ${errText}`)
+    }
+
+    const buffer = await response.arrayBuffer()
+    const base64 = Buffer.from(buffer).toString('base64')
+    return { base64, mimeType: ttsFormatToMimeType(format) }
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
+  }
+}
+
+/**
+ * Pattern B: calls the chat completions endpoint with audio output
+ * (e.g. xiaomimimo mimo-v2.5-tts series).
+ */
+async function executeTtsPatternB(
+  provider: LLM_PROVIDER,
+  defaultHeaders: Record<string, string>,
+  text: string,
+  modelId: string,
+  modelConfig: ModelConfig,
+  timeout: number | undefined
+): Promise<{ base64: string; mimeType: string }> {
+  const tts = normalizeTtsSettings(modelConfig.tts)
+  const format = tts?.responseFormat ?? 'wav'
+  const baseUrl = (provider.baseUrl || '').replace(/\/+$/, '').replace(/\/v1$/i, '')
+  const url = `${baseUrl}/v1/chat/completions`
+
+  const body: Record<string, unknown> = {
+    model: modelId,
+    messages: [{ role: 'user', content: text }],
+    modalities: ['text', 'audio'],
+    audio: {
+      format,
+      ...(tts?.voice ? { voice: tts.voice } : {})
+    }
+  }
+
+  const controller = new AbortController()
+  const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...defaultHeaders,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${provider.oauthToken || provider.apiKey || ''}`
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    })
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      throw new Error(`TTS (chat audio) request failed (${response.status}): ${errText}`)
+    }
+
+    const json = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          audio?: { data?: string }
+          content?: Array<{ type?: string; audio?: { data?: string } }>
+        }
+      }>
+    }
+    const firstMessage = json.choices?.[0]?.message
+    const audioData =
+      firstMessage?.audio?.data ??
+      firstMessage?.content?.find((item) => item?.type === 'audio')?.audio?.data
+    if (!audioData) {
+      throw new Error('TTS response missing audio data in choices[0].message.audio.data')
+    }
+
+    return { base64: audioData, mimeType: ttsFormatToMimeType(format) }
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
+  }
 }
 
 function resolveRequestTimeout(modelConfig: ModelConfig): number | undefined {
@@ -397,6 +562,44 @@ export async function* runAiSdkCoreStream(
 ): AsyncGenerator<LLMCoreStreamEvent> {
   const normalizedModelConfig = normalizeRuntimeModelConfig(context, modelId, modelConfig)
   const timeout = resolveRequestTimeout(normalizedModelConfig)
+
+  if (shouldUseTtsRuntime(context, modelId, normalizedModelConfig)) {
+    const text = extractTtsText(messages)
+    const usePatternB = isChatAudioTtsModel(modelId)
+
+    const { base64, mimeType } = usePatternB
+      ? await executeTtsPatternB(
+          context.provider,
+          context.defaultHeaders,
+          text,
+          modelId,
+          normalizedModelConfig,
+          timeout
+        )
+      : await executeTtsPatternA(
+          context.provider,
+          context.defaultHeaders,
+          text,
+          modelId,
+          normalizedModelConfig,
+          timeout
+        )
+
+    const dataUrl = `data:${mimeType};base64,${base64}`
+    const cachedAudio = await presenter.devicePresenter.cacheImage(dataUrl)
+    yield {
+      type: 'image_data',
+      image_data: {
+        data: cachedAudio,
+        mimeType
+      }
+    }
+    yield {
+      type: 'stop',
+      stop_reason: 'complete'
+    }
+    return
+  }
 
   if (shouldUseImageGenerationRuntime(context, modelId, normalizedModelConfig)) {
     const prompt = extractImagePrompt(messages)

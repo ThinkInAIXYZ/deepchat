@@ -4,6 +4,7 @@ import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import {
   FileMetadataValueSchema,
   ImageGenerationOptionsSchema,
+  TtsSettingsSchema,
   JsonValueSchema,
   ProviderModelSummarySchema
 } from './common'
@@ -250,7 +251,8 @@ export const ModelConfigSchema = z
     enableSearch: z.boolean().optional(),
     forcedSearch: z.boolean().optional(),
     searchStrategy: z.enum(['turbo', 'balanced', 'precise']).optional(),
-    imageGeneration: ImageGenerationOptionsSchema
+    imageGeneration: ImageGenerationOptionsSchema,
+    tts: TtsSettingsSchema
   })
   .passthrough()
 

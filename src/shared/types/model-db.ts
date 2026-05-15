@@ -129,7 +129,7 @@ export const ModelSchema = z.object({
   release_date: z.string().optional(),
   last_updated: z.string().optional(),
   cost: z.record(z.union([z.string(), z.number()])).optional(),
-  type: z.enum(['chat', 'embedding', 'rerank', 'imageGeneration']).optional()
+  type: z.enum(['chat', 'embedding', 'rerank', 'imageGeneration', 'tts']).optional()
 })
 
 export type ProviderModel = z.infer<typeof ModelSchema>
@@ -382,7 +382,7 @@ function getStringNumberRecord(obj: unknown): Record<string, string | number> | 
   return Object.keys(out).length ? out : undefined
 }
 
-type ModelTypeValue = 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
+type ModelTypeValue = 'chat' | 'embedding' | 'rerank' | 'imageGeneration' | 'tts'
 
 function getEffortValue(v: unknown): ReasoningEffort | undefined {
   return isReasoningEffort(v) ? v : undefined
@@ -464,6 +464,7 @@ function getModelTypeValue(v: unknown): ModelTypeValue | undefined {
     case 'embedding':
     case 'rerank':
     case 'imageGeneration':
+    case 'tts':
       return v
   }
 
@@ -479,6 +480,8 @@ function getModelTypeValue(v: unknown): ModelTypeValue | undefined {
     case 'imagegeneration':
     case 'imagegen':
       return 'imageGeneration'
+    case 'tts':
+      return 'tts'
     default:
       return undefined
   }
