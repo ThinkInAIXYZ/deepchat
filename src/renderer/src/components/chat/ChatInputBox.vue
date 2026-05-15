@@ -89,6 +89,7 @@ import {
   buildChatInputWorkspaceReferenceText,
   getChatInputWorkspaceItemDragData
 } from '@/lib/chatInputWorkspaceReference'
+import { extractPlainUrlFromClipboard } from '@/lib/clipboardUrlPaste'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
 import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
@@ -361,6 +362,19 @@ function onDialogOpenChange(open: boolean) {
 
 function onPaste(event: ClipboardEvent) {
   void files.handlePaste(event, true)
+
+  if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+    return
+  }
+
+  const pastedUrl = extractPlainUrlFromClipboard(event.clipboardData)
+  if (!pastedUrl) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  editor.chain().focus().insertContent(pastedUrl).run()
 }
 
 function onDragOver(event: DragEvent) {

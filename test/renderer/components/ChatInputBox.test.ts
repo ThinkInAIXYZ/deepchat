@@ -210,6 +210,26 @@ describe('ChatInputBox attachments', () => {
     })
   }
 
+  const dispatchPaste = async (wrapper: Awaited<ReturnType<typeof mountComponent>>, data: any) => {
+    const event = new Event('paste', {
+      bubbles: true,
+      cancelable: true
+    })
+    Object.defineProperty(event, 'clipboardData', {
+      value: data
+    })
+    const preventDefault = vi.spyOn(event, 'preventDefault')
+    const stopPropagation = vi.spyOn(event, 'stopPropagation')
+
+    wrapper.find('.chat-input-editor').element.dispatchEvent(event)
+    await nextTick()
+
+    return {
+      preventDefault,
+      stopPropagation
+    }
+  }
+
   it('exposes triggerAttach and calls file picker', async () => {
     const wrapper = await mountComponent()
     ;(wrapper.vm as any).triggerAttach()
@@ -226,6 +246,72 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     await wrapper.find('.chat-input-editor').trigger('paste')
     expect(handlePasteMock).toHaveBeenCalled()
+  })
+
+  it('inserts only the URL for browser rich URL paste payloads', async () => {
+    const wrapper = await mountComponent()
+    const clipboardData = {
+      files: { length: 0 },
+      getData: vi.fn((format: string) => {
+        if (format === 'text/plain') {
+          return 'https://example.com/a?b=1#c'
+        }
+        if (format === 'text/html') {
+          return '<a href="https://example.com/a?b=1#c">Example title</a><p>Description</p>'
+        }
+        return ''
+      })
+    }
+
+    const { preventDefault, stopPropagation } = await dispatchPaste(wrapper, clipboardData)
+
+    expect(handlePasteMock).toHaveBeenCalled()
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(stopPropagation).toHaveBeenCalledTimes(1)
+    expect(insertContentMock).toHaveBeenCalledWith('https://example.com/a?b=1#c')
+  })
+
+  it('leaves ordinary text paste to the editor default handler', async () => {
+    const wrapper = await mountComponent()
+    const clipboardData = {
+      files: { length: 0 },
+      getData: vi.fn((format: string) => {
+        if (format === 'text/plain') {
+          return 'visit https://example.com'
+        }
+        if (format === 'text/html') {
+          return '<p>visit <a href="https://example.com">Example</a></p>'
+        }
+        return ''
+      })
+    }
+
+    const { preventDefault, stopPropagation } = await dispatchPaste(wrapper, clipboardData)
+
+    expect(handlePasteMock).toHaveBeenCalled()
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(stopPropagation).not.toHaveBeenCalled()
+    expect(insertContentMock).not.toHaveBeenCalled()
+  })
+
+  it('does not intercept file paste payloads as URLs', async () => {
+    const wrapper = await mountComponent()
+    const clipboardData = {
+      files: { length: 1 },
+      getData: vi.fn((format: string) => {
+        if (format === 'text/plain') {
+          return 'https://example.com'
+        }
+        return ''
+      })
+    }
+
+    const { preventDefault, stopPropagation } = await dispatchPaste(wrapper, clipboardData)
+
+    expect(handlePasteMock).toHaveBeenCalled()
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(stopPropagation).not.toHaveBeenCalled()
+    expect(insertContentMock).not.toHaveBeenCalled()
   })
 
   it('configures the editor with a bounded scrollable input area', async () => {
