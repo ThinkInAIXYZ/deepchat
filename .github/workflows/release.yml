@@ -165,6 +165,7 @@ jobs:
       - name: Build Windows
         run: |
           pnpm run build
+          pnpm run plugin:bundle -- --name feishu --platform win32 --arch ${{ matrix.arch }}
           pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -221,6 +222,7 @@ jobs:
       - name: Build Linux
         run: |
           pnpm run build
+          pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ matrix.arch }}
           pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -288,7 +290,9 @@ jobs:
       - name: Build Mac
         run: |
           pnpm run build
-          pnpm run plugin:cua:bundle:mac:${{ matrix.arch }}
+          pnpm run plugin:cua:build:mac:${{ matrix.arch }}
+          pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}
+          pnpm run plugin:bundle -- --name feishu --platform darwin --arch ${{ matrix.arch }}
           pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
         env:
           CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
@@ -304,7 +308,7 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=4096'
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
-      - name: Verify bundled CUA plugin
+      - name: Verify bundled plugins
         shell: bash
         env:
           TARGET_ARCH: ${{ matrix.arch }}
@@ -314,9 +318,11 @@ jobs:
           if [ "$TARGET_ARCH" = "arm64" ]; then
             APP_DIR="dist/mac-arm64/DeepChat.app"
           fi
-          PLUGIN="${APP_DIR}/Contents/Resources/app.asar.unpacked/plugins/deepchat-plugin-cua-${VERSION}-darwin-${TARGET_ARCH}.dcplugin"
-          test -f "$PLUGIN"
-          ls -lh "$PLUGIN"
+          CUA="${APP_DIR}/Contents/Resources/app.asar.unpacked/plugins/deepchat-plugin-cua-${VERSION}-darwin-${TARGET_ARCH}.dcplugin"
+          FEISHU="${APP_DIR}/Contents/Resources/app.asar.unpacked/plugins/deepchat-plugin-feishu-${VERSION}-darwin-${TARGET_ARCH}.dcplugin"
+          test -f "$CUA"
+          test -f "$FEISHU"
+          ls -lh "$CUA" "$FEISHU"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
