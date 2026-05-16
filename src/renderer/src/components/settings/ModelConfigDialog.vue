@@ -123,6 +123,8 @@
             v-model="config.imageGeneration"
           />
 
+          <TtsSettingsFields v-if="showTtsSettings" v-model="config.tts" />
+
           <!-- 温度 (支持推理努力程度的模型不显示) -->
           <div
             v-if="!showOpenAIImageGenerationSettings && showTemperatureControl"
@@ -173,6 +175,9 @@
                 </SelectItem>
                 <SelectItem value="imageGeneration">
                   {{ t('settings.model.modelConfig.type.options.imageGeneration') }}
+                </SelectItem>
+                <SelectItem value="tts">
+                  {{ t('settings.provider.voiceai.title') }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -234,6 +239,9 @@
                 </SelectItem>
                 <SelectItem value="image">
                   {{ t('settings.model.modelConfig.apiEndpoint.options.image') }}
+                </SelectItem>
+                <SelectItem value="audio-speech">
+                  {{ t('settings.provider.voiceai.title') }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -551,10 +559,12 @@ import {
   normalizeImageGenerationOptions,
   supportsOpenAIImageGenerationSettings
 } from '@shared/imageGenerationSettings'
+import { normalizeTtsSettings } from '@shared/ttsSettings'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
+import TtsSettingsFields from './TtsSettingsFields.vue'
 import { createModelClient } from '@api/ModelClient'
 import {
   Dialog,
@@ -701,6 +711,7 @@ const showOpenAIImageGenerationSettings = computed(() =>
 const showOpenAIImageGenerationRouteControls = computed(
   () => showOpenAIImageGenerationSettings.value && canEditModelIdentity.value
 )
+const showTtsSettings = computed(() => config.value.type === ModelType.TTS)
 
 // 重置确认对话框
 const showResetConfirm = ref(false)
@@ -1091,6 +1102,10 @@ const loadConfig = async () => {
     if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
       config.value.apiEndpoint = ApiEndpointType.Chat
     }
+
+    if (config.value.type === ModelType.TTS && !config.value.apiEndpoint) {
+      config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+    }
   } catch (error) {
     console.error('Failed to load model config:', error)
     config.value = createDefaultConfig()
@@ -1247,7 +1262,8 @@ const handleSave = async () => {
     ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
     imageGeneration: showOpenAIImageGenerationSettings.value
       ? normalizeImageGenerationOptions(config.value.imageGeneration)
-      : undefined
+      : undefined,
+    tts: showTtsSettings.value ? normalizeTtsSettings(config.value.tts) : undefined
   }
 
   try {
@@ -1346,6 +1362,30 @@ watch(
     syncNewApiDerivedFields()
     syncCapabilityProviderId()
   }
+)
+
+watch(
+  () => [config.value.type, showApiEndpointSelector.value, showEndpointTypeSelector.value],
+  () => {
+    if (!showApiEndpointSelector.value || showEndpointTypeSelector.value) {
+      return
+    }
+
+    if (config.value.type === ModelType.ImageGeneration) {
+      config.value.apiEndpoint = ApiEndpointType.Image
+      return
+    }
+
+    if (config.value.type === ModelType.TTS) {
+      config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+      return
+    }
+
+    if (config.value.apiEndpoint === ApiEndpointType.Image) {
+      config.value.apiEndpoint = ApiEndpointType.Chat
+    }
+  },
+  { immediate: true }
 )
 
 const supportsVerbosity = computed(() => capabilitySupportsVerbosity.value === true)

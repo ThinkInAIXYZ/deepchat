@@ -8,11 +8,12 @@ import { useModelConfigStore } from '@/stores/modelConfigStore'
 export interface UseModelTypeDetectionOptions {
   modelId: Ref<string | undefined>
   providerId: Ref<string | undefined>
-  modelType: Ref<'chat' | 'imageGeneration' | 'embedding' | 'rerank' | undefined>
+  modelType: Ref<'chat' | 'imageGeneration' | 'tts' | 'embedding' | 'rerank' | undefined>
 }
 
 export interface UseModelTypeDetectionReturn {
   isImageGenerationModel: ComputedRef<boolean>
+  isTtsModel: ComputedRef<boolean>
   isGPT5Model: ComputedRef<boolean>
   isGeminiProvider: ComputedRef<boolean>
   modelReasoning: Ref<boolean>
@@ -39,6 +40,13 @@ export function useModelTypeDetection(
    */
   const isImageGenerationModel = computed(() => {
     return modelType.value === 'imageGeneration'
+  })
+
+  /**
+   * Checks if current model is a TTS model
+   */
+  const isTtsModel = computed(() => {
+    return modelType.value === 'tts'
   })
 
   /**
@@ -86,6 +94,7 @@ export function useModelTypeDetection(
   // === Return Public API ===
   return {
     isImageGenerationModel,
+    isTtsModel,
     isGPT5Model,
     isGeminiProvider,
     modelReasoning

@@ -6,6 +6,7 @@ import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySetti
 import type { NewApiEndpointType } from '@shared/model'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ImageGenerationOptions } from '../../imageGenerationSettings'
+import type { TtsSettings } from '../../ttsSettings'
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
 import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
@@ -180,6 +181,7 @@ export interface ModelConfig {
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'balanced' | 'precise'
   imageGeneration?: ImageGenerationOptions
+  tts?: TtsSettings
 }
 
 export interface IModelConfig {

@@ -7,6 +7,7 @@ import {
   resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
+import { isChatAudioTtsModel, isStandardTtsModel, isTtsModelConfig } from '@shared/ttsSettings'
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_MAX_TOKENS,
@@ -94,6 +95,12 @@ const shouldUseOpenAIImageGenerationRoute = (modelId: string, modelConfig: Model
   isOpenAIImageGenerationModel(modelId) ||
   modelConfig.apiEndpoint === ApiEndpointType.Image ||
   modelConfig.type === ModelType.ImageGeneration
+
+const shouldUseOpenAITtsRoute = (modelId: string, modelConfig: ModelConfig): boolean =>
+  isTtsModelConfig(modelConfig) ||
+  modelConfig.apiEndpoint === ApiEndpointType.AudioSpeech ||
+  isStandardTtsModel(modelId) ||
+  isChatAudioTtsModel(modelId)
 
 export function normalizeExtractedImageText(content: string): string {
   const normalized = content
@@ -569,6 +576,16 @@ export class AiSdkProvider extends BaseLLMProvider {
                     isOpenAIImageGenerationModel(runtimeModelId) ||
                     runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
 
+    // TTS route: only applicable for OpenAI-compatible providers (not Azure, Gemini, Vertex)
+    const shouldUseTts =
+      this.isAzureOpenAI(decision, runtimeProvider) ||
+      decision.providerKind === 'gemini' ||
+      decision.providerKind === 'vertex' ||
+      decision.providerKind === 'anthropic'
+        ? undefined
+        : (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
+            shouldUseOpenAITtsRoute(runtimeModelId, runtimeModelConfig)
+
     return {
       decision,
       resolvedModelConfig,
@@ -585,7 +602,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         cleanHeaders,
         supportsNativeTools: (_runtimeModelId, runtimeModelConfig) =>
           runtimeModelConfig.functionCall === true,
-        shouldUseImageGeneration
+        shouldUseImageGeneration,
+        shouldUseTts
       }
     }
   }
@@ -1656,13 +1674,17 @@ export class AiSdkProvider extends BaseLLMProvider {
           normalizedRawType === 'image' ||
           supportedEndpointTypes.includes('image-generation')
             ? ModelType.ImageGeneration
-            : normalizedRawType === 'embedding' ||
-                normalizedRawType === 'embeddings' ||
-                normalizedModelId.includes('embedding')
-              ? ModelType.Embedding
-              : normalizedRawType === 'rerank' || normalizedModelId.includes('rerank')
-                ? ModelType.Rerank
-                : undefined
+            : normalizedRawType === 'tts' ||
+                normalizedRawType === 'audio-speech' ||
+                normalizedRawType === 'audiospeech'
+              ? ModelType.TTS
+              : normalizedRawType === 'embedding' ||
+                  normalizedRawType === 'embeddings' ||
+                  normalizedModelId.includes('embedding')
+                ? ModelType.Embedding
+                : normalizedRawType === 'rerank' || normalizedModelId.includes('rerank')
+                  ? ModelType.Rerank
+                  : undefined
 
         const contextLengthCandidate = [
           rawModel.context_length,
@@ -1725,7 +1747,11 @@ export class AiSdkProvider extends BaseLLMProvider {
         ...existingConfig,
         type: model.type ?? existingConfig.type,
         apiEndpoint:
-          model.endpointType === 'image-generation' ? ApiEndpointType.Image : ApiEndpointType.Chat,
+          model.endpointType === 'image-generation'
+            ? ApiEndpointType.Image
+            : model.type === ModelType.TTS
+              ? ApiEndpointType.AudioSpeech
+              : ApiEndpointType.Chat,
         endpointType: model.endpointType ?? existingConfig.endpointType
       })
     }

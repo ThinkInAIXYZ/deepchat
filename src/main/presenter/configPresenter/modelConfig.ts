@@ -121,6 +121,8 @@ export class ModelConfigHelper {
           return ModelType.Rerank
         case 'imageGeneration':
           return ModelType.ImageGeneration
+        case 'tts':
+          return ModelType.TTS
         default:
           // Invalid type, fall through to default
           break
@@ -176,7 +178,11 @@ export class ModelConfigHelper {
       reasoning: Boolean(reasoningEnabled),
       type: modelType,
       apiEndpoint:
-        modelType === ModelType.ImageGeneration ? ApiEndpointType.Image : ApiEndpointType.Chat,
+        modelType === ModelType.ImageGeneration
+          ? ApiEndpointType.Image
+          : modelType === ModelType.TTS
+            ? ApiEndpointType.AudioSpeech
+            : ApiEndpointType.Chat,
       thinkingBudget,
       forceInterleavedThinkingCompat,
       reasoningEffort,
