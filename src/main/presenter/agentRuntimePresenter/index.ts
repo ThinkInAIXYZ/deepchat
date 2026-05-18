@@ -57,7 +57,7 @@ import {
   normalizeImageGenerationOptions,
   supportsOpenAIImageGenerationSettings
 } from '@shared/imageGenerationSettings'
-import { ModelType, isDeepSeekSeriesModelId } from '@shared/model'
+import { ApiEndpointType, ModelType, isDeepSeekSeriesModelId } from '@shared/model'
 import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import {
   isVideoGenerationModelConfig,
@@ -1456,6 +1456,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return (
       modelConfig.type === ModelType.ImageGeneration ||
       modelConfig.type === ModelType.TTS ||
+      (modelConfig.apiEndpoint != null && modelConfig.apiEndpoint !== ApiEndpointType.Chat) ||
+      modelConfig.endpointType === 'image-generation' ||
       isVideoGenerationModelConfig(modelConfig, normalizedModelId)
     )
   }
