@@ -5,10 +5,16 @@ import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string) =>
-      ({
-        'chat.workspace.plan.section': 'Plan'
-      })[key] ?? key
+    t: (key: string, params?: Record<string, string>) => {
+      const messages: Record<string, string> = {
+        'chat.workspace.plan.section': 'Plan',
+        'chat.workspace.plan.itemAriaLabel': '{status}: {step}',
+        'chat.workspace.plan.status.completed': 'Completed',
+        'chat.workspace.plan.status.in_progress': 'In Progress',
+        'chat.workspace.plan.status.pending': 'Pending'
+      }
+      return (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => params?.[name] ?? '')
+    }
   })
 }))
 
@@ -46,6 +52,8 @@ describe('AgentProgressFloat', () => {
     expect(wrapper.text()).toContain('Current implementation plan')
     expect(wrapper.text()).toContain('Inspect agent runtime')
     expect(wrapper.text()).toContain('Wire progress panel')
+    expect(wrapper.find('[aria-label="Completed: Inspect agent runtime"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="In Progress: Wire progress panel"]').exists()).toBe(true)
 
     await wrapper.find('button').trigger('click')
 

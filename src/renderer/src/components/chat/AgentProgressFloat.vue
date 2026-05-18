@@ -40,7 +40,7 @@
             :key="`${entry.status}-${index}-${entry.step}`"
             class="grid grid-cols-[1rem_minmax(0,1fr)] gap-2 text-sm leading-5"
             :class="entry.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'"
-            :aria-label="`[${entry.status}] ${entry.step}`"
+            :aria-label="getEntryAriaLabel(entry)"
           >
             <Icon
               :icon="getStatusIcon(entry.status)"
@@ -93,6 +93,12 @@ const getStatusIconClass = (status: AgentPlanStepStatus): string => {
   if (status === 'in_progress') return 'animate-spin text-primary'
   return 'text-muted-foreground/80'
 }
+
+const getEntryAriaLabel = (entry: AgentPlanItem): string =>
+  t('chat.workspace.plan.itemAriaLabel', {
+    status: t(`chat.workspace.plan.status.${entry.status}`),
+    step: entry.step
+  })
 </script>
 
 <style scoped>

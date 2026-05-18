@@ -172,4 +172,4 @@ pnpm test -- test/main/presenter/toolPresenter test/main/presenter/agentRuntimeP
 3. Add floating panel.
 4. Add tool toggle group and prompt rules.
 5. Run tests and validation commands.
-6. If floating panel feels intrusive in QA, keep message block as canonical and ship panel collapsed by default.
+6. If floating panel feels intrusive in QA, keep it collapsed by default and retain `MessageBlockPlan` only as ACP/history compatibility UI.

@@ -229,6 +229,7 @@
     "plan": {
       "empty": "暫無任務",
       "section": "計劃",
+      "itemAriaLabel": "{status}：{step}",
       "status": {
         "completed": "已完成",
         "failed": "失敗",

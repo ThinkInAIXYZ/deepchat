@@ -221,6 +221,7 @@
     "plan": {
       "empty": "아직 할 일이 없습니다.",
       "section": "계획",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "완전한",
         "failed": "실패하다",

@@ -234,6 +234,7 @@
     "plan": {
       "section": "计划",
       "empty": "暂无任务",
+      "itemAriaLabel": "{status}：{step}",
       "status": {
         "pending": "待处理",
         "in_progress": "进行中",

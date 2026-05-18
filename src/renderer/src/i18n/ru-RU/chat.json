@@ -221,6 +221,7 @@
     "plan": {
       "empty": "Заданий пока нет",
       "section": "план",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Завершенный",
         "failed": "неудача",

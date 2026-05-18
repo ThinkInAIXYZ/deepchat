@@ -14,6 +14,7 @@ import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.pres
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import type { AgentPlanSnapshot } from '@shared/types/agent-plan'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../../lib/agentRuntime/questionTool'
+import { UPDATE_PLAN_TOOL_NAME } from '../toolPresenter/agentTools/agentPlanTool'
 import type {
   InterleavedReasoningConfig,
   IoParams,
@@ -359,7 +360,7 @@ function markInternalPlanToolCallBlock(blocks: AssistantMessageBlock[], toolCall
   const block = blocks.find(
     (item) => item.type === 'tool_call' && item.tool_call?.id === toolCallId
   )
-  if (!block?.tool_call || block.tool_call.name !== 'update_plan') {
+  if (!block?.tool_call || block.tool_call.name !== UPDATE_PLAN_TOOL_NAME) {
     return
   }
 
