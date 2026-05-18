@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGenerateImage,
@@ -31,7 +31,20 @@ vi.mock('@/presenter', () => ({
 }))
 
 vi.mock('@/presenter/llmProviderPresenter/aiSdk/providerFactory', () => ({
-  createAiSdkProviderContext: mockCreateAiSdkProviderContext
+  createAiSdkProviderContext: mockCreateAiSdkProviderContext,
+  normalizeGeminiBaseUrl: vi.fn((baseUrl?: string) => {
+    const normalized = (baseUrl || '').trim().replace(/\/+$/, '')
+    if (!normalized) {
+      return 'https://generativelanguage.googleapis.com/v1beta'
+    }
+    if (/\/v1beta1$/i.test(normalized) || /\/v1beta$/i.test(normalized)) {
+      return normalized
+    }
+    if (/\/v1$/i.test(normalized)) {
+      return normalized.replace(/\/v1$/i, '/v1beta')
+    }
+    return `${normalized}/v1beta`
+  })
 }))
 
 import {
@@ -71,6 +84,10 @@ describe('AI SDK runtime', () => {
       ]
     })
     mockCacheImage.mockResolvedValue('cached://image')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('builds image prompts from text-like content instead of object stringification', async () => {
@@ -348,6 +365,197 @@ describe('AI SDK runtime', () => {
     const request = mockGenerateImage.mock.calls[0]?.[0] as Record<string, unknown>
     expect(request).not.toHaveProperty('size')
     expect(request).not.toHaveProperty('providerOptions')
+  })
+
+  it('includes an assistant role message for chat-audio TTS requests', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                audio: {
+                  data: 'ZmFrZS1hdWRpby1iYXNlNjQ='
+                }
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'xiaomimimo',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseTts: () => true
+    } as any
+
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'hello tts' }],
+      'mimo-v2.5-tts',
+      {
+        apiEndpoint: 'chat',
+        tts: {
+          responseFormat: 'wav',
+          voice: 'alloy'
+        }
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      events.push(event)
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://example.com/v1/chat/completions')
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const payload = JSON.parse(String(requestInit.body)) as {
+      messages?: Array<{ role?: string; content?: string }>
+    }
+    expect(payload.messages).toEqual([
+      { role: 'user', content: 'hello tts' },
+      { role: 'assistant', content: 'hello tts' }
+    ])
+
+    expect(events).toEqual([
+      {
+        type: 'image_data',
+        image_data: {
+          data: 'cached://image',
+          mimeType: 'audio/wav'
+        }
+      },
+      {
+        type: 'stop',
+        stop_reason: 'complete'
+      }
+    ])
+  })
+
+  it('uses Gemini generateContent compatibility mode for AIHubMix Gemini TTS models', async () => {
+    const pcmBase64 = Buffer.from([0, 0, 255, 127]).toString('base64')
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'audio/L16;rate=24000',
+                      data: pcmBase64
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'aihubmix',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://aihubmix.com/v1',
+        apiKey: 'test-key'
+      },
+      configPresenter: {},
+      defaultHeaders: {
+        'APP-Code': 'SMUE7630'
+      },
+      shouldUseTts: () => true
+    } as any
+
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'Have a wonderful day!' }],
+      'gemini-2.5-flash-preview-tts',
+      {
+        apiEndpoint: 'audio-speech',
+        tts: {
+          voice: 'Kore',
+          instructions: 'Say cheerfully:'
+        }
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      events.push(event)
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://aihubmix.com/gemini/v1beta/models/gemini-2.5-flash-preview-tts:generateContent'
+    )
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const headers = new Headers(requestInit.headers)
+    expect(headers.get('x-goog-api-key')).toBe('test-key')
+    expect(headers.get('Authorization')).toBeNull()
+
+    const payload = JSON.parse(String(requestInit.body)) as {
+      contents?: Array<{ parts?: Array<{ text?: string }> }>
+      generationConfig?: {
+        responseModalities?: string[]
+        speechConfig?: {
+          voiceConfig?: {
+            prebuiltVoiceConfig?: {
+              voiceName?: string
+            }
+          }
+        }
+      }
+    }
+    expect(payload.contents?.[0]?.parts?.[0]?.text).toBe('Say cheerfully:\n\nHave a wonderful day!')
+    expect(payload.generationConfig?.responseModalities).toEqual(['AUDIO'])
+    expect(
+      payload.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName
+    ).toBe('Kore')
+
+    expect(events).toEqual([
+      {
+        type: 'image_data',
+        image_data: {
+          data: 'cached://image',
+          mimeType: 'audio/wav'
+        }
+      },
+      {
+        type: 'stop',
+        stop_reason: 'complete'
+      }
+    ])
   })
 
   it('omits temperature for anthropic models that disable temperature control', async () => {
