@@ -104,12 +104,6 @@
               />
               <span>{{ displayModelText }}</span>
               <Icon
-                v-if="capabilitySupportsAudioInput === true"
-                icon="lucide:mic"
-                class="h-3 w-3 text-emerald-500"
-                :title="t('chat.modelPicker.audioInputSupported')"
-              />
-              <Icon
                 v-if="showModelOptionsLoading"
                 icon="lucide:loader-2"
                 class="h-3 w-3 animate-spin"
@@ -1065,7 +1059,6 @@ const numericInputErrors = ref<
 })
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
-const capabilitySupportsAudioInput = ref<boolean | null>(null)
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
 const capabilitySupportsTemperature = ref<boolean | null>(null)
 const capabilityProviderId = ref('')
@@ -2103,7 +2096,6 @@ const fetchCapabilities = async (providerId: string, modelId: string): Promise<v
       modelId,
       modelConfig.endpointType
     )
-    capabilitySupportsAudioInput.value = capabilities.supportsAudioInput
     const portrait = capabilities.reasoningPortrait ?? null
 
     capabilityReasoningPortrait.value = portrait
@@ -2116,7 +2108,6 @@ const fetchCapabilities = async (providerId: string, modelId: string): Promise<v
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
     capabilityProviderId.value = providerId
-    capabilitySupportsAudioInput.value = null
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
     capabilitySupportsTemperature.value = null
@@ -2240,7 +2231,6 @@ const syncGenerationSettings = async () => {
     localSettings.value = null
     loadedSettingsSelection.value = null
     capabilityProviderId.value = ''
-    capabilitySupportsAudioInput.value = null
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
     return
@@ -2251,7 +2241,6 @@ const syncGenerationSettings = async () => {
     localSettings.value = null
     loadedSettingsSelection.value = null
     capabilityProviderId.value = ''
-    capabilitySupportsAudioInput.value = null
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
     return
