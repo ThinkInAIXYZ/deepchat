@@ -9,6 +9,7 @@ import {
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
   StandaloneImageGenerationResult,
+  StandaloneVideoGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
   IConfigPresenter,
@@ -24,6 +25,10 @@ import {
   normalizeImageGenerationOptions,
   type ImageGenerationOptions
 } from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  type VideoGenerationOptions
+} from '@shared/videoGenerationSettings'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { eventBus } from '@/eventbus'
@@ -535,6 +540,89 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       modelId,
       ...(mergedImageOptions ? { options: mergedImageOptions } : {}),
       images
+    }
+  }
+
+  async generateVideoStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    videoOptions?: VideoGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneVideoGenerationResult> {
+    const normalizedPrompt = prompt.trim()
+    if (!normalizedPrompt) {
+      throw new Error('Video generation prompt is required')
+    }
+
+    const signal = options?.signal
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+
+    await this.executeWithRateLimit(providerId, { signal })
+
+    const provider = this.getProviderInstance(providerId)
+    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const mergedVideoOptions = normalizeVideoGenerationOptions({
+      ...modelConfig.videoGeneration,
+      ...videoOptions
+    })
+    const resolvedModelConfig: ModelConfig = {
+      ...modelConfig,
+      type: ModelType.VideoGeneration,
+      apiEndpoint: ApiEndpointType.Video,
+      videoGeneration: mergedVideoOptions
+    }
+    const stream = provider.coreStream(
+      [{ role: 'user', content: normalizedPrompt }],
+      modelId,
+      resolvedModelConfig,
+      modelConfig.temperature ?? 0.7,
+      modelConfig.maxTokens ?? 1024,
+      []
+    )
+    const videos: StandaloneVideoGenerationResult['videos'] = []
+    const abort = createAbortPromise(signal, () => {
+      void stream.return?.(undefined as never)
+    })
+
+    const collect = async () => {
+      for await (const event of stream) {
+        if (signal?.aborted) {
+          throw createAbortError()
+        }
+
+        if (
+          event.type === 'image_data' &&
+          event.image_data.mimeType.trim().toLowerCase().startsWith('video/')
+        ) {
+          videos.push({
+            data: event.image_data.data,
+            mimeType: event.image_data.mimeType
+          })
+        }
+        if (event.type === 'error') {
+          throw new Error(event.error_message)
+        }
+      }
+    }
+
+    try {
+      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
+    } finally {
+      abort.cleanup()
+    }
+
+    if (videos.length === 0) {
+      throw new Error('Video generation completed without video output')
+    }
+
+    return {
+      providerId,
+      modelId,
+      ...(mergedVideoOptions ? { options: mergedVideoOptions } : {}),
+      videos
     }
   }
 

@@ -376,7 +376,9 @@ const TYPE_ORDER: ModelType[] = [
   ModelType.Chat,
   ModelType.Embedding,
   ModelType.Rerank,
-  ModelType.ImageGeneration
+  ModelType.ImageGeneration,
+  ModelType.VideoGeneration,
+  ModelType.TTS
 ]
 
 const CAPABILITY_ICONS: Record<ModelCapabilityKey, string> = {
@@ -391,6 +393,7 @@ const TYPE_ICONS: Record<ModelType, string> = {
   [ModelType.Embedding]: 'lucide:database',
   [ModelType.Rerank]: 'lucide:arrow-up-wide-narrow',
   [ModelType.ImageGeneration]: 'lucide:image',
+  [ModelType.VideoGeneration]: 'lucide:clapperboard',
   [ModelType.TTS]: 'lucide:volume-2'
 }
 

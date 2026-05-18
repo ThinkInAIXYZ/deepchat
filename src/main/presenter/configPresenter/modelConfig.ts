@@ -13,6 +13,7 @@ import {
   resolveModelFunctionCall
 } from '@shared/modelConfigDefaults'
 import { applyMoonshotKimiReasoningTemperaturePolicy } from '@shared/moonshotKimiPolicy'
+import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
 import {
@@ -105,6 +106,15 @@ export class ModelConfigHelper {
    * Priority: 1. modalities.output includes image 2. model.type (from provider.json) 3. default Chat
    */
   private inferModelType(model: ProviderModel): ModelType {
+    const videoGenerationType = resolveVideoGenerationCompatType({
+      modelId: model.id,
+      type: model.type,
+      modalities: model.modalities
+    })
+    if (videoGenerationType) {
+      return videoGenerationType
+    }
+
     // Priority 1: Output modality indicates image generation
     if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
       return ModelType.ImageGeneration
@@ -121,6 +131,8 @@ export class ModelConfigHelper {
           return ModelType.Rerank
         case 'imageGeneration':
           return ModelType.ImageGeneration
+        case 'videoGeneration':
+          return ModelType.VideoGeneration
         case 'tts':
           return ModelType.TTS
         default:
@@ -180,9 +192,11 @@ export class ModelConfigHelper {
       apiEndpoint:
         modelType === ModelType.ImageGeneration
           ? ApiEndpointType.Image
-          : modelType === ModelType.TTS
-            ? ApiEndpointType.AudioSpeech
-            : ApiEndpointType.Chat,
+          : modelType === ModelType.VideoGeneration
+            ? ApiEndpointType.Video
+            : modelType === ModelType.TTS
+              ? ApiEndpointType.AudioSpeech
+              : ApiEndpointType.Chat,
       thinkingBudget,
       forceInterleavedThinkingCompat,
       reasoningEffort,

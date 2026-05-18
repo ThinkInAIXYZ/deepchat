@@ -40,7 +40,8 @@
       "chat": "채팅",
       "embedding": "임베딩",
       "rerank": "재순위",
-      "imageGeneration": "이미지 생성"
+      "imageGeneration": "이미지 생성",
+      "videoGeneration": "비디오 생성"
     }
   },
   "tags": {

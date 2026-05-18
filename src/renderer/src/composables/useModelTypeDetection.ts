@@ -8,11 +8,14 @@ import { useModelConfigStore } from '@/stores/modelConfigStore'
 export interface UseModelTypeDetectionOptions {
   modelId: Ref<string | undefined>
   providerId: Ref<string | undefined>
-  modelType: Ref<'chat' | 'imageGeneration' | 'tts' | 'embedding' | 'rerank' | undefined>
+  modelType: Ref<
+    'chat' | 'imageGeneration' | 'videoGeneration' | 'tts' | 'embedding' | 'rerank' | undefined
+  >
 }
 
 export interface UseModelTypeDetectionReturn {
   isImageGenerationModel: ComputedRef<boolean>
+  isVideoGenerationModel: ComputedRef<boolean>
   isTtsModel: ComputedRef<boolean>
   isGPT5Model: ComputedRef<boolean>
   isGeminiProvider: ComputedRef<boolean>
@@ -40,6 +43,13 @@ export function useModelTypeDetection(
    */
   const isImageGenerationModel = computed(() => {
     return modelType.value === 'imageGeneration'
+  })
+
+  /**
+   * Checks if current model is a video generation model
+   */
+  const isVideoGenerationModel = computed(() => {
+    return modelType.value === 'videoGeneration'
   })
 
   /**
@@ -94,6 +104,7 @@ export function useModelTypeDetection(
   // === Return Public API ===
   return {
     isImageGenerationModel,
+    isVideoGenerationModel,
     isTtsModel,
     isGPT5Model,
     isGeminiProvider,

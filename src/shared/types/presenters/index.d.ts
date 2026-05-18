@@ -15,6 +15,7 @@ export type {
   RateLimitQueueSnapshot,
   RENDERER_MODEL_META,
   StandaloneImageGenerationResult,
+  StandaloneVideoGenerationResult,
   LLM_EMBEDDING_ATTRS,
   KeyStatus,
   AwsBedrockCredential,

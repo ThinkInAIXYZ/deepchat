@@ -3,6 +3,7 @@ import type { ChatMessage } from '../core/chat-message'
 import { ModelType } from '../core/model'
 import type { NewApiEndpointType } from '@shared/model'
 import type { ImageGenerationOptions } from '../../imageGenerationSettings'
+import type { VideoGenerationOptions } from '../../videoGenerationSettings'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './legacy.presenters'
 
 /**
@@ -112,6 +113,13 @@ export type StandaloneImageGenerationResult = {
   modelId: string
   options?: ImageGenerationOptions
   images: Array<{ data: string; mimeType: string }>
+}
+
+export type StandaloneVideoGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: VideoGenerationOptions
+  videos: Array<{ data: string; mimeType: string }>
 }
 
 export interface KeyStatus {
@@ -323,6 +331,14 @@ export interface ILlmProviderPresenter {
     imageOptions?: ImageGenerationOptions,
     options?: { signal?: AbortSignal }
   ): Promise<StandaloneImageGenerationResult>
+
+  generateVideoStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    videoOptions?: VideoGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneVideoGenerationResult>
 
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
