@@ -28,7 +28,7 @@
           />
         </div>
       </div>
-      <div ref="messageSearchRoot" class="min-h-[calc(100%-242px)]">
+      <div ref="messageSearchRoot" class="min-h-[calc(100%-242px)]" :style="messageSearchRootStyle">
         <div
           v-if="messageStore.isLoadingHistory"
           class="pointer-events-none px-6 py-2 text-center text-xs text-muted-foreground"
@@ -65,63 +65,75 @@
             :processing="isHandlingInteraction"
             @respond="onToolInteractionRespond"
           />
-          <PendingInputLane
-            :steer-items="pendingInputStore.steerItems"
-            :queue-items="pendingInputStore.queueItems"
-            :disable-steer-action="pendingInputStore.isAtCapacity"
-            :show-resume-queue="showResumePendingQueue"
-            class="mb-1.5"
-            @update-queue="onPendingInputUpdate"
-            @move-queue="onPendingInputMove"
-            @delete-queue="onPendingInputDelete"
-            @resume-queue="onResumePendingQueue"
-          />
-          <div v-if="latestPlanSnapshot" class="mb-1.5 flex w-full max-w-4xl justify-end">
-            <AgentProgressFloat
-              :snapshot="latestPlanSnapshot"
-              :collapsed="isPlanFloatCollapsed"
-              @toggle-collapse="agentPlanStore.toggleCollapsed(props.sessionId)"
+          <div class="w-full">
+            <PendingInputLane
+              :steer-items="pendingInputStore.steerItems"
+              :queue-items="pendingInputStore.queueItems"
+              :disable-steer-action="pendingInputStore.isAtCapacity"
+              :show-resume-queue="showResumePendingQueue"
+              class="mx-auto mb-1.5 max-w-4xl"
+              @update-queue="onPendingInputUpdate"
+              @move-queue="onPendingInputMove"
+              @delete-queue="onPendingInputDelete"
+              @resume-queue="onResumePendingQueue"
             />
-          </div>
-          <template v-if="!activePendingInteraction">
-            <ChatInputBox
-              ref="chatInputRef"
-              v-model="message"
-              max-width-class="max-w-4xl"
-              :files="attachedFiles"
-              :session-id="props.sessionId"
-              :workspace-path="sessionStore.activeSession?.projectDir ?? null"
-              :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
-              :is-generating="isGenerating"
-              :submit-disabled="isInputSubmitDisabled"
-              :queue-submit-enabled="isGenerating && hasDraftInput"
-              :queue-submit-disabled="isQueueSubmitDisabled"
-              @update:files="onFilesChange"
-              @command-submit="onCommandSubmit"
-              @queue-submit="onQueueSubmit"
-              @submit="onSubmit"
-              @toggle-voice-input="onToggleVoiceInput"
-            >
-              <template #toolbar>
-                <ChatInputToolbar
-                  :is-generating="isGenerating"
-                  :has-input="hasDraftInput"
-                  :send-disabled="isInputSubmitDisabled"
-                  :queue-disabled="isQueueSubmitDisabled"
-                  :show-voice-input="isVoiceInputEnabled"
-                  :is-voice-input-listening="isVoiceInputListening"
-                  :is-voice-input-transcribing="isVoiceInputTranscribing"
-                  @attach="onAttach"
-                  @voice-input="onToggleVoiceInput"
-                  @queue="onQueueSubmit"
-                  @steer="onSteer"
-                  @send="onSubmit"
-                  @stop="onStop"
+            <div class="relative">
+              <div
+                v-if="latestPlanSnapshot"
+                ref="planFloatLayer"
+                class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] z-20 flex w-full justify-end"
+                data-testid="agent-progress-float-layer"
+              >
+                <AgentProgressFloat
+                  :snapshot="latestPlanSnapshot"
+                  :collapsed="isPlanFloatCollapsed"
+                  @dismiss="onDismissPlanFloat"
+                  @toggle-collapse="agentPlanStore.toggleCollapsed(props.sessionId)"
                 />
+              </div>
+              <template v-if="!activePendingInteraction">
+                <div class="mx-auto flex w-full max-w-4xl flex-col">
+                  <ChatInputBox
+                    ref="chatInputRef"
+                    v-model="message"
+                    max-width-class="max-w-4xl"
+                    :files="attachedFiles"
+                    :session-id="props.sessionId"
+                    :workspace-path="sessionStore.activeSession?.projectDir ?? null"
+                    :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+                    :is-generating="isGenerating"
+                    :submit-disabled="isInputSubmitDisabled"
+                    :queue-submit-enabled="isGenerating && hasDraftInput"
+                    :queue-submit-disabled="isQueueSubmitDisabled"
+                    @update:files="onFilesChange"
+                    @command-submit="onCommandSubmit"
+                    @queue-submit="onQueueSubmit"
+                    @submit="onSubmit"
+                    @toggle-voice-input="onToggleVoiceInput"
+                  >
+                    <template #toolbar>
+                      <ChatInputToolbar
+                        :is-generating="isGenerating"
+                        :has-input="hasDraftInput"
+                        :send-disabled="isInputSubmitDisabled"
+                        :queue-disabled="isQueueSubmitDisabled"
+                        :show-voice-input="isVoiceInputEnabled"
+                        :is-voice-input-listening="isVoiceInputListening"
+                        :is-voice-input-transcribing="isVoiceInputTranscribing"
+                        @attach="onAttach"
+                        @voice-input="onToggleVoiceInput"
+                        @queue="onQueueSubmit"
+                        @steer="onSteer"
+                        @send="onSubmit"
+                        @stop="onStop"
+                      />
+                    </template>
+                  </ChatInputBox>
+                  <ChatStatusBar max-width-class="max-w-4xl" />
+                </div>
               </template>
-            </ChatInputBox>
-            <ChatStatusBar max-width-class="max-w-4xl" />
-          </template>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -221,6 +233,7 @@ const applyRestoredSessionSummary = (session: unknown) => {
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
+const planFloatLayer = ref<HTMLDivElement | null>(null)
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const NEAR_BOTTOM_THRESHOLD = 80 // px
@@ -228,6 +241,8 @@ const TOP_HISTORY_THRESHOLD = 80
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
+const PLAN_FLOAT_SAFE_GAP = 16
+const planFloatReservedHeight = ref(0)
 const displayMessageCache = new Map<
   string,
   {
@@ -258,6 +273,45 @@ let lastObservedScrollHeight = 0
 let cancelSessionRestoreTask: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
 let sessionRestoreRequestId = 0
+let planFloatResizeObserver: ResizeObserver | null = null
+
+function disconnectPlanFloatResizeObserver() {
+  planFloatResizeObserver?.disconnect()
+  planFloatResizeObserver = null
+}
+
+function syncPlanFloatReservedHeight() {
+  const layer = planFloatLayer.value
+  if (!latestPlanSnapshot.value || !layer) {
+    planFloatReservedHeight.value = 0
+    return
+  }
+
+  const trigger = layer.querySelector<HTMLElement>('[data-testid="agent-progress-float-trigger"]')
+  const triggerHeight = trigger?.offsetHeight ?? layer.offsetHeight
+
+  planFloatReservedHeight.value = triggerHeight + PLAN_FLOAT_SAFE_GAP
+}
+
+function observePlanFloatLayer() {
+  disconnectPlanFloatResizeObserver()
+
+  const layer = planFloatLayer.value
+  if (!latestPlanSnapshot.value || !layer) {
+    planFloatReservedHeight.value = 0
+    return
+  }
+
+  if (typeof ResizeObserver === 'undefined') {
+    syncPlanFloatReservedHeight()
+    return
+  }
+
+  planFloatResizeObserver = new ResizeObserver(() => {
+    syncPlanFloatReservedHeight()
+  })
+  planFloatResizeObserver.observe(layer)
+}
 
 function syncScrollPosition() {
   const el = scrollContainer.value
@@ -580,6 +634,22 @@ const latestPlanSnapshot = computed(() => {
 
 const isPlanFloatCollapsed = computed(() => agentPlanStore.isCollapsed(props.sessionId))
 
+const messageSearchRootStyle = computed(() => {
+  if (planFloatReservedHeight.value <= 0) {
+    return undefined
+  }
+
+  return {
+    paddingBottom: `${planFloatReservedHeight.value}px`
+  }
+})
+
+function onDismissPlanFloat() {
+  agentPlanStore.setCollapsed(props.sessionId, true)
+  agentPlanStore.clear(props.sessionId)
+  planFloatReservedHeight.value = 0
+}
+
 const displayMessages = computed(() => {
   const msgs: DisplayMessage[] = []
   const activeMessageIds = new Set<string>()
@@ -616,6 +686,22 @@ const traceMessageIds = computed(() =>
 )
 
 // Auto-scroll when displayMessages changes (new message added, streaming updates)
+watch(
+  [latestPlanSnapshot, isPlanFloatCollapsed],
+  async ([snapshot]) => {
+    if (!snapshot) {
+      disconnectPlanFloatResizeObserver()
+      planFloatReservedHeight.value = 0
+      return
+    }
+
+    await nextTick()
+    observePlanFloatLayer()
+    syncPlanFloatReservedHeight()
+  },
+  { flush: 'post', immediate: true }
+)
+
 watch(
   [
     () => messageStore.messageIds.length,
@@ -1386,10 +1472,13 @@ onMounted(() => {
     }
   })
   syncScrollPosition()
+  observePlanFloatLayer()
+  syncPlanFloatReservedHeight()
 })
 
 onUnmounted(() => {
   removeModelConfigChangedListener()
+  disconnectPlanFloatResizeObserver()
   cancelPlanUpdatedListener?.()
   cancelPlanUpdatedListener = null
   voiceInput.cleanup()

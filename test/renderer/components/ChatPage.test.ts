@@ -438,6 +438,28 @@ const setup = async (options: SetupOptions = {}) => {
 }
 
 describe('ChatPage', () => {
+  it('renders the agent plan inside an absolute overlay layer above the composer', async () => {
+    const { wrapper, agentPlanStore } = await setup()
+
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: [{ step: 'Inspect runtime state', status: 'in_progress' }],
+      explanation: 'Current implementation plan',
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+
+    await flushPromises()
+
+    const layer = wrapper.find('[data-testid="agent-progress-float-layer"]')
+
+    expect(layer.exists()).toBe(true)
+    expect(layer.classes()).toContain('absolute')
+    expect(layer.classes()).toContain('pointer-events-none')
+    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
+  })
+
   it('defers session restore until startup deferred tasks are released', async () => {
     const { messageStore, pendingInputStore, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true
