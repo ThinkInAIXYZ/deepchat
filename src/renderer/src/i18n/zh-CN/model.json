@@ -40,7 +40,8 @@
       "chat": "对话",
       "embedding": "向量",
       "rerank": "重排",
-      "imageGeneration": "图像生成"
+      "imageGeneration": "图像生成",
+      "videoGeneration": "视频生成"
     }
   },
   "tags": {

@@ -388,6 +388,14 @@ export class Presenter implements IPresenter {
             modelId,
             imageOptions,
             options
+          ),
+        generateVideoStandalone: (providerId, prompt, modelId, videoOptions, options) =>
+          this.llmproviderPresenter.generateVideoStandalone(
+            providerId,
+            prompt,
+            modelId,
+            videoOptions,
+            options
           )
       }),
       cacheImage: (data) => this.devicePresenter.cacheImage(data),

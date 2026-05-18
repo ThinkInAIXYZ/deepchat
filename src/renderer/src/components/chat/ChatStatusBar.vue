@@ -264,7 +264,7 @@
 
                   <div v-else-if="localSettings" class="space-y-4">
                     <div
-                      v-if="!showOpenAIImageGenerationSettings && showTemperatureControl"
+                      v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
                       class="space-y-1.5"
                     >
                       <label class="text-xs font-medium">{{
@@ -338,7 +338,7 @@
                       </p>
                     </div>
 
-                    <div v-if="!showOpenAIImageGenerationSettings" class="space-y-1.5">
+                    <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
                       <label class="text-xs font-medium">{{
                         t('chat.advancedSettings.contextLength')
                       }}</label>
@@ -402,7 +402,7 @@
                       </p>
                     </div>
 
-                    <div v-if="!showOpenAIImageGenerationSettings" class="space-y-1.5">
+                    <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
                       <label class="text-xs font-medium">{{
                         t('chat.advancedSettings.maxTokens')
                       }}</label>
@@ -541,8 +541,15 @@
                       @update:model-value="onImageGenerationSettingsUpdate"
                     />
 
+                    <OpenAIVideoGenerationSettingsFields
+                      v-if="showOpenAIVideoGenerationSettings"
+                      density="compact"
+                      :model-value="localSettings.videoGeneration"
+                      @update:model-value="onVideoGenerationSettingsUpdate"
+                    />
+
                     <div
-                      v-if="!showOpenAIImageGenerationSettings && showReasoningEffort"
+                      v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort"
                       class="space-y-1.5"
                     >
                       <label class="text-xs font-medium">{{
@@ -572,7 +579,7 @@
                     </div>
 
                     <div
-                      v-if="!showOpenAIImageGenerationSettings && showReasoningVisibility"
+                      v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
                       class="space-y-1.5"
                     >
                       <label class="text-xs font-medium">{{
@@ -604,7 +611,7 @@
                     </div>
 
                     <div
-                      v-if="!showOpenAIImageGenerationSettings && showVerbosity"
+                      v-if="!showOpenAIMediaGenerationSettings && showVerbosity"
                       class="space-y-1.5"
                     >
                       <label class="text-xs font-medium">{{
@@ -632,7 +639,7 @@
                     </div>
 
                     <div
-                      v-if="!showOpenAIImageGenerationSettings && showThinkingBudget"
+                      v-if="!showOpenAIMediaGenerationSettings && showThinkingBudget"
                       class="space-y-1.5"
                     >
                       <div class="flex items-center justify-between">
@@ -715,7 +722,7 @@
                       </p>
                     </div>
 
-                    <div v-if="!showOpenAIImageGenerationSettings" class="space-y-1.5">
+                    <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
                       <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                           <label class="text-xs font-medium">
@@ -945,10 +952,15 @@ import {
   normalizeImageGenerationOptions,
   supportsOpenAIImageGenerationSettings
 } from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  supportsOpenAICompatibleVideoGeneration
+} from '@shared/videoGenerationSettings'
 import { resolvePreferredChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
+import OpenAIVideoGenerationSettingsFields from '@/components/settings/OpenAIVideoGenerationSettingsFields.vue'
 import { createConfigClient } from '@api/ConfigClient'
 import { createModelClient } from '@api/ModelClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
@@ -1304,6 +1316,29 @@ const showOpenAIImageGenerationSettings = computed(() => {
     type: modelConfig?.type ?? modelMeta?.type
   })
 })
+
+const showOpenAIVideoGenerationSettings = computed(() => {
+  const target = modelSettingsTarget.value
+  if (!target) {
+    return false
+  }
+
+  const modelMeta = modelSettingsTargetMeta.value
+  const modelConfig = modelSettingsTargetResolvedConfig.value
+  return supportsOpenAICompatibleVideoGeneration({
+    providerId: target.providerId,
+    providerApiType: resolveProviderApiType(target.providerId),
+    modelId: target.modelId,
+    apiEndpoint: modelConfig?.apiEndpoint,
+    endpointType: modelConfig?.endpointType ?? modelMeta?.endpointType,
+    supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+    type: modelConfig?.type ?? modelMeta?.type
+  })
+})
+
+const showOpenAIMediaGenerationSettings = computed(
+  () => showOpenAIImageGenerationSettings.value || showOpenAIVideoGenerationSettings.value
+)
 
 watch(
   () => {
@@ -2038,6 +2073,23 @@ const resolveDefaultGenerationSettings = async (
     }
   }
 
+  if (
+    supportsOpenAICompatibleVideoGeneration({
+      providerId,
+      providerApiType: resolveProviderApiType(providerId),
+      modelId,
+      apiEndpoint: modelConfig.apiEndpoint,
+      endpointType: modelConfig.endpointType ?? modelMeta?.endpointType,
+      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+      type: modelConfig.type ?? modelMeta?.type
+    })
+  ) {
+    const videoGeneration = normalizeVideoGenerationOptions(modelConfig.videoGeneration)
+    if (videoGeneration) {
+      defaults.videoGeneration = videoGeneration
+    }
+  }
+
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
       modelConfig.thinkingBudget ?? portrait.budget?.default
@@ -2215,6 +2267,10 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   if (Object.prototype.hasOwnProperty.call(nextPatch, 'imageGeneration')) {
     normalizedPatch.imageGeneration = normalizeImageGenerationOptions(next.imageGeneration)
     next.imageGeneration = normalizedPatch.imageGeneration
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'videoGeneration')) {
+    normalizedPatch.videoGeneration = normalizeVideoGenerationOptions(next.videoGeneration)
+    next.videoGeneration = normalizedPatch.videoGeneration
   }
 
   scheduleGenerationPersist(normalizedPatch)
@@ -2538,7 +2594,8 @@ async function changeModelSelection(
     reasoningVisibility: draftStore.reasoningVisibility,
     verbosity: draftStore.verbosity,
     forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat,
-    imageGeneration: draftStore.imageGeneration
+    imageGeneration: draftStore.imageGeneration,
+    videoGeneration: draftStore.videoGeneration
   } as Partial<SessionGenerationSettings>
   const clearedDraftModelOverrides = {
     temperature: undefined,
@@ -2550,7 +2607,8 @@ async function changeModelSelection(
     reasoningVisibility: undefined,
     verbosity: undefined,
     forceInterleavedThinkingCompat: undefined,
-    imageGeneration: undefined
+    imageGeneration: undefined,
+    videoGeneration: undefined
   } as Partial<SessionGenerationSettings>
 
   try {
@@ -2901,6 +2959,17 @@ function onImageGenerationSettingsUpdate(
   }
   updateLocalGenerationSettings({
     imageGeneration: normalizeImageGenerationOptions(imageGeneration)
+  })
+}
+
+function onVideoGenerationSettingsUpdate(
+  videoGeneration: SessionGenerationSettings['videoGeneration']
+) {
+  if (!localSettings.value) {
+    return
+  }
+  updateLocalGenerationSettings({
+    videoGeneration: normalizeVideoGenerationOptions(videoGeneration)
   })
 }
 

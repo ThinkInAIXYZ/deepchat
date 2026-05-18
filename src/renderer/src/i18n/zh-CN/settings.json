@@ -536,7 +536,8 @@
           "chat": "语言模型",
           "embedding": "嵌入模型",
           "rerank": "重排序模型",
-          "imageGeneration": "图像生成模型"
+          "imageGeneration": "图像生成模型",
+          "videoGeneration": "视频生成模型"
         }
       },
       "apiEndpoint": {
@@ -544,7 +545,8 @@
         "description": "选择此模型使用的 OpenAI API 端点。",
         "options": {
           "chat": "文本生成",
-          "image": "图片生成"
+          "image": "图片生成",
+          "video": "视频生成"
         }
       },
       "resetToDefault": "重置为默认",
@@ -604,7 +606,8 @@
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Image Generation"
+          "image-generation": "Image Generation",
+          "video-generation": "Video Generation"
         }
       },
       "reasoningVisibility": {
@@ -670,6 +673,37 @@
             "auto": "自动",
             "low": "低"
           }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "视频尺寸",
+          "placeholder": "例如 1280x720"
+        },
+        "seconds": {
+          "label": "秒数",
+          "placeholder": "例如 5"
+        },
+        "duration": {
+          "label": "时长",
+          "placeholder": "例如 5",
+          "description": "会通过兼容视频接口的 extra_body.duration 发给上游。"
+        },
+        "ratio": {
+          "label": "宽高比",
+          "placeholder": "例如 16:9"
+        },
+        "resolution": {
+          "label": "分辨率",
+          "placeholder": "例如 720p"
+        },
+        "watermark": {
+          "label": "水印",
+          "description": "当上游接口支持时，请求服务端为生成结果添加水印。"
+        },
+        "generateAudio": {
+          "label": "生成音频",
+          "description": "当上游接口支持时，同时为视频生成音轨。"
         }
       }
     }

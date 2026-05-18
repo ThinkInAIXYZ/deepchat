@@ -40,7 +40,8 @@
       "chat": "Чат",
       "embedding": "Встраивание",
       "rerank": "Переранжирование",
-      "imageGeneration": "Генерация изображений"
+      "imageGeneration": "Генерация изображений",
+      "videoGeneration": "Генерация видео"
     }
   },
   "tags": {

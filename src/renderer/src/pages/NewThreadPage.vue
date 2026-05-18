@@ -851,6 +851,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.verbosity = undefined
   draftStore.forceInterleavedThinkingCompat = undefined
   draftStore.imageGeneration = undefined
+  draftStore.videoGeneration = undefined
 
   if (selectedAgent.value.type === 'acp') {
     const resolvedProjectPath = currentProjectPath ?? globalDefaultProjectPath

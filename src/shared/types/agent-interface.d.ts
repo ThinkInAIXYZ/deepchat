@@ -1,5 +1,6 @@
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
+import type { VideoGenerationOptions } from '../videoGenerationSettings'
 import type { ToolCallImagePreview } from './core/mcp'
 
 /**
@@ -31,6 +32,7 @@ export interface SessionGenerationSettings {
   verbosity?: Verbosity
   forceInterleavedThinkingCompat?: boolean
   imageGeneration?: ImageGenerationOptions
+  videoGeneration?: VideoGenerationOptions
 }
 
 export interface DeepChatSessionState {

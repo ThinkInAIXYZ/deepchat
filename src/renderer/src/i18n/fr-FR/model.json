@@ -40,7 +40,8 @@
       "chat": "Discussion",
       "embedding": "Incorporation",
       "rerank": "Reclassement",
-      "imageGeneration": "Génération d'image"
+      "imageGeneration": "Génération d'image",
+      "videoGeneration": "Génération vidéo"
     }
   },
   "tags": {

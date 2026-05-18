@@ -59,6 +59,11 @@ import {
 } from '@shared/imageGenerationSettings'
 import { ApiEndpointType, ModelType, isDeepSeekSeriesModelId } from '@shared/model'
 import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
+import {
+  isVideoGenerationModelConfig,
+  normalizeVideoGenerationOptions,
+  supportsOpenAICompatibleVideoGeneration
+} from '@shared/videoGenerationSettings'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -1434,7 +1439,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private shouldUseDeepChatContextBudget(
     providerId?: string | null,
-    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null
+    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null,
+    modelId?: string | null
   ): boolean {
     if (providerId?.trim() === 'acp') {
       return false
@@ -1456,22 +1462,28 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return false
     }
 
+    if (isVideoGenerationModelConfig(modelConfig, modelId?.trim() || '')) {
+      return false
+    }
+
     return true
   }
 
   private shouldBypassDeepChatContextBudget(
     providerId?: string | null,
-    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null
+    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null,
+    modelId?: string | null
   ): boolean {
-    return !this.shouldUseDeepChatContextBudget(providerId, modelConfig)
+    return !this.shouldUseDeepChatContextBudget(providerId, modelConfig, modelId)
   }
 
   private resolveDeepChatContextBudgetLength(
     providerId: string | null | undefined,
     contextLength: number,
-    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null
+    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null,
+    modelId?: string | null
   ): number {
-    return this.shouldBypassDeepChatContextBudget(providerId, modelConfig)
+    return this.shouldBypassDeepChatContextBudget(providerId, modelConfig, modelId)
       ? Number.MAX_SAFE_INTEGER
       : contextLength
   }
@@ -1655,7 +1667,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       throw new Error(`Session ${sessionId} not found`)
     }
     const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-    if (this.shouldBypassDeepChatContextBudget(state.providerId, modelConfig)) {
+    if (this.shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)) {
       throw new Error('Manual compaction is only available for DeepChat agent sessions.')
     }
     if (state.status !== 'idle') {
@@ -1676,7 +1688,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
         state.providerId,
         generationSettings.contextLength,
-        modelConfig
+        modelConfig,
+        state.modelId
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
@@ -1898,7 +1911,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
       state.providerId,
       generationSettings.contextLength,
-      baseModelConfig
+      baseModelConfig,
+      state.modelId
     )
     const capabilityProviderId = this.resolveCapabilityProviderId(state.providerId, state.modelId)
     const reasoningPortrait = this.getReasoningPortrait(state.providerId, state.modelId)
@@ -1913,6 +1927,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       reasoningVisibility: generationSettings.reasoningVisibility,
       verbosity: generationSettings.verbosity,
       imageGeneration: generationSettings.imageGeneration,
+      videoGeneration: generationSettings.videoGeneration,
       reasoning: getReasoningEffectiveEnabledForProvider(capabilityProviderId, reasoningPortrait, {
         reasoning: baseModelConfig.reasoning,
         reasoningEffort: generationSettings.reasoningEffort ?? baseModelConfig.reasoningEffort
@@ -2601,7 +2616,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
         state.providerId,
         generationSettings.contextLength,
-        modelConfig
+        modelConfig,
+        state.modelId
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const projectDir = this.resolveProjectDir(sessionId)
@@ -3435,6 +3451,22 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     }
 
+    if (
+      supportsOpenAICompatibleVideoGeneration({
+        providerId,
+        providerApiType: this.resolveProviderApiType(providerId),
+        modelId,
+        apiEndpoint: modelConfig.apiEndpoint,
+        endpointType: modelConfig.endpointType,
+        type: modelConfig.type
+      })
+    ) {
+      const videoGeneration = normalizeVideoGenerationOptions(modelConfig.videoGeneration)
+      if (videoGeneration) {
+        defaults.videoGeneration = videoGeneration
+      }
+    }
+
     const supportsReasoning =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
     if (supportsReasoning) {
@@ -3677,6 +3709,35 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     } else {
       delete next.imageGeneration
+    }
+
+    if (
+      supportsOpenAICompatibleVideoGeneration({
+        providerId,
+        providerApiType: this.resolveProviderApiType(providerId),
+        modelId,
+        apiEndpoint: modelConfig.apiEndpoint,
+        endpointType: modelConfig.endpointType,
+        type: modelConfig.type
+      })
+    ) {
+      if (Object.prototype.hasOwnProperty.call(patch, 'videoGeneration')) {
+        const videoGeneration = normalizeVideoGenerationOptions(patch.videoGeneration)
+        if (videoGeneration) {
+          next.videoGeneration = videoGeneration
+        } else {
+          delete next.videoGeneration
+        }
+      } else {
+        const videoGeneration = normalizeVideoGenerationOptions(next.videoGeneration)
+        if (videoGeneration) {
+          next.videoGeneration = videoGeneration
+        } else {
+          delete next.videoGeneration
+        }
+      }
+    } else {
+      delete next.videoGeneration
     }
 
     if (fixedTemperatureKimi) {

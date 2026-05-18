@@ -11,6 +11,7 @@ import {
   resolveModelMaxTokens,
   resolveModelVision
 } from '@shared/modelConfigDefaults'
+import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
@@ -33,6 +34,19 @@ type ChatSelectableModelGroup = {
   providerId: string
   providerName: string
   models: RENDERER_MODEL_META[]
+}
+
+const resolveRendererModelType = (
+  model: Pick<MODEL_META, 'id' | 'type' | 'supportedEndpointTypes' | 'endpointType'>
+): ModelType => {
+  return (resolveVideoGenerationCompatType({
+    modelId: model.id,
+    type: model.type,
+    endpointType: model.endpointType,
+    supportedEndpointTypes: model.supportedEndpointTypes
+  }) ??
+    model.type ??
+    ModelType.Chat) as ModelType
 }
 
 export const useModelStore = defineStore('model', () => {
@@ -251,7 +265,7 @@ export const useModelStore = defineStore('model', () => {
     ),
     reasoning: model.reasoning ?? false,
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
-    type: (model.type ?? ModelType.Chat) as ModelType,
+    type: resolveRendererModelType(model),
     supportedEndpointTypes: model.supportedEndpointTypes,
     endpointType: model.endpointType
   })
@@ -276,7 +290,7 @@ export const useModelStore = defineStore('model', () => {
     ),
     reasoning: model.reasoning ?? false,
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
-    type: (model.type ?? ModelType.Chat) as ModelType,
+    type: resolveRendererModelType(model),
     supportedEndpointTypes: model.supportedEndpointTypes,
     endpointType: model.endpointType
   })
@@ -667,7 +681,13 @@ export const useModelStore = defineStore('model', () => {
               (model as RENDERER_MODEL_META).enableSearch ??
               (fallback as RENDERER_MODEL_META | undefined)?.enableSearch ??
               false,
-            type: (model.type ?? fallback?.type ?? ModelType.Chat) as ModelType,
+            type: resolveRendererModelType({
+              id: model.id,
+              type: model.type ?? fallback?.type,
+              supportedEndpointTypes:
+                model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
+              endpointType: model.endpointType ?? fallback?.endpointType
+            }),
             supportedEndpointTypes:
               model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
             endpointType: model.endpointType ?? fallback?.endpointType

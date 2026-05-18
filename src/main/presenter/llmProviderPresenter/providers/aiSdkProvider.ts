@@ -8,6 +8,7 @@ import {
   type NewApiEndpointType
 } from '@shared/model'
 import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
+import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_MAX_TOKENS,
@@ -95,6 +96,10 @@ const shouldUseOpenAIImageGenerationRoute = (modelId: string, modelConfig: Model
   isOpenAIImageGenerationModel(modelId) ||
   modelConfig.apiEndpoint === ApiEndpointType.Image ||
   modelConfig.type === ModelType.ImageGeneration
+
+const shouldUseOpenAIVideoGenerationRoute = (modelId: string, modelConfig: ModelConfig): boolean =>
+  modelConfig.apiEndpoint === ApiEndpointType.Video ||
+  isVideoGenerationModelConfig(modelConfig, modelId)
 
 const shouldUseOpenAITtsRoute = (modelId: string, modelConfig: ModelConfig): boolean =>
   isTtsModelConfig(modelConfig) ||
@@ -351,6 +356,27 @@ export class AiSdkProvider extends BaseLLMProvider {
               endpointType: 'image-generation'
             }
           }
+        case 'video-generation':
+          return {
+            providerKind: 'openai-compatible',
+            endpointType,
+            providerPatch: {
+              apiType: 'openai-completions',
+              baseUrl: `${host}/v1`,
+              capabilityProviderId: resolveProviderCapabilityProviderId(
+                this.provider.id,
+                {
+                  endpointType
+                },
+                modelId
+              )
+            },
+            modelConfigPatch: {
+              apiEndpoint: ApiEndpointType.Video,
+              type: ModelType.VideoGeneration,
+              endpointType: 'video-generation'
+            }
+          }
         case 'openai':
         default:
           return {
@@ -575,6 +601,17 @@ export class AiSdkProvider extends BaseLLMProvider {
                     isOpenAIImageGenerationModel(runtimeModelId) ||
                     runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
 
+    const shouldUseVideoGeneration =
+      this.isAzureOpenAI(decision, runtimeProvider) ||
+      decision.providerKind === 'gemini' ||
+      decision.providerKind === 'vertex' ||
+      decision.providerKind === 'anthropic'
+        ? undefined
+        : decision.endpointType === 'video-generation'
+          ? () => true
+          : (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
+              shouldUseOpenAIVideoGenerationRoute(runtimeModelId, runtimeModelConfig)
+
     // TTS route: only applicable for OpenAI-compatible providers (not Azure, Gemini, Vertex)
     const shouldUseTts =
       this.isAzureOpenAI(decision, runtimeProvider) ||
@@ -602,6 +639,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         supportsNativeTools: (_runtimeModelId, runtimeModelConfig) =>
           runtimeModelConfig.functionCall === true,
         shouldUseImageGeneration,
+        shouldUseVideoGeneration,
         shouldUseTts
       }
     }
@@ -1673,17 +1711,22 @@ export class AiSdkProvider extends BaseLLMProvider {
           normalizedRawType === 'image' ||
           supportedEndpointTypes.includes('image-generation')
             ? ModelType.ImageGeneration
-            : normalizedRawType === 'tts' ||
-                normalizedRawType === 'audio-speech' ||
-                normalizedRawType === 'audiospeech'
-              ? ModelType.TTS
-              : normalizedRawType === 'embedding' ||
-                  normalizedRawType === 'embeddings' ||
-                  normalizedModelId.includes('embedding')
-                ? ModelType.Embedding
-                : normalizedRawType === 'rerank' || normalizedModelId.includes('rerank')
-                  ? ModelType.Rerank
-                  : undefined
+            : normalizedRawType === 'videogeneration' ||
+                normalizedRawType === 'video-generation' ||
+                normalizedRawType === 'video' ||
+                supportedEndpointTypes.includes('video-generation')
+              ? ModelType.VideoGeneration
+              : normalizedRawType === 'tts' ||
+                  normalizedRawType === 'audio-speech' ||
+                  normalizedRawType === 'audiospeech'
+                ? ModelType.TTS
+                : normalizedRawType === 'embedding' ||
+                    normalizedRawType === 'embeddings' ||
+                    normalizedModelId.includes('embedding')
+                  ? ModelType.Embedding
+                  : normalizedRawType === 'rerank' || normalizedModelId.includes('rerank')
+                    ? ModelType.Rerank
+                    : undefined
 
         const contextLengthCandidate = [
           rawModel.context_length,
@@ -1708,7 +1751,9 @@ export class AiSdkProvider extends BaseLLMProvider {
           supportedEndpointTypes.length === 0
             ? type === ModelType.ImageGeneration
               ? 'image-generation'
-              : undefined
+              : type === ModelType.VideoGeneration
+                ? 'video-generation'
+                : undefined
             : resolveNewApiEndpointTypeFromRoute(
                 {
                   supportedEndpointTypes,

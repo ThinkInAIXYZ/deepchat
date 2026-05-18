@@ -436,7 +436,8 @@
           "chat": "Sprogmodel",
           "embedding": "Embedding-model",
           "imageGeneration": "Billedgenereringsmodel",
-          "rerank": "Rerank-model"
+          "rerank": "Rerank-model",
+          "videoGeneration": "Videogenereringsmodel"
         }
       },
       "validation": {
@@ -461,7 +462,8 @@
         "label": "API-endpunkt",
         "options": {
           "chat": "tekstgenerering",
-          "image": "Billedgenerering"
+          "image": "Billedgenerering",
+          "video": "Video Generation"
         }
       },
       "endpointType": {
@@ -474,7 +476,8 @@
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Billedgenerering"
+          "image-generation": "Billedgenerering",
+          "video-generation": "Video Generation"
         }
       },
       "reasoningVisibility": {
@@ -540,6 +543,37 @@
             "auto": "Auto",
             "low": "Lav"
           }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
         }
       }
     }

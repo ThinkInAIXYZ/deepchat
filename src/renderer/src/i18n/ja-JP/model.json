@@ -40,7 +40,8 @@
       "chat": "チャット",
       "embedding": "埋め込み",
       "rerank": "再ランク付け",
-      "imageGeneration": "画像生成"
+      "imageGeneration": "画像生成",
+      "videoGeneration": "動画生成"
     }
   },
   "tags": {

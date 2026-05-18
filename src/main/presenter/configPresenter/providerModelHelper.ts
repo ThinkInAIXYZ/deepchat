@@ -2,6 +2,7 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { ModelConfig, MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
+import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import path from 'path'
 import type { StoreLike } from './storeLike'
@@ -143,16 +144,30 @@ export class ProviderModelHelper {
         normalizedModel.reasoning !== undefined
           ? normalizedModel.reasoning
           : config.reasoning || false
-      normalizedModel.type =
-        normalizedModel.type !== undefined ? normalizedModel.type : config.type || ModelType.Chat
       normalizedModel.endpointType = config.endpointType ?? normalizedModel.endpointType
+      normalizedModel.type =
+        resolveVideoGenerationCompatType({
+          modelId: normalizedModel.id,
+          type: config.type ?? normalizedModel.type,
+          apiEndpoint: config.apiEndpoint,
+          endpointType: normalizedModel.endpointType,
+          supportedEndpointTypes: normalizedModel.supportedEndpointTypes
+        }) ??
+        (normalizedModel.type !== undefined ? normalizedModel.type : config.type || ModelType.Chat)
       return normalizedModel
     }
 
     normalizedModel.vision = normalizedModel.vision || false
     normalizedModel.functionCall = normalizedModel.functionCall || false
     normalizedModel.reasoning = normalizedModel.reasoning || false
-    normalizedModel.type = normalizedModel.type || ModelType.Chat
+    normalizedModel.type =
+      resolveVideoGenerationCompatType({
+        modelId: normalizedModel.id,
+        type: normalizedModel.type,
+        endpointType: normalizedModel.endpointType,
+        supportedEndpointTypes: normalizedModel.supportedEndpointTypes
+      }) ??
+      (normalizedModel.type || ModelType.Chat)
     return normalizedModel
   }
 

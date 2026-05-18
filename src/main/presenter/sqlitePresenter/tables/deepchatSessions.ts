@@ -12,6 +12,10 @@ import {
   normalizeImageGenerationOptions,
   type ImageGenerationOptions
 } from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  type VideoGenerationOptions
+} from '@shared/videoGenerationSettings'
 
 type DeepChatSessionGenerationSettings = Pick<
   SessionGenerationSettings,
@@ -26,6 +30,7 @@ type DeepChatSessionGenerationSettings = Pick<
   | 'verbosity'
   | 'forceInterleavedThinkingCompat'
   | 'imageGeneration'
+  | 'videoGeneration'
 >
 
 export interface DeepChatSessionRow {
@@ -44,6 +49,7 @@ export interface DeepChatSessionRow {
   verbosity: 'low' | 'medium' | 'high' | null
   force_interleaved_thinking_compat: number | null
   image_generation_options_json: string | null
+  video_generation_options_json: string | null
   summary_text: string | null
   summary_cursor_order_seq: number | null
   summary_updated_at: number | null
@@ -107,6 +113,10 @@ export class DeepChatSessionsTable extends BaseTable {
 
     if (version >= 27) {
       columns.push('image_generation_options_json TEXT')
+    }
+
+    if (version >= 28) {
+      columns.push('video_generation_options_json TEXT')
     }
 
     if (version >= 14) {
@@ -187,6 +197,11 @@ export class DeepChatSessionsTable extends BaseTable {
         'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
       )
     }
+    if (!this.hasColumn('video_generation_options_json')) {
+      statements.push(
+        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
+      )
+    }
 
     return statements
   }
@@ -230,11 +245,14 @@ export class DeepChatSessionsTable extends BaseTable {
     if (version === 27) {
       return 'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
     }
+    if (version === 28) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 27
+    return 28
   }
 
   private serializeImageGenerationOptions(
@@ -252,6 +270,26 @@ export class DeepChatSessionsTable extends BaseTable {
     try {
       const parsed = JSON.parse(value) as ImageGenerationOptions
       return normalizeImageGenerationOptions(parsed)
+    } catch {
+      return undefined
+    }
+  }
+
+  private serializeVideoGenerationOptions(
+    value: VideoGenerationOptions | undefined
+  ): string | null {
+    const normalized = normalizeVideoGenerationOptions(value)
+    return normalized ? JSON.stringify(normalized) : null
+  }
+
+  private parseVideoGenerationOptions(value: string | null): VideoGenerationOptions | undefined {
+    if (!value) {
+      return undefined
+    }
+
+    try {
+      const parsed = JSON.parse(value) as VideoGenerationOptions
+      return normalizeVideoGenerationOptions(parsed)
     } catch {
       return undefined
     }
@@ -282,11 +320,12 @@ export class DeepChatSessionsTable extends BaseTable {
            verbosity,
            force_interleaved_thinking_compat,
            image_generation_options_json,
+           video_generation_options_json,
            summary_text,
            summary_cursor_order_seq,
            summary_updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -308,6 +347,7 @@ export class DeepChatSessionsTable extends BaseTable {
             ? 1
             : 0,
         this.serializeImageGenerationOptions(generationSettings?.imageGeneration),
+        this.serializeVideoGenerationOptions(generationSettings?.videoGeneration),
         null,
         1,
         null
@@ -361,6 +401,10 @@ export class DeepChatSessionsTable extends BaseTable {
     const imageGeneration = this.parseImageGenerationOptions(row.image_generation_options_json)
     if (imageGeneration) {
       settings.imageGeneration = imageGeneration
+    }
+    const videoGeneration = this.parseVideoGenerationOptions(row.video_generation_options_json)
+    if (videoGeneration) {
+      settings.videoGeneration = videoGeneration
     }
 
     return settings
@@ -429,6 +473,10 @@ export class DeepChatSessionsTable extends BaseTable {
     if (Object.prototype.hasOwnProperty.call(settings, 'imageGeneration')) {
       updates.push('image_generation_options_json = ?')
       params.push(this.serializeImageGenerationOptions(settings.imageGeneration))
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'videoGeneration')) {
+      updates.push('video_generation_options_json = ?')
+      params.push(this.serializeVideoGenerationOptions(settings.videoGeneration))
     }
 
     if (updates.length === 0) {

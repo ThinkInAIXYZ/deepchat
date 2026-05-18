@@ -27,6 +27,7 @@ import {
   resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
+import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import {
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
   resolveDerivedModelMaxTokens,
@@ -973,6 +974,15 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private inferProviderDbModelType(model: ProviderModel): ModelType {
+    const videoGenerationType = resolveVideoGenerationCompatType({
+      modelId: model.id,
+      type: model.type,
+      modalities: model.modalities
+    })
+    if (videoGenerationType) {
+      return videoGenerationType
+    }
+
     if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
       return ModelType.ImageGeneration
     }
@@ -984,6 +994,8 @@ export class ConfigPresenter implements IConfigPresenter {
         return ModelType.Rerank
       case 'imageGeneration':
         return ModelType.ImageGeneration
+      case 'videoGeneration':
+        return ModelType.VideoGeneration
       case 'tts':
         return ModelType.TTS
       case 'chat':
