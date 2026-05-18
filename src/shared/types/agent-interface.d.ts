@@ -1,6 +1,7 @@
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
 import type { ToolCallImagePreview } from './core/mcp'
+import type { AgentPlanDisplayItem } from './agent-plan'
 
 /**
  * Agent Interface Protocol
@@ -248,6 +249,7 @@ export type AssistantBlockType =
   | 'content'
   | 'search'
   | 'reasoning_content'
+  | 'plan'
   | 'error'
   | 'tool_call'
   | 'action'
@@ -291,6 +293,11 @@ export interface AssistantMessageExtra {
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  internalTool?: boolean
+  plan_entries?: AgentPlanDisplayItem[]
+  plan_explanation?: string
+  plan_revision?: number
+  plan_updated_at?: string
   subagentProgress?: string
   subagentFinal?: string
   [key: string]: string | number | boolean | object[] | undefined

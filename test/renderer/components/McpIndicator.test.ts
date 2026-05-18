@@ -135,6 +135,7 @@ const setup = async (options?: {
         buildTool('read', 'agent-filesystem'),
         buildTool('exec', 'agent-filesystem'),
         buildTool('deepchat_question', 'agent-core'),
+        buildTool('update_plan', 'agent-core'),
         buildTool('cdp_send', 'yobrowser'),
         buildTool('mcp_tool', 'demo-server', 'mcp')
       ])
@@ -325,6 +326,29 @@ describe('McpIndicator', () => {
     ])
   })
 
+  it('renders update_plan inside Agent Core and toggles it individually', async () => {
+    const { wrapper, agentSessionPresenter } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'deepchat'
+    })
+
+    expect(wrapper.text()).toContain('Agent Core')
+    expect(wrapper.text()).not.toContain('Progress')
+    expect(wrapper.text()).toContain('update_plan')
+
+    const updatePlanButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'update_plan')
+    expect(updatePlanButton).toBeTruthy()
+
+    await updatePlanButton!.trigger('click')
+    await flushPromises()
+
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
+      'update_plan'
+    ])
+  })
+
   it('resets a fully disabled tool group back to all enabled when switched on', async () => {
     const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
@@ -391,13 +415,15 @@ describe('McpIndicator', () => {
       selectedAgentId: 'deepchat'
     })
 
-    const execButton = wrapper.findAll('button').find((button) => button.text() === 'exec')
-    expect(execButton).toBeTruthy()
+    const updatePlanButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'update_plan')
+    expect(updatePlanButton).toBeTruthy()
 
-    await execButton!.trigger('click')
+    await updatePlanButton!.trigger('click')
     await flushPromises()
 
-    expect(draftStore.disabledAgentTools).toEqual(['exec'])
+    expect(draftStore.disabledAgentTools).toEqual(['update_plan'])
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
 

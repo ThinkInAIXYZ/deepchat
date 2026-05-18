@@ -12,6 +12,7 @@ import type { SearchResult } from '@shared/types/core/search'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
+import type { AgentPlanSnapshot } from '@shared/types/agent-plan'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../../lib/agentRuntime/questionTool'
 import type {
   InterleavedReasoningConfig,
@@ -352,6 +353,32 @@ function updateSubagentToolCallBlock(
     ...(typeof progressJson === 'string' ? { subagentProgress: progressJson } : {}),
     ...(typeof finalJson === 'string' ? { subagentFinal: finalJson } : {})
   }
+}
+
+function markInternalPlanToolCallBlock(blocks: AssistantMessageBlock[], toolCallId: string): void {
+  const block = blocks.find(
+    (item) => item.type === 'tool_call' && item.tool_call?.id === toolCallId
+  )
+  if (!block?.tool_call || block.tool_call.name !== 'update_plan') {
+    return
+  }
+
+  block.extra = {
+    ...block.extra,
+    internalTool: true
+  }
+}
+
+function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
+  publishDeepchatEvent('chat.plan.updated', {
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    ...(snapshot.toolCallId ? { toolCallId: snapshot.toolCallId } : {}),
+    plan: snapshot.plan,
+    ...(snapshot.explanation ? { explanation: snapshot.explanation } : {}),
+    revision: snapshot.revision,
+    updatedAt: snapshot.updatedAt
+  })
 }
 
 function extractSubagentToolState(rawData: MCPToolResponse): {
@@ -799,6 +826,18 @@ async function runToolCall(params: {
 
   try {
     const applyProgressUpdate = (update: AgentToolProgressUpdate) => {
+      if (
+        update.kind === 'agent_plan' &&
+        update.toolCallId === completedToolCall.id &&
+        allowProgressUpdates
+      ) {
+        markInternalPlanToolCallBlock(state.blocks, completedToolCall.id)
+        publishPlanUpdated(io, update.snapshot)
+        state.dirty = true
+        scheduleRendererFlush(state, rendererFlushHandle)
+        return
+      }
+
       if (
         !allowProgressUpdates ||
         update.kind !== 'subagent_orchestrator' ||

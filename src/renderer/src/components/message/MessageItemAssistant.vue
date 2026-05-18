@@ -53,7 +53,7 @@
               />
               <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
               <MessageBlockToolCall
-                v-else-if="block.type === 'tool_call'"
+                v-else-if="block.type === 'tool_call' && !isInternalToolCall(block)"
                 :block="block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
@@ -233,6 +233,10 @@ const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
     return AUDIO_EXTENSIONS.some((ext) => lower.includes(ext))
   }
   return false
+}
+
+const isInternalToolCall = (block: DisplayAssistantMessageBlock): boolean => {
+  return block.tool_call?.name === 'update_plan' && block.extra?.internalTool === true
 }
 
 // 定义事件

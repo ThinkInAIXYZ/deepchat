@@ -76,6 +76,13 @@
             @delete-queue="onPendingInputDelete"
             @resume-queue="onResumePendingQueue"
           />
+          <div v-if="latestPlanSnapshot" class="mb-1.5 flex w-full max-w-4xl justify-end">
+            <AgentProgressFloat
+              :snapshot="latestPlanSnapshot"
+              :collapsed="isPlanFloatCollapsed"
+              @toggle-collapse="agentPlanStore.toggleCollapsed(props.sessionId)"
+            />
+          </div>
           <template v-if="!activePendingInteraction">
             <ChatInputBox
               ref="chatInputRef"
@@ -135,6 +142,7 @@ import type {
 } from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
+import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
@@ -145,6 +153,7 @@ import { createModelClient } from '@api/ModelClient'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
+import { useAgentPlanStore } from '@/stores/ui/agentPlan'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { createSessionClient } from '@api/SessionClient'
@@ -173,6 +182,7 @@ const props = defineProps<{
 const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
+const agentPlanStore = useAgentPlanStore()
 const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
 const chatClient = createChatClient()
@@ -246,6 +256,7 @@ let chatSearchRefreshFrame: number | null = null
 let pendingForcedScroll = false
 let lastObservedScrollHeight = 0
 let cancelSessionRestoreTask: (() => void) | null = null
+let cancelPlanUpdatedListener: (() => void) | null = null
 let sessionRestoreRequestId = 0
 
 function syncScrollPosition() {
@@ -558,6 +569,16 @@ const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(()
 
   return firstBlock
 })
+
+const latestPlanSnapshot = computed(() => {
+  const snapshot = agentPlanStore.snapshots[props.sessionId]
+  if (!snapshot || snapshot.plan.length === 0) {
+    return null
+  }
+  return snapshot
+})
+
+const isPlanFloatCollapsed = computed(() => agentPlanStore.isCollapsed(props.sessionId))
 
 const displayMessages = computed(() => {
   const msgs: DisplayMessage[] = []
@@ -1113,6 +1134,7 @@ async function onSubmit() {
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, { text, files })
   } else {
+    agentPlanStore.clear(props.sessionId)
     await chatClient.sendMessage(props.sessionId, { text, files })
   }
   message.value = ''
@@ -1134,6 +1156,7 @@ async function onCommandSubmit(command: string) {
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, { text, files })
   } else {
+    agentPlanStore.clear(props.sessionId)
     await chatClient.sendMessage(props.sessionId, { text, files })
   }
   attachedFiles.value = []
@@ -1195,6 +1218,7 @@ async function onSteer() {
   if (await handleManualCompactionCommand(text)) {
     return
   }
+  agentPlanStore.clear(props.sessionId)
   await chatClient.steerActiveTurn(props.sessionId, { text, files })
   message.value = ''
   attachedFiles.value = []
@@ -1356,11 +1380,18 @@ async function onResumePendingQueue() {
 onMounted(() => {
   window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.addEventListener('keydown', handleWindowKeydown)
+  cancelPlanUpdatedListener = chatClient.onPlanUpdated((payload) => {
+    if (payload.sessionId === props.sessionId) {
+      agentPlanStore.applySnapshot(payload)
+    }
+  })
   syncScrollPosition()
 })
 
 onUnmounted(() => {
   removeModelConfigChangedListener()
+  cancelPlanUpdatedListener?.()
+  cancelPlanUpdatedListener = null
   voiceInput.cleanup()
   cancelSessionRestoreTask?.()
   cancelSessionRestoreTask = null

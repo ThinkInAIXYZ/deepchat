@@ -645,6 +645,7 @@ describe('main kernel contracts', () => {
         'browser.activity.changed',
         'browser.open.requested',
         'browser.status.changed',
+        'chat.plan.updated',
         'chat.stream.completed',
         'chat.stream.failed',
         'chat.stream.updated',

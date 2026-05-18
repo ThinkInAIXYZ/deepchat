@@ -1,5 +1,6 @@
 import { FileMetaData } from './presenter'
 import type { ToolCallImagePreview } from './types/core/mcp'
+import type { AgentPlanDisplayItem } from './types/agent-plan'
 
 export type Message = {
   id: string
@@ -181,6 +182,11 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  internalTool?: boolean
+  plan_entries?: AgentPlanDisplayItem[]
+  plan_explanation?: string
+  plan_revision?: number
+  plan_updated_at?: string
   subagentProgress?: string
   subagentFinal?: string
 }

@@ -285,7 +285,16 @@ export const ChatMessagePageResultSchema = z.object({
 
 export const AssistantMessageBlockSchema = z.object({
   id: EntityIdSchema.optional(),
-  type: z.enum(['content', 'search', 'reasoning_content', 'error', 'tool_call', 'action', 'image']),
+  type: z.enum([
+    'content',
+    'search',
+    'reasoning_content',
+    'plan',
+    'error',
+    'tool_call',
+    'action',
+    'image'
+  ]),
   content: z.string().optional(),
   status: z.enum(['pending', 'success', 'error', 'loading', 'granted', 'denied']),
   timestamp: TimestampMsSchema,

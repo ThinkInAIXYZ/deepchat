@@ -5,13 +5,20 @@
 
 import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
 import type { PermissionMode } from '../agent-interface'
+import type { AgentPlanSnapshot } from '../agent-plan'
 
-export interface AgentToolProgressUpdate {
-  kind: 'subagent_orchestrator'
-  toolCallId: string
-  responseMarkdown: string
-  progressJson: string
-}
+export type AgentToolProgressUpdate =
+  | {
+      kind: 'subagent_orchestrator'
+      toolCallId: string
+      responseMarkdown: string
+      progressJson: string
+    }
+  | {
+      kind: 'agent_plan'
+      toolCallId: string
+      snapshot: AgentPlanSnapshot
+    }
 
 /**
  * Tool Presenter interface

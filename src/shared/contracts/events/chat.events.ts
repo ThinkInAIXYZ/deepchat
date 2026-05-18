@@ -6,6 +6,11 @@ import {
   defineEventContract
 } from '../common'
 
+const AgentPlanItemSchema = z.object({
+  step: z.string(),
+  status: z.enum(['pending', 'in_progress', 'completed'])
+})
+
 export const chatStreamUpdatedEvent = defineEventContract({
   name: 'chat.stream.updated',
   payload: z.object({
@@ -36,5 +41,18 @@ export const chatStreamFailedEvent = defineEventContract({
     messageId: EntityIdSchema,
     failedAt: TimestampMsSchema,
     error: z.string()
+  })
+})
+
+export const chatPlanUpdatedEvent = defineEventContract({
+  name: 'chat.plan.updated',
+  payload: z.object({
+    sessionId: EntityIdSchema,
+    messageId: EntityIdSchema,
+    toolCallId: z.string().optional(),
+    plan: z.array(AgentPlanItemSchema),
+    explanation: z.string().optional(),
+    revision: z.number().int().positive(),
+    updatedAt: z.string()
   })
 })
