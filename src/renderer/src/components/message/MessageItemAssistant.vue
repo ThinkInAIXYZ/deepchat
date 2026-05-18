@@ -243,16 +243,41 @@ const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
   return false
 }
 
+const isVideoUrl = (value: string): boolean => {
+  if (!value) return false
+
+  try {
+    const normalizedUrl = value.startsWith('imgcache://')
+      ? new URL(value.replace('imgcache://', 'https://imgcache.local/'))
+      : new URL(value)
+    const pathname = normalizedUrl.pathname.toLowerCase()
+    return VIDEO_EXTENSIONS.some((ext) => pathname.endsWith(ext))
+  } catch {
+    const lower = value.toLowerCase()
+    return VIDEO_EXTENSIONS.some(
+      (ext) => lower.endsWith(ext) || lower.includes(`${ext}?`) || lower.includes(`${ext}#`)
+    )
+  }
+}
+
+const getLegacyBlockData = (block: DisplayAssistantMessageBlock): string => {
+  const content = block.content
+  if (content && typeof content === 'object' && 'data' in content) {
+    return String((content as { data?: unknown }).data ?? '')
+  }
+
+  return typeof content === 'string' ? content : ''
+}
+
 const isVideoBlock = (block: DisplayAssistantMessageBlock): boolean => {
   if (block.type === 'video') return true
   if (block.type !== 'image') return false
   const mimeType = block.image_data?.mimeType?.toLowerCase() || ''
   if (mimeType.startsWith('video/')) return true
-  const data = block.image_data?.data || ''
+  const data = block.image_data?.data || getLegacyBlockData(block)
   if (data.startsWith('data:video/')) return true
   if (data.startsWith('imgcache://') || data.startsWith('http://') || data.startsWith('https://')) {
-    const lower = data.toLowerCase()
-    return VIDEO_EXTENSIONS.some((ext) => lower.includes(ext))
+    return isVideoUrl(data)
   }
   return false
 }
