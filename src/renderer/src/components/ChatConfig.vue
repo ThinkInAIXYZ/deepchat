@@ -40,7 +40,7 @@ const props = defineProps<{
   providerId?: string
   reasoningEffort?: ReasoningEffort
   verbosity?: Verbosity
-  modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank'
+  modelType?: 'chat' | 'imageGeneration' | 'videoGeneration' | 'tts' | 'embedding' | 'rerank'
 }>()
 
 const systemPrompt = defineModel<string>('systemPrompt')
@@ -129,7 +129,7 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
 watch(
   () => props.modelType,
   (newType) => {
-    if (newType === 'imageGeneration' && systemPrompt.value) {
+    if ((newType === 'imageGeneration' || newType === 'videoGeneration') && systemPrompt.value) {
       systemPrompt.value = ''
     }
   }
@@ -140,6 +140,8 @@ const modelTypeIcon = computed(() => {
   const icons = {
     chat: 'lucide:message-circle',
     imageGeneration: 'lucide:image',
+    videoGeneration: 'lucide:clapperboard',
+    tts: 'lucide:volume-2',
     embedding: 'lucide:layers',
     rerank: 'lucide:arrow-up-down'
   }
@@ -157,7 +159,13 @@ const modelTypeIcon = computed(() => {
 
     <div class="space-y-6">
       <!-- System Prompt (hidden for image generation models) -->
-      <div v-if="!modelTypeDetection.isImageGenerationModel.value" class="space-y-2 px-2">
+      <div
+        v-if="
+          !modelTypeDetection.isImageGenerationModel.value &&
+          !modelTypeDetection.isVideoGenerationModel.value
+        "
+        class="space-y-2 px-2"
+      >
         <div class="flex items-center space-x-2 py-1.5">
           <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>

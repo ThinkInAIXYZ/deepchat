@@ -6,6 +6,7 @@ import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySetti
 import type { NewApiEndpointType } from '@shared/model'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ImageGenerationOptions } from '../../imageGenerationSettings'
+import type { VideoGenerationOptions } from '../../videoGenerationSettings'
 import type { TtsSettings } from '../../ttsSettings'
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
 import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
@@ -181,6 +182,7 @@ export interface ModelConfig {
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'balanced' | 'precise'
   imageGeneration?: ImageGenerationOptions
+  videoGeneration?: VideoGenerationOptions
   tts?: TtsSettings
 }
 
@@ -894,6 +896,13 @@ export type StandaloneImageGenerationResult = {
   images: Array<{ data: string; mimeType: string }>
 }
 
+export type StandaloneVideoGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: VideoGenerationOptions
+  videos: Array<{ data: string; mimeType: string }>
+}
+
 export type AcpDebugActionType =
   | 'initialize'
   | 'newSession'
@@ -1273,6 +1282,13 @@ export interface ILlmProviderPresenter {
     imageOptions?: ImageGenerationOptions,
     options?: { signal?: AbortSignal }
   ): Promise<StandaloneImageGenerationResult>
+  generateVideoStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    videoOptions?: VideoGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneVideoGenerationResult>
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
   warmupAcpProcess(agentId: string, workdir?: string): Promise<void>

@@ -40,7 +40,8 @@
       "chat": "گفتگو",
       "embedding": "جاسازی",
       "rerank": "رتبه‌بندی مجدد",
-      "imageGeneration": "تولید تصویر"
+      "imageGeneration": "تولید تصویر",
+      "videoGeneration": "تولید ویدیو"
     }
   },
   "tags": {

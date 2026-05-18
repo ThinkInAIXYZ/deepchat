@@ -85,6 +85,7 @@ export type DisplayAssistantMessageBlock = {
     | 'tool_call'
     | 'action'
     | 'image'
+    | 'video'
     | 'audio'
     | 'artifact-thinking'
   id?: string

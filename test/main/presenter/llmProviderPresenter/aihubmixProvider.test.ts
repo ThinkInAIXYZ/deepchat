@@ -118,4 +118,37 @@ describe('AihubmixProvider AI SDK runtime headers', () => {
       'X-Title': 'DeepChat'
     })
   })
+
+  it('treats Seedance models as video generation even when metadata is still chat', async () => {
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    const modelConfig = {
+      maxTokens: 1024,
+      contextLength: 8192,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'chat'
+    } as ModelConfig
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: '生成 马斯克 喝酒的视频 2s' }],
+      'doubao-seedance-2-0-fast-260128',
+      modelConfig,
+      0.7,
+      256,
+      []
+    )) {
+      break
+    }
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
+
+    expect(context.providerKind).toBe('openai-compatible')
+    expect(context.shouldUseVideoGeneration('doubao-seedance-2-0-fast-260128', modelConfig)).toBe(
+      true
+    )
+    expect(context.shouldUseVideoGeneration('gpt-4o', { type: 'chat' } as ModelConfig)).toBe(false)
+  })
 })

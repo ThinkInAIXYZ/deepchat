@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef, toRaw } from 'vue'
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
+import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import type {
   CreateSessionInput,
   PermissionMode,
@@ -39,6 +40,9 @@ export const useDraftStore = defineStore('draft', () => {
   const imageGeneration = shallowRef<SessionGenerationSettings['imageGeneration'] | undefined>(
     undefined
   )
+  const videoGeneration = shallowRef<SessionGenerationSettings['videoGeneration'] | undefined>(
+    undefined
+  )
   const permissionMode = ref<PermissionMode>('full_access')
   const disabledAgentTools = ref<string[]>([])
   const subagentEnabled = ref(false)
@@ -51,6 +55,12 @@ export const useDraftStore = defineStore('draft', () => {
     value: SessionGenerationSettings['imageGeneration']
   ): SessionGenerationSettings['imageGeneration'] {
     return normalizeImageGenerationOptions(toRaw(value))
+  }
+
+  function normalizeDraftVideoGeneration(
+    value: SessionGenerationSettings['videoGeneration']
+  ): SessionGenerationSettings['videoGeneration'] {
+    return normalizeVideoGenerationOptions(toRaw(value))
   }
 
   function toGenerationSettings(): Partial<SessionGenerationSettings> | undefined {
@@ -73,6 +83,10 @@ export const useDraftStore = defineStore('draft', () => {
     const normalizedImageGeneration = normalizeDraftImageGeneration(imageGeneration.value)
     if (normalizedImageGeneration !== undefined) {
       settings.imageGeneration = normalizedImageGeneration
+    }
+    const normalizedVideoGeneration = normalizeDraftVideoGeneration(videoGeneration.value)
+    if (normalizedVideoGeneration !== undefined) {
+      settings.videoGeneration = normalizedVideoGeneration
     }
 
     return Object.keys(settings).length > 0 ? settings : undefined
@@ -126,6 +140,9 @@ export const useDraftStore = defineStore('draft', () => {
     if (Object.prototype.hasOwnProperty.call(settings, 'imageGeneration')) {
       imageGeneration.value = normalizeDraftImageGeneration(settings.imageGeneration)
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'videoGeneration')) {
+      videoGeneration.value = normalizeDraftVideoGeneration(settings.videoGeneration)
+    }
   }
 
   function resetGenerationSettings(): void {
@@ -140,6 +157,7 @@ export const useDraftStore = defineStore('draft', () => {
     verbosity.value = undefined
     forceInterleavedThinkingCompat.value = undefined
     imageGeneration.value = undefined
+    videoGeneration.value = undefined
   }
 
   function reset(): void {
@@ -184,6 +202,7 @@ export const useDraftStore = defineStore('draft', () => {
     verbosity,
     forceInterleavedThinkingCompat,
     imageGeneration,
+    videoGeneration,
     permissionMode,
     disabledAgentTools,
     subagentEnabled,

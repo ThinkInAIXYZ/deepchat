@@ -20,6 +20,13 @@ import {
   type ImageGenerationOptions
 } from '@shared/imageGenerationSettings'
 import {
+  isVideoGenerationModelConfig,
+  normalizeVideoGenerationOptions,
+  resolveOpenAICompatibleVideoRequestBodyShape,
+  type VideoGenerationOptions,
+  type VideoGenerationReference
+} from '@shared/videoGenerationSettings'
+import {
   isChatAudioTtsModel,
   isGeminiGenerateContentTtsModel,
   isTtsModelId,
@@ -48,9 +55,40 @@ type ImageGenerationRequestOptions = {
   providerOptions?: Record<string, ImageGenerationProviderPayload>
 }
 
+type VideoGenerationRequestBody = {
+  model: string
+  prompt: string
+  seconds?: string
+  size?: string
+  input_reference?: string | { mime_type?: string; data: string }
+  content?: Array<Record<string, unknown>>
+  ratio?: string
+  duration?: number
+  resolution?: string
+  watermark?: boolean
+  generate_audio?: boolean
+  extra_body?: Record<string, unknown>
+}
+
+type VideoGenerationTaskResponse = {
+  id?: string
+  status?: string
+  url?: string | null
+  error?:
+    | string
+    | {
+        message?: string
+      }
+    | null
+}
+
 const DEFAULT_GEMINI_TTS_VOICE = 'Kore'
 const DEFAULT_GEMINI_PCM_SAMPLE_RATE = 24000
 const DEFAULT_GEMINI_PCM_BITS_PER_SAMPLE = 16
+const VIDEO_GENERATION_POLL_INTERVAL_MS = 3000
+const PROMPT_VIDEO_DURATION_EN_PATTERN =
+  /(^|[^0-9a-z])(?<duration>\d{1,2})\s*(?:s|sec|secs|second|seconds)\b/i
+const PROMPT_VIDEO_DURATION_ZH_PATTERN = /(?<duration>\d{1,2})\s*秒/u
 
 export interface AiSdkRuntimeContext {
   providerKind: AiSdkProviderKind
@@ -71,6 +109,7 @@ export interface AiSdkRuntimeContext {
   cleanHeaders?: boolean
   supportsNativeTools?: (modelId: string, modelConfig: ModelConfig) => boolean
   shouldUseImageGeneration?: (modelId: string, modelConfig: ModelConfig) => boolean
+  shouldUseVideoGeneration?: (modelId: string, modelConfig: ModelConfig) => boolean
   shouldUseTts?: (modelId: string, modelConfig: ModelConfig) => boolean
 }
 
@@ -146,11 +185,72 @@ function normalizePromptValue(value: unknown): string {
   return ''
 }
 
+function supportsPromptDerivedVideoDuration(modelId: string, duration: number): boolean {
+  const normalizedModelId = modelId.trim().toLowerCase()
+
+  if (normalizedModelId.startsWith('doubao-seedance-')) {
+    return duration >= 4 && duration <= 15
+  }
+
+  return true
+}
+
+function resolvePromptVideoDuration(prompt: string, modelId: string): number | undefined {
+  const normalizedPrompt = prompt.trim()
+  if (!normalizedPrompt) {
+    return undefined
+  }
+
+  const matchedDuration =
+    normalizedPrompt.match(PROMPT_VIDEO_DURATION_EN_PATTERN)?.groups?.duration ||
+    normalizedPrompt.match(PROMPT_VIDEO_DURATION_ZH_PATTERN)?.groups?.duration
+
+  if (!matchedDuration) {
+    return undefined
+  }
+
+  const parsed = Number.parseInt(matchedDuration, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined
+  }
+
+  return supportsPromptDerivedVideoDuration(modelId, parsed) ? parsed : undefined
+}
+
+function resolveVideoGenerationRequestOptions(
+  prompt: string,
+  modelId: string,
+  options: VideoGenerationOptions | undefined
+): VideoGenerationOptions | undefined {
+  const normalizedOptions = normalizeVideoGenerationOptions(options)
+
+  if (
+    typeof normalizedOptions?.duration === 'number' ||
+    (typeof normalizedOptions?.seconds === 'string' && normalizedOptions.seconds.trim().length > 0)
+  ) {
+    return normalizedOptions
+  }
+
+  const promptDuration = resolvePromptVideoDuration(prompt, modelId)
+  if (promptDuration === undefined) {
+    return normalizedOptions
+  }
+
+  return normalizeVideoGenerationOptions({
+    ...normalizedOptions,
+    duration: promptDuration
+  })
+}
+
 function extractImagePrompt(messages: ChatMessage[]): string {
   return messages
     .map((message) => (message.role === 'user' ? normalizePromptValue(message.content) : ''))
     .filter((content) => content.trim().length > 0)
     .join('\n\n')
+}
+
+function extractVideoPrompt(messages: ChatMessage[]): string {
+  return extractImagePrompt(messages)
 }
 
 function resolveSupportsNativeTools(
@@ -175,6 +275,21 @@ function shouldUseImageGenerationRuntime(
   }
 
   return modelConfig.apiEndpoint === ApiEndpointType.Image
+}
+
+function shouldUseVideoGenerationRuntime(
+  context: AiSdkRuntimeContext,
+  modelId: string,
+  modelConfig: ModelConfig
+): boolean {
+  if (context.shouldUseVideoGeneration) {
+    return context.shouldUseVideoGeneration(modelId, modelConfig)
+  }
+
+  return (
+    modelConfig.apiEndpoint === ApiEndpointType.Video ||
+    isVideoGenerationModelConfig(modelConfig, modelId)
+  )
 }
 
 function shouldUseTtsRuntime(
@@ -626,6 +741,355 @@ function resolveRuntimeTemperature(
   }
 }
 
+function normalizeOpenAICompatibleBaseUrl(baseUrl: string | undefined): string {
+  const normalized = (baseUrl || 'https://api.openai.com/v1').trim().replace(/\/+$/, '')
+  if (!normalized) {
+    return 'https://api.openai.com/v1'
+  }
+
+  return /\/v1(?:beta\d+)?$/i.test(normalized) ? normalized : `${normalized}/v1`
+}
+
+function normalizeVideoReferenceDataUrl(reference: VideoGenerationReference): string | undefined {
+  if (reference.url?.trim()) {
+    return reference.url.trim()
+  }
+
+  if (!reference.data?.trim()) {
+    return undefined
+  }
+
+  const normalizedData = reference.data.trim()
+  if (normalizedData.startsWith('data:')) {
+    return normalizedData
+  }
+
+  const fallbackMimeType =
+    reference.mimeType?.trim() ||
+    (reference.type === 'image'
+      ? 'image/png'
+      : reference.type === 'audio'
+        ? 'audio/mpeg'
+        : 'video/mp4')
+
+  return `data:${fallbackMimeType};base64,${normalizedData}`
+}
+
+function buildVideoGenerationContent(
+  options: VideoGenerationOptions | undefined
+): Array<Record<string, unknown>> | undefined {
+  if (!options) {
+    return undefined
+  }
+
+  const content: Record<string, unknown>[] = []
+
+  for (const reference of options.references ?? []) {
+    const url = normalizeVideoReferenceDataUrl(reference)
+    if (!url) {
+      continue
+    }
+
+    if (reference.type === 'image') {
+      content.push({
+        type: 'image_url',
+        image_url: { url },
+        role: 'reference_image'
+      })
+      continue
+    }
+
+    if (reference.type === 'audio') {
+      content.push({
+        type: 'audio_url',
+        audio_url: { url },
+        role: 'reference_audio'
+      })
+      continue
+    }
+
+    content.push({
+      type: 'video_url',
+      video_url: { url },
+      role: 'reference_video'
+    })
+  }
+
+  return content.length > 0 ? content : undefined
+}
+
+function buildVideoGenerationExtraBody(
+  options: VideoGenerationOptions | undefined
+): Record<string, unknown> | undefined {
+  if (!options) {
+    return undefined
+  }
+
+  const extraBody: Record<string, unknown> = {}
+
+  if (typeof options.duration === 'number' && Number.isFinite(options.duration)) {
+    extraBody.duration = options.duration
+  }
+  if (typeof options.ratio === 'string' && options.ratio.trim()) {
+    extraBody.ratio = options.ratio.trim()
+  }
+  if (typeof options.resolution === 'string' && options.resolution.trim()) {
+    extraBody.resolution = options.resolution.trim()
+  }
+  if (typeof options.watermark === 'boolean') {
+    extraBody.watermark = options.watermark
+  }
+  if (typeof options.generateAudio === 'boolean') {
+    extraBody.generate_audio = options.generateAudio
+  }
+
+  const content = buildVideoGenerationContent(options)
+  if (content) {
+    extraBody.content = content
+  }
+
+  return Object.keys(extraBody).length > 0 ? extraBody : undefined
+}
+
+function resolveFlatTopLevelVideoDuration(
+  options: VideoGenerationOptions | undefined
+): number | undefined {
+  if (typeof options?.duration === 'number' && Number.isFinite(options.duration)) {
+    return Math.max(-1, Math.round(options.duration))
+  }
+
+  if (typeof options?.seconds !== 'string') {
+    return undefined
+  }
+
+  const parsed = Number.parseInt(options.seconds.trim(), 10)
+  return Number.isFinite(parsed) ? Math.max(-1, parsed) : undefined
+}
+
+function buildVideoGenerationRequestBody(
+  provider: LLM_PROVIDER,
+  modelId: string,
+  prompt: string,
+  options: VideoGenerationOptions | undefined
+): VideoGenerationRequestBody {
+  const body: VideoGenerationRequestBody = {
+    model: modelId,
+    prompt
+  }
+
+  if (options?.seconds) {
+    body.seconds = options.seconds
+  }
+  if (options?.size) {
+    body.size = options.size
+  }
+  if (options?.inputReference) {
+    if (typeof options.inputReference === 'string') {
+      body.input_reference = options.inputReference
+    } else {
+      body.input_reference = {
+        data: options.inputReference.data,
+        ...(options.inputReference.mimeType ? { mime_type: options.inputReference.mimeType } : {})
+      }
+    }
+  }
+
+  const requestBodyShape = resolveOpenAICompatibleVideoRequestBodyShape({
+    providerId: provider.id,
+    providerApiType: provider.apiType,
+    baseUrl: provider.baseUrl,
+    modelId
+  })
+
+  if (requestBodyShape === 'flat-top-level') {
+    const content = buildVideoGenerationContent(options)
+    if (content) {
+      body.content = content
+    }
+    if (options?.ratio) {
+      body.ratio = options.ratio.trim()
+    }
+    const duration = resolveFlatTopLevelVideoDuration(options)
+    if (duration !== undefined) {
+      body.duration = duration
+    }
+    if (options?.resolution) {
+      body.resolution = options.resolution.trim()
+    }
+    if (typeof options?.watermark === 'boolean') {
+      body.watermark = options.watermark
+    }
+    if (typeof options?.generateAudio === 'boolean') {
+      body.generate_audio = options.generateAudio
+    }
+
+    return body
+  }
+
+  const extraBody = buildVideoGenerationExtraBody(options)
+  if (extraBody) {
+    body.extra_body = extraBody
+  }
+
+  return body
+}
+
+function extractVideoTaskError(response: VideoGenerationTaskResponse | null | undefined): string {
+  const error = response?.error
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim()
+  }
+
+  if (
+    error &&
+    typeof error === 'object' &&
+    typeof error.message === 'string' &&
+    error.message.trim()
+  ) {
+    return error.message.trim()
+  }
+
+  return 'Video generation failed'
+}
+
+function resolveVideoTaskStatus(response: VideoGenerationTaskResponse | null | undefined): string {
+  return typeof response?.status === 'string' ? response.status.trim().toLowerCase() : ''
+}
+
+function delayWithAbort(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason instanceof Error ? signal.reason : new Error('Aborted'))
+      return
+    }
+
+    const onAbort = () => {
+      clearTimeout(timeoutId)
+      signal.removeEventListener('abort', onAbort)
+      reject(signal.reason instanceof Error ? signal.reason : new Error('Aborted'))
+    }
+
+    const timeoutId = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+async function executeOpenAICompatibleVideoGeneration(
+  provider: LLM_PROVIDER,
+  defaultHeaders: Record<string, string>,
+  modelId: string,
+  prompt: string,
+  modelConfig: ModelConfig,
+  timeout: number | undefined
+): Promise<{ base64: string; mimeType: string }> {
+  const normalizedOptions = resolveVideoGenerationRequestOptions(
+    prompt,
+    modelId,
+    modelConfig.videoGeneration
+  )
+  const baseUrl = normalizeOpenAICompatibleBaseUrl(provider.baseUrl)
+  const createUrl = `${baseUrl}/videos`
+  const body = buildVideoGenerationRequestBody(provider, modelId, prompt, normalizedOptions)
+  const controller = new AbortController()
+  const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
+  const proxyUrl = proxyConfig.getProxyUrl()
+  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+
+  const fetchJson = async <T>(url: string, init: RequestInit): Promise<T> => {
+    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+      ...init,
+      headers: {
+        ...defaultHeaders,
+        Authorization: `Bearer ${provider.oauthToken || provider.apiKey || ''}`,
+        ...(init.headers as Record<string, string> | undefined)
+      },
+      signal: controller.signal
+    }
+    if (dispatcher) fetchInit.dispatcher = dispatcher
+
+    const response = await fetch(url, fetchInit)
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      throw new Error(`Video request failed (${response.status}): ${errorText}`)
+    }
+
+    return (await response.json()) as T
+  }
+
+  const fetchBinary = async (url: string): Promise<{ buffer: ArrayBuffer; mimeType: string }> => {
+    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+      method: 'GET',
+      headers: {
+        ...defaultHeaders,
+        Authorization: `Bearer ${provider.oauthToken || provider.apiKey || ''}`
+      },
+      signal: controller.signal
+    }
+    if (dispatcher) fetchInit.dispatcher = dispatcher
+
+    const response = await fetch(url, fetchInit)
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      throw new Error(`Video content download failed (${response.status}): ${errorText}`)
+    }
+
+    return {
+      buffer: await response.arrayBuffer(),
+      mimeType: response.headers.get('content-type')?.split(';')[0]?.trim() || 'video/mp4'
+    }
+  }
+
+  try {
+    let task = await fetchJson<VideoGenerationTaskResponse>(createUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    })
+
+    const taskId = typeof task.id === 'string' ? task.id.trim() : ''
+    if (!taskId) {
+      throw new Error('Video generation response missing task id')
+    }
+
+    let status = resolveVideoTaskStatus(task)
+    while (status !== 'completed') {
+      if (status === 'failed') {
+        throw new Error(extractVideoTaskError(task))
+      }
+
+      await delayWithAbort(VIDEO_GENERATION_POLL_INTERVAL_MS, controller.signal)
+      task = await fetchJson<VideoGenerationTaskResponse>(
+        `${createUrl}/${encodeURIComponent(taskId)}`,
+        {
+          method: 'GET'
+        }
+      )
+      status = resolveVideoTaskStatus(task)
+    }
+
+    const contentUrl =
+      typeof task.url === 'string' && task.url.trim().length > 0
+        ? task.url.trim()
+        : `${createUrl}/${encodeURIComponent(taskId)}/content`
+    const { buffer, mimeType } = await fetchBinary(contentUrl)
+
+    return {
+      base64: Buffer.from(buffer).toString('base64'),
+      mimeType
+    }
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId)
+    }
+  }
+}
+
 async function buildPromptRuntime(
   context: AiSdkRuntimeContext,
   messages: ChatMessage[],
@@ -791,6 +1255,49 @@ export async function* runAiSdkCoreStream(
       type: 'image_data',
       image_data: {
         data: cachedAudio,
+        mimeType
+      }
+    }
+    yield {
+      type: 'stop',
+      stop_reason: 'complete'
+    }
+    return
+  }
+
+  if (shouldUseVideoGenerationRuntime(context, modelId, normalizedModelConfig)) {
+    const prompt = extractVideoPrompt(messages)
+    const normalizedVideoOptions = resolveVideoGenerationRequestOptions(
+      prompt,
+      modelId,
+      normalizedModelConfig.videoGeneration
+    )
+    const requestBody = buildVideoGenerationRequestBody(
+      context.provider,
+      modelId,
+      prompt,
+      normalizedVideoOptions
+    )
+
+    await context.emitRequestTrace?.(normalizedModelConfig, {
+      endpoint: `${normalizeOpenAICompatibleBaseUrl(context.provider.baseUrl)}/videos`,
+      headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
+      body: requestBody
+    })
+
+    const { base64, mimeType } = await executeOpenAICompatibleVideoGeneration(
+      context.provider,
+      context.defaultHeaders,
+      modelId,
+      prompt,
+      normalizedModelConfig,
+      timeout
+    )
+
+    yield {
+      type: 'image_data',
+      image_data: {
+        data: `data:${mimeType};base64,${base64}`,
         mimeType
       }
     }

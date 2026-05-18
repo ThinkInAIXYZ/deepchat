@@ -503,7 +503,8 @@
           "chat": "언어 모델",
           "embedding": "임베드 모델",
           "imageGeneration": "이미지 생성 모델",
-          "rerank": "모델을 재정렬하십시오"
+          "rerank": "모델을 재정렬하십시오",
+          "videoGeneration": "비디오 생성 모델"
         }
       },
       "validation": {
@@ -528,7 +529,8 @@
         "label": "API 엔드포인트",
         "options": {
           "chat": "텍스트 생성",
-          "image": "이미지 생성"
+          "image": "이미지 생성",
+          "video": "Video Generation"
         }
       },
       "endpointType": {
@@ -541,7 +543,8 @@
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "이미지 생성"
+          "image-generation": "이미지 생성",
+          "video-generation": "Video Generation"
         }
       },
       "reasoningVisibility": {
@@ -607,6 +610,37 @@
             "auto": "자동",
             "low": "낮음"
           }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
         }
       }
     }
