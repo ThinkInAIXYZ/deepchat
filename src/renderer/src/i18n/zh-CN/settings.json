@@ -794,8 +794,8 @@
         "operationalDescription": "同步 ModelScope 平台上可直接使用的 MCP 服务器"
       }
     },
-    "voiceai": {
-      "title": "Voice.ai 文字转语音",
+    "tts": {
+      "title": "文本转语音 (TTS)",
       "description": "将文本生成语音，voice 会在下方模型列表中展示。",
       "audioFormat": {
         "label": "音频格式",
