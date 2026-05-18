@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
+import { cloneBlocksForRenderer } from '@/presenter/agentRuntimePresenter/echo'
 import logger from '@shared/logger'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
@@ -86,6 +87,27 @@ function createMockSqlitePresenter() {
       upsert: vi.fn()
     }
   } as any
+}
+
+function createAssistantBlockRow(overrides: Record<string, unknown> = {}) {
+  return {
+    message_id: 'm1',
+    block_index: 0,
+    block_type: 'content',
+    status: 'success',
+    text_content: null,
+    tool_call_id: null,
+    tool_name: null,
+    tool_params: null,
+    tool_response: null,
+    action_type: null,
+    image_mime_type: null,
+    reasoning_start_at: null,
+    reasoning_end_at: null,
+    extra_json: '{}',
+    updated_at: 1000,
+    ...overrides
+  }
 }
 
 describe('DeepChatMessageStore', () => {
@@ -365,6 +387,84 @@ describe('DeepChatMessageStore', () => {
     it('returns null when not found', () => {
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(undefined)
       expect(store.getMessage('missing')).toBeNull()
+    })
+
+    it('omits nullable action_type values when materializing assistant blocks', () => {
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 1,
+        role: 'assistant',
+        content: '[]',
+        status: 'sent',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: 1000,
+        updated_at: 1000
+      })
+      sqlitePresenter.deepchatAssistantBlocksTable.listByMessageIds.mockReturnValue([
+        createAssistantBlockRow({
+          block_index: 0,
+          block_type: 'content',
+          text_content: 'hello',
+          action_type: null
+        }),
+        createAssistantBlockRow({
+          block_index: 1,
+          block_type: 'tool_call',
+          tool_call_id: 'tc1',
+          tool_name: 'read_file',
+          tool_params: '{}',
+          tool_response: 'ok',
+          action_type: null
+        })
+      ])
+
+      const msg = store.getMessage('m1')
+      const blocks = JSON.parse(msg!.content)
+
+      expect(blocks[0]).not.toHaveProperty('action_type')
+      expect(blocks[1]).not.toHaveProperty('action_type')
+      expect(() => cloneBlocksForRenderer(blocks)).not.toThrow()
+    })
+
+    it('keeps only valid persisted action_type values on assistant blocks', () => {
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 1,
+        role: 'assistant',
+        content: '[]',
+        status: 'sent',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: 1000,
+        updated_at: 1000
+      })
+      sqlitePresenter.deepchatAssistantBlocksTable.listByMessageIds.mockReturnValue([
+        createAssistantBlockRow({
+          block_index: 0,
+          block_type: 'content',
+          text_content: 'before action',
+          action_type: 'legacy_bad_value'
+        }),
+        createAssistantBlockRow({
+          block_index: 1,
+          block_type: 'action',
+          status: 'pending',
+          text_content: 'Need permission',
+          tool_call_id: 'tc1',
+          tool_name: 'write_file',
+          action_type: 'tool_call_permission'
+        })
+      ])
+
+      const msg = store.getMessage('m1')
+      const blocks = JSON.parse(msg!.content)
+
+      expect(blocks[0]).not.toHaveProperty('action_type')
+      expect(blocks[1].action_type).toBe('tool_call_permission')
+      expect(() => cloneBlocksForRenderer(blocks)).not.toThrow()
     })
   })
 
