@@ -658,8 +658,8 @@
     "stopModel": "Arrêter le modèle",
     "pulling": "Récupération...",
     "runModel": "Exécuter le modèle",
-    "voiceai": {
-      "title": "Synthèse vocale Voice.ai",
+    "tts": {
+      "title": "Synthese vocale (TTS)",
       "description": "Générez de la parole à partir du texte. Les voix apparaissent dans la liste des modèles ci-dessous.",
       "audioFormat": {
         "label": "Format audio",

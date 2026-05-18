@@ -658,8 +658,8 @@
     "stopModel": "モデルを停止",
     "pulling": "取得中...",
     "runModel": "モデルを実行",
-    "voiceai": {
-      "title": "Voice.ai テキスト読み上げ",
+    "tts": {
+      "title": "テキスト読み上げ (TTS)",
       "description": "テキストから音声を生成します。音声は下のモデル一覧に表示されます。",
       "audioFormat": {
         "label": "音声形式",

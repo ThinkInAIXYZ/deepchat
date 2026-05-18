@@ -658,8 +658,8 @@
     "stopModel": "Parar Modelo",
     "pulling": "Baixando...",
     "runModel": "Executar Modelo",
-    "voiceai": {
-      "title": "Texto para voz da Voice.ai",
+    "tts": {
+      "title": "Texto para fala (TTS)",
       "description": "Gere fala a partir de texto. As vozes aparecem na lista de modelos abaixo.",
       "audioFormat": {
         "label": "Formato de áudio",

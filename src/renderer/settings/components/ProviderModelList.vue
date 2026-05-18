@@ -453,7 +453,7 @@ const hasModelCapability = (model: RENDERER_MODEL_META, capability: ModelCapabil
 
 const getModelTypeLabel = (type: ModelType) => {
   if (type === ModelType.TTS) {
-    return t('settings.provider.voiceai.title')
+    return t('settings.provider.tts.title')
   }
   return t(`model.filter.typeOptions.${type}`)
 }

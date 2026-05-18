@@ -907,8 +907,8 @@
       "verifyFailed": "Verification failed",
       "verifySuccess": "Verification is successful"
     },
-    "voiceai": {
-      "title": "Voice.ai Text-to-Speech",
+    "tts": {
+      "title": "Text-to-Speech (TTS)",
       "description": "Generate speech from text. Voices appear in the model list below.",
       "audioFormat": {
         "label": "Audio Format",

@@ -579,8 +579,8 @@
     "stopModel": "Stop model",
     "pulling": "Henter...",
     "runModel": "Kør model",
-    "voiceai": {
-      "title": "Voice.ai tekst-til-tale",
+    "tts": {
+      "title": "Tekst-til-tale (TTS)",
       "description": "Generér tale fra tekst. Stemmer vises i modellisten nedenfor.",
       "audioFormat": {
         "label": "Lydformat",

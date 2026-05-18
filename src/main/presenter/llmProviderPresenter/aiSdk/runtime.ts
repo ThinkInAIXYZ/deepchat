@@ -32,6 +32,8 @@ import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { mcpToolsToAISDKTools } from './toolMapper'
 import { mapMessagesToModelMessages } from './messageMapper'
 import { buildProviderOptions } from './providerOptionsMapper'
+import { ProxyAgent } from 'undici'
+import { proxyConfig } from '../../proxyConfig'
 import { type AiSdkProviderKind, createAiSdkProviderContext } from './providerFactory'
 import { adaptAiSdkStream } from './streamAdapter'
 
@@ -228,9 +230,11 @@ async function executeTtsPatternA(
 
   const controller = new AbortController()
   const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
+  const proxyUrl = proxyConfig.getProxyUrl()
+  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
 
   try {
-    const response = await fetch(url, {
+    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
       method: 'POST',
       headers: {
         ...defaultHeaders,
@@ -239,7 +243,9 @@ async function executeTtsPatternA(
       },
       body: JSON.stringify(body),
       signal: controller.signal
-    })
+    }
+    if (dispatcher) fetchInit.dispatcher = dispatcher
+    const response = await fetch(url, fetchInit)
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '')
@@ -283,9 +289,11 @@ async function executeTtsPatternB(
 
   const controller = new AbortController()
   const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
+  const proxyUrl = proxyConfig.getProxyUrl()
+  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
 
   try {
-    const response = await fetch(url, {
+    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
       method: 'POST',
       headers: {
         ...defaultHeaders,
@@ -294,7 +302,9 @@ async function executeTtsPatternB(
       },
       body: JSON.stringify(body),
       signal: controller.signal
-    })
+    }
+    if (dispatcher) fetchInit.dispatcher = dispatcher
+    const response = await fetch(url, fetchInit)
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '')

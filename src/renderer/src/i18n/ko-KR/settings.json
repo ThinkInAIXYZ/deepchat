@@ -652,8 +652,8 @@
     "stopModel": "모델 중지",
     "pulling": "가져오는 중...",
     "runModel": "모델 실행",
-    "voiceai": {
-      "title": "Voice.ai 텍스트 음성 변환",
+    "tts": {
+      "title": "텍스트 음성 변환 (TTS)",
       "description": "텍스트로부터 음성을 생성합니다. 음성은 아래 모델 목록에 표시됩니다.",
       "audioFormat": {
         "label": "오디오 형식",
