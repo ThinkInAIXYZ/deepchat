@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import { app } from 'electron'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
+import { ApiEndpointType, ModelType } from '@shared/model'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
@@ -3469,6 +3470,108 @@ describe('AgentRuntimePresenter', () => {
           status: 'compacting'
         })
       )
+    })
+
+    it('bypasses chat context preflight for image generation endpoints', async () => {
+      const imageModelConfig = {
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.ImageGeneration,
+        apiEndpoint: ApiEndpointType.Image,
+        endpointType: 'image-generation' as const
+      }
+      configPresenter.getModelConfig.mockImplementation((modelId: string) =>
+        modelId === 'gpt-image-2'
+          ? imageModelConfig
+          : {
+              temperature: 0.7,
+              maxTokens: 4096,
+              contextLength: 128000,
+              thinkingBudget: 512,
+              reasoningEffort: 'medium',
+              verbosity: 'medium',
+              vision: false
+            }
+      )
+      const prepareSpy = vi.spyOn(
+        (agent as unknown as { compactionService: { prepareForNextUserTurn: () => unknown } })
+          .compactionService,
+        'prepareForNextUserTurn'
+      )
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-image-2',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'draw a mountain')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.maxTokens).toBe(4096)
+      expect(prepareSpy).not.toHaveBeenCalled()
+
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockClear()
+      llmProvider.generateText.mockClear()
+      const oversizedTools = [
+        {
+          type: 'function',
+          function: {
+            name: 'large_schema',
+            description: makeTextWithEstimatedTokens(10000),
+            parameters: {
+              type: 'object',
+              properties: {
+                prompt: {
+                  type: 'string',
+                  description: makeTextWithEstimatedTokens(10000)
+                }
+              },
+              required: ['prompt']
+            }
+          },
+          server: {
+            name: 'test',
+            icons: '',
+            description: 'large schema'
+          }
+        }
+      ]
+      const requestMessages = [
+        { role: 'user' as const, content: makeTextWithEstimatedTokens(9000) }
+      ]
+
+      for await (const _event of callArgs.coreStream(
+        requestMessages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        4096,
+        oversizedTools
+      )) {
+      }
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(providerCoreStream.mock.calls[0][0]).toEqual(requestMessages)
+      expect(providerCoreStream.mock.calls[0][4]).toBe(4096)
+      expect(providerCoreStream.mock.calls[0][5]).toEqual(oversizedTools)
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+      expect(
+        JSON.stringify((eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls)
+      ).not.toContain('Request was not sent')
+      expect(
+        JSON.stringify(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls)
+      ).not.toContain('Request was not sent')
     })
 
     it('preflights provider calls with a safety margin and compacts before low-output pressure calls', async () => {
