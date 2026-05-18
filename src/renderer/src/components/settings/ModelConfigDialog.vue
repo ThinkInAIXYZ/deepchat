@@ -177,7 +177,7 @@
                   {{ t('settings.model.modelConfig.type.options.imageGeneration') }}
                 </SelectItem>
                 <SelectItem value="tts">
-                  {{ t('settings.provider.voiceai.title') }}
+                  {{ t('settings.provider.tts.title') }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -241,7 +241,7 @@
                   {{ t('settings.model.modelConfig.apiEndpoint.options.image') }}
                 </SelectItem>
                 <SelectItem value="audio-speech">
-                  {{ t('settings.provider.voiceai.title') }}
+                  {{ t('settings.provider.tts.title') }}
                 </SelectItem>
               </SelectContent>
             </Select>

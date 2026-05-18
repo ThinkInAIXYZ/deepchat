@@ -7,7 +7,7 @@ import {
   resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
-import { isChatAudioTtsModel, isStandardTtsModel, isTtsModelConfig } from '@shared/ttsSettings'
+import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_MAX_TOKENS,
@@ -99,8 +99,7 @@ const shouldUseOpenAIImageGenerationRoute = (modelId: string, modelConfig: Model
 const shouldUseOpenAITtsRoute = (modelId: string, modelConfig: ModelConfig): boolean =>
   isTtsModelConfig(modelConfig) ||
   modelConfig.apiEndpoint === ApiEndpointType.AudioSpeech ||
-  isStandardTtsModel(modelId) ||
-  isChatAudioTtsModel(modelId)
+  isTtsModelId(modelId)
 
 export function normalizeExtractedImageText(content: string): string {
   const normalized = content

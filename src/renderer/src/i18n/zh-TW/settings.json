@@ -658,8 +658,8 @@
     "stopModel": "停止模型",
     "pulling": "下載中...",
     "runModel": "執行模型",
-    "voiceai": {
-      "title": "Voice.ai 文字轉語音",
+    "tts": {
+      "title": "文字轉語音 (TTS)",
       "description": "將文字生成語音，voice 會在下方模型清單中顯示。",
       "audioFormat": {
         "label": "音訊格式",

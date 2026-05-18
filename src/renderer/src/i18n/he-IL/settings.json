@@ -658,8 +658,8 @@
     "stopModel": "עצור מודל",
     "pulling": "מושך...",
     "runModel": "הרץ מודל",
-    "voiceai": {
-      "title": "המרת טקסט לדיבור של Voice.ai",
+    "tts": {
+      "title": "המרת טקסט לדיבור (TTS)",
       "description": "יצירת דיבור מטקסט. קולות יופיעו ברשימת המודלים למטה.",
       "audioFormat": {
         "label": "פורמט שמע",

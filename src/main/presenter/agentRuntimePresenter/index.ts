@@ -58,6 +58,7 @@ import {
   supportsOpenAIImageGenerationSettings
 } from '@shared/imageGenerationSettings'
 import { ApiEndpointType, ModelType, isDeepSeekSeriesModelId } from '@shared/model'
+import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -2006,6 +2007,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           try {
             let providerMessages = injectedMessages
             let providerMaxTokens = requestMaxTokens
+            const isTtsRequest =
+              isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
+            const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
 
             if (!requestBypassesContextBudget) {
               const protectedSteerTailCount =
@@ -2014,7 +2018,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                   : 0
               let requestPreflight = preflightRequestContext({
                 messages: injectedMessages,
-                tools: requestTools,
+                tools: effectiveRequestTools,
                 contextLength: requestModelConfig.contextLength,
                 requestedMaxTokens: requestMaxTokens,
                 minimumProtectedTailCount: protectedSteerTailCount
@@ -2031,7 +2035,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                   baseSystemPrompt,
                   contextLength: requestModelConfig.contextLength,
                   requestedMaxTokens: requestPreflight.requestedMaxTokens,
-                  tools: requestTools,
+                  tools: effectiveRequestTools,
                   supportsVision,
                   supportsAudioInput,
                   interleavedReasoning,
@@ -2044,7 +2048,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                 }
                 requestPreflight = preflightRequestContext({
                   messages: requestMessages,
-                  tools: requestTools,
+                  tools: effectiveRequestTools,
                   contextLength: requestModelConfig.contextLength,
                   requestedMaxTokens: requestMaxTokens,
                   minimumProtectedTailCount: protectedSteerTailCount
@@ -2084,7 +2088,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               requestModelConfig,
               requestTemperature,
               providerMaxTokens,
-              requestTools
+              effectiveRequestTools
             )) {
               if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
                 pendingInputCoordinator.consumeClaimedSteerBatch(sessionId)

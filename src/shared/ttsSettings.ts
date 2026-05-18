@@ -13,12 +13,15 @@ export interface TtsSettings {
 /**
  * Standard OpenAI-style TTS models that use the /audio/speech endpoint (Pattern A).
  */
-export const OPENAI_STANDARD_TTS_MODELS = [
-  'tts-1',
-  'tts-1-hd',
-  'gpt-4o-mini-tts',
+export const OPENAI_STANDARD_TTS_MODELS = ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'] as const
+
+/**
+ * Gemini TTS models that use the generateContent endpoint with AUDIO output.
+ */
+export const GEMINI_GENERATE_CONTENT_TTS_MODELS = [
   'gemini-2.5-flash-preview-tts',
-  'gemini-2.5-pro-preview-tts'
+  'gemini-2.5-pro-preview-tts',
+  'gemini-3.1-flash-tts-preview'
 ] as const
 
 /**
@@ -43,6 +46,14 @@ export function isStandardTtsModel(modelId: string): boolean {
 }
 
 /**
+ * Returns true if the model uses the Gemini generateContent endpoint for TTS.
+ */
+export function isGeminiGenerateContentTtsModel(modelId: string): boolean {
+  const id = normalizeTtsModelId(modelId)
+  return (GEMINI_GENERATE_CONTENT_TTS_MODELS as readonly string[]).includes(id)
+}
+
+/**
  * Returns true if the model produces TTS audio via the chat completions endpoint (Pattern B).
  */
 export function isChatAudioTtsModel(modelId: string): boolean {
@@ -57,7 +68,11 @@ export function isChatAudioTtsModel(modelId: string): boolean {
  * Returns true if the model is any kind of TTS model (either pattern).
  */
 export function isTtsModelId(modelId: string): boolean {
-  return isStandardTtsModel(modelId) || isChatAudioTtsModel(modelId)
+  return (
+    isStandardTtsModel(modelId) ||
+    isChatAudioTtsModel(modelId) ||
+    isGeminiGenerateContentTtsModel(modelId)
+  )
 }
 
 /**
