@@ -21,7 +21,8 @@ import {
 } from '@shared/imageGenerationSettings'
 import {
   isChatAudioTtsModel,
-  isStandardTtsModel,
+  isGeminiGenerateContentTtsModel,
+  isTtsModelId,
   isTtsModelConfig,
   normalizeTtsSettings,
   ttsFormatToMimeType
@@ -34,7 +35,11 @@ import { mapMessagesToModelMessages } from './messageMapper'
 import { buildProviderOptions } from './providerOptionsMapper'
 import { ProxyAgent } from 'undici'
 import { proxyConfig } from '../../proxyConfig'
-import { type AiSdkProviderKind, createAiSdkProviderContext } from './providerFactory'
+import {
+  type AiSdkProviderKind,
+  createAiSdkProviderContext,
+  normalizeGeminiBaseUrl
+} from './providerFactory'
 import { adaptAiSdkStream } from './streamAdapter'
 
 type ImageGenerationProviderPayload = Record<string, JSONValue>
@@ -42,6 +47,10 @@ type ImageGenerationRequestOptions = {
   size?: `${number}x${number}`
   providerOptions?: Record<string, ImageGenerationProviderPayload>
 }
+
+const DEFAULT_GEMINI_TTS_VOICE = 'Kore'
+const DEFAULT_GEMINI_PCM_SAMPLE_RATE = 24000
+const DEFAULT_GEMINI_PCM_BITS_PER_SAMPLE = 16
 
 export interface AiSdkRuntimeContext {
   providerKind: AiSdkProviderKind
@@ -180,9 +189,89 @@ function shouldUseTtsRuntime(
   return (
     modelConfig.apiEndpoint === ApiEndpointType.AudioSpeech ||
     isTtsModelConfig(modelConfig) ||
-    isStandardTtsModel(modelId) ||
-    isChatAudioTtsModel(modelId)
+    isTtsModelId(modelId)
   )
+}
+
+function buildGeminiTtsPrompt(text: string, instructions?: string): string {
+  if (instructions?.trim()) {
+    return `${instructions.trim()}\n\n${text}`.trim()
+  }
+
+  return text.trim()
+}
+
+function resolveGeminiTtsBaseUrl(provider: LLM_PROVIDER): string {
+  const rawBaseUrl = (provider.baseUrl || '').trim()
+
+  if (provider.apiType === 'gemini' || provider.id === 'gemini') {
+    return normalizeGeminiBaseUrl(rawBaseUrl || undefined)
+  }
+
+  if (rawBaseUrl) {
+    try {
+      const parsed = new URL(rawBaseUrl.includes('://') ? rawBaseUrl : `https://${rawBaseUrl}`)
+      if (provider.id === 'aihubmix' || /(^|\.)aihubmix\.com$/i.test(parsed.hostname)) {
+        return normalizeGeminiBaseUrl(`${parsed.origin}/gemini`)
+      }
+    } catch {
+      // Fall through to provider-specific fallback below.
+    }
+  }
+
+  if (provider.id === 'aihubmix') {
+    return normalizeGeminiBaseUrl('https://aihubmix.com/gemini')
+  }
+
+  return normalizeGeminiBaseUrl(rawBaseUrl || undefined)
+}
+
+function normalizeGeminiTtsResponseAudio(
+  base64: string,
+  mimeType: string | undefined
+): { base64: string; mimeType: string } {
+  const normalizedMimeType = (mimeType || '').trim()
+  const lowerMimeType = normalizedMimeType.toLowerCase()
+
+  if (!lowerMimeType || !(lowerMimeType.includes('l16') || lowerMimeType.includes('audio/pcm'))) {
+    return {
+      base64,
+      mimeType: normalizedMimeType || 'audio/wav'
+    }
+  }
+
+  const sampleRate = Number(/(?:rate|samplerate)=(\d+)/i.exec(normalizedMimeType)?.[1])
+  const bitsPerSample = Number(/(?:bits|bitspersample)=(\d+)/i.exec(normalizedMimeType)?.[1])
+  const pcmBuffer = Buffer.from(base64, 'base64')
+  const resolvedSampleRate =
+    Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : DEFAULT_GEMINI_PCM_SAMPLE_RATE
+  const resolvedBitsPerSample =
+    Number.isFinite(bitsPerSample) && bitsPerSample > 0
+      ? bitsPerSample
+      : DEFAULT_GEMINI_PCM_BITS_PER_SAMPLE
+  const blockAlign = resolvedBitsPerSample / 8
+  const byteRate = resolvedSampleRate * blockAlign
+  const wavBuffer = Buffer.alloc(44 + pcmBuffer.length)
+
+  wavBuffer.write('RIFF', 0)
+  wavBuffer.writeUInt32LE(36 + pcmBuffer.length, 4)
+  wavBuffer.write('WAVE', 8)
+  wavBuffer.write('fmt ', 12)
+  wavBuffer.writeUInt32LE(16, 16)
+  wavBuffer.writeUInt16LE(1, 20)
+  wavBuffer.writeUInt16LE(1, 22)
+  wavBuffer.writeUInt32LE(resolvedSampleRate, 24)
+  wavBuffer.writeUInt32LE(byteRate, 28)
+  wavBuffer.writeUInt16LE(blockAlign, 32)
+  wavBuffer.writeUInt16LE(resolvedBitsPerSample, 34)
+  wavBuffer.write('data', 36)
+  wavBuffer.writeUInt32LE(pcmBuffer.length, 40)
+  pcmBuffer.copy(wavBuffer, 44)
+
+  return {
+    base64: wavBuffer.toString('base64'),
+    mimeType: 'audio/wav'
+  }
 }
 
 /**
@@ -279,7 +368,10 @@ async function executeTtsPatternB(
 
   const body: Record<string, unknown> = {
     model: modelId,
-    messages: [{ role: 'user', content: text }],
+    messages: [
+      { role: 'user', content: text },
+      { role: 'assistant', content: text }
+    ],
     modalities: ['text', 'audio'],
     audio: {
       format,
@@ -328,6 +420,94 @@ async function executeTtsPatternB(
     }
 
     return { base64: audioData, mimeType: ttsFormatToMimeType(format) }
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
+  }
+}
+
+async function executeTtsPatternC(
+  provider: LLM_PROVIDER,
+  defaultHeaders: Record<string, string>,
+  text: string,
+  modelId: string,
+  modelConfig: ModelConfig,
+  timeout: number | undefined
+): Promise<{ base64: string; mimeType: string }> {
+  const tts = normalizeTtsSettings(modelConfig.tts)
+  const baseUrl = resolveGeminiTtsBaseUrl(provider)
+  const requestModelId = modelId.trim().split('/').at(-1) || modelId
+  const url = `${baseUrl}/models/${encodeURIComponent(requestModelId)}:generateContent`
+  const body: Record<string, unknown> = {
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: buildGeminiTtsPrompt(text, tts?.instructions)
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      responseModalities: ['AUDIO'],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: tts?.voice ?? DEFAULT_GEMINI_TTS_VOICE
+          }
+        }
+      }
+    }
+  }
+
+  const controller = new AbortController()
+  const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
+  const proxyUrl = proxyConfig.getProxyUrl()
+  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+
+  try {
+    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+      method: 'POST',
+      headers: {
+        ...defaultHeaders,
+        'Content-Type': 'application/json',
+        'x-goog-api-key': provider.oauthToken || provider.apiKey || ''
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    }
+    if (dispatcher) fetchInit.dispatcher = dispatcher
+    const response = await fetch(url, fetchInit)
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      throw new Error(`TTS (gemini) request failed (${response.status}): ${errText}`)
+    }
+
+    const json = (await response.json()) as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            inlineData?: { data?: string; mimeType?: string }
+            inline_data?: { data?: string; mime_type?: string }
+          }>
+        }
+      }>
+    }
+    const firstPart = json.candidates?.[0]?.content?.parts?.find(
+      (part) => part.inlineData?.data || part.inline_data?.data
+    )
+    const inlineData = firstPart?.inlineData
+    const legacyInlineData = firstPart?.inline_data
+    const audioData = inlineData?.data ?? legacyInlineData?.data
+    if (!audioData) {
+      throw new Error('TTS response missing inline audio data in candidates[0].content.parts')
+    }
+
+    return normalizeGeminiTtsResponseAudio(
+      audioData,
+      inlineData?.mimeType ?? legacyInlineData?.mime_type
+    )
   } finally {
     if (timeoutId !== undefined) clearTimeout(timeoutId)
   }
@@ -576,9 +756,10 @@ export async function* runAiSdkCoreStream(
   if (shouldUseTtsRuntime(context, modelId, normalizedModelConfig)) {
     const text = extractTtsText(messages)
     const usePatternB = isChatAudioTtsModel(modelId)
+    const usePatternC = isGeminiGenerateContentTtsModel(modelId)
 
-    const { base64, mimeType } = usePatternB
-      ? await executeTtsPatternB(
+    const { base64, mimeType } = usePatternC
+      ? await executeTtsPatternC(
           context.provider,
           context.defaultHeaders,
           text,
@@ -586,14 +767,23 @@ export async function* runAiSdkCoreStream(
           normalizedModelConfig,
           timeout
         )
-      : await executeTtsPatternA(
-          context.provider,
-          context.defaultHeaders,
-          text,
-          modelId,
-          normalizedModelConfig,
-          timeout
-        )
+      : usePatternB
+        ? await executeTtsPatternB(
+            context.provider,
+            context.defaultHeaders,
+            text,
+            modelId,
+            normalizedModelConfig,
+            timeout
+          )
+        : await executeTtsPatternA(
+            context.provider,
+            context.defaultHeaders,
+            text,
+            modelId,
+            normalizedModelConfig,
+            timeout
+          )
 
     const dataUrl = `data:${mimeType};base64,${base64}`
     const cachedAudio = await presenter.devicePresenter.cacheImage(dataUrl)
