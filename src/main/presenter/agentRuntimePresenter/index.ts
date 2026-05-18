@@ -627,6 +627,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     try {
       this.throwIfAbortRequested(preStreamAbortSignal)
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+      const useContextBudget = this.shouldUseDeepChatContextBudget(state.providerId, modelConfig)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const interleavedReasoning = this.resolveInterleavedReasoningConfig(
         state.providerId,
@@ -635,8 +637,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
         state.providerId,
-        state.modelId,
-        generationSettings.contextLength
+        generationSettings.contextLength,
+        modelConfig
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
@@ -663,12 +665,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         think: false
       }
 
-      const compactionIntent = this.shouldBypassDeepChatContextBudget(
-        state.providerId,
-        state.modelId
-      )
-        ? null
-        : await this.compactionService.prepareForNextUserTurn({
+      const compactionIntent = useContextBudget
+        ? await this.compactionService.prepareForNextUserTurn({
             sessionId,
             providerId: state.providerId,
             modelId: state.modelId,
@@ -684,6 +682,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             newUserContent: normalizedInput,
             signal: preStreamAbortSignal
           })
+        : null
       let summaryState: SessionSummaryState
 
       if (compactionIntent) {
@@ -1438,36 +1437,53 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return resolvedProviderId === 'acp'
   }
 
-  private shouldBypassDeepChatContextBudget(
+  private shouldUseDeepChatContextBudget(
     providerId?: string | null,
+    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null,
     modelId?: string | null
   ): boolean {
-    const normalizedProviderId = providerId?.trim()
-    if (normalizedProviderId === 'acp') {
-      return true
-    }
-
-    const normalizedModelId = modelId?.trim()
-    if (!normalizedProviderId || !normalizedModelId) {
+    if (providerId?.trim() === 'acp') {
       return false
     }
 
-    const modelConfig = this.configPresenter.getModelConfig(normalizedModelId, normalizedProviderId)
-    return (
-      modelConfig.type === ModelType.ImageGeneration ||
-      modelConfig.type === ModelType.TTS ||
-      (modelConfig.apiEndpoint != null && modelConfig.apiEndpoint !== ApiEndpointType.Chat) ||
-      modelConfig.endpointType === 'image-generation' ||
-      isVideoGenerationModelConfig(modelConfig, normalizedModelId)
-    )
+    if (!modelConfig) {
+      return true
+    }
+
+    if (modelConfig.type === ModelType.ImageGeneration || modelConfig.type === ModelType.TTS) {
+      return false
+    }
+
+    if (modelConfig.apiEndpoint && modelConfig.apiEndpoint !== ApiEndpointType.Chat) {
+      return false
+    }
+
+    if (modelConfig.endpointType === 'image-generation') {
+      return false
+    }
+
+    if (isVideoGenerationModelConfig(modelConfig, modelId?.trim() || '')) {
+      return false
+    }
+
+    return true
+  }
+
+  private shouldBypassDeepChatContextBudget(
+    providerId?: string | null,
+    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null,
+    modelId?: string | null
+  ): boolean {
+    return !this.shouldUseDeepChatContextBudget(providerId, modelConfig, modelId)
   }
 
   private resolveDeepChatContextBudgetLength(
     providerId: string | null | undefined,
-    modelId: string | null | undefined,
-    contextLength: number
+    contextLength: number,
+    modelConfig?: Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'> | null,
+    modelId?: string | null
   ): number {
-    return this.shouldBypassDeepChatContextBudget(providerId, modelId)
+    return this.shouldBypassDeepChatContextBudget(providerId, modelConfig, modelId)
       ? Number.MAX_SAFE_INTEGER
       : contextLength
   }
@@ -1650,7 +1666,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
-    if (this.shouldBypassDeepChatContextBudget(state.providerId, state.modelId)) {
+    const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+    if (this.shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)) {
       throw new Error('Manual compaction is only available for DeepChat agent sessions.')
     }
     if (state.status !== 'idle') {
@@ -1670,8 +1687,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
         state.providerId,
-        state.modelId,
-        generationSettings.contextLength
+        generationSettings.contextLength,
+        modelConfig,
+        state.modelId
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
@@ -1886,19 +1904,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     ).getProviderInstance(state.providerId)
 
     const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+    const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
     const interleavedReasoning =
       providedInterleavedReasoning ??
       this.resolveInterleavedReasoningConfig(state.providerId, state.modelId, generationSettings)
-    const bypassContextBudget = this.shouldBypassDeepChatContextBudget(
-      state.providerId,
-      state.modelId
-    )
     const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
       state.providerId,
-      state.modelId,
-      generationSettings.contextLength
+      generationSettings.contextLength,
+      baseModelConfig,
+      state.modelId
     )
-    const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
     const capabilityProviderId = this.resolveCapabilityProviderId(state.providerId, state.modelId)
     const reasoningPortrait = this.getReasoningPortrait(state.providerId, state.modelId)
     const modelConfig: ModelConfig = {
@@ -1923,6 +1938,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const traceEnabled = this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
     const llmProviderPresenter = this.llmProviderPresenter
     const pendingInputCoordinator = this.pendingInputCoordinator
+    const shouldBypassContextBudget = this.shouldBypassDeepChatContextBudget.bind(this)
     const injectSteerInputsIntoRequest = this.injectSteerInputsIntoRequest.bind(this)
     const recoverContextPressure = this.recoverRequestContextPressure.bind(this)
     const replaceLeadingSystemPromptInPlace = this.replaceLeadingSystemPromptInPlace.bind(this)
@@ -1984,13 +2000,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           requestMaxTokens,
           requestTools
         ) {
+          const requestBypassesContextBudget = shouldBypassContextBudget(
+            state.providerId,
+            requestModelConfig
+          )
           const claimedSteerBatch = pendingInputCoordinator.claimSteerBatchForNextLoop(sessionId)
           const injectedMessages = injectSteerInputsIntoRequest(
             requestMessages,
             claimedSteerBatch,
             supportsVision,
             supportsAudioInput,
-            bypassContextBudget ? Number.MAX_SAFE_INTEGER : requestModelConfig.contextLength,
+            requestBypassesContextBudget
+              ? Number.MAX_SAFE_INTEGER
+              : requestModelConfig.contextLength,
             requestMaxTokens
           )
 
@@ -2004,7 +2026,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
             const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
 
-            if (!bypassContextBudget) {
+            if (!requestBypassesContextBudget) {
               const protectedSteerTailCount =
                 claimedSteerBatch.length > 0
                   ? claimedSteerBatch.length + (requestMessages.at(-1)?.role === 'user' ? 1 : 0)
@@ -2583,6 +2605,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       preStreamAbortSignal = preStreamAbortController.signal
       this.throwIfAbortRequested(preStreamAbortSignal)
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+      const useContextBudget = this.shouldUseDeepChatContextBudget(state.providerId, modelConfig)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const interleavedReasoning = this.resolveInterleavedReasoningConfig(
         state.providerId,
@@ -2591,8 +2615,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
         state.providerId,
-        state.modelId,
-        generationSettings.contextLength
+        generationSettings.contextLength,
+        modelConfig,
+        state.modelId
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const projectDir = this.resolveProjectDir(sessionId)
@@ -2611,9 +2636,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         activeSkillNames
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const summaryState = this.shouldBypassDeepChatContextBudget(state.providerId, state.modelId)
-        ? this.sessionStore.getSummaryState(sessionId)
-        : await this.resolveCompactionStateForResumeTurn({
+      const summaryState = useContextBudget
+        ? await this.resolveCompactionStateForResumeTurn({
             sessionId,
             messageId,
             providerId: state.providerId,
@@ -2629,6 +2653,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               interleavedReasoning.preserveEmptyReasoningContent === true,
             signal: preStreamAbortSignal
           })
+        : this.sessionStore.getSummaryState(sessionId)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       let resumeContext = buildResumeContext(
@@ -2649,11 +2674,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             interleavedReasoning.preserveEmptyReasoningContent === true
         }
       )
-      if (
-        budgetToolCall?.id &&
-        budgetToolCall.name &&
-        !this.shouldBypassDeepChatContextBudget(state.providerId, state.modelId)
-      ) {
+      if (budgetToolCall?.id && budgetToolCall.name && useContextBudget) {
         const resumeBudget = this.fitResumeBudgetForToolCall({
           resumeContext,
           toolDefinitions: tools,
