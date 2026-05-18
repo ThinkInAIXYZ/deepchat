@@ -49,10 +49,7 @@
           :aria-label="collapsed ? t('common.expand') : t('common.collapse')"
           @click="emit('toggle-collapse')"
         >
-          <Icon
-            :icon="collapsed ? 'lucide:chevron-down' : 'lucide:chevron-up'"
-            class="h-3 w-3"
-          />
+          <Icon :icon="collapsed ? 'lucide:chevron-down' : 'lucide:chevron-up'" class="h-3 w-3" />
         </button>
 
         <button
@@ -154,12 +151,11 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
 .agent-progress-float {
   isolation: isolate;
   border-color: transparent;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
-      color-mix(in srgb, white 58%, hsl(var(--background)) 42%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
+    color-mix(in srgb, white 58%, hsl(var(--background)) 42%) 100%
+  );
   box-shadow:
     0 20px 40px -30px rgb(15 23 42 / 0.2),
     0 8px 18px -18px rgb(15 23 42 / 0.08),
@@ -175,7 +171,12 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
   border-radius: inherit;
   pointer-events: none;
   background:
-    linear-gradient(160deg, rgb(255 255 255 / 0.58) 0%, transparent 36%, rgb(255 255 255 / 0.12) 100%),
+    linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.58) 0%,
+      transparent 36%,
+      rgb(255 255 255 / 0.12) 100%
+    ),
     linear-gradient(
       180deg,
       color-mix(in srgb, white 88%, hsl(var(--background)) 12%) 0%,
@@ -207,9 +208,17 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(circle at 12% 14%, color-mix(in srgb, white 78%, hsl(var(--primary)) 22%) 0%, transparent 34%),
+    radial-gradient(
+      circle at 12% 14%,
+      color-mix(in srgb, white 78%, hsl(var(--primary)) 22%) 0%,
+      transparent 34%
+    ),
     radial-gradient(circle at 88% 12%, rgb(255 255 255 / 0.62) 0%, transparent 26%),
-    radial-gradient(circle at 72% 100%, color-mix(in srgb, white 44%, hsl(var(--muted)) 56%) 0%, transparent 42%);
+    radial-gradient(
+      circle at 72% 100%,
+      color-mix(in srgb, white 44%, hsl(var(--muted)) 56%) 0%,
+      transparent 42%
+    );
   filter: saturate(1.06);
   opacity: 0.92;
   pointer-events: none;
@@ -217,12 +226,11 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
 
 .dark .agent-progress-float {
   border-color: transparent;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, hsl(var(--background)) 88%, rgb(51 65 85) 12%) 0%,
-      color-mix(in srgb, hsl(var(--background)) 94%, rgb(15 23 42) 6%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--background)) 88%, rgb(51 65 85) 12%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 94%, rgb(15 23 42) 6%) 100%
+  );
   box-shadow:
     0 24px 48px -34px rgb(0 0 0 / 0.48),
     0 12px 24px -22px rgb(0 0 0 / 0.26),
@@ -232,7 +240,12 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
 
 .dark .agent-progress-float::before {
   background:
-    linear-gradient(160deg, rgb(255 255 255 / 0.12) 0%, transparent 40%, rgb(255 255 255 / 0.03) 100%),
+    linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.12) 0%,
+      transparent 40%,
+      rgb(255 255 255 / 0.03) 100%
+    ),
     linear-gradient(
       180deg,
       color-mix(in srgb, hsl(var(--background)) 82%, rgb(30 41 59) 18%) 0%,
@@ -250,7 +263,11 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
 
 .dark .agent-progress-float__backdrop {
   background:
-    radial-gradient(circle at 14% 16%, color-mix(in srgb, hsl(var(--primary)) 30%, white 70%) 0%, transparent 34%),
+    radial-gradient(
+      circle at 14% 16%,
+      color-mix(in srgb, hsl(var(--primary)) 30%, white 70%) 0%,
+      transparent 34%
+    ),
     radial-gradient(circle at 88% 14%, rgb(255 255 255 / 0.12) 0%, transparent 24%),
     radial-gradient(circle at 78% 100%, rgb(15 23 42 / 0.42) 0%, transparent 42%);
   filter: saturate(1.08);
