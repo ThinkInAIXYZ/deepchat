@@ -2340,16 +2340,27 @@ const syncWeixinIlinkFields = (snapshot: Partial<WeixinIlinkRemoteSettings> | nu
   }
 }
 
-const channelStatus = (channel: RemoteChannel) =>
-  channel === 'telegram'
-    ? telegramStatus.value
-    : channel === 'feishu'
-      ? feishuStatus.value
-      : channel === 'qqbot'
-        ? qqbotStatus.value
-        : channel === 'discord'
-          ? discordStatus.value
-          : weixinIlinkStatus.value
+function channelStatus(channel: 'telegram'): TelegramRemoteStatus | null
+function channelStatus(channel: 'feishu'): FeishuRemoteStatus | null
+function channelStatus(channel: 'qqbot'): QQBotRemoteStatus | null
+function channelStatus(channel: 'discord'): DiscordRemoteStatus | null
+function channelStatus(channel: 'weixin-ilink'): WeixinIlinkRemoteStatus | null
+function channelStatus(channel: RemoteChannel): RemoteChannelStatus | null
+function channelStatus(channel: RemoteChannel): RemoteChannelStatus | null {
+  if (channel === 'telegram') {
+    return telegramStatus.value
+  }
+  if (channel === 'feishu') {
+    return feishuStatus.value
+  }
+  if (channel === 'qqbot') {
+    return qqbotStatus.value
+  }
+  if (channel === 'discord') {
+    return discordStatus.value
+  }
+  return weixinIlinkStatus.value
+}
 
 const getSnapshotPrincipalIds = (
   channel: PairableRemoteChannel,
@@ -3105,12 +3116,11 @@ const bindingKindClass = (kind: RemoteBindingSummary['kind']) => {
 }
 
 const formatOverviewLine = (channel: RemoteChannel) => {
-  const status = channelStatus(channel)
-  if (!status) {
-    return ''
-  }
-
   if (channel === 'telegram') {
+    const status = channelStatus(channel)
+    if (!status) {
+      return ''
+    }
     return t('settings.remote.overview.telegram', {
       bindingCount: status.bindingCount,
       pairedCount: status.allowedUserCount
@@ -3118,6 +3128,10 @@ const formatOverviewLine = (channel: RemoteChannel) => {
   }
 
   if (channel === 'qqbot') {
+    const status = channelStatus(channel)
+    if (!status) {
+      return ''
+    }
     return t('settings.remote.overview.qqbot', {
       bindingCount: status.bindingCount,
       pairedCount: status.pairedUserCount
@@ -3125,6 +3139,10 @@ const formatOverviewLine = (channel: RemoteChannel) => {
   }
 
   if (channel === 'discord') {
+    const status = channelStatus(channel)
+    if (!status) {
+      return ''
+    }
     return t('settings.remote.overview.discord', {
       bindingCount: status.bindingCount,
       pairedCount: status.pairedChannelCount
@@ -3132,11 +3150,20 @@ const formatOverviewLine = (channel: RemoteChannel) => {
   }
 
   if (channel === 'weixin-ilink') {
+    const status = channelStatus(channel)
+    if (!status) {
+      return ''
+    }
     return t('settings.remote.overview.weixinIlink', {
       bindingCount: status.bindingCount,
       accountCount: status.accountCount,
       connectedCount: status.connectedAccountCount
     })
+  }
+
+  const status = channelStatus('feishu')
+  if (!status) {
+    return ''
   }
 
   return t('settings.remote.overview.feishu', {

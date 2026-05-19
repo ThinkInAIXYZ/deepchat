@@ -16,7 +16,7 @@
         autocapitalize="off"
         autocomplete="off"
         spellcheck="false"
-        @update:model-value="emit('update:modelValue', $event)"
+        @update:model-value="handleModelValueUpdate"
         @keydown="handleKeydown"
       />
     </div>
@@ -113,6 +113,10 @@ const selectInput = () => {
   const element = resolveInputElement()
   element?.focus()
   element?.select()
+}
+
+const handleModelValueUpdate = (value: string | number) => {
+  emit('update:modelValue', String(value))
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
