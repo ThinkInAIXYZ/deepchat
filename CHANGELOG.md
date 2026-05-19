@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.5-beta.1 (2026-05-19)
+- Added an agent progress todo tool with floating progress UI and plan message rendering so long-running agent work is easier to track
+- Added OpenAI-compatible video generation with model settings, generated video message rendering, and provider runtime support
+- Improved TTS routing and Gemini TTS behavior with unified model settings, provider metadata, and stronger runtime coverage
+- Improved Feishu plugin packaging with platform bundles, release workflow support, and updated packaging documentation
+- Updated TypeScript native preview, vue-tsgo, provider registry, and ACP registry data for current tooling and runtime compatibility
+- Fixed image-route chat budget handling so generated image requests avoid unnecessary context budget failures
+- 新增 Agent 进度 todo 工具、浮动进度界面和计划消息渲染，让长时间 Agent 工作更容易跟踪
+- 新增 OpenAI 兼容的视频生成能力，包含模型设置、生成视频消息渲染和 Provider 运行时支持
+- 优化 TTS 路由和 Gemini TTS 表现，补齐统一模型设置、Provider 元数据和更强的运行时覆盖
+- 优化飞书插件打包，支持平台 bundle、发布 workflow，并更新插件打包文档
+- 更新 TypeScript native preview、vue-tsgo、Provider registry 和 ACP registry 数据，提升当前工具链与运行时兼容性
+- 修复图片路线的聊天预算处理，让生成图片请求避免不必要的上下文预算失败
+
 ## v1.0.4 (2026-05-15)
 - Added guided onboarding, voice input transcription, and a redesigned settings control center to make first setup and daily configuration easier
 - Added agent image generation, OpenAI image settings, Mac computer use, manual compaction, and side panel fullscreen controls for more capable agent workflows
