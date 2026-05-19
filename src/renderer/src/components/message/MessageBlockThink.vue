@@ -128,11 +128,7 @@ watch(
 )
 
 const statusWatchSource = () =>
-  [
-    props.block.status,
-    reasoningTimeRange.value?.start,
-    reasoningTimeRange.value?.end
-  ] as const
+  [props.block.status, reasoningTimeRange.value?.start, reasoningTimeRange.value?.end] as const
 
 const handleStatusChange = useThrottleFn(
   () => {

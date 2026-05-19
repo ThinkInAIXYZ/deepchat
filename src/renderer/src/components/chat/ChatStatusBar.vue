@@ -1559,9 +1559,7 @@ const getReasoningEffortOptions = (
     : [portrait.effort]
 }
 
-const getVerbosityOptions = (
-  portrait: ReasoningPortrait | null | undefined
-): VerbosityValue[] => {
+const getVerbosityOptions = (portrait: ReasoningPortrait | null | undefined): VerbosityValue[] => {
   const options = portrait?.verbosityOptions?.filter(isVerbosity)
   if (options && options.length > 0) {
     return options
