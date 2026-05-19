@@ -40,7 +40,8 @@
       "chat": "צ'אט",
       "embedding": "הטמעה",
       "rerank": "דירוג מחדש",
-      "imageGeneration": "יצירת תמונות"
+      "imageGeneration": "יצירת תמונות",
+      "videoGeneration": "יצירת וידאו"
     }
   },
   "tags": {

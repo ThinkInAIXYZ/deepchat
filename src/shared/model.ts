@@ -6,6 +6,7 @@ export enum ModelType {
   Embedding = 'embedding',
   Rerank = 'rerank',
   ImageGeneration = 'imageGeneration',
+  VideoGeneration = 'videoGeneration',
   TTS = 'tts'
 }
 
@@ -21,7 +22,8 @@ export const NEW_API_ENDPOINT_TYPES = [
   'openai-response',
   'anthropic',
   'gemini',
-  'image-generation'
+  'image-generation',
+  'video-generation'
 ] as const
 
 export type NewApiEndpointType = (typeof NEW_API_ENDPOINT_TYPES)[number]
@@ -96,6 +98,7 @@ export const resolveNewApiCapabilityProviderId = (
     case 'openai':
     case 'openai-response':
     case 'image-generation':
+    case 'video-generation':
     default:
       return 'openai'
   }
@@ -139,6 +142,13 @@ export const resolveNewApiEndpointTypeFromRoute = (
     return 'image-generation'
   }
 
+  if (
+    route?.type === ModelType.VideoGeneration &&
+    supportedEndpointTypes.includes('video-generation')
+  ) {
+    return 'video-generation'
+  }
+
   if (shouldUseAnthropicClaudeRouteFromSupportedEndpoints(route, modelId)) {
     return 'anthropic'
   }
@@ -149,6 +159,10 @@ export const resolveNewApiEndpointTypeFromRoute = (
 
   if (route?.type === ModelType.ImageGeneration) {
     return 'image-generation'
+  }
+
+  if (route?.type === ModelType.VideoGeneration) {
+    return 'video-generation'
   }
 
   return 'openai'
@@ -174,4 +188,5 @@ export const isChatSelectableModelType = (type: ModelType | undefined): boolean 
   type === undefined ||
   type === ModelType.Chat ||
   type === ModelType.ImageGeneration ||
+  type === ModelType.VideoGeneration ||
   type === ModelType.TTS

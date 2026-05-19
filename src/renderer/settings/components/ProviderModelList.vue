@@ -376,7 +376,9 @@ const TYPE_ORDER: ModelType[] = [
   ModelType.Chat,
   ModelType.Embedding,
   ModelType.Rerank,
-  ModelType.ImageGeneration
+  ModelType.ImageGeneration,
+  ModelType.VideoGeneration,
+  ModelType.TTS
 ]
 
 const CAPABILITY_ICONS: Record<ModelCapabilityKey, string> = {
@@ -391,6 +393,7 @@ const TYPE_ICONS: Record<ModelType, string> = {
   [ModelType.Embedding]: 'lucide:database',
   [ModelType.Rerank]: 'lucide:arrow-up-wide-narrow',
   [ModelType.ImageGeneration]: 'lucide:image',
+  [ModelType.VideoGeneration]: 'lucide:clapperboard',
   [ModelType.TTS]: 'lucide:volume-2'
 }
 
@@ -453,7 +456,7 @@ const hasModelCapability = (model: RENDERER_MODEL_META, capability: ModelCapabil
 
 const getModelTypeLabel = (type: ModelType) => {
   if (type === ModelType.TTS) {
-    return t('settings.provider.voiceai.title')
+    return t('settings.provider.tts.title')
   }
   return t(`model.filter.typeOptions.${type}`)
 }

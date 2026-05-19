@@ -503,7 +503,8 @@
           "chat": "Modèle de langue",
           "embedding": "Modèle d'intégration",
           "imageGeneration": "Modèle de génération d'images",
-          "rerank": "Modèle de rerank"
+          "rerank": "Modèle de rerank",
+          "videoGeneration": "Modèle de génération vidéo"
         }
       },
       "validation": {
@@ -528,7 +529,8 @@
         "label": "Point de terminaison API",
         "options": {
           "chat": "Génération de texte",
-          "image": "Génération d'images"
+          "image": "Génération d'images",
+          "video": "Video Generation"
         }
       },
       "endpointType": {
@@ -541,7 +543,8 @@
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Génération d'images"
+          "image-generation": "Génération d'images",
+          "video-generation": "Video Generation"
         }
       },
       "reasoningVisibility": {
@@ -608,6 +611,37 @@
             "low": "Faible"
           }
         }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
+        }
       }
     }
   },
@@ -658,8 +692,8 @@
     "stopModel": "Arrêter le modèle",
     "pulling": "Récupération...",
     "runModel": "Exécuter le modèle",
-    "voiceai": {
-      "title": "Synthèse vocale Voice.ai",
+    "tts": {
+      "title": "Synthese vocale (TTS)",
       "description": "Générez de la parole à partir du texte. Les voix apparaissent dans la liste des modèles ci-dessous.",
       "audioFormat": {
         "label": "Format audio",

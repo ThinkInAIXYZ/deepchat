@@ -1,29 +1,29 @@
 <template>
   <div class="space-y-4">
     <div class="space-y-2">
-      <Label>{{ t('settings.provider.voiceai.title') }}</Label>
+      <Label>{{ t('settings.provider.tts.title') }}</Label>
       <p class="text-xs text-muted-foreground">
-        {{ t('settings.provider.voiceai.description') }}
+        {{ t('settings.provider.tts.description') }}
       </p>
     </div>
 
     <div class="space-y-2">
-      <Label>{{ t('settings.provider.voiceai.agentId.label') }}</Label>
+      <Label>{{ t('settings.provider.tts.agentId.label') }}</Label>
       <Input
         :model-value="tts.voice ?? ''"
-        :placeholder="t('settings.provider.voiceai.agentId.placeholder')"
+        :placeholder="t('settings.provider.tts.agentId.placeholder')"
         @update:model-value="onVoiceInput"
       />
     </div>
 
     <div class="space-y-2">
-      <Label>{{ t('settings.provider.voiceai.audioFormat.label') }}</Label>
+      <Label>{{ t('settings.provider.tts.audioFormat.label') }}</Label>
       <Select
         :model-value="optionSelectValue(tts.responseFormat)"
         @update:model-value="onResponseFormatSelect"
       >
         <SelectTrigger>
-          <SelectValue :placeholder="t('settings.provider.voiceai.audioFormat.placeholder')" />
+          <SelectValue :placeholder="t('settings.provider.tts.audioFormat.placeholder')" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem :value="DEFAULT_SELECT_VALUE">
@@ -37,7 +37,7 @@
     </div>
 
     <div class="space-y-2">
-      <Label>{{ t('settings.provider.voiceai.temperature.label') }}</Label>
+      <Label>{{ t('settings.provider.tts.temperature.label') }}</Label>
       <Input
         :model-value="speedDraft"
         inputmode="decimal"
@@ -47,7 +47,7 @@
         @keydown.enter.prevent="commitSpeed"
       />
       <p class="text-xs text-muted-foreground">
-        {{ t('settings.provider.voiceai.temperature.helper') }}
+        {{ t('settings.provider.tts.temperature.helper') }}
       </p>
     </div>
 

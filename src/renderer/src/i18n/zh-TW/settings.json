@@ -503,7 +503,8 @@
           "chat": "語言模型",
           "embedding": "嵌入模型",
           "imageGeneration": "圖像生成模型",
-          "rerank": "重排序模型"
+          "rerank": "重排序模型",
+          "videoGeneration": "影片生成模型"
         }
       },
       "validation": {
@@ -528,7 +529,8 @@
         "label": "API 端點",
         "options": {
           "chat": "文字生成",
-          "image": "圖片生成"
+          "image": "圖片生成",
+          "video": "影片生成"
         }
       },
       "endpointType": {
@@ -541,7 +543,8 @@
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "圖片生成"
+          "image-generation": "圖片生成",
+          "video-generation": "影片生成"
         }
       },
       "reasoningVisibility": {
@@ -608,6 +611,37 @@
             "low": "低"
           }
         }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "影片尺寸",
+          "placeholder": "例如 1280x720"
+        },
+        "seconds": {
+          "label": "秒數",
+          "placeholder": "例如 5"
+        },
+        "duration": {
+          "label": "時長",
+          "placeholder": "例如 5",
+          "description": "會透過相容影片介面的 extra_body.duration 傳給上游。"
+        },
+        "ratio": {
+          "label": "長寬比",
+          "placeholder": "例如 16:9"
+        },
+        "resolution": {
+          "label": "解析度",
+          "placeholder": "例如 720p"
+        },
+        "watermark": {
+          "label": "浮水印",
+          "description": "當上游介面支援時，請求服務端為生成結果加入浮水印。"
+        },
+        "generateAudio": {
+          "label": "生成音訊",
+          "description": "當上游介面支援時，同時為影片生成音軌。"
+        }
       }
     }
   },
@@ -658,8 +692,8 @@
     "stopModel": "停止模型",
     "pulling": "下載中...",
     "runModel": "執行模型",
-    "voiceai": {
-      "title": "Voice.ai 文字轉語音",
+    "tts": {
+      "title": "文字轉語音 (TTS)",
       "description": "將文字生成語音，voice 會在下方模型清單中顯示。",
       "audioFormat": {
         "label": "音訊格式",

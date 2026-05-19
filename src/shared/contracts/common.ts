@@ -59,6 +59,39 @@ export const ImageGenerationOptionsSchema = z
   })
   .optional()
 
+export const VideoGenerationOptionsSchema = z
+  .object({
+    seconds: z.string().optional(),
+    size: z.string().optional(),
+    ratio: z.string().optional(),
+    duration: z.number().int().min(-1).optional(),
+    resolution: z.string().optional(),
+    watermark: z.boolean().optional(),
+    generateAudio: z.boolean().optional(),
+    inputReference: z
+      .union([
+        z.string(),
+        z.object({
+          data: z.string(),
+          mimeType: z.string().optional()
+        })
+      ])
+      .optional(),
+    references: z
+      .array(
+        z
+          .object({
+            type: z.enum(['image', 'video', 'audio']),
+            url: z.string().optional(),
+            data: z.string().optional(),
+            mimeType: z.string().optional()
+          })
+          .refine((value) => Boolean(value.url || value.data))
+      )
+      .optional()
+  })
+  .optional()
+
 export const TtsSettingsSchema = z
   .object({
     voice: z.string().optional(),
@@ -105,7 +138,8 @@ export const SessionGenerationSettingsSchema = z.object({
   reasoningVisibility: ReasoningVisibilitySchema.optional(),
   verbosity: VerbositySchema.optional(),
   forceInterleavedThinkingCompat: z.boolean().optional(),
-  imageGeneration: ImageGenerationOptionsSchema
+  imageGeneration: ImageGenerationOptionsSchema,
+  videoGeneration: VideoGenerationOptionsSchema
 })
 
 export const SessionGenerationSettingsPatchSchema = SessionGenerationSettingsSchema.partial()

@@ -77,6 +77,12 @@
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
+              <MessageBlockVideo
+                v-else-if="isVideoBlock(block)"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
               <MessageBlockImage
                 v-else-if="block.type === 'image'"
                 :block="block"
@@ -185,6 +191,7 @@ import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
+import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockPlan from './MessageBlockPlan.vue'
 
 import {
@@ -219,7 +226,8 @@ const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
 
-const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus', '.webm']
+const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus']
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv']
 
 const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
   if (block.type === 'audio') return true
@@ -237,6 +245,45 @@ const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
 
 const isInternalToolCall = (block: DisplayAssistantMessageBlock): boolean => {
   return block.tool_call?.name === 'update_plan' && block.extra?.internalTool === true
+}
+
+const isVideoUrl = (value: string): boolean => {
+  if (!value) return false
+
+  try {
+    const normalizedUrl = value.startsWith('imgcache://')
+      ? new URL(value.replace('imgcache://', 'https://imgcache.local/'))
+      : new URL(value)
+    const pathname = normalizedUrl.pathname.toLowerCase()
+    return VIDEO_EXTENSIONS.some((ext) => pathname.endsWith(ext))
+  } catch {
+    const lower = value.toLowerCase()
+    return VIDEO_EXTENSIONS.some(
+      (ext) => lower.endsWith(ext) || lower.includes(`${ext}?`) || lower.includes(`${ext}#`)
+    )
+  }
+}
+
+const getLegacyBlockData = (block: DisplayAssistantMessageBlock): string => {
+  const content = block.content
+  if (content && typeof content === 'object' && 'data' in content) {
+    return String((content as { data?: unknown }).data ?? '')
+  }
+
+  return typeof content === 'string' ? content : ''
+}
+
+const isVideoBlock = (block: DisplayAssistantMessageBlock): boolean => {
+  if (block.type === 'video') return true
+  if (block.type !== 'image') return false
+  const mimeType = block.image_data?.mimeType?.toLowerCase() || ''
+  if (mimeType.startsWith('video/')) return true
+  const data = block.image_data?.data || getLegacyBlockData(block)
+  if (data.startsWith('data:video/')) return true
+  if (data.startsWith('imgcache://') || data.startsWith('http://') || data.startsWith('https://')) {
+    return isVideoUrl(data)
+  }
+  return false
 }
 
 // 定义事件

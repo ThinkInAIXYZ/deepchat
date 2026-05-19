@@ -566,7 +566,8 @@
           "chat": "Language Model",
           "embedding": "Embedding Model",
           "imageGeneration": "Image Generation Model",
-          "rerank": "Rerank Model"
+          "rerank": "Rerank Model",
+          "videoGeneration": "Video Generation Model"
         }
       },
       "validation": {
@@ -591,7 +592,8 @@
         "label": "API endpoint",
         "options": {
           "chat": "Text Generation",
-          "image": "Image Generation"
+          "image": "Image Generation",
+          "video": "Video Generation"
         }
       },
       "endpointType": {
@@ -604,7 +606,8 @@
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Image Generation"
+          "image-generation": "Image Generation",
+          "video-generation": "Video Generation"
         }
       },
       "reasoningVisibility": {
@@ -670,6 +673,37 @@
             "auto": "Auto",
             "low": "Low"
           }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
         }
       }
     }
@@ -907,8 +941,8 @@
       "verifyFailed": "Verification failed",
       "verifySuccess": "Verification is successful"
     },
-    "voiceai": {
-      "title": "Voice.ai Text-to-Speech",
+    "tts": {
+      "title": "Text-to-Speech (TTS)",
       "description": "Generate speech from text. Voices appear in the model list below.",
       "audioFormat": {
         "label": "Audio Format",

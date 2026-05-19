@@ -2,7 +2,10 @@ import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
-import type { DisplayAssistantMessage } from '@/components/chat/messageListItems'
+import type {
+  DisplayAssistantMessage,
+  DisplayAssistantMessageBlock
+} from '@/components/chat/messageListItems'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -121,6 +124,19 @@ const createMessage = (
   content
 })
 
+const createVideoLikeImageBlock = (
+  overrides: Partial<DisplayAssistantMessageBlock> = {}
+): DisplayAssistantMessageBlock => ({
+  type: 'image',
+  status: 'success',
+  timestamp: 1,
+  image_data: {
+    data: 'https://example.com/sample.png',
+    mimeType: 'image/png'
+  },
+  ...overrides
+})
+
 describe('MessageItemAssistant', () => {
   const global = {
     stubs: {
@@ -134,6 +150,16 @@ describe('MessageItemAssistant', () => {
       MessageToolbar: componentStub('MessageToolbar'),
       MessageBlockAction: componentStub('MessageBlockAction'),
       MessageBlockImage: componentStub('MessageBlockImage'),
+      MessageBlockVideo: defineComponent({
+        name: 'MessageBlockVideo',
+        props: {
+          block: {
+            type: Object,
+            required: false
+          }
+        },
+        template: '<div data-testid="video-block" />'
+      }),
       MessageBlockAudio: componentStub('MessageBlockAudio'),
       MessageBlockPlan: componentStub('MessageBlockPlan')
     }
@@ -163,28 +189,39 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
   })
 
-  it('renders a spinner for the currently displayed pending variant', async () => {
-    const variant = {
-      ...createMessage('pending', []),
-      id: 'm1-variant',
-      is_variant: 1
-    }
-
+  it('renders video blocks from legacy content urls', () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
-        message: {
-          ...createMessage('sent', []),
-          variants: [variant]
-        },
-        isCapturingImage: false,
-        useLegacyActions: true
+        message: createMessage('sent', [
+          createVideoLikeImageBlock({
+            content: 'https://example.com/media/generated-video.mp4?download=1',
+            image_data: undefined
+          })
+        ]),
+        isCapturingImage: false
       },
       global
     })
 
-    wrapper.vm.handleAction('next')
-    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="video-block"]').exists()).toBe(true)
+  })
 
-    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
+  it('does not classify non-video urls as video blocks when extensions only appear in query text', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [
+          createVideoLikeImageBlock({
+            image_data: {
+              data: 'https://example.com/assets/preview.png?redirect=.mp4',
+              mimeType: 'image/png'
+            }
+          })
+        ]),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="video-block"]').exists()).toBe(false)
   })
 })

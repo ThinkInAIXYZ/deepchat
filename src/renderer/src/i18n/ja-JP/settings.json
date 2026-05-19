@@ -503,7 +503,8 @@
           "chat": "言語モデル",
           "embedding": "埋め込みモデル",
           "imageGeneration": "画像生成モデル",
-          "rerank": "リランクモデル"
+          "rerank": "リランクモデル",
+          "videoGeneration": "動画生成モデル"
         }
       },
       "validation": {
@@ -528,7 +529,8 @@
         "label": "API エンドポイント",
         "options": {
           "chat": "テキスト生成",
-          "image": "画像生成"
+          "image": "画像生成",
+          "video": "Video Generation"
         }
       },
       "endpointType": {
@@ -541,7 +543,8 @@
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "画像生成"
+          "image-generation": "画像生成",
+          "video-generation": "Video Generation"
         }
       },
       "reasoningVisibility": {
@@ -608,6 +611,37 @@
             "low": "低"
           }
         }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
+        }
       }
     }
   },
@@ -658,8 +692,8 @@
     "stopModel": "モデルを停止",
     "pulling": "取得中...",
     "runModel": "モデルを実行",
-    "voiceai": {
-      "title": "Voice.ai テキスト読み上げ",
+    "tts": {
+      "title": "テキスト読み上げ (TTS)",
       "description": "テキストから音声を生成します。音声は下のモデル一覧に表示されます。",
       "audioFormat": {
         "label": "音声形式",

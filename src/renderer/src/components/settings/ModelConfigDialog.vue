@@ -11,7 +11,7 @@
       <div class="overflow-y-auto flex-1 pr-2 -mr-2">
         <form @submit.prevent="handleSave" class="space-y-6">
           <!-- 模型名称 -->
-          <div v-if="!showOpenAIImageGenerationSettings || canEditModelIdentity" class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelName">{{ t('settings.model.modelConfig.name.label') }}</Label>
             <Input
               id="modelName"
@@ -34,7 +34,7 @@
           </div>
 
           <!-- 模型 ID -->
-          <div v-if="!showOpenAIImageGenerationSettings || canEditModelIdentity" class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelId">{{ t('settings.model.modelConfig.id.label') }}</Label>
             <Input
               id="modelId"
@@ -57,7 +57,7 @@
           </div>
 
           <!-- 最大输出长度 -->
-          <div v-if="!showOpenAIImageGenerationSettings" class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-2">
             <Label for="maxTokens">{{ t('settings.model.modelConfig.maxTokens.label') }}</Label>
             <Input
               id="maxTokens"
@@ -77,7 +77,7 @@
           </div>
 
           <!-- 上下文长度 -->
-          <div v-if="!showOpenAIImageGenerationSettings" class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-2">
             <Label for="contextLength">{{
               t('settings.model.modelConfig.contextLength.label')
             }}</Label>
@@ -123,11 +123,16 @@
             v-model="config.imageGeneration"
           />
 
+          <OpenAIVideoGenerationSettingsFields
+            v-if="showOpenAIVideoGenerationSettings"
+            v-model="config.videoGeneration"
+          />
+
           <TtsSettingsFields v-if="showTtsSettings" v-model="config.tts" />
 
           <!-- 温度 (支持推理努力程度的模型不显示) -->
           <div
-            v-if="!showOpenAIImageGenerationSettings && showTemperatureControl"
+            v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
             class="space-y-2"
           >
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
@@ -155,7 +160,7 @@
 
           <!-- 模型类型 -->
           <div
-            v-if="!showOpenAIImageGenerationSettings || showOpenAIImageGenerationRouteControls"
+            v-if="!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls"
             class="space-y-2"
           >
             <Label for="type">{{ t('settings.model.modelConfig.type.label') }}</Label>
@@ -176,8 +181,11 @@
                 <SelectItem value="imageGeneration">
                   {{ t('settings.model.modelConfig.type.options.imageGeneration') }}
                 </SelectItem>
+                <SelectItem value="videoGeneration">
+                  {{ t('settings.model.modelConfig.type.options.videoGeneration') }}
+                </SelectItem>
                 <SelectItem value="tts">
-                  {{ t('settings.provider.voiceai.title') }}
+                  {{ t('settings.provider.tts.title') }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -188,7 +196,7 @@
 
           <div
             v-if="
-              (!showOpenAIImageGenerationSettings || showOpenAIImageGenerationRouteControls) &&
+              (!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls) &&
               showEndpointTypeSelector
             "
             class="space-y-2"
@@ -223,7 +231,7 @@
           <!-- API 端点（仅 OpenAI 兼容 provider 显示） -->
           <div
             v-if="
-              (!showOpenAIImageGenerationSettings || showOpenAIImageGenerationRouteControls) &&
+              (!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls) &&
               showApiEndpointSelector
             "
             class="space-y-2"
@@ -240,8 +248,11 @@
                 <SelectItem value="image">
                   {{ t('settings.model.modelConfig.apiEndpoint.options.image') }}
                 </SelectItem>
+                <SelectItem value="video">
+                  {{ t('settings.model.modelConfig.apiEndpoint.options.video') }}
+                </SelectItem>
                 <SelectItem value="audio-speech">
-                  {{ t('settings.provider.voiceai.title') }}
+                  {{ t('settings.provider.tts.title') }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -251,7 +262,7 @@
           </div>
 
           <!-- 视觉能力 -->
-          <div v-if="!showOpenAIImageGenerationSettings" class="flex items-center justify-between">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.vision.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -264,7 +275,7 @@
             />
           </div>
 
-          <div v-if="!showOpenAIImageGenerationSettings" class="flex items-center justify-between">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.speechRecognition.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -279,7 +290,7 @@
           </div>
 
           <!-- 函数调用 -->
-          <div v-if="!showOpenAIImageGenerationSettings" class="flex items-center justify-between">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.functionCall.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -298,7 +309,7 @@
 
           <!-- 推理能力 -->
           <div
-            v-if="!showOpenAIImageGenerationSettings && showReasoningToggle"
+            v-if="!showOpenAIMediaGenerationSettings && showReasoningToggle"
             class="flex items-center justify-between"
           >
             <div class="space-y-0.5">
@@ -319,7 +330,7 @@
           </div>
 
           <div
-            v-if="!showOpenAIImageGenerationSettings && showInterleavedThinking"
+            v-if="!showOpenAIMediaGenerationSettings && showInterleavedThinking"
             class="flex items-center justify-between gap-4"
           >
             <div class="space-y-0.5">
@@ -338,7 +349,7 @@
           </div>
 
           <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
-          <div v-if="!showOpenAIImageGenerationSettings && showReasoningEffort" class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort" class="space-y-2">
             <Label for="reasoningEffort">{{
               t('settings.model.modelConfig.reasoningEffort.label')
             }}</Label>
@@ -364,7 +375,7 @@
           </div>
 
           <div
-            v-if="!showOpenAIImageGenerationSettings && showReasoningVisibility"
+            v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
             class="space-y-2"
           >
             <Label for="reasoningVisibility">{{
@@ -392,7 +403,7 @@
           </div>
 
           <!-- 详细程度（存在该参数即显示） -->
-          <div v-if="!showOpenAIImageGenerationSettings && supportsVerbosity" class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings && supportsVerbosity" class="space-y-2">
             <Label for="verbosity">{{ t('settings.model.modelConfig.verbosity.label') }}</Label>
             <Select v-model="config.verbosity">
               <SelectTrigger>
@@ -414,7 +425,7 @@
           </div>
 
           <!-- 思考预算（统一基于能力） -->
-          <div v-if="!showOpenAIImageGenerationSettings && showThinkingBudget" class="space-y-4">
+          <div v-if="!showOpenAIMediaGenerationSettings && showThinkingBudget" class="space-y-4">
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
                 <Label>{{ t('settings.model.modelConfig.thinkingBudget.label') }}</Label>
@@ -559,11 +570,16 @@ import {
   normalizeImageGenerationOptions,
   supportsOpenAIImageGenerationSettings
 } from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  supportsOpenAICompatibleVideoGeneration
+} from '@shared/videoGenerationSettings'
 import { normalizeTtsSettings } from '@shared/ttsSettings'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
+import OpenAIVideoGenerationSettingsFields from './OpenAIVideoGenerationSettingsFields.vue'
 import TtsSettingsFields from './TtsSettingsFields.vue'
 import { createModelClient } from '@api/ModelClient'
 import {
@@ -708,8 +724,28 @@ const showOpenAIImageGenerationSettings = computed(() =>
     type: config.value.type ?? providerModelMeta.value?.type
   })
 )
+const showOpenAIVideoGenerationSettings = computed(() =>
+  supportsOpenAICompatibleVideoGeneration({
+    providerId: props.providerId,
+    providerApiType: currentProvider.value?.apiType,
+    modelId: modelIdField.value.trim(),
+    apiEndpoint: config.value.apiEndpoint,
+    endpointType: config.value.endpointType ?? providerModelMeta.value?.endpointType,
+    supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+    type: config.value.type ?? providerModelMeta.value?.type
+  })
+)
+const showOpenAIMediaGenerationSettings = computed(
+  () => showOpenAIImageGenerationSettings.value || showOpenAIVideoGenerationSettings.value
+)
 const showOpenAIImageGenerationRouteControls = computed(
   () => showOpenAIImageGenerationSettings.value && canEditModelIdentity.value
+)
+const showOpenAIVideoGenerationRouteControls = computed(
+  () => showOpenAIVideoGenerationSettings.value && canEditModelIdentity.value
+)
+const showOpenAIMediaGenerationRouteControls = computed(
+  () => showOpenAIImageGenerationRouteControls.value || showOpenAIVideoGenerationRouteControls.value
 )
 const showTtsSettings = computed(() => config.value.type === ModelType.TTS)
 
@@ -1049,12 +1085,23 @@ const syncNewApiDerivedFields = () => {
     return
   }
 
+  if (config.value.endpointType === 'video-generation') {
+    config.value.apiEndpoint = ApiEndpointType.Video
+    config.value.type = ModelType.VideoGeneration
+    return
+  }
+
   config.value.apiEndpoint = ApiEndpointType.Chat
 
-  if (config.value.type === ModelType.ImageGeneration) {
+  if (
+    config.value.type === ModelType.ImageGeneration ||
+    config.value.type === ModelType.VideoGeneration
+  ) {
     const providerModelType = providerModelMeta.value?.type
     config.value.type =
-      providerModelType && providerModelType !== ModelType.ImageGeneration
+      providerModelType &&
+      providerModelType !== ModelType.ImageGeneration &&
+      providerModelType !== ModelType.VideoGeneration
         ? providerModelType
         : ModelType.Chat
   }
@@ -1099,12 +1146,16 @@ const loadConfig = async () => {
         availableEndpointTypes.value[0]
     }
 
-    if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
-      config.value.apiEndpoint = ApiEndpointType.Chat
+    if (config.value.type === ModelType.VideoGeneration && !config.value.apiEndpoint) {
+      config.value.apiEndpoint = ApiEndpointType.Video
     }
 
     if (config.value.type === ModelType.TTS && !config.value.apiEndpoint) {
       config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+    }
+
+    if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
+      config.value.apiEndpoint = ApiEndpointType.Chat
     }
   } catch (error) {
     console.error('Failed to load model config:', error)
@@ -1195,7 +1246,7 @@ const validateForm = () => {
     }
   }
 
-  if (!showOpenAIImageGenerationSettings.value) {
+  if (!showOpenAIMediaGenerationSettings.value) {
     // 验证最大输出长度
     if (!config.value.maxTokens || config.value.maxTokens <= 0) {
       errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMin')
@@ -1213,7 +1264,7 @@ const validateForm = () => {
 
   // 验证温度 (仅对显示 temperature 控件的模型)
   if (
-    !showOpenAIImageGenerationSettings.value &&
+    !showOpenAIMediaGenerationSettings.value &&
     showTemperatureControl.value &&
     config.value.temperature !== undefined
   ) {
@@ -1234,7 +1285,7 @@ const validateForm = () => {
   }
 
   if (
-    (!showOpenAIImageGenerationSettings.value || showOpenAIImageGenerationRouteControls.value) &&
+    (!showOpenAIMediaGenerationSettings.value || showOpenAIMediaGenerationRouteControls.value) &&
     showEndpointTypeSelector.value &&
     !isNewApiEndpointType(config.value.endpointType)
   ) {
@@ -1262,6 +1313,9 @@ const handleSave = async () => {
     ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
     imageGeneration: showOpenAIImageGenerationSettings.value
       ? normalizeImageGenerationOptions(config.value.imageGeneration)
+      : undefined,
+    videoGeneration: showOpenAIVideoGenerationSettings.value
+      ? normalizeVideoGenerationOptions(config.value.videoGeneration)
       : undefined,
     tts: showTtsSettings.value ? normalizeTtsSettings(config.value.tts) : undefined
   }
@@ -1376,12 +1430,20 @@ watch(
       return
     }
 
+    if (config.value.type === ModelType.VideoGeneration) {
+      config.value.apiEndpoint = ApiEndpointType.Video
+      return
+    }
+
     if (config.value.type === ModelType.TTS) {
       config.value.apiEndpoint = ApiEndpointType.AudioSpeech
       return
     }
 
-    if (config.value.apiEndpoint === ApiEndpointType.Image) {
+    if (
+      config.value.apiEndpoint === ApiEndpointType.Image ||
+      config.value.apiEndpoint === ApiEndpointType.Video
+    ) {
       config.value.apiEndpoint = ApiEndpointType.Chat
     }
   },

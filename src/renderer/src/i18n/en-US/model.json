@@ -40,7 +40,8 @@
       "chat": "Chat",
       "embedding": "Embedding",
       "rerank": "Rerank",
-      "imageGeneration": "Image Generation"
+      "imageGeneration": "Image Generation",
+      "videoGeneration": "Video Generation"
     }
   },
   "tags": {
