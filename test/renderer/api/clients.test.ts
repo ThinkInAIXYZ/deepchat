@@ -154,6 +154,7 @@ describe('renderer api clients', () => {
     chatClient.onStreamUpdated(vi.fn())
     chatClient.onStreamCompleted(vi.fn())
     chatClient.onStreamFailed(vi.fn())
+    chatClient.onPlanUpdated(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.create', {
       agentId: 'deepchat',
@@ -207,6 +208,7 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenNthCalledWith(2, 'chat.stream.updated', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(3, 'chat.stream.completed', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(4, 'chat.stream.failed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(5, 'chat.plan.updated', expect.any(Function))
   })
 
   it('routes phase2 config, provider, and model calls through the shared registry names', async () => {

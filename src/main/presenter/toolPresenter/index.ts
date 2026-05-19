@@ -10,7 +10,12 @@ import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
-import { AgentToolManager, IMAGE_GENERATE_TOOL_NAME, type AgentToolCallResult } from './agentTools'
+import {
+  AgentToolManager,
+  IMAGE_GENERATE_TOOL_NAME,
+  UPDATE_PLAN_TOOL_NAME,
+  type AgentToolCallResult
+} from './agentTools'
 import type { AgentToolRuntimePort } from './runtimePorts'
 import {
   createAgentToolErrorResult,
@@ -89,7 +94,8 @@ const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'exec', 'process']
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
-  IMAGE_GENERATE_TOOL_NAME
+  IMAGE_GENERATE_TOOL_NAME,
+  UPDATE_PLAN_TOOL_NAME
 ])
 
 const withToolSource = (tools: MCPToolDefinition[], source: 'mcp' | 'agent'): MCPToolDefinition[] =>
@@ -453,6 +459,7 @@ export class ToolPresenter implements IToolPresenter {
       this.buildFilesystemPrompt(toolNames, offloadPath),
       this.buildQuestionPrompt(toolNames),
       this.buildImageGenerationPrompt(toolNames),
+      this.buildProgressPrompt(toolNames),
       this.buildSkillsPrompt(toolNames),
       this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
       this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
@@ -603,6 +610,24 @@ export class ToolPresenter implements IToolPresenter {
       `Use \`${IMAGE_GENERATE_TOOL_NAME}\` when the user asks to create, draw, render, or generate a new image.`,
       'Keep the prompt visual and specific. Include subject, style, composition, lighting, mood, and important constraints from the user.',
       'Do not use this tool for describing an existing image or reading image files; use the appropriate vision or file tool for that.'
+    ].join('\n')
+  }
+
+  private buildProgressPrompt(toolNames: Set<string>): string {
+    if (!toolNames.has(UPDATE_PLAN_TOOL_NAME)) {
+      return ''
+    }
+
+    return [
+      '## Progress Checklist Tool',
+      `Use \`${UPDATE_PLAN_TOOL_NAME}\` for non-trivial multi-step tasks.`,
+      'Skip it for simple one-shot answers or trivial edits.',
+      'Each call must provide the complete current checklist snapshot.',
+      'Keep each step short, concrete, and verifiable.',
+      'Keep the checklist current as work progresses.',
+      'At most one step may be in_progress at a time.',
+      'When a step completes, update the checklist immediately and move the next active step to in_progress in the same call.',
+      'Use explanation only when the plan changes materially or progress would otherwise be unclear.'
     ].join('\n')
   }
 

@@ -221,6 +221,7 @@
     "plan": {
       "empty": "Aucune tâche pour l'instant",
       "section": "plan",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Complété",
         "failed": "échouer",

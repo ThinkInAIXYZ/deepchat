@@ -1,6 +1,7 @@
 // Core chat types (strong-typed UI blocks)
 
 import type { ToolCallImagePreview } from './mcp'
+import type { AgentPlanDisplayItem } from '../agent-plan'
 
 export type Message = {
   id: string
@@ -60,7 +61,7 @@ export type AssistantMessageBlock = {
     | 'audio'
     | 'artifact-thinking'
   content?: string
-  extra?: Record<string, string | number | object[] | boolean>
+  extra?: AssistantMessageExtra
   status:
     | 'success'
     | 'loading'
@@ -104,6 +105,14 @@ export type AssistantMessageBlock = {
     | 'question_request'
   image_data?: { data: string; mimeType: string }
   reasoning_time?: { start: number; end: number }
+}
+
+export type AssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
+  internalTool?: boolean
+  plan_entries?: AgentPlanDisplayItem[]
+  plan_explanation?: string
+  plan_revision?: number
+  plan_updated_at?: string
 }
 
 export type {

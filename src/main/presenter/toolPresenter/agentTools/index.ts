@@ -11,3 +11,4 @@ export {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
+export { AGENT_CORE_TOOL_SERVER_NAME, UPDATE_PLAN_TOOL_NAME, AgentPlanTool } from './agentPlanTool'

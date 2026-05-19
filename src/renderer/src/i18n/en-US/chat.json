@@ -234,6 +234,7 @@
     "plan": {
       "section": "Plan",
       "empty": "No tasks yet",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "pending": "Pending",
         "in_progress": "In Progress",

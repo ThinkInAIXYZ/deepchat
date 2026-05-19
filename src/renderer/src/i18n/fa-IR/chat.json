@@ -221,6 +221,7 @@
     "plan": {
       "empty": "هنوز هیچ تکلیفی وجود ندارد",
       "section": "برنامه ریزی کنید",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "تکمیل شد",
         "failed": "شکست بخورد",

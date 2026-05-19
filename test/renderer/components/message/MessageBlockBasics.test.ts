@@ -9,7 +9,17 @@ import type { DisplayAssistantMessageBlock } from '@/components/chat/messageList
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string) => key
+    t: (key: string, params?: Record<string, string>) => {
+      const messages: Record<string, string> = {
+        'chat.workspace.plan.section': 'Plan',
+        'chat.workspace.plan.empty': 'No tasks yet',
+        'chat.workspace.plan.itemAriaLabel': '{status}: {step}',
+        'chat.workspace.plan.status.completed': 'Completed',
+        'chat.workspace.plan.status.in_progress': 'In Progress',
+        'chat.workspace.plan.status.pending': 'Pending'
+      }
+      return (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => params?.[name] ?? '')
+    }
   })
 }))
 
@@ -111,14 +121,21 @@ describe('MessageBlock basics', () => {
         block: createBlock({
           type: 'plan',
           extra: {
-            plan_entries: [{ status: 'completed' }, { status: 'pending' }]
+            plan_entries: [
+              { step: 'Inspect runtime', status: 'completed' },
+              { step: 'Write tests', status: 'pending' }
+            ]
           }
         })
       }
     })
 
-    expect(wrapper.text()).toContain('plan.title')
-    expect(wrapper.text()).toContain('1/2')
+    expect(wrapper.text()).toContain('Plan')
+    expect(wrapper.text()).toContain('1/2 Completed')
+    expect(wrapper.text()).toContain('Inspect runtime')
+    expect(wrapper.text()).toContain('Write tests')
+    expect(wrapper.find('[aria-label="Completed: Inspect runtime"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Pending: Write tests"]').exists()).toBe(true)
   })
 
   it('expands error details and explanation', async () => {

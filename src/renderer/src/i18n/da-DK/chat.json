@@ -221,6 +221,7 @@
     "plan": {
       "empty": "Ingen opgaver endnu",
       "section": "plan",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Afsluttet",
         "failed": "Mislykket",

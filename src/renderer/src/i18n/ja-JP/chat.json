@@ -221,6 +221,7 @@
     "plan": {
       "empty": "まだタスクはありません",
       "section": "プラン",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "完了しました",
         "failed": "失敗",

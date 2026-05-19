@@ -28,6 +28,7 @@ import {
   SubagentOrchestratorTool
 } from './subagentOrchestratorTool'
 import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
+import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -121,6 +122,7 @@ export class AgentToolManager {
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
   private subagentOrchestratorTool: SubagentOrchestratorTool | null = null
   private imageGenerationTool: AgentImageGenerationTool | null = null
+  private planTool: AgentPlanTool | null = null
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
   private readonly fileSystemSchemas = {
@@ -285,6 +287,7 @@ export class AgentToolManager {
       configPresenter: this.configPresenter,
       runtimePort: this.runtimePort
     })
+    this.planTool = new AgentPlanTool()
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -344,6 +347,11 @@ export class AgentToolManager {
 
     // 2. Built-in question tool (all modes)
     defs.push(...this.getQuestionToolDefinitions())
+
+    // 2.1. Progress checklist tool (deepchat regular sessions only)
+    if (isAgentMode && this.planTool) {
+      defs.push(this.planTool.getToolDefinition())
+    }
 
     // 2.25. Image generation tool (deepchat agent sessions with an image model)
     if (isAgentMode && this.imageGenerationTool) {
@@ -430,6 +438,17 @@ export class AgentToolManager {
     conversationId?: string,
     options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult | string> {
+    if (toolName === UPDATE_PLAN_TOOL_NAME) {
+      if (!this.planTool) {
+        throw new Error('Progress tool is not available.')
+      }
+
+      return this.planTool.call(args, conversationId, {
+        toolCallId: options?.toolCallId,
+        onProgress: options?.onProgress
+      })
+    }
+
     if (toolName === QUESTION_TOOL_NAME) {
       const validationResult = questionToolSchema.safeParse(args)
       if (!validationResult.success) {

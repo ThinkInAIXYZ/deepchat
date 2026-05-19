@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolPresenter } from '@/presenter/toolPresenter'
+import { UPDATE_PLAN_TOOL_NAME } from '@/presenter/toolPresenter/agentTools'
 import { CommandPermissionService } from '@/presenter/permission'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 
@@ -375,6 +376,49 @@ describe('ToolPresenter', () => {
     expect(withQuestion).toContain(
       'Do not send `questions`, `allowOther`, or stringified `options` JSON.'
     )
+  })
+
+  it('includes progress guidance only when update_plan is enabled', () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    const withoutProgress = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('read', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    const withProgress = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition(UPDATE_PLAN_TOOL_NAME, 'agent-core'),
+          source: 'agent'
+        }
+      ]
+    })
+
+    expect(withoutProgress).not.toContain('## Progress Checklist Tool')
+    expect(withProgress).toContain('## Progress Checklist Tool')
+    expect(withProgress).toContain('Use `update_plan` for non-trivial multi-step tasks.')
+    expect(withProgress).toContain('At most one step may be in_progress at a time.')
   })
 
   it('describes the question schema and returns actionable validation errors', async () => {

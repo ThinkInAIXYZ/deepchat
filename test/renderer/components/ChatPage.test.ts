@@ -128,6 +128,14 @@ const setup = async (options: SetupOptions = {}) => {
     ...options.pendingInputStorePatch
   })
 
+  const agentPlanStore = reactive({
+    snapshots: {},
+    applySnapshot: vi.fn(),
+    clear: vi.fn(),
+    isCollapsed: vi.fn().mockReturnValue(false),
+    toggleCollapsed: vi.fn()
+  })
+
   const modelStore = reactive({
     findModelByIdOrName: vi.fn((id: string) => ({
       model: {
@@ -155,7 +163,8 @@ const setup = async (options: SetupOptions = {}) => {
       accepted: true
     }),
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
-    respondToolInteraction: vi.fn().mockResolvedValue({ accepted: true })
+    respondToolInteraction: vi.fn().mockResolvedValue({ accepted: true }),
+    onPlanUpdated: vi.fn().mockReturnValue(() => {})
   }
   const sessionClient = {
     retryMessage: vi.fn().mockResolvedValue(undefined),
@@ -189,6 +198,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/ui/pendingInput', () => ({
     usePendingInputStore: () => pendingInputStore
+  }))
+  vi.doMock('@/stores/ui/agentPlan', () => ({
+    useAgentPlanStore: () => agentPlanStore
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
@@ -331,6 +343,13 @@ const setup = async (options: SetupOptions = {}) => {
         '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" @click="$emit(\'steer\')" /></div>'
     })
   }))
+  vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
+    default: defineComponent({
+      name: 'AgentProgressFloat',
+      emits: ['toggle-collapse'],
+      template: '<button class="agent-progress-float-stub" @click="$emit(\'toggle-collapse\')" />'
+    })
+  }))
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
     default: defineComponent({
       name: 'PendingInputLane',
@@ -404,6 +423,7 @@ const setup = async (options: SetupOptions = {}) => {
     toast,
     messageStore,
     pendingInputStore,
+    agentPlanStore,
     spotlightStore,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
@@ -418,6 +438,28 @@ const setup = async (options: SetupOptions = {}) => {
 }
 
 describe('ChatPage', () => {
+  it('renders the agent plan inside an absolute overlay layer above the composer', async () => {
+    const { wrapper, agentPlanStore } = await setup()
+
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: [{ step: 'Inspect runtime state', status: 'in_progress' }],
+      explanation: 'Current implementation plan',
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+
+    await flushPromises()
+
+    const layer = wrapper.find('[data-testid="agent-progress-float-layer"]')
+
+    expect(layer.exists()).toBe(true)
+    expect(layer.classes()).toContain('absolute')
+    expect(layer.classes()).toContain('pointer-events-none')
+    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
+  })
+
   it('defers session restore until startup deferred tasks are released', async () => {
     const { messageStore, pendingInputStore, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true

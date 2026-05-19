@@ -15,6 +15,7 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
@@ -280,6 +281,93 @@ describe('dispatch', () => {
       const toolBlock = state.blocks.find((b) => b.type === 'tool_call')
       expect(toolBlock!.tool_call!.response).toBe('Sunny, 72F')
       expect(toolBlock!.status).toBe('success')
+    })
+
+    it('publishes plan update events without inserting plan blocks into messages', async () => {
+      const tools = [makeAgentTool('update_plan')]
+      const snapshot = {
+        sessionId: 's1',
+        toolCallId: 'tc-plan',
+        explanation: 'Repository inspected',
+        plan: [
+          { step: 'Inspect runtime', status: 'completed' as const },
+          { step: 'Render checklist', status: 'in_progress' as const }
+        ],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn(async (_request, options) => {
+          options?.onProgress?.({
+            kind: 'agent_plan',
+            toolCallId: 'tc-plan',
+            snapshot
+          })
+          return {
+            content: '{}',
+            rawData: {
+              toolCallId: 'tc-plan',
+              content: '{}',
+              isError: false
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+      const conversation = [{ role: 'user' as const, content: 'Plan this' }]
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-plan', name: 'update_plan', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc-plan', name: 'update_plan', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        undefined,
+        'openai'
+      )
+
+      const planBlock = state.blocks.find((block) => block.type === 'plan')
+      const toolBlock = state.blocks.find((block) => block.type === 'tool_call')
+
+      expect(planBlock).toBeUndefined()
+      expect(toolBlock?.extra?.internalTool).toBe(true)
+
+      const planEventCall = vi
+        .mocked(eventBus.sendToRenderer)
+        .mock.calls.find(
+          ([channel, _target, envelope]) =>
+            channel === DEEPCHAT_EVENT_CHANNEL &&
+            envelope &&
+            typeof envelope === 'object' &&
+            (envelope as { name?: string }).name === 'chat.plan.updated'
+        )
+      expect(planEventCall?.[2]).toMatchObject({
+        name: 'chat.plan.updated',
+        payload: {
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc-plan',
+          plan: snapshot.plan,
+          explanation: 'Repository inspected',
+          revision: 1,
+          updatedAt: snapshot.updatedAt
+        }
+      })
     })
 
     it('runs all-read-only Agent tool batches in parallel and preserves result order', async () => {

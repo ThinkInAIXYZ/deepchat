@@ -6,6 +6,7 @@ import {
   browserStatusChangedEvent
 } from './events/browser.events'
 import {
+  chatPlanUpdatedEvent,
   chatStreamCompletedEvent,
   chatStreamFailedEvent,
   chatStreamUpdatedEvent
@@ -118,6 +119,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [chatStreamUpdatedEvent.name]: chatStreamUpdatedEvent,
   [chatStreamCompletedEvent.name]: chatStreamCompletedEvent,
   [chatStreamFailedEvent.name]: chatStreamFailedEvent,
+  [chatPlanUpdatedEvent.name]: chatPlanUpdatedEvent,
   [skillsCatalogChangedEvent.name]: skillsCatalogChangedEvent,
   [skillsSessionChangedEvent.name]: skillsSessionChangedEvent,
   [mcpServerStartedEvent.name]: mcpServerStartedEvent,

@@ -65,6 +65,20 @@ type StructuredMessageMaps = {
   assistantRows: Map<string, DeepChatAssistantBlockRow[]>
 }
 
+function normalizePersistedActionType(
+  actionType: string | null
+): AssistantMessageBlock['action_type'] | undefined {
+  if (
+    actionType === 'tool_call_permission' ||
+    actionType === 'question_request' ||
+    actionType === 'rate_limit'
+  ) {
+    return actionType
+  }
+
+  return undefined
+}
+
 function extractSearchableMessageContent(rawContent: string): string {
   try {
     const parsed = JSON.parse(rawContent) as
@@ -761,6 +775,7 @@ export class DeepChatMessageStore {
           : undefined
 
     const imageData = extra.imageData?.trim()
+    const actionType = normalizePersistedActionType(row.action_type)
 
     return {
       id: extra.id,
@@ -778,7 +793,7 @@ export class DeepChatMessageStore {
           : undefined,
       tool_call: toolCall as AssistantMessageBlock['tool_call'],
       extra: extra.extra,
-      action_type: row.action_type as AssistantMessageBlock['action_type']
+      ...(actionType ? { action_type: actionType } : {})
     }
   }
 

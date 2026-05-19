@@ -221,6 +221,7 @@
     "plan": {
       "empty": "עדיין אין משימות",
       "section": "לְתַכְנֵן",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "הושלם",
         "failed": "לְהִכָּשֵׁל",
