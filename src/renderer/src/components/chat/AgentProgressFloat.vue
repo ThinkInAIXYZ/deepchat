@@ -11,7 +11,7 @@
         type="button"
         class="agent-progress-trigger group flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl px-2 py-1.5 text-left transition-all duration-200 hover:bg-foreground/[0.035] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
         data-testid="agent-progress-float-trigger"
-        :aria-expanded="String(!collapsed)"
+        :aria-expanded="!collapsed"
         :aria-label="t('chat.workspace.plan.section')"
         @click="emit('toggle-collapse')"
       >

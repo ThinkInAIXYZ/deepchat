@@ -1301,8 +1301,13 @@ const startCreate = () => {
   assignForm(emptyForm())
 }
 const resetEditor = () => {
-  if (selectedAgentId.value === DRAFT_AGENT_ID) startCreate()
-  else selectAgent(selectedAgentId.value)
+  const agentId = selectedAgentId.value
+  if (!agentId || agentId === DRAFT_AGENT_ID) {
+    startCreate()
+    return
+  }
+
+  selectAgent(agentId)
 }
 const saveAgent = async () => {
   if (!form.name.trim()) return

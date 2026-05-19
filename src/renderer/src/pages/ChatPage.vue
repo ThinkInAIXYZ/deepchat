@@ -1001,7 +1001,7 @@ type PendingInteractionView = {
   actionType: 'question_request' | 'tool_call_permission'
   toolName: string
   toolArgs: string
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
 }
 
 type SubagentProgressPayload = {
@@ -1011,7 +1011,7 @@ type SubagentProgressPayload = {
       type: 'permission' | 'question'
       messageId: string
       toolCallId: string
-      actionBlock: AssistantMessageBlock
+      actionBlock: DisplayAssistantMessageBlock
     } | null
   }>
 }

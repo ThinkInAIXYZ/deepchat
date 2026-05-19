@@ -78,7 +78,8 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
-import type { AssistantMessageBlock, ToolInteractionResponse } from '@shared/types/agent-interface'
+import type { ToolInteractionResponse } from '@shared/types/agent-interface'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 type PendingInteractionView = {
   messageId: string
@@ -86,7 +87,7 @@ type PendingInteractionView = {
   actionType: 'question_request' | 'tool_call_permission'
   toolName: string
   toolArgs: string
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
 }
 
 const props = defineProps<{

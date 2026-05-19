@@ -993,6 +993,9 @@ type ModelSelection = {
   modelId: string
 }
 
+type ReasoningEffortValue = NonNullable<SessionGenerationSettings['reasoningEffort']>
+type VerbosityValue = NonNullable<SessionGenerationSettings['verbosity']>
+
 const isSameModelSelection = (
   left: ModelSelection | null | undefined,
   right: ModelSelection | null | undefined
@@ -1533,7 +1536,7 @@ const resolveCapabilityProviderIdForSelection = (
 
 const getReasoningEffortOptions = (
   portrait: ReasoningPortrait | null | undefined
-): SessionGenerationSettings['reasoningEffort'][] => {
+): ReasoningEffortValue[] => {
   if (
     !portrait ||
     portrait.mode === 'budget' ||
@@ -1556,14 +1559,12 @@ const getReasoningEffortOptions = (
     : [portrait.effort]
 }
 
-const getVerbosityOptions = (
-  portrait: ReasoningPortrait | null | undefined
-): SessionGenerationSettings['verbosity'][] => {
+const getVerbosityOptions = (portrait: ReasoningPortrait | null | undefined): VerbosityValue[] => {
   const options = portrait?.verbosityOptions?.filter(isVerbosity)
   if (options && options.length > 0) {
     return options
   }
-  return isVerbosity(portrait?.verbosity) ? [...DEFAULT_VERBOSITY_OPTIONS] : []
+  return isVerbosity(portrait?.verbosity) ? DEFAULT_VERBOSITY_OPTIONS.filter(isVerbosity) : []
 }
 
 const getReasoningVisibilityOptions = (

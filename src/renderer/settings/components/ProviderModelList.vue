@@ -713,12 +713,14 @@ type VirtualModelListItem =
       enableSearch: boolean
       typeValue: ModelType
       group: string
-      contextLength: number
-      maxTokens: number
+      contextLength: RENDERER_MODEL_META['contextLength']
+      maxTokens: RENDERER_MODEL_META['maxTokens']
       isCustom: boolean
       supportedEndpointTypes: RENDERER_MODEL_META['supportedEndpointTypes']
       endpointType: RENDERER_MODEL_META['endpointType']
     }
+
+type VirtualModelItem = Extract<VirtualModelListItem, { type: 'model' }>
 
 const getCachedVirtualItem = <TItem extends VirtualModelListItem>(
   id: string,
@@ -772,7 +774,7 @@ const createProviderActionsItem = (providerId: string) =>
   )
 
 const createModelItem = (model: RENDERER_MODEL_META) =>
-  getCachedVirtualItem(
+  getCachedVirtualItem<VirtualModelItem>(
     `${model.providerId}-${model.id}`,
     () => ({
       id: `${model.providerId}-${model.id}`,
@@ -923,9 +925,7 @@ const getBatchTargetModels = (providerId: string) => {
   return Array.from(dedupedModels.values())
 }
 
-const toRendererModel = (
-  item: Extract<VirtualModelListItem, { type: 'model' }>
-): RENDERER_MODEL_META => ({
+const toRendererModel = (item: VirtualModelItem): RENDERER_MODEL_META => ({
   id: item.modelId,
   name: item.name,
   contextLength: item.contextLength,
