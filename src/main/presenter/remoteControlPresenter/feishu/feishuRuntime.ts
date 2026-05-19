@@ -2,6 +2,7 @@ import {
   FEISHU_CONVERSATION_POLL_TIMEOUT_MS,
   FEISHU_INBOUND_DEDUP_LIMIT,
   FEISHU_INBOUND_DEDUP_TTL_MS,
+  FEISHU_REMOTE_REACTION_EMOJI,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   buildFeishuEndpointKey,
   type RemoteDeliverySegment,
@@ -287,7 +288,24 @@ export class FeishuRuntime {
       }
 
       if (routed.conversation) {
-        await this.deliverConversation(target, routed.conversation, runId)
+        let reactionId: string | null = null
+        try {
+          reactionId = await this.setThinkingReaction(message.messageId)
+        } catch (error) {
+          console.warn('[FeishuRuntime] Failed to set thinking reaction:', error)
+        }
+
+        try {
+          await this.deliverConversation(target, routed.conversation, runId)
+        } finally {
+          if (reactionId) {
+            try {
+              await this.clearThinkingReaction(message.messageId, reactionId)
+            } catch (error) {
+              console.warn('[FeishuRuntime] Failed to clear thinking reaction:', error)
+            }
+          }
+        }
       }
     } catch (error) {
       const diagnostics = {
@@ -798,6 +816,14 @@ export class FeishuRuntime {
         await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(action.fallbackText))
       }
     }
+  }
+
+  private async setThinkingReaction(messageId: string): Promise<string> {
+    return await this.deps.client.addReaction(messageId, FEISHU_REMOTE_REACTION_EMOJI)
+  }
+
+  private async clearThinkingReaction(messageId: string, reactionId: string): Promise<void> {
+    await this.deps.client.removeReaction(messageId, reactionId)
   }
 
   private setStatus(

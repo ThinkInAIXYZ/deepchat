@@ -400,6 +400,35 @@ export class FeishuClient {
     })
   }
 
+  async addReaction(messageId: string, emojiType: string): Promise<string> {
+    const response = await this.sdk.im.messageReaction.create({
+      path: {
+        message_id: messageId
+      },
+      data: {
+        reaction_type: {
+          emoji_type: emojiType
+        }
+      }
+    })
+
+    const reactionId = response?.data?.reaction_id?.trim()
+    if (!reactionId) {
+      throw new Error('Feishu addReaction did not return reaction_id.')
+    }
+
+    return reactionId
+  }
+
+  async removeReaction(messageId: string, reactionId: string): Promise<void> {
+    await this.sdk.im.messageReaction.delete({
+      path: {
+        message_id: messageId,
+        reaction_id: reactionId
+      }
+    })
+  }
+
   async sendCard(target: FeishuTransportTarget, card: FeishuInteractiveCardPayload): Promise<void> {
     const content = createCardPayload(card)
     if (target.replyToMessageId) {
