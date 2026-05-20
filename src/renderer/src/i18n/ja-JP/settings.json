@@ -297,7 +297,7 @@
         "found": "検出済み",
         "not_found": "未検出",
         "error": "エラー",
-        "unsupported_platform": "macOS のみ"
+        "unsupported_platform": "未対応のプラットフォーム"
       },
       "targetKind": {
         "builtin": "組み込み",

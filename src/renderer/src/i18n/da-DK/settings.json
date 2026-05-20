@@ -230,7 +230,7 @@
         "found": "Fundet",
         "not_found": "Ikke fundet",
         "error": "Fejl",
-        "unsupported_platform": "Kun macOS"
+        "unsupported_platform": "Ikke-understøttet platform"
       },
       "targetKind": {
         "builtin": "Indbygget",

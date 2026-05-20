@@ -297,7 +297,7 @@
         "found": "Trouvé",
         "not_found": "Introuvable",
         "error": "Erreur",
-        "unsupported_platform": "macOS uniquement"
+        "unsupported_platform": "Plateforme non prise en charge"
       },
       "targetKind": {
         "builtin": "Intégré",

@@ -297,7 +297,7 @@
         "found": "찾음",
         "not_found": "찾을 수 없음",
         "error": "오류",
-        "unsupported_platform": "macOS만 지원"
+        "unsupported_platform": "지원되지 않는 플랫폼"
       },
       "targetKind": {
         "builtin": "내장",

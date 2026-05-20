@@ -297,7 +297,7 @@
         "found": "已找到",
         "not_found": "未找到",
         "error": "讀取失敗",
-        "unsupported_platform": "僅支援 macOS"
+        "unsupported_platform": "不支援目前平台"
       },
       "targetKind": {
         "builtin": "內建",

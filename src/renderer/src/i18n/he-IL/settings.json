@@ -297,7 +297,7 @@
         "found": "נמצא",
         "not_found": "לא נמצא",
         "error": "שגיאה",
-        "unsupported_platform": "macOS בלבד"
+        "unsupported_platform": "פלטפורמה לא נתמכת"
       },
       "targetKind": {
         "builtin": "מובנה",

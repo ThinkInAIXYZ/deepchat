@@ -17,7 +17,7 @@ Help new and existing DeepChat users import model provider configuration from ot
 - The import entry appears in Data Settings and opens a step-by-step dialog.
 - The welcome guide title presents "Select a Provider or Import from other agents"; the import action is visually clickable in the coachmark while the provider grid remains focused on provider choices.
 - Clicking the welcome import action resumes the guide on the next provider setup step after settings opens; setup steps are marked complete only after an import succeeds.
-- Scan checks macOS default paths for Alma, Cherry Studio, Hermes, and OpenClaw.
+- Scan checks macOS, Linux, and Windows default paths for Alma, Cherry Studio, Hermes, and OpenClaw.
 - Source order is fixed: Alma, Cherry Studio, Hermes, OpenClaw.
 - Users can multi-select detected sources; selected sources are processed in fixed source order.
 - Each selected source screen lists detected provider config, the DeepChat mapping, masked API key, base URL, model count, and default selection state.
@@ -32,7 +32,7 @@ Help new and existing DeepChat users import model provider configuration from ot
 ## Non-Goals
 
 - Importing conversations, messages, attachments, MCP config, prompts, skills, or Agent definitions.
-- Windows and Linux automatic source path discovery in this first increment.
+- Custom source path selection or manual browsing in this first increment.
 - Exporting DeepChat provider config to other clients.
 - Network validation of imported API keys.
 

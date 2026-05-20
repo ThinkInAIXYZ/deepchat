@@ -12,20 +12,29 @@
 
 ## Source Readers
 
+Default path discovery is platform-aware:
+
+| Source | macOS / Linux | Windows |
+| --- | --- | --- |
+| Alma | `~/Library/Application Support/alma/chat_threads.db` | `%APPDATA%\alma\chat_threads.db` |
+| Cherry Studio | `~/Library/Application Support/CherryStudio/Local Storage/leveldb` | `%APPDATA%\CherryStudio\Local Storage\leveldb` |
+| Hermes | `~/.hermes/config.yaml` | `%USERPROFILE%\.hermes\config.yaml` |
+| OpenClaw | `~/.openclaw/gateway.yaml` | `%USERPROFILE%\.openclaw\gateway.yaml` |
+
 - Alma:
-  - Path: `~/Library/Application Support/alma/chat_threads.db`
+  - Path: see platform table above.
   - Query: `providers` table, skip `type='acp'`
   - Use read-only `better-sqlite3-multiple-ciphers`.
 - Cherry Studio:
-  - Path: `~/Library/Application Support/CherryStudio/Local Storage/leveldb`
+  - Path: see platform table above.
   - Read `persist:cherry-studio`, parse nested `llm.providers`
   - Use `level` dependency.
   - Copy a temporary LevelDB snapshot and skip `LOCK` before reading, so import can work while Cherry Studio is running.
 - Hermes:
-  - Path: `~/.hermes/config.yaml`
+  - Path: see platform table above.
   - Parse `llm.providers` with `yaml`.
 - OpenClaw:
-  - Path: `~/.openclaw/gateway.yaml`
+  - Path: see platform table above.
   - Parse `providers` with `yaml`.
 
 ## Mapping

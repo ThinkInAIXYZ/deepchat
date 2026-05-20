@@ -115,6 +115,102 @@ describe('ProviderImportService', () => {
     warnSpy.mockRestore()
   })
 
+  it('scans Linux using the same home-relative paths as macOS', async () => {
+    homeDir = createHome()
+    writeFile(
+      path.join(homeDir, '.openclaw/gateway.yaml'),
+      [
+        'providers:',
+        '  - id: linux-openai',
+        '    name: Linux OpenAI',
+        '    type: openai-compatible',
+        '    apiKey: sk-linux',
+        '    baseUrl: https://linux.example.com/v1'
+      ].join('\n')
+    )
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'linux'
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'openclaw')).toMatchObject({
+      status: 'found',
+      configPath: '~/.openclaw/gateway.yaml',
+      providerCount: 1,
+      selectable: true
+    })
+    expect(result.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'openclaw',
+          sourceProviderId: 'linux-openai',
+          targetKind: 'custom',
+          targetProviderId: 'openclaw_linux-openai'
+        })
+      ])
+    )
+  })
+
+  it('scans Windows APPDATA and user profile paths', async () => {
+    homeDir = createHome()
+    const appDataDir = path.join(homeDir, 'AppData', 'Roaming')
+    writeFile(path.join(appDataDir, 'alma/chat_threads.db'), 'not a sqlite database')
+    writeFile(
+      path.join(homeDir, '.hermes/config.yaml'),
+      [
+        'llm:',
+        '  providers:',
+        '    - id: windows-openai',
+        '      name: Windows OpenAI',
+        '      type: openai-compatible',
+        '      apiKey: sk-windows',
+        '      baseUrl: https://windows.example.com/v1'
+      ].join('\n')
+    )
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'win32',
+      appDataDir
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'alma')).toMatchObject({
+      status: 'error',
+      configPath: '%APPDATA%\\alma\\chat_threads.db'
+    })
+    expect(result.sources.find((source) => source.id === 'cherry-studio')).toMatchObject({
+      status: 'not_found',
+      configPath: '%APPDATA%\\CherryStudio\\Local Storage\\leveldb'
+    })
+    expect(result.sources.find((source) => source.id === 'hermes')).toMatchObject({
+      status: 'found',
+      configPath: '%USERPROFILE%\\.hermes\\config.yaml',
+      providerCount: 1,
+      selectable: true
+    })
+    expect(result.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'hermes',
+          sourceProviderId: 'windows-openai',
+          targetKind: 'custom',
+          targetProviderId: 'hermes_windows-openai'
+        })
+      ])
+    )
+    expect(warnSpy).toHaveBeenCalled()
+
+    warnSpy.mockRestore()
+  })
+
   it('scans Hermes and OpenClaw configs and maps builtin and custom providers', async () => {
     homeDir = createHome()
     writeFile(

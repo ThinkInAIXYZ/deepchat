@@ -360,7 +360,7 @@
         "found": "Found",
         "not_found": "Not found",
         "error": "Error",
-        "unsupported_platform": "macOS only"
+        "unsupported_platform": "Unsupported platform"
       },
       "targetKind": {
         "builtin": "Built-in",

@@ -297,7 +297,7 @@
         "found": "Найдено",
         "not_found": "Не найдено",
         "error": "Ошибка",
-        "unsupported_platform": "Только macOS"
+        "unsupported_platform": "Неподдерживаемая платформа"
       },
       "targetKind": {
         "builtin": "Встроенный",

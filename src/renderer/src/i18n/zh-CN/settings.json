@@ -360,7 +360,7 @@
         "found": "已找到",
         "not_found": "未找到",
         "error": "读取失败",
-        "unsupported_platform": "仅支持 macOS"
+        "unsupported_platform": "不支持当前平台"
       },
       "targetKind": {
         "builtin": "内置",

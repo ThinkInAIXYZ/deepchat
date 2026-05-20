@@ -27,7 +27,9 @@ import type { ProviderChange } from '@shared/provider-operations'
 type SourceDefinition = {
   id: ProviderImportSourceId
   name: string
-  relativePath: string
+  unixRelativePath: string
+  windowsBase: 'appData' | 'home'
+  windowsRelativePath: string
 }
 
 type SourceReadResult = {
@@ -46,22 +48,30 @@ const SOURCE_DEFINITIONS: SourceDefinition[] = [
   {
     id: 'alma',
     name: 'Alma',
-    relativePath: 'Library/Application Support/alma/chat_threads.db'
+    unixRelativePath: 'Library/Application Support/alma/chat_threads.db',
+    windowsBase: 'appData',
+    windowsRelativePath: 'alma/chat_threads.db'
   },
   {
     id: 'cherry-studio',
     name: 'Cherry Studio',
-    relativePath: 'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    unixRelativePath: 'Library/Application Support/CherryStudio/Local Storage/leveldb',
+    windowsBase: 'appData',
+    windowsRelativePath: 'CherryStudio/Local Storage/leveldb'
   },
   {
     id: 'hermes',
     name: 'Hermes',
-    relativePath: '.hermes/config.yaml'
+    unixRelativePath: '.hermes/config.yaml',
+    windowsBase: 'home',
+    windowsRelativePath: '.hermes/config.yaml'
   },
   {
     id: 'openclaw',
     name: 'OpenClaw',
-    relativePath: '.openclaw/gateway.yaml'
+    unixRelativePath: '.openclaw/gateway.yaml',
+    windowsBase: 'home',
+    windowsRelativePath: '.openclaw/gateway.yaml'
   }
 ]
 
@@ -217,17 +227,32 @@ const normalizeModels = (models: unknown): ProviderImportRawModel[] => {
     .filter((model, index, list) => list.findIndex((item) => item.id === model.id) === index)
 }
 
-const buildDisplayPath = (relativePath: string): string => `~/${relativePath}`
+const buildUnixDisplayPath = (relativePath: string): string => `~/${relativePath}`
+
+const buildWindowsDisplayPath = (base: '%APPDATA%' | '%USERPROFILE%', relativePath: string) =>
+  `${base}\\${relativePath.replaceAll('/', '\\')}`
+
+const isSupportedScanPlatform = (
+  platform: NodeJS.Platform
+): platform is 'darwin' | 'linux' | 'win32' =>
+  platform === 'darwin' || platform === 'linux' || platform === 'win32'
+
+type ResolvedSourcePath = {
+  sourcePath: string
+  displayPath: string
+}
 
 type ProviderImportServiceOptions = {
   homeDir?: string
   platform?: NodeJS.Platform
+  appDataDir?: string
 }
 
 export class ProviderImportService {
   private sessions = new Map<string, ScanSession>()
   private readonly homeDir: string
   private readonly platform: NodeJS.Platform
+  private readonly appDataDir: string
 
   constructor(
     private readonly configPresenter: IConfigPresenter,
@@ -235,17 +260,19 @@ export class ProviderImportService {
   ) {
     this.homeDir = options.homeDir ?? os.homedir()
     this.platform = options.platform ?? process.platform
+    this.appDataDir =
+      options.appDataDir ?? process.env.APPDATA ?? path.join(this.homeDir, 'AppData', 'Roaming')
   }
 
   async scan(): Promise<ProviderImportScanResult> {
     this.pruneSessions()
 
-    if (this.platform !== 'darwin') {
+    if (!isSupportedScanPlatform(this.platform)) {
       const sources = SOURCE_DEFINITIONS.map((definition) => ({
         id: definition.id,
         name: definition.name,
         status: 'unsupported_platform' as const,
-        configPath: buildDisplayPath(definition.relativePath),
+        configPath: buildUnixDisplayPath(definition.unixRelativePath),
         providerCount: 0,
         selectable: false,
         defaultSelected: false
@@ -413,8 +440,7 @@ export class ProviderImportService {
   }
 
   private async readSource(definition: SourceDefinition): Promise<SourceReadResult> {
-    const sourcePath = this.resolveSourcePath(definition.relativePath)
-    const configPath = buildDisplayPath(definition.relativePath)
+    const { sourcePath, displayPath: configPath } = this.resolveSourcePath(definition)
     if (!fs.existsSync(sourcePath)) {
       return {
         source: {
@@ -1050,7 +1076,19 @@ export class ProviderImportService {
     }
   }
 
-  private resolveSourcePath(relativePath: string): string {
-    return path.join(this.homeDir, relativePath)
+  private resolveSourcePath(definition: SourceDefinition): ResolvedSourcePath {
+    if (this.platform === 'win32') {
+      const basePath = definition.windowsBase === 'appData' ? this.appDataDir : this.homeDir
+      const displayBase = definition.windowsBase === 'appData' ? '%APPDATA%' : '%USERPROFILE%'
+      return {
+        sourcePath: path.join(basePath, definition.windowsRelativePath),
+        displayPath: buildWindowsDisplayPath(displayBase, definition.windowsRelativePath)
+      }
+    }
+
+    return {
+      sourcePath: path.join(this.homeDir, definition.unixRelativePath),
+      displayPath: buildUnixDisplayPath(definition.unixRelativePath)
+    }
   }
 }

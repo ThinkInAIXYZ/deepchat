@@ -297,7 +297,7 @@
         "found": "یافت شد",
         "not_found": "یافت نشد",
         "error": "خطا",
-        "unsupported_platform": "فقط macOS"
+        "unsupported_platform": "پلتفرم پشتیبانی‌نشده"
       },
       "targetKind": {
         "builtin": "داخلی",
