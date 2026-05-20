@@ -308,7 +308,8 @@
         "already_configured": "DeepChat에 이미 설정되어 있어 기본 선택되지 않습니다.",
         "missing_api_key": "API 키 또는 필요한 endpoint가 없습니다.",
         "unsupported_provider": "DeepChat이 이 제공자를 자동으로 가져올 수 없습니다.",
-        "overwrites_previous_selection": "이 선택은 이전 소스와 충돌합니다."
+        "overwrites_previous_selection": "이 선택은 이전 소스와 충돌합니다.",
+        "credential_only_import": "Only the API key will be imported; DeepChat keeps its built-in endpoint and runtime."
       },
       "conflicts": {
         "overridesPrevious": "이 선택은 이전에 선택한 제공자를 덮어씁니다.",

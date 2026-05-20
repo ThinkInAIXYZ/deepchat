@@ -58,7 +58,7 @@ describe('dispatchProviderRoute provider import routes', () => {
     const providerImportService = {
       scan: vi.fn(() => ({
         sessionId: 'scan-1',
-        sourceOrder: ['alma', 'cherry-studio', 'hermes', 'openclaw'],
+        sourceOrder: ['alma', 'cherry-studio', 'hermes', 'openclaw', 'cc-switch'],
         sources: [],
         providers: []
       })),

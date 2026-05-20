@@ -308,7 +308,8 @@
         "already_configured": "Já configurado no DeepChat, portanto não é selecionado por padrão.",
         "missing_api_key": "Chave de API ou endpoint necessário ausente.",
         "unsupported_provider": "O DeepChat não consegue importar este provider automaticamente.",
-        "overwrites_previous_selection": "Esta seleção conflita com uma fonte anterior."
+        "overwrites_previous_selection": "Esta seleção conflita com uma fonte anterior.",
+        "credential_only_import": "Only the API key will be imported; DeepChat keeps its built-in endpoint and runtime."
       },
       "conflicts": {
         "overridesPrevious": "Esta seleção sobrescreverá um provider selecionado anteriormente.",

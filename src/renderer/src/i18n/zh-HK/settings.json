@@ -308,7 +308,8 @@
         "already_configured": "DeepChat 中已有設定，預設不會選取。",
         "missing_api_key": "缺少 API Key 或必要的 endpoint。",
         "unsupported_provider": "DeepChat 暫時無法自動匯入這個 provider。",
-        "overwrites_previous_selection": "這個選擇與前面的來源衝突。"
+        "overwrites_previous_selection": "這個選擇與前面的來源衝突。",
+        "credential_only_import": "Only the API key will be imported; DeepChat keeps its built-in endpoint and runtime."
       },
       "conflicts": {
         "overridesPrevious": "這個選擇會覆蓋前面選取的 DeepChat provider。",

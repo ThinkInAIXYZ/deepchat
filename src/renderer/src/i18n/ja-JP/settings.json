@@ -308,7 +308,8 @@
         "already_configured": "DeepChat で設定済みのため、デフォルトでは選択されません。",
         "missing_api_key": "API キーまたは必要な endpoint がありません。",
         "unsupported_provider": "DeepChat はこのプロバイダーを自動インポートできません。",
-        "overwrites_previous_selection": "この選択は前のソースと競合します。"
+        "overwrites_previous_selection": "この選択は前のソースと競合します。",
+        "credential_only_import": "Only the API key will be imported; DeepChat keeps its built-in endpoint and runtime."
       },
       "conflicts": {
         "overridesPrevious": "この選択は前に選択したプロバイダーを上書きします。",

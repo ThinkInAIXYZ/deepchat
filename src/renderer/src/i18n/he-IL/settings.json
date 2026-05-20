@@ -308,7 +308,8 @@
         "already_configured": "כבר מוגדר ב-DeepChat, לכן אינו נבחר כברירת מחדל.",
         "missing_api_key": "חסר מפתח API או endpoint נדרש.",
         "unsupported_provider": "DeepChat לא יכול לייבא את הספק הזה אוטומטית.",
-        "overwrites_previous_selection": "הבחירה הזו מתנגשת עם מקור קודם."
+        "overwrites_previous_selection": "הבחירה הזו מתנגשת עם מקור קודם.",
+        "credential_only_import": "Only the API key will be imported; DeepChat keeps its built-in endpoint and runtime."
       },
       "conflicts": {
         "overridesPrevious": "הבחירה הזו תחליף ספק שנבחר קודם.",
