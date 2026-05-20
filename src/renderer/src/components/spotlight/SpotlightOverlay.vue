@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="spotlightStore.open"
-    class="window-no-drag-region fixed inset-0 z-[70] flex items-start justify-center bg-black/35 px-4 pt-16"
+    class="window-no-drag-region fixed inset-0 z-[70] flex items-start justify-center px-4 pt-16"
     @mousedown.self="spotlightStore.closeSpotlight()"
   >
     <div
