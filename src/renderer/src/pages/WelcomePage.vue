@@ -40,18 +40,18 @@
           </span>
         </div>
 
-        <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-          <h2 class="text-sm font-semibold text-foreground">
+        <div class="mt-3 flex min-w-0 items-center gap-2 overflow-hidden">
+          <h2 class="shrink-0 text-sm font-semibold text-foreground">
             {{ coachmarkStepTitle }}
           </h2>
           <template v-if="showGuideImportAction">
-            <span class="text-xs font-medium text-muted-foreground">
+            <span class="shrink-0 text-xs font-medium text-muted-foreground">
               {{ t('welcome.page.guide.or') }}
             </span>
             <button
               data-testid="welcome-guide-import-action"
               type="button"
-              class="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm transition-all duration-150 hover:border-primary/60 hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.99]"
+              class="inline-flex min-w-0 max-w-[220px] items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm transition-all duration-150 hover:border-primary/60 hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.99]"
               @click.stop="onImportProviders"
             >
               <Icon icon="lucide:download" class="h-3.5 w-3.5 shrink-0" />
@@ -399,7 +399,9 @@ const updateGuideCoachmarkLayout = async () => {
     coachmarkPanelStyle.value = {
       top: '24px',
       left: '24px',
-      width: 'min(320px, calc(100% - 32px))'
+      width: showGuideImportAction.value
+        ? 'min(420px, calc(100% - 32px))'
+        : 'min(320px, calc(100% - 32px))'
     }
     return
   }
@@ -413,7 +415,9 @@ const updateGuideCoachmarkLayout = async () => {
     coachmarkPanelStyle.value = {
       top: '24px',
       left: '24px',
-      width: 'min(320px, calc(100% - 32px))'
+      width: showGuideImportAction.value
+        ? 'min(420px, calc(100% - 32px))'
+        : 'min(320px, calc(100% - 32px))'
     }
     return
   }
@@ -466,8 +470,9 @@ const updateGuideCoachmarkLayout = async () => {
     }
   ]
 
-  const panelWidth = Math.min(320, Math.max(180, viewportWidth - 32))
-  const panelHeightEstimate = showGuideImportAction.value ? 188 : 168
+  const preferredPanelWidth = showGuideImportAction.value ? 420 : 320
+  const panelWidth = Math.min(preferredPanelWidth, Math.max(180, viewportWidth - 32))
+  const panelHeightEstimate = showGuideImportAction.value ? 172 : 168
   const desiredTop = spotlightTop + spotlightHeight + 20
   const placeAbove = desiredTop + panelHeightEstimate > viewportHeight - 16
   const panelTop = placeAbove
