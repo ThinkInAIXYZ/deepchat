@@ -40,6 +40,7 @@
     "guide": {
       "title": "راهنمای راه‌اندازی",
       "description": "گام فعلی: {step}",
+      "or": "یا",
       "coreProgress": "پیشرفت راه‌اندازی اصلی",
       "optional": "گام‌های اختیاری بعدی",
       "actions": {

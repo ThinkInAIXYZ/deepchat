@@ -40,6 +40,7 @@
     "guide": {
       "title": "Setup guide",
       "description": "Current step: {step}",
+      "or": "or",
       "coreProgress": "Core setup progress",
       "optional": "Optional next steps",
       "actions": {

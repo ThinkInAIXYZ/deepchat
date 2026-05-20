@@ -165,15 +165,20 @@ describe('WelcomePage', () => {
     })
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="welcome-guide-import-action"]').exists()).toBe(false)
-
-    const providerImportButton = wrapper.find('[data-testid="welcome-provider-import-action"]')
-    expect(providerImportButton.exists()).toBe(true)
-    expect(wrapper.get('[data-testid="welcome-provider-grid"]').text()).toContain(
+    const guideImportButton = wrapper.find('[data-testid="welcome-guide-import-action"]')
+    expect(guideImportButton.exists()).toBe(true)
+    expect(wrapper.get('[data-testid="welcome-guide-panel"]').text()).toContain(
+      'welcome.page.guide.or'
+    )
+    expect(wrapper.get('[data-testid="welcome-guide-panel"]').text()).toContain(
+      'welcome.page.importProviders'
+    )
+    expect(wrapper.find('[data-testid="welcome-provider-import-action"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="welcome-provider-grid"]').text()).not.toContain(
       'welcome.page.importProviders'
     )
 
-    await providerImportButton.trigger('click')
+    await guideImportButton.trigger('click')
     await vi.runAllTimersAsync()
     await flushPromises()
 
@@ -867,8 +872,8 @@ describe('WelcomePage', () => {
     expect(wrapper.find('[data-testid="welcome-guide-coachmark-primary-action"]').exists()).toBe(
       false
     )
-    expect(wrapper.find('[data-testid="welcome-guide-import-action"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="welcome-provider-import-action"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="welcome-guide-import-action"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="welcome-provider-import-action"]').exists()).toBe(false)
 
     await wrapper.get('[data-testid="welcome-guide-next-action"]').trigger('click')
     await flushPromises()

@@ -40,6 +40,7 @@
     "guide": {
       "title": "Opsætningsguide",
       "description": "Nuværende trin: {step}",
+      "or": "eller",
       "coreProgress": "Fremdrift for kernesetup",
       "optional": "Valgfrie næste trin",
       "actions": {

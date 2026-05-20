@@ -15,7 +15,7 @@ Help new and existing DeepChat users import model provider configuration from ot
 ## Acceptance Criteria
 
 - The import entry appears in Data Settings and opens a step-by-step dialog.
-- The welcome Select a Provider choices include an "Import from other agents" action in the same highlighted selection area; the coachmark dialog does not own that action, and the highlighted area remains clickable.
+- The welcome guide title presents "Select a Provider or Import from other agents"; the import action is visually clickable in the coachmark while the provider grid remains focused on provider choices.
 - Clicking the welcome import action resumes the guide on the next provider setup step after settings opens; setup steps are marked complete only after an import succeeds.
 - Scan checks macOS default paths for Alma, Cherry Studio, Hermes, and OpenClaw.
 - Source order is fixed: Alma, Cherry Studio, Hermes, OpenClaw.

@@ -40,6 +40,7 @@
     "guide": {
       "title": "引导进度",
       "description": "当前步骤：{step}",
+      "or": "或者",
       "coreProgress": "核心配置进度",
       "optional": "可选的下一步",
       "actions": {
