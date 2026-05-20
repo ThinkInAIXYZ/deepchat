@@ -1,11 +1,11 @@
 import type { LLM_PROVIDER, MODEL_META } from './presenter'
 
 export const PROVIDER_IMPORT_SOURCE_IDS = [
+  'cc-switch',
   'alma',
   'cherry-studio',
   'hermes',
-  'openclaw',
-  'cc-switch'
+  'openclaw'
 ] as const
 export const PROVIDER_IMPORT_CUSTOM_API_TYPES = [
   'openai-completions',

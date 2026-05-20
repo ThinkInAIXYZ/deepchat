@@ -3,6 +3,8 @@
 ## Implementation
 
 - Extend `ProviderImportService` with a `cc-switch` source that reads `~/.cc-switch/cc-switch.db` in readonly mode and uses the Windows HOME fallback only when the default profile path is missing.
+- Put CC Switch first in the shared provider import source order.
+- Keep scan results complete, but filter the first renderer source list to detected sources so missing apps are not shown.
 - Query the `providers` table for supported CC Switch app types except `codex`.
 - Parse app-specific JSON settings:
   - Claude and Claude Desktop: `env.ANTHROPIC_AUTH_TOKEN` or `env.ANTHROPIC_API_KEY`, `env.ANTHROPIC_BASE_URL`, model env values, and desktop route metadata.

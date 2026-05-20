@@ -259,7 +259,7 @@
     },
     "providerImport": {
       "entryTitle": "Importar configurações de provider",
-      "entryDescription": "Escaneia Alma, Cherry Studio, Hermes e OpenClaw em busca de credenciais de provider e listas de modelos.",
+      "entryDescription": "Escaneia CC Switch, Alma, Cherry Studio, Hermes e OpenClaw em busca de credenciais de provider e listas de modelos.",
       "entryButton": "Importar de agentes",
       "dialogTitle": "Importar de outros agentes",
       "dialogDescription": "Selecione primeiro os apps detectados e depois revise os providers que o DeepChat pode importar.",
@@ -309,7 +309,7 @@
         "missing_api_key": "Chave de API ou endpoint necessário ausente.",
         "unsupported_provider": "O DeepChat não consegue importar este provider automaticamente.",
         "overwrites_previous_selection": "Esta seleção conflita com uma fonte anterior.",
-        "credential_only_import": "Only the API key will be imported; DeepChat keeps its built-in endpoint and runtime."
+        "credential_only_import": "Somente a chave de API será importada; o DeepChat mantém o endpoint e o runtime do provider integrado."
       },
       "conflicts": {
         "overridesPrevious": "Esta seleção sobrescreverá um provider selecionado anteriormente.",

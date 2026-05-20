@@ -47,6 +47,13 @@ type ProviderImportProviderOptions = NonNullable<ProviderImportSelection['provid
 
 const SOURCE_DEFINITIONS: SourceDefinition[] = [
   {
+    id: 'cc-switch',
+    name: 'CC Switch',
+    unixRelativePath: '.cc-switch/cc-switch.db',
+    windowsBase: 'home',
+    windowsRelativePath: '.cc-switch/cc-switch.db'
+  },
+  {
     id: 'alma',
     name: 'Alma',
     unixRelativePath: 'Library/Application Support/alma/chat_threads.db',
@@ -73,13 +80,6 @@ const SOURCE_DEFINITIONS: SourceDefinition[] = [
     unixRelativePath: '.openclaw/gateway.yaml',
     windowsBase: 'home',
     windowsRelativePath: '.openclaw/gateway.yaml'
-  },
-  {
-    id: 'cc-switch',
-    name: 'CC Switch',
-    unixRelativePath: '.cc-switch/cc-switch.db',
-    windowsBase: 'home',
-    windowsRelativePath: '.cc-switch/cc-switch.db'
   }
 ]
 

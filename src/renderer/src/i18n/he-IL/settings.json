@@ -259,7 +259,7 @@
     },
     "providerImport": {
       "entryTitle": "ייבוא הגדרות ספק",
-      "entryDescription": "סריקת Alma, Cherry Studio, Hermes ו-OpenClaw לאיתור פרטי ספק ורשימות מודלים.",
+      "entryDescription": "סריקת CC Switch, Alma, Cherry Studio, Hermes ו-OpenClaw לאיתור פרטי ספק ורשימות מודלים.",
       "entryButton": "ייבוא מסוכנים",
       "dialogTitle": "ייבוא מסוכנים אחרים",
       "dialogDescription": "בחר תחילה את האפליקציות שזוהו, ואז בדוק את הספקים ש-DeepChat יכול לייבא.",
@@ -309,7 +309,7 @@
         "missing_api_key": "חסר מפתח API או endpoint נדרש.",
         "unsupported_provider": "DeepChat לא יכול לייבא את הספק הזה אוטומטית.",
         "overwrites_previous_selection": "הבחירה הזו מתנגשת עם מקור קודם.",
-        "credential_only_import": "Only the API key will be imported; DeepChat keeps its built-in endpoint and runtime."
+        "credential_only_import": "רק מפתח ה-API ייובא; DeepChat ישמור את ה-endpoint וה-runtime של הספק המובנה."
       },
       "conflicts": {
         "overridesPrevious": "הבחירה הזו תחליף ספק שנבחר קודם.",

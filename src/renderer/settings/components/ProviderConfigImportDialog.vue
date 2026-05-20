@@ -81,7 +81,7 @@
 
             <div class="overflow-hidden rounded-lg border">
               <div
-                v-for="source in orderedSources"
+                v-for="source in visibleSources"
                 :key="source.id"
                 class="flex items-start gap-3 border-b px-4 py-3 last:border-b-0"
                 :class="source.selectable ? 'bg-background' : 'bg-muted/20 text-muted-foreground'"
@@ -494,12 +494,17 @@ const orderedSources = computed<ProviderImportSourceScan[]>(() => {
     return source ? [source] : []
   })
 })
+const visibleSources = computed<ProviderImportSourceScan[]>(() =>
+  orderedSources.value.filter(
+    (source) => source.status !== 'not_found' && source.status !== 'unsupported_platform'
+  )
+)
 
 const selectableSourceCount = computed(
-  () => orderedSources.value.filter((source) => source.selectable).length
+  () => visibleSources.value.filter((source) => source.selectable).length
 )
 const selectedSourceIds = computed(() =>
-  orderedSources.value
+  visibleSources.value
     .filter((source) => source.selectable && selectedSources.value.has(source.id))
     .map((source) => source.id)
 )

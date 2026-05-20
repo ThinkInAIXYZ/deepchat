@@ -322,7 +322,7 @@
     },
     "providerImport": {
       "entryTitle": "导入其他 Agent 配置",
-      "entryDescription": "扫描 Alma、Cherry Studio、Hermes、OpenClaw 和 CC Switch 的本地 provider 配置，快速迁移密钥和模型列表。",
+      "entryDescription": "扫描 CC Switch、Alma、Cherry Studio、Hermes 和 OpenClaw 的本地 provider 配置，快速迁移密钥和模型列表。",
       "entryButton": "从其他 Agent 导入",
       "dialogTitle": "从其他 Agent 导入",
       "dialogDescription": "先选择检测到的应用，再逐个确认要导入到 DeepChat 的 provider。",

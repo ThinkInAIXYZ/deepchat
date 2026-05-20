@@ -259,7 +259,7 @@
     },
     "providerImport": {
       "entryTitle": "وارد کردن تنظیمات ارائه‌دهنده",
-      "entryDescription": "Alma، Cherry Studio، Hermes و OpenClaw را برای اطلاعات ارائه‌دهنده و فهرست مدل‌ها اسکن می‌کند.",
+      "entryDescription": "CC Switch، Alma، Cherry Studio، Hermes و OpenClaw را برای اطلاعات ارائه‌دهنده و فهرست مدل‌ها اسکن می‌کند.",
       "entryButton": "وارد کردن از عامل‌ها",
       "dialogTitle": "وارد کردن از سایر عامل‌ها",
       "dialogDescription": "ابتدا برنامه‌های شناسایی‌شده را انتخاب کنید، سپس ارائه‌دهنده‌هایی را که DeepChat می‌تواند وارد کند بررسی کنید.",
@@ -309,7 +309,7 @@
         "missing_api_key": "کلید API یا endpoint لازم وجود ندارد.",
         "unsupported_provider": "DeepChat نمی‌تواند این ارائه‌دهنده را خودکار وارد کند.",
         "overwrites_previous_selection": "این انتخاب با یک منبع قبلی تداخل دارد.",
-        "credential_only_import": "Only the API key will be imported; DeepChat keeps its built-in endpoint and runtime."
+        "credential_only_import": "فقط کلید API وارد می‌شود؛ DeepChat endpoint و runtime ارائه‌دهنده داخلی را حفظ می‌کند."
       },
       "conflicts": {
         "overridesPrevious": "این انتخاب ارائه‌دهنده انتخاب‌شده قبلی را بازنویسی می‌کند.",

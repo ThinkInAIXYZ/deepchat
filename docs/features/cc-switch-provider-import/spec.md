@@ -12,7 +12,8 @@ Allow users to import configured provider credentials from CC Switch through the
 
 ## Acceptance Criteria
 
-- CC Switch appears after Alma, Cherry Studio, Hermes, and OpenClaw in the provider import source order.
+- CC Switch appears first in the provider import source order.
+- The first import page only lists detected sources, hiding sources whose config files are missing.
 - The scan reads CC Switch provider rows for `claude`, `claude-desktop`, `gemini`, `opencode`, `openclaw`, and `hermes`.
 - CC Switch `codex` rows are intentionally ignored; DeepChat does not parse TOML from CC Switch.
 - Rows with blank API keys or placeholder/template API keys are not shown in scan results.

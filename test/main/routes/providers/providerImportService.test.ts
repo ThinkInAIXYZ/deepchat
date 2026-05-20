@@ -948,7 +948,7 @@ describe('ProviderImportService', () => {
 
     const scan = await service.scan()
 
-    expect(scan.sourceOrder.at(-1)).toBe('cc-switch')
+    expect(scan.sourceOrder[0]).toBe('cc-switch')
     expect(scan.sources.find((source) => source.id === 'cc-switch')).toMatchObject({
       status: 'found',
       configPath: '~/.cc-switch/cc-switch.db',

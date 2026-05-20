@@ -322,7 +322,7 @@
     },
     "providerImport": {
       "entryTitle": "Import provider settings",
-      "entryDescription": "Scan Alma, Cherry Studio, Hermes, OpenClaw, and CC Switch for provider credentials and model lists.",
+      "entryDescription": "Scan CC Switch, Alma, Cherry Studio, Hermes, and OpenClaw for provider credentials and model lists.",
       "entryButton": "Import from agents",
       "dialogTitle": "Import from other agents",
       "dialogDescription": "Select detected apps first, then review the providers DeepChat can import.",
