@@ -4,6 +4,8 @@ import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
   providersGetRateLimitStatusRoute,
+  providersImportApplyRoute,
+  providersImportScanRoute,
   providersListDefaultsRoute,
   providersListModelsRoute,
   providersListOllamaModelsRoute,
@@ -19,6 +21,7 @@ import {
   providersUpdateRoute,
   providersWarmupAcpProcessRoute
 } from '@shared/contracts/routes'
+import type { ProviderImportSelection } from '@shared/providerImport'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { getDeepchatBridge } from './core'
 
@@ -121,6 +124,34 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
     return result.state
   }
 
+  async function scanProviderImports() {
+    return await bridge.invoke(providersImportScanRoute.name, {})
+  }
+
+  async function applyProviderImports(sessionId: string, selections: ProviderImportSelection[]) {
+    return await bridge.invoke(providersImportApplyRoute.name, {
+      sessionId,
+      selections: selections.map((selection) => {
+        const providerOptions = selection.providerOptions
+          ? Object.fromEntries(
+              Object.entries(selection.providerOptions).map(([providerId, options]) => [
+                providerId,
+                {
+                  targetApiType: options.targetApiType
+                }
+              ])
+            )
+          : undefined
+
+        return {
+          sourceId: selection.sourceId,
+          providerIds: [...selection.providerIds],
+          ...(providerOptions ? { providerOptions } : {})
+        }
+      })
+    })
+  }
+
   function onProvidersChanged(
     listener: (payload: {
       reason:
@@ -168,6 +199,8 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
     pullOllamaModels,
     warmupAcpProcess,
     getAcpProcessConfigOptions,
+    scanProviderImports,
+    applyProviderImports,
     onProvidersChanged,
     onOllamaPullProgress
   }

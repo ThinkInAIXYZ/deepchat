@@ -26,7 +26,7 @@ describe('WelcomePage', () => {
     const openSettings = vi.fn().mockResolvedValue(undefined)
     const onboardingSetStepStatus = vi.fn().mockResolvedValue({
       status: 'active',
-      currentStepId: 'select-provider'
+      currentStepId: 'provider-api-key'
     })
     const onboardingStart = vi.fn().mockResolvedValue({
       status: 'active',
@@ -164,6 +164,39 @@ describe('WelcomePage', () => {
       }
     })
     await flushPromises()
+
+    expect(wrapper.find('[data-testid="welcome-guide-import-action"]').exists()).toBe(false)
+
+    const providerImportButton = wrapper.find('[data-testid="welcome-provider-import-action"]')
+    expect(providerImportButton.exists()).toBe(true)
+    expect(wrapper.get('[data-testid="welcome-provider-grid"]').text()).toContain(
+      'welcome.page.importProviders'
+    )
+
+    await providerImportButton.trigger('click')
+    await vi.runAllTimersAsync()
+    await flushPromises()
+
+    expect(onboardingSetStepStatus).toHaveBeenCalledWith({
+      stepId: 'select-provider',
+      status: 'completed'
+    })
+    expect(onboardingStart).toHaveBeenCalledWith({ stepId: 'provider-api-key' })
+    expect(openSettings).toHaveBeenCalledWith({
+      routeName: 'settings-database',
+      section: 'provider-import'
+    })
+    expect(
+      JSON.parse(window.sessionStorage.getItem(GUIDED_ONBOARDING_RESUME_STORAGE_KEY) ?? '{}')
+    ).toMatchObject({
+      stepId: 'provider-api-key',
+      trigger: 'window-focus'
+    })
+
+    onboardingSetStepStatus.mockClear()
+    onboardingStart.mockClear()
+    openSettings.mockClear()
+    window.sessionStorage.removeItem(GUIDED_ONBOARDING_RESUME_STORAGE_KEY)
 
     const browseButton = wrapper
       .findAll('button')
@@ -838,6 +871,8 @@ describe('WelcomePage', () => {
     expect(wrapper.find('[data-testid="welcome-guide-coachmark-primary-action"]').exists()).toBe(
       false
     )
+    expect(wrapper.find('[data-testid="welcome-guide-import-action"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="welcome-provider-import-action"]').exists()).toBe(true)
 
     await wrapper.get('[data-testid="welcome-guide-next-action"]').trigger('click')
     await flushPromises()

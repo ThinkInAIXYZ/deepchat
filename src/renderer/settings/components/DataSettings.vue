@@ -172,7 +172,36 @@
       <div class="rounded-xl border border-border bg-card/30 p-4">
         <div class="flex flex-col divide-y divide-border">
           <div
+            ref="providerImportSectionRef"
             class="flex flex-col gap-3 py-4 first:pt-0 lg:flex-row lg:items-center lg:justify-between"
+            :dir="languageStore.dir"
+          >
+            <div class="flex gap-3">
+              <Icon icon="lucide:download" class="mt-1 h-4 w-4 text-muted-foreground" />
+              <div class="flex flex-col gap-1">
+                <div class="text-sm font-medium">
+                  {{ t('settings.data.providerImport.entryTitle') }}
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.data.providerImport.entryDescription') }}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              class="w-full shrink-0 lg:w-56"
+              :dir="languageStore.dir"
+              @click="openProviderImportDialog"
+            >
+              <Icon icon="lucide:download" class="h-4 w-4 text-muted-foreground" />
+              <span class="text-sm font-medium">
+                {{ t('settings.data.providerImport.entryButton') }}
+              </span>
+            </Button>
+          </div>
+
+          <div
+            class="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between"
             :dir="languageStore.dir"
           >
             <div class="flex gap-3">
@@ -467,6 +496,11 @@
         </div>
       </div>
 
+      <ProviderConfigImportDialog
+        v-model:open="isProviderImportDialogOpen"
+        @import-complete="handleProviderImportComplete"
+      />
+
       <AlertDialog :open="!!syncStore.importResult && !syncStore.importResult?.success">
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -496,6 +530,7 @@ import { Icon } from '@iconify/vue'
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { DatabaseRepairReport } from '@shared/presenter'
+import type { ProviderImportApplyResult } from '@shared/providerImport'
 import {
   Dialog,
   DialogContent,
@@ -531,11 +566,14 @@ import {
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
 import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createOnboardingClient } from '@api/OnboardingClient'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/use-toast'
 import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
+import ProviderConfigImportDialog from './ProviderConfigImportDialog.vue'
 
+const PROVIDER_IMPORT_SECTION = 'provider-import'
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
 const PUBLIC_PROVIDER_CONF_URL = 'https://github.com/ThinkInAIXYZ/PublicProviderConf'
@@ -559,6 +597,7 @@ const devicePresenter = useLegacyPresenter('devicePresenter')
 const yoBrowserPresenter = useLegacyPresenter('yoBrowserPresenter')
 const configPresenter = useLegacyPresenter('configPresenter')
 const sqlitePresenter = useLegacyPresenter('sqlitePresenter')
+const onboardingClient = createOnboardingClient()
 const {
   backups: backupsRef,
   isBackingUp: isBackingUpRef,
@@ -567,8 +606,10 @@ const {
 const { toast } = useToast()
 
 const isImportDialogOpen = ref(false)
+const isProviderImportDialogOpen = ref(false)
 const importMode = ref('increment')
 const selectedBackup = ref('')
+const providerImportSectionRef = ref<HTMLElement | null>(null)
 
 const isResetDialogOpen = ref(false)
 const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
@@ -643,14 +684,55 @@ const repairManualHintText = computed(() => {
   })
 })
 
-const consumePendingRepairSection = (): boolean => {
+const consumePendingSection = (section: string): boolean => {
   const state = window as SettingsWindowState
-  if (state.__deepchatSettingsPendingSection !== DATABASE_REPAIR_SECTION) {
+  if (state.__deepchatSettingsPendingSection !== section) {
     return false
   }
 
   state.__deepchatSettingsPendingSection = null
   return true
+}
+
+const openProviderImportDialog = () => {
+  providerImportSectionRef.value?.scrollIntoView({
+    block: 'center',
+    behavior: 'smooth'
+  })
+  isProviderImportDialogOpen.value = true
+}
+
+const handleProviderImportComplete = (result: ProviderImportApplyResult) => {
+  toast({
+    title: t('settings.data.providerImport.toastTitle'),
+    description: t('settings.data.providerImport.toastDescription', {
+      count: result.summary.imported
+    })
+  })
+
+  if (result.summary.imported > 0) {
+    void completeProviderImportOnboardingSteps(result)
+  }
+}
+
+const completeProviderImportOnboardingSteps = async (result: ProviderImportApplyResult) => {
+  try {
+    const state = await onboardingClient.getState()
+    if (state.status !== 'active') {
+      return
+    }
+
+    const importedResults = result.results.filter(
+      (item) => item.status === 'created' || item.status === 'updated'
+    )
+    await onboardingClient.setStepStatus({ stepId: 'select-provider', status: 'completed' })
+    await onboardingClient.setStepStatus({ stepId: 'provider-api-key', status: 'completed' })
+    if (importedResults.some((item) => item.modelCount > 0)) {
+      await onboardingClient.setStepStatus({ stepId: 'provider-model', status: 'completed' })
+    }
+  } catch (error) {
+    console.error('Failed to complete provider import onboarding steps:', error)
+  }
 }
 
 const buildRepairToastDescription = (report: DatabaseRepairReport) => {
@@ -721,6 +803,12 @@ const runSchemaRepair = async () => {
 
 const handleSettingsSectionNavigation = (event: Event) => {
   const detail = (event as CustomEvent<{ section?: string }>).detail
+  if (detail?.section === PROVIDER_IMPORT_SECTION) {
+    ;(window as SettingsWindowState).__deepchatSettingsPendingSection = null
+    openProviderImportDialog()
+    return
+  }
+
   if (detail?.section !== DATABASE_REPAIR_SECTION || isRepairActionDisabled.value) {
     return
   }
@@ -733,7 +821,11 @@ onMounted(async () => {
   await syncStore.initialize()
   window.addEventListener(SETTINGS_SECTION_EVENT, handleSettingsSectionNavigation as EventListener)
 
-  if (!isRepairActionDisabled.value && consumePendingRepairSection()) {
+  if (consumePendingSection(PROVIDER_IMPORT_SECTION)) {
+    openProviderImportDialog()
+  }
+
+  if (!isRepairActionDisabled.value && consumePendingSection(DATABASE_REPAIR_SECTION)) {
     void runSchemaRepair()
   }
 })

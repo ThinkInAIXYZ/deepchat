@@ -4,10 +4,16 @@
       v-if="showGuideCoachmark"
       data-testid="welcome-guide-coachmark"
       :data-guide-target="coachmarkTargetSurface"
-      class="fixed inset-0 z-70"
-      @click.stop.prevent
+      class="pointer-events-none fixed inset-0 z-70"
     >
-      <div data-testid="welcome-guide-blocker" class="absolute inset-0" />
+      <div
+        v-for="(blockerStyle, blockerIndex) in coachmarkBlockerStyles"
+        :key="blockerIndex"
+        data-testid="welcome-guide-blocker"
+        class="pointer-events-auto absolute"
+        :style="blockerStyle"
+        @click.stop.prevent
+      />
 
       <div
         v-if="coachmarkSpotlightStyle"
@@ -191,14 +197,26 @@
           <ModelIcon :model-id="provider.id" custom-class="w-6 h-6" :is-dark="themeStore.isDark" />
           <span class="text-xs text-foreground/80">{{ t(provider.nameKey) }}</span>
         </button>
+
+        <button
+          data-testid="welcome-provider-import-action"
+          type="button"
+          class="col-span-3 inline-flex items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-3 text-xs font-medium text-primary transition-all duration-150 hover:border-primary/45 hover:bg-primary/15 active:scale-[0.99]"
+          @click="onImportProviders"
+        >
+          <Icon icon="lucide:download" class="h-3.5 w-3.5" />
+          <span class="truncate">{{ t('welcome.page.importProviders') }}</span>
+        </button>
       </div>
 
-      <button
-        class="text-xs text-muted-foreground hover:text-foreground transition-colors mb-12"
-        @click="onAddProvider"
-      >
-        {{ t('welcome.page.browseProviders') }}
-      </button>
+      <div class="mb-12 flex flex-wrap items-center justify-center gap-3">
+        <button
+          class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          @click="onAddProvider"
+        >
+          {{ t('welcome.page.browseProviders') }}
+        </button>
+      </div>
 
       <!-- ACP agent section (optional) -->
       <div class="flex flex-col items-center gap-3 w-full max-w-sm">
@@ -240,6 +258,7 @@ import {
   type GuidedOnboardingResumeTrigger
 } from '@/lib/onboardingResume'
 import {
+  getNextGuidedOnboardingStepId,
   getPreviousGuidedOnboardingStepId,
   isGuidedOnboardingChatStepId,
   resolveGuidedOnboardingStepTarget,
@@ -265,6 +284,11 @@ const guideCardRef = ref<HTMLElement | null>(null)
 const providerGridRef = ref<HTMLElement | null>(null)
 const guideCoachmarkDismissed = ref(false)
 const coachmarkSpotlightStyle = ref<Record<string, string> | null>(null)
+const coachmarkBlockerStyles = ref<Record<string, string>[]>([
+  {
+    inset: '0'
+  }
+])
 const coachmarkPanelStyle = ref<Record<string, string>>({
   top: '24px',
   left: '24px',
@@ -280,13 +304,13 @@ const providers = [
   { id: 'openrouter', nameKey: 'welcome.page.providers.openrouter' }
 ]
 
-type SettingsRouteName = GuidedOnboardingSettingsRouteName | 'settings-acp'
+type SettingsRouteName = GuidedOnboardingSettingsRouteName | 'settings-acp' | 'settings-database'
 
 const requiredGuideSteps = computed(
-  () => onboardingState.value?.steps.filter((step) => step.required) ?? []
+  () => onboardingState.value?.steps?.filter((step) => step.required) ?? []
 )
 const optionalGuideSteps = computed(
-  () => onboardingState.value?.steps.filter((step) => !step.required) ?? []
+  () => onboardingState.value?.steps?.filter((step) => !step.required) ?? []
 )
 const completedRequiredSteps = computed(
   () => requiredGuideSteps.value.filter((step) => step.status === 'completed').length
@@ -316,7 +340,7 @@ const currentGuideStepId = computed<GuidedOnboardingStepId>(() => {
   }
 
   return (
-    onboardingState.value?.steps.find((step) => step.status === 'pending')?.id ?? 'select-provider'
+    onboardingState.value?.steps?.find((step) => step.status === 'pending')?.id ?? 'select-provider'
   )
 })
 const currentGuideStepTitle = computed(() => guideStepTitle(currentGuideStepId.value))
@@ -325,7 +349,7 @@ const primaryGuideActionLabel = computed(() =>
     ? t('welcome.page.guide.actions.goToChat')
     : t('welcome.page.guide.actions.continueSetup')
 )
-const guideStepIds = computed(() => onboardingState.value?.steps.map((step) => step.id) ?? [])
+const guideStepIds = computed(() => onboardingState.value?.steps?.map((step) => step.id) ?? [])
 const coachmarkStepId = computed<GuidedOnboardingStepId>(() => currentGuideStepId.value)
 const coachmarkStepTitle = computed(() => guideStepTitle(coachmarkStepId.value))
 const showGuideCoachmark = computed(
@@ -338,7 +362,7 @@ const coachmarkStepIndex = computed(() => {
   const stepIndex = guideStepIds.value.findIndex((stepId) => stepId === coachmarkStepId.value)
   return stepIndex != null && stepIndex >= 0 ? stepIndex + 1 : 1
 })
-const coachmarkTotalSteps = computed(() => onboardingState.value?.steps.length ?? 1)
+const coachmarkTotalSteps = computed(() => onboardingState.value?.steps?.length ?? 1)
 const canGoToPreviousGuideStep = computed(() =>
   Boolean(getPreviousGuidedOnboardingStepId(currentGuideStepId.value))
 )
@@ -364,6 +388,7 @@ const updateGuideCoachmarkLayout = async () => {
   const targetElement = resolveCoachmarkTargetElement()
   if (!targetElement) {
     coachmarkSpotlightStyle.value = null
+    coachmarkBlockerStyles.value = [{ inset: '0' }]
     coachmarkPanelStyle.value = {
       top: '24px',
       left: '24px',
@@ -377,6 +402,7 @@ const updateGuideCoachmarkLayout = async () => {
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
   if (viewportWidth < 1 || viewportHeight < 1 || targetRect.width < 1 || targetRect.height < 1) {
     coachmarkSpotlightStyle.value = null
+    coachmarkBlockerStyles.value = [{ inset: '0' }]
     coachmarkPanelStyle.value = {
       top: '24px',
       left: '24px',
@@ -404,6 +430,34 @@ const updateGuideCoachmarkLayout = async () => {
     height: `${spotlightHeight}px`,
     boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.56)'
   }
+  const spotlightRight = spotlightLeft + spotlightWidth
+  const spotlightBottom = spotlightTop + spotlightHeight
+  coachmarkBlockerStyles.value = [
+    {
+      top: '0px',
+      left: '0px',
+      right: '0px',
+      height: `${spotlightTop}px`
+    },
+    {
+      top: `${spotlightTop}px`,
+      left: '0px',
+      width: `${spotlightLeft}px`,
+      height: `${spotlightHeight}px`
+    },
+    {
+      top: `${spotlightTop}px`,
+      left: `${spotlightRight}px`,
+      right: '0px',
+      height: `${spotlightHeight}px`
+    },
+    {
+      top: `${spotlightBottom}px`,
+      left: '0px',
+      right: '0px',
+      bottom: '0px'
+    }
+  ]
 
   const panelWidth = Math.min(320, Math.max(180, viewportWidth - 32))
   const panelHeightEstimate = 168
@@ -488,9 +542,13 @@ const goToChat = async (stepId?: GuidedOnboardingStepId) => {
   }
 }
 
-const openSettings = async (routeName: SettingsRouteName, stepId?: GuidedOnboardingStepId) => {
+const openSettings = async (
+  routeName: SettingsRouteName,
+  stepId?: GuidedOnboardingStepId,
+  section?: string
+) => {
   await syncOnboardingStep(stepId)
-  await configClient.openSettings({ routeName })
+  await configClient.openSettings({ routeName, section })
 }
 
 const resolveGuideAction = (
@@ -589,6 +647,35 @@ const handleExperiencedGuideAction = async () => {
 const onAddProvider = async () => {
   persistGuideResumeIntent('window-focus', 'select-provider')
   await openSettings('settings-provider', 'select-provider')
+}
+
+const completeSelectProviderStepForImport = async (): Promise<GuidedOnboardingStepId> => {
+  if (onboardingState.value?.status !== 'active') {
+    return 'select-provider'
+  }
+
+  if (currentGuideStepId.value !== 'select-provider') {
+    return currentGuideStepId.value
+  }
+
+  const fallbackNextStepId = getNextGuidedOnboardingStepId('select-provider') ?? 'provider-api-key'
+
+  try {
+    onboardingState.value = await onboardingClient.setStepStatus({
+      stepId: 'select-provider',
+      status: 'completed'
+    })
+    return onboardingState.value.currentStepId ?? fallbackNextStepId
+  } catch (error) {
+    console.error('Failed to advance provider import onboarding step:', error)
+    return fallbackNextStepId
+  }
+}
+
+const onImportProviders = async () => {
+  const nextStepId = await completeSelectProviderStepForImport()
+  persistGuideResumeIntent('window-focus', nextStepId)
+  await openSettings('settings-database', nextStepId, 'provider-import')
 }
 
 const onSetupAcp = async () => {

@@ -54,6 +54,18 @@ describe('renderer api clients', () => {
               }
             case 'providers.refreshModels':
               return { success: true }
+            case 'providers.import.apply':
+              return {
+                summary: {
+                  imported: 0,
+                  created: 0,
+                  updated: 0,
+                  skipped: 0,
+                  overwritten: 0,
+                  models: 0
+                },
+                results: []
+              }
             case 'models.getConfig':
               return {
                 config: {
@@ -371,6 +383,55 @@ describe('renderer api clients', () => {
     expect((bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[0][1].bounds).not.toBe(
       reactiveBounds
     )
+  })
+
+  it('serializes provider import selections before invoking the bridge', async () => {
+    const bridge = createBridge()
+    const providerClient = createProviderClient(bridge)
+    const providerIds = new Proxy(['hermes:custom'], {})
+    const providerOptions = new Proxy(
+      {
+        'hermes:custom': new Proxy(
+          {
+            targetApiType: 'anthropic' as const
+          },
+          {}
+        )
+      },
+      {}
+    )
+
+    await providerClient.applyProviderImports('scan-1', [
+      {
+        sourceId: 'hermes',
+        providerIds,
+        providerOptions
+      }
+    ])
+
+    const payload = (bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[0][1] as {
+      selections: Array<{
+        providerIds: string[]
+        providerOptions?: Record<string, { targetApiType?: string }>
+      }>
+    }
+    expect(bridge.invoke).toHaveBeenCalledWith('providers.import.apply', {
+      sessionId: 'scan-1',
+      selections: [
+        {
+          sourceId: 'hermes',
+          providerIds: ['hermes:custom'],
+          providerOptions: {
+            'hermes:custom': {
+              targetApiType: 'anthropic'
+            }
+          }
+        }
+      ]
+    })
+    expect(payload.selections[0].providerIds).not.toBe(providerIds)
+    expect(payload.selections[0].providerOptions).not.toBe(providerOptions)
+    expect(() => structuredClone(payload)).not.toThrow()
   })
 
   it('subscribes to browser activity events', () => {

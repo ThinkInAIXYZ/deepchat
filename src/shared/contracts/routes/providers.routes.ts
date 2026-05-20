@@ -7,6 +7,18 @@ import {
   OllamaModelSchema,
   ProviderRateLimitStatusSchema
 } from '../domainSchemas'
+import { PROVIDER_IMPORT_CUSTOM_API_TYPES, PROVIDER_IMPORT_SOURCE_IDS } from '../../providerImport'
+
+const ProviderImportSourceIdSchema = z.enum(PROVIDER_IMPORT_SOURCE_IDS)
+const ProviderImportCustomApiTypeSchema = z.enum(PROVIDER_IMPORT_CUSTOM_API_TYPES)
+const ProviderImportTargetKindSchema = z.enum(['builtin', 'custom', 'unsupported'])
+const ProviderImportWarningSchema = z.enum([
+  'already_configured',
+  'missing_api_key',
+  'unsupported_provider',
+  'overwrites_previous_selection'
+])
+const ProviderImportApplyStatusSchema = z.enum(['created', 'updated', 'skipped', 'overwritten'])
 
 export const providersListModelsRoute = defineRouteContract({
   name: 'providers.listModels',
@@ -178,5 +190,94 @@ export const providersGetAcpProcessConfigOptionsRoute = defineRouteContract({
   }),
   output: z.object({
     state: AcpConfigStateSchema.nullable()
+  })
+})
+
+export const providersImportScanRoute = defineRouteContract({
+  name: 'providers.import.scan',
+  input: z.object({}).default({}),
+  output: z.object({
+    sessionId: z.string().min(1),
+    sourceOrder: z.array(ProviderImportSourceIdSchema),
+    sources: z.array(
+      z.object({
+        id: ProviderImportSourceIdSchema,
+        name: z.string(),
+        status: z.enum(['found', 'not_found', 'error', 'unsupported_platform']),
+        configPath: z.string(),
+        providerCount: z.number().int().nonnegative(),
+        selectable: z.boolean(),
+        defaultSelected: z.boolean(),
+        message: z.string().optional()
+      })
+    ),
+    providers: z.array(
+      z.object({
+        id: z.string().min(1),
+        sourceId: ProviderImportSourceIdSchema,
+        sourceName: z.string(),
+        sourceProviderId: z.string(),
+        name: z.string(),
+        sourceType: z.string(),
+        targetKind: ProviderImportTargetKindSchema,
+        targetProviderId: z.string(),
+        targetProviderName: z.string(),
+        targetApiType: z.string(),
+        apiKeyMasked: z.string(),
+        baseUrl: z.string(),
+        modelCount: z.number().int().nonnegative(),
+        modelPreview: z.array(z.string()),
+        configured: z.boolean(),
+        selectable: z.boolean(),
+        defaultSelected: z.boolean(),
+        warnings: z.array(ProviderImportWarningSchema)
+      })
+    )
+  })
+})
+
+export const providersImportApplyRoute = defineRouteContract({
+  name: 'providers.import.apply',
+  input: z.object({
+    sessionId: z.string().min(1),
+    selections: z.array(
+      z.object({
+        sourceId: ProviderImportSourceIdSchema,
+        providerIds: z.array(z.string().min(1)),
+        providerOptions: z
+          .record(
+            z.string().min(1),
+            z.object({
+              targetApiType: ProviderImportCustomApiTypeSchema.optional()
+            })
+          )
+          .optional()
+      })
+    )
+  }),
+  output: z.object({
+    summary: z.object({
+      imported: z.number().int().nonnegative(),
+      created: z.number().int().nonnegative(),
+      updated: z.number().int().nonnegative(),
+      skipped: z.number().int().nonnegative(),
+      overwritten: z.number().int().nonnegative(),
+      models: z.number().int().nonnegative()
+    }),
+    results: z.array(
+      z.object({
+        id: z.string().min(1),
+        sourceId: ProviderImportSourceIdSchema,
+        sourceName: z.string(),
+        sourceProviderId: z.string(),
+        name: z.string(),
+        targetKind: ProviderImportTargetKindSchema,
+        targetProviderId: z.string(),
+        targetProviderName: z.string(),
+        status: ProviderImportApplyStatusSchema,
+        modelCount: z.number().int().nonnegative(),
+        message: z.string().optional()
+      })
+    )
   })
 })

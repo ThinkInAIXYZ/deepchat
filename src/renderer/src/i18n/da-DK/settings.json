@@ -189,6 +189,85 @@
     "dangerZone": {
       "title": "Danger Zone",
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "Import provider settings",
+      "entryDescription": "Scan Alma, Cherry Studio, Hermes, and OpenClaw for provider credentials and model lists.",
+      "entryButton": "Import from agents",
+      "dialogTitle": "Import from other agents",
+      "dialogDescription": "Select detected apps first, then review the providers DeepChat can import.",
+      "toastTitle": "Provider import finished",
+      "toastDescription": "Imported {count} provider(s).",
+      "steps": {
+        "scan": "Scan",
+        "providers": "Providers",
+        "done": "Done"
+      },
+      "scanningTitle": "Scanning installed agents",
+      "scanningDescription": "DeepChat checks known local config files without sending data anywhere.",
+      "scanFailedTitle": "Scan failed",
+      "sourcesTitle": "Detected sources",
+      "sourcesDescription": "Choose one or more agents. Selected agents are processed in the order shown.",
+      "selectedSources": "{selected}/{total} selected",
+      "noSourcesTitle": "No importable provider config found",
+      "noSourcesDescription": "Install one of the supported agents or configure provider credentials there first.",
+      "providersFound": "{count} provider(s)",
+      "sourceProgress": "{current} of {total}",
+      "overwriteNote": "If multiple selected providers map to the same DeepChat provider, the later source overwrites the earlier one.",
+      "noProvidersTitle": "No provider data in this source",
+      "noProvidersDescription": "This agent was selected, but no importable provider entry was found.",
+      "apiKey": "Key {value}",
+      "noModels": "No model list",
+      "modelsImported": "{count} model(s)",
+      "importingTitle": "Importing providers",
+      "importingDescription": "DeepChat is writing selected providers and custom model entries.",
+      "doneTitle": "Import summary",
+      "doneDescription": "Imported {count} provider(s). Review the per-provider result below.",
+      "badges": {
+        "configured": "Configured"
+      },
+      "sourceStatus": {
+        "found": "Found",
+        "not_found": "Not found",
+        "error": "Error",
+        "unsupported_platform": "macOS only"
+      },
+      "targetKind": {
+        "builtin": "Built-in",
+        "custom": "Custom",
+        "unsupported": "Unsupported"
+      },
+      "warnings": {
+        "already_configured": "Already configured in DeepChat, so it is not selected by default.",
+        "missing_api_key": "Missing API key or required endpoint.",
+        "unsupported_provider": "DeepChat cannot import this provider automatically.",
+        "overwrites_previous_selection": "This selection conflicts with an earlier source."
+      },
+      "conflicts": {
+        "overridesPrevious": "This selection will overwrite an earlier selected provider.",
+        "overwrittenByLater": "A later selected source will overwrite this provider."
+      },
+      "summary": {
+        "imported": "Imported",
+        "created": "Created",
+        "updated": "Updated",
+        "overwritten": "Overwritten",
+        "models": "Models",
+        "skipped": "Skipped"
+      },
+      "resultStatus": {
+        "created": "Created",
+        "updated": "Updated",
+        "skipped": "Skipped",
+        "overwritten": "Overwritten"
+      },
+      "actions": {
+        "rescan": "Rescan",
+        "selectAll": "Select all",
+        "clearSelected": "Clear",
+        "import": "Import selected"
+      },
+      "applyFailed": "Import failed: {message}"
     }
   },
   "dashboard": {
