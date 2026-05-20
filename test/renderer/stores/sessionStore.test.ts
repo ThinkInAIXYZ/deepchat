@@ -68,6 +68,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       .mockImplementation(async (_sessionId: string, providerId: string, modelId: string) =>
         createSession({ providerId, modelId })
       ),
+    toggleSessionPinned: vi.fn().mockResolvedValue(undefined),
     activate: vi.fn().mockResolvedValue({ activated: true }),
     deactivate: vi.fn().mockResolvedValue({ deactivated: true }),
     onUpdated: vi.fn((listener: (payload: any) => void) => {
@@ -484,6 +485,47 @@ describe('sessionStore.getFilteredGroups', () => {
       '/tmp/company-b/deepchat'
     ])
     expect(groups.map((group) => group.label)).toEqual(['deepchat', 'deepchat'])
+  })
+
+  it('moves a newly pinned session to the front of the pinned list immediately', async () => {
+    const { store, sessionClient } = await setupStore()
+
+    store.sessions.value = [
+      createSession({ id: 'older-pinned', isPinned: true, updatedAt: 10 }),
+      createSession({ id: 'target', isPinned: false, updatedAt: 5 }),
+      createSession({ id: 'newer-grouped', isPinned: false, updatedAt: 20 })
+    ]
+
+    await store.toggleSessionPinned('target', true)
+
+    expect(store.getPinnedSessions(null).map((session: { id: string }) => session.id)).toEqual([
+      'target',
+      'older-pinned'
+    ])
+  })
+
+  it('moves a newly unpinned session to the front of the grouped list immediately', async () => {
+    const { store, sessionClient } = await setupStore({
+      initialSettings: {
+        [SIDEBAR_GROUP_MODE_KEY]: 'time'
+      }
+    })
+    const now = Date.now()
+
+    await store.fetchSessions()
+    store.sessions.value = [
+      createSession({ id: 'target', isPinned: true, updatedAt: now - 10 }),
+      createSession({ id: 'grouped-existing', isPinned: false, updatedAt: now - 1000 })
+    ]
+
+    await store.toggleSessionPinned('target', false)
+
+    const groupedIds = store
+      .getFilteredGroups(null)
+      .flatMap((group: { sessions: Array<{ id: string }> }) =>
+        group.sessions.map((session: { id: string }) => session.id)
+      )
+    expect(groupedIds[0]).toBe('target')
   })
 })
 

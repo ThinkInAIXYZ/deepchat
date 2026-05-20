@@ -280,6 +280,7 @@
                 :active="sessionStore.activeSessionId === session.id"
                 region="pinned"
                 :hero-hidden="pinFlightSessionId === session.id"
+                :hero-placeholder="pinFlightSessionId === session.id"
                 :force-pin-docked="pinDockedSessionId === session.id"
                 :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
                 :search-query="sessionSearchQuery"
@@ -316,6 +317,7 @@
                 :active="sessionStore.activeSessionId === session.id"
                 region="grouped"
                 :hero-hidden="pinFlightSessionId === session.id"
+                :hero-placeholder="pinFlightSessionId === session.id"
                 :force-pin-docked="pinDockedSessionId === session.id"
                 :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
                 :search-query="sessionSearchQuery"
@@ -396,9 +398,19 @@ const PIN_FEEDBACK_DURATION_MS: Record<PinFeedbackMode, number> = {
   pinning: 560,
   unpinning: 460
 }
-const PIN_FLIGHT_DURATION_MS = 500
+const PIN_FLIGHT_DURATION_MS = 460
+const PIN_TARGET_SETTLE_MAX_FRAMES = 10
+const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
+
+type SessionItemRegion = 'pinned' | 'grouped'
+type SessionItemRect = {
+  left: number
+  top: number
+  width: number
+  height: number
+}
 
 const settingsClient = createSettingsClient()
 const remoteControlRuntime = createRemoteControlRuntime()
@@ -848,10 +860,117 @@ const handleSessionListScroll = () => {
   })
 }
 
-const getSessionItemElement = (sessionId: string, region: 'pinned' | 'grouped') =>
+const getSessionItemElement = (sessionId: string, region: SessionItemRegion) =>
   document.querySelector<HTMLElement>(
     `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"]`
   )
+
+const getPinPlaceholderElement = (sessionId: string, region: SessionItemRegion) =>
+  document.querySelector<HTMLElement>(
+    `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"][data-pin-placeholder="true"]`
+  )
+
+const captureSessionItemRect = (element: HTMLElement | null): SessionItemRect | null => {
+  if (!element) {
+    return null
+  }
+
+  const rect = element.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) {
+    return null
+  }
+
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height
+  }
+}
+
+const areSessionItemRectsEqual = (left: SessionItemRect, right: SessionItemRect) =>
+  Math.abs(left.left - right.left) <= PIN_TARGET_SETTLE_EPSILON_PX &&
+  Math.abs(left.top - right.top) <= PIN_TARGET_SETTLE_EPSILON_PX &&
+  Math.abs(left.width - right.width) <= PIN_TARGET_SETTLE_EPSILON_PX &&
+  Math.abs(left.height - right.height) <= PIN_TARGET_SETTLE_EPSILON_PX
+
+const waitForPinTargetPlaceholder = async (
+  sessionId: string,
+  region: SessionItemRegion
+): Promise<{ element: HTMLElement; rect: SessionItemRect } | null> => {
+  let previousRect: SessionItemRect | null = null
+
+  for (let frame = 0; frame < PIN_TARGET_SETTLE_MAX_FRAMES; frame += 1) {
+    await waitForAnimationFrame()
+    const element = getPinPlaceholderElement(sessionId, region)
+    const rect = captureSessionItemRect(element)
+
+    if (!element || !rect) {
+      previousRect = null
+      continue
+    }
+
+    if (previousRect && areSessionItemRectsEqual(previousRect, rect)) {
+      return { element, rect }
+    }
+
+    previousRect = rect
+  }
+
+  const fallbackElement =
+    getPinPlaceholderElement(sessionId, region) ?? getSessionItemElement(sessionId, region)
+  const fallbackRect = captureSessionItemRect(fallbackElement)
+  if (!fallbackElement || !fallbackRect) {
+    return null
+  }
+
+  return {
+    element: fallbackElement,
+    rect: fallbackRect
+  }
+}
+
+const getPinFlightAnimationOptions = (nextPinned: boolean) =>
+  nextPinned
+    ? {
+        duration: PIN_FLIGHT_DURATION_MS,
+        easing: 'cubic-bezier(0.18, 0.92, 0.22, 1)'
+      }
+    : {
+        duration: PIN_FLIGHT_DURATION_MS + 20,
+        easing: 'cubic-bezier(0.24, 0.84, 0.28, 1)'
+      }
+
+const createPinFlightKeyframes = (
+  deltaX: number,
+  deltaY: number,
+  scaleX: number,
+  scaleY: number,
+  nextPinned: boolean
+): Keyframe[] => {
+  const leadX = nextPinned ? deltaX * 0.82 : deltaX * 0.9
+  const leadY = nextPinned ? deltaY * 0.78 : deltaY * 0.86
+  const leadScaleX = nextPinned ? 1.018 : 1.008
+  const leadScaleY = nextPinned ? 1.018 : 1.008
+
+  return [
+    {
+      transform: 'translate3d(0, 0, 0) scale(1)',
+      opacity: 1,
+      offset: 0
+    },
+    {
+      transform: `translate3d(${leadX}px, ${leadY}px, 0) scale(${leadScaleX}, ${leadScaleY})`,
+      opacity: 1,
+      offset: nextPinned ? 0.68 : 0.74
+    },
+    {
+      transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`,
+      opacity: 1,
+      offset: 1
+    }
+  ]
+}
 
 const createPinFlightClone = (sourceElement: HTMLElement, sourceRect: DOMRect) => {
   const clone = sourceElement.cloneNode(true) as HTMLElement
@@ -880,8 +999,8 @@ const createPinFlightClone = (sourceElement: HTMLElement, sourceRect: DOMRect) =
 }
 
 const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
-  const sourceRegion = session.isPinned ? 'pinned' : 'grouped'
-  const targetRegion = nextPinned ? 'pinned' : 'grouped'
+  const sourceRegion: SessionItemRegion = session.isPinned ? 'pinned' : 'grouped'
+  const targetRegion: SessionItemRegion = nextPinned ? 'pinned' : 'grouped'
   const sourceElement = getSessionItemElement(session.id, sourceRegion)
   const sourceRect = sourceElement?.getBoundingClientRect()
   const preservedScrollTop = sessionListRef.value?.scrollTop ?? null
@@ -910,10 +1029,11 @@ const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
     restoreSessionListScroll(preservedScrollTop)
     await waitForAnimationFrame()
 
-    const targetElement = getSessionItemElement(session.id, targetRegion)
-    const targetRect = targetElement?.getBoundingClientRect()
+    const targetSettledState = await waitForPinTargetPlaceholder(session.id, targetRegion)
+    const targetElement = targetSettledState?.element
+    const targetRect = targetSettledState?.rect
 
-    if (!targetElement || !targetRect || targetRect.width === 0 || targetRect.height === 0) {
+    if (!targetElement || !targetRect) {
       clone.remove()
       if (pinDockedSessionId.value === session.id) {
         pinDockedSessionId.value = null
@@ -930,26 +1050,9 @@ const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
     const scaleY = targetRect.height / sourceRect.height
 
     const animation = clone.animate(
-      [
-        {
-          transform: 'translate3d(0, 0, 0) scale(1)',
-          opacity: 1,
-          offset: 0
-        },
-        {
-          transform: `translate3d(${deltaX * 0.88}px, ${deltaY * 0.88}px, 0) scale(${1.015}, ${1.015})`,
-          opacity: 1,
-          offset: 0.72
-        },
-        {
-          transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`,
-          opacity: 1,
-          offset: 1
-        }
-      ],
+      createPinFlightKeyframes(deltaX, deltaY, scaleX, scaleY, nextPinned),
       {
-        duration: PIN_FLIGHT_DURATION_MS,
-        easing: 'cubic-bezier(0.22, 0.88, 0.24, 1)',
+        ...getPinFlightAnimationOptions(nextPinned),
         fill: 'forwards'
       }
     )
