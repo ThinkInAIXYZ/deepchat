@@ -256,6 +256,94 @@
     "dangerZone": {
       "title": "Danger Zone",
       "description": "重置聊天、知识库或全部数据。此操作不可撤销。"
+    },
+    "providerImport": {
+      "entryTitle": "匯入其他 Agent 設定",
+      "entryDescription": "掃描 Alma、Cherry Studio、Hermes 和 OpenClaw 的本機 provider 設定，快速遷移密鑰和模型列表。",
+      "entryButton": "從其他 Agent 匯入",
+      "dialogTitle": "從其他 Agent 匯入",
+      "dialogDescription": "先選擇偵測到的應用程式，再逐一確認要匯入 DeepChat 的 provider。",
+      "toastTitle": "Provider 匯入完成",
+      "toastDescription": "已匯入 {count} 個 provider。",
+      "steps": {
+        "scan": "掃描",
+        "providers": "Provider",
+        "done": "完成"
+      },
+      "scanningTitle": "正在掃描已安裝的 Agent",
+      "scanningDescription": "DeepChat 只會讀取已知的本機設定檔，不會上載任何資料。",
+      "scanFailedTitle": "掃描失敗",
+      "sourcesTitle": "偵測到的來源",
+      "sourcesDescription": "可以選擇一個或多個 Agent，DeepChat 會按列表順序處理。",
+      "selectedSources": "已選擇 {selected}/{total}",
+      "noSourcesTitle": "找不到可匯入的 provider 設定",
+      "noSourcesDescription": "請先安裝支援的 Agent，或在對應 Agent 中設定 provider 密鑰。",
+      "providersFound": "{count} 個 provider",
+      "sourceProgress": "{current}/{total}",
+      "overwriteNote": "如果多個選取的 provider 映射到同一個 DeepChat provider，後面的來源會覆蓋前面的來源。",
+      "noProvidersTitle": "這個來源沒有 provider 資料",
+      "noProvidersDescription": "已選擇該 Agent，但沒有解析到可匯入的 provider 項目。",
+      "apiKey": "密鑰 {value}",
+      "noModels": "沒有模型列表",
+      "modelsImported": "{count} 個模型",
+      "importingTitle": "正在匯入 provider",
+      "importingDescription": "DeepChat 正在寫入選取的 provider 和自訂模型項目。",
+      "doneTitle": "匯入總覽",
+      "doneDescription": "已匯入 {count} 個 provider。下面可以查看每個 provider 的結果。",
+      "badges": {
+        "configured": "已設定"
+      },
+      "sourceStatus": {
+        "found": "已找到",
+        "not_found": "未找到",
+        "error": "讀取失敗",
+        "unsupported_platform": "不支援目前平台"
+      },
+      "targetKind": {
+        "builtin": "內置",
+        "custom": "自訂",
+        "unsupported": "不支援"
+      },
+      "warnings": {
+        "already_configured": "DeepChat 中已有設定，預設不會選取。",
+        "missing_api_key": "缺少 API Key 或必要的 endpoint。",
+        "unsupported_provider": "DeepChat 暫時無法自動匯入這個 provider。",
+        "overwrites_previous_selection": "這個選擇與前面的來源衝突。"
+      },
+      "conflicts": {
+        "overridesPrevious": "這個選擇會覆蓋前面選取的 DeepChat provider。",
+        "overwrittenByLater": "後面選取的來源會覆蓋這個 provider。"
+      },
+      "summary": {
+        "imported": "已匯入",
+        "created": "新增",
+        "updated": "更新",
+        "overwritten": "覆蓋",
+        "models": "模型",
+        "skipped": "跳過"
+      },
+      "resultStatus": {
+        "created": "已新增",
+        "updated": "已更新",
+        "skipped": "已跳過",
+        "overwritten": "已覆蓋"
+      },
+      "actions": {
+        "rescan": "重新掃描",
+        "selectAll": "全選",
+        "clearSelected": "清空",
+        "import": "匯入選取項目"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "匯入失敗：{message}"
     }
   },
   "dashboard": {

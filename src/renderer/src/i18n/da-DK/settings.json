@@ -189,6 +189,94 @@
     "dangerZone": {
       "title": "Danger Zone",
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "Importer providerindstillinger",
+      "entryDescription": "Scan Alma, Cherry Studio, Hermes og OpenClaw for provider-legitimationsoplysninger og modellister.",
+      "entryButton": "Importer fra agenter",
+      "dialogTitle": "Importer fra andre agenter",
+      "dialogDescription": "Vælg først registrerede apps, og gennemgå derefter de providers, DeepChat kan importere.",
+      "toastTitle": "Providerimport fuldført",
+      "toastDescription": "Importerede {count} provider(e).",
+      "steps": {
+        "scan": "Scan",
+        "providers": "Providers",
+        "done": "Færdig"
+      },
+      "scanningTitle": "Scanner installerede agenter",
+      "scanningDescription": "DeepChat kontrollerer kendte lokale konfigurationsfiler uden at sende data nogen steder.",
+      "scanFailedTitle": "Scanning mislykkedes",
+      "sourcesTitle": "Registrerede kilder",
+      "sourcesDescription": "Vælg en eller flere agenter. Valgte agenter behandles i den viste rækkefølge.",
+      "selectedSources": "{selected}/{total} valgt",
+      "noSourcesTitle": "Ingen providerkonfiguration fundet til import",
+      "noSourcesDescription": "Installer en af de understøttede agenter, eller konfigurer provider-legitimationsoplysninger der først.",
+      "providersFound": "{count} provider(e)",
+      "sourceProgress": "{current} af {total}",
+      "overwriteNote": "Hvis flere valgte providers matcher den samme DeepChat-provider, overskriver den senere kilde den tidligere.",
+      "noProvidersTitle": "Ingen providerdata i denne kilde",
+      "noProvidersDescription": "Denne agent blev valgt, men der blev ikke fundet en providerpost, der kan importeres.",
+      "apiKey": "Nøgle {value}",
+      "noModels": "Ingen modelliste",
+      "modelsImported": "{count} model(ler)",
+      "importingTitle": "Importerer providers",
+      "importingDescription": "DeepChat skriver valgte providers og brugerdefinerede modelposter.",
+      "doneTitle": "Importoversigt",
+      "doneDescription": "Importerede {count} provider(e). Gennemgå resultatet for hver provider nedenfor.",
+      "badges": {
+        "configured": "Konfigureret"
+      },
+      "sourceStatus": {
+        "found": "Fundet",
+        "not_found": "Ikke fundet",
+        "error": "Fejl",
+        "unsupported_platform": "Ikke-understøttet platform"
+      },
+      "targetKind": {
+        "builtin": "Indbygget",
+        "custom": "Brugerdefineret",
+        "unsupported": "Ikke understøttet"
+      },
+      "warnings": {
+        "already_configured": "Allerede konfigureret i DeepChat, så den er ikke valgt som standard.",
+        "missing_api_key": "Mangler API-nøgle eller påkrævet endpoint.",
+        "unsupported_provider": "DeepChat kan ikke importere denne provider automatisk.",
+        "overwrites_previous_selection": "Dette valg er i konflikt med en tidligere kilde."
+      },
+      "conflicts": {
+        "overridesPrevious": "Dette valg overskriver en tidligere valgt provider.",
+        "overwrittenByLater": "En senere valgt kilde overskriver denne provider."
+      },
+      "summary": {
+        "imported": "Importeret",
+        "created": "Oprettet",
+        "updated": "Opdateret",
+        "overwritten": "Overskrevet",
+        "models": "Modeller",
+        "skipped": "Sprunget over"
+      },
+      "resultStatus": {
+        "created": "Oprettet",
+        "updated": "Opdateret",
+        "skipped": "Sprunget over",
+        "overwritten": "Overskrevet"
+      },
+      "actions": {
+        "rescan": "Scan igen",
+        "selectAll": "Vælg alle",
+        "clearSelected": "Ryd",
+        "import": "Importer valgte"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "Import mislykkedes: {message}"
     }
   },
   "dashboard": {

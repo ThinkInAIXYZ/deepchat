@@ -256,6 +256,94 @@
     "dangerZone": {
       "title": "Danger Zone",
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "Импорт настроек provider",
+      "entryDescription": "Сканирует Alma, Cherry Studio, Hermes и OpenClaw для поиска учетных данных provider и списков моделей.",
+      "entryButton": "Импорт из агентов",
+      "dialogTitle": "Импорт из других агентов",
+      "dialogDescription": "Сначала выберите найденные приложения, затем проверьте providers, которые DeepChat может импортировать.",
+      "toastTitle": "Импорт providers завершен",
+      "toastDescription": "Импортировано provider: {count}.",
+      "steps": {
+        "scan": "Сканирование",
+        "providers": "Providers",
+        "done": "Готово"
+      },
+      "scanningTitle": "Сканирование установленных агентов",
+      "scanningDescription": "DeepChat проверяет известные локальные файлы конфигурации и никуда не отправляет данные.",
+      "scanFailedTitle": "Сканирование не удалось",
+      "sourcesTitle": "Найденные источники",
+      "sourcesDescription": "Выберите одного или нескольких агентов. Выбранные агенты обрабатываются в указанном порядке.",
+      "selectedSources": "Выбрано {selected}/{total}",
+      "noSourcesTitle": "Не найдена конфигурация provider для импорта",
+      "noSourcesDescription": "Установите один из поддерживаемых агентов или сначала настройте в нем учетные данные provider.",
+      "providersFound": "Provider: {count}",
+      "sourceProgress": "{current} из {total}",
+      "overwriteNote": "Если несколько выбранных providers сопоставлены с одним provider DeepChat, более поздний источник перезапишет более ранний.",
+      "noProvidersTitle": "В этом источнике нет данных provider",
+      "noProvidersDescription": "Этот агент выбран, но импортируемая запись provider не найдена.",
+      "apiKey": "Ключ {value}",
+      "noModels": "Нет списка моделей",
+      "modelsImported": "Моделей: {count}",
+      "importingTitle": "Импорт providers",
+      "importingDescription": "DeepChat записывает выбранные providers и пользовательские модели.",
+      "doneTitle": "Сводка импорта",
+      "doneDescription": "Импортировано provider: {count}. Проверьте результат по каждому provider ниже.",
+      "badges": {
+        "configured": "Настроено"
+      },
+      "sourceStatus": {
+        "found": "Найдено",
+        "not_found": "Не найдено",
+        "error": "Ошибка",
+        "unsupported_platform": "Неподдерживаемая платформа"
+      },
+      "targetKind": {
+        "builtin": "Встроенный",
+        "custom": "Пользовательский",
+        "unsupported": "Не поддерживается"
+      },
+      "warnings": {
+        "already_configured": "Уже настроен в DeepChat, поэтому не выбран по умолчанию.",
+        "missing_api_key": "Отсутствует API-ключ или необходимый endpoint.",
+        "unsupported_provider": "DeepChat не может импортировать этот provider автоматически.",
+        "overwrites_previous_selection": "Этот выбор конфликтует с более ранним источником."
+      },
+      "conflicts": {
+        "overridesPrevious": "Этот выбор перезапишет ранее выбранный provider.",
+        "overwrittenByLater": "Более поздний выбранный источник перезапишет этот provider."
+      },
+      "summary": {
+        "imported": "Импортировано",
+        "created": "Создано",
+        "updated": "Обновлено",
+        "overwritten": "Перезаписано",
+        "models": "Модели",
+        "skipped": "Пропущено"
+      },
+      "resultStatus": {
+        "created": "Создано",
+        "updated": "Обновлено",
+        "skipped": "Пропущено",
+        "overwritten": "Перезаписано"
+      },
+      "actions": {
+        "rescan": "Сканировать снова",
+        "selectAll": "Выбрать все",
+        "clearSelected": "Очистить",
+        "import": "Импортировать выбранное"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "Импорт не удался: {message}"
     }
   },
   "dashboard": {

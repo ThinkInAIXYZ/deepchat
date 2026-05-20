@@ -256,6 +256,94 @@
     "dangerZone": {
       "title": "Danger Zone",
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "プロバイダー設定をインポート",
+      "entryDescription": "Alma、Cherry Studio、Hermes、OpenClaw からプロバイダー認証情報とモデル一覧をスキャンします。",
+      "entryButton": "エージェントからインポート",
+      "dialogTitle": "他のエージェントからインポート",
+      "dialogDescription": "検出されたアプリを選択してから、DeepChat にインポートできるプロバイダーを確認します。",
+      "toastTitle": "プロバイダーのインポートが完了しました",
+      "toastDescription": "{count} 件のプロバイダーをインポートしました。",
+      "steps": {
+        "scan": "スキャン",
+        "providers": "プロバイダー",
+        "done": "完了"
+      },
+      "scanningTitle": "インストール済みエージェントをスキャン中",
+      "scanningDescription": "DeepChat は既知のローカル設定ファイルだけを確認し、データは送信しません。",
+      "scanFailedTitle": "スキャンに失敗しました",
+      "sourcesTitle": "検出されたソース",
+      "sourcesDescription": "1 つ以上のエージェントを選択します。選択したエージェントは表示順に処理されます。",
+      "selectedSources": "{selected}/{total} 件選択",
+      "noSourcesTitle": "インポート可能なプロバイダー設定が見つかりません",
+      "noSourcesDescription": "対応エージェントをインストールするか、先にそのエージェントで認証情報を設定してください。",
+      "providersFound": "{count} 件のプロバイダー",
+      "sourceProgress": "{current}/{total}",
+      "overwriteNote": "複数の選択プロバイダーが同じ DeepChat プロバイダーに対応する場合、後のソースが前のソースを上書きします。",
+      "noProvidersTitle": "このソースにプロバイダーデータはありません",
+      "noProvidersDescription": "このエージェントは選択されていますが、インポート可能なプロバイダー項目は見つかりませんでした。",
+      "apiKey": "キー {value}",
+      "noModels": "モデル一覧なし",
+      "modelsImported": "{count} 件のモデル",
+      "importingTitle": "プロバイダーをインポート中",
+      "importingDescription": "DeepChat は選択したプロバイダーとカスタムモデル項目を書き込んでいます。",
+      "doneTitle": "インポート概要",
+      "doneDescription": "{count} 件のプロバイダーをインポートしました。下でプロバイダーごとの結果を確認してください。",
+      "badges": {
+        "configured": "設定済み"
+      },
+      "sourceStatus": {
+        "found": "検出済み",
+        "not_found": "未検出",
+        "error": "エラー",
+        "unsupported_platform": "未対応のプラットフォーム"
+      },
+      "targetKind": {
+        "builtin": "組み込み",
+        "custom": "カスタム",
+        "unsupported": "未対応"
+      },
+      "warnings": {
+        "already_configured": "DeepChat で設定済みのため、デフォルトでは選択されません。",
+        "missing_api_key": "API キーまたは必要な endpoint がありません。",
+        "unsupported_provider": "DeepChat はこのプロバイダーを自動インポートできません。",
+        "overwrites_previous_selection": "この選択は前のソースと競合します。"
+      },
+      "conflicts": {
+        "overridesPrevious": "この選択は前に選択したプロバイダーを上書きします。",
+        "overwrittenByLater": "後で選択したソースがこのプロバイダーを上書きします。"
+      },
+      "summary": {
+        "imported": "インポート済み",
+        "created": "作成",
+        "updated": "更新",
+        "overwritten": "上書き",
+        "models": "モデル",
+        "skipped": "スキップ"
+      },
+      "resultStatus": {
+        "created": "作成済み",
+        "updated": "更新済み",
+        "skipped": "スキップ済み",
+        "overwritten": "上書き済み"
+      },
+      "actions": {
+        "rescan": "再スキャン",
+        "selectAll": "すべて選択",
+        "clearSelected": "クリア",
+        "import": "選択項目をインポート"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "インポートに失敗しました: {message}"
     }
   },
   "dashboard": {

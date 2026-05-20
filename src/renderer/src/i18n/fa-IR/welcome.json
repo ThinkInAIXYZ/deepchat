@@ -40,6 +40,7 @@
     "guide": {
       "title": "راهنمای راه‌اندازی",
       "description": "گام فعلی: {step}",
+      "or": "یا",
       "coreProgress": "پیشرفت راه‌اندازی اصلی",
       "optional": "گام‌های اختیاری بعدی",
       "actions": {
@@ -66,7 +67,8 @@
       "gemini": "Gemini",
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
-    }
+    },
+    "importProviders": "وارد کردن از سایر عامل‌ها"
   },
   "agentPage": {
     "title": "یک ایجنت انتخاب کنید و خلق را شروع کنید",

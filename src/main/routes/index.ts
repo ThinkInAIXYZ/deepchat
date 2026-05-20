@@ -230,6 +230,7 @@ import {
 } from './onboarding/onboardingRouteSupport'
 import { dispatchProviderRoute } from './providers/providerRouteHandler'
 import { createNodeScheduler } from './scheduler'
+import { ProviderImportService } from './providers/providerImportService'
 import { ProviderService } from './providers/providerService'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
@@ -252,6 +253,7 @@ export type MainKernelRouteRuntime = {
   sessionService: SessionService
   chatService: ChatService
   providerService: ProviderService
+  providerImportService: ProviderImportService
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
@@ -340,6 +342,7 @@ export function createMainKernelRouteRuntime(deps: {
       providerExecutionPort: hotPathPorts.providerExecutionPort,
       scheduler
     }),
+    providerImportService: new ProviderImportService(deps.configPresenter),
     windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
@@ -927,7 +930,8 @@ export async function dispatchDeepchatRoute(
     return await dispatchProviderRoute(
       {
         configPresenter: runtime.configPresenter,
-        llmProviderPresenter: runtime.llmProviderPresenter
+        llmProviderPresenter: runtime.llmProviderPresenter,
+        providerImportService: runtime.providerImportService
       },
       routeName,
       rawInput

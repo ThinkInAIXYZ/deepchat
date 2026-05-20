@@ -108,6 +108,7 @@
     "gray-matter": "^4.0.3",
     "https-proxy-agent": "^7.0.6",
     "jsonrepair": "^3.14.0",
+    "level": "^8.0.1",
     "mammoth": "^1.12.0",
     "nanoid": "^5.1.11",
     "node-pty": "^1.1.0",
@@ -220,6 +221,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@tailwindcss/oxide",
+      "classic-level",
       "electron",
       "electron-winstaller",
       "lzo",

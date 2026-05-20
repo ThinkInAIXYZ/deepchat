@@ -40,6 +40,7 @@
     "guide": {
       "title": "Гид по настройке",
       "description": "Текущий шаг: {step}",
+      "or": "или",
       "coreProgress": "Прогресс основной настройки",
       "optional": "Необязательные следующие шаги",
       "actions": {
@@ -66,7 +67,8 @@
       "gemini": "Gemini",
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
-    }
+    },
+    "importProviders": "Импорт из других агентов"
   },
   "agentPage": {
     "title": "Выберите агента, чтобы начать работу",

@@ -4,10 +4,16 @@
       v-if="showGuideCoachmark"
       data-testid="welcome-guide-coachmark"
       :data-guide-target="coachmarkTargetSurface"
-      class="fixed inset-0 z-70"
-      @click.stop.prevent
+      class="pointer-events-none fixed inset-0 z-70"
     >
-      <div data-testid="welcome-guide-blocker" class="absolute inset-0" />
+      <div
+        v-for="(blockerStyle, blockerIndex) in coachmarkBlockerStyles"
+        :key="blockerIndex"
+        data-testid="welcome-guide-blocker"
+        class="pointer-events-auto absolute"
+        :style="blockerStyle"
+        @click.stop.prevent
+      />
 
       <div
         v-if="coachmarkSpotlightStyle"
@@ -34,9 +40,25 @@
           </span>
         </div>
 
-        <h2 class="mt-3 text-sm font-semibold text-foreground">
-          {{ coachmarkStepTitle }}
-        </h2>
+        <div class="mt-3 flex min-w-0 items-center gap-2 overflow-hidden">
+          <h2 class="shrink-0 text-sm font-semibold text-foreground">
+            {{ coachmarkStepTitle }}
+          </h2>
+          <template v-if="showGuideImportAction">
+            <span class="shrink-0 text-xs font-medium text-muted-foreground">
+              {{ t('welcome.page.guide.or') }}
+            </span>
+            <button
+              data-testid="welcome-guide-import-action"
+              type="button"
+              class="inline-flex min-w-0 max-w-[220px] items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm transition-all duration-150 hover:border-primary/60 hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.99]"
+              @click.stop="onImportProviders"
+            >
+              <Icon icon="lucide:download" class="h-3.5 w-3.5 shrink-0" />
+              <span class="truncate">{{ t('welcome.page.importProviders') }}</span>
+            </button>
+          </template>
+        </div>
         <p class="mt-2 text-xs leading-5 text-muted-foreground">
           {{ t('welcome.page.guide.description', { step: coachmarkStepTitle }) }}
         </p>
@@ -193,12 +215,14 @@
         </button>
       </div>
 
-      <button
-        class="text-xs text-muted-foreground hover:text-foreground transition-colors mb-12"
-        @click="onAddProvider"
-      >
-        {{ t('welcome.page.browseProviders') }}
-      </button>
+      <div class="mb-12 flex flex-wrap items-center justify-center gap-3">
+        <button
+          class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          @click="onAddProvider"
+        >
+          {{ t('welcome.page.browseProviders') }}
+        </button>
+      </div>
 
       <!-- ACP agent section (optional) -->
       <div class="flex flex-col items-center gap-3 w-full max-w-sm">
@@ -240,6 +264,7 @@ import {
   type GuidedOnboardingResumeTrigger
 } from '@/lib/onboardingResume'
 import {
+  getNextGuidedOnboardingStepId,
   getPreviousGuidedOnboardingStepId,
   isGuidedOnboardingChatStepId,
   resolveGuidedOnboardingStepTarget,
@@ -265,6 +290,11 @@ const guideCardRef = ref<HTMLElement | null>(null)
 const providerGridRef = ref<HTMLElement | null>(null)
 const guideCoachmarkDismissed = ref(false)
 const coachmarkSpotlightStyle = ref<Record<string, string> | null>(null)
+const coachmarkBlockerStyles = ref<Record<string, string>[]>([
+  {
+    inset: '0'
+  }
+])
 const coachmarkPanelStyle = ref<Record<string, string>>({
   top: '24px',
   left: '24px',
@@ -280,13 +310,13 @@ const providers = [
   { id: 'openrouter', nameKey: 'welcome.page.providers.openrouter' }
 ]
 
-type SettingsRouteName = GuidedOnboardingSettingsRouteName | 'settings-acp'
+type SettingsRouteName = GuidedOnboardingSettingsRouteName | 'settings-acp' | 'settings-database'
 
 const requiredGuideSteps = computed(
-  () => onboardingState.value?.steps.filter((step) => step.required) ?? []
+  () => onboardingState.value?.steps?.filter((step) => step.required) ?? []
 )
 const optionalGuideSteps = computed(
-  () => onboardingState.value?.steps.filter((step) => !step.required) ?? []
+  () => onboardingState.value?.steps?.filter((step) => !step.required) ?? []
 )
 const completedRequiredSteps = computed(
   () => requiredGuideSteps.value.filter((step) => step.status === 'completed').length
@@ -316,7 +346,7 @@ const currentGuideStepId = computed<GuidedOnboardingStepId>(() => {
   }
 
   return (
-    onboardingState.value?.steps.find((step) => step.status === 'pending')?.id ?? 'select-provider'
+    onboardingState.value?.steps?.find((step) => step.status === 'pending')?.id ?? 'select-provider'
   )
 })
 const currentGuideStepTitle = computed(() => guideStepTitle(currentGuideStepId.value))
@@ -325,9 +355,10 @@ const primaryGuideActionLabel = computed(() =>
     ? t('welcome.page.guide.actions.goToChat')
     : t('welcome.page.guide.actions.continueSetup')
 )
-const guideStepIds = computed(() => onboardingState.value?.steps.map((step) => step.id) ?? [])
+const guideStepIds = computed(() => onboardingState.value?.steps?.map((step) => step.id) ?? [])
 const coachmarkStepId = computed<GuidedOnboardingStepId>(() => currentGuideStepId.value)
 const coachmarkStepTitle = computed(() => guideStepTitle(coachmarkStepId.value))
+const showGuideImportAction = computed(() => coachmarkStepId.value === 'select-provider')
 const showGuideCoachmark = computed(
   () => onboardingState.value?.status === 'active' && !guideCoachmarkDismissed.value
 )
@@ -338,7 +369,7 @@ const coachmarkStepIndex = computed(() => {
   const stepIndex = guideStepIds.value.findIndex((stepId) => stepId === coachmarkStepId.value)
   return stepIndex != null && stepIndex >= 0 ? stepIndex + 1 : 1
 })
-const coachmarkTotalSteps = computed(() => onboardingState.value?.steps.length ?? 1)
+const coachmarkTotalSteps = computed(() => onboardingState.value?.steps?.length ?? 1)
 const canGoToPreviousGuideStep = computed(() =>
   Boolean(getPreviousGuidedOnboardingStepId(currentGuideStepId.value))
 )
@@ -364,10 +395,13 @@ const updateGuideCoachmarkLayout = async () => {
   const targetElement = resolveCoachmarkTargetElement()
   if (!targetElement) {
     coachmarkSpotlightStyle.value = null
+    coachmarkBlockerStyles.value = [{ inset: '0' }]
     coachmarkPanelStyle.value = {
       top: '24px',
       left: '24px',
-      width: 'min(320px, calc(100% - 32px))'
+      width: showGuideImportAction.value
+        ? 'min(420px, calc(100% - 32px))'
+        : 'min(320px, calc(100% - 32px))'
     }
     return
   }
@@ -377,10 +411,13 @@ const updateGuideCoachmarkLayout = async () => {
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
   if (viewportWidth < 1 || viewportHeight < 1 || targetRect.width < 1 || targetRect.height < 1) {
     coachmarkSpotlightStyle.value = null
+    coachmarkBlockerStyles.value = [{ inset: '0' }]
     coachmarkPanelStyle.value = {
       top: '24px',
       left: '24px',
-      width: 'min(320px, calc(100% - 32px))'
+      width: showGuideImportAction.value
+        ? 'min(420px, calc(100% - 32px))'
+        : 'min(320px, calc(100% - 32px))'
     }
     return
   }
@@ -404,9 +441,38 @@ const updateGuideCoachmarkLayout = async () => {
     height: `${spotlightHeight}px`,
     boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.56)'
   }
+  const spotlightRight = spotlightLeft + spotlightWidth
+  const spotlightBottom = spotlightTop + spotlightHeight
+  coachmarkBlockerStyles.value = [
+    {
+      top: '0px',
+      left: '0px',
+      right: '0px',
+      height: `${spotlightTop}px`
+    },
+    {
+      top: `${spotlightTop}px`,
+      left: '0px',
+      width: `${spotlightLeft}px`,
+      height: `${spotlightHeight}px`
+    },
+    {
+      top: `${spotlightTop}px`,
+      left: `${spotlightRight}px`,
+      right: '0px',
+      height: `${spotlightHeight}px`
+    },
+    {
+      top: `${spotlightBottom}px`,
+      left: '0px',
+      right: '0px',
+      bottom: '0px'
+    }
+  ]
 
-  const panelWidth = Math.min(320, Math.max(180, viewportWidth - 32))
-  const panelHeightEstimate = 168
+  const preferredPanelWidth = showGuideImportAction.value ? 420 : 320
+  const panelWidth = Math.min(preferredPanelWidth, Math.max(180, viewportWidth - 32))
+  const panelHeightEstimate = showGuideImportAction.value ? 172 : 168
   const desiredTop = spotlightTop + spotlightHeight + 20
   const placeAbove = desiredTop + panelHeightEstimate > viewportHeight - 16
   const panelTop = placeAbove
@@ -488,9 +554,13 @@ const goToChat = async (stepId?: GuidedOnboardingStepId) => {
   }
 }
 
-const openSettings = async (routeName: SettingsRouteName, stepId?: GuidedOnboardingStepId) => {
+const openSettings = async (
+  routeName: SettingsRouteName,
+  stepId?: GuidedOnboardingStepId,
+  section?: string
+) => {
   await syncOnboardingStep(stepId)
-  await configClient.openSettings({ routeName })
+  await configClient.openSettings({ routeName, section })
 }
 
 const resolveGuideAction = (
@@ -589,6 +659,24 @@ const handleExperiencedGuideAction = async () => {
 const onAddProvider = async () => {
   persistGuideResumeIntent('window-focus', 'select-provider')
   await openSettings('settings-provider', 'select-provider')
+}
+
+const getProviderImportGuideStepId = (): GuidedOnboardingStepId => {
+  if (onboardingState.value?.status !== 'active') {
+    return 'select-provider'
+  }
+
+  if (currentGuideStepId.value !== 'select-provider') {
+    return currentGuideStepId.value
+  }
+
+  return getNextGuidedOnboardingStepId('select-provider') ?? 'provider-api-key'
+}
+
+const onImportProviders = async () => {
+  const stepId = getProviderImportGuideStepId()
+  persistGuideResumeIntent('window-focus', stepId)
+  await openSettings('settings-database', stepId, 'provider-import')
 }
 
 const onSetupAcp = async () => {

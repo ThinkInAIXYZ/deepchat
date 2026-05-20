@@ -256,6 +256,94 @@
     "dangerZone": {
       "title": "Danger Zone",
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "Importer les paramètres de provider",
+      "entryDescription": "Analyse Alma, Cherry Studio, Hermes et OpenClaw pour récupérer les identifiants de provider et les listes de modèles.",
+      "entryButton": "Importer depuis des agents",
+      "dialogTitle": "Importer depuis d’autres agents",
+      "dialogDescription": "Sélectionnez d’abord les apps détectées, puis vérifiez les providers que DeepChat peut importer.",
+      "toastTitle": "Import des providers terminé",
+      "toastDescription": "{count} provider(s) importé(s).",
+      "steps": {
+        "scan": "Analyse",
+        "providers": "Providers",
+        "done": "Terminé"
+      },
+      "scanningTitle": "Analyse des agents installés",
+      "scanningDescription": "DeepChat vérifie les fichiers de configuration locaux connus sans envoyer de données.",
+      "scanFailedTitle": "Échec de l’analyse",
+      "sourcesTitle": "Sources détectées",
+      "sourcesDescription": "Choisissez un ou plusieurs agents. Les agents sélectionnés sont traités dans l’ordre affiché.",
+      "selectedSources": "{selected}/{total} sélectionné(s)",
+      "noSourcesTitle": "Aucune configuration de provider importable trouvée",
+      "noSourcesDescription": "Installez l’un des agents pris en charge ou configurez d’abord les identifiants du provider.",
+      "providersFound": "{count} provider(s)",
+      "sourceProgress": "{current} sur {total}",
+      "overwriteNote": "Si plusieurs providers sélectionnés correspondent au même provider DeepChat, la source la plus récente remplace la précédente.",
+      "noProvidersTitle": "Aucune donnée de provider dans cette source",
+      "noProvidersDescription": "Cet agent a été sélectionné, mais aucune entrée de provider importable n’a été trouvée.",
+      "apiKey": "Clé {value}",
+      "noModels": "Aucune liste de modèles",
+      "modelsImported": "{count} modèle(s)",
+      "importingTitle": "Import des providers",
+      "importingDescription": "DeepChat écrit les providers sélectionnés et les modèles personnalisés.",
+      "doneTitle": "Résumé de l’import",
+      "doneDescription": "{count} provider(s) importé(s). Consultez le résultat par provider ci-dessous.",
+      "badges": {
+        "configured": "Configuré"
+      },
+      "sourceStatus": {
+        "found": "Trouvé",
+        "not_found": "Introuvable",
+        "error": "Erreur",
+        "unsupported_platform": "Plateforme non prise en charge"
+      },
+      "targetKind": {
+        "builtin": "Intégré",
+        "custom": "Personnalisé",
+        "unsupported": "Non pris en charge"
+      },
+      "warnings": {
+        "already_configured": "Déjà configuré dans DeepChat, il n’est donc pas sélectionné par défaut.",
+        "missing_api_key": "Clé API ou endpoint requis manquant.",
+        "unsupported_provider": "DeepChat ne peut pas importer ce provider automatiquement.",
+        "overwrites_previous_selection": "Cette sélection entre en conflit avec une source précédente."
+      },
+      "conflicts": {
+        "overridesPrevious": "Cette sélection remplacera un provider sélectionné précédemment.",
+        "overwrittenByLater": "Une source sélectionnée plus tard remplacera ce provider."
+      },
+      "summary": {
+        "imported": "Importés",
+        "created": "Créés",
+        "updated": "Mis à jour",
+        "overwritten": "Remplacés",
+        "models": "Modèles",
+        "skipped": "Ignorés"
+      },
+      "resultStatus": {
+        "created": "Créé",
+        "updated": "Mis à jour",
+        "skipped": "Ignoré",
+        "overwritten": "Remplacé"
+      },
+      "actions": {
+        "rescan": "Analyser à nouveau",
+        "selectAll": "Tout sélectionner",
+        "clearSelected": "Effacer",
+        "import": "Importer la sélection"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "Échec de l’import : {message}"
     }
   },
   "dashboard": {

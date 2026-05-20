@@ -40,6 +40,7 @@
     "guide": {
       "title": "מדריך הגדרה",
       "description": "השלב הנוכחי: {step}",
+      "or": "או",
       "coreProgress": "התקדמות ההגדרה הראשית",
       "optional": "השלבים הבאים האופציונליים",
       "actions": {
@@ -66,7 +67,8 @@
       "gemini": "Gemini",
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
-    }
+    },
+    "importProviders": "ייבא מסוכנים אחרים"
   },
   "agentPage": {
     "title": "בחרו סוכן כדי להתחיל ליצור",

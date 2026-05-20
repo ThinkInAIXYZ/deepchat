@@ -3,6 +3,8 @@ import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
   providersGetRateLimitStatusRoute,
+  providersImportApplyRoute,
+  providersImportScanRoute,
   providersListDefaultsRoute,
   providersListOllamaModelsRoute,
   providersListOllamaRunningModelsRoute,
@@ -16,16 +18,18 @@ import {
   providersUpdateRoute,
   providersWarmupAcpProcessRoute
 } from '@shared/contracts/routes'
+import type { ProviderImportService } from './providerImportService'
 
 export async function dispatchProviderRoute(
   deps: {
     configPresenter: IConfigPresenter
     llmProviderPresenter: ILlmProviderPresenter
+    providerImportService: ProviderImportService
   },
   routeName: string,
   rawInput: unknown
 ): Promise<unknown> {
-  const { configPresenter, llmProviderPresenter } = deps
+  const { configPresenter, llmProviderPresenter, providerImportService } = deps
   const toProviderSummary = (provider: ReturnType<typeof configPresenter.getProviders>[number]) => {
     const {
       models: _models,
@@ -152,6 +156,16 @@ export async function dispatchProviderRoute(
       return providersGetAcpProcessConfigOptionsRoute.output.parse({
         state: await llmProviderPresenter.getAcpProcessConfigOptions(input.agentId, input.workdir)
       })
+    }
+
+    case providersImportScanRoute.name: {
+      providersImportScanRoute.input.parse(rawInput)
+      return providersImportScanRoute.output.parse(await providerImportService.scan())
+    }
+
+    case providersImportApplyRoute.name: {
+      const input = providersImportApplyRoute.input.parse(rawInput)
+      return providersImportApplyRoute.output.parse(providerImportService.apply(input))
     }
 
     default:

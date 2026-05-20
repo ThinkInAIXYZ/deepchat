@@ -40,6 +40,7 @@
     "guide": {
       "title": "Guide de configuration",
       "description": "Étape actuelle : {step}",
+      "or": "ou",
       "coreProgress": "Progression de la configuration principale",
       "optional": "Étapes facultatives",
       "actions": {
@@ -66,7 +67,8 @@
       "gemini": "Gemini",
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
-    }
+    },
+    "importProviders": "Importer depuis d’autres agents"
   },
   "agentPage": {
     "title": "Choisissez un agent pour commencer à créer",

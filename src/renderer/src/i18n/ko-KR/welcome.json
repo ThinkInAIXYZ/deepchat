@@ -40,6 +40,7 @@
     "guide": {
       "title": "설정 가이드",
       "description": "현재 단계: {step}",
+      "or": "또는",
       "coreProgress": "핵심 설정 진행도",
       "optional": "선택 가능한 다음 단계",
       "actions": {
@@ -66,7 +67,8 @@
       "gemini": "Gemini",
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
-    }
+    },
+    "importProviders": "다른 에이전트에서 가져오기"
   },
   "agentPage": {
     "title": "에이전트를 선택해 제작 시작",
