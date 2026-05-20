@@ -59,12 +59,6 @@
         class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
-          <ChatToolInteractionOverlay
-            v-if="activePendingInteraction"
-            :interaction="activePendingInteraction"
-            :processing="isHandlingInteraction"
-            @respond="onToolInteractionRespond"
-          />
           <div class="w-full">
             <PendingInputLane
               :steer-items="pendingInputStore.steerItems"
@@ -79,12 +73,43 @@
             />
             <div class="relative">
               <div
-                v-if="latestPlanSnapshot"
+                v-if="latestPlanSnapshot || activePendingInteraction"
                 ref="planFloatLayer"
-                class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] z-20 flex w-full justify-end"
+                class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] z-20 flex w-full flex-col items-end gap-2"
                 data-testid="agent-progress-float-layer"
               >
+                <!-- Both plan + question: unified glassmorphism panel -->
+                <div
+                  v-if="activePendingInteraction && latestPlanSnapshot"
+                  class="agent-question-panel pointer-events-auto mx-auto w-full max-w-2xl overflow-hidden rounded-[20px] text-foreground backdrop-blur-[26px]"
+                >
+                  <div class="agent-question-panel__backdrop" aria-hidden="true" />
+                  <AgentProgressFloat
+                    :snapshot="latestPlanSnapshot"
+                    :collapsed="isPlanFloatCollapsed"
+                    :embedded="true"
+                    @dismiss="onDismissPlanFloat"
+                    @toggle-collapse="agentPlanStore.toggleCollapsed(props.sessionId)"
+                  />
+                  <div class="agent-question-divider" aria-hidden="true" />
+                  <ChatToolInteractionOverlay
+                    :embedded="true"
+                    :interaction="activePendingInteraction"
+                    :processing="isHandlingInteraction"
+                    @respond="onToolInteractionRespond"
+                  />
+                </div>
+                <!-- Only question, no plan: standalone centered with own glass -->
+                <ChatToolInteractionOverlay
+                  v-else-if="activePendingInteraction"
+                  class="pointer-events-auto mx-auto"
+                  :interaction="activePendingInteraction"
+                  :processing="isHandlingInteraction"
+                  @respond="onToolInteractionRespond"
+                />
+                <!-- Only plan: right-aligned, unchanged -->
                 <AgentProgressFloat
+                  v-else-if="latestPlanSnapshot"
                   :snapshot="latestPlanSnapshot"
                   :collapsed="isPlanFloatCollapsed"
                   @dismiss="onDismissPlanFloat"
@@ -1507,6 +1532,144 @@ onUnmounted(() => {
 <style>
 .message-list-container {
   scrollbar-gutter: stable both-edges;
+}
+
+.agent-question-panel {
+  isolation: isolate;
+  border: 1px solid transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
+    color-mix(in srgb, white 58%, hsl(var(--background)) 42%) 100%
+  );
+  box-shadow:
+    0 20px 40px -30px rgb(15 23 42 / 0.2),
+    0 8px 18px -18px rgb(15 23 42 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.42),
+    inset 0 -10px 20px -18px rgb(148 163 184 / 0.18);
+}
+
+.agent-question-panel::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.58) 0%,
+      transparent 36%,
+      rgb(255 255 255 / 0.12) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 88%, hsl(var(--background)) 12%) 0%,
+      color-mix(in srgb, white 64%, hsl(var(--muted)) 36%) 100%
+    );
+  opacity: 0.92;
+}
+
+.agent-question-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 22%, hsl(var(--border)) 78%),
+    inset 0 1px 0 rgb(255 255 255 / 0.24);
+  opacity: 0.82;
+}
+
+.agent-question-panel > :not(.agent-question-panel__backdrop) {
+  position: relative;
+  z-index: 3;
+}
+
+.agent-question-panel__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(
+      circle at 12% 14%,
+      color-mix(in srgb, white 78%, hsl(var(--primary)) 22%) 0%,
+      transparent 34%
+    ),
+    radial-gradient(circle at 88% 12%, rgb(255 255 255 / 0.62) 0%, transparent 26%),
+    radial-gradient(
+      circle at 72% 100%,
+      color-mix(in srgb, white 44%, hsl(var(--muted)) 56%) 0%,
+      transparent 42%
+    );
+  filter: saturate(1.06);
+  opacity: 0.92;
+  pointer-events: none;
+}
+
+.agent-question-divider {
+  position: relative;
+  z-index: 3;
+  height: 1px;
+  margin: 0 1rem;
+  background: color-mix(in srgb, white 30%, hsl(var(--border)) 70%);
+}
+
+.dark .agent-question-panel {
+  border-color: transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--background)) 88%, rgb(51 65 85) 12%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 94%, rgb(15 23 42) 6%) 100%
+  );
+  box-shadow:
+    0 24px 48px -34px rgb(0 0 0 / 0.48),
+    0 12px 24px -22px rgb(0 0 0 / 0.26),
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -14px 24px -22px rgb(0 0 0 / 0.36);
+}
+
+.dark .agent-question-panel::before {
+  background:
+    linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.12) 0%,
+      transparent 40%,
+      rgb(255 255 255 / 0.03) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, hsl(var(--background)) 82%, rgb(30 41 59) 18%) 0%,
+      color-mix(in srgb, hsl(var(--background)) 92%, rgb(2 6 23) 8%) 100%
+    );
+  opacity: 0.88;
+}
+
+.dark .agent-question-panel::after {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 8%, hsl(var(--border)) 92%),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  opacity: 0.74;
+}
+
+.dark .agent-question-panel__backdrop {
+  background:
+    radial-gradient(
+      circle at 14% 16%,
+      color-mix(in srgb, hsl(var(--primary)) 30%, white 70%) 0%,
+      transparent 34%
+    ),
+    radial-gradient(circle at 88% 14%, rgb(255 255 255 / 0.12) 0%, transparent 24%),
+    radial-gradient(circle at 78% 100%, rgb(15 23 42 / 0.42) 0%, transparent 42%);
+  filter: saturate(1.08);
+  opacity: 0.84;
+}
+
+.dark .agent-question-divider {
+  background: color-mix(in srgb, white 8%, hsl(var(--border)) 92%);
 }
 
 .message-highlight {

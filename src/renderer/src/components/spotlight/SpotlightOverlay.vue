@@ -1,11 +1,11 @@
 <template>
   <div
     v-if="spotlightStore.open"
-    class="window-no-drag-region fixed inset-0 z-[70] flex items-start justify-center bg-black/35 px-4 pt-16"
+    class="window-no-drag-region fixed inset-0 z-[70] flex items-start justify-center px-4 pt-16"
     @mousedown.self="spotlightStore.closeSpotlight()"
   >
     <div
-      class="window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+      class="spotlight-panel window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl backdrop-blur-[26px]"
     >
       <div class="flex items-center gap-3 border-b border-border/60 px-4 py-3">
         <Icon icon="lucide:search" class="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -273,5 +273,98 @@ watch(
 button,
 input {
   -webkit-app-region: no-drag;
+}
+
+.spotlight-panel {
+  isolation: isolate;
+  position: relative;
+  border: 1px solid transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 82%, hsl(var(--background)) 18%) 0%,
+    color-mix(in srgb, white 62%, hsl(var(--background)) 38%) 100%
+  );
+  box-shadow:
+    0 32px 64px -24px rgb(15 23 42 / 0.28),
+    0 16px 32px -16px rgb(15 23 42 / 0.12),
+    inset 0 1px 0 rgb(255 255 255 / 0.48),
+    inset 0 -12px 24px -20px rgb(148 163 184 / 0.18);
+}
+
+.spotlight-panel::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.64) 0%,
+      transparent 38%,
+      rgb(255 255 255 / 0.14) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 90%, hsl(var(--background)) 10%) 0%,
+      color-mix(in srgb, white 68%, hsl(var(--muted)) 32%) 100%
+    );
+  opacity: 0.92;
+}
+
+.spotlight-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 26%, hsl(var(--border)) 74%),
+    inset 0 1px 0 rgb(255 255 255 / 0.28);
+  opacity: 0.84;
+}
+
+.spotlight-panel > * {
+  position: relative;
+  z-index: 3;
+}
+
+.dark .spotlight-panel {
+  border-color: transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--background)) 86%, rgb(51 65 85) 14%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 93%, rgb(15 23 42) 7%) 100%
+  );
+  box-shadow:
+    0 32px 64px -28px rgb(0 0 0 / 0.56),
+    0 16px 32px -20px rgb(0 0 0 / 0.32),
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -14px 28px -22px rgb(0 0 0 / 0.4);
+}
+
+.dark .spotlight-panel::before {
+  background:
+    linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.1) 0%,
+      transparent 40%,
+      rgb(255 255 255 / 0.03) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, hsl(var(--background)) 80%, rgb(30 41 59) 20%) 0%,
+      color-mix(in srgb, hsl(var(--background)) 92%, rgb(2 6 23) 8%) 100%
+    );
+  opacity: 0.9;
+}
+
+.dark .spotlight-panel::after {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 9%, hsl(var(--border)) 91%),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  opacity: 0.76;
 }
 </style>
