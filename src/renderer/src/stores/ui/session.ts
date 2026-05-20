@@ -791,20 +791,24 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       await sessionClient.toggleSessionPinned(sessionId, pinned)
+      const updatedAt = Date.now()
       const target = sessions.value.find((session) => session.id === sessionId)
       if (target) {
         target.isPinned = pinned
+        target.updatedAt = updatedAt
       }
       if (bootstrapActiveSession.value?.id === sessionId) {
         bootstrapActiveSession.value = {
           ...bootstrapActiveSession.value,
-          isPinned: pinned
+          isPinned: pinned,
+          updatedAt
         }
       }
       if (activeSessionSummary.value?.id === sessionId) {
         activeSessionSummary.value = {
           ...activeSessionSummary.value,
-          isPinned: pinned
+          isPinned: pinned,
+          updatedAt
         }
       }
       sessions.value = sortSessions(sessions.value)

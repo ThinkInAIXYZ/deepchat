@@ -21,6 +21,7 @@ const props = defineProps<{
   active: boolean
   region: SessionItemRegion
   heroHidden?: boolean
+  heroPlaceholder?: boolean
   forcePinDocked?: boolean
   pinFeedbackMode?: PinFeedbackMode | null
   searchQuery?: string
@@ -123,6 +124,7 @@ const titleSegments = computed(() => {
       heroHidden && 'is-hero-hidden'
     ]"
     :data-pin-fx="pinFeedbackMode ?? undefined"
+    :data-pin-placeholder="heroPlaceholder ? 'true' : undefined"
     :data-pin-state="pinState"
     :data-active="String(active)"
     :data-session-region="region"

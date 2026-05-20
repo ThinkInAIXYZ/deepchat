@@ -23,9 +23,23 @@ type SetupOptions = {
 
 const TEST_TIMEOUT_MS = 20000
 
+const createDomRect = (left: number, top: number, width: number, height: number): DOMRect =>
+  ({
+    x: left,
+    y: top,
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    toJSON: () => ({})
+  }) as DOMRect
+
 afterEach(() => {
   vi.clearAllTimers()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 const setup = async (options: SetupOptions = {}) => {
