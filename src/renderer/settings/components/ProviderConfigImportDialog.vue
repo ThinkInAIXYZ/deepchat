@@ -238,7 +238,7 @@
                         <div class="mt-1 truncate text-[11px] text-muted-foreground">
                           {{
                             provider.targetKind === 'custom'
-                              ? selectedProviderApiType(provider)
+                              ? selectedProviderApiTypeLabel(provider)
                               : provider.targetApiType || provider.targetProviderId
                           }}
                         </div>
@@ -783,6 +783,9 @@ const buildProviderOptions = (
 
 const selectedProviderApiType = (provider: ProviderImportProviderPreview): string =>
   selectedProviderApiTypes.value[provider.id] || toCustomApiType(provider.targetApiType)
+
+const selectedProviderApiTypeLabel = (provider: ProviderImportProviderPreview): string =>
+  apiTypeLabel(selectedProviderApiType(provider))
 
 const updateProviderApiType = (providerId: string, value: unknown) => {
   if (typeof value !== 'string') return
