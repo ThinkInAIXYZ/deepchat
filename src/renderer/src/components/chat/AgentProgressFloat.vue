@@ -1,10 +1,15 @@
 <template>
   <div
     v-if="snapshot && entries.length > 0"
-    class="agent-progress-float pointer-events-auto relative ml-auto w-full max-w-[25rem] overflow-hidden rounded-[20px] border border-transparent bg-transparent text-foreground backdrop-blur-[26px]"
+    :class="[
+      'pointer-events-auto relative w-full overflow-hidden text-foreground',
+      props.embedded
+        ? ''
+        : 'agent-progress-float ml-auto max-w-[25rem] rounded-[20px] border border-transparent bg-transparent backdrop-blur-[26px]'
+    ]"
     data-testid="agent-progress-float"
   >
-    <div class="agent-progress-float__backdrop" aria-hidden="true" />
+    <div v-if="!props.embedded" class="agent-progress-float__backdrop" aria-hidden="true" />
 
     <div class="relative flex items-center gap-1.5 px-3 pb-2.5 pt-2.5">
       <button
@@ -105,6 +110,7 @@ import type { AgentPlanViewSnapshot } from '@/stores/ui/agentPlan'
 const props = defineProps<{
   snapshot: AgentPlanViewSnapshot | null
   collapsed: boolean
+  embedded?: boolean
 }>()
 
 const emit = defineEmits<{

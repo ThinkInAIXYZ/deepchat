@@ -1,5 +1,11 @@
 <template>
-  <div class="w-full max-w-2xl rounded-xl border bg-card/95 shadow-lg backdrop-blur-lg p-4">
+  <div
+    :class="[
+      'relative w-full overflow-hidden p-4 text-foreground',
+      props.embedded ? '' : 'tool-interaction-overlay max-w-2xl rounded-xl backdrop-blur-[26px]'
+    ]"
+  >
+    <div v-if="!props.embedded" class="tool-interaction-overlay__backdrop" aria-hidden="true" />
     <div class="flex items-center gap-2 text-xs text-muted-foreground">
       <Icon :icon="headerIcon" class="h-4 w-4" />
       <span>{{ headerText }}</span>
@@ -93,6 +99,7 @@ type PendingInteractionView = {
 const props = defineProps<{
   interaction: PendingInteractionView
   processing?: boolean
+  embedded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -217,3 +224,131 @@ const onQuestionOther = () => {
   emit('respond', { kind: 'question_other' })
 }
 </script>
+
+<style scoped>
+.tool-interaction-overlay {
+  isolation: isolate;
+  border-color: transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
+    color-mix(in srgb, white 58%, hsl(var(--background)) 42%) 100%
+  );
+  box-shadow:
+    0 20px 40px -30px rgb(15 23 42 / 0.2),
+    0 8px 18px -18px rgb(15 23 42 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.42),
+    inset 0 -10px 20px -18px rgb(148 163 184 / 0.18);
+}
+
+.tool-interaction-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.58) 0%,
+      transparent 36%,
+      rgb(255 255 255 / 0.12) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 88%, hsl(var(--background)) 12%) 0%,
+      color-mix(in srgb, white 64%, hsl(var(--muted)) 36%) 100%
+    );
+  opacity: 0.92;
+}
+
+.tool-interaction-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 22%, hsl(var(--border)) 78%),
+    inset 0 1px 0 rgb(255 255 255 / 0.24);
+  opacity: 0.82;
+}
+
+.tool-interaction-overlay > :not(.tool-interaction-overlay__backdrop) {
+  position: relative;
+  z-index: 3;
+}
+
+.tool-interaction-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(
+      circle at 12% 14%,
+      color-mix(in srgb, white 78%, hsl(var(--primary)) 22%) 0%,
+      transparent 34%
+    ),
+    radial-gradient(circle at 88% 12%, rgb(255 255 255 / 0.62) 0%, transparent 26%),
+    radial-gradient(
+      circle at 72% 100%,
+      color-mix(in srgb, white 44%, hsl(var(--muted)) 56%) 0%,
+      transparent 42%
+    );
+  filter: saturate(1.06);
+  opacity: 0.92;
+  pointer-events: none;
+}
+
+.dark .tool-interaction-overlay {
+  border-color: transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--background)) 88%, rgb(51 65 85) 12%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 94%, rgb(15 23 42) 6%) 100%
+  );
+  box-shadow:
+    0 24px 48px -34px rgb(0 0 0 / 0.48),
+    0 12px 24px -22px rgb(0 0 0 / 0.26),
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -14px 24px -22px rgb(0 0 0 / 0.36);
+}
+
+.dark .tool-interaction-overlay::before {
+  background:
+    linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.12) 0%,
+      transparent 40%,
+      rgb(255 255 255 / 0.03) 100%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, hsl(var(--background)) 82%, rgb(30 41 59) 18%) 0%,
+      color-mix(in srgb, hsl(var(--background)) 92%, rgb(2 6 23) 8%) 100%
+    );
+  opacity: 0.88;
+}
+
+.dark .tool-interaction-overlay::after {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 8%, hsl(var(--border)) 92%),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  opacity: 0.74;
+}
+
+.dark .tool-interaction-overlay__backdrop {
+  background:
+    radial-gradient(
+      circle at 14% 16%,
+      color-mix(in srgb, hsl(var(--primary)) 30%, white 70%) 0%,
+      transparent 34%
+    ),
+    radial-gradient(circle at 88% 14%, rgb(255 255 255 / 0.12) 0%, transparent 24%),
+    radial-gradient(circle at 78% 100%, rgb(15 23 42 / 0.42) 0%, transparent 42%);
+  filter: saturate(1.08);
+  opacity: 0.84;
+}
+</style>
