@@ -67,7 +67,7 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     },
-    "importProviders": "Import from other agents"
+    "importProviders": "從其他 Agent 匯入"
   },
   "agentPage": {
     "title": "選擇 Agent 開始創作",

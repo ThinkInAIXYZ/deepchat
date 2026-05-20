@@ -67,7 +67,7 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     },
-    "importProviders": "Import from other agents"
+    "importProviders": "وارد کردن از سایر عامل‌ها"
   },
   "agentPage": {
     "title": "یک ایجنت انتخاب کنید و خلق را شروع کنید",

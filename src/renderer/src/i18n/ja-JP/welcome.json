@@ -67,7 +67,7 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     },
-    "importProviders": "Import from other agents"
+    "importProviders": "他のエージェントからインポート"
   },
   "agentPage": {
     "title": "エージェントを選んで作成を始める",

@@ -191,83 +191,92 @@
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
     },
     "providerImport": {
-      "entryTitle": "Import provider settings",
-      "entryDescription": "Scan Alma, Cherry Studio, Hermes, and OpenClaw for provider credentials and model lists.",
-      "entryButton": "Import from agents",
-      "dialogTitle": "Import from other agents",
-      "dialogDescription": "Select detected apps first, then review the providers DeepChat can import.",
-      "toastTitle": "Provider import finished",
-      "toastDescription": "Imported {count} provider(s).",
+      "entryTitle": "Importer providerindstillinger",
+      "entryDescription": "Scan Alma, Cherry Studio, Hermes og OpenClaw for provider-legitimationsoplysninger og modellister.",
+      "entryButton": "Importer fra agenter",
+      "dialogTitle": "Importer fra andre agenter",
+      "dialogDescription": "Vælg først registrerede apps, og gennemgå derefter de providers, DeepChat kan importere.",
+      "toastTitle": "Providerimport fuldført",
+      "toastDescription": "Importerede {count} provider(e).",
       "steps": {
         "scan": "Scan",
         "providers": "Providers",
-        "done": "Done"
+        "done": "Færdig"
       },
-      "scanningTitle": "Scanning installed agents",
-      "scanningDescription": "DeepChat checks known local config files without sending data anywhere.",
-      "scanFailedTitle": "Scan failed",
-      "sourcesTitle": "Detected sources",
-      "sourcesDescription": "Choose one or more agents. Selected agents are processed in the order shown.",
-      "selectedSources": "{selected}/{total} selected",
-      "noSourcesTitle": "No importable provider config found",
-      "noSourcesDescription": "Install one of the supported agents or configure provider credentials there first.",
-      "providersFound": "{count} provider(s)",
-      "sourceProgress": "{current} of {total}",
-      "overwriteNote": "If multiple selected providers map to the same DeepChat provider, the later source overwrites the earlier one.",
-      "noProvidersTitle": "No provider data in this source",
-      "noProvidersDescription": "This agent was selected, but no importable provider entry was found.",
-      "apiKey": "Key {value}",
-      "noModels": "No model list",
-      "modelsImported": "{count} model(s)",
-      "importingTitle": "Importing providers",
-      "importingDescription": "DeepChat is writing selected providers and custom model entries.",
-      "doneTitle": "Import summary",
-      "doneDescription": "Imported {count} provider(s). Review the per-provider result below.",
+      "scanningTitle": "Scanner installerede agenter",
+      "scanningDescription": "DeepChat kontrollerer kendte lokale konfigurationsfiler uden at sende data nogen steder.",
+      "scanFailedTitle": "Scanning mislykkedes",
+      "sourcesTitle": "Registrerede kilder",
+      "sourcesDescription": "Vælg en eller flere agenter. Valgte agenter behandles i den viste rækkefølge.",
+      "selectedSources": "{selected}/{total} valgt",
+      "noSourcesTitle": "Ingen providerkonfiguration fundet til import",
+      "noSourcesDescription": "Installer en af de understøttede agenter, eller konfigurer provider-legitimationsoplysninger der først.",
+      "providersFound": "{count} provider(e)",
+      "sourceProgress": "{current} af {total}",
+      "overwriteNote": "Hvis flere valgte providers matcher den samme DeepChat-provider, overskriver den senere kilde den tidligere.",
+      "noProvidersTitle": "Ingen providerdata i denne kilde",
+      "noProvidersDescription": "Denne agent blev valgt, men der blev ikke fundet en providerpost, der kan importeres.",
+      "apiKey": "Nøgle {value}",
+      "noModels": "Ingen modelliste",
+      "modelsImported": "{count} model(ler)",
+      "importingTitle": "Importerer providers",
+      "importingDescription": "DeepChat skriver valgte providers og brugerdefinerede modelposter.",
+      "doneTitle": "Importoversigt",
+      "doneDescription": "Importerede {count} provider(e). Gennemgå resultatet for hver provider nedenfor.",
       "badges": {
-        "configured": "Configured"
+        "configured": "Konfigureret"
       },
       "sourceStatus": {
-        "found": "Found",
-        "not_found": "Not found",
-        "error": "Error",
-        "unsupported_platform": "macOS only"
+        "found": "Fundet",
+        "not_found": "Ikke fundet",
+        "error": "Fejl",
+        "unsupported_platform": "Kun macOS"
       },
       "targetKind": {
-        "builtin": "Built-in",
-        "custom": "Custom",
-        "unsupported": "Unsupported"
+        "builtin": "Indbygget",
+        "custom": "Brugerdefineret",
+        "unsupported": "Ikke understøttet"
       },
       "warnings": {
-        "already_configured": "Already configured in DeepChat, so it is not selected by default.",
-        "missing_api_key": "Missing API key or required endpoint.",
-        "unsupported_provider": "DeepChat cannot import this provider automatically.",
-        "overwrites_previous_selection": "This selection conflicts with an earlier source."
+        "already_configured": "Allerede konfigureret i DeepChat, så den er ikke valgt som standard.",
+        "missing_api_key": "Mangler API-nøgle eller påkrævet endpoint.",
+        "unsupported_provider": "DeepChat kan ikke importere denne provider automatisk.",
+        "overwrites_previous_selection": "Dette valg er i konflikt med en tidligere kilde."
       },
       "conflicts": {
-        "overridesPrevious": "This selection will overwrite an earlier selected provider.",
-        "overwrittenByLater": "A later selected source will overwrite this provider."
+        "overridesPrevious": "Dette valg overskriver en tidligere valgt provider.",
+        "overwrittenByLater": "En senere valgt kilde overskriver denne provider."
       },
       "summary": {
-        "imported": "Imported",
-        "created": "Created",
-        "updated": "Updated",
-        "overwritten": "Overwritten",
-        "models": "Models",
-        "skipped": "Skipped"
+        "imported": "Importeret",
+        "created": "Oprettet",
+        "updated": "Opdateret",
+        "overwritten": "Overskrevet",
+        "models": "Modeller",
+        "skipped": "Sprunget over"
       },
       "resultStatus": {
-        "created": "Created",
-        "updated": "Updated",
-        "skipped": "Skipped",
-        "overwritten": "Overwritten"
+        "created": "Oprettet",
+        "updated": "Opdateret",
+        "skipped": "Sprunget over",
+        "overwritten": "Overskrevet"
       },
       "actions": {
-        "rescan": "Rescan",
-        "selectAll": "Select all",
-        "clearSelected": "Clear",
-        "import": "Import selected"
+        "rescan": "Scan igen",
+        "selectAll": "Vælg alle",
+        "clearSelected": "Ryd",
+        "import": "Importer valgte"
       },
-      "applyFailed": "Import failed: {message}"
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "Import mislykkedes: {message}"
     }
   },
   "dashboard": {

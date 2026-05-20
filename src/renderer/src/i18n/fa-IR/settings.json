@@ -258,83 +258,92 @@
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
     },
     "providerImport": {
-      "entryTitle": "Import provider settings",
-      "entryDescription": "Scan Alma, Cherry Studio, Hermes, and OpenClaw for provider credentials and model lists.",
-      "entryButton": "Import from agents",
-      "dialogTitle": "Import from other agents",
-      "dialogDescription": "Select detected apps first, then review the providers DeepChat can import.",
-      "toastTitle": "Provider import finished",
-      "toastDescription": "Imported {count} provider(s).",
+      "entryTitle": "وارد کردن تنظیمات ارائه‌دهنده",
+      "entryDescription": "Alma، Cherry Studio، Hermes و OpenClaw را برای اطلاعات ارائه‌دهنده و فهرست مدل‌ها اسکن می‌کند.",
+      "entryButton": "وارد کردن از عامل‌ها",
+      "dialogTitle": "وارد کردن از سایر عامل‌ها",
+      "dialogDescription": "ابتدا برنامه‌های شناسایی‌شده را انتخاب کنید، سپس ارائه‌دهنده‌هایی را که DeepChat می‌تواند وارد کند بررسی کنید.",
+      "toastTitle": "وارد کردن ارائه‌دهنده پایان یافت",
+      "toastDescription": "{count} ارائه‌دهنده وارد شد.",
       "steps": {
-        "scan": "Scan",
-        "providers": "Providers",
-        "done": "Done"
+        "scan": "اسکن",
+        "providers": "ارائه‌دهنده‌ها",
+        "done": "انجام شد"
       },
-      "scanningTitle": "Scanning installed agents",
-      "scanningDescription": "DeepChat checks known local config files without sending data anywhere.",
-      "scanFailedTitle": "Scan failed",
-      "sourcesTitle": "Detected sources",
-      "sourcesDescription": "Choose one or more agents. Selected agents are processed in the order shown.",
-      "selectedSources": "{selected}/{total} selected",
-      "noSourcesTitle": "No importable provider config found",
-      "noSourcesDescription": "Install one of the supported agents or configure provider credentials there first.",
-      "providersFound": "{count} provider(s)",
-      "sourceProgress": "{current} of {total}",
-      "overwriteNote": "If multiple selected providers map to the same DeepChat provider, the later source overwrites the earlier one.",
-      "noProvidersTitle": "No provider data in this source",
-      "noProvidersDescription": "This agent was selected, but no importable provider entry was found.",
-      "apiKey": "Key {value}",
-      "noModels": "No model list",
-      "modelsImported": "{count} model(s)",
-      "importingTitle": "Importing providers",
-      "importingDescription": "DeepChat is writing selected providers and custom model entries.",
-      "doneTitle": "Import summary",
-      "doneDescription": "Imported {count} provider(s). Review the per-provider result below.",
+      "scanningTitle": "در حال اسکن عامل‌های نصب‌شده",
+      "scanningDescription": "DeepChat فایل‌های پیکربندی محلی شناخته‌شده را بدون ارسال داده بررسی می‌کند.",
+      "scanFailedTitle": "اسکن ناموفق بود",
+      "sourcesTitle": "منابع شناسایی‌شده",
+      "sourcesDescription": "یک یا چند عامل را انتخاب کنید. عامل‌های انتخاب‌شده به ترتیب نمایش داده‌شده پردازش می‌شوند.",
+      "selectedSources": "{selected}/{total} انتخاب شده",
+      "noSourcesTitle": "پیکربندی قابل وارد کردن یافت نشد",
+      "noSourcesDescription": "ابتدا یکی از عامل‌های پشتیبانی‌شده را نصب کنید یا اطلاعات ارائه‌دهنده را در آن تنظیم کنید.",
+      "providersFound": "{count} ارائه‌دهنده",
+      "sourceProgress": "{current} از {total}",
+      "overwriteNote": "اگر چند ارائه‌دهنده انتخاب‌شده به یک ارائه‌دهنده DeepChat نگاشت شوند، منبع بعدی قبلی را بازنویسی می‌کند.",
+      "noProvidersTitle": "در این منبع داده ارائه‌دهنده وجود ندارد",
+      "noProvidersDescription": "این عامل انتخاب شده است، اما ورودی قابل وارد کردن پیدا نشد.",
+      "apiKey": "کلید {value}",
+      "noModels": "فهرست مدل وجود ندارد",
+      "modelsImported": "{count} مدل",
+      "importingTitle": "در حال وارد کردن ارائه‌دهنده‌ها",
+      "importingDescription": "DeepChat ارائه‌دهنده‌های انتخاب‌شده و مدل‌های سفارشی را می‌نویسد.",
+      "doneTitle": "خلاصه وارد کردن",
+      "doneDescription": "{count} ارائه‌دهنده وارد شد. نتیجه هر ارائه‌دهنده را در پایین بررسی کنید.",
       "badges": {
-        "configured": "Configured"
+        "configured": "پیکربندی شده"
       },
       "sourceStatus": {
-        "found": "Found",
-        "not_found": "Not found",
-        "error": "Error",
-        "unsupported_platform": "macOS only"
+        "found": "یافت شد",
+        "not_found": "یافت نشد",
+        "error": "خطا",
+        "unsupported_platform": "فقط macOS"
       },
       "targetKind": {
-        "builtin": "Built-in",
-        "custom": "Custom",
-        "unsupported": "Unsupported"
+        "builtin": "داخلی",
+        "custom": "سفارشی",
+        "unsupported": "پشتیبانی‌نشده"
       },
       "warnings": {
-        "already_configured": "Already configured in DeepChat, so it is not selected by default.",
-        "missing_api_key": "Missing API key or required endpoint.",
-        "unsupported_provider": "DeepChat cannot import this provider automatically.",
-        "overwrites_previous_selection": "This selection conflicts with an earlier source."
+        "already_configured": "قبلاً در DeepChat پیکربندی شده است، بنابراین به‌صورت پیش‌فرض انتخاب نمی‌شود.",
+        "missing_api_key": "کلید API یا endpoint لازم وجود ندارد.",
+        "unsupported_provider": "DeepChat نمی‌تواند این ارائه‌دهنده را خودکار وارد کند.",
+        "overwrites_previous_selection": "این انتخاب با یک منبع قبلی تداخل دارد."
       },
       "conflicts": {
-        "overridesPrevious": "This selection will overwrite an earlier selected provider.",
-        "overwrittenByLater": "A later selected source will overwrite this provider."
+        "overridesPrevious": "این انتخاب ارائه‌دهنده انتخاب‌شده قبلی را بازنویسی می‌کند.",
+        "overwrittenByLater": "یک منبع انتخاب‌شده بعدی این ارائه‌دهنده را بازنویسی می‌کند."
       },
       "summary": {
-        "imported": "Imported",
-        "created": "Created",
-        "updated": "Updated",
-        "overwritten": "Overwritten",
-        "models": "Models",
-        "skipped": "Skipped"
+        "imported": "وارد شده",
+        "created": "ایجاد شده",
+        "updated": "به‌روزرسانی شده",
+        "overwritten": "بازنویسی شده",
+        "models": "مدل‌ها",
+        "skipped": "رد شده"
       },
       "resultStatus": {
-        "created": "Created",
-        "updated": "Updated",
-        "skipped": "Skipped",
-        "overwritten": "Overwritten"
+        "created": "ایجاد شد",
+        "updated": "به‌روزرسانی شد",
+        "skipped": "رد شد",
+        "overwritten": "بازنویسی شد"
       },
       "actions": {
-        "rescan": "Rescan",
-        "selectAll": "Select all",
-        "clearSelected": "Clear",
-        "import": "Import selected"
+        "rescan": "اسکن دوباره",
+        "selectAll": "انتخاب همه",
+        "clearSelected": "پاک کردن",
+        "import": "وارد کردن انتخاب‌ها"
       },
-      "applyFailed": "Import failed: {message}"
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "وارد کردن ناموفق بود: {message}"
     }
   },
   "dashboard": {

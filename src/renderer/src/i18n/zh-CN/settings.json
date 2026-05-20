@@ -397,6 +397,15 @@
         "clearSelected": "清空",
         "import": "导入选中项"
       },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
       "applyFailed": "导入失败：{message}"
     }
   },

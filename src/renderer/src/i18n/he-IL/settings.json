@@ -258,83 +258,92 @@
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
     },
     "providerImport": {
-      "entryTitle": "Import provider settings",
-      "entryDescription": "Scan Alma, Cherry Studio, Hermes, and OpenClaw for provider credentials and model lists.",
-      "entryButton": "Import from agents",
-      "dialogTitle": "Import from other agents",
-      "dialogDescription": "Select detected apps first, then review the providers DeepChat can import.",
-      "toastTitle": "Provider import finished",
-      "toastDescription": "Imported {count} provider(s).",
+      "entryTitle": "ייבוא הגדרות ספק",
+      "entryDescription": "סריקת Alma, Cherry Studio, Hermes ו-OpenClaw לאיתור פרטי ספק ורשימות מודלים.",
+      "entryButton": "ייבוא מסוכנים",
+      "dialogTitle": "ייבוא מסוכנים אחרים",
+      "dialogDescription": "בחר תחילה את האפליקציות שזוהו, ואז בדוק את הספקים ש-DeepChat יכול לייבא.",
+      "toastTitle": "ייבוא הספקים הסתיים",
+      "toastDescription": "יובאו {count} ספקים.",
       "steps": {
-        "scan": "Scan",
-        "providers": "Providers",
-        "done": "Done"
+        "scan": "סריקה",
+        "providers": "ספקים",
+        "done": "סיום"
       },
-      "scanningTitle": "Scanning installed agents",
-      "scanningDescription": "DeepChat checks known local config files without sending data anywhere.",
-      "scanFailedTitle": "Scan failed",
-      "sourcesTitle": "Detected sources",
-      "sourcesDescription": "Choose one or more agents. Selected agents are processed in the order shown.",
-      "selectedSources": "{selected}/{total} selected",
-      "noSourcesTitle": "No importable provider config found",
-      "noSourcesDescription": "Install one of the supported agents or configure provider credentials there first.",
-      "providersFound": "{count} provider(s)",
-      "sourceProgress": "{current} of {total}",
-      "overwriteNote": "If multiple selected providers map to the same DeepChat provider, the later source overwrites the earlier one.",
-      "noProvidersTitle": "No provider data in this source",
-      "noProvidersDescription": "This agent was selected, but no importable provider entry was found.",
-      "apiKey": "Key {value}",
-      "noModels": "No model list",
-      "modelsImported": "{count} model(s)",
-      "importingTitle": "Importing providers",
-      "importingDescription": "DeepChat is writing selected providers and custom model entries.",
-      "doneTitle": "Import summary",
-      "doneDescription": "Imported {count} provider(s). Review the per-provider result below.",
+      "scanningTitle": "סורק סוכנים מותקנים",
+      "scanningDescription": "DeepChat בודק קובצי תצורה מקומיים מוכרים בלי לשלוח נתונים.",
+      "scanFailedTitle": "הסריקה נכשלה",
+      "sourcesTitle": "מקורות שזוהו",
+      "sourcesDescription": "בחר סוכן אחד או יותר. הסוכנים שנבחרו יעובדו בסדר המוצג.",
+      "selectedSources": "{selected}/{total} נבחרו",
+      "noSourcesTitle": "לא נמצאה תצורת ספק שניתן לייבא",
+      "noSourcesDescription": "התקן אחד מהסוכנים הנתמכים או הגדר בו תחילה פרטי ספק.",
+      "providersFound": "{count} ספקים",
+      "sourceProgress": "{current} מתוך {total}",
+      "overwriteNote": "אם כמה ספקים שנבחרו ממופים לאותו ספק DeepChat, המקור המאוחר יחליף את המוקדם.",
+      "noProvidersTitle": "אין נתוני ספק במקור הזה",
+      "noProvidersDescription": "הסוכן נבחר, אך לא נמצאה רשומת ספק שניתן לייבא.",
+      "apiKey": "מפתח {value}",
+      "noModels": "אין רשימת מודלים",
+      "modelsImported": "{count} מודלים",
+      "importingTitle": "מייבא ספקים",
+      "importingDescription": "DeepChat כותב את הספקים שנבחרו ואת רשומות המודלים המותאמים.",
+      "doneTitle": "סיכום הייבוא",
+      "doneDescription": "יובאו {count} ספקים. בדוק למטה את התוצאה לכל ספק.",
       "badges": {
-        "configured": "Configured"
+        "configured": "מוגדר"
       },
       "sourceStatus": {
-        "found": "Found",
-        "not_found": "Not found",
-        "error": "Error",
-        "unsupported_platform": "macOS only"
+        "found": "נמצא",
+        "not_found": "לא נמצא",
+        "error": "שגיאה",
+        "unsupported_platform": "macOS בלבד"
       },
       "targetKind": {
-        "builtin": "Built-in",
-        "custom": "Custom",
-        "unsupported": "Unsupported"
+        "builtin": "מובנה",
+        "custom": "מותאם אישית",
+        "unsupported": "לא נתמך"
       },
       "warnings": {
-        "already_configured": "Already configured in DeepChat, so it is not selected by default.",
-        "missing_api_key": "Missing API key or required endpoint.",
-        "unsupported_provider": "DeepChat cannot import this provider automatically.",
-        "overwrites_previous_selection": "This selection conflicts with an earlier source."
+        "already_configured": "כבר מוגדר ב-DeepChat, לכן אינו נבחר כברירת מחדל.",
+        "missing_api_key": "חסר מפתח API או endpoint נדרש.",
+        "unsupported_provider": "DeepChat לא יכול לייבא את הספק הזה אוטומטית.",
+        "overwrites_previous_selection": "הבחירה הזו מתנגשת עם מקור קודם."
       },
       "conflicts": {
-        "overridesPrevious": "This selection will overwrite an earlier selected provider.",
-        "overwrittenByLater": "A later selected source will overwrite this provider."
+        "overridesPrevious": "הבחירה הזו תחליף ספק שנבחר קודם.",
+        "overwrittenByLater": "מקור מאוחר יותר שנבחר יחליף את הספק הזה."
       },
       "summary": {
-        "imported": "Imported",
-        "created": "Created",
-        "updated": "Updated",
-        "overwritten": "Overwritten",
-        "models": "Models",
-        "skipped": "Skipped"
+        "imported": "יובאו",
+        "created": "נוצרו",
+        "updated": "עודכנו",
+        "overwritten": "הוחלפו",
+        "models": "מודלים",
+        "skipped": "דולגו"
       },
       "resultStatus": {
-        "created": "Created",
-        "updated": "Updated",
-        "skipped": "Skipped",
-        "overwritten": "Overwritten"
+        "created": "נוצר",
+        "updated": "עודכן",
+        "skipped": "דולג",
+        "overwritten": "הוחלף"
       },
       "actions": {
-        "rescan": "Rescan",
-        "selectAll": "Select all",
-        "clearSelected": "Clear",
-        "import": "Import selected"
+        "rescan": "סרוק שוב",
+        "selectAll": "בחר הכול",
+        "clearSelected": "נקה",
+        "import": "ייבא נבחרים"
       },
-      "applyFailed": "Import failed: {message}"
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "הייבוא נכשל: {message}"
     }
   },
   "dashboard": {

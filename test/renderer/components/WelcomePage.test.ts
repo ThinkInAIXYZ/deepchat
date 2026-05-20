@@ -177,10 +177,7 @@ describe('WelcomePage', () => {
     await vi.runAllTimersAsync()
     await flushPromises()
 
-    expect(onboardingSetStepStatus).toHaveBeenCalledWith({
-      stepId: 'select-provider',
-      status: 'completed'
-    })
+    expect(onboardingSetStepStatus).not.toHaveBeenCalled()
     expect(onboardingStart).toHaveBeenCalledWith({ stepId: 'provider-api-key' })
     expect(openSettings).toHaveBeenCalledWith({
       routeName: 'settings-database',
@@ -193,7 +190,6 @@ describe('WelcomePage', () => {
       trigger: 'window-focus'
     })
 
-    onboardingSetStepStatus.mockClear()
     onboardingStart.mockClear()
     openSettings.mockClear()
     window.sessionStorage.removeItem(GUIDED_ONBOARDING_RESUME_STORAGE_KEY)

@@ -258,83 +258,92 @@
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
     },
     "providerImport": {
-      "entryTitle": "Import provider settings",
-      "entryDescription": "Scan Alma, Cherry Studio, Hermes, and OpenClaw for provider credentials and model lists.",
-      "entryButton": "Import from agents",
-      "dialogTitle": "Import from other agents",
-      "dialogDescription": "Select detected apps first, then review the providers DeepChat can import.",
-      "toastTitle": "Provider import finished",
-      "toastDescription": "Imported {count} provider(s).",
+      "entryTitle": "제공자 설정 가져오기",
+      "entryDescription": "Alma, Cherry Studio, Hermes, OpenClaw에서 제공자 인증 정보와 모델 목록을 스캔합니다.",
+      "entryButton": "에이전트에서 가져오기",
+      "dialogTitle": "다른 에이전트에서 가져오기",
+      "dialogDescription": "먼저 감지된 앱을 선택한 다음 DeepChat이 가져올 수 있는 제공자를 검토하세요.",
+      "toastTitle": "제공자 가져오기 완료",
+      "toastDescription": "{count}개 제공자를 가져왔습니다.",
       "steps": {
-        "scan": "Scan",
-        "providers": "Providers",
-        "done": "Done"
+        "scan": "스캔",
+        "providers": "제공자",
+        "done": "완료"
       },
-      "scanningTitle": "Scanning installed agents",
-      "scanningDescription": "DeepChat checks known local config files without sending data anywhere.",
-      "scanFailedTitle": "Scan failed",
-      "sourcesTitle": "Detected sources",
-      "sourcesDescription": "Choose one or more agents. Selected agents are processed in the order shown.",
-      "selectedSources": "{selected}/{total} selected",
-      "noSourcesTitle": "No importable provider config found",
-      "noSourcesDescription": "Install one of the supported agents or configure provider credentials there first.",
-      "providersFound": "{count} provider(s)",
-      "sourceProgress": "{current} of {total}",
-      "overwriteNote": "If multiple selected providers map to the same DeepChat provider, the later source overwrites the earlier one.",
-      "noProvidersTitle": "No provider data in this source",
-      "noProvidersDescription": "This agent was selected, but no importable provider entry was found.",
-      "apiKey": "Key {value}",
-      "noModels": "No model list",
-      "modelsImported": "{count} model(s)",
-      "importingTitle": "Importing providers",
-      "importingDescription": "DeepChat is writing selected providers and custom model entries.",
-      "doneTitle": "Import summary",
-      "doneDescription": "Imported {count} provider(s). Review the per-provider result below.",
+      "scanningTitle": "설치된 에이전트 스캔 중",
+      "scanningDescription": "DeepChat은 데이터를 전송하지 않고 알려진 로컬 설정 파일만 확인합니다.",
+      "scanFailedTitle": "스캔 실패",
+      "sourcesTitle": "감지된 소스",
+      "sourcesDescription": "하나 이상의 에이전트를 선택하세요. 선택한 에이전트는 표시된 순서대로 처리됩니다.",
+      "selectedSources": "{selected}/{total} 선택됨",
+      "noSourcesTitle": "가져올 수 있는 제공자 설정을 찾지 못했습니다",
+      "noSourcesDescription": "지원되는 에이전트를 설치하거나 먼저 해당 에이전트에서 제공자 인증 정보를 설정하세요.",
+      "providersFound": "제공자 {count}개",
+      "sourceProgress": "{current}/{total}",
+      "overwriteNote": "여러 선택 항목이 같은 DeepChat 제공자에 매핑되면 나중 소스가 이전 소스를 덮어씁니다.",
+      "noProvidersTitle": "이 소스에 제공자 데이터가 없습니다",
+      "noProvidersDescription": "이 에이전트를 선택했지만 가져올 수 있는 제공자 항목을 찾지 못했습니다.",
+      "apiKey": "키 {value}",
+      "noModels": "모델 목록 없음",
+      "modelsImported": "모델 {count}개",
+      "importingTitle": "제공자 가져오는 중",
+      "importingDescription": "DeepChat이 선택한 제공자와 사용자 지정 모델 항목을 쓰고 있습니다.",
+      "doneTitle": "가져오기 요약",
+      "doneDescription": "{count}개 제공자를 가져왔습니다. 아래에서 제공자별 결과를 확인하세요.",
       "badges": {
-        "configured": "Configured"
+        "configured": "설정됨"
       },
       "sourceStatus": {
-        "found": "Found",
-        "not_found": "Not found",
-        "error": "Error",
-        "unsupported_platform": "macOS only"
+        "found": "찾음",
+        "not_found": "찾을 수 없음",
+        "error": "오류",
+        "unsupported_platform": "macOS만 지원"
       },
       "targetKind": {
-        "builtin": "Built-in",
-        "custom": "Custom",
-        "unsupported": "Unsupported"
+        "builtin": "내장",
+        "custom": "사용자 지정",
+        "unsupported": "지원되지 않음"
       },
       "warnings": {
-        "already_configured": "Already configured in DeepChat, so it is not selected by default.",
-        "missing_api_key": "Missing API key or required endpoint.",
-        "unsupported_provider": "DeepChat cannot import this provider automatically.",
-        "overwrites_previous_selection": "This selection conflicts with an earlier source."
+        "already_configured": "DeepChat에 이미 설정되어 있어 기본 선택되지 않습니다.",
+        "missing_api_key": "API 키 또는 필요한 endpoint가 없습니다.",
+        "unsupported_provider": "DeepChat이 이 제공자를 자동으로 가져올 수 없습니다.",
+        "overwrites_previous_selection": "이 선택은 이전 소스와 충돌합니다."
       },
       "conflicts": {
-        "overridesPrevious": "This selection will overwrite an earlier selected provider.",
-        "overwrittenByLater": "A later selected source will overwrite this provider."
+        "overridesPrevious": "이 선택은 이전에 선택한 제공자를 덮어씁니다.",
+        "overwrittenByLater": "나중에 선택한 소스가 이 제공자를 덮어씁니다."
       },
       "summary": {
-        "imported": "Imported",
-        "created": "Created",
-        "updated": "Updated",
-        "overwritten": "Overwritten",
-        "models": "Models",
-        "skipped": "Skipped"
+        "imported": "가져옴",
+        "created": "생성됨",
+        "updated": "업데이트됨",
+        "overwritten": "덮어씀",
+        "models": "모델",
+        "skipped": "건너뜀"
       },
       "resultStatus": {
-        "created": "Created",
-        "updated": "Updated",
-        "skipped": "Skipped",
-        "overwritten": "Overwritten"
+        "created": "생성됨",
+        "updated": "업데이트됨",
+        "skipped": "건너뜀",
+        "overwritten": "덮어씀"
       },
       "actions": {
-        "rescan": "Rescan",
-        "selectAll": "Select all",
-        "clearSelected": "Clear",
-        "import": "Import selected"
+        "rescan": "다시 스캔",
+        "selectAll": "모두 선택",
+        "clearSelected": "지우기",
+        "import": "선택 항목 가져오기"
       },
-      "applyFailed": "Import failed: {message}"
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "가져오기 실패: {message}"
     }
   },
   "dashboard": {

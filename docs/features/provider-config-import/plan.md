@@ -68,7 +68,7 @@ Configured DeepChat providers default to unchecked. A forced checked row updates
 
 - Add `ProviderConfigImportDialog.vue` under settings components.
 - Add a Data Settings row and section target id `provider-import`.
-- Add welcome page import action inside the provider selection grid; it opens settings route `settings-database` with section `provider-import` and advances the onboarding guide past `select-provider`.
+- Add welcome page import action inside the provider selection grid; it opens settings route `settings-database` with section `provider-import` and resumes the onboarding guide on the next provider setup step without completing setup until import succeeds.
 - Keep scan source rows text-first and compact, without per-agent icons.
 - Add an API type selector for custom provider rows; default to the mapping result and submit the override with the provider selection.
 - On successful import during onboarding, complete provider setup steps that are satisfied by imported config.

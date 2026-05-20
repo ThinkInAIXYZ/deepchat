@@ -649,7 +649,7 @@ const onAddProvider = async () => {
   await openSettings('settings-provider', 'select-provider')
 }
 
-const completeSelectProviderStepForImport = async (): Promise<GuidedOnboardingStepId> => {
+const getProviderImportGuideStepId = (): GuidedOnboardingStepId => {
   if (onboardingState.value?.status !== 'active') {
     return 'select-provider'
   }
@@ -658,24 +658,13 @@ const completeSelectProviderStepForImport = async (): Promise<GuidedOnboardingSt
     return currentGuideStepId.value
   }
 
-  const fallbackNextStepId = getNextGuidedOnboardingStepId('select-provider') ?? 'provider-api-key'
-
-  try {
-    onboardingState.value = await onboardingClient.setStepStatus({
-      stepId: 'select-provider',
-      status: 'completed'
-    })
-    return onboardingState.value.currentStepId ?? fallbackNextStepId
-  } catch (error) {
-    console.error('Failed to advance provider import onboarding step:', error)
-    return fallbackNextStepId
-  }
+  return getNextGuidedOnboardingStepId('select-provider') ?? 'provider-api-key'
 }
 
 const onImportProviders = async () => {
-  const nextStepId = await completeSelectProviderStepForImport()
-  persistGuideResumeIntent('window-focus', nextStepId)
-  await openSettings('settings-database', nextStepId, 'provider-import')
+  const stepId = getProviderImportGuideStepId()
+  persistGuideResumeIntent('window-focus', stepId)
+  await openSettings('settings-database', stepId, 'provider-import')
 }
 
 const onSetupAcp = async () => {

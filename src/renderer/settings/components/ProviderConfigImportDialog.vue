@@ -479,10 +479,12 @@ const selectedSources = ref<Set<ProviderImportSourceId>>(new Set())
 const selectedProvidersBySource = ref<Record<string, string[]>>({})
 const selectedProviderApiTypes = ref<Record<string, ProviderImportCustomApiType>>({})
 
-const customApiTypeOptions = PROVIDER_IMPORT_CUSTOM_API_TYPES.map((value) => ({
-  value,
-  label: apiTypeLabel(value)
-}))
+const customApiTypeOptions = computed(() =>
+  PROVIDER_IMPORT_CUSTOM_API_TYPES.map((value) => ({
+    value,
+    label: apiTypeLabel(value)
+  }))
+)
 
 const orderedSources = computed<ProviderImportSourceScan[]>(() => {
   if (!scanResult.value) return []
@@ -803,19 +805,19 @@ const toCustomApiType = (value: string): ProviderImportCustomApiType =>
 function apiTypeLabel(value: string): string {
   switch (value) {
     case 'openai-completions':
-      return 'OpenAI Chat Completions'
+      return t('settings.data.providerImport.apiTypes.openaiCompletions')
     case 'openai':
-      return 'OpenAI'
+      return t('settings.data.providerImport.apiTypes.openai')
     case 'openai-responses':
-      return 'OpenAI Responses'
+      return t('settings.data.providerImport.apiTypes.openaiResponses')
     case 'anthropic':
-      return 'Anthropic'
+      return t('settings.data.providerImport.apiTypes.anthropic')
     case 'gemini':
-      return 'Gemini'
+      return t('settings.data.providerImport.apiTypes.gemini')
     case 'ollama':
-      return 'Ollama'
+      return t('settings.data.providerImport.apiTypes.ollama')
     case 'mistral':
-      return 'Mistral AI'
+      return t('settings.data.providerImport.apiTypes.mistral')
     default:
       return value
   }

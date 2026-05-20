@@ -67,7 +67,7 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     },
-    "importProviders": "Import from other agents"
+    "importProviders": "Importer fra andre agenter"
   },
   "agentPage": {
     "title": "Vælg en agent for at begynde at skabe",

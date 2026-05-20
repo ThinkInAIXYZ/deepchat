@@ -722,8 +722,8 @@ const completeProviderImportOnboardingSteps = async (result: ProviderImportApply
       return
     }
 
-    const importedResults = result.results.filter(
-      (item) => item.status === 'created' || item.status === 'updated'
+    const importedResults = result.results.filter((item) =>
+      ['created', 'updated', 'overwritten'].includes(item.status)
     )
     await onboardingClient.setStepStatus({ stepId: 'select-provider', status: 'completed' })
     await onboardingClient.setStepStatus({ stepId: 'provider-api-key', status: 'completed' })

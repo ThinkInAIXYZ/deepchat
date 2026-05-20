@@ -277,24 +277,11 @@ export class ProviderImportService {
           imported: 0,
           created: 0,
           updated: 0,
-          skipped: 1,
+          skipped: 0,
           overwritten: 0,
           models: 0
         },
-        results: [
-          {
-            id: nanoid(),
-            sourceId: 'alma',
-            sourceName: 'Alma',
-            sourceProviderId: '',
-            name: '',
-            targetKind: 'unsupported',
-            targetProviderId: '',
-            targetProviderName: '',
-            status: 'skipped',
-            modelCount: 0
-          }
-        ]
+        results: []
       }
     }
 
@@ -459,6 +446,7 @@ export class ProviderImportService {
         providers
       }
     } catch (error) {
+      console.warn('[ProviderImport] Failed reading source', definition.id, error)
       return {
         source: {
           id: definition.id,
@@ -468,7 +456,7 @@ export class ProviderImportService {
           providerCount: 0,
           selectable: false,
           defaultSelected: false,
-          message: error instanceof Error ? error.message : String(error)
+          message: 'Failed to read provider config'
         },
         providers: []
       }

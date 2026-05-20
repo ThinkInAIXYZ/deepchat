@@ -258,83 +258,92 @@
       "description": "Reset chat, knowledge, or all data. This cannot be undone."
     },
     "providerImport": {
-      "entryTitle": "Import provider settings",
-      "entryDescription": "Scan Alma, Cherry Studio, Hermes, and OpenClaw for provider credentials and model lists.",
-      "entryButton": "Import from agents",
-      "dialogTitle": "Import from other agents",
-      "dialogDescription": "Select detected apps first, then review the providers DeepChat can import.",
-      "toastTitle": "Provider import finished",
-      "toastDescription": "Imported {count} provider(s).",
+      "entryTitle": "Importar configurações de provider",
+      "entryDescription": "Escaneia Alma, Cherry Studio, Hermes e OpenClaw em busca de credenciais de provider e listas de modelos.",
+      "entryButton": "Importar de agentes",
+      "dialogTitle": "Importar de outros agentes",
+      "dialogDescription": "Selecione primeiro os apps detectados e depois revise os providers que o DeepChat pode importar.",
+      "toastTitle": "Importação de providers concluída",
+      "toastDescription": "{count} provider(s) importado(s).",
       "steps": {
-        "scan": "Scan",
+        "scan": "Escanear",
         "providers": "Providers",
-        "done": "Done"
+        "done": "Concluído"
       },
-      "scanningTitle": "Scanning installed agents",
-      "scanningDescription": "DeepChat checks known local config files without sending data anywhere.",
-      "scanFailedTitle": "Scan failed",
-      "sourcesTitle": "Detected sources",
-      "sourcesDescription": "Choose one or more agents. Selected agents are processed in the order shown.",
-      "selectedSources": "{selected}/{total} selected",
-      "noSourcesTitle": "No importable provider config found",
-      "noSourcesDescription": "Install one of the supported agents or configure provider credentials there first.",
+      "scanningTitle": "Escaneando agentes instalados",
+      "scanningDescription": "O DeepChat verifica arquivos locais conhecidos sem enviar dados para lugar algum.",
+      "scanFailedTitle": "Falha ao escanear",
+      "sourcesTitle": "Fontes detectadas",
+      "sourcesDescription": "Escolha um ou mais agentes. Os agentes selecionados são processados na ordem exibida.",
+      "selectedSources": "{selected}/{total} selecionado(s)",
+      "noSourcesTitle": "Nenhuma configuração de provider importável encontrada",
+      "noSourcesDescription": "Instale um dos agentes compatíveis ou configure primeiro as credenciais do provider nele.",
       "providersFound": "{count} provider(s)",
-      "sourceProgress": "{current} of {total}",
-      "overwriteNote": "If multiple selected providers map to the same DeepChat provider, the later source overwrites the earlier one.",
-      "noProvidersTitle": "No provider data in this source",
-      "noProvidersDescription": "This agent was selected, but no importable provider entry was found.",
-      "apiKey": "Key {value}",
-      "noModels": "No model list",
-      "modelsImported": "{count} model(s)",
-      "importingTitle": "Importing providers",
-      "importingDescription": "DeepChat is writing selected providers and custom model entries.",
-      "doneTitle": "Import summary",
-      "doneDescription": "Imported {count} provider(s). Review the per-provider result below.",
+      "sourceProgress": "{current} de {total}",
+      "overwriteNote": "Se vários providers selecionados forem mapeados para o mesmo provider do DeepChat, a fonte posterior sobrescreve a anterior.",
+      "noProvidersTitle": "Nenhum dado de provider nesta fonte",
+      "noProvidersDescription": "Este agente foi selecionado, mas nenhuma entrada de provider importável foi encontrada.",
+      "apiKey": "Chave {value}",
+      "noModels": "Sem lista de modelos",
+      "modelsImported": "{count} modelo(s)",
+      "importingTitle": "Importando providers",
+      "importingDescription": "O DeepChat está gravando os providers selecionados e modelos personalizados.",
+      "doneTitle": "Resumo da importação",
+      "doneDescription": "{count} provider(s) importado(s). Revise abaixo o resultado por provider.",
       "badges": {
-        "configured": "Configured"
+        "configured": "Configurado"
       },
       "sourceStatus": {
-        "found": "Found",
-        "not_found": "Not found",
-        "error": "Error",
-        "unsupported_platform": "macOS only"
+        "found": "Encontrado",
+        "not_found": "Não encontrado",
+        "error": "Erro",
+        "unsupported_platform": "Somente macOS"
       },
       "targetKind": {
-        "builtin": "Built-in",
-        "custom": "Custom",
-        "unsupported": "Unsupported"
+        "builtin": "Integrado",
+        "custom": "Personalizado",
+        "unsupported": "Não compatível"
       },
       "warnings": {
-        "already_configured": "Already configured in DeepChat, so it is not selected by default.",
-        "missing_api_key": "Missing API key or required endpoint.",
-        "unsupported_provider": "DeepChat cannot import this provider automatically.",
-        "overwrites_previous_selection": "This selection conflicts with an earlier source."
+        "already_configured": "Já configurado no DeepChat, portanto não é selecionado por padrão.",
+        "missing_api_key": "Chave de API ou endpoint necessário ausente.",
+        "unsupported_provider": "O DeepChat não consegue importar este provider automaticamente.",
+        "overwrites_previous_selection": "Esta seleção conflita com uma fonte anterior."
       },
       "conflicts": {
-        "overridesPrevious": "This selection will overwrite an earlier selected provider.",
-        "overwrittenByLater": "A later selected source will overwrite this provider."
+        "overridesPrevious": "Esta seleção sobrescreverá um provider selecionado anteriormente.",
+        "overwrittenByLater": "Uma fonte selecionada posteriormente sobrescreverá este provider."
       },
       "summary": {
-        "imported": "Imported",
-        "created": "Created",
-        "updated": "Updated",
-        "overwritten": "Overwritten",
-        "models": "Models",
-        "skipped": "Skipped"
+        "imported": "Importados",
+        "created": "Criados",
+        "updated": "Atualizados",
+        "overwritten": "Sobrescritos",
+        "models": "Modelos",
+        "skipped": "Ignorados"
       },
       "resultStatus": {
-        "created": "Created",
-        "updated": "Updated",
-        "skipped": "Skipped",
-        "overwritten": "Overwritten"
+        "created": "Criado",
+        "updated": "Atualizado",
+        "skipped": "Ignorado",
+        "overwritten": "Sobrescrito"
       },
       "actions": {
-        "rescan": "Rescan",
-        "selectAll": "Select all",
-        "clearSelected": "Clear",
-        "import": "Import selected"
+        "rescan": "Escanear novamente",
+        "selectAll": "Selecionar tudo",
+        "clearSelected": "Limpar",
+        "import": "Importar selecionados"
       },
-      "applyFailed": "Import failed: {message}"
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "Falha na importação: {message}"
     }
   },
   "dashboard": {

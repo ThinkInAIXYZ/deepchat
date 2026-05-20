@@ -397,6 +397,15 @@
         "clearSelected": "Clear",
         "import": "Import selected"
       },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
       "applyFailed": "Import failed: {message}"
     }
   },

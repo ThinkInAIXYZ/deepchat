@@ -65,6 +65,56 @@ describe('ProviderImportService', () => {
     }
   })
 
+  it('returns an empty result for expired import sessions', () => {
+    homeDir = createHome()
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = service.apply({
+      sessionId: 'expired-session',
+      selections: []
+    })
+
+    expect(result).toEqual({
+      summary: {
+        imported: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        overwritten: 0,
+        models: 0
+      },
+      results: []
+    })
+  })
+
+  it('does not expose source read errors in scan results', async () => {
+    homeDir = createHome()
+    writeFile(path.join(homeDir, '.hermes/config.yaml'), 'llm:\n  providers: [')
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = await service.scan()
+    const hermes = result.sources.find((source) => source.id === 'hermes')
+
+    expect(hermes).toMatchObject({
+      status: 'error',
+      message: 'Failed to read provider config'
+    })
+    expect(hermes?.message).not.toContain('Flow sequence')
+    expect(warnSpy).toHaveBeenCalled()
+
+    warnSpy.mockRestore()
+  })
+
   it('scans Hermes and OpenClaw configs and maps builtin and custom providers', async () => {
     homeDir = createHome()
     writeFile(

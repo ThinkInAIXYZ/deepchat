@@ -67,7 +67,7 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     },
-    "importProviders": "Import from other agents"
+    "importProviders": "ייבא מסוכנים אחרים"
   },
   "agentPage": {
     "title": "בחרו סוכן כדי להתחיל ליצור",
