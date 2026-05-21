@@ -64,7 +64,6 @@ jobs:
         run: pnpm run e2e:smoke:ci
 
       - name: Run packaged app process smoke
-        if: always()
         shell: pwsh
         run: |
           $diagRoot = Join-Path $env:GITHUB_WORKSPACE 'build/windows-arm64-e2e-diagnostics'

@@ -11,5 +11,7 @@
 - [x] Enable Windows ARM64 in the manual build workflow.
 - [x] Limit Windows ARM64 E2E artifacts to diagnostics.
 - [x] Upload app logs, event logs, and native module inventory for Windows ARM64 failures.
+- [x] Attach main-process logs directly to E2E test results.
+- [x] Upgrade `sharp` to a version with Windows ARM64 optional dependency support.
 - [x] Add targeted unit coverage for runtime fallback paths.
 - [ ] Enable Windows ARM64 in the release workflow after the manual workflow passes on GitHub.
