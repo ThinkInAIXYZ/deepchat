@@ -113,14 +113,20 @@ jobs:
           fi
 
   build-windows:
+    name: build-windows(${{ matrix.arch }})
     needs: [resolve-tag, validate-main-ancestor]
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        arch: [x64]
         include:
           - arch: x64
             platform: win-x64
+            runner: windows-2025-vs2026
+            unpacked: win-unpacked
+          - arch: arm64
+            platform: win-arm64
+            runner: windows-11-arm
+            unpacked: win-arm64-unpacked
     steps:
       - uses: actions/checkout@v6
         with:
@@ -177,7 +183,7 @@ jobs:
       - name: Verify bundled plugins
         shell: bash
         run: |
-          pnpm run plugin:verify -- --name feishu --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/win-unpacked/resources/app.asar.unpacked/plugins
+          pnpm run plugin:verify -- --name feishu --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
@@ -411,6 +417,44 @@ jobs:
             cp artifacts/deepchat-win-x64/*.yml release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-win-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
+
+          # Process Windows arm64 artifacts
+          if [ -d "artifacts/deepchat-win-arm64" ]; then
+            cp artifacts/deepchat-win-arm64/*.exe release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-arm64/*.msi release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-arm64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-arm64/*.blockmap release_assets/ 2>/dev/null || true
+          fi
+
+          merge_windows_yml() {
+            local name="$1"
+            local x64="artifacts/deepchat-win-x64/$name"
+            local arm64="artifacts/deepchat-win-arm64/$name"
+            if [ -f "$x64" ] && [ -f "$arm64" ]; then
+              ruby -ryaml -e '
+                x64 = YAML.load_file(ARGV[0]) || {}
+                arm = YAML.load_file(ARGV[1]) || {}
+                merged = x64.dup
+                merged["version"] ||= arm["version"]
+                merged["releaseDate"] ||= arm["releaseDate"]
+                merged["releaseNotes"] ||= arm["releaseNotes"]
+                merged["path"] ||= arm["path"]
+                merged["sha512"] ||= arm["sha512"]
+                files = []
+                files.concat(x64["files"]) if x64["files"].is_a?(Array)
+                files.concat(arm["files"]) if arm["files"].is_a?(Array)
+                merged["files"] = files.uniq { |f| f["url"] }
+                File.write(ARGV[2], merged.to_yaml)
+              ' "$x64" "$arm64" "release_assets/$name"
+            elif [ -f "$x64" ]; then
+              cp "$x64" "release_assets/$name"
+            elif [ -f "$arm64" ]; then
+              cp "$arm64" "release_assets/$name"
+            fi
+          }
+
+          merge_windows_yml latest.yml
+          merge_windows_yml beta.yml
 
           # Process Linux x64 artifacts
           if [ -d "artifacts/deepchat-linux-x64" ]; then

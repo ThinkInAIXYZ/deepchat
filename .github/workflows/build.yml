@@ -21,6 +21,7 @@ env:
 
 jobs:
   build-windows:
+    name: build-windows(${{ matrix.arch }})
     if: github.event.inputs.platform == 'all' || contains(github.event.inputs.platform, 'windows')
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -28,7 +29,7 @@ jobs:
         include:
           - arch: x64
             platform: win-x64
-            runner: windows-latest
+            runner: windows-2025-vs2026
             unpacked: win-unpacked
           - arch: arm64
             platform: win-arm64
