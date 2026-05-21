@@ -117,7 +117,7 @@
                 />
               </div>
               <template v-if="!activePendingInteraction">
-                <div class="mx-auto flex w-full max-w-4xl flex-col">
+                <div ref="chatInputHeroHostRef" class="mx-auto flex w-full max-w-4xl flex-col">
                   <ChatInputBox
                     ref="chatInputRef"
                     v-model="message"
@@ -204,6 +204,7 @@ import {
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
+import { playChatInputHeroFlight } from '@/lib/chatInputHero'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -259,6 +260,7 @@ const applyRestoredSessionSummary = (session: unknown) => {
 const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
 const planFloatLayer = ref<HTMLDivElement | null>(null)
+const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const NEAR_BOTTOM_THRESHOLD = 80 // px
@@ -299,6 +301,11 @@ let cancelSessionRestoreTask: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
 let sessionRestoreRequestId = 0
 let planFloatResizeObserver: ResizeObserver | null = null
+
+const resolveChatInputBoxElement = () =>
+  (chatInputHeroHostRef.value?.querySelector(
+    '[data-testid="chat-input-box"]'
+  ) as HTMLElement | null) ?? null
 
 function disconnectPlanFloatResizeObserver() {
   planFloatResizeObserver?.disconnect()
@@ -1499,6 +1506,9 @@ onMounted(() => {
   syncScrollPosition()
   observePlanFloatLayer()
   syncPlanFloatReservedHeight()
+  void nextTick(async () => {
+    await playChatInputHeroFlight(resolveChatInputBoxElement())
+  })
 })
 
 onUnmounted(() => {
