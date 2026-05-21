@@ -60,11 +60,106 @@ jobs:
         run: |
           pnpm run plugin:verify -- --name feishu --platform win32 --arch arm64 --plugin-root dist/win-arm64-unpacked/resources/app.asar.unpacked/plugins
 
-      - name: Run packaged E2E smoke tests
+      - name: Run Windows arm64 E2E smoke tests
         run: pnpm run e2e:smoke:ci
-        env:
-          DEEPCHAT_E2E_APP_MODE: packaged
-          DEEPCHAT_E2E_EXECUTABLE_PATH: ${{ github.workspace }}/dist/win-arm64-unpacked/DeepChat.exe
+
+      - name: Run packaged app process smoke
+        if: always()
+        shell: pwsh
+        run: |
+          $diagRoot = Join-Path $env:GITHUB_WORKSPACE 'build/windows-arm64-e2e-diagnostics'
+          New-Item -ItemType Directory -Force -Path $diagRoot | Out-Null
+
+          $exe = Join-Path $env:GITHUB_WORKSPACE 'dist/win-arm64-unpacked/DeepChat.exe'
+          $stdout = Join-Path $diagRoot 'packaged-smoke-stdout.log'
+          $stderr = Join-Path $diagRoot 'packaged-smoke-stderr.log'
+          $chromiumLog = Join-Path $diagRoot 'packaged-smoke-chromium.log'
+
+          Get-Process -Name 'DeepChat' -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 2
+
+          if (!(Test-Path $exe)) {
+            throw "Packaged executable not found: $exe"
+          }
+
+          $process = Start-Process `
+            -FilePath $exe `
+            -WorkingDirectory (Split-Path $exe) `
+            -ArgumentList @('--enable-logging', '--v=1', "--log-file=$chromiumLog") `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            -PassThru
+
+          try {
+            Start-Sleep -Seconds 20
+            $process.Refresh()
+            if ($process.HasExited) {
+              "Packaged app exited during process smoke. Exit code: $($process.ExitCode)" |
+                Out-File -FilePath (Join-Path $diagRoot 'packaged-smoke-result.log') -Encoding utf8
+              throw "Packaged app exited during process smoke. Exit code: $($process.ExitCode)"
+            }
+
+            "Packaged app stayed alive for 20 seconds. PID: $($process.Id)" |
+              Out-File -FilePath (Join-Path $diagRoot 'packaged-smoke-result.log') -Encoding utf8
+          } finally {
+            $process.Refresh()
+            if (!$process.HasExited) {
+              taskkill /pid $($process.Id) /t /f | Out-Null
+              Start-Sleep -Seconds 2
+            }
+          }
+
+      - name: Collect Windows arm64 diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          $diagRoot = Join-Path $env:GITHUB_WORKSPACE 'build/windows-arm64-e2e-diagnostics'
+          New-Item -ItemType Directory -Force -Path $diagRoot | Out-Null
+
+          $filesystemLog = Join-Path $diagRoot 'filesystem.txt'
+          $paths = @(
+            "$env:APPDATA\DeepChat",
+            "$env:LOCALAPPDATA\DeepChat",
+            "$env:GITHUB_WORKSPACE\dist\win-arm64-unpacked",
+            "$env:GITHUB_WORKSPACE\runtime"
+          )
+
+          foreach ($path in $paths) {
+            "== $path ==" | Out-File -Append -FilePath $filesystemLog -Encoding utf8
+            if (Test-Path $path) {
+              Get-ChildItem -Force -Recurse $path |
+                Select-Object FullName, Length, LastWriteTime |
+                Format-Table -AutoSize |
+                Out-String -Width 4096 |
+                Out-File -Append -FilePath $filesystemLog -Encoding utf8
+            } else {
+              "MISSING" | Out-File -Append -FilePath $filesystemLog -Encoding utf8
+            }
+          }
+
+          $deepchatLogDir = Join-Path $env:APPDATA 'DeepChat\logs'
+          if (Test-Path $deepchatLogDir) {
+            Copy-Item -Path (Join-Path $deepchatLogDir '*') -Destination $diagRoot -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+          $nativeModulesLog = Join-Path $diagRoot 'native-modules.txt'
+          if (Test-Path "$env:GITHUB_WORKSPACE\dist\win-arm64-unpacked") {
+            Get-ChildItem -Force -Recurse "$env:GITHUB_WORKSPACE\dist\win-arm64-unpacked" -Filter '*.node' |
+              Select-Object FullName, Length, LastWriteTime |
+              Format-Table -AutoSize |
+              Out-String -Width 4096 |
+              Out-File -FilePath $nativeModulesLog -Encoding utf8
+          }
+
+          try {
+            Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddMinutes(-30) } -ErrorAction Stop |
+              Where-Object { $_.Message -match 'DeepChat|Electron|Application Error|Faulting application' } |
+              Select-Object TimeCreated, ProviderName, Id, LevelDisplayName, Message |
+              Format-List |
+              Out-File -FilePath (Join-Path $diagRoot 'windows-application-events.txt') -Encoding utf8
+          } catch {
+            $_ | Out-File -FilePath (Join-Path $diagRoot 'windows-application-events.txt') -Encoding utf8
+          }
 
       - name: Upload Windows arm64 E2E diagnostics
         if: always()
@@ -73,5 +168,6 @@ jobs:
           name: deepchat-win-arm64-e2e-diagnostics
           if-no-files-found: warn
           path: |
+            build/windows-arm64-e2e-diagnostics
             test-results/e2e
             playwright-report
