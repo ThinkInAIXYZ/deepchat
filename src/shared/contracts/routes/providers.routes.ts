@@ -16,7 +16,8 @@ const ProviderImportWarningSchema = z.enum([
   'already_configured',
   'missing_api_key',
   'unsupported_provider',
-  'overwrites_previous_selection'
+  'overwrites_previous_selection',
+  'credential_only_import'
 ])
 const ProviderImportApplyStatusSchema = z.enum(['created', 'updated', 'skipped', 'overwritten'])
 

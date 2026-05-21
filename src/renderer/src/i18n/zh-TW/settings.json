@@ -259,7 +259,7 @@
     },
     "providerImport": {
       "entryTitle": "匯入其他 Agent 設定",
-      "entryDescription": "掃描 Alma、Cherry Studio、Hermes 和 OpenClaw 的本機 provider 設定，快速遷移金鑰和模型列表。",
+      "entryDescription": "掃描 CC Switch、Alma、Cherry Studio、Hermes 和 OpenClaw 的本機 provider 設定，快速遷移金鑰和模型列表。",
       "entryButton": "從其他 Agent 匯入",
       "dialogTitle": "從其他 Agent 匯入",
       "dialogDescription": "先選擇偵測到的應用程式，再逐一確認要匯入 DeepChat 的 provider。",
@@ -308,7 +308,8 @@
         "already_configured": "DeepChat 中已有設定，預設不會選取。",
         "missing_api_key": "缺少 API Key 或必要的 endpoint。",
         "unsupported_provider": "DeepChat 暫時無法自動匯入這個 provider。",
-        "overwrites_previous_selection": "這個選擇與前面的來源衝突。"
+        "overwrites_previous_selection": "這個選擇與前面的來源衝突。",
+        "credential_only_import": "僅匯入 API Key，DeepChat 會保留內建 provider 的 endpoint 和 runtime。"
       },
       "conflicts": {
         "overridesPrevious": "這個選擇會覆蓋前面選取的 DeepChat provider。",

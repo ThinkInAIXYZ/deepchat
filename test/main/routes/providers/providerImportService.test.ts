@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProviderImportService } from '../../../../src/main/routes/providers/providerImportService'
 import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
 
+const mockSqlite = vi.hoisted(() => ({
+  rowsByPath: new Map<string, Record<string, unknown>[]>()
+}))
+
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
   return {
@@ -13,9 +17,72 @@ vi.mock('node:fs', async () => {
   }
 })
 
+vi.mock('better-sqlite3-multiple-ciphers', () => {
+  class MockDatabase {
+    private readonly dbPath: string
+
+    constructor(dbPath: string) {
+      this.dbPath = dbPath
+      if (!mockSqlite.rowsByPath.has(dbPath)) {
+        throw new Error(`Mock SQLite database is not registered: ${dbPath}`)
+      }
+    }
+
+    prepare(sql: string) {
+      if (sql.includes('sqlite_master')) {
+        return {
+          get: () => ({ name: 'providers' })
+        }
+      }
+
+      if (sql.includes('FROM providers')) {
+        return {
+          all: (...appTypes: string[]) => {
+            const rows = mockSqlite.rowsByPath.get(this.dbPath) ?? []
+            const allowed = new Set(appTypes)
+            return rows.filter((row) => allowed.size === 0 || allowed.has(String(row.app_type)))
+          }
+        }
+      }
+
+      throw new Error(`Unexpected SQLite query: ${sql}`)
+    }
+
+    close() {}
+  }
+
+  return {
+    default: MockDatabase
+  }
+})
+
 const writeFile = (filePath: string, content: string) => {
   mkdirSync(path.dirname(filePath), { recursive: true })
   writeFileSync(filePath, content)
+}
+
+const createCcSwitchDb = (
+  dbPath: string,
+  rows: Array<{
+    id: string
+    appType: string
+    name: string
+    settingsConfig: Record<string, unknown>
+    meta?: Record<string, unknown>
+  }>
+) => {
+  mkdirSync(path.dirname(dbPath), { recursive: true })
+  writeFileSync(dbPath, 'mock sqlite database')
+  mockSqlite.rowsByPath.set(
+    dbPath,
+    rows.map((row) => ({
+      id: row.id,
+      app_type: row.appType,
+      name: row.name,
+      settings_config: JSON.stringify(row.settingsConfig),
+      meta: JSON.stringify(row.meta ?? {})
+    }))
+  )
 }
 
 const createHome = () => mkdtempSync(path.join(tmpdir(), 'deepchat-provider-import-'))
@@ -59,6 +126,8 @@ describe('ProviderImportService', () => {
   let homeDir = ''
 
   afterEach(() => {
+    mockSqlite.rowsByPath.clear()
+    vi.unstubAllEnvs()
     if (homeDir) {
       rmSync(homeDir, { recursive: true, force: true })
       homeDir = ''
@@ -211,6 +280,41 @@ describe('ProviderImportService', () => {
     warnSpy.mockRestore()
   })
 
+  it('uses Windows HOME fallback for legacy CC Switch database paths', async () => {
+    homeDir = createHome()
+    const legacyHome = path.join(homeDir, 'legacy-home')
+    vi.stubEnv('HOME', legacyHome)
+    createCcSwitchDb(path.join(legacyHome, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'deepseek',
+        appType: 'claude',
+        name: 'DeepSeek',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+            ANTHROPIC_AUTH_TOKEN: 'sk-deepseek'
+          }
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'win32',
+      appDataDir: path.join(homeDir, 'AppData', 'Roaming')
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'cc-switch')).toMatchObject({
+      status: 'found',
+      configPath: '%HOME%\\.cc-switch\\cc-switch.db',
+      providerCount: 1,
+      selectable: true
+    })
+  })
+
   it('scans Hermes and OpenClaw configs and maps builtin and custom providers', async () => {
     homeDir = createHome()
     writeFile(
@@ -335,7 +439,7 @@ describe('ProviderImportService', () => {
     expect(provider.warnings).toContain('already_configured')
   })
 
-  it('previews missing-key providers and maps unknown key-url providers to custom', async () => {
+  it('hides missing-key providers and maps unknown key-url providers to custom', async () => {
     homeDir = createHome()
     writeFile(
       path.join(homeDir, '.hermes/config.yaml'),
@@ -368,19 +472,12 @@ describe('ProviderImportService', () => {
 
     expect(result.sources.find((source) => source.id === 'hermes')).toMatchObject({
       status: 'found',
-      providerCount: 3,
+      providerCount: 2,
       selectable: true,
       defaultSelected: true
     })
     expect(result.providers).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          sourceProviderId: 'deepseek',
-          targetProviderId: 'deepseek',
-          selectable: false,
-          defaultSelected: false,
-          warnings: ['missing_api_key']
-        }),
         expect.objectContaining({
           sourceProviderId: 'legacy-only',
           targetKind: 'custom',
@@ -398,6 +495,9 @@ describe('ProviderImportService', () => {
           warnings: ['unsupported_provider']
         })
       ])
+    )
+    expect(result.providers).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceProviderId: 'deepseek' })])
     )
   })
 
@@ -622,7 +722,7 @@ describe('ProviderImportService', () => {
     })
   })
 
-  it('allows custom base-url-only providers to import when overridden to ollama', async () => {
+  it('hides custom base-url-only providers even if they could be overridden to ollama', async () => {
     homeDir = createHome()
     writeFile(
       path.join(homeDir, '.hermes/config.yaml'),
@@ -642,45 +742,15 @@ describe('ProviderImportService', () => {
       platform: 'darwin'
     })
     const scan = await service.scan()
-    const provider = scan.providers[0]
 
-    expect(provider).toMatchObject({
-      targetKind: 'custom',
-      targetApiType: 'openai-completions',
-      selectable: true,
-      defaultSelected: false,
-      warnings: ['missing_api_key']
+    expect(scan.sources.find((source) => source.id === 'hermes')).toMatchObject({
+      status: 'found',
+      providerCount: 0,
+      selectable: false,
+      defaultSelected: false
     })
-
-    const result = service.apply({
-      sessionId: scan.sessionId,
-      selections: [
-        {
-          sourceId: 'hermes',
-          providerIds: [provider.id],
-          providerOptions: {
-            [provider.id]: {
-              targetApiType: 'ollama'
-            }
-          }
-        }
-      ]
-    })
-
-    expect(result.summary).toMatchObject({
-      imported: 1,
-      created: 1,
-      skipped: 0
-    })
-    expect(configPresenter.getCurrentProviders()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'hermes_local-ollama',
-          apiType: 'ollama',
-          apiKey: '',
-          baseUrl: 'http://localhost:11434'
-        })
-      ])
+    expect(scan.providers).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceProviderId: 'local-ollama' })])
     )
   })
 
@@ -733,6 +803,384 @@ describe('ProviderImportService', () => {
         })
       ])
     )
+  })
+
+  it('scans CC Switch non-Codex providers and hides empty or Codex rows', async () => {
+    homeDir = createHome()
+    createCcSwitchDb(path.join(homeDir, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'claude-official',
+        appType: 'claude',
+        name: 'Claude Official',
+        settingsConfig: { env: {} }
+      },
+      {
+        id: 'deepseek',
+        appType: 'claude',
+        name: 'DeepSeek',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+            ANTHROPIC_AUTH_TOKEN: 'sk-deepseek',
+            ANTHROPIC_MODEL: 'deepseek-v4-pro'
+          }
+        }
+      },
+      {
+        id: 'minimax-en',
+        appType: 'claude-desktop',
+        name: 'MiniMax en',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.minimax.io/anthropic',
+            ANTHROPIC_API_KEY: 'sk-minimax',
+            ANTHROPIC_MODEL: 'MiniMax-M2.7'
+          }
+        },
+        meta: {
+          claudeDesktopModelRoutes: {
+            sonnet: {
+              model: 'MiniMax-M2.7'
+            }
+          }
+        }
+      },
+      {
+        id: 'gemini-native',
+        appType: 'gemini',
+        name: 'Gemini Native',
+        settingsConfig: {
+          env: {
+            GEMINI_API_KEY: 'sk-gemini',
+            GOOGLE_GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com',
+            GEMINI_MODEL: 'gemini-3-pro'
+          }
+        }
+      },
+      {
+        id: 'opencode-gateway',
+        appType: 'opencode',
+        name: 'OpenCode Gateway',
+        settingsConfig: {
+          npm: '@ai-sdk/openai-compatible',
+          options: {
+            apiKey: 'sk-opencode',
+            baseURL: 'https://opencode.example.com/v1'
+          },
+          models: {
+            'gpt-5.4': { name: 'GPT-5.4' }
+          }
+        }
+      },
+      {
+        id: 'openclaw-gateway',
+        appType: 'openclaw',
+        name: 'OpenClaw Gateway',
+        settingsConfig: {
+          apiKey: 'sk-openclaw',
+          baseUrl: 'https://openclaw.example.com/v1',
+          api: 'openai-responses',
+          models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }]
+        }
+      },
+      {
+        id: 'hermes-gateway',
+        appType: 'hermes',
+        name: 'Hermes Gateway',
+        settingsConfig: {
+          api_key: 'sk-hermes',
+          base_url: 'https://hermes.example.com/v1',
+          api_mode: 'anthropic_messages',
+          models: {
+            'claude-sonnet': { name: 'Claude Sonnet' }
+          }
+        }
+      },
+      {
+        id: 'codex-gateway',
+        appType: 'codex',
+        name: 'Codex Gateway',
+        settingsConfig: {
+          auth: { OPENAI_API_KEY: 'sk-codex' },
+          config: 'model = "gpt-5.4"'
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter([
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        apiType: 'openai',
+        apiKey: '',
+        baseUrl: 'https://api.openai.com/v1',
+        enable: false
+      },
+      {
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiType: 'deepseek',
+        apiKey: '',
+        baseUrl: 'https://api.deepseek.com/v1',
+        enable: false
+      },
+      {
+        id: 'minimax',
+        name: 'MiniMax',
+        apiType: 'anthropic',
+        apiKey: '',
+        baseUrl: 'https://api.minimaxi.com/anthropic',
+        enable: false
+      },
+      {
+        id: 'gemini',
+        name: 'Gemini',
+        apiType: 'gemini',
+        apiKey: '',
+        baseUrl: 'https://generativelanguage.googleapis.com',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.sourceOrder[0]).toBe('cc-switch')
+    expect(scan.sources.find((source) => source.id === 'cc-switch')).toMatchObject({
+      status: 'found',
+      configPath: '~/.cc-switch/cc-switch.db',
+      providerCount: 6,
+      selectable: true,
+      defaultSelected: true
+    })
+    expect(scan.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'cc-switch',
+          sourceProviderId: 'deepseek',
+          targetKind: 'builtin',
+          targetProviderId: 'deepseek',
+          modelPreview: ['deepseek-v4-pro'],
+          warnings: ['credential_only_import']
+        }),
+        expect.objectContaining({
+          sourceId: 'cc-switch',
+          sourceProviderId: 'minimax-en',
+          targetKind: 'builtin',
+          targetProviderId: 'minimax',
+          targetApiType: 'anthropic',
+          modelPreview: ['MiniMax-M2.7']
+        }),
+        expect.objectContaining({
+          sourceId: 'cc-switch',
+          sourceProviderId: 'gemini-native',
+          targetKind: 'builtin',
+          targetProviderId: 'gemini',
+          targetApiType: 'gemini'
+        }),
+        expect.objectContaining({
+          sourceId: 'cc-switch',
+          sourceProviderId: 'opencode-gateway',
+          targetKind: 'custom',
+          targetProviderId: 'ccswitch_opencode-gateway',
+          targetApiType: 'openai-completions',
+          modelPreview: ['GPT-5.4']
+        }),
+        expect.objectContaining({
+          sourceId: 'cc-switch',
+          sourceProviderId: 'openclaw-gateway',
+          targetKind: 'custom',
+          targetApiType: 'openai-responses'
+        }),
+        expect.objectContaining({
+          sourceId: 'cc-switch',
+          sourceProviderId: 'hermes-gateway',
+          targetKind: 'custom',
+          targetApiType: 'anthropic',
+          modelPreview: ['Claude Sonnet']
+        })
+      ])
+    )
+    expect(scan.providers).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceProviderId: 'claude-official' }),
+        expect.objectContaining({ sourceProviderId: 'codex-gateway' })
+      ])
+    )
+  })
+
+  it('imports only API key for CC Switch DeepSeek Anthropic-compatible provider', async () => {
+    homeDir = createHome()
+    createCcSwitchDb(path.join(homeDir, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'deepseek',
+        appType: 'claude',
+        name: 'DeepSeek',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+            ANTHROPIC_AUTH_TOKEN: 'sk-deepseek',
+            ANTHROPIC_MODEL: 'deepseek-v4-pro'
+          }
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter([
+      {
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiType: 'deepseek',
+        apiKey: '',
+        baseUrl: 'https://api.deepseek.com/v1',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+    const scan = await service.scan()
+    const provider = scan.providers[0]
+
+    expect(provider).toMatchObject({
+      sourceProviderId: 'deepseek',
+      targetProviderId: 'deepseek',
+      targetApiType: 'deepseek',
+      warnings: ['credential_only_import']
+    })
+
+    const result = service.apply({
+      sessionId: scan.sessionId,
+      selections: [{ sourceId: 'cc-switch', providerIds: [provider.id] }]
+    })
+
+    expect(result.summary).toMatchObject({
+      imported: 1,
+      updated: 1,
+      models: 0
+    })
+    expect(configPresenter.getCurrentProviders()[0]).toMatchObject({
+      id: 'deepseek',
+      apiType: 'deepseek',
+      apiKey: 'sk-deepseek',
+      baseUrl: 'https://api.deepseek.com/v1',
+      enable: true
+    })
+    expect(configPresenter.addCustomModel).not.toHaveBeenCalled()
+  })
+
+  it('maps CC Switch MiniMax to built-in Anthropic runtime provider', async () => {
+    homeDir = createHome()
+    createCcSwitchDb(path.join(homeDir, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'minimax',
+        appType: 'claude',
+        name: 'MiniMax',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.minimaxi.com/anthropic',
+            ANTHROPIC_AUTH_TOKEN: 'sk-minimax',
+            ANTHROPIC_MODEL: 'MiniMax-M2.7'
+          }
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter([
+      {
+        id: 'minimax',
+        name: 'MiniMax',
+        apiType: 'anthropic',
+        apiKey: '',
+        baseUrl: 'https://api.minimaxi.com/anthropic',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+    const scan = await service.scan()
+    const provider = scan.providers[0]
+
+    expect(provider).toMatchObject({
+      sourceProviderId: 'minimax',
+      targetKind: 'builtin',
+      targetProviderId: 'minimax',
+      targetApiType: 'anthropic',
+      warnings: []
+    })
+
+    const result = service.apply({
+      sessionId: scan.sessionId,
+      selections: [{ sourceId: 'cc-switch', providerIds: [provider.id] }]
+    })
+
+    expect(result.summary).toMatchObject({
+      imported: 1,
+      updated: 1,
+      models: 1
+    })
+    expect(configPresenter.getCurrentProviders()[0]).toMatchObject({
+      id: 'minimax',
+      apiType: 'anthropic',
+      apiKey: 'sk-minimax',
+      baseUrl: 'https://api.minimaxi.com/anthropic',
+      enable: true
+    })
+    expect(configPresenter.addCustomModel).toHaveBeenCalledWith(
+      'minimax',
+      expect.objectContaining({
+        id: 'MiniMax-M2.7',
+        providerId: 'minimax'
+      })
+    )
+  })
+
+  it('maps CC Switch Claude official identity to built-in Anthropic provider', async () => {
+    homeDir = createHome()
+    createCcSwitchDb(path.join(homeDir, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'claude-official',
+        appType: 'claude',
+        name: 'Claude Official',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_AUTH_TOKEN: 'sk-anthropic',
+            ANTHROPIC_MODEL: 'claude-sonnet-4-5'
+          }
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        apiType: 'anthropic',
+        apiKey: '',
+        baseUrl: 'https://api.anthropic.com',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'claude-official',
+      targetKind: 'builtin',
+      targetProviderId: 'anthropic',
+      targetApiType: 'anthropic',
+      warnings: []
+    })
   })
 
   it('reads Cherry Studio providers from a LevelDB snapshot', async () => {

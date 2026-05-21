@@ -9,6 +9,7 @@ import { ModelType } from '@shared/model'
 import {
   PROVIDER_IMPORT_CUSTOM_API_TYPES,
   PROVIDER_IMPORT_SOURCE_IDS,
+  type ProviderImportApplyMode,
   type ProviderImportApplyResult,
   type ProviderImportApplyResultItem,
   type ProviderImportCustomApiType,
@@ -46,6 +47,13 @@ type ProviderImportProviderOptions = NonNullable<ProviderImportSelection['provid
 
 const SOURCE_DEFINITIONS: SourceDefinition[] = [
   {
+    id: 'cc-switch',
+    name: 'CC Switch',
+    unixRelativePath: '.cc-switch/cc-switch.db',
+    windowsBase: 'home',
+    windowsRelativePath: '.cc-switch/cc-switch.db'
+  },
+  {
     id: 'alma',
     name: 'Alma',
     unixRelativePath: 'Library/Application Support/alma/chat_threads.db',
@@ -76,16 +84,18 @@ const SOURCE_DEFINITIONS: SourceDefinition[] = [
 ]
 
 const SCAN_SESSION_TTL_MS = 10 * 60 * 1000
-const API_TYPE_ALIASES: Record<string, string> = {
+const PROVIDER_ID_ALIASES: Record<string, string> = {
   'openai-response': 'openai-responses',
   'openai-responses': 'openai-responses',
   anthropic: 'anthropic',
-  gemini: 'gemini',
-  ollama: 'ollama',
+  claude: 'anthropic',
+  'claude-official': 'anthropic',
+  'anthropic-official': 'anthropic',
   'new-api': 'new-api',
   silicon: 'silicon',
   siliconflow: 'silicon',
   siliconcloud: 'silicon',
+  'silicon-flow': 'silicon',
   deepseek: 'deepseek',
   ppio: 'ppio',
   ppinfra: 'ppio',
@@ -98,9 +108,16 @@ const API_TYPE_ALIASES: Record<string, string> = {
   github: 'github',
   'github-copilot': 'github-copilot',
   doubao: 'doubao',
+  'doubao-seed': 'doubao',
+  doubaoseed: 'doubao',
   minimax: 'minimax',
+  'minimax-cn': 'minimax',
+  'minimax-en': 'minimax',
   zhipu: 'zhipu',
+  'zhipu-glm': 'zhipu',
+  bigmodel: 'zhipu',
   moonshot: 'moonshot',
+  kimi: 'moonshot',
   dashscope: 'dashscope',
   volcengine: 'doubao',
   ark: 'doubao',
@@ -122,17 +139,41 @@ const OPENAI_COMPATIBLE_TYPES = new Set([
   'openai-chat',
   'openai-compatible',
   'openai-completions',
+  'openai-responses',
   'gateway',
   'vertexai',
-  'mistral',
-  'aws-bedrock'
+  'mistral'
 ])
+
+const API_KEY_PLACEHOLDERS = new Set([
+  'api-key',
+  'apikey',
+  'your-api-key',
+  'your-api-key-here',
+  'replace-with-your-api-key',
+  'sk-xxx',
+  'sk-xxxx',
+  'xxx',
+  'xxxx',
+  '<api-key>',
+  '<your-api-key>'
+])
+
+const CC_SWITCH_APP_TYPES = [
+  'claude',
+  'claude-desktop',
+  'gemini',
+  'opencode',
+  'openclaw',
+  'hermes'
+] as const
 
 const SOURCE_PREFIX: Record<ProviderImportSourceId, string> = {
   alma: 'alma',
   'cherry-studio': 'cherry',
   hermes: 'hermes',
-  openclaw: 'openclaw'
+  openclaw: 'openclaw',
+  'cc-switch': 'ccswitch'
 }
 
 const normalizeToken = (value: string | undefined): string =>
@@ -173,6 +214,11 @@ const safeJsonParse = (value: unknown): unknown => {
 const toStringValue = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim()
 
+const toObjectValue = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+
 const toBooleanValue = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value !== 0
@@ -201,6 +247,13 @@ const replaceDisallowedControlCharacters = (value: string): string => {
   return result
 }
 
+const isImportableApiKey = (value: string): boolean => {
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  if (trimmed.includes('${') || trimmed.includes('{{')) return false
+  return !API_KEY_PLACEHOLDERS.has(trimmed.toLowerCase())
+}
+
 const normalizeModels = (models: unknown): ProviderImportRawModel[] => {
   if (!Array.isArray(models)) return []
 
@@ -227,10 +280,40 @@ const normalizeModels = (models: unknown): ProviderImportRawModel[] => {
     .filter((model, index, list) => list.findIndex((item) => item.id === model.id) === index)
 }
 
+const normalizeModelCollection = (models: unknown): ProviderImportRawModel[] => {
+  if (Array.isArray(models)) {
+    return normalizeModels(models)
+  }
+
+  if (!models || typeof models !== 'object') {
+    return []
+  }
+
+  return Object.entries(models as Record<string, unknown>)
+    .flatMap(([id, model]) => {
+      const modelId = id.trim()
+      if (!modelId) return []
+      const item = toObjectValue(model)
+      return [
+        {
+          id: modelId,
+          name: toStringValue(item.name ?? item.label ?? item.alias) || modelId,
+          group: toStringValue(item.group) || 'custom'
+        }
+      ]
+    })
+    .filter((model, index, list) => list.findIndex((item) => item.id === model.id) === index)
+}
+
+const modelFromStrings = (values: string[]): ProviderImportRawModel[] =>
+  normalizeModels(uniqueStrings(values).map((id) => ({ id, name: id })))
+
 const buildUnixDisplayPath = (relativePath: string): string => `~/${relativePath}`
 
-const buildWindowsDisplayPath = (base: '%APPDATA%' | '%USERPROFILE%', relativePath: string) =>
-  `${base}\\${relativePath.replaceAll('/', '\\')}`
+const buildWindowsDisplayPath = (
+  base: '%APPDATA%' | '%USERPROFILE%' | '%HOME%',
+  relativePath: string
+) => `${base}\\${relativePath.replaceAll('/', '\\')}`
 
 const isSupportedScanPlatform = (
   platform: NodeJS.Platform
@@ -457,8 +540,19 @@ export class ProviderImportService {
     }
 
     try {
-      const providers = await this.readProviders(definition, sourcePath)
-      const previews = providers.map((provider) => this.toPreview(provider))
+      const readableProviders = await this.readProviders(definition, sourcePath)
+      const previewPairs = readableProviders
+        .filter((provider) => isImportableApiKey(provider.apiKey))
+        .map((provider) => ({
+          provider,
+          preview: this.toPreview(provider)
+        }))
+        .filter(
+          ({ provider, preview }) =>
+            provider.sourceId !== 'cc-switch' || preview.targetKind !== 'unsupported'
+        )
+      const providers = previewPairs.map(({ provider }) => provider)
+      const previews = previewPairs.map(({ preview }) => preview)
       return {
         source: {
           id: definition.id,
@@ -502,6 +596,8 @@ export class ProviderImportService {
         return this.readHermes(definition, sourcePath)
       case 'openclaw':
         return this.readOpenClaw(definition, sourcePath)
+      case 'cc-switch':
+        return this.readCcSwitch(definition, sourcePath)
     }
   }
 
@@ -690,6 +786,225 @@ export class ProviderImportService {
     })
   }
 
+  private readCcSwitch(definition: SourceDefinition, dbPath: string): ProviderImportRawProvider[] {
+    const db = new Database(dbPath, {
+      readonly: true,
+      fileMustExist: true
+    })
+    try {
+      const table = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'providers'")
+        .get()
+      if (!table) return []
+
+      const rows = db
+        .prepare(
+          [
+            'SELECT id, app_type, name, settings_config, meta',
+            'FROM providers',
+            `WHERE app_type IN (${CC_SWITCH_APP_TYPES.map(() => '?').join(', ')})`
+          ].join(' ')
+        )
+        .all(...CC_SWITCH_APP_TYPES) as Record<string, unknown>[]
+
+      return rows.flatMap((row, index) => this.readCcSwitchProvider(definition, row, index))
+    } finally {
+      db.close()
+    }
+  }
+
+  private readCcSwitchProvider(
+    definition: SourceDefinition,
+    row: Record<string, unknown>,
+    index: number
+  ): ProviderImportRawProvider[] {
+    const appType = normalizeToken(toStringValue(row.app_type))
+    if (!CC_SWITCH_APP_TYPES.includes(appType as (typeof CC_SWITCH_APP_TYPES)[number])) {
+      return []
+    }
+
+    const settingsConfig = safeJsonParse(row.settings_config)
+    if (!settingsConfig || typeof settingsConfig !== 'object') {
+      return []
+    }
+
+    const sourceProviderId = toStringValue(row.id) || `${appType}-provider-${index + 1}`
+    const meta = safeJsonParse(row.meta)
+    const parsed = this.parseCcSwitchSettingsConfig(
+      appType,
+      settingsConfig as Record<string, unknown>,
+      toObjectValue(meta)
+    )
+    if (!parsed) {
+      return []
+    }
+
+    return [
+      {
+        id: `${definition.id}:${appType}:${sourceProviderId}`,
+        sourceId: definition.id,
+        sourceName: definition.name,
+        sourceProviderId,
+        name: toStringValue(row.name) || sourceProviderId,
+        type: parsed.type,
+        apiKey: parsed.apiKey,
+        baseUrl: parsed.baseUrl,
+        enabled: true,
+        models: parsed.models
+      }
+    ]
+  }
+
+  private parseCcSwitchSettingsConfig(
+    appType: string,
+    settingsConfig: Record<string, unknown>,
+    meta: Record<string, unknown>
+  ): {
+    apiKey: string
+    baseUrl: string
+    type: string
+    models: ProviderImportRawModel[]
+  } | null {
+    switch (appType) {
+      case 'claude':
+      case 'claude-desktop':
+        return this.parseCcSwitchClaudeConfig(settingsConfig, meta)
+      case 'gemini':
+        return this.parseCcSwitchGeminiConfig(settingsConfig)
+      case 'opencode':
+        return this.parseCcSwitchOpenCodeConfig(settingsConfig)
+      case 'openclaw':
+        return this.parseCcSwitchOpenClawConfig(settingsConfig)
+      case 'hermes':
+        return this.parseCcSwitchHermesConfig(settingsConfig)
+      default:
+        return null
+    }
+  }
+
+  private parseCcSwitchClaudeConfig(
+    settingsConfig: Record<string, unknown>,
+    meta: Record<string, unknown>
+  ) {
+    const env = toObjectValue(settingsConfig.env)
+    const models = modelFromStrings([
+      toStringValue(env.ANTHROPIC_MODEL),
+      toStringValue(env.ANTHROPIC_DEFAULT_HAIKU_MODEL),
+      toStringValue(env.ANTHROPIC_DEFAULT_SONNET_MODEL),
+      toStringValue(env.ANTHROPIC_DEFAULT_OPUS_MODEL),
+      ...this.readCcSwitchClaudeDesktopRouteModels(meta)
+    ])
+
+    return {
+      apiKey: toStringValue(env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_API_KEY),
+      baseUrl: toStringValue(env.ANTHROPIC_BASE_URL),
+      type: 'anthropic',
+      models
+    }
+  }
+
+  private readCcSwitchClaudeDesktopRouteModels(meta: Record<string, unknown>): string[] {
+    const routes = toObjectValue(meta.claudeDesktopModelRoutes)
+    return Object.values(routes).flatMap((route) => {
+      const item = toObjectValue(route)
+      const model = toStringValue(item.model)
+      return model ? [model] : []
+    })
+  }
+
+  private parseCcSwitchGeminiConfig(settingsConfig: Record<string, unknown>) {
+    const env = toObjectValue(settingsConfig.env)
+    const model = toStringValue(env.GEMINI_MODEL)
+    return {
+      apiKey: toStringValue(env.GEMINI_API_KEY),
+      baseUrl: toStringValue(env.GOOGLE_GEMINI_BASE_URL),
+      type: 'gemini',
+      models: model ? [{ id: model, name: model }] : []
+    }
+  }
+
+  private parseCcSwitchOpenCodeConfig(settingsConfig: Record<string, unknown>) {
+    const options = toObjectValue(settingsConfig.options)
+    return {
+      apiKey: toStringValue(options.apiKey),
+      baseUrl: toStringValue(options.baseURL),
+      type: this.resolveCcSwitchOpenCodeApiType(toStringValue(settingsConfig.npm)),
+      models: normalizeModelCollection(settingsConfig.models)
+    }
+  }
+
+  private resolveCcSwitchOpenCodeApiType(npmPackage: string): string {
+    const normalized = npmPackage.trim().toLowerCase()
+    if (normalized.includes('anthropic')) return 'anthropic'
+    if (normalized.includes('google')) return 'gemini'
+    if (normalized.includes('amazon-bedrock')) return 'aws-bedrock'
+    if (normalized.includes('openai-compatible')) return 'openai-completions'
+    if (normalized.includes('openai')) return 'openai-responses'
+    return 'openai-completions'
+  }
+
+  private parseCcSwitchOpenClawConfig(settingsConfig: Record<string, unknown>) {
+    return {
+      apiKey: toStringValue(settingsConfig.apiKey),
+      baseUrl: toStringValue(settingsConfig.baseUrl),
+      type: this.normalizeSourceApiType(toStringValue(settingsConfig.api)),
+      models: normalizeModelCollection(settingsConfig.models)
+    }
+  }
+
+  private parseCcSwitchHermesConfig(settingsConfig: Record<string, unknown>) {
+    return {
+      apiKey: toStringValue(settingsConfig.api_key),
+      baseUrl: toStringValue(settingsConfig.base_url),
+      type: this.normalizeSourceApiType(toStringValue(settingsConfig.api_mode)),
+      models: normalizeModelCollection(settingsConfig.models)
+    }
+  }
+
+  private normalizeSourceApiType(value: string): string {
+    const normalized = normalizeToken(value)
+    if (
+      normalized === 'anthropic' ||
+      normalized === 'anthropic-messages' ||
+      normalized === 'anthropic-messages-api'
+    ) {
+      return 'anthropic'
+    }
+    if (
+      normalized === 'gemini' ||
+      normalized === 'gemini-native' ||
+      normalized === 'google-generative-ai'
+    ) {
+      return 'gemini'
+    }
+    if (
+      normalized === 'openai-responses' ||
+      normalized === 'openai-response' ||
+      normalized === 'codex-responses' ||
+      normalized === 'responses'
+    ) {
+      return 'openai-responses'
+    }
+    if (
+      normalized === 'chat-completions' ||
+      normalized === 'chat-completion' ||
+      normalized === 'openai-completions' ||
+      normalized === 'openai-compatible' ||
+      normalized === 'openai-chat' ||
+      normalized === 'openai'
+    ) {
+      return 'openai-completions'
+    }
+    if (
+      normalized === 'bedrock-converse' ||
+      normalized === 'bedrock-converse-stream' ||
+      normalized === 'aws-bedrock'
+    ) {
+      return 'aws-bedrock'
+    }
+    return normalized
+  }
+
   private toPreview(rawProvider: ProviderImportRawProvider): ProviderImportProviderPreview {
     const mapping = this.mapProvider(rawProvider)
     const configured = this.isConfigured(rawProvider, mapping)
@@ -702,7 +1017,8 @@ export class ProviderImportService {
       ...(!hasCredentials && mapping.targetKind !== 'unsupported'
         ? (['missing_api_key'] as const)
         : []),
-      ...(mapping.targetKind === 'unsupported' ? (['unsupported_provider'] as const) : [])
+      ...(mapping.targetKind === 'unsupported' ? (['unsupported_provider'] as const) : []),
+      ...(mapping.importMode === 'credentials_only' ? (['credential_only_import'] as const) : [])
     ]
 
     return {
@@ -735,15 +1051,15 @@ export class ProviderImportService {
     const providerById = new Map(providers.map((provider) => [provider.id.toLowerCase(), provider]))
     const sourceId = normalizeToken(rawProvider.sourceProviderId)
     const sourceName = normalizeName(rawProvider.name)
-    const sourceType = normalizeToken(rawProvider.apiFormat || rawProvider.type)
+    const sourceType = this.normalizeSourceApiType(rawProvider.apiFormat || rawProvider.type)
     const baseUrl = rawProvider.baseUrl.toLowerCase()
 
     const providerId =
-      (baseUrl.includes('ppinfra.com') ? 'ppio' : '') ||
+      this.detectProviderIdFromBaseUrl(baseUrl) ||
       (providerById.has(sourceId) ? sourceId : '') ||
-      API_TYPE_ALIASES[sourceId] ||
-      API_TYPE_ALIASES[sourceType] ||
-      (providerById.has(sourceName) ? sourceName : '')
+      PROVIDER_ID_ALIASES[sourceId] ||
+      (providerById.has(sourceName) ? sourceName : '') ||
+      PROVIDER_ID_ALIASES[sourceName]
 
     if (providerId && providerById.has(providerId)) {
       const target = providerById.get(providerId)!
@@ -751,14 +1067,13 @@ export class ProviderImportService {
         targetKind: 'builtin',
         targetProviderId: target.id,
         targetProviderName: target.name,
-        targetApiType: target.apiType
+        targetApiType: target.apiType,
+        importMode: this.resolveBuiltinImportMode(rawProvider, target, sourceType)
       }
     }
 
     if (
-      (sourceType === 'openai' ||
-        sourceType === 'openai-chat' ||
-        sourceType === 'openai-compatible') &&
+      (sourceType === 'openai-completions' || sourceType === 'openai-responses') &&
       (isOpenAIName(rawProvider.sourceProviderId) || isOpenAIName(rawProvider.name))
     ) {
       const target = providerById.get('openai')
@@ -767,7 +1082,8 @@ export class ProviderImportService {
           targetKind: 'builtin',
           targetProviderId: target.id,
           targetProviderName: target.name,
-          targetApiType: target.apiType
+          targetApiType: target.apiType,
+          importMode: this.resolveBuiltinImportMode(rawProvider, target, sourceType)
         }
       }
     }
@@ -777,7 +1093,18 @@ export class ProviderImportService {
         targetKind: 'custom',
         targetProviderId: this.buildCustomProviderBaseId(rawProvider),
         targetProviderName: rawProvider.name,
-        targetApiType: this.resolveCustomApiType(options?.targetApiType)
+        targetApiType: this.resolveCustomApiType(options?.targetApiType, sourceType),
+        importMode: 'full'
+      }
+    }
+
+    if (rawProvider.sourceId === 'cc-switch' && sourceType === 'aws-bedrock') {
+      return {
+        targetKind: 'unsupported',
+        targetProviderId: '',
+        targetProviderName: rawProvider.name,
+        targetApiType: '',
+        importMode: 'full'
       }
     }
 
@@ -786,7 +1113,8 @@ export class ProviderImportService {
         targetKind: 'custom',
         targetProviderId: this.buildCustomProviderBaseId(rawProvider),
         targetProviderName: rawProvider.name,
-        targetApiType: this.resolveCustomApiType(options?.targetApiType)
+        targetApiType: this.resolveCustomApiType(options?.targetApiType, sourceType),
+        importMode: 'full'
       }
     }
 
@@ -794,14 +1122,67 @@ export class ProviderImportService {
       targetKind: 'unsupported',
       targetProviderId: '',
       targetProviderName: rawProvider.name,
-      targetApiType: ''
+      targetApiType: '',
+      importMode: 'full'
     }
   }
 
-  private resolveCustomApiType(value?: string): ProviderImportCustomApiType {
+  private resolveCustomApiType(value?: string, sourceType?: string): ProviderImportCustomApiType {
     return PROVIDER_IMPORT_CUSTOM_API_TYPES.includes(value as ProviderImportCustomApiType)
       ? (value as ProviderImportCustomApiType)
-      : 'openai-completions'
+      : PROVIDER_IMPORT_CUSTOM_API_TYPES.includes(sourceType as ProviderImportCustomApiType)
+        ? (sourceType as ProviderImportCustomApiType)
+        : 'openai-completions'
+  }
+
+  private detectProviderIdFromBaseUrl(baseUrl: string): string {
+    if (baseUrl.includes('api.anthropic.com')) return 'anthropic'
+    if (baseUrl.includes('ppinfra.com')) return 'ppio'
+    if (baseUrl.includes('api.deepseek.com')) return 'deepseek'
+    if (baseUrl.includes('api.minimaxi.com') || baseUrl.includes('api.minimax.io')) {
+      return 'minimax'
+    }
+    if (baseUrl.includes('bigmodel.cn') || baseUrl.includes('api.z.ai')) return 'zhipu'
+    if (baseUrl.includes('api.moonshot.cn') || baseUrl.includes('api.kimi.com')) return 'moonshot'
+    if (baseUrl.includes('dashscope.aliyuncs.com')) return 'dashscope'
+    if (baseUrl.includes('volces.com') || baseUrl.includes('bytepluses.com')) return 'doubao'
+    if (baseUrl.includes('api.siliconflow.cn')) return 'silicon'
+    if (baseUrl.includes('openrouter.ai')) return 'openrouter'
+    if (baseUrl.includes('aihubmix.com')) return 'aihubmix'
+    if (baseUrl.includes('modelscope.cn')) return 'modelscope'
+    if (baseUrl.includes('api.mistral.ai')) return 'mistral'
+    if (baseUrl.includes('api.x.ai')) return 'grok'
+    if (baseUrl.includes('api.groq.com')) return 'groq'
+    if (baseUrl.includes('api.together.xyz')) return 'together'
+    if (baseUrl.includes('jiekou.ai')) return 'jiekou'
+    if (baseUrl.includes('zenmux.ai')) return 'zenmux'
+    if (baseUrl.includes('api.poe.com')) return 'poe'
+    if (baseUrl.includes('generativelanguage.googleapis.com')) return 'gemini'
+    return ''
+  }
+
+  private resolveBuiltinImportMode(
+    rawProvider: ProviderImportRawProvider,
+    target: LLM_PROVIDER,
+    sourceType: string
+  ): ProviderImportApplyMode {
+    if (rawProvider.sourceId !== 'cc-switch') {
+      return 'full'
+    }
+
+    if (sourceType === 'anthropic' && target.apiType !== 'anthropic') {
+      return 'credentials_only'
+    }
+
+    if (sourceType === 'gemini' && target.apiType !== 'gemini') {
+      return 'credentials_only'
+    }
+
+    if (sourceType === 'openai-responses' && target.apiType !== 'openai-responses') {
+      return 'credentials_only'
+    }
+
+    return 'full'
   }
 
   private canSelectCustomProviderWithOptions(
@@ -820,15 +1201,7 @@ export class ProviderImportService {
     }
 
     if (mapping.targetKind === 'custom') {
-      if (mapping.targetApiType === 'ollama') {
-        return Boolean(rawProvider.baseUrl.trim())
-      }
-
       return Boolean(rawProvider.apiKey.trim()) && hasHttpBaseUrl(rawProvider.baseUrl)
-    }
-
-    if (mapping.targetApiType === 'ollama') {
-      return Boolean(rawProvider.baseUrl.trim())
     }
 
     return Boolean(rawProvider.apiKey.trim())
@@ -924,7 +1297,10 @@ export class ProviderImportService {
               }
             : {}),
           apiKey: rawProvider.apiKey,
-          baseUrl: rawProvider.baseUrl || current.baseUrl,
+          baseUrl:
+            mapping.importMode === 'credentials_only'
+              ? current.baseUrl
+              : rawProvider.baseUrl || current.baseUrl,
           enable: true
         }
       : {
@@ -942,7 +1318,10 @@ export class ProviderImportService {
       mapping,
       targetProviderId,
       provider,
-      models: this.buildModelMeta(targetProviderId, rawProvider.models)
+      models:
+        mapping.importMode === 'credentials_only'
+          ? []
+          : this.buildModelMeta(targetProviderId, rawProvider.models)
     }
   }
 
@@ -1072,7 +1451,7 @@ export class ProviderImportService {
       targetProviderName:
         mapping.targetKind === 'custom' ? rawProvider.name : mapping.targetProviderName,
       status,
-      modelCount: status === 'created' || status === 'updated' ? rawProvider.models.length : 0
+      modelCount: status === 'created' || status === 'updated' ? (planned?.models.length ?? 0) : 0
     }
   }
 
@@ -1080,8 +1459,21 @@ export class ProviderImportService {
     if (this.platform === 'win32') {
       const basePath = definition.windowsBase === 'appData' ? this.appDataDir : this.homeDir
       const displayBase = definition.windowsBase === 'appData' ? '%APPDATA%' : '%USERPROFILE%'
+      const sourcePath = path.join(basePath, definition.windowsRelativePath)
+      if (definition.id === 'cc-switch' && !fs.existsSync(sourcePath)) {
+        const legacyHome = (process.env.HOME ?? '').trim()
+        if (legacyHome) {
+          const legacyPath = path.join(legacyHome, definition.windowsRelativePath)
+          if (fs.existsSync(legacyPath)) {
+            return {
+              sourcePath: legacyPath,
+              displayPath: buildWindowsDisplayPath('%HOME%', definition.windowsRelativePath)
+            }
+          }
+        }
+      }
       return {
-        sourcePath: path.join(basePath, definition.windowsRelativePath),
+        sourcePath,
         displayPath: buildWindowsDisplayPath(displayBase, definition.windowsRelativePath)
       }
     }

@@ -259,7 +259,7 @@
     },
     "providerImport": {
       "entryTitle": "제공자 설정 가져오기",
-      "entryDescription": "Alma, Cherry Studio, Hermes, OpenClaw에서 제공자 인증 정보와 모델 목록을 스캔합니다.",
+      "entryDescription": "CC Switch, Alma, Cherry Studio, Hermes, OpenClaw에서 제공자 인증 정보와 모델 목록을 스캔합니다.",
       "entryButton": "에이전트에서 가져오기",
       "dialogTitle": "다른 에이전트에서 가져오기",
       "dialogDescription": "먼저 감지된 앱을 선택한 다음 DeepChat이 가져올 수 있는 제공자를 검토하세요.",
@@ -308,7 +308,8 @@
         "already_configured": "DeepChat에 이미 설정되어 있어 기본 선택되지 않습니다.",
         "missing_api_key": "API 키 또는 필요한 endpoint가 없습니다.",
         "unsupported_provider": "DeepChat이 이 제공자를 자동으로 가져올 수 없습니다.",
-        "overwrites_previous_selection": "이 선택은 이전 소스와 충돌합니다."
+        "overwrites_previous_selection": "이 선택은 이전 소스와 충돌합니다.",
+        "credential_only_import": "API 키만 가져오며 DeepChat은 내장 제공자의 endpoint와 runtime을 유지합니다."
       },
       "conflicts": {
         "overridesPrevious": "이 선택은 이전에 선택한 제공자를 덮어씁니다.",

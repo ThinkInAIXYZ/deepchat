@@ -192,7 +192,7 @@
     },
     "providerImport": {
       "entryTitle": "Importer providerindstillinger",
-      "entryDescription": "Scan Alma, Cherry Studio, Hermes og OpenClaw for provider-legitimationsoplysninger og modellister.",
+      "entryDescription": "Scan CC Switch, Alma, Cherry Studio, Hermes og OpenClaw for provider-legitimationsoplysninger og modellister.",
       "entryButton": "Importer fra agenter",
       "dialogTitle": "Importer fra andre agenter",
       "dialogDescription": "Vælg først registrerede apps, og gennemgå derefter de providers, DeepChat kan importere.",
@@ -241,7 +241,8 @@
         "already_configured": "Allerede konfigureret i DeepChat, så den er ikke valgt som standard.",
         "missing_api_key": "Mangler API-nøgle eller påkrævet endpoint.",
         "unsupported_provider": "DeepChat kan ikke importere denne provider automatisk.",
-        "overwrites_previous_selection": "Dette valg er i konflikt med en tidligere kilde."
+        "overwrites_previous_selection": "Dette valg er i konflikt med en tidligere kilde.",
+        "credential_only_import": "Kun API-nøglen importeres; DeepChat beholder den indbyggede providers endpoint og runtime."
       },
       "conflicts": {
         "overridesPrevious": "Dette valg overskriver en tidligere valgt provider.",

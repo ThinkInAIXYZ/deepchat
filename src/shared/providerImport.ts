@@ -1,6 +1,12 @@
 import type { LLM_PROVIDER, MODEL_META } from './presenter'
 
-export const PROVIDER_IMPORT_SOURCE_IDS = ['alma', 'cherry-studio', 'hermes', 'openclaw'] as const
+export const PROVIDER_IMPORT_SOURCE_IDS = [
+  'cc-switch',
+  'alma',
+  'cherry-studio',
+  'hermes',
+  'openclaw'
+] as const
 export const PROVIDER_IMPORT_CUSTOM_API_TYPES = [
   'openai-completions',
   'openai',
@@ -23,8 +29,10 @@ export type ProviderImportProviderWarning =
   | 'missing_api_key'
   | 'unsupported_provider'
   | 'overwrites_previous_selection'
+  | 'credential_only_import'
 
 export type ProviderImportApplyStatus = 'created' | 'updated' | 'skipped' | 'overwritten'
+export type ProviderImportApplyMode = 'full' | 'credentials_only'
 
 export interface ProviderImportSourceScan {
   id: ProviderImportSourceId
@@ -127,6 +135,7 @@ export interface ProviderImportMapping {
   targetProviderId: string
   targetProviderName: string
   targetApiType: string
+  importMode: ProviderImportApplyMode
 }
 
 export interface ProviderImportPlannedProvider {
