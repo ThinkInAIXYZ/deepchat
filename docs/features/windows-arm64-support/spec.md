@@ -15,9 +15,9 @@ DeepChat maintainers need a reliable way to validate Windows ARM64 builds withou
 
 ## Non-Goals
 
-- Do not enable Windows ARM64 in the production build/release matrix until the manual Windows ARM64 E2E workflow has passed.
-- Do not guarantee every optional runtime is bundled on Windows ARM64.
-- Do not use real provider API keys in CI.
+- Enable Windows ARM64 in the production build/release matrix only after the manual Windows ARM64 E2E workflow has passed.
+- Not every optional runtime is guaranteed to be bundled on Windows ARM64.
+- Real provider API keys must not be used in CI.
 
 ## Constraints
 

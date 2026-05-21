@@ -1,5 +1,5 @@
-import { E2E_MOCK_MODEL_ID, E2E_MOCK_PROVIDER_ID } from './mockProvider'
-
+export const E2E_MOCK_PROVIDER_ID = 'e2e-openai-compatible'
+export const E2E_MOCK_MODEL_ID = 'deepchat-e2e-mock'
 const useMockProvider = process.env.DEEPCHAT_E2E_USE_MOCK_PROVIDER === '1'
 
 export const E2E_TARGET_PROVIDER_ID =

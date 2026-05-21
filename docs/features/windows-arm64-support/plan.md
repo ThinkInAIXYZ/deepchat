@@ -2,9 +2,9 @@
 
 ## Architecture
 
-- Add a Windows ARM64 manual workflow that runs on GitHub's `windows-11-arm` runner and validates a packaged/unpacked ARM64 build with Playwright Electron smoke tests.
-- Add a small runtime installer wrapper for Windows ARM64 that calls `tiny-runtime-injector` per runtime and treats failures as skipped optional artifacts.
-- Add a CI-specific E2E mode that starts a local OpenAI-compatible mock server, injects a provider/model through existing typed routes, completes onboarding, and runs the existing smoke specs against an isolated profile.
+- Validate a packaged/unpacked ARM64 build with a Windows ARM64 manual workflow running on GitHub's `windows-11-arm` runner and Playwright Electron smoke tests.
+- Introduce a small runtime installer wrapper for Windows ARM64 that calls `tiny-runtime-injector` per runtime and treats failures as skipped optional artifacts.
+- Provide a CI-specific E2E mode that starts a local OpenAI-compatible mock server, injects a provider/model through existing typed routes, completes onboarding, and runs the existing smoke specs against an isolated profile.
 
 ## E2E Data Flow
 

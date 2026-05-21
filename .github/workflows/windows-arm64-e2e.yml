@@ -13,16 +13,18 @@ jobs:
     runs-on: windows-11-arm
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.14.1'
           package-manager-cache: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
 
       - name: Install dependencies
         run: pnpm install
@@ -76,7 +78,7 @@ jobs:
 
       - name: Upload Windows arm64 artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: deepchat-win-arm64-e2e-artifacts
           if-no-files-found: warn

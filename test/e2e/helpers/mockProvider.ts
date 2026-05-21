@@ -1,8 +1,6 @@
 import type { Page } from '@playwright/test'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-
-export const E2E_MOCK_PROVIDER_ID = 'e2e-openai-compatible'
-export const E2E_MOCK_MODEL_ID = 'deepchat-e2e-mock'
+import { E2E_MOCK_MODEL_ID, E2E_MOCK_PROVIDER_ID } from './testData'
 
 type MockProviderServer = {
   baseUrl: string
