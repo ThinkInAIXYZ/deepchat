@@ -43,6 +43,9 @@ jobs:
       - name: Install Windows arm64 runtimes
         run: pnpm run installRuntime:win:arm64
 
+      - name: Verify DuckDB and VSS on Windows arm64
+        run: pnpm run smoke:duckdb:vss
+
       - name: Build Windows arm64 package
         run: |
           pnpm run build
