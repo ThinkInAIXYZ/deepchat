@@ -6,12 +6,14 @@
 - Extend the manual build workflow's Windows matrix to produce `win-x64` and `win-arm64` artifacts while keeping the release workflow on Windows x64 only.
 - Keep the Windows ARM64 runtime script explicit: install only verified native `uv`, `node`, and `ripgrep` artifacts.
 - Provide a CI-specific E2E mode that runs only non-provider smoke specs against the runner profile.
+- Launch packaged Windows E2E through a fixed Chromium remote debugging port and `chromium.connectOverCDP`; keep `_electron.launch()` for local built-output E2E.
 
 ## E2E Data Flow
 
 1. The Playwright fixture launches DeepChat with the default Electron `userData` path for the current runner/user.
 2. CI Playwright config matches only launch and settings-navigation smoke specs.
 3. Chat, session persistence, and provider connectivity specs remain available for local/manual runs with configured providers.
+4. Packaged CI launch captures app process stdout/stderr and renderer diagnostics into Playwright attachments.
 
 ## Runtime Behavior
 
@@ -26,3 +28,4 @@
 - Skill runtime tests cover the no-UV/no-system-Python auto-runtime failure path.
 - The manual build workflow validates Windows x64 and Windows ARM64 artifact generation.
 - The new manual workflow validates Windows ARM64 build, plugin bundle, app launch, route switching, and settings navigation.
+- The Windows ARM64 E2E workflow uploads Playwright reports, traces, screenshots, and logs only.

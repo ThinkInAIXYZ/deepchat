@@ -66,15 +66,12 @@ jobs:
           DEEPCHAT_E2E_APP_MODE: packaged
           DEEPCHAT_E2E_EXECUTABLE_PATH: ${{ github.workspace }}/dist/win-arm64-unpacked/DeepChat.exe
 
-      - name: Upload Windows arm64 artifacts
+      - name: Upload Windows arm64 E2E diagnostics
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: deepchat-win-arm64-e2e-artifacts
+          name: deepchat-win-arm64-e2e-diagnostics
           if-no-files-found: warn
           path: |
-            dist/*
-            !dist/win-unpacked
-            !dist/win-arm64-unpacked
             test-results/e2e
             playwright-report
