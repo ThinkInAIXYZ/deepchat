@@ -22,12 +22,11 @@ The smoke suite currently targets the following real provider setup:
 - Provider: `minimax`
 - Model: `MiniMax-M2.7`
 
-If you want to use a different provider or model, edit [testData.ts](./helpers/testData.ts).
+If you want to use a different provider or model, set `DEEPCHAT_E2E_PROVIDER_ID` and
+`DEEPCHAT_E2E_MODEL_ID`, or edit [testData.ts](./helpers/testData.ts).
 
-The CI command injects a local mock provider into the current profile automatically:
-
-- Provider: `e2e-openai-compatible`
-- Model: `deepchat-e2e-mock`
+The CI command runs only the launch and Settings navigation smoke specs. It does not send chat
+requests and does not require provider credentials.
 
 ## Prerequisites
 
@@ -68,5 +67,5 @@ The suite also attaches renderer console output and page errors to each test run
 - Tests are additive only and avoid deleting existing user data.
 - Settings checks use the real Settings window and the real provider configuration.
 - The provider connectivity check is opt-in because it requires live credentials and network access.
-- `pnpm run e2e:smoke:ci` uses the current profile and a local OpenAI-compatible mock provider; it
-  is intended for CI and Windows ARM64 validation.
+- `pnpm run e2e:smoke:ci` uses the current profile and only runs non-provider smoke coverage; it is
+  intended for CI and Windows ARM64 validation.

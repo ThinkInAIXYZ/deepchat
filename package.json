@@ -20,7 +20,7 @@
     "test:watch": "vitest --watch",
     "test:ui": "vitest --ui",
     "e2e:smoke": "playwright test -c test/e2e/playwright.config.ts",
-    "e2e:smoke:ci": "cross-env DEEPCHAT_E2E_USE_MOCK_PROVIDER=1 playwright test -c test/e2e/playwright.ci.config.ts",
+    "e2e:smoke:ci": "playwright test -c test/e2e/playwright.ci.config.ts",
     "format:check": "oxfmt --check .",
     "format": "oxfmt .",
     "lint": "pnpm run lint:agent-cleanup && pnpm run lint:architecture && oxlint .",

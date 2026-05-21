@@ -7,8 +7,8 @@ DeepChat maintainers need a reliable way to validate Windows ARM64 builds withou
 ## Acceptance Criteria
 
 - A manual GitHub Actions workflow runs on `windows-11-arm` and builds the Windows ARM64 app.
-- The workflow runs E2E smoke tests against a local OpenAI-compatible mock provider with no real secrets.
-- The E2E run uses the runner's default profile and injects a local mock provider through existing typed routes.
+- The workflow runs E2E smoke tests that do not require configured provider credentials.
+- The E2E run uses the runner's default profile and validates launch, routing, and settings window behavior.
 - Windows ARM64 bundled runtimes are best-effort: missing `uv`, `node`, `ripgrep`, or `rtk` artifacts are recorded and skipped without failing the build.
 - Existing Windows x64, macOS, and Linux runtime install scripts remain strict.
 - The Windows ARM64 workflow uploads build artifacts and E2E diagnostics.
@@ -17,10 +17,10 @@ DeepChat maintainers need a reliable way to validate Windows ARM64 builds withou
 
 - Enable Windows ARM64 in the production build/release matrix only after the manual Windows ARM64 E2E workflow has passed.
 - Not every optional runtime is guaranteed to be bundled on Windows ARM64.
-- Real provider API keys must not be used in CI.
+- Provider-backed chat requests must not run in this CI workflow.
 
 ## Constraints
 
-- Use existing typed routes for E2E provider/model bootstrap.
+- Keep CI smoke coverage provider-independent; provider-backed specs remain local/manual only.
 - Keep local `pnpm run e2e:smoke` behavior compatible with existing manual smoke tests.
 - Keep runtime fallback behavior aligned with existing `RuntimeHelper`, RTK, and skill runtime logic.

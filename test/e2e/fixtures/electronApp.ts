@@ -9,11 +9,11 @@ import { existsSync } from 'node:fs'
 import { arch } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { configureMockProvider, startMockProviderServer } from '../helpers/mockProvider'
 
 const FIXTURE_DIR = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(FIXTURE_DIR, '..', '..', '..')
 const BUILT_MAIN_ENTRY = resolve(REPO_ROOT, 'out', 'main', 'index.js')
+const BUILT_RENDERER_ENTRY = resolve(REPO_ROOT, 'out', 'renderer', 'index.html')
 const WINDOWS_PACKAGED_EXECUTABLE = resolve(
   REPO_ROOT,
   'dist',
@@ -67,8 +67,6 @@ type ElectronFixtures = {
   launchApp: () => Promise<ElectronAppInstance>
 }
 
-const shouldUseMockProvider = (): boolean => process.env.DEEPCHAT_E2E_USE_MOCK_PROVIDER === '1'
-
 const resolvePackagedExecutable = (): string => {
   if (process.env.DEEPCHAT_E2E_EXECUTABLE_PATH) {
     return resolve(process.env.DEEPCHAT_E2E_EXECUTABLE_PATH)
@@ -113,6 +111,12 @@ const ensureLaunchTargetExists = (): void => {
       `Built app entry not found at ${BUILT_MAIN_ENTRY}. Run "pnpm run build" before "pnpm run e2e:smoke".`
     )
   }
+
+  if (!existsSync(BUILT_RENDERER_ENTRY)) {
+    throw new Error(
+      `Built renderer entry not found at ${BUILT_RENDERER_ENTRY}. Run "pnpm run build" before "pnpm run e2e:smoke".`
+    )
+  }
 }
 
 export const test = base.extend<ElectronFixtures>({
@@ -123,7 +127,6 @@ export const test = base.extend<ElectronFixtures>({
     const pageErrors: string[] = []
     const attachedPages = new WeakSet<Page>()
     const launchedApps = new Set<ElectronAppInstance>()
-    let mockProviderServer: Awaited<ReturnType<typeof startMockProviderServer>> | null = null
     let launchCount = 0
 
     const attachPageListeners = (page: Page, label: string) => {
@@ -188,9 +191,6 @@ export const test = base.extend<ElectronFixtures>({
         const page = await waitForMainAppWindow(electronApp)
         attachPageListeners(page, `main-${currentLaunch}`)
         await page.waitForLoadState('domcontentloaded')
-        if (mockProviderServer) {
-          await configureMockProvider(page, mockProviderServer.baseUrl)
-        }
         app.page = page
         return app
       } catch (error) {
@@ -200,7 +200,6 @@ export const test = base.extend<ElectronFixtures>({
     }
 
     try {
-      mockProviderServer = shouldUseMockProvider() ? await startMockProviderServer() : null
       await use(launchApp)
     } finally {
       const pendingApps = [...launchedApps].reverse()
@@ -209,9 +208,6 @@ export const test = base.extend<ElectronFixtures>({
       }
 
       await attachDiagnostics(testInfo, consoleLogs, pageErrors)
-      if (mockProviderServer) {
-        await mockProviderServer.close()
-      }
     }
   },
 

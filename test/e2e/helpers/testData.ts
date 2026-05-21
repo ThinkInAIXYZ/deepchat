@@ -1,11 +1,5 @@
-export const E2E_MOCK_PROVIDER_ID = 'e2e-openai-compatible'
-export const E2E_MOCK_MODEL_ID = 'deepchat-e2e-mock'
-const useMockProvider = process.env.DEEPCHAT_E2E_USE_MOCK_PROVIDER === '1'
-
-export const E2E_TARGET_PROVIDER_ID =
-  process.env.DEEPCHAT_E2E_PROVIDER_ID ?? (useMockProvider ? E2E_MOCK_PROVIDER_ID : 'minimax')
-export const E2E_TARGET_MODEL_ID =
-  process.env.DEEPCHAT_E2E_MODEL_ID ?? (useMockProvider ? E2E_MOCK_MODEL_ID : 'MiniMax-M2.7')
+export const E2E_TARGET_PROVIDER_ID = process.env.DEEPCHAT_E2E_PROVIDER_ID ?? 'minimax'
+export const E2E_TARGET_MODEL_ID = process.env.DEEPCHAT_E2E_MODEL_ID ?? 'MiniMax-M2.7'
 
 export const createSmokeToken = (prefix: string): string =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
