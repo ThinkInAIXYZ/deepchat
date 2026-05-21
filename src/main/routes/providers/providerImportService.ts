@@ -167,6 +167,11 @@ const CC_SWITCH_APP_TYPES = [
   'openclaw',
   'hermes'
 ] as const
+const CC_SWITCH_DB_FILE_NAME = 'cc-switch.db'
+const CC_SWITCH_DESKTOP_CONFIG_DIR_NAME = 'com.ccswitch.desktop'
+const CC_SWITCH_DESKTOP_APP_PATHS_FILE_NAME = 'app_paths.json'
+const CHERRY_STUDIO_LEVELDB_RELATIVE_PATH = 'Local Storage/leveldb'
+const CHERRY_STUDIO_CONFIG_RELATIVE_PATH = '.cherrystudio/config/config.json'
 
 const SOURCE_PREFIX: Record<ProviderImportSourceId, string> = {
   alma: 'alma',
@@ -314,6 +319,17 @@ const buildWindowsDisplayPath = (
   base: '%APPDATA%' | '%USERPROFILE%' | '%HOME%',
   relativePath: string
 ) => `${base}\\${relativePath.replaceAll('/', '\\')}`
+
+const getContainedRelativePath = (basePath: string, targetPath: string): string => {
+  const relativePath = path.relative(basePath, targetPath)
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return ''
+  }
+  return relativePath
+}
+
+const toUnixRelativeDisplayPath = (relativePath: string): string =>
+  relativePath.split(path.sep).join('/')
 
 const isSupportedScanPlatform = (
   platform: NodeJS.Platform
@@ -1456,6 +1472,24 @@ export class ProviderImportService {
   }
 
   private resolveSourcePath(definition: SourceDefinition): ResolvedSourcePath {
+    if (definition.id === 'cc-switch') {
+      const overridePath = this.resolveCcSwitchDesktopOverridePath()
+      if (overridePath) {
+        return overridePath
+      }
+    }
+
+    if (definition.id === 'cherry-studio') {
+      const customPath = this.resolveCherryStudioCustomDataPath()
+      if (customPath) {
+        return customPath
+      }
+    }
+
+    return this.resolveDefaultSourcePath(definition)
+  }
+
+  private resolveDefaultSourcePath(definition: SourceDefinition): ResolvedSourcePath {
     if (this.platform === 'win32') {
       const basePath = definition.windowsBase === 'appData' ? this.appDataDir : this.homeDir
       const displayBase = definition.windowsBase === 'appData' ? '%APPDATA%' : '%USERPROFILE%'
@@ -1482,5 +1516,171 @@ export class ProviderImportService {
       sourcePath: path.join(this.homeDir, definition.unixRelativePath),
       displayPath: buildUnixDisplayPath(definition.unixRelativePath)
     }
+  }
+
+  private resolveCherryStudioCustomDataPath(): ResolvedSourcePath | null {
+    const candidateDirs = this.readCherryStudioConfiguredDataDirs()
+
+    for (const candidateDir of candidateDirs) {
+      const sourcePath = path.join(candidateDir, CHERRY_STUDIO_LEVELDB_RELATIVE_PATH)
+      if (!fs.existsSync(sourcePath)) {
+        continue
+      }
+
+      return {
+        sourcePath,
+        displayPath: this.buildDetectedSourceDisplayPath(sourcePath)
+      }
+    }
+
+    return null
+  }
+
+  private readCherryStudioConfiguredDataDirs(): string[] {
+    const configPath = path.join(this.homeDir, CHERRY_STUDIO_CONFIG_RELATIVE_PATH)
+    if (!fs.existsSync(configPath)) {
+      return []
+    }
+
+    let config: Record<string, unknown>
+    try {
+      config = toObjectValue(safeJsonParse(fs.readFileSync(configPath, 'utf8')))
+    } catch {
+      return []
+    }
+
+    const appDataPath = config.appDataPath
+    if (typeof appDataPath === 'string') {
+      return this.normalizeDetectedPaths([appDataPath])
+    }
+
+    if (!Array.isArray(appDataPath)) {
+      return []
+    }
+
+    const entries = appDataPath
+      .map((entry) => toObjectValue(entry))
+      .filter((entry) => toStringValue(entry.dataPath))
+      .sort((left, right) => {
+        const leftExecutableExists = fs.existsSync(toStringValue(left.executablePath))
+        const rightExecutableExists = fs.existsSync(toStringValue(right.executablePath))
+        return Number(rightExecutableExists) - Number(leftExecutableExists)
+      })
+    return this.normalizeDetectedPaths(entries.map((entry) => toStringValue(entry.dataPath)))
+  }
+
+  private resolveCcSwitchDesktopOverridePath(): ResolvedSourcePath | null {
+    const appPathsPath = this.resolveCcSwitchDesktopAppPathsPath()
+    if (!fs.existsSync(appPathsPath)) {
+      return null
+    }
+
+    let appPathsFile = ''
+    try {
+      appPathsFile = fs.readFileSync(appPathsPath, 'utf8')
+    } catch {
+      return null
+    }
+
+    const appPaths = toObjectValue(safeJsonParse(appPathsFile))
+    const overrideDir = toStringValue(appPaths.app_config_dir_override)
+    if (!overrideDir) {
+      return null
+    }
+
+    const dbPath = path.join(this.resolveCcSwitchOverrideDir(overrideDir), CC_SWITCH_DB_FILE_NAME)
+    if (!fs.existsSync(dbPath)) {
+      return null
+    }
+
+    return {
+      sourcePath: dbPath,
+      displayPath: this.buildDetectedSourceDisplayPath(dbPath)
+    }
+  }
+
+  private resolveCcSwitchDesktopAppPathsPath(): string {
+    if (this.platform === 'win32') {
+      return path.join(
+        this.appDataDir,
+        CC_SWITCH_DESKTOP_CONFIG_DIR_NAME,
+        CC_SWITCH_DESKTOP_APP_PATHS_FILE_NAME
+      )
+    }
+
+    if (this.platform === 'linux') {
+      const xdgConfigDir = (process.env.XDG_CONFIG_HOME ?? '').trim()
+      const configBaseDir = xdgConfigDir || path.join(this.homeDir, '.config')
+      return path.join(
+        configBaseDir,
+        CC_SWITCH_DESKTOP_CONFIG_DIR_NAME,
+        CC_SWITCH_DESKTOP_APP_PATHS_FILE_NAME
+      )
+    }
+
+    return path.join(
+      this.homeDir,
+      'Library/Application Support',
+      CC_SWITCH_DESKTOP_CONFIG_DIR_NAME,
+      CC_SWITCH_DESKTOP_APP_PATHS_FILE_NAME
+    )
+  }
+
+  private resolveCcSwitchOverrideDir(overrideDir: string): string {
+    return this.resolveDetectedPath(overrideDir)
+  }
+
+  private resolveDetectedPath(value: string): string {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return ''
+    }
+
+    if (trimmed === '~') {
+      return this.homeDir
+    }
+
+    if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
+      return path.join(this.homeDir, trimmed.slice(2))
+    }
+
+    return path.isAbsolute(trimmed) ? trimmed : path.resolve(this.homeDir, trimmed)
+  }
+
+  private normalizeDetectedPaths(values: string[]): string[] {
+    const result: string[] = []
+    const seen = new Set<string>()
+    for (const value of values) {
+      const resolvedPath = this.resolveDetectedPath(value)
+      if (!resolvedPath || seen.has(resolvedPath)) {
+        continue
+      }
+      seen.add(resolvedPath)
+      result.push(resolvedPath)
+    }
+    return result
+  }
+
+  private buildDetectedSourceDisplayPath(sourcePath: string): string {
+    if (this.platform === 'win32') {
+      const appDataRelativePath = getContainedRelativePath(this.appDataDir, sourcePath)
+      if (appDataRelativePath) {
+        return buildWindowsDisplayPath('%APPDATA%', toUnixRelativeDisplayPath(appDataRelativePath))
+      }
+
+      const homeRelativePath = getContainedRelativePath(this.homeDir, sourcePath)
+      if (homeRelativePath) {
+        return buildWindowsDisplayPath('%USERPROFILE%', toUnixRelativeDisplayPath(homeRelativePath))
+      }
+
+      return sourcePath
+    }
+
+    const homeRelativePath = getContainedRelativePath(this.homeDir, sourcePath)
+    if (homeRelativePath) {
+      return buildUnixDisplayPath(toUnixRelativeDisplayPath(homeRelativePath))
+    }
+
+    return sourcePath
   }
 }
