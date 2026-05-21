@@ -6,12 +6,20 @@ import {
   type TestInfo
 } from '@playwright/test'
 import { existsSync } from 'node:fs'
+import { arch } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const FIXTURE_DIR = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(FIXTURE_DIR, '..', '..', '..')
 const BUILT_MAIN_ENTRY = resolve(REPO_ROOT, 'out', 'main', 'index.js')
+const BUILT_RENDERER_ENTRY = resolve(REPO_ROOT, 'out', 'renderer', 'index.html')
+const WINDOWS_PACKAGED_EXECUTABLE = resolve(
+  REPO_ROOT,
+  'dist',
+  arch() === 'arm64' ? 'win-arm64-unpacked' : 'win-unpacked',
+  'DeepChat.exe'
+)
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -59,6 +67,20 @@ type ElectronFixtures = {
   launchApp: () => Promise<ElectronAppInstance>
 }
 
+const resolvePackagedExecutable = (): string => {
+  if (process.env.DEEPCHAT_E2E_EXECUTABLE_PATH) {
+    return resolve(process.env.DEEPCHAT_E2E_EXECUTABLE_PATH)
+  }
+
+  if (process.platform === 'win32') {
+    return WINDOWS_PACKAGED_EXECUTABLE
+  }
+
+  throw new Error(
+    'DEEPCHAT_E2E_APP_MODE=packaged requires DEEPCHAT_E2E_EXECUTABLE_PATH on this platform.'
+  )
+}
+
 const attachDiagnostics = async (
   testInfo: TestInfo,
   consoleLogs: string[],
@@ -75,17 +97,31 @@ const attachDiagnostics = async (
   })
 }
 
-const ensureBuiltAppExists = (): void => {
+const ensureLaunchTargetExists = (): void => {
+  if (process.env.DEEPCHAT_E2E_APP_MODE === 'packaged') {
+    const executablePath = resolvePackagedExecutable()
+    if (!existsSync(executablePath)) {
+      throw new Error(`Packaged app executable not found at ${executablePath}.`)
+    }
+    return
+  }
+
   if (!existsSync(BUILT_MAIN_ENTRY)) {
     throw new Error(
       `Built app entry not found at ${BUILT_MAIN_ENTRY}. Run "pnpm run build" before "pnpm run e2e:smoke".`
+    )
+  }
+
+  if (!existsSync(BUILT_RENDERER_ENTRY)) {
+    throw new Error(
+      `Built renderer entry not found at ${BUILT_RENDERER_ENTRY}. Run "pnpm run build" before "pnpm run e2e:smoke".`
     )
   }
 }
 
 export const test = base.extend<ElectronFixtures>({
   launchApp: async ({}, use, testInfo) => {
-    ensureBuiltAppExists()
+    ensureLaunchTargetExists()
 
     const consoleLogs: string[] = []
     const pageErrors: string[] = []
@@ -112,10 +148,19 @@ export const test = base.extend<ElectronFixtures>({
     const launchApp = async (): Promise<ElectronAppInstance> => {
       launchCount += 1
       const currentLaunch = launchCount
+      const packaged = process.env.DEEPCHAT_E2E_APP_MODE === 'packaged'
 
       const electronApp = await electron.launch({
-        args: ['.'],
+        ...(packaged
+          ? {
+              executablePath: resolvePackagedExecutable(),
+              args: []
+            }
+          : {
+              args: ['.']
+            }),
         cwd: REPO_ROOT,
+        env: process.env,
         timeout: 120_000
       })
 
