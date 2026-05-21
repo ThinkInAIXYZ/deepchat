@@ -7,5 +7,6 @@
 - [x] Keep E2E on the default runner profile.
 - [x] Add packaged-app E2E launch mode.
 - [x] Add Windows ARM64 manual GitHub Actions workflow.
+- [x] Enable Windows ARM64 in the manual build workflow.
 - [x] Add targeted unit coverage for runtime fallback paths.
-- [ ] Enable Windows ARM64 in production build/release matrices after the manual workflow passes on GitHub.
+- [ ] Enable Windows ARM64 in the release workflow after the manual workflow passes on GitHub.

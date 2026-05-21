@@ -3,6 +3,7 @@
 ## Architecture
 
 - Validate a packaged/unpacked ARM64 build with a Windows ARM64 manual workflow running on GitHub's `windows-11-arm` runner and Playwright Electron smoke tests.
+- Extend the manual build workflow's Windows matrix to produce `win-x64` and `win-arm64` artifacts while keeping the release workflow on Windows x64 only.
 - Keep the Windows ARM64 runtime script explicit: install only verified native `uv`, `node`, and `ripgrep` artifacts.
 - Provide a CI-specific E2E mode that runs only non-provider smoke specs against the runner profile.
 
@@ -23,4 +24,5 @@
 - Runtime fallback tests cover missing bundled runtime behavior.
 - Existing RTK fallback coverage remains in place.
 - Skill runtime tests cover the no-UV/no-system-Python auto-runtime failure path.
+- The manual build workflow validates Windows x64 and Windows ARM64 artifact generation.
 - The new manual workflow validates Windows ARM64 build, plugin bundle, app launch, route switching, and settings navigation.
