@@ -1,0 +1,89 @@
+name: Windows ARM64 E2E
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  RTK_INSTALL_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+  RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
+
+jobs:
+  windows-arm64-e2e:
+    runs-on: windows-11-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.14.1'
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure pnpm workspace for Windows arm64
+        run: pnpm run install:sharp
+        env:
+          TARGET_OS: win32
+          TARGET_ARCH: arm64
+
+      - name: Install Windows arm64 dependencies
+        run: pnpm install
+        env:
+          npm_config_build_from_source: true
+          npm_config_platform: win32
+          npm_config_arch: arm64
+
+      - name: Report RTK install token source
+        shell: bash
+        run: |
+          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
+
+      - name: Install optional Windows arm64 runtimes
+        run: pnpm run installRuntime:win:arm64
+        env:
+          GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
+
+      - name: Build Windows arm64 package
+        run: |
+          pnpm run build
+          pnpm run plugin:bundle:clean
+          pnpm run plugin:bundle -- --name feishu --platform win32 --arch arm64
+          pnpm exec electron-builder --win --arm64 --publish=never
+        env:
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Verify bundled plugins
+        shell: bash
+        run: |
+          pnpm run plugin:verify -- --name feishu --platform win32 --arch arm64 --plugin-root dist/win-arm64-unpacked/resources/app.asar.unpacked/plugins
+
+      - name: Run packaged E2E smoke tests
+        run: pnpm run e2e:smoke:ci
+        env:
+          DEEPCHAT_E2E_APP_MODE: packaged
+          DEEPCHAT_E2E_EXECUTABLE_PATH: ${{ github.workspace }}/dist/win-arm64-unpacked/DeepChat.exe
+          DEEPCHAT_E2E_USER_DATA_DIR: ${{ runner.temp }}/deepchat-e2e-profiles
+
+      - name: Upload Windows arm64 artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: deepchat-win-arm64-e2e-artifacts
+          if-no-files-found: warn
+          path: |
+            dist/*
+            !dist/win-unpacked
+            !dist/win-arm64-unpacked
+            build/runtime-install-summary-win-arm64.json
+            test-results/e2e
+            playwright-report

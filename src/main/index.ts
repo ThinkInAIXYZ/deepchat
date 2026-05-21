@@ -12,8 +12,31 @@ import {
   isDeepLinkUrl,
   storeStartupDeepLink
 } from './lib/startupDeepLink'
+import { basename, resolve } from 'node:path'
 
 registerWorkspacePreviewSchemes()
+
+const configureE2eUserDataPath = (): void => {
+  if (process.env.DEEPCHAT_E2E !== '1') {
+    return
+  }
+
+  const userDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim()
+  if (!userDataDir) {
+    return
+  }
+
+  const resolvedUserDataDir = resolve(userDataDir)
+  if (!basename(resolvedUserDataDir).startsWith('deepchat-e2e-')) {
+    log.warn('[E2E] Ignoring unsafe DEEPCHAT_E2E_USER_DATA_DIR:', resolvedUserDataDir)
+    return
+  }
+
+  app.setPath('userData', resolvedUserDataDir)
+  log.info('[E2E] Using isolated userData path:', resolvedUserDataDir)
+}
+
+configureE2eUserDataPath()
 
 // Handle unhandled exceptions to prevent app crash or error dialogs
 process.on('uncaughtException', (error) => {

@@ -1,9 +1,10 @@
 # DeepChat E2E Smoke
 
-This suite runs manual smoke regression against the real local desktop environment.
+This suite runs manual smoke regression against the real local desktop environment by default.
 
 It does not use mock providers, alternate `userData` directories, or E2E-only bootstrap state.
-The tests run against the same local profile that the app normally uses.
+The default `pnpm run e2e:smoke` command runs against the same local profile that the app normally
+uses.
 
 ## Scope
 
@@ -23,6 +24,11 @@ The smoke suite currently targets the following real provider setup:
 
 If you want to use a different provider or model, edit [testData.ts](./helpers/testData.ts).
 
+The CI command switches to an isolated mock provider automatically:
+
+- Provider: `e2e-openai-compatible`
+- Model: `deepchat-e2e-mock`
+
 ## Prerequisites
 
 Before running the suite:
@@ -37,6 +43,13 @@ Before running the suite:
 ```bash
 pnpm run build
 pnpm run e2e:smoke
+```
+
+For CI-style validation without real credentials:
+
+```bash
+pnpm run build
+pnpm run e2e:smoke:ci
 ```
 
 Set `RUN_PROVIDER_INTEGRATION=true` before running `pnpm run e2e:smoke` if you also want the
@@ -55,3 +68,5 @@ The suite also attaches renderer console output and page errors to each test run
 - Tests are additive only and avoid deleting existing user data.
 - Settings checks use the real Settings window and the real provider configuration.
 - The provider connectivity check is opt-in because it requires live credentials and network access.
+- `pnpm run e2e:smoke:ci` uses an isolated temporary profile and a local OpenAI-compatible mock
+  provider; it is intended for CI and Windows ARM64 validation.

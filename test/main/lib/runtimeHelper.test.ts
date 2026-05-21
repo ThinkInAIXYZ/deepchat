@@ -41,4 +41,25 @@ describe('RuntimeHelper', () => {
       '/mock/runtime/rtk/rtk.exe'
     )
   })
+
+  it('leaves runtime paths empty and PATH unchanged when bundled runtimes are missing', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+
+    const helper = RuntimeHelper.getInstance()
+    helper.initializeRuntimes(true)
+
+    expect(helper.getNodeRuntimePath()).toBeNull()
+    expect(helper.getUvRuntimePath()).toBeNull()
+    expect(helper.getRipgrepRuntimePath()).toBeNull()
+    expect(helper.getRtkRuntimePath()).toBeNull()
+    expect(helper.getBundledRuntimeBinPaths()).toEqual([])
+    expect(helper.prependBundledRuntimeToEnv({ PATH: 'C:\\Windows\\System32' })).toEqual({
+      PATH: 'C:\\Windows\\System32'
+    })
+  })
 })

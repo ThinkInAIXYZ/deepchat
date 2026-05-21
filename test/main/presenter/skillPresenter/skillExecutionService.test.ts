@@ -190,6 +190,16 @@ describe('SkillExecutionService', () => {
     })
   })
 
+  it('reports unavailable python runtime when uv and system python are missing', async () => {
+    vi.spyOn(service as never, 'hasCommand' as never).mockResolvedValue(false)
+    vi.spyOn(service as never, 'getBundledRuntimeCommand' as never).mockReturnValue(null)
+    vi.spyOn(service as never, 'findSystemPythonRuntime' as never).mockResolvedValue(null)
+
+    await expect(
+      (service as never).resolvePythonRuntime('auto', { PATH: '/bin' }, '/skill')
+    ).rejects.toThrow('No compatible Python runtime found for this skill')
+  })
+
   it('switches to shell spawn mode when RTK rewrites the command', async () => {
     vi.mocked(rtkRuntimeService.prepareShellCommand).mockResolvedValueOnce({
       originalCommand: 'node /skills/ocr/scripts/run.py',

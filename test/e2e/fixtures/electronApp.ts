@@ -6,12 +6,21 @@ import {
   type TestInfo
 } from '@playwright/test'
 import { existsSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { arch, tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { configureMockProvider, startMockProviderServer } from '../helpers/mockProvider'
 
 const FIXTURE_DIR = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(FIXTURE_DIR, '..', '..', '..')
 const BUILT_MAIN_ENTRY = resolve(REPO_ROOT, 'out', 'main', 'index.js')
+const WINDOWS_PACKAGED_EXECUTABLE = resolve(
+  REPO_ROOT,
+  'dist',
+  arch() === 'arm64' ? 'win-arm64-unpacked' : 'win-unpacked',
+  'DeepChat.exe'
+)
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -59,6 +68,37 @@ type ElectronFixtures = {
   launchApp: () => Promise<ElectronAppInstance>
 }
 
+const shouldUseMockProvider = (): boolean => process.env.DEEPCHAT_E2E_USE_MOCK_PROVIDER === '1'
+
+const shouldUseIsolatedProfile = (): boolean =>
+  process.env.DEEPCHAT_E2E_PROFILE === 'isolated' ||
+  shouldUseMockProvider() ||
+  Boolean(process.env.CI)
+
+const createIsolatedUserDataDir = async (): Promise<string | undefined> => {
+  if (!shouldUseIsolatedProfile()) {
+    return undefined
+  }
+
+  const baseDir = resolve(process.env.DEEPCHAT_E2E_USER_DATA_DIR || tmpdir())
+  await mkdir(baseDir, { recursive: true })
+  return await mkdtemp(join(baseDir, 'deepchat-e2e-'))
+}
+
+const resolvePackagedExecutable = (): string => {
+  if (process.env.DEEPCHAT_E2E_EXECUTABLE_PATH) {
+    return resolve(process.env.DEEPCHAT_E2E_EXECUTABLE_PATH)
+  }
+
+  if (process.platform === 'win32') {
+    return WINDOWS_PACKAGED_EXECUTABLE
+  }
+
+  throw new Error(
+    'DEEPCHAT_E2E_APP_MODE=packaged requires DEEPCHAT_E2E_EXECUTABLE_PATH on this platform.'
+  )
+}
+
 const attachDiagnostics = async (
   testInfo: TestInfo,
   consoleLogs: string[],
@@ -75,7 +115,15 @@ const attachDiagnostics = async (
   })
 }
 
-const ensureBuiltAppExists = (): void => {
+const ensureLaunchTargetExists = (): void => {
+  if (process.env.DEEPCHAT_E2E_APP_MODE === 'packaged') {
+    const executablePath = resolvePackagedExecutable()
+    if (!existsSync(executablePath)) {
+      throw new Error(`Packaged app executable not found at ${executablePath}.`)
+    }
+    return
+  }
+
   if (!existsSync(BUILT_MAIN_ENTRY)) {
     throw new Error(
       `Built app entry not found at ${BUILT_MAIN_ENTRY}. Run "pnpm run build" before "pnpm run e2e:smoke".`
@@ -85,12 +133,14 @@ const ensureBuiltAppExists = (): void => {
 
 export const test = base.extend<ElectronFixtures>({
   launchApp: async ({}, use, testInfo) => {
-    ensureBuiltAppExists()
+    ensureLaunchTargetExists()
 
     const consoleLogs: string[] = []
     const pageErrors: string[] = []
     const attachedPages = new WeakSet<Page>()
     const launchedApps = new Set<ElectronAppInstance>()
+    let userDataDir: string | undefined
+    let mockProviderServer: Awaited<ReturnType<typeof startMockProviderServer>> | null = null
     let launchCount = 0
 
     const attachPageListeners = (page: Page, label: string) => {
@@ -112,10 +162,28 @@ export const test = base.extend<ElectronFixtures>({
     const launchApp = async (): Promise<ElectronAppInstance> => {
       launchCount += 1
       const currentLaunch = launchCount
+      const launchEnv = {
+        ...process.env,
+        ...(userDataDir
+          ? {
+              DEEPCHAT_E2E: '1',
+              DEEPCHAT_E2E_USER_DATA_DIR: userDataDir
+            }
+          : {})
+      }
+      const packaged = process.env.DEEPCHAT_E2E_APP_MODE === 'packaged'
 
       const electronApp = await electron.launch({
-        args: ['.'],
+        ...(packaged
+          ? {
+              executablePath: resolvePackagedExecutable(),
+              args: []
+            }
+          : {
+              args: ['.']
+            }),
         cwd: REPO_ROOT,
+        env: launchEnv,
         timeout: 120_000
       })
 
@@ -146,6 +214,9 @@ export const test = base.extend<ElectronFixtures>({
         const page = await waitForMainAppWindow(electronApp)
         attachPageListeners(page, `main-${currentLaunch}`)
         await page.waitForLoadState('domcontentloaded')
+        if (mockProviderServer) {
+          await configureMockProvider(page, mockProviderServer.baseUrl)
+        }
         app.page = page
         return app
       } catch (error) {
@@ -155,6 +226,8 @@ export const test = base.extend<ElectronFixtures>({
     }
 
     try {
+      userDataDir = await createIsolatedUserDataDir()
+      mockProviderServer = shouldUseMockProvider() ? await startMockProviderServer() : null
       await use(launchApp)
     } finally {
       const pendingApps = [...launchedApps].reverse()
@@ -163,6 +236,12 @@ export const test = base.extend<ElectronFixtures>({
       }
 
       await attachDiagnostics(testInfo, consoleLogs, pageErrors)
+      if (mockProviderServer) {
+        await mockProviderServer.close()
+      }
+      if (userDataDir) {
+        await rm(userDataDir, { recursive: true, force: true })
+      }
     }
   },
 
