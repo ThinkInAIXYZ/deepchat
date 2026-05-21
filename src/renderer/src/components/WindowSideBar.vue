@@ -1138,13 +1138,11 @@ onUnmounted(() => {
 }
 
 .window-sidebar-shell {
-  contain: layout style paint;
+  contain: layout style;
 }
 
 .window-sidebar-session-column {
   backface-visibility: hidden;
-  transform: translateZ(0);
-  will-change: transform, opacity;
 }
 
 .session-list {

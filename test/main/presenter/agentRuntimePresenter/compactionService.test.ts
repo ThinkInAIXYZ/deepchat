@@ -488,8 +488,22 @@ describe('CompactionService', () => {
       newUserContent: 'next turn'
     })
 
-    expect(buildHistoryTurns).toHaveBeenNthCalledWith(1, expect.any(Array), false, false, false)
-    expect(buildHistoryTurns).toHaveBeenNthCalledWith(2, expect.any(Array), false, true, false)
+    expect(buildHistoryTurns).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Array),
+      false,
+      false,
+      false,
+      false
+    )
+    expect(buildHistoryTurns).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Array),
+      false,
+      true,
+      false,
+      false
+    )
   })
 
   it('passes assistant error records into next-turn compaction but excludes errored users', async () => {

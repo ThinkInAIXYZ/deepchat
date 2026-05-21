@@ -698,8 +698,8 @@ describe('ChatPage', () => {
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(false)
-    expect(html.indexOf('chat-tool-interaction-overlay-stub')).toBeLessThan(
-      html.indexOf('pending-input-lane-stub')
+    expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
+      html.indexOf('chat-tool-interaction-overlay-stub')
     )
   })
 
