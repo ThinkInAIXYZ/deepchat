@@ -106,14 +106,15 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
       throw new Error(`Unexpected SQL: ${sql}`)
     })
 
-    expect(table.getLatestVersion()).toBe(27)
+    expect(table.getLatestVersion()).toBe(28)
 
     expect(table.getMigrationSQL(23)).toBe(
       [
         'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;',
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
         'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;',
-        'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
+        'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;',
+        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
       ].join('\n')
     )
 
@@ -122,6 +123,9 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     )
     expect(table.getMigrationSQL(27)).toBe(
       'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
+    )
+    expect(table.getMigrationSQL(28)).toBe(
+      'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
     )
   })
 
@@ -223,7 +227,7 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
 
         if (sql === 'SELECT MAX(version) as version FROM schema_versions') {
           return {
-            get: () => ({ version: 28 })
+            get: () => ({ version: 29 })
           }
         }
 
@@ -235,11 +239,11 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     const guardedTable = new DeepChatSessionsTable(guardedDb)
 
     expect(() => guardedTable.createTable()).toThrow(
-      'Recorded deepchat_sessions schema version 28 exceeds supported version 27.'
+      'Recorded deepchat_sessions schema version 29 exceeds supported version 28.'
     )
     expect(exec).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith(
-      'Recorded deepchat_sessions schema version 28 exceeds supported version 27. Refusing to create table from a downgraded schema.'
+      'Recorded deepchat_sessions schema version 29 exceeds supported version 28. Refusing to create table from a downgraded schema.'
     )
   })
 })

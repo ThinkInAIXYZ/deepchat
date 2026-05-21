@@ -1,12 +1,13 @@
 <template>
-  <div
-    v-if="spotlightStore.open"
-    class="window-no-drag-region fixed inset-0 z-[70] flex items-start justify-center px-4 pt-16"
-    @mousedown.self="spotlightStore.closeSpotlight()"
-  >
+  <Teleport to="body">
     <div
-      class="spotlight-panel window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl backdrop-blur-[26px]"
+      v-if="spotlightStore.open"
+      class="window-no-drag-region fixed inset-0 z-[70] flex items-start justify-center px-4 pt-16"
+      @mousedown.self="spotlightStore.closeSpotlight()"
     >
+      <div
+        class="spotlight-panel window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl backdrop-blur-[26px]"
+      >
       <div class="flex items-center gap-3 border-b border-border/60 px-4 py-3">
         <Icon icon="lucide:search" class="h-4 w-4 shrink-0 text-muted-foreground" />
         <input
@@ -24,15 +25,16 @@
           <button
             v-for="(item, index) in spotlightStore.results"
             :key="item.id"
+            v-memo="[item.id, index === spotlightStore.activeIndex, spotlightStore.query]"
             type="button"
-            class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors"
+            class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left"
             :class="
               index === spotlightStore.activeIndex
                 ? 'bg-accent text-accent-foreground'
-                : 'text-foreground/90 hover:bg-accent/60'
+                : 'text-foreground/90'
             "
             :data-spotlight-active="index === spotlightStore.activeIndex ? 'true' : undefined"
-            @mouseenter="spotlightStore.setActiveItem(index)"
+            @mouseenter="handleItemMouseEnter(index)"
             @mousedown="handleItemMouseDown($event, item)"
             @click="handleItemClick(item)"
           >
@@ -104,7 +106,8 @@
         {{ t('chat.spotlight.hints') }}
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -118,6 +121,9 @@ const { t } = useI18n()
 const inputRef = ref<HTMLInputElement | null>(null)
 const resultsContainerRef = ref<HTMLElement | null>(null)
 const pointerActivatedItemId = ref<string | null>(null)
+let activeChangeSource: 'keyboard' | 'mouse' = 'keyboard'
+let mouseEnterRaf = 0
+let pendingMouseEnterIndex = -1
 
 const focusInput = () => {
   nextTick(() => {
@@ -186,24 +192,28 @@ const handleKeydown = (event: KeyboardEvent) => {
 
   if (event.key === 'ArrowDown') {
     event.preventDefault()
+    activeChangeSource = 'keyboard'
     spotlightStore.moveActiveItem(1)
     return
   }
 
   if (event.key === 'ArrowUp') {
     event.preventDefault()
+    activeChangeSource = 'keyboard'
     spotlightStore.moveActiveItem(-1)
     return
   }
 
   if (event.key === 'Home') {
     event.preventDefault()
+    activeChangeSource = 'keyboard'
     spotlightStore.setActiveItem(0)
     return
   }
 
   if (event.key === 'End') {
     event.preventDefault()
+    activeChangeSource = 'keyboard'
     spotlightStore.setActiveItem(spotlightStore.results.length - 1)
     return
   }
@@ -212,6 +222,26 @@ const handleKeydown = (event: KeyboardEvent) => {
     event.preventDefault()
     void spotlightStore.executeActiveItem()
   }
+}
+
+const handleItemMouseEnter = (index: number) => {
+  if (spotlightStore.activeIndex === index) {
+    return
+  }
+  pendingMouseEnterIndex = index
+  if (mouseEnterRaf !== 0) {
+    return
+  }
+  mouseEnterRaf = window.requestAnimationFrame(() => {
+    mouseEnterRaf = 0
+    const target = pendingMouseEnterIndex
+    pendingMouseEnterIndex = -1
+    if (target < 0 || spotlightStore.activeIndex === target) {
+      return
+    }
+    activeChangeSource = 'mouse'
+    spotlightStore.setActiveItem(target)
+  })
 }
 
 const handleItemMouseDown = (event: MouseEvent, item: SpotlightItem) => {
@@ -254,6 +284,10 @@ watch(
       return
     }
 
+    if (activeChangeSource === 'mouse') {
+      return
+    }
+
     nextTick(() => {
       resultsContainerRef.value
         ?.querySelector<HTMLElement>('[data-spotlight-active="true"]')
@@ -281,8 +315,8 @@ input {
   border: 1px solid transparent;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, white 82%, hsl(var(--background)) 18%) 0%,
-    color-mix(in srgb, white 62%, hsl(var(--background)) 38%) 100%
+    color-mix(in srgb, white 95%, hsl(var(--background)) 5%) 0%,
+    color-mix(in srgb, white 88%, hsl(var(--background)) 12%) 100%
   );
   box-shadow:
     0 32px 64px -24px rgb(15 23 42 / 0.28),
@@ -307,10 +341,10 @@ input {
     ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, white 90%, hsl(var(--background)) 10%) 0%,
-      color-mix(in srgb, white 68%, hsl(var(--muted)) 32%) 100%
+      color-mix(in srgb, white 97%, hsl(var(--background)) 3%) 0%,
+      color-mix(in srgb, white 90%, hsl(var(--muted)) 10%) 100%
     );
-  opacity: 0.92;
+  opacity: 0.98;
 }
 
 .spotlight-panel::after {
@@ -335,8 +369,8 @@ input {
   border-color: transparent;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, hsl(var(--background)) 86%, rgb(51 65 85) 14%) 0%,
-    color-mix(in srgb, hsl(var(--background)) 93%, rgb(15 23 42) 7%) 100%
+    color-mix(in srgb, hsl(var(--background)) 96%, rgb(51 65 85) 4%) 0%,
+    color-mix(in srgb, hsl(var(--background)) 98%, rgb(15 23 42) 2%) 100%
   );
   box-shadow:
     0 32px 64px -28px rgb(0 0 0 / 0.56),
@@ -355,16 +389,16 @@ input {
     ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, hsl(var(--background)) 80%, rgb(30 41 59) 20%) 0%,
-      color-mix(in srgb, hsl(var(--background)) 92%, rgb(2 6 23) 8%) 100%
+      color-mix(in srgb, hsl(var(--background)) 94%, rgb(30 41 59) 6%) 0%,
+      color-mix(in srgb, hsl(var(--background)) 97%, rgb(2 6 23) 3%) 100%
     );
-  opacity: 0.9;
+  opacity: 0.97;
 }
 
 .dark .spotlight-panel::after {
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, white 9%, hsl(var(--border)) 91%),
     inset 0 1px 0 rgb(255 255 255 / 0.08);
-  opacity: 0.76;
+  opacity: 0.88;
 }
 </style>
