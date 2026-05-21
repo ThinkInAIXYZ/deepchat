@@ -3,7 +3,7 @@
 ## Architecture
 
 - Validate a packaged/unpacked ARM64 build with a Windows ARM64 manual workflow running on GitHub's `windows-11-arm` runner and Playwright Electron smoke tests.
-- Introduce a small runtime installer wrapper for Windows ARM64 that calls `tiny-runtime-injector` per runtime and treats failures as skipped optional artifacts.
+- Keep the Windows ARM64 runtime script explicit: install only verified native `uv`, `node`, and `ripgrep` artifacts.
 - Provide a CI-specific E2E mode that runs only non-provider smoke specs against the runner profile.
 
 ## E2E Data Flow
@@ -14,13 +14,13 @@
 
 ## Runtime Behavior
 
-- `installRuntime:win:arm64` uses best-effort mode and writes a JSON summary under `build/`.
-- Existing runtime consumers continue to detect missing bundled binaries and fall back to system/runtime-unavailable behavior.
-- CI uploads the runtime summary so missing artifacts are visible during review.
+- `installRuntime:win:arm64` calls `tiny-runtime-injector` directly for `uv`, `node`, and `ripgrep`.
+- `ripgrep` is pinned to `15.1.0` for Windows ARM64 because the injector default `14.1.1` has no ARM64 Windows release asset.
+- `rtk` is intentionally omitted until upstream ships a Windows ARM64 release asset; existing runtime consumers continue to detect missing bundled binaries and fall back to system/runtime-unavailable behavior.
 
 ## Validation
 
-- Unit tests cover best-effort runtime install summaries and missing bundled runtime fallback.
+- Runtime fallback tests cover missing bundled runtime behavior.
 - Existing RTK fallback coverage remains in place.
 - Skill runtime tests cover the no-UV/no-system-Python auto-runtime failure path.
 - The new manual workflow validates Windows ARM64 build, plugin bundle, app launch, route switching, and settings navigation.

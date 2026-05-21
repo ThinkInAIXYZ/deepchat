@@ -5,8 +5,6 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  RTK_INSTALL_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-  RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
 
 jobs:
   windows-arm64-e2e:
@@ -42,15 +40,8 @@ jobs:
           npm_config_platform: win32
           npm_config_arch: arm64
 
-      - name: Report RTK install token source
-        shell: bash
-        run: |
-          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
-
-      - name: Install optional Windows arm64 runtimes
+      - name: Install Windows arm64 runtimes
         run: pnpm run installRuntime:win:arm64
-        env:
-          GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
 
       - name: Build Windows arm64 package
         run: |
@@ -85,6 +76,5 @@ jobs:
             dist/*
             !dist/win-unpacked
             !dist/win-arm64-unpacked
-            build/runtime-install-summary-win-arm64.json
             test-results/e2e
             playwright-report
