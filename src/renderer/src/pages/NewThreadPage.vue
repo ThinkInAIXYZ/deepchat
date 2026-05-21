@@ -185,6 +185,7 @@ import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
+import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -228,6 +229,11 @@ let cancelEnsureDraftTask: (() => void) | null = null
 let voiceInputConfigToken = 0
 let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+
+const resolveChatInputBoxElement = () =>
+  (firstChatGuideHostRef.value?.querySelector(
+    '[data-testid="chat-input-box"]'
+  ) as HTMLElement | null) ?? null
 
 const handleVoiceInputError = (code: string) => {
   if (code === 'aborted') {
@@ -756,54 +762,67 @@ async function submitText(text: string, files: MessageFile[]) {
   if (!text.trim()) return
   if (isAcpWorkdirUnavailable.value) return
 
+  const preparedHeroFlight = prepareChatInputHeroFlight(resolveChatInputBoxElement())
+
   const agentId = selectedAgent.value.id
   const isAcp = isAcpSelectedAgent.value
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
   const draftSubagentEnabled = draftStore.subagentEnabled
   const draftGenerationSettings = draftStore.toGenerationSettings()
-  if (isAcp && acpDraftSessionId.value) {
-    await sessionStore.selectSession(acpDraftSessionId.value)
-    await sessionStore.sendMessage(acpDraftSessionId.value, {
-      text,
-      files
-    })
-    return
-  }
 
-  let providerId: string | undefined
-  let modelId: string | undefined
-
-  if (isAcp) {
-    providerId = 'acp'
-    modelId = agentId
-  } else {
-    const resolved = await resolveModel()
-    if (!resolved) {
-      console.error('No model available. Please configure a provider and model in settings.')
+  try {
+    if (isAcp && acpDraftSessionId.value) {
+      await sessionStore.selectSession(acpDraftSessionId.value)
+      await sessionStore.sendMessage(acpDraftSessionId.value, {
+        text,
+        files
+      })
       return
     }
-    providerId = resolved.providerId
-    modelId = resolved.modelId
+
+    let providerId: string | undefined
+    let modelId: string | undefined
+
+    if (isAcp) {
+      providerId = 'acp'
+      modelId = agentId
+    } else {
+      const resolved = await resolveModel()
+      if (!resolved) {
+        console.error('No model available. Please configure a provider and model in settings.')
+        if (preparedHeroFlight) {
+          cancelChatInputHeroFlight()
+        }
+        return
+      }
+      providerId = resolved.providerId
+      modelId = resolved.modelId
+    }
+
+    const pendingSkillsSnapshot =
+      chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
+    const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
+
+    await sessionStore.createSession({
+      message: text,
+      files,
+      projectDir: projectStore.selectedProject?.path,
+      agentId,
+      providerId,
+      modelId,
+      permissionMode: draftPermissionMode,
+      disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
+      subagentEnabled: isAcp ? false : draftSubagentEnabled,
+      generationSettings: draftGenerationSettings,
+      activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
+    })
+  } catch (error) {
+    if (preparedHeroFlight) {
+      cancelChatInputHeroFlight()
+    }
+    throw error
   }
-
-  const pendingSkillsSnapshot =
-    chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
-  const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
-
-  await sessionStore.createSession({
-    message: text,
-    files,
-    projectDir: projectStore.selectedProject?.path,
-    agentId,
-    providerId,
-    modelId,
-    permissionMode: draftPermissionMode,
-    disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
-    subagentEnabled: isAcp ? false : draftSubagentEnabled,
-    generationSettings: draftGenerationSettings,
-    activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
-  })
 }
 
 const buildDraftGenerationSettings = (

@@ -5,6 +5,13 @@ import {
   GUIDED_ONBOARDING_RESUME_STORAGE_KEY
 } from '@/lib/onboardingResume'
 
+type SessionListTestItem = {
+  id: string
+  title?: string
+  label?: string
+  sessions: Array<{ id: string }>
+}
+
 type SetupStoreOptions = {
   initialSettings?: Record<string, unknown>
   failGetSetting?: boolean
@@ -367,7 +374,9 @@ describe('sessionStore.getFilteredGroups', () => {
     ]
 
     const groups = store.getFilteredGroups(null)
-    const ids = groups.flatMap((group) => group.sessions.map((session) => session.id))
+    const ids = groups.flatMap((group: SessionListTestItem) =>
+      group.sessions.map((session: { id: string }) => session.id)
+    )
 
     expect(groups[0]?.labelKey).toBe('common.time.today')
     expect(ids).toEqual(['real-1'])
@@ -408,11 +417,35 @@ describe('sessionStore.getFilteredGroups', () => {
 
     const groupIds = store
       .getFilteredGroups(null)
-      .flatMap((group) => group.sessions.map((session) => session.id))
-    const pinnedIds = store.getPinnedSessions(null).map((session) => session.id)
+      .flatMap((group: SessionListTestItem) =>
+        group.sessions.map((session: { id: string }) => session.id)
+      )
+    const pinnedIds = store.getPinnedSessions(null).map((session: { id: string }) => session.id)
 
     expect(groupIds).toEqual(['normal-1'])
     expect(pinnedIds).toEqual(['pinned-1'])
+  })
+
+  it('sorts fetched sessions alphabetically by title', async () => {
+    const { store, sessionClient } = await setupStore()
+
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [
+        createSession({ id: 'session-c', title: 'Zulu', updatedAt: 30 }),
+        createSession({ id: 'session-a', title: 'Alpha', updatedAt: 10 }),
+        createSession({ id: 'session-b', title: 'Bravo', updatedAt: 20 })
+      ],
+      hasMore: false,
+      nextCursor: null
+    })
+
+    await store.fetchSessions()
+
+    expect(store.sessions.value.map((session: { title: string }) => session.title)).toEqual([
+      'Alpha',
+      'Bravo',
+      'Zulu'
+    ])
   })
 
   it('uses the last path segment for Windows project labels', async () => {
@@ -480,32 +513,35 @@ describe('sessionStore.getFilteredGroups', () => {
     const groups = store.getFilteredGroups(null)
 
     expect(groups).toHaveLength(2)
-    expect(groups.map((group) => group.id)).toEqual([
+    expect(groups.map((group: SessionListTestItem) => group.id)).toEqual([
       '/tmp/company-a/deepchat',
       '/tmp/company-b/deepchat'
     ])
-    expect(groups.map((group) => group.label)).toEqual(['deepchat', 'deepchat'])
+    expect(groups.map((group: SessionListTestItem) => group.label)).toEqual([
+      'deepchat',
+      'deepchat'
+    ])
   })
 
-  it('moves a newly pinned session to the front of the pinned list immediately', async () => {
-    const { store, sessionClient } = await setupStore()
+  it('keeps pinned sessions alphabetically sorted after pinning', async () => {
+    const { store } = await setupStore()
 
     store.sessions.value = [
-      createSession({ id: 'older-pinned', isPinned: true, updatedAt: 10 }),
-      createSession({ id: 'target', isPinned: false, updatedAt: 5 }),
-      createSession({ id: 'newer-grouped', isPinned: false, updatedAt: 20 })
+      createSession({ id: 'bravo-pinned', title: 'Bravo', isPinned: true, updatedAt: 10 }),
+      createSession({ id: 'target', title: 'Zulu', isPinned: false, updatedAt: 5 }),
+      createSession({ id: 'grouped-alpha', title: 'Alpha', isPinned: false, updatedAt: 20 })
     ]
 
     await store.toggleSessionPinned('target', true)
 
     expect(store.getPinnedSessions(null).map((session: { id: string }) => session.id)).toEqual([
-      'target',
-      'older-pinned'
+      'bravo-pinned',
+      'target'
     ])
   })
 
-  it('moves a newly unpinned session to the front of the grouped list immediately', async () => {
-    const { store, sessionClient } = await setupStore({
+  it('keeps grouped sessions alphabetically sorted after unpinning', async () => {
+    const { store } = await setupStore({
       initialSettings: {
         [SIDEBAR_GROUP_MODE_KEY]: 'time'
       }
@@ -514,8 +550,13 @@ describe('sessionStore.getFilteredGroups', () => {
 
     await store.fetchSessions()
     store.sessions.value = [
-      createSession({ id: 'target', isPinned: true, updatedAt: now - 10 }),
-      createSession({ id: 'grouped-existing', isPinned: false, updatedAt: now - 1000 })
+      createSession({ id: 'target', title: 'Zulu', isPinned: true, updatedAt: now - 10 }),
+      createSession({
+        id: 'grouped-existing',
+        title: 'Alpha',
+        isPinned: false,
+        updatedAt: now - 1000
+      })
     ]
 
     await store.toggleSessionPinned('target', false)
@@ -525,7 +566,7 @@ describe('sessionStore.getFilteredGroups', () => {
       .flatMap((group: { sessions: Array<{ id: string }> }) =>
         group.sessions.map((session: { id: string }) => session.id)
       )
-    expect(groupedIds[0]).toBe('target')
+    expect(groupedIds).toEqual(['grouped-existing', 'target'])
   })
 })
 
