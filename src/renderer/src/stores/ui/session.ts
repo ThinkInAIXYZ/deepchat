@@ -68,6 +68,10 @@ const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 const DEFAULT_GROUP_MODE: GroupMode = 'project'
 const DEFAULT_SESSION_PAGE_SIZE = 30
 const NO_PROJECT_GROUP_ID = '__no_project__'
+const SESSION_TITLE_COLLATOR = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base'
+})
 
 function mapSessionStatus(status: string): UISessionStatus {
   switch (status) {
@@ -210,12 +214,18 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
   }
 }
 
+function compareSessions(left: UISession, right: UISession): number {
+  const titleCompare = SESSION_TITLE_COLLATOR.compare(left.title.trim(), right.title.trim())
+  if (titleCompare !== 0) {
+    return titleCompare
+  }
+
+  return left.id.localeCompare(right.id)
+}
+
 function sortSessions(items: UISession[]): UISession[] {
   return [...items].sort((left, right) => {
-    if (right.updatedAt !== left.updatedAt) {
-      return right.updatedAt - left.updatedAt
-    }
-    return right.id.localeCompare(left.id)
+    return compareSessions(left, right)
   })
 }
 
@@ -791,24 +801,20 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       await sessionClient.toggleSessionPinned(sessionId, pinned)
-      const updatedAt = Date.now()
       const target = sessions.value.find((session) => session.id === sessionId)
       if (target) {
         target.isPinned = pinned
-        target.updatedAt = updatedAt
       }
       if (bootstrapActiveSession.value?.id === sessionId) {
         bootstrapActiveSession.value = {
           ...bootstrapActiveSession.value,
-          isPinned: pinned,
-          updatedAt
+          isPinned: pinned
         }
       }
       if (activeSessionSummary.value?.id === sessionId) {
         activeSessionSummary.value = {
           ...activeSessionSummary.value,
-          isPinned: pinned,
-          updatedAt
+          isPinned: pinned
         }
       }
       sessions.value = sortSessions(sessions.value)
@@ -874,14 +880,11 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function getPinnedSessions(agentId: string | null): UISession[] {
-    const pinned = sessions.value
-      .filter((session) => isRegularSession(session) && session.isPinned && !session.isDraft)
-      .sort((left, right) => {
-        if (right.updatedAt !== left.updatedAt) {
-          return right.updatedAt - left.updatedAt
-        }
-        return right.id.localeCompare(left.id)
-      })
+    const pinned = sortSessions(
+      sessions.value.filter(
+        (session) => isRegularSession(session) && session.isPinned && !session.isDraft
+      )
+    )
 
     if (agentId === null) return pinned
 
@@ -889,8 +892,10 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function getFilteredGroups(agentId: string | null): SessionGroup[] {
-    const visibleSessions = sessions.value.filter(
-      (session) => isRegularSession(session) && !session.isDraft && !session.isPinned
+    const visibleSessions = sortSessions(
+      sessions.value.filter(
+        (session) => isRegularSession(session) && !session.isDraft && !session.isPinned
+      )
     )
     const grouped =
       groupMode.value === 'time' ? groupByTime(visibleSessions) : groupByProject(visibleSessions)
