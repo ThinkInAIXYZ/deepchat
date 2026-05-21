@@ -6,13 +6,11 @@
 - Added a hero transition for the chat input on new threads and refined chat overlay/sidebar styling for a cleaner first-run flow
 - Improved session list behavior with stable alphabetical ordering and more predictable pinning
 - Added Feishu thing reactions and tightened Feishu remote-control runtime handling
-- Removed legacy rebrand tooling and related templates from the development workflow
 - 新增 Provider 配置导入，支持预览、校验、冲突处理和本地化设置界面
 - 新增 CC Switch 配置导入，并扩展 Provider 导入路径发现，方便从外部工具迁移
 - 新增新会话聊天输入框的 hero 过渡，并优化聊天浮层与侧边栏样式，让首次使用流程更清爽
 - 优化会话列表行为，保持稳定的字母排序和更可预期的置顶表现
 - 新增飞书 thing 表情互动，并加强飞书远程控制运行时处理
-- 移除旧的 rebrand 工具和相关模板，简化开发流程
 
 ## v1.0.5-beta.1 (2026-05-19)
 - Added an agent progress todo tool with floating progress UI and plan message rendering so long-running agent work is easier to track
