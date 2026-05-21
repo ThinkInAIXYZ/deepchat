@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="spotlightStore.open"
-      class="window-no-drag-region fixed inset-0 z-[70] flex items-start justify-center px-4 pt-16"
+      class="window-no-drag-region fixed inset-0 z-[90] flex items-start justify-center px-4 pt-16"
       @mousedown.self="spotlightStore.closeSpotlight()"
     >
       <div
@@ -25,7 +25,7 @@
             <button
               v-for="(item, index) in spotlightStore.results"
               :key="item.id"
-              v-memo="[item.id, index === spotlightStore.activeIndex, spotlightStore.query]"
+              v-memo="[item, index === spotlightStore.activeIndex, spotlightStore.query]"
               type="button"
               class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left"
               :class="
@@ -34,7 +34,7 @@
                   : 'text-foreground/90'
               "
               :data-spotlight-active="index === spotlightStore.activeIndex ? 'true' : undefined"
-              @mouseenter="handleItemMouseEnter(index)"
+              @mouseenter="handleItemMouseEnter(item)"
               @mousedown="handleItemMouseDown($event, item)"
               @click="handleItemClick(item)"
             >
@@ -123,7 +123,7 @@ const resultsContainerRef = ref<HTMLElement | null>(null)
 const pointerActivatedItemId = ref<string | null>(null)
 let activeChangeSource: 'keyboard' | 'mouse' = 'keyboard'
 let mouseEnterRaf = 0
-let pendingMouseEnterIndex = -1
+let pendingMouseEnterId: string | number | null = null
 
 const focusInput = () => {
   nextTick(() => {
@@ -224,23 +224,32 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
-const handleItemMouseEnter = (index: number) => {
-  if (spotlightStore.activeIndex === index) {
+const handleItemMouseEnter = (item: SpotlightItem) => {
+  const currentIndex = spotlightStore.results.findIndex((r) => r.id === item.id)
+  if (currentIndex === -1 || spotlightStore.activeIndex === currentIndex) {
     return
   }
-  pendingMouseEnterIndex = index
+  pendingMouseEnterId = item.id
   if (mouseEnterRaf !== 0) {
     return
   }
   mouseEnterRaf = window.requestAnimationFrame(() => {
     mouseEnterRaf = 0
-    const target = pendingMouseEnterIndex
-    pendingMouseEnterIndex = -1
-    if (target < 0 || spotlightStore.activeIndex === target) {
+    const targetId = pendingMouseEnterId
+    pendingMouseEnterId = null
+    if (targetId === null) {
+      return
+    }
+    const foundItem = spotlightStore.results.find((r) => r.id === targetId)
+    if (!foundItem) {
+      return
+    }
+    const targetIndex = spotlightStore.results.findIndex((r) => r.id === targetId)
+    if (targetIndex < 0 || spotlightStore.activeIndex === targetIndex) {
       return
     }
     activeChangeSource = 'mouse'
-    spotlightStore.setActiveItem(target)
+    spotlightStore.setActiveItem(targetIndex)
   })
 }
 
