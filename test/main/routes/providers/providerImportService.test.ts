@@ -85,6 +85,49 @@ const createCcSwitchDb = (
   )
 }
 
+const writeDarwinCcSwitchAppPaths = (homeDir: string, overrideDir: string, content?: string) => {
+  writeFile(
+    path.join(homeDir, 'Library/Application Support/com.ccswitch.desktop/app_paths.json'),
+    content ?? JSON.stringify({ app_config_dir_override: overrideDir })
+  )
+}
+
+const writeCherryStudioConfig = (homeDir: string, appDataPath: unknown) => {
+  writeFile(path.join(homeDir, '.cherrystudio/config/config.json'), JSON.stringify({ appDataPath }))
+}
+
+const createCherryStudioLevelDb = async (
+  dbPath: string,
+  providers: Array<{
+    id: string
+    name: string
+    type: string
+    apiKey?: string
+    apiHost?: string
+    baseUrl?: string
+    models?: unknown[]
+  }>
+) => {
+  mkdirSync(dbPath, { recursive: true })
+  const { Level } = await import('level')
+  const db = new Level(dbPath, {
+    keyEncoding: 'buffer',
+    valueEncoding: 'buffer'
+  } as any)
+  await db.open()
+  await db.put(
+    Buffer.from('persist:cherry-studio'),
+    Buffer.from(
+      JSON.stringify({
+        llm: JSON.stringify({
+          providers
+        })
+      })
+    )
+  )
+  await db.close()
+}
+
 const createHome = () => mkdtempSync(path.join(tmpdir(), 'deepchat-provider-import-'))
 
 const createConfigPresenter = (initialProviders?: LLM_PROVIDER[]) => {
@@ -313,6 +356,221 @@ describe('ProviderImportService', () => {
       providerCount: 1,
       selectable: true
     })
+  })
+
+  it('uses CC Switch Desktop app path override before the default database', async () => {
+    homeDir = createHome()
+    const overrideDir = path.join(homeDir, 'configSync/cc-switch')
+    writeDarwinCcSwitchAppPaths(homeDir, overrideDir)
+    createCcSwitchDb(path.join(homeDir, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'default-deepseek',
+        appType: 'claude',
+        name: 'Default DeepSeek',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+            ANTHROPIC_AUTH_TOKEN: 'sk-default'
+          }
+        }
+      }
+    ])
+    createCcSwitchDb(path.join(overrideDir, 'cc-switch.db'), [
+      {
+        id: 'nextapi',
+        appType: 'claude',
+        name: 'Nextapi',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://next-api.example.com',
+            ANTHROPIC_AUTH_TOKEN: 'sk-nextapi',
+            ANTHROPIC_MODEL: 'glm-5'
+          }
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'cc-switch')).toMatchObject({
+      status: 'found',
+      configPath: '~/configSync/cc-switch/cc-switch.db',
+      providerCount: 1,
+      selectable: true
+    })
+    expect(result.providers).toEqual([
+      expect.objectContaining({
+        sourceId: 'cc-switch',
+        sourceProviderId: 'nextapi',
+        name: 'Nextapi',
+        targetKind: 'custom',
+        targetProviderId: 'ccswitch_nextapi',
+        modelPreview: ['glm-5']
+      })
+    ])
+  })
+
+  it('falls back to the default CC Switch database when Desktop override JSON is invalid', async () => {
+    homeDir = createHome()
+    writeDarwinCcSwitchAppPaths(homeDir, '', '{')
+    createCcSwitchDb(path.join(homeDir, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'deepseek',
+        appType: 'claude',
+        name: 'DeepSeek',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+            ANTHROPIC_AUTH_TOKEN: 'sk-deepseek'
+          }
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'cc-switch')).toMatchObject({
+      status: 'found',
+      configPath: '~/.cc-switch/cc-switch.db',
+      providerCount: 1,
+      selectable: true
+    })
+    expect(result.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'cc-switch',
+          sourceProviderId: 'deepseek'
+        })
+      ])
+    )
+  })
+
+  it('falls back to the default CC Switch database when Desktop override db is missing', async () => {
+    homeDir = createHome()
+    writeDarwinCcSwitchAppPaths(homeDir, path.join(homeDir, 'missing-cc-switch'))
+    createCcSwitchDb(path.join(homeDir, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'deepseek',
+        appType: 'claude',
+        name: 'DeepSeek',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+            ANTHROPIC_AUTH_TOKEN: 'sk-deepseek'
+          }
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'cc-switch')).toMatchObject({
+      status: 'found',
+      configPath: '~/.cc-switch/cc-switch.db',
+      providerCount: 1,
+      selectable: true
+    })
+  })
+
+  it('reports an error on the CC Switch Desktop override database instead of falling back', async () => {
+    homeDir = createHome()
+    const overrideDir = path.join(homeDir, 'configSync/cc-switch')
+    writeDarwinCcSwitchAppPaths(homeDir, overrideDir)
+    writeFile(path.join(overrideDir, 'cc-switch.db'), 'unregistered mock database')
+    createCcSwitchDb(path.join(homeDir, '.cc-switch/cc-switch.db'), [
+      {
+        id: 'deepseek',
+        appType: 'claude',
+        name: 'DeepSeek',
+        settingsConfig: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+            ANTHROPIC_AUTH_TOKEN: 'sk-deepseek'
+          }
+        }
+      }
+    ])
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'cc-switch')).toMatchObject({
+      status: 'error',
+      configPath: '~/configSync/cc-switch/cc-switch.db',
+      providerCount: 0,
+      selectable: false,
+      message: 'Failed to read provider config'
+    })
+    expect(result.providers).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'cc-switch',
+          sourceProviderId: 'deepseek'
+        })
+      ])
+    )
+
+    warnSpy.mockRestore()
+  })
+
+  it('keeps Codex-only CC Switch Desktop override providers hidden', async () => {
+    homeDir = createHome()
+    const overrideDir = path.join(homeDir, 'configSync/cc-switch')
+    writeDarwinCcSwitchAppPaths(homeDir, overrideDir)
+    createCcSwitchDb(path.join(overrideDir, 'cc-switch.db'), [
+      {
+        id: 'codex-gateway',
+        appType: 'codex',
+        name: 'Codex Gateway',
+        settingsConfig: {
+          auth: { OPENAI_API_KEY: 'sk-codex' },
+          config: 'model = "gpt-5.4"'
+        }
+      }
+    ])
+
+    const configPresenter = createConfigPresenter()
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'cc-switch')).toMatchObject({
+      status: 'found',
+      configPath: '~/configSync/cc-switch/cc-switch.db',
+      providerCount: 0,
+      selectable: false,
+      defaultSelected: false
+    })
+    expect(result.providers).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: 'cc-switch' })])
+    )
   })
 
   it('scans Hermes and OpenClaw configs and maps builtin and custom providers', async () => {
@@ -1183,39 +1441,148 @@ describe('ProviderImportService', () => {
     })
   })
 
+  it('uses Cherry Studio custom data directory from app config', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    const customCherryDataDir = path.join(homeDir, 'Downloads/cherrydata')
+    const customCherryPath = path.join(customCherryDataDir, 'Local Storage/leveldb')
+    writeCherryStudioConfig(homeDir, [
+      {
+        executablePath: '/Applications/Cherry Studio.app/Contents/MacOS/Cherry Studio',
+        dataPath: customCherryDataDir
+      }
+    ])
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'default-openai',
+        name: 'Default OpenAI',
+        type: 'openai',
+        apiKey: 'sk-default',
+        apiHost: 'https://api.openai.com/v1'
+      }
+    ])
+    await createCherryStudioLevelDb(customCherryPath, [
+      {
+        id: 'ppio',
+        name: 'PPIO',
+        type: 'openai',
+        apiKey: 'sk-ppio',
+        apiHost: 'https://api.ppinfra.com/v3/openai',
+        models: [{ id: 'deepseek-r1', name: 'DeepSeek R1' }]
+      }
+    ])
+
+    const configPresenter = createConfigPresenter([
+      {
+        id: 'ppio',
+        name: 'PPIO',
+        apiType: 'ppio',
+        apiKey: '',
+        baseUrl: 'https://api.ppinfra.com/v3/openai',
+        enable: false
+      } as LLM_PROVIDER
+    ])
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'cherry-studio')).toMatchObject({
+      status: 'found',
+      configPath: '~/Downloads/cherrydata/Local Storage/leveldb',
+      providerCount: 1,
+      selectable: true
+    })
+    expect(result.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'cherry-studio',
+          sourceProviderId: 'ppio',
+          targetKind: 'builtin',
+          targetProviderId: 'ppio',
+          modelPreview: ['DeepSeek R1']
+        })
+      ])
+    )
+    expect(result.providers).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceProviderId: 'default-openai' })])
+    )
+  })
+
+  it('falls back to the default Cherry Studio LevelDB when configured data directory is missing', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    writeCherryStudioConfig(homeDir, path.join(homeDir, 'Downloads/missing-cherry'))
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'ppio',
+        name: 'PPIO',
+        type: 'openai',
+        apiKey: 'sk-ppio',
+        apiHost: 'https://api.ppinfra.com/v3/openai',
+        models: [{ id: 'deepseek-r1', name: 'DeepSeek R1' }]
+      }
+    ])
+
+    const configPresenter = createConfigPresenter([
+      {
+        id: 'ppio',
+        name: 'PPIO',
+        apiType: 'ppio',
+        apiKey: '',
+        baseUrl: 'https://api.ppinfra.com/v3/openai',
+        enable: false
+      } as LLM_PROVIDER
+    ])
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const result = await service.scan()
+
+    expect(result.sources.find((source) => source.id === 'cherry-studio')).toMatchObject({
+      status: 'found',
+      configPath: '~/Library/Application Support/CherryStudio/Local Storage/leveldb',
+      providerCount: 1,
+      selectable: true
+    })
+    expect(result.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'cherry-studio',
+          sourceProviderId: 'ppio',
+          targetKind: 'builtin',
+          targetProviderId: 'ppio'
+        })
+      ])
+    )
+  })
+
   it('reads Cherry Studio providers from a LevelDB snapshot', async () => {
     homeDir = createHome()
     const cherryPath = path.join(
       homeDir,
       'Library/Application Support/CherryStudio/Local Storage/leveldb'
     )
-    mkdirSync(cherryPath, { recursive: true })
-    const { Level } = await import('level')
-    const db = new Level(cherryPath, {
-      keyEncoding: 'buffer',
-      valueEncoding: 'buffer'
-    } as any)
-    await db.open()
-    await db.put(
-      Buffer.from('persist:cherry-studio'),
-      Buffer.from(
-        JSON.stringify({
-          llm: JSON.stringify({
-            providers: [
-              {
-                id: 'ppio',
-                name: 'PPIO',
-                type: 'openai',
-                apiKey: 'sk-ppio',
-                apiHost: 'https://api.ppinfra.com/v3/openai',
-                models: [{ id: 'deepseek-r1', name: 'DeepSeek R1' }]
-              }
-            ]
-          })
-        })
-      )
-    )
-    await db.close()
+    await createCherryStudioLevelDb(cherryPath, [
+      {
+        id: 'ppio',
+        name: 'PPIO',
+        type: 'openai',
+        apiKey: 'sk-ppio',
+        apiHost: 'https://api.ppinfra.com/v3/openai',
+        models: [{ id: 'deepseek-r1', name: 'DeepSeek R1' }]
+      }
+    ])
 
     const configPresenter = createConfigPresenter([
       {
