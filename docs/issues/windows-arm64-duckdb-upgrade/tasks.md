@@ -25,6 +25,10 @@ Plan: [plan.md](./plan.md)
   Owner: Maintainer
   Effort: S
   Status: Completed
+- [x] `T2.4` Scope the Windows ARM64 E2E workflow to launch-only Playwright coverage because this platform gate only needs to prove startup viability.
+  Owner: Maintainer
+  Effort: XS
+  Status: Completed
 
 ## Epic E3 Validation
 
@@ -36,3 +40,7 @@ Plan: [plan.md](./plan.md)
   Owner: Maintainer
   Effort: S
   Status: Completed
+- [ ] `T3.3` Re-run Windows ARM64 CI after scoping the E2E workflow to launch-only coverage.
+  Owner: Maintainer
+  Effort: S
+  Status: Pending

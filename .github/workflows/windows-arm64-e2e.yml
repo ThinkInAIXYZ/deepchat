@@ -63,8 +63,8 @@ jobs:
         run: |
           pnpm run plugin:verify -- --name feishu --platform win32 --arch arm64 --plugin-root dist/win-arm64-unpacked/resources/app.asar.unpacked/plugins
 
-      - name: Run Windows arm64 E2E smoke tests
-        run: pnpm run e2e:smoke:ci
+      - name: Run Windows arm64 launch smoke test
+        run: pnpm exec playwright test -c test/e2e/playwright.ci.config.ts test/e2e/specs/01-launch.smoke.spec.ts
 
       - name: Run packaged app process smoke
         shell: pwsh
