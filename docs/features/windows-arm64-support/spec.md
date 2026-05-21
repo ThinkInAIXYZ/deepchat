@@ -8,7 +8,7 @@ DeepChat maintainers need a reliable way to validate Windows ARM64 builds withou
 
 - A manual GitHub Actions workflow runs on `windows-11-arm` and builds the Windows ARM64 app.
 - The workflow runs E2E smoke tests against a local OpenAI-compatible mock provider with no real secrets.
-- The E2E run uses an isolated temporary profile and does not depend on existing user config.
+- The E2E run uses the runner's default profile and injects a local mock provider through existing typed routes.
 - Windows ARM64 bundled runtimes are best-effort: missing `uv`, `node`, `ripgrep`, or `rtk` artifacts are recorded and skipped without failing the build.
 - Existing Windows x64, macOS, and Linux runtime install scripts remain strict.
 - The Windows ARM64 workflow uploads build artifacts and E2E diagnostics.

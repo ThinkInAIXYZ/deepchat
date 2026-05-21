@@ -74,7 +74,6 @@ jobs:
         env:
           DEEPCHAT_E2E_APP_MODE: packaged
           DEEPCHAT_E2E_EXECUTABLE_PATH: ${{ github.workspace }}/dist/win-arm64-unpacked/DeepChat.exe
-          DEEPCHAT_E2E_USER_DATA_DIR: ${{ runner.temp }}/deepchat-e2e-profiles
 
       - name: Upload Windows arm64 artifacts
         if: always()
