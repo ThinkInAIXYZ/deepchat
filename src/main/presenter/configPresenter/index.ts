@@ -94,7 +94,8 @@ import {
   AppSettingsDbBackedStore,
   McpDbStore,
   ModelConfigDbStore,
-  ProviderModelDbStore
+  ProviderModelDbStore,
+  SENSITIVE_APP_SETTING_KEYS
 } from './configDbStores'
 import type { StoreLike } from './storeLike'
 
@@ -573,6 +574,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setSQLitePresenter(sqlitePresenter: SQLitePresenter): void {
     try {
       this.migrateConfigStoresToSqlite(sqlitePresenter)
+      this.migrateSensitiveConfigStoresToSqlite(sqlitePresenter)
       this.attachDbBackedConfigStores(sqlitePresenter)
     } catch (error) {
       console.error('[Config] Failed to attach sqlite-backed config storage:', error)
@@ -636,6 +638,40 @@ export class ConfigPresenter implements IConfigPresenter {
     configTables.markConfigMigrationApplied()
   }
 
+  private migrateSensitiveConfigStoresToSqlite(sqlitePresenter: SQLitePresenter): void {
+    const configTables = sqlitePresenter.configTables
+    const migrationId = 'sensitive-config-sqlite-v1'
+    if (configTables.hasConfigMigration(migrationId)) {
+      return
+    }
+
+    for (const key of SENSITIVE_APP_SETTING_KEYS) {
+      if (key === 'customPrompts' || key === 'systemPrompts' || key === 'knowledgeConfigs') {
+        continue
+      }
+      const value = this.store.get(key)
+      if (value !== undefined) {
+        configTables.setAppSetting(key, value, true)
+        this.store.delete(key)
+      }
+    }
+
+    const customPrompts = this.customPromptsStore.get('prompts') || []
+    configTables.setAppSetting('customPrompts', customPrompts, true)
+    this.customPromptsStore.set('prompts', [])
+    this.customPromptsCache = null
+
+    const systemPrompts = this.systemPromptsStore.get('prompts') || []
+    configTables.setAppSetting('systemPrompts', systemPrompts, true)
+    this.systemPromptsStore.set('prompts', [])
+
+    const knowledgeConfigs = this.knowledgeConfHelper.getKnowledgeConfigs()
+    configTables.setAppSetting('knowledgeConfigs', knowledgeConfigs, true)
+    this.knowledgeConfHelper.setKnowledgeConfigs([])
+
+    configTables.markConfigMigrationApplied(migrationId)
+  }
+
   private attachDbBackedConfigStores(sqlitePresenter: SQLitePresenter): void {
     const configTables = sqlitePresenter.configTables
     const legacyAppStore = this.store as unknown as StoreLike<Record<string, unknown>>
@@ -675,7 +711,8 @@ export class ConfigPresenter implements IConfigPresenter {
       key === 'providers' ||
       key === 'providerOrder' ||
       key === 'providerTimestamps' ||
-      key.startsWith('model_status_')
+      key.startsWith('model_status_') ||
+      SENSITIVE_APP_SETTING_KEYS.includes(key as (typeof SENSITIVE_APP_SETTING_KEYS)[number])
     )
   }
 
@@ -2697,7 +2734,9 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // Load from store and cache it
     try {
-      const prompts = this.customPromptsStore.get('prompts') || []
+      const prompts = this.dbBackedSettingsStore
+        ? this.getSetting<Prompt[]>('customPrompts') || []
+        : this.customPromptsStore.get('prompts') || []
       this.customPromptsCache = prompts
       console.log(`[Config] Custom prompts cache loaded: ${prompts.length} prompts`)
       return prompts
@@ -2710,7 +2749,11 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 保存自定义 prompts (with cache update)
   async setCustomPrompts(prompts: Prompt[]): Promise<void> {
-    await this.customPromptsStore.set('prompts', prompts)
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('customPrompts', prompts)
+    } else {
+      await this.customPromptsStore.set('prompts', prompts)
+    }
     this.clearCustomPromptsCache()
     console.log(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
     // Notify all windows about custom prompts change
@@ -2767,47 +2810,154 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取默认系统提示词
   async getDefaultSystemPrompt(): Promise<string> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      const defaultPrompt = prompts.find((prompt) => prompt.isDefault)
+      return defaultPrompt?.content ?? this.getSetting<string>('default_system_prompt') ?? ''
+    }
     return this.systemPromptHelper.getDefaultSystemPrompt()
   }
 
   async setDefaultSystemPrompt(prompt: string): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('default_system_prompt', prompt)
+      await this.publishSystemPromptState()
+      return
+    }
     return this.systemPromptHelper.setDefaultSystemPrompt(prompt)
   }
 
   async resetToDefaultPrompt(): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
+      await this.publishSystemPromptState()
+      return
+    }
     return this.systemPromptHelper.resetToDefaultPrompt()
   }
 
   async clearSystemPrompt(): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('default_system_prompt', '')
+      await this.publishSystemPromptState()
+      return
+    }
     return this.systemPromptHelper.clearSystemPrompt()
   }
 
   async getSystemPrompts(): Promise<SystemPrompt[]> {
+    if (this.dbBackedSettingsStore) {
+      return this.getSetting<SystemPrompt[]>('systemPrompts') || []
+    }
     return this.systemPromptHelper.getSystemPrompts()
   }
 
   async setSystemPrompts(prompts: SystemPrompt[]): Promise<void> {
-    return this.systemPromptHelper.setSystemPrompts(prompts)
+    if (!this.dbBackedSettingsStore) {
+      return this.systemPromptHelper.setSystemPrompts(prompts)
+    }
+
+    this.setSetting('systemPrompts', prompts)
+    publishDeepchatEvent('config.systemPrompts.changed', {
+      prompts,
+      defaultPromptId: await this.getDefaultSystemPromptId(),
+      prompt: await this.getDefaultSystemPrompt(),
+      version: Date.now()
+    })
   }
 
   async addSystemPrompt(prompt: SystemPrompt): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      await this.setSystemPrompts([...prompts, prompt])
+      return
+    }
     return this.systemPromptHelper.addSystemPrompt(prompt)
   }
 
   async updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      const index = prompts.findIndex((prompt) => prompt.id === promptId)
+      if (index === -1) {
+        return
+      }
+      const nextPrompts = [...prompts]
+      nextPrompts[index] = { ...nextPrompts[index], ...updates }
+      await this.setSystemPrompts(nextPrompts)
+      return
+    }
     return this.systemPromptHelper.updateSystemPrompt(promptId, updates)
   }
 
   async deleteSystemPrompt(promptId: string): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      await this.setSystemPrompts(prompts.filter((prompt) => prompt.id !== promptId))
+      return
+    }
     return this.systemPromptHelper.deleteSystemPrompt(promptId)
   }
 
   async setDefaultSystemPromptId(promptId: string): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      const updatedPrompts = prompts.map((prompt) => ({ ...prompt, isDefault: false }))
+
+      if (promptId === 'empty') {
+        await this.setSystemPrompts(updatedPrompts)
+        await this.clearSystemPrompt()
+        eventBus.send(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
+          promptId: 'empty',
+          content: ''
+        })
+        await this.publishSystemPromptState()
+        return
+      }
+
+      const targetIndex = updatedPrompts.findIndex((prompt) => prompt.id === promptId)
+      if (targetIndex !== -1) {
+        updatedPrompts[targetIndex].isDefault = true
+        await this.setSystemPrompts(updatedPrompts)
+        await this.setDefaultSystemPrompt(updatedPrompts[targetIndex].content)
+        eventBus.send(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
+          promptId,
+          content: updatedPrompts[targetIndex].content
+        })
+        await this.publishSystemPromptState()
+      } else {
+        await this.setSystemPrompts(updatedPrompts)
+      }
+      return
+    }
     return this.systemPromptHelper.setDefaultSystemPromptId(promptId)
   }
 
   async getDefaultSystemPromptId(): Promise<string> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      const defaultPrompt = prompts.find((prompt) => prompt.isDefault)
+      if (defaultPrompt) {
+        return defaultPrompt.id
+      }
+
+      const storedPrompt = this.getSetting<string>('default_system_prompt')
+      if (!storedPrompt || storedPrompt.trim() === '') {
+        return 'empty'
+      }
+
+      return prompts.find((prompt) => prompt.id === 'default')?.id || 'default'
+    }
     return this.systemPromptHelper.getDefaultSystemPromptId()
+  }
+
+  private async publishSystemPromptState(): Promise<void> {
+    publishDeepchatEvent('config.systemPrompts.changed', {
+      prompts: await this.getSystemPrompts(),
+      defaultPromptId: await this.getDefaultSystemPromptId(),
+      prompt: await this.getDefaultSystemPrompt(),
+      version: Date.now()
+    })
   }
 
   // 获取更新渠道
@@ -2853,11 +3003,17 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取知识库配置
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[] {
-    const configs = this.knowledgeConfHelper.getKnowledgeConfigs()
+    const configs = this.dbBackedSettingsStore
+      ? this.getSetting<BuiltinKnowledgeConfig[]>('knowledgeConfigs') || []
+      : this.knowledgeConfHelper.getKnowledgeConfigs()
     const migratedConfigs = this.mcpConfHelper.migrateBuiltinKnowledgeConfigsFromEnv(configs)
 
     if (migratedConfigs !== configs) {
-      this.knowledgeConfHelper.setKnowledgeConfigs(migratedConfigs)
+      if (this.dbBackedSettingsStore) {
+        this.setSetting('knowledgeConfigs', migratedConfigs)
+      } else {
+        this.knowledgeConfHelper.setKnowledgeConfigs(migratedConfigs)
+      }
     }
 
     return migratedConfigs
@@ -2865,7 +3021,11 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 设置知识库配置
   setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void {
-    this.knowledgeConfHelper.setKnowledgeConfigs(configs)
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('knowledgeConfigs', configs)
+    } else {
+      this.knowledgeConfHelper.setKnowledgeConfigs(configs)
+    }
     void Promise.all([this.getMcpServers(), this.getMcpEnabled()])
       .then(([mcpServers, mcpEnabled]) => {
         eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
@@ -2963,7 +3123,7 @@ export class ConfigPresenter implements IConfigPresenter {
     timeout: number
   } | null> {
     try {
-      return this.store.get('nowledgeMemConfig', null) as {
+      return this.getSettingsStoreForKey('nowledgeMemConfig').get('nowledgeMemConfig', null) as {
         baseUrl: string
         apiKey?: string
         timeout: number
@@ -2980,7 +3140,7 @@ export class ConfigPresenter implements IConfigPresenter {
     timeout: number
   }): Promise<void> {
     try {
-      this.store.set('nowledgeMemConfig', config)
+      this.getSettingsStoreForKey('nowledgeMemConfig').set('nowledgeMemConfig', config)
       eventBus.sendToRenderer(
         CONFIG_EVENTS.NOWLEDGE_MEM_CONFIG_UPDATED,
         SendTarget.ALL_WINDOWS,
@@ -2993,17 +3153,18 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   getHooksNotificationsConfig(): HooksNotificationsSettings {
-    const raw = this.store.get('hooksNotifications')
+    const store = this.getSettingsStoreForKey('hooksNotifications')
+    const raw = store.get('hooksNotifications')
     const normalized = normalizeHooksNotificationsConfig(raw)
     if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
-      this.store.set('hooksNotifications', normalized)
+      store.set('hooksNotifications', normalized)
     }
     return normalized
   }
 
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
     const normalized = normalizeHooksNotificationsConfig(config)
-    this.store.set('hooksNotifications', normalized)
+    this.getSettingsStoreForKey('hooksNotifications').set('hooksNotifications', normalized)
     return normalized
   }
 

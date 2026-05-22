@@ -31,8 +31,12 @@ safely when the SQLite password changes.
 - Successful migration removes temporary files and old `agent.db` sidecar files (`-wal`, `-shm`).
 - Startup does not initialize SQLite-backed presenters until the encrypted database is unlocked.
 - When `safeStorage` decrypts the stored password successfully, startup proceeds without showing a
-  manual password prompt.
-- When `safeStorage` is unavailable or decryption fails, the splash window shows an unlock form.
+  manual password prompt. In normal use this means the user unlocks once, and later launches open
+  automatically from the OS credential store.
+- When `safeStorage` is unavailable, the OS credential store entry is missing, or decryption fails
+  after imported data is restored on a different device, the splash window shows an unlock form.
+  After a successful manual unlock on a system with safeStorage, DeepChat stores a fresh wrapped
+  password for future launches.
 - Wrong passwords keep the user on the splash unlock form and do not open the main window.
 - Canceling unlock exits startup without creating the main window.
 - User-facing strings are localized through the renderer i18n system.
@@ -94,8 +98,9 @@ Keep outside encrypted SQLite for startup:
 ## Security Notes
 
 - The SQLite password is present in main-process memory while the app is running.
-- `safeStorage` protects stored password material at rest for the current OS user; it does not defend
-  against malware running as that user.
+- `safeStorage` protects stored password material at rest for the current OS user by using the OS
+  credential store, such as macOS Keychain, Windows Credential Vault, or a Linux secret store. It
+  does not defend against malware running as that user.
 - Deleting old database files is ordinary file deletion, not cryptographic erasure.
 - WAL/SHM sidecar files must be checkpointed and removed during migration because they may contain
   plaintext data from before encryption.

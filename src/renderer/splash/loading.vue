@@ -1,6 +1,46 @@
 <template>
   <div class="splash-shell">
-    <div class="loader-stage">
+    <div v-if="mode === 'unlock'" class="unlock-stage">
+      <form class="unlock-panel" @submit.prevent="submitUnlock">
+        <div class="unlock-title">DeepChat</div>
+        <div class="unlock-subtitle">Local database is encrypted</div>
+        <label class="unlock-label" for="database-password">SQLite password</label>
+        <input
+          id="database-password"
+          ref="passwordInput"
+          v-model="password"
+          class="unlock-input"
+          type="password"
+          autocomplete="current-password"
+          autofocus
+          :disabled="unlockSubmitting"
+        />
+        <div v-if="unlockMessage" class="unlock-message">{{ unlockMessage }}</div>
+        <div class="unlock-actions">
+          <button
+            class="unlock-button unlock-button--primary"
+            type="submit"
+            :disabled="!password || unlockSubmitting"
+          >
+            {{ unlockSubmitting ? 'Opening...' : 'Unlock' }}
+          </button>
+          <button class="unlock-button" type="button" @click="cancelUnlock">Quit</button>
+        </div>
+        <p class="unlock-hint">{{ unlockHint }}</p>
+      </form>
+    </div>
+
+    <div v-else-if="mode === 'system-unlock'" class="unlock-stage">
+      <div class="unlock-panel">
+        <div class="unlock-title">DeepChat</div>
+        <div class="unlock-subtitle">Unlocking local database</div>
+        <p class="unlock-hint">
+          DeepChat is reading the saved password from the system credential store.
+        </p>
+      </div>
+    </div>
+
+    <div v-else class="loader-stage">
       <div class="loader-wrapper">
         <span class="loader-letter">D</span>
         <span class="loader-letter">e</span>
@@ -14,7 +54,7 @@
       </div>
     </div>
 
-    <div v-if="activities.length > 0" class="activity-feed">
+    <div v-if="mode === 'loading' && activities.length > 0" class="activity-feed">
       <div v-for="activity in activities" :key="activity.key" class="activity-item">
         <span v-if="activity.status === 'completed'" class="status-icon status-icon--completed"
           >✔</span
@@ -27,7 +67,7 @@
       </div>
     </div>
 
-    <div class="logo-corner">
+    <div v-if="mode === 'loading'" class="logo-corner">
       <img
         src="@/assets/logo.png"
         alt="DeepChat Logo"
@@ -39,7 +79,15 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import {
+  DATABASE_UNLOCK_CANCEL_CHANNEL,
+  DATABASE_UNLOCK_PROGRESS_CHANNEL,
+  DATABASE_UNLOCK_REQUEST_CHANNEL,
+  DATABASE_UNLOCK_SUBMIT_CHANNEL,
+  type DatabaseUnlockProgressPayload,
+  type DatabaseUnlockRequestPayload
+} from '@shared/contracts/databaseSecurity'
 
 type SplashActivityStatus = 'running' | 'completed' | 'failed'
 
@@ -54,6 +102,13 @@ interface SplashUpdatePayload {
 }
 
 const activities = ref<SplashActivityItem[]>([])
+const mode = ref<'loading' | 'system-unlock' | 'unlock'>('loading')
+const requestId = ref('')
+const password = ref('')
+const unlockReason = ref<DatabaseUnlockRequestPayload['reason']>('manual-required')
+const safeStorageAvailable = ref(false)
+const unlockSubmitting = ref(false)
+const passwordInput = ref<HTMLInputElement | null>(null)
 
 const ACTIVITY_LABELS: Record<string, string> = {
   'config-initialization': 'Loading configuration',
@@ -86,12 +141,90 @@ const handleSplashUpdate = (_event: unknown, payload: SplashUpdatePayload) => {
   activities.value = payload.activities?.slice(0, 3) ?? []
 }
 
+const unlockMessage = computed(() => {
+  if (unlockReason.value === 'invalid') {
+    return 'Wrong password. Try again.'
+  }
+  return ''
+})
+
+const unlockHint = computed(() => {
+  if (unlockReason.value === 'system-key-missing') {
+    return 'The saved system credential is missing or cannot be decrypted. Enter the SQLite password once to unlock and save it again.'
+  }
+  if (!safeStorageAvailable.value) {
+    return 'System unlock is unavailable on this device, so manual unlock is required.'
+  }
+  return 'Enter the SQLite password to unlock this database. Future startups can open automatically after it is saved to the system credential store.'
+})
+
+const focusPasswordInput = () => {
+  void nextTick(() => {
+    passwordInput.value?.focus()
+  })
+}
+
+const handleUnlockRequest = (_event: unknown, payload: DatabaseUnlockRequestPayload) => {
+  requestId.value = payload.requestId
+  unlockReason.value = payload.reason
+  safeStorageAvailable.value = payload.safeStorageAvailable
+  password.value = ''
+  unlockSubmitting.value = false
+  mode.value = 'unlock'
+  focusPasswordInput()
+}
+
+const handleUnlockProgress = (_event: unknown, payload: DatabaseUnlockProgressPayload) => {
+  unlockSubmitting.value = false
+  if (payload.active) {
+    safeStorageAvailable.value = payload.safeStorageAvailable
+    mode.value = 'system-unlock'
+    return
+  }
+  if (mode.value === 'system-unlock') {
+    mode.value = 'loading'
+  }
+}
+
+const submitUnlock = () => {
+  if (!requestId.value || !password.value || unlockSubmitting.value) {
+    return
+  }
+  unlockSubmitting.value = true
+  window.electron?.ipcRenderer?.send?.(DATABASE_UNLOCK_SUBMIT_CHANNEL, {
+    requestId: requestId.value,
+    password: password.value
+  })
+  password.value = ''
+}
+
+const cancelUnlock = () => {
+  if (!requestId.value) {
+    return
+  }
+  unlockSubmitting.value = false
+  window.electron?.ipcRenderer?.send?.(DATABASE_UNLOCK_CANCEL_CHANNEL, {
+    requestId: requestId.value
+  })
+  password.value = ''
+}
+
 onMounted(() => {
   window.electron?.ipcRenderer?.on?.('splash-update', handleSplashUpdate)
+  window.electron?.ipcRenderer?.on?.(DATABASE_UNLOCK_REQUEST_CHANNEL, handleUnlockRequest)
+  window.electron?.ipcRenderer?.on?.(DATABASE_UNLOCK_PROGRESS_CHANNEL, handleUnlockProgress)
 })
 
 onBeforeUnmount(() => {
   window.electron?.ipcRenderer?.removeListener?.('splash-update', handleSplashUpdate)
+  window.electron?.ipcRenderer?.removeListener?.(
+    DATABASE_UNLOCK_REQUEST_CHANNEL,
+    handleUnlockRequest
+  )
+  window.electron?.ipcRenderer?.removeListener?.(
+    DATABASE_UNLOCK_PROGRESS_CHANNEL,
+    handleUnlockProgress
+  )
 })
 </script>
 
@@ -120,6 +253,91 @@ onBeforeUnmount(() => {
   justify-content: center;
   pointer-events: none;
   z-index: 1;
+}
+
+.unlock-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.unlock-panel {
+  display: flex;
+  width: min(340px, 100%);
+  flex-direction: column;
+  gap: 11px;
+}
+
+.unlock-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.unlock-subtitle {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+}
+
+.unlock-label {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+}
+
+.unlock-input {
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  padding: 0 10px;
+}
+
+.unlock-input:focus {
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+.unlock-message {
+  color: #fca5a5;
+  font-size: 12px;
+}
+
+.unlock-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.unlock-button {
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.unlock-button:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.unlock-button--primary {
+  border-color: #60a5fa;
+  background: #2563eb;
+}
+
+.unlock-hint {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .loader-wrapper {

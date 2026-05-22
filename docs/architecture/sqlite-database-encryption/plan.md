@@ -45,11 +45,13 @@ Password handling:
 
 - The user-provided SQLite password is the database password for v1.
 - If `safeStorage.isEncryptionAvailable()` is true, store only `safeStorage.encryptString(password)`
-  as base64 in metadata.
+  as base64 in metadata. This uses the OS credential store, such as macOS Keychain, Windows
+  Credential Vault, or a Linux secret store, through Electron.
 - If safeStorage is unavailable, do not persist the password; metadata records `passwordStorage:
   'manual'`.
 - If a manual unlock succeeds later on a system where safeStorage is available, re-wrap the password
-  for future launches.
+  for future launches. This covers restored/imported data where the encrypted database exists but
+  the local OS credential store does not have a usable wrapped password.
 
 ## Startup Unlock Flow
 
@@ -59,8 +61,8 @@ Password handling:
 4. If encryption is enabled and a wrapped password exists, try `safeStorage.decryptString()`.
 5. Validate the decrypted password by opening the database with the normal SQLite open helper and a
    lightweight schema query.
-6. If validation fails, or if safeStorage is unavailable, ask `SplashWindowManager` to enter unlock
-   mode and await a password submission.
+6. If validation fails, if the local OS credential store entry is missing, or if safeStorage is
+   unavailable, ask `SplashWindowManager` to enter unlock mode and await a password submission.
 7. On wrong password, return an unlock error to splash and keep waiting.
 8. On cancel, quit startup before main window creation.
 9. On success, pass the password into `DatabaseInitializer({ password })`.
@@ -100,7 +102,9 @@ System unlock progress state:
 
 ## SQLite Open And Validation
 
-- Keep `cipher='sqlcipher'` configured before applying the key.
+- Keep `cipher='sqlcipher'` and `legacy=4` configured before applying the key so newly encrypted
+  databases use SQLCipher 4 compatibility mode and can be opened by tools such as DB Browser for
+  SQLite with SQLCipher 4 defaults.
 - Replace SQL string key interpolation with the native `db.key(Buffer.from(password, 'utf8'))` API
   or an equivalent parameter-safe binding path.
 - Validate encrypted opens with a read against `sqlite_master`, then use the existing transaction
@@ -111,11 +115,15 @@ System unlock progress state:
 
 Primary migration primitive:
 
-- Use SQLite3 Multiple Ciphers encrypted URI support with `VACUUM INTO` to create the destination
-  database file.
-- Do not log the `VACUUM INTO` SQL because it contains key material in the destination URI.
-- The first implementation task must verify this primitive against the project Electron ABI. If it
-  fails, pause implementation and revise this plan instead of silently producing plaintext exports.
+- Use one source connection plus an attached temporary target database, then copy normal schema
+  tables and rows into the target.
+- `better-sqlite3-multiple-ciphers` backup cannot copy between incompatible encrypted/plaintext
+  database states, and the current binding does not treat `VACUUM INTO` filenames as SQLite URI
+  parameters. The attach/copy path is therefore the project-compatible migration primitive.
+- Apply target passwords through `ATTACH DATABASE ? AS migration_target KEY ?` binding parameters
+  after configuring SQLCipher 4 compatibility mode, not by interpolating a password into SQL text.
+  For encrypted-to-plaintext disable, attach the target with an explicit empty key.
+- Do not run native rekey against the active `agent.db`.
 
 Runtime migration sequence:
 
@@ -124,8 +132,10 @@ Runtime migration sequence:
 2. Close the active `SQLitePresenter` connection.
 3. Open the source DB with the current password if encrypted.
 4. Run WAL checkpoint and switch the source connection to a non-WAL journal mode for the export.
-5. Create a temp destination DB in the same `app_db` directory.
-6. Export to the temp DB using the target password, or no password when disabling encryption.
+5. Create a temp destination DB in the same `app_db` directory by attaching it to the source
+   connection.
+6. Copy normal tables and row data into the attached target. Skip FTS virtual/shadow tables; the
+   existing table initialization rebuilds those derived search indexes after reopen.
 7. Open the temp DB through the normal SQLite helper using the target password.
 8. Run `PRAGMA quick_check`, schema version checks, and key table row count checks.
 9. Rename the active database to a short-lived rollback file, move the temp DB to `agent.db`, and

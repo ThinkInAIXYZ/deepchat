@@ -56,7 +56,8 @@ export class LifecycleManager implements ILifecycleManager {
     // Initialize single lifecycle context instance
     this.lifecycleContext = {
       phase: LifecyclePhase.INIT, // Will be updated during execution
-      manager: this
+      manager: this,
+      splashManager: this.splashManager
     }
 
     // Set up shutdown interception

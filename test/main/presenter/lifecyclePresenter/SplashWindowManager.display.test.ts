@@ -3,6 +3,9 @@ import { eventBus } from '../../../../src/main/eventbus'
 import { WINDOW_EVENTS } from '../../../../src/main/events'
 
 const createdWindows = vi.hoisted(() => [] as MockBrowserWindow[])
+const mockIpcMain = vi.hoisted(() => ({
+  on: vi.fn()
+}))
 
 class MockBrowserWindow {
   public visible = false
@@ -55,6 +58,7 @@ class MockBrowserWindow {
 
 vi.mock('electron', () => ({
   BrowserWindow: MockBrowserWindow,
+  ipcMain: mockIpcMain,
   nativeImage: {
     createFromPath: vi.fn(() => ({}))
   }
@@ -68,6 +72,7 @@ describe('SplashWindowManager display gating', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     createdWindows.length = 0
+    mockIpcMain.on.mockClear()
   })
 
   afterEach(async () => {

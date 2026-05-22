@@ -72,6 +72,7 @@ import type { RemoteControlPresenterLike } from './remoteControlPresenter/interf
 import { PluginPresenter } from './pluginPresenter'
 import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
+import { DatabaseSecurityPresenter } from './databaseSecurityPresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
 import type {
@@ -188,6 +189,7 @@ export class Presenter implements IPresenter {
   agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
   pluginPresenter: PluginPresenter
+  databaseSecurityPresenter: DatabaseSecurityPresenter
   hooksNotifications: HooksNotificationsService
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
@@ -206,6 +208,9 @@ export class Presenter implements IPresenter {
     const context = lifecycleManager.getLifecycleContext()
     this.configPresenter = context.config as IConfigPresenter
     this.sqlitePresenter = context.database as ISQLitePresenter
+    this.databaseSecurityPresenter =
+      (context.databaseSecurity as DatabaseSecurityPresenter | undefined) ??
+      new DatabaseSecurityPresenter()
     const agentRepository = new AgentRepository(this.sqlitePresenter as unknown as SQLitePresenter)
     ;(
       this.configPresenter as IConfigPresenter & {
@@ -953,7 +958,8 @@ registerMainKernelRoutes(ipcMain, () =>
         yoBrowserPresenter: presenter.yoBrowserPresenter,
         tabPresenter: presenter.tabPresenter,
         startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
-        pluginPresenter: presenter.pluginPresenter
+        pluginPresenter: presenter.pluginPresenter,
+        databaseSecurityPresenter: presenter.databaseSecurityPresenter
       }))
     : undefined
 )

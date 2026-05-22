@@ -2561,6 +2561,11 @@ export interface ILifecycleManager {
 export interface ISplashWindowManager {
   create(): Promise<void>
   updateProgress(phase: LifecyclePhase, progress: number): void
+  showDatabaseUnlockProgress?(payload: { active: boolean; safeStorageAvailable: boolean }): void
+  requestDatabaseUnlock?(payload: {
+    reason: 'manual-required' | 'safe-storage-unavailable' | 'invalid'
+    safeStorageAvailable: boolean
+  }): Promise<string | null>
   close(): Promise<void>
   isVisible(): boolean
 }

@@ -30,7 +30,18 @@ type BackupStatus = 'idle' | 'preparing' | 'collecting' | 'compressing' | 'final
 const BACKUP_PREFIX = 'backup-'
 const BACKUP_EXTENSION = '.zip'
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
-const MIGRATED_APP_SETTINGS_KEYS = new Set(['providers', 'providerOrder', 'providerTimestamps'])
+const MIGRATED_APP_SETTINGS_KEYS = new Set([
+  'providers',
+  'providerOrder',
+  'providerTimestamps',
+  'remoteControl',
+  'mcprouterApiKey',
+  'nowledgeMemConfig',
+  'hooksNotifications',
+  'knowledgeConfigs',
+  'customPrompts',
+  'systemPrompts'
+])
 const KNOWN_IMPORT_ERRORS = new Set([
   'sync.error.noValidBackup',
   'sync.error.unsupportedBackupVersion'
@@ -208,6 +219,11 @@ export class SyncPresenter implements ISyncPresenter {
       const manifest = configImportService.readManifest(extractionDir)
       const backupVersion = this.resolveBackupVersion(manifest)
       const usesSqliteConfigStorage = backupVersion >= 2 && manifest?.configStorage === 'sqlite'
+      const activeDatabasePassword = this.getActiveDatabasePassword()
+      const backupDatabasePassword = this.resolveBackupDatabasePassword(
+        manifest,
+        activeDatabasePassword
+      )
 
       const backupDbSource = this.resolveBackupDbSource(extractionDir)
       const backupAppSettingsPath = path.join(extractionDir, ZIP_PATHS.appSettings)
@@ -220,6 +236,12 @@ export class SyncPresenter implements ISyncPresenter {
       if (usesSqliteConfigStorage && backupDbSource.type !== 'agent') {
         throw new Error('sync.error.noValidBackup')
       }
+      this.assertOverwriteEncryptionCompatible(
+        backupDbSource.type,
+        importMode,
+        manifest,
+        activeDatabasePassword
+      )
 
       this.sqlitePresenter.close()
       sqliteClosed = true
@@ -253,7 +275,7 @@ export class SyncPresenter implements ISyncPresenter {
 
       if (backupDbSource.type === 'agent') {
         if (importMode === ImportMode.OVERWRITE) {
-          const backupDb = new Database(backupDbSource.path, { readonly: true })
+          const backupDb = this.openBackupDatabase(backupDbSource.path, backupDatabasePassword)
           importedConversationCount =
             this.countTableRows(backupDb, 'new_sessions') ||
             this.countTableRows(backupDb, 'conversations')
@@ -276,7 +298,12 @@ export class SyncPresenter implements ISyncPresenter {
             this.copyFile(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
           }
         } else {
-          const importer = new DataImporter(backupDbSource.path, this.DB_PATH)
+          const importer = new DataImporter(
+            backupDbSource.path,
+            this.DB_PATH,
+            backupDatabasePassword,
+            activeDatabasePassword
+          )
           const summary = await importer.importData()
           importer.close()
           importedConversationCount =
@@ -409,6 +436,8 @@ export class SyncPresenter implements ISyncPresenter {
         createdAt: timestamp,
         configStorage: 'sqlite',
         configSchemaVersion: CURRENT_SYNC_CONFIG_SCHEMA_VERSION,
+        databaseEncrypted: Boolean(this.getActiveDatabasePassword()),
+        databaseCipher: this.getActiveDatabasePassword() ? 'sqlcipher' : undefined,
         files: Object.keys(files)
       }
       files[ZIP_PATHS.manifest] = new Uint8Array(
@@ -501,6 +530,49 @@ export class SyncPresenter implements ISyncPresenter {
     return new SyncConfigImportService(this.DB_PATH, (dbPath) =>
       sqlitePresenter.openDatabaseConnection(dbPath)
     )
+  }
+
+  private openBackupDatabase(dbPath: string, password: string | undefined): Database.Database {
+    const db = new Database(dbPath, { readonly: true })
+    if (password) {
+      db.pragma("cipher='sqlcipher'")
+      db.key(Buffer.from(password, 'utf8'))
+    }
+    return db
+  }
+
+  private getActiveDatabasePassword(): string | undefined {
+    return (this.sqlitePresenter as unknown as Partial<SQLitePresenter>).getDatabasePassword?.()
+  }
+
+  private resolveBackupDatabasePassword(
+    manifest: SyncBackupManifest | null,
+    activeDatabasePassword: string | undefined
+  ): string | undefined {
+    if (!manifest?.databaseEncrypted) {
+      return undefined
+    }
+    if (!activeDatabasePassword) {
+      throw new Error('sync.error.importFailed')
+    }
+    return activeDatabasePassword
+  }
+
+  private assertOverwriteEncryptionCompatible(
+    backupDbType: BackupDbSource['type'],
+    importMode: ImportMode,
+    manifest: SyncBackupManifest | null,
+    activeDatabasePassword: string | undefined
+  ): void {
+    if (backupDbType !== 'agent' || importMode !== ImportMode.OVERWRITE) {
+      return
+    }
+
+    const backupDatabaseEncrypted = manifest?.databaseEncrypted === true
+    const activeDatabaseEncrypted = Boolean(activeDatabasePassword)
+    if (backupDatabaseEncrypted !== activeDatabaseEncrypted) {
+      throw new Error('sync.error.importFailed')
+    }
   }
 
   private ensureSqliteConfigStorageReady(): void {

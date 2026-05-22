@@ -48,6 +48,10 @@ import {
   configSetSystemPromptsRoute,
   configUpdateCustomPromptRoute,
   configUpdateSystemPromptRoute,
+  databaseSecurityChangePasswordRoute,
+  databaseSecurityDisableRoute,
+  databaseSecurityEnableRoute,
+  databaseSecurityGetStatusRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -237,6 +241,8 @@ import { createSettingsRouteHandler } from './settings/settingsHandler'
 import { SessionService } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
+import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -263,6 +269,7 @@ export type MainKernelRouteRuntime = {
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginPresenter: PluginPresenter
+  databaseSecurityPresenter: DatabaseSecurityPresenter
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -285,6 +292,7 @@ export function createMainKernelRouteRuntime(deps: {
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginPresenter: PluginPresenter
+  databaseSecurityPresenter: DatabaseSecurityPresenter
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -351,7 +359,8 @@ export function createMainKernelRouteRuntime(deps: {
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
-    pluginPresenter: deps.pluginPresenter
+    pluginPresenter: deps.pluginPresenter,
+    databaseSecurityPresenter: deps.databaseSecurityPresenter
   }
 }
 
@@ -1423,6 +1432,80 @@ export async function dispatchDeepchatRoute(
       const input = settingsActivityListRoute.input.parse(rawInput)
       const activities = await runtime.sqlitePresenter.listSettingsActivity(input.limit)
       return settingsActivityListRoute.output.parse({ activities })
+    }
+
+    case databaseSecurityGetStatusRoute.name: {
+      databaseSecurityGetStatusRoute.input.parse(rawInput)
+      return databaseSecurityGetStatusRoute.output.parse({
+        status: runtime.databaseSecurityPresenter.getStatus()
+      })
+    }
+
+    case databaseSecurityEnableRoute.name: {
+      const input = databaseSecurityEnableRoute.input.parse(rawInput)
+      const status = await runtime.databaseSecurityPresenter.enableEncryption({
+        password: input.password,
+        sqlitePresenter: runtime.sqlitePresenter as unknown as SQLitePresenter,
+        configPresenter: runtime.configPresenter
+      })
+      recordSettingsActivity(runtime, {
+        category: 'privacy',
+        action: 'enabled',
+        targetType: 'database-encryption',
+        targetId: 'agent.db',
+        targetLabel: 'SQLite database encryption',
+        routeName: 'settings-database',
+        summaryKey: 'settings.controlCenter.activity.settingUpdated',
+        summaryParams: {
+          key: 'databaseEncryption'
+        }
+      })
+      return databaseSecurityEnableRoute.output.parse({ status })
+    }
+
+    case databaseSecurityChangePasswordRoute.name: {
+      const input = databaseSecurityChangePasswordRoute.input.parse(rawInput)
+      const status = await runtime.databaseSecurityPresenter.changePassword({
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+        sqlitePresenter: runtime.sqlitePresenter as unknown as SQLitePresenter,
+        configPresenter: runtime.configPresenter
+      })
+      recordSettingsActivity(runtime, {
+        category: 'privacy',
+        action: 'updated',
+        targetType: 'database-encryption',
+        targetId: 'agent.db',
+        targetLabel: 'SQLite database encryption',
+        routeName: 'settings-database',
+        summaryKey: 'settings.controlCenter.activity.settingUpdated',
+        summaryParams: {
+          key: 'databaseEncryptionPassword'
+        }
+      })
+      return databaseSecurityChangePasswordRoute.output.parse({ status })
+    }
+
+    case databaseSecurityDisableRoute.name: {
+      const input = databaseSecurityDisableRoute.input.parse(rawInput)
+      const status = await runtime.databaseSecurityPresenter.disableEncryption({
+        currentPassword: input.currentPassword,
+        sqlitePresenter: runtime.sqlitePresenter as unknown as SQLitePresenter,
+        configPresenter: runtime.configPresenter
+      })
+      recordSettingsActivity(runtime, {
+        category: 'privacy',
+        action: 'disabled',
+        targetType: 'database-encryption',
+        targetId: 'agent.db',
+        targetLabel: 'SQLite database encryption',
+        routeName: 'settings-database',
+        summaryKey: 'settings.controlCenter.activity.settingUpdated',
+        summaryParams: {
+          key: 'databaseEncryption'
+        }
+      })
+      return databaseSecurityDisableRoute.output.parse({ status })
     }
 
     case onboardingGetStateRoute.name: {

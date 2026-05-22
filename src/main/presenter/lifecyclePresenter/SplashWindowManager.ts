@@ -3,7 +3,7 @@
  */
 
 import path from 'path'
-import { BrowserWindow, nativeImage } from 'electron'
+import { BrowserWindow, ipcMain, nativeImage } from 'electron'
 import { eventBus } from '../../eventbus'
 import { LIFECYCLE_EVENTS, WINDOW_EVENTS } from '@/events'
 import { ISplashWindowManager } from '@shared/presenter'
@@ -18,6 +18,15 @@ import {
   ProgressUpdatedEventData
 } from './types'
 import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
+import {
+  DATABASE_UNLOCK_CANCEL_CHANNEL,
+  DATABASE_UNLOCK_PROGRESS_CHANNEL,
+  DATABASE_UNLOCK_REQUEST_CHANNEL,
+  DATABASE_UNLOCK_SUBMIT_CHANNEL,
+  type DatabaseUnlockProgressPayload,
+  type DatabaseUnlockRequestPayload,
+  type DatabaseUnlockReason
+} from '@shared/contracts/databaseSecurity'
 
 type SplashActivityStatus = 'running' | 'completed' | 'failed'
 
@@ -46,7 +55,14 @@ const SPLASH_SHOW_DELAY_MS = 200
 export class SplashWindowManager implements ISplashWindowManager {
   private splashWindow: BrowserWindow | null = null
   private activities = new Map<string, SplashActivityItem>()
+  private unlockRequest: {
+    requestId: string
+    payload: DatabaseUnlockRequestPayload
+    resolve: (password: string | null) => void
+  } | null = null
+  private pendingUnlockProgress: DatabaseUnlockProgressPayload | null = null
   private splashReadyToShow = false
+  private splashDidFinishLoad = false
   private splashShowDelayElapsed = false
   private suppressSplashShow = false
   private splashShowDelayTimer: ReturnType<typeof setTimeout> | null = null
@@ -98,6 +114,7 @@ export class SplashWindowManager implements ISplashWindowManager {
 
   constructor() {
     this.setupLifecycleListeners()
+    this.setupDatabaseUnlockListeners()
   }
 
   /**
@@ -109,6 +126,7 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
 
     this.splashReadyToShow = false
+    this.splashDidFinishLoad = false
     this.splashShowDelayElapsed = false
     this.suppressSplashShow = false
     this.clearSplashShowDelayTimer()
@@ -123,8 +141,8 @@ export class SplashWindowManager implements ISplashWindowManager {
 
     try {
       this.splashWindow = new BrowserWindow({
-        width: 400,
-        height: 300,
+        width: 420,
+        height: 340,
         icon: iconFile,
         resizable: false,
         movable: false,
@@ -155,7 +173,9 @@ export class SplashWindowManager implements ISplashWindowManager {
       })
 
       this.splashWindow.webContents.on('did-finish-load', () => {
+        this.splashDidFinishLoad = true
         this.emitState()
+        this.emitDatabaseUnlockState()
       })
 
       // Load the splash HTML template
@@ -169,6 +189,7 @@ export class SplashWindowManager implements ISplashWindowManager {
       this.splashWindow.on('closed', () => {
         this.clearSplashShowDelayTimer()
         this.splashWindow = null
+        this.splashDidFinishLoad = false
       })
 
       if (this.suppressSplashShow) {
@@ -208,6 +229,32 @@ export class SplashWindowManager implements ISplashWindowManager {
     } as ProgressUpdatedEventData)
   }
 
+  showDatabaseUnlockProgress(payload: DatabaseUnlockProgressPayload): void {
+    this.pendingUnlockProgress = payload
+    this.forceShowSplash()
+    this.emitDatabaseUnlockState()
+  }
+
+  async requestDatabaseUnlock(payload: {
+    reason: DatabaseUnlockReason
+    safeStorageAvailable: boolean
+  }): Promise<string | null> {
+    this.forceShowSplash()
+    this.unlockRequest?.resolve(null)
+
+    const requestId = `database-unlock-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const requestPayload: DatabaseUnlockRequestPayload = {
+      requestId,
+      reason: payload.reason,
+      safeStorageAvailable: payload.safeStorageAvailable
+    }
+
+    return await new Promise((resolve) => {
+      this.unlockRequest = { requestId, payload: requestPayload, resolve }
+      this.emitDatabaseUnlockState()
+    })
+  }
+
   /**
    * Close the splash window
    */
@@ -219,6 +266,9 @@ export class SplashWindowManager implements ISplashWindowManager {
     eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
 
     this.activities.clear()
+    this.unlockRequest?.resolve(null)
+    this.unlockRequest = null
+    this.pendingUnlockProgress = null
     this.emitState()
     this.clearSplashShowDelayTimer()
 
@@ -255,6 +305,47 @@ export class SplashWindowManager implements ISplashWindowManager {
     eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPLETED, this.onHookCompleted)
     eventBus.on(LIFECYCLE_EVENTS.HOOK_FAILED, this.onHookFailed)
     eventBus.on(LIFECYCLE_EVENTS.ERROR_OCCURRED, this.onErrorOccurred)
+  }
+
+  private setupDatabaseUnlockListeners(): void {
+    ipcMain.on(DATABASE_UNLOCK_SUBMIT_CHANNEL, (event, payload: unknown) => {
+      if (!this.isSplashSender(event.sender.id) || !this.unlockRequest) {
+        return
+      }
+      if (!payload || typeof payload !== 'object') {
+        return
+      }
+      const requestId = (payload as { requestId?: unknown }).requestId
+      const password = (payload as { password?: unknown }).password
+      if (requestId !== this.unlockRequest.requestId || typeof password !== 'string') {
+        return
+      }
+
+      const current = this.unlockRequest
+      this.unlockRequest = null
+      current.resolve(password)
+    })
+
+    ipcMain.on(DATABASE_UNLOCK_CANCEL_CHANNEL, (event, payload: unknown) => {
+      if (!this.isSplashSender(event.sender.id) || !this.unlockRequest) {
+        return
+      }
+      const requestId =
+        payload && typeof payload === 'object'
+          ? (payload as { requestId?: unknown }).requestId
+          : undefined
+      if (requestId !== this.unlockRequest.requestId) {
+        return
+      }
+
+      const current = this.unlockRequest
+      this.unlockRequest = null
+      current.resolve(null)
+    })
+  }
+
+  private isSplashSender(webContentsId: number): boolean {
+    return this.splashWindow?.webContents.id === webContentsId
   }
 
   private isStartupPhase(phase: LifecyclePhase | null): phase is LifecyclePhase {
@@ -305,6 +396,26 @@ export class SplashWindowManager implements ISplashWindowManager {
     this.splashWindow.webContents.send('splash-update', payload)
   }
 
+  private emitDatabaseUnlockState(): void {
+    if (!this.splashWindow || this.splashWindow.isDestroyed() || !this.splashDidFinishLoad) {
+      return
+    }
+
+    if (this.pendingUnlockProgress) {
+      this.splashWindow.webContents.send(
+        DATABASE_UNLOCK_PROGRESS_CHANNEL,
+        this.pendingUnlockProgress
+      )
+    }
+
+    if (this.unlockRequest) {
+      this.splashWindow.webContents.send(
+        DATABASE_UNLOCK_REQUEST_CHANNEL,
+        this.unlockRequest.payload
+      )
+    }
+  }
+
   private maybeShowSplash(): void {
     if (
       !this.splashWindow ||
@@ -317,6 +428,23 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
 
     this.splashWindow.show()
+  }
+
+  private forceShowSplash(): void {
+    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
+      return
+    }
+    this.suppressSplashShow = false
+    this.splashShowDelayElapsed = true
+    if (this.splashReadyToShow) {
+      this.splashWindow.show()
+      return
+    }
+    this.splashWindow.once('ready-to-show', () => {
+      if (!this.splashWindow?.isDestroyed()) {
+        this.splashWindow?.show()
+      }
+    })
   }
 
   private clearSplashShowDelayTimer(): void {
