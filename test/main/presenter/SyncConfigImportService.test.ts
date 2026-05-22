@@ -25,7 +25,7 @@ type MockState = {
   agentSettings: Record<string, unknown>
   appSettings: Record<string, unknown>
   agentMcpSelections: string[]
-  hasMigration: boolean
+  migrations: Set<string>
 }
 
 const mockConfigStates = new Map<string, MockState>()
@@ -40,7 +40,7 @@ const createMockState = (): MockState => ({
   agentSettings: {},
   appSettings: {},
   agentMcpSelections: [],
-  hasMigration: false
+  migrations: new Set()
 })
 
 const getMockState = (dbPath: string): MockState => {
@@ -72,15 +72,12 @@ class MockConfigTables {
 
   createTable() {}
 
-  hasConfigMigration(id?: string): boolean {
-    if (id === 'sensitive-config-sqlite-v1') {
-      return this.state.hasMigration
-    }
-    return this.state.hasMigration
+  hasConfigMigration(id = 'config-sqlite-v1'): boolean {
+    return this.state.migrations.has(id)
   }
 
-  markConfigMigrationApplied(): void {
-    this.state.hasMigration = true
+  markConfigMigrationApplied(id = 'config-sqlite-v1'): void {
+    this.state.migrations.add(id)
   }
 
   listProviders(): LLM_PROVIDER[] {

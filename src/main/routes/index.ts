@@ -402,6 +402,20 @@ function recordSettingsActivity(
   })
 }
 
+function getDatabaseSecuritySQLitePresenter(runtime: MainKernelRouteRuntime): SQLitePresenter {
+  const sqlitePresenter = runtime.sqlitePresenter as Partial<SQLitePresenter>
+  const requiredMethods: Array<keyof SQLitePresenter> = [
+    'getDatabasePath',
+    'getDatabase',
+    'close',
+    'reopenWithPassword'
+  ]
+  if (requiredMethods.some((method) => typeof sqlitePresenter[method] !== 'function')) {
+    throw new Error('SQLite presenter is required for database encryption')
+  }
+  return runtime.sqlitePresenter as unknown as SQLitePresenter
+}
+
 function recordSkillSettingsActivity(
   runtime: MainKernelRouteRuntime,
   action: SettingsActivityInput['action'],
@@ -1443,9 +1457,10 @@ export async function dispatchDeepchatRoute(
 
     case databaseSecurityEnableRoute.name: {
       const input = databaseSecurityEnableRoute.input.parse(rawInput)
+      const sqlitePresenter = getDatabaseSecuritySQLitePresenter(runtime)
       const status = await runtime.databaseSecurityPresenter.enableEncryption({
         password: input.password,
-        sqlitePresenter: runtime.sqlitePresenter as unknown as SQLitePresenter,
+        sqlitePresenter,
         configPresenter: runtime.configPresenter
       })
       recordSettingsActivity(runtime, {
@@ -1465,10 +1480,11 @@ export async function dispatchDeepchatRoute(
 
     case databaseSecurityChangePasswordRoute.name: {
       const input = databaseSecurityChangePasswordRoute.input.parse(rawInput)
+      const sqlitePresenter = getDatabaseSecuritySQLitePresenter(runtime)
       const status = await runtime.databaseSecurityPresenter.changePassword({
         currentPassword: input.currentPassword,
         newPassword: input.newPassword,
-        sqlitePresenter: runtime.sqlitePresenter as unknown as SQLitePresenter,
+        sqlitePresenter,
         configPresenter: runtime.configPresenter
       })
       recordSettingsActivity(runtime, {
@@ -1488,9 +1504,10 @@ export async function dispatchDeepchatRoute(
 
     case databaseSecurityDisableRoute.name: {
       const input = databaseSecurityDisableRoute.input.parse(rawInput)
+      const sqlitePresenter = getDatabaseSecuritySQLitePresenter(runtime)
       const status = await runtime.databaseSecurityPresenter.disableEncryption({
         currentPassword: input.currentPassword,
-        sqlitePresenter: runtime.sqlitePresenter as unknown as SQLitePresenter,
+        sqlitePresenter,
         configPresenter: runtime.configPresenter
       })
       recordSettingsActivity(runtime, {

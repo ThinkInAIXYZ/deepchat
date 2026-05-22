@@ -186,4 +186,18 @@ describe('DatabaseSecurityPresenter', () => {
     expect(cleanupLegacyProviderJsonForDatabaseEncryption).toHaveBeenCalledTimes(1)
     expect(migrateDatabase).toHaveBeenCalledTimes(1)
   })
+
+  it('qualifies CREATE TABLE IF NOT EXISTS for the migration target schema', async () => {
+    const { DatabaseSecurityPresenter } =
+      await import('../../../src/main/presenter/databaseSecurityPresenter')
+    const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+
+    expect(
+      (
+        presenter as unknown as {
+          qualifyCreateTableSql: (sql: string) => string
+        }
+      ).qualifyCreateTableSql('CREATE TABLE IF NOT EXISTS providers (id TEXT PRIMARY KEY)')
+    ).toBe('CREATE TABLE IF NOT EXISTS migration_target.providers (id TEXT PRIMARY KEY)')
+  })
 })

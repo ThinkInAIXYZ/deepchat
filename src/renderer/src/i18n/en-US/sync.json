@@ -13,6 +13,8 @@
     "tempConfigFailed": "Failed to create temporary configuration backup file",
     "importFailed": "Import failed, original data has been restored",
     "importProcess": "An error occurred during the import process",
-    "unknown": "Unknown error"
+    "unknown": "Unknown error",
+    "encryptedBackupPasswordMissing": "This backup is encrypted, but the local database key is not available. Unlock the encrypted database first, then import again.",
+    "overwriteEncryptionMismatch": "Overwrite import requires the backup and current database to use the same encryption state."
   }
 }

@@ -44,7 +44,9 @@ const MIGRATED_APP_SETTINGS_KEYS = new Set([
 ])
 const KNOWN_IMPORT_ERRORS = new Set([
   'sync.error.noValidBackup',
-  'sync.error.unsupportedBackupVersion'
+  'sync.error.unsupportedBackupVersion',
+  'sync.error.encryptedBackupPasswordMissing',
+  'sync.error.overwriteEncryptionMismatch'
 ])
 
 const ZIP_PATHS = {
@@ -553,7 +555,7 @@ export class SyncPresenter implements ISyncPresenter {
       return undefined
     }
     if (!activeDatabasePassword) {
-      throw new Error('sync.error.importFailed')
+      throw new Error('sync.error.encryptedBackupPasswordMissing')
     }
     return activeDatabasePassword
   }
@@ -571,7 +573,7 @@ export class SyncPresenter implements ISyncPresenter {
     const backupDatabaseEncrypted = manifest?.databaseEncrypted === true
     const activeDatabaseEncrypted = Boolean(activeDatabasePassword)
     if (backupDatabaseEncrypted !== activeDatabaseEncrypted) {
-      throw new Error('sync.error.importFailed')
+      throw new Error('sync.error.overwriteEncryptionMismatch')
     }
   }
 

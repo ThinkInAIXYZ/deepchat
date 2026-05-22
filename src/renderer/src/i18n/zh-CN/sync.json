@@ -13,6 +13,8 @@
     "tempConfigFailed": "临时配置备份文件创建失败",
     "importFailed": "导入失败，已恢复原始数据",
     "importProcess": "导入过程出错",
-    "unknown": "未知错误"
+    "unknown": "未知错误",
+    "encryptedBackupPasswordMissing": "该备份已加密，但本地数据库密钥不可用。请先解锁加密数据库，再重新导入。",
+    "overwriteEncryptionMismatch": "覆盖导入要求备份和当前数据库处于相同的加密状态。"
   }
 }

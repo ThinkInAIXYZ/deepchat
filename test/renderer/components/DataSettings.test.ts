@@ -349,11 +349,10 @@ describe('DataSettings', () => {
     await nextTick()
 
     const inputs = wrapper.findAll('input[type="password"]')
-    const newPasswordInput = inputs.at(0)
-    const confirmPasswordInput = inputs.at(1)
+    expect(inputs).toHaveLength(2)
 
-    await newPasswordInput?.setValue('sqlite-pass')
-    await confirmPasswordInput?.setValue('sqlite-pass')
+    await inputs[0].setValue('sqlite-pass')
+    await inputs[1].setValue('sqlite-pass')
     await findDatabaseEncryptionButton(
       wrapper,
       'settings.data.databaseEncryption.enableButton'

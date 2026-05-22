@@ -50,6 +50,7 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 const sidecarPaths = (dbPath: string): string[] => [`${dbPath}-wal`, `${dbPath}-shm`]
 
 const MIGRATION_TARGET_SCHEMA = 'migration_target'
+const activeMigrationDbPaths = new Set<string>()
 
 type SqliteSchemaRow = {
   type: 'table' | 'index' | 'trigger' | 'view'
@@ -58,6 +59,7 @@ type SqliteSchemaRow = {
 }
 
 const quoteIdentifier = (value: string): string => `"${value.replace(/"/g, '""')}"`
+const getMigrationLockPath = (dbPath: string): string => path.resolve(dbPath)
 
 export class DatabaseSecurityPresenter {
   private readonly store: ElectronStore<{ metadata: DatabaseSecurityMetadata }>
@@ -90,7 +92,7 @@ export class DatabaseSecurityPresenter {
         (!safeStorageAvailable ||
           metadata.passwordStorage !== 'safeStorage' ||
           !metadata.wrappedPassword),
-      migrationInProgress: this.migrationInProgress,
+      migrationInProgress: this.isMigrationInProgress(),
       lastMigrationAt: metadata.lastMigrationAt
     }
   }
@@ -237,12 +239,9 @@ export class DatabaseSecurityPresenter {
     targetPassword: string | undefined
     direction: MigrationDirection
   }): Promise<void> {
-    if (this.migrationInProgress) {
-      throw new Error('Database migration is already in progress')
-    }
-
-    this.migrationInProgress = true
     const dbPath = input.sqlitePresenter.getDatabasePath()
+    this.acquireMigrationLock(dbPath)
+    this.migrationInProgress = true
     const tempPath = this.getTempPath(dbPath)
     const rollbackPath = this.getRollbackPath(dbPath)
 
@@ -257,12 +256,7 @@ export class DatabaseSecurityPresenter {
       this.exportDatabaseToTemp(dbPath, tempPath, input.sourcePassword, input.targetPassword)
       this.verifyMigratedDatabase(tempPath, input.targetPassword, expectedCounts)
 
-      this.removeSidecars(dbPath)
-      if (fs.existsSync(dbPath)) {
-        fs.renameSync(dbPath, rollbackPath)
-      }
-      fs.renameSync(tempPath, dbPath)
-      this.removeSidecars(dbPath)
+      this.replaceDatabaseWithRollback(dbPath, tempPath, rollbackPath)
 
       try {
         input.sqlitePresenter.reopenWithPassword(input.targetPassword)
@@ -273,10 +267,7 @@ export class DatabaseSecurityPresenter {
         ).setSQLitePresenter?.(input.sqlitePresenter)
       } catch (error) {
         input.sqlitePresenter.close()
-        this.removeIfExists(dbPath)
-        if (fs.existsSync(rollbackPath)) {
-          fs.renameSync(rollbackPath, dbPath)
-        }
+        this.restoreRollbackDatabase(dbPath, rollbackPath)
         input.sqlitePresenter.reopenWithPassword(input.sourcePassword)
         throw error
       }
@@ -286,6 +277,9 @@ export class DatabaseSecurityPresenter {
     } catch (error) {
       this.removeIfExists(tempPath)
       this.removeSidecars(tempPath)
+      if (!fs.existsSync(dbPath) && fs.existsSync(rollbackPath)) {
+        fs.renameSync(rollbackPath, dbPath)
+      }
       if (!input.sqlitePresenter.getDatabase().open) {
         try {
           input.sqlitePresenter.reopenWithPassword(input.sourcePassword)
@@ -296,6 +290,7 @@ export class DatabaseSecurityPresenter {
       throw error
     } finally {
       this.migrationInProgress = false
+      this.releaseMigrationLock(dbPath)
     }
   }
 
@@ -397,7 +392,11 @@ export class DatabaseSecurityPresenter {
   }
 
   private qualifyCreateTableSql(sql: string): string {
-    return sql.replace(/^CREATE\s+TABLE\s+/i, `CREATE TABLE ${MIGRATION_TARGET_SCHEMA}.`)
+    return sql.replace(
+      /^CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?/i,
+      (_match, ifNotExists: string | undefined) =>
+        `CREATE TABLE ${ifNotExists ?? ''}${MIGRATION_TARGET_SCHEMA}.`
+    )
   }
 
   private copySqliteSequence(db: Database.Database): void {
@@ -559,6 +558,58 @@ export class DatabaseSecurityPresenter {
 
   private getRollbackPath(dbPath = this.dbPath): string {
     return `${dbPath}.migration-rollback`
+  }
+
+  private isMigrationInProgress(dbPath?: string): boolean {
+    if (this.migrationInProgress) {
+      return true
+    }
+    if (!dbPath) {
+      return activeMigrationDbPaths.size > 0
+    }
+    return activeMigrationDbPaths.has(getMigrationLockPath(dbPath))
+  }
+
+  private acquireMigrationLock(dbPath: string): void {
+    const lockPath = getMigrationLockPath(dbPath)
+    if (activeMigrationDbPaths.has(lockPath)) {
+      throw new Error('Database migration is already in progress')
+    }
+    activeMigrationDbPaths.add(lockPath)
+  }
+
+  private releaseMigrationLock(dbPath: string): void {
+    activeMigrationDbPaths.delete(getMigrationLockPath(dbPath))
+  }
+
+  private replaceDatabaseWithRollback(
+    dbPath: string,
+    tempPath: string,
+    rollbackPath: string
+  ): void {
+    this.removeSidecars(dbPath)
+    const hasOriginal = fs.existsSync(dbPath)
+    if (hasOriginal) {
+      fs.renameSync(dbPath, rollbackPath)
+    }
+    try {
+      fs.renameSync(tempPath, dbPath)
+    } catch (error) {
+      if (hasOriginal && fs.existsSync(rollbackPath) && !fs.existsSync(dbPath)) {
+        fs.renameSync(rollbackPath, dbPath)
+      }
+      throw error
+    }
+    this.removeSidecars(dbPath)
+  }
+
+  private restoreRollbackDatabase(dbPath: string, rollbackPath: string): void {
+    this.removeSidecars(dbPath)
+    this.removeIfExists(dbPath)
+    if (fs.existsSync(rollbackPath)) {
+      fs.renameSync(rollbackPath, dbPath)
+    }
+    this.removeSidecars(dbPath)
   }
 
   private removeSidecars(dbPath: string): void {

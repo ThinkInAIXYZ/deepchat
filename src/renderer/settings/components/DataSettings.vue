@@ -234,7 +234,10 @@
             {{ t('settings.data.databaseEncryption.safeStorageUnavailable') }}
           </p>
 
-          <div class="flex flex-col gap-2 sm:flex-row">
+          <div
+            v-if="isDatabaseSecurityStatusLoaded && !hasDatabaseSecurityStatusError"
+            class="flex flex-col gap-2 sm:flex-row"
+          >
             <Button
               v-if="!databaseSecurityStatus?.enabled"
               class="w-full justify-center sm:w-36"
@@ -813,6 +816,8 @@ const isClearSandboxDialogOpen = ref(false)
 const isRepairing = ref(false)
 const lastRepairReport = ref<DatabaseRepairReport | null>(null)
 const databaseSecurityStatus = ref<DatabaseSecurityStatus | null>(null)
+const isDatabaseSecurityStatusLoaded = ref(false)
+const hasDatabaseSecurityStatusError = ref(false)
 const isDatabaseSecurityBusy = ref(false)
 const isDatabaseEncryptionDialogOpen = ref(false)
 const databaseEncryptionAction = ref<'enable' | 'change' | 'disable'>('enable')
@@ -841,10 +846,12 @@ const databasePasswordValidation = computed(() => {
 })
 const isDatabaseSecurityActionDisabled = computed(() => {
   return (
+    !isDatabaseSecurityStatusLoaded.value ||
+    hasDatabaseSecurityStatusError.value ||
     isDatabaseSecurityBusy.value ||
     isBackupActive.value ||
     isImporting.value ||
-    databaseSecurityStatus.value?.migrationInProgress
+    Boolean(databaseSecurityStatus.value?.migrationInProgress)
   )
 })
 const canEnableDatabaseEncryption = computed(() => {
@@ -978,7 +985,16 @@ const closeDatabaseEncryptionDialog = () => {
 }
 
 const refreshDatabaseSecurityStatus = async () => {
-  databaseSecurityStatus.value = await databaseSecurityClient.getStatus()
+  hasDatabaseSecurityStatusError.value = false
+  try {
+    databaseSecurityStatus.value = await databaseSecurityClient.getStatus()
+    isDatabaseSecurityStatusLoaded.value = true
+  } catch (error) {
+    console.error('Failed to load database encryption status:', error)
+    databaseSecurityStatus.value = null
+    isDatabaseSecurityStatusLoaded.value = false
+    hasDatabaseSecurityStatusError.value = true
+  }
 }
 
 const runDatabaseSecurityAction = async (
@@ -991,6 +1007,8 @@ const runDatabaseSecurityAction = async (
   isDatabaseSecurityBusy.value = true
   try {
     databaseSecurityStatus.value = await action()
+    isDatabaseSecurityStatusLoaded.value = true
+    hasDatabaseSecurityStatusError.value = false
     clearDatabasePasswordFields()
     isDatabaseEncryptionDialogOpen.value = false
     toast({

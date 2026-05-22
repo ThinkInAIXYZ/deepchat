@@ -334,6 +334,7 @@ describe('SyncPresenter backup import', () => {
       configTables: {
         hasConfigMigration: vi.fn(() => true)
       },
+      getDatabasePassword: vi.fn(() => undefined),
       clearNewAgentData: vi.fn(),
       importLegacyChatDb: vi.fn(async () => ({
         importedSessions: 0,
@@ -741,6 +742,81 @@ describe('SyncPresenter backup import', () => {
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
     expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
     expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
+  })
+
+  it('returns a specific error when an encrypted backup has no local database key', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      {
+        manifest: {
+          version: 2,
+          createdAt: Date.now(),
+          configStorage: 'sqlite',
+          configSchemaVersion: 1,
+          databaseEncrypted: true,
+          files: [ZIP_PATHS.agentDb, ZIP_PATHS.appSettings]
+        }
+      }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('sync.error.encryptedBackupPasswordMissing')
+    expect(sqlitePresenter.close).not.toHaveBeenCalled()
+  })
+
+  it('rejects overwrite import when backup and local encryption states differ', async () => {
+    sqlitePresenter.getDatabasePassword.mockReturnValue('local-pass')
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      {
+        manifest: {
+          version: 2,
+          createdAt: Date.now(),
+          configStorage: 'sqlite',
+          configSchemaVersion: 1,
+          databaseEncrypted: false,
+          files: [ZIP_PATHS.agentDb, ZIP_PATHS.appSettings]
+        }
+      }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.OVERWRITE)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('sync.error.overwriteEncryptionMismatch')
+    expect(sqlitePresenter.close).not.toHaveBeenCalled()
   })
 
   it('treats missing manifest backups as legacy backups', async () => {

@@ -13,6 +13,8 @@
     "tempConfigFailed": "臨時配置備份文件創建失敗",
     "importFailed": "導入失敗，已恢復原始數據",
     "importProcess": "導入過程出錯",
-    "unknown": "未知錯誤"
+    "unknown": "未知錯誤",
+    "encryptedBackupPasswordMissing": "此備份已加密，但本機資料庫密鑰不可用。請先解鎖加密資料庫，然後重新匯入。",
+    "overwriteEncryptionMismatch": "覆蓋匯入要求備份和目前資料庫處於相同的加密狀態。"
   }
 }

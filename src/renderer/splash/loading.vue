@@ -202,11 +202,16 @@ const cancelUnlock = () => {
   if (!requestId.value) {
     return
   }
+  const canceledRequestId = requestId.value
   unlockSubmitting.value = false
   window.electron?.ipcRenderer?.send?.(DATABASE_UNLOCK_CANCEL_CHANNEL, {
-    requestId: requestId.value
+    requestId: canceledRequestId
   })
+  requestId.value = ''
   password.value = ''
+  unlockReason.value = 'manual-required'
+  safeStorageAvailable.value = false
+  mode.value = 'loading'
 }
 
 onMounted(() => {
