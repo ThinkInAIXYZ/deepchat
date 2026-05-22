@@ -23,8 +23,9 @@ type MockState = {
   mcpServers: Record<string, MCPServerConfig>
   mcpSettings: Record<string, unknown>
   agentSettings: Record<string, unknown>
+  appSettings: Record<string, unknown>
   agentMcpSelections: string[]
-  hasMigration: boolean
+  migrations: Set<string>
 }
 
 const mockConfigStates = new Map<string, MockState>()
@@ -37,8 +38,9 @@ const createMockState = (): MockState => ({
   mcpServers: {},
   mcpSettings: {},
   agentSettings: {},
+  appSettings: {},
   agentMcpSelections: [],
-  hasMigration: false
+  migrations: new Set()
 })
 
 const getMockState = (dbPath: string): MockState => {
@@ -70,12 +72,12 @@ class MockConfigTables {
 
   createTable() {}
 
-  hasConfigMigration(): boolean {
-    return this.state.hasMigration
+  hasConfigMigration(id = 'config-sqlite-v1'): boolean {
+    return this.state.migrations.has(id)
   }
 
-  markConfigMigrationApplied(): void {
-    this.state.hasMigration = true
+  markConfigMigrationApplied(id = 'config-sqlite-v1'): void {
+    this.state.migrations.add(id)
   }
 
   listProviders(): LLM_PROVIDER[] {
@@ -230,6 +232,26 @@ class MockConfigTables {
     return { ...this.state.agentSettings }
   }
 
+  getAppSetting(key: string): unknown {
+    return this.state.appSettings[key]
+  }
+
+  setAppSetting(key: string, value: unknown): void {
+    this.state.appSettings[key] = value
+  }
+
+  deleteAppSetting(key: string): void {
+    delete this.state.appSettings[key]
+  }
+
+  hasAppSetting(key: string): boolean {
+    return Object.hasOwn(this.state.appSettings, key)
+  }
+
+  listAppSettings(): Record<string, unknown> {
+    return { ...this.state.appSettings }
+  }
+
   getAgentMcpSelections(): string[] {
     return [...this.state.agentMcpSelections]
   }
@@ -327,6 +349,16 @@ describe('SyncConfigImportService', () => {
         enabled: true,
         version: '1'
       })
+      expect(tables.listAppSettings()).toMatchObject({
+        remoteControl: {
+          telegram: {
+            botToken: 'telegram-token'
+          }
+        },
+        mcprouterApiKey: 'router-key',
+        customPrompts: [{ id: 'custom-prompt', title: 'Imported custom prompt' }],
+        systemPrompts: [{ id: 'system-prompt', title: 'Imported system prompt' }]
+      })
       expect(tables.getAgentMcpSelections()).toEqual(['server-a', 'server-b'])
     } finally {
       close()
@@ -394,6 +426,11 @@ describe('SyncConfigImportService', () => {
       expect(overwriteTables.listMcpServers()['server-a'].command).toBe('backup-server-a')
       expect(overwriteTables.getMcpSetting('mcpEnabled')).toBe(true)
       expect(overwriteTables.getAgentSetting('enabled')).toBe(true)
+      expect(overwriteTables.listAppSettings()).toMatchObject({
+        mcprouterApiKey: 'router-key',
+        customPrompts: [{ id: 'custom-prompt', title: 'Imported custom prompt' }],
+        systemPrompts: [{ id: 'system-prompt', title: 'Imported system prompt' }]
+      })
       expect(overwriteTables.getAgentMcpSelections()).toEqual(['server-a', 'server-b'])
     } finally {
       closeOverwriteTables()
@@ -466,7 +503,21 @@ function writeLegacyConfigFixture(extractionDir: string) {
         providerId: 'imported',
         enabled: false
       }
-    ]
+    ],
+    remoteControl: {
+      telegram: {
+        botToken: 'telegram-token'
+      }
+    },
+    mcprouterApiKey: 'router-key'
+  })
+
+  writeJson(path.join(extractionDir, 'configs', 'custom_prompts.json'), {
+    prompts: [{ id: 'custom-prompt', title: 'Imported custom prompt' }]
+  })
+
+  writeJson(path.join(extractionDir, 'configs', 'system_prompts.json'), {
+    prompts: [{ id: 'system-prompt', title: 'Imported system prompt' }]
   })
 
   writeJson(path.join(extractionDir, 'configs', 'provider_models', 'models_imported.json'), {

@@ -539,6 +539,7 @@ export interface IConfigPresenter {
   setSetting<T>(key: string, value: T): void
   getProviders(): LLM_PROVIDER[]
   setProviders(providers: LLM_PROVIDER[]): void
+  cleanupLegacyProviderJsonForDatabaseEncryption?(): number
   getProviderById(id: string): LLM_PROVIDER | undefined
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
@@ -2561,6 +2562,14 @@ export interface ILifecycleManager {
 export interface ISplashWindowManager {
   create(): Promise<void>
   updateProgress(phase: LifecyclePhase, progress: number): void
+  showDatabaseUnlockProgress?(
+    payload: { active: boolean; safeStorageAvailable: boolean },
+    options?: { skipDelay?: boolean }
+  ): void
+  requestDatabaseUnlock?(payload: {
+    reason: 'manual-required' | 'safe-storage-unavailable' | 'system-key-missing' | 'invalid'
+    safeStorageAvailable: boolean
+  }): Promise<string | null>
   close(): Promise<void>
   isVisible(): boolean
 }

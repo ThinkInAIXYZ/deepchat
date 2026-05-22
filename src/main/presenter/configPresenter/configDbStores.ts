@@ -6,6 +6,18 @@ import type { StoreLike } from './storeLike'
 
 const MODEL_STATUS_KEY_PREFIX = 'model_status_'
 
+export const SENSITIVE_APP_SETTING_KEYS = [
+  'remoteControl',
+  'mcprouterApiKey',
+  'nowledgeMemConfig',
+  'hooksNotifications',
+  'knowledgeConfigs',
+  'customPrompts',
+  'systemPrompts'
+] as const
+
+const SENSITIVE_APP_SETTING_KEY_SET = new Set<string>(SENSITIVE_APP_SETTING_KEYS)
+
 type LegacyStore = StoreLike<Record<string, unknown>>
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
@@ -85,6 +97,17 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
       const legacyValue = this.legacyStore.get<TValue>(key)
       return legacyValue === undefined ? defaultValue : clone(legacyValue)
     }
+    if (this.isSensitiveAppSettingKey(key)) {
+      const value = this.configTables.getAppSetting<TValue>(key)
+      if (value !== undefined) {
+        return clone(value)
+      }
+      if (!this.shouldUseSensitiveLegacyFallback()) {
+        return defaultValue
+      }
+      const legacyValue = this.legacyStore.get<TValue>(key)
+      return legacyValue === undefined ? defaultValue : clone(legacyValue)
+    }
 
     const value = this.legacyStore.get<TValue>(key)
     return value === undefined ? defaultValue : value
@@ -127,6 +150,10 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
       this.configTables.setModelStatus(key, parsed.providerId, parsed.modelId, Boolean(value))
       return
     }
+    if (this.isSensitiveAppSettingKey(key)) {
+      this.configTables.setAppSetting(key, value, true)
+      return
+    }
 
     this.legacyStore.set(key, value)
   }
@@ -134,6 +161,10 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
   delete(key: string): void {
     if (this.isModelStatusKey(key)) {
       this.configTables.deleteModelStatus(key)
+      return
+    }
+    if (this.isSensitiveAppSettingKey(key)) {
+      this.configTables.deleteAppSetting(key)
       return
     }
     this.legacyStore.delete(key)
@@ -164,11 +195,21 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
         (this.shouldUseLegacyFallback() && this.hasLegacyKey(key))
       )
     }
+    if (this.isSensitiveAppSettingKey(key)) {
+      return (
+        this.configTables.hasAppSetting(key) ||
+        (this.shouldUseSensitiveLegacyFallback() && this.hasLegacyKey(key))
+      )
+    }
     return this.hasLegacyKey(key)
   }
 
   private isModelStatusKey(key: string): boolean {
     return key.startsWith(MODEL_STATUS_KEY_PREFIX)
+  }
+
+  private isSensitiveAppSettingKey(key: string): boolean {
+    return SENSITIVE_APP_SETTING_KEY_SET.has(key)
   }
 
   private parseModelStatusKey(key: string): { providerId: string; modelId: string } {
@@ -215,12 +256,19 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
       if (this.isModelStatusKey(key)) {
         delete snapshot[key]
       }
+      if (this.isSensitiveAppSettingKey(key) && !this.shouldUseSensitiveLegacyFallback()) {
+        delete snapshot[key]
+      }
     }
     return snapshot
   }
 
   private shouldUseLegacyFallback(): boolean {
     return !this.configTables.hasConfigMigration()
+  }
+
+  private shouldUseSensitiveLegacyFallback(): boolean {
+    return !this.configTables.hasConfigMigration('sensitive-config-sqlite-v1')
   }
 
   private hasLegacyKey(key: string): boolean {

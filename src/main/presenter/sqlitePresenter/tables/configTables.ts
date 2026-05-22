@@ -43,6 +43,7 @@ type ModelConfigRow = {
 type SettingsRow = {
   key: string
   value_json: string
+  sensitive?: number
   updated_at: number
 }
 
@@ -155,6 +156,13 @@ export class ConfigTables extends BaseTable {
         updated_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        sensitive INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS agent_mcp_selections (
         agent_id TEXT NOT NULL,
         is_builtin INTEGER NOT NULL DEFAULT 0,
@@ -174,11 +182,21 @@ export class ConfigTables extends BaseTable {
     if (version === 25) {
       return this.getCreateTableSQL()
     }
+    if (version === 26) {
+      return `
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY,
+          value_json TEXT NOT NULL,
+          sensitive INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 25
+    return 26
   }
 
   hasConfigMigration(id = CONFIG_STORAGE_MIGRATION_ID): boolean {
@@ -511,6 +529,39 @@ export class ConfigTables extends BaseTable {
     return this.listJsonSettings('agent_settings')
   }
 
+  getAppSetting<TValue = unknown>(key: string): TValue | undefined {
+    return this.getJsonSetting<TValue>('app_settings', key)
+  }
+
+  setAppSetting(key: string, value: unknown, sensitive = true): void {
+    const timestamp = now()
+    this.db
+      .prepare(
+        `INSERT INTO app_settings (key, value_json, sensitive, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET
+           value_json = excluded.value_json,
+           sensitive = excluded.sensitive,
+           updated_at = excluded.updated_at`
+      )
+      .run(key, stringifyJson(value), sensitive ? 1 : 0, timestamp)
+  }
+
+  deleteAppSetting(key: string): void {
+    this.deleteJsonSetting('app_settings', key)
+  }
+
+  hasAppSetting(key: string): boolean {
+    const row = this.db.prepare('SELECT 1 FROM app_settings WHERE key = ?').get(key) as
+      | { 1: number }
+      | undefined
+    return Boolean(row)
+  }
+
+  listAppSettings(): Record<string, unknown> {
+    return this.listJsonSettings('app_settings')
+  }
+
   getAgentMcpSelections(agentId = SHARED_AGENT_MCP_SELECTION_ID, isBuiltin = false): string[] {
     const rows = this.db
       .prepare(
@@ -670,7 +721,7 @@ export class ConfigTables extends BaseTable {
   }
 
   private getJsonSetting<TValue = unknown>(
-    table: 'mcp_settings' | 'agent_settings',
+    table: 'mcp_settings' | 'agent_settings' | 'app_settings',
     key: string
   ): TValue | undefined {
     const row = this.db.prepare(`SELECT value_json FROM ${table} WHERE key = ?`).get(key) as
@@ -679,7 +730,11 @@ export class ConfigTables extends BaseTable {
     return row ? parseJson<TValue | undefined>(row.value_json, undefined) : undefined
   }
 
-  private setJsonSetting(table: 'mcp_settings' | 'agent_settings', key: string, value: unknown) {
+  private setJsonSetting(
+    table: 'mcp_settings' | 'agent_settings' | 'app_settings',
+    key: string,
+    value: unknown
+  ) {
     this.db
       .prepare(
         `INSERT INTO ${table} (key, value_json, updated_at)
@@ -691,11 +746,16 @@ export class ConfigTables extends BaseTable {
       .run(key, stringifyJson(value), now())
   }
 
-  private deleteJsonSetting(table: 'mcp_settings' | 'agent_settings', key: string) {
+  private deleteJsonSetting(
+    table: 'mcp_settings' | 'agent_settings' | 'app_settings',
+    key: string
+  ) {
     this.db.prepare(`DELETE FROM ${table} WHERE key = ?`).run(key)
   }
 
-  private listJsonSettings(table: 'mcp_settings' | 'agent_settings'): Record<string, unknown> {
+  private listJsonSettings(
+    table: 'mcp_settings' | 'agent_settings' | 'app_settings'
+  ): Record<string, unknown> {
     const rows = this.db.prepare(`SELECT key, value_json FROM ${table}`).all() as SettingsRow[]
     return Object.fromEntries(rows.map((row) => [row.key, parseJson(row.value_json, null)]))
   }

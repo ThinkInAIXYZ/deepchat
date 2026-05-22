@@ -13,6 +13,8 @@
     "tempConfigFailed": "Échec de la création du fichier de sauvegarde temporaire de la configuration",
     "importFailed": "L'importation a échoué, les données d'origine ont été restaurées",
     "importProcess": "Erreur dans le processus d'importation",
-    "unknown": "Erreur inconnue"
+    "unknown": "Erreur inconnue",
+    "encryptedBackupPasswordMissing": "Cette sauvegarde est chiffrée, mais la clé de la base locale n’est pas disponible. Déverrouillez d’abord la base chiffrée, puis relancez l’importation.",
+    "overwriteEncryptionMismatch": "L’importation avec remplacement exige que la sauvegarde et la base actuelle aient le même état de chiffrement."
   }
 }

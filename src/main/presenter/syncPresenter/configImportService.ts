@@ -14,6 +14,8 @@ export type SyncBackupManifest = {
   files?: string[]
   configStorage?: 'sqlite' | string
   configSchemaVersion?: number
+  databaseEncrypted?: boolean
+  databaseCipher?: 'sqlcipher' | string
 }
 
 export type SyncConfigImportMode = 'increment' | 'overwrite'
@@ -41,6 +43,9 @@ type LegacyConfigPayload = {
   mcpServers: Record<string, MCPServerConfig>
   mcpSettings: Record<string, unknown>
   agentSettings: Record<string, unknown>
+  appSettings: Record<string, unknown>
+  customPrompts: Array<Record<string, unknown>>
+  systemPrompts: Array<Record<string, unknown>>
   sharedAgentMcpSelections: string[]
   sections: {
     providers: boolean
@@ -49,11 +54,16 @@ type LegacyConfigPayload = {
     modelConfigs: boolean
     mcp: boolean
     acp: boolean
+    sensitiveAppSettings: boolean
+    customPrompts: boolean
+    systemPrompts: boolean
   }
 }
 
 const LEGACY_CONFIG_PATHS = {
   appSettings: path.join('configs', 'app-settings.json'),
+  customPrompts: path.join('configs', 'custom_prompts.json'),
+  systemPrompts: path.join('configs', 'system_prompts.json'),
   mcpSettings: path.join('configs', 'mcp-settings.json'),
   modelConfig: path.join('configs', 'model-config.json'),
   acpAgents: path.join('configs', 'acp_agents.json'),
@@ -61,6 +71,17 @@ const LEGACY_CONFIG_PATHS = {
 }
 
 const LEGACY_MCP_SETTING_EXCLUDE_KEYS = new Set(['mcpServers', 'defaultServer', 'defaultServers'])
+const LEGACY_SENSITIVE_APP_SETTING_KEYS = [
+  'remoteControl',
+  'mcprouterApiKey',
+  'nowledgeMemConfig',
+  'hooksNotifications'
+]
+const LEGACY_SENSITIVE_SQLITE_KEYS = [
+  ...LEGACY_SENSITIVE_APP_SETTING_KEYS,
+  'customPrompts',
+  'systemPrompts'
+]
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
@@ -138,6 +159,9 @@ export class SyncConfigImportService {
       mcpServers: {},
       mcpSettings: {},
       agentSettings: {},
+      appSettings: {},
+      customPrompts: [],
+      systemPrompts: [],
       sharedAgentMcpSelections: [],
       sections: {
         providers: false,
@@ -145,7 +169,10 @@ export class SyncConfigImportService {
         modelStatuses: false,
         modelConfigs: false,
         mcp: false,
-        acp: false
+        acp: false,
+        sensitiveAppSettings: false,
+        customPrompts: false,
+        systemPrompts: false
       }
     }
 
@@ -154,6 +181,7 @@ export class SyncConfigImportService {
     this.readLegacyModelConfig(extractionDir, payload)
     this.readLegacyMcpSettings(extractionDir, payload)
     this.readLegacyAcpAgents(extractionDir, payload)
+    this.readLegacyPromptStores(extractionDir, payload)
 
     return payload
   }
@@ -178,6 +206,12 @@ export class SyncConfigImportService {
 
     const providerIds = this.collectProviderIds(payload, appSettings)
     for (const [key, value] of Object.entries(appSettings)) {
+      if (LEGACY_SENSITIVE_APP_SETTING_KEYS.includes(key) && value !== undefined) {
+        payload.sections.sensitiveAppSettings = true
+        payload.appSettings[key] = clone(value)
+        continue
+      }
+
       if (key.startsWith('model_status_') && typeof value === 'boolean') {
         payload.sections.modelStatuses = true
         const parsed = this.parseModelStatusKey(key, providerIds)
@@ -204,6 +238,24 @@ export class SyncConfigImportService {
           this.addProviderModels(payload, providerId, 'provider', value)
         }
       }
+    }
+  }
+
+  private readLegacyPromptStores(extractionDir: string, payload: LegacyConfigPayload): void {
+    const customPrompts = this.readPromptStore(
+      path.join(extractionDir, LEGACY_CONFIG_PATHS.customPrompts)
+    )
+    if (customPrompts) {
+      payload.sections.customPrompts = true
+      payload.customPrompts = customPrompts
+    }
+
+    const systemPrompts = this.readPromptStore(
+      path.join(extractionDir, LEGACY_CONFIG_PATHS.systemPrompts)
+    )
+    if (systemPrompts) {
+      payload.sections.systemPrompts = true
+      payload.systemPrompts = systemPrompts
     }
   }
 
@@ -347,6 +399,15 @@ export class SyncConfigImportService {
         configTables.clearAgentSettings()
         configTables.clearAgentMcpSelections()
       }
+      if (
+        payload.sections.sensitiveAppSettings ||
+        payload.sections.customPrompts ||
+        payload.sections.systemPrompts
+      ) {
+        for (const key of LEGACY_SENSITIVE_SQLITE_KEYS) {
+          configTables.deleteAppSetting(key)
+        }
+      }
     }
 
     if (payload.providers.length > 0) {
@@ -418,6 +479,66 @@ export class SyncConfigImportService {
       } else if (configTables.getAgentMcpSelections().length === 0) {
         configTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
       }
+    }
+
+    this.applySensitiveAppSettings(configTables, payload, overwrite)
+  }
+
+  private applySensitiveAppSettings(
+    configTables: ConfigTables,
+    payload: LegacyConfigPayload,
+    overwrite: boolean
+  ): void {
+    for (const [key, value] of Object.entries(payload.appSettings)) {
+      if (overwrite || !configTables.hasAppSetting(key)) {
+        configTables.setAppSetting(key, value, true)
+      }
+    }
+
+    if (payload.sections.customPrompts) {
+      this.mergeAppSettingArray(configTables, 'customPrompts', payload.customPrompts, overwrite)
+    }
+    if (payload.sections.systemPrompts) {
+      this.mergeAppSettingArray(configTables, 'systemPrompts', payload.systemPrompts, overwrite)
+    }
+
+    if (
+      Object.keys(payload.appSettings).length > 0 ||
+      payload.sections.customPrompts ||
+      payload.sections.systemPrompts
+    ) {
+      configTables.markConfigMigrationApplied('sensitive-config-sqlite-v1')
+    }
+  }
+
+  private mergeAppSettingArray(
+    configTables: ConfigTables,
+    key: string,
+    incoming: Array<Record<string, unknown>>,
+    overwrite: boolean
+  ): void {
+    if (overwrite) {
+      configTables.setAppSetting(key, incoming, true)
+      return
+    }
+
+    const existing = configTables.getAppSetting<Array<Record<string, unknown>>>(key) || []
+    const existingIds = new Set(
+      existing
+        .map((item) => item.id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    )
+    const merged = [...existing]
+    for (const item of incoming) {
+      const id = item.id
+      if (typeof id !== 'string' || existingIds.has(id)) {
+        continue
+      }
+      merged.push(item)
+      existingIds.add(id)
+    }
+    if (merged.length !== existing.length || !configTables.hasAppSetting(key)) {
+      configTables.setAppSetting(key, merged, true)
     }
   }
 
@@ -580,9 +701,23 @@ export class SyncConfigImportService {
       Object.keys(payload.mcpServers).length > 0 ||
       Object.keys(payload.mcpSettings).length > 0 ||
       Object.keys(payload.agentSettings).length > 0 ||
+      Object.keys(payload.appSettings).length > 0 ||
+      payload.customPrompts.length > 0 ||
+      payload.systemPrompts.length > 0 ||
       payload.sharedAgentMcpSelections.length > 0 ||
       Object.values(payload.sections).some(Boolean)
     )
+  }
+
+  private readPromptStore(filePath: string): Array<Record<string, unknown>> | null {
+    const store = this.readJsonFile<{ prompts?: unknown }>(filePath)
+    if (!store) {
+      return null
+    }
+    if (!Array.isArray(store.prompts)) {
+      return []
+    }
+    return store.prompts.filter(isRecord).map(clone)
   }
 
   private readJsonFile<T>(filePath: string): T | null {

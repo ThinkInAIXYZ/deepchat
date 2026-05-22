@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3-multiple-ciphers'
+import { configureSQLiteConnection } from './connectionConfig'
 
 export interface ImportSummary {
   tableCounts: Record<string, number>
@@ -24,26 +25,18 @@ export class DataImporter {
     targetPassword?: string
   ) {
     this.sourceDb = new Database(sourcePath)
-    this.sourceDb.pragma('journal_mode = WAL')
-
-    if (sourcePassword) {
-      this.sourceDb.pragma("cipher='sqlcipher'")
-      const hex = Buffer.from(sourcePassword, 'utf8').toString('hex')
-      this.sourceDb.pragma(`key = "x'${hex}'"`)
-    }
+    this.configureConnection(this.sourceDb, sourcePassword)
 
     if (typeof targetDbOrPath === 'string') {
       this.targetDb = new Database(targetDbOrPath)
-      this.targetDb.pragma('journal_mode = WAL')
-
-      if (targetPassword) {
-        this.targetDb.pragma("cipher='sqlcipher'")
-        const hex = Buffer.from(targetPassword, 'utf8').toString('hex')
-        this.targetDb.pragma(`key = "x'${hex}'"`)
-      }
+      this.configureConnection(this.targetDb, targetPassword)
     } else {
       this.targetDb = targetDbOrPath
     }
+  }
+
+  private configureConnection(db: Database.Database, password?: string): void {
+    configureSQLiteConnection(db, password)
   }
 
   /**

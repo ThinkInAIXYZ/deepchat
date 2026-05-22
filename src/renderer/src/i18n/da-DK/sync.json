@@ -13,6 +13,8 @@
     "tempConfigFailed": "Kunne ikke oprette midlertidig konfigurationsbackup",
     "importFailed": "Import mislykkedes, de oprindelige data er gendannet",
     "importProcess": "Der opstod en fejl under importen",
-    "unknown": "Ukendt fejl"
+    "unknown": "Ukendt fejl",
+    "encryptedBackupPasswordMissing": "Denne backup er krypteret, men den lokale databasenøgle er ikke tilgængelig. Lås først den krypterede database op, og importér derefter igen.",
+    "overwriteEncryptionMismatch": "Overskrivningsimport kræver, at backup og aktuel database har samme krypteringstilstand."
   }
 }

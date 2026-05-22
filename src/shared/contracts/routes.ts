@@ -18,6 +18,12 @@ import {
   chatStopStreamRoute
 } from './routes/chat.routes'
 import {
+  databaseSecurityChangePasswordRoute,
+  databaseSecurityDisableRoute,
+  databaseSecurityEnableRoute,
+  databaseSecurityGetStatusRoute
+} from './routes/database-security.routes'
+import {
   configAddCustomPromptRoute,
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
@@ -293,6 +299,7 @@ import {
 export * from './routes/browser.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
+export * from './routes/database-security.routes'
 export * from './routes/dialog.routes'
 export * from './routes/device.routes'
 export * from './routes/file.routes'
@@ -510,6 +517,10 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [chatSteerActiveTurnRoute.name]: chatSteerActiveTurnRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,
   [chatRespondToolInteractionRoute.name]: chatRespondToolInteractionRoute,
+  [databaseSecurityGetStatusRoute.name]: databaseSecurityGetStatusRoute,
+  [databaseSecurityEnableRoute.name]: databaseSecurityEnableRoute,
+  [databaseSecurityChangePasswordRoute.name]: databaseSecurityChangePasswordRoute,
+  [databaseSecurityDisableRoute.name]: databaseSecurityDisableRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,
   [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,
   [skillsInstallFromFolderRoute.name]: skillsInstallFromFolderRoute,

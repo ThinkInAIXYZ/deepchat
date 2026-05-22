@@ -13,6 +13,8 @@
     "tempConfigFailed": "Falha ao criar arquivo de backup temporário da configuração",
     "importFailed": "Falha na importação, os dados originais foram restaurados",
     "importProcess": "Ocorreu um erro durante o processo de importação",
-    "unknown": "Erro desconhecido"
+    "unknown": "Erro desconhecido",
+    "encryptedBackupPasswordMissing": "Este backup está criptografado, mas a chave do banco de dados local não está disponível. Desbloqueie o banco criptografado primeiro e importe novamente.",
+    "overwriteEncryptionMismatch": "A importação por substituição exige que o backup e o banco atual usem o mesmo estado de criptografia."
   }
 }

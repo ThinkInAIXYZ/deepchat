@@ -6,6 +6,7 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { DatabaseInitializer } from '../../DatabaseInitializer'
 import { LifecyclePhase } from '@shared/lifecycle'
+import { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 
 export const databaseInitHook: LifecycleHook = {
   name: 'database-initialization',
@@ -16,8 +17,32 @@ export const databaseInitHook: LifecycleHook = {
     console.log('databaseInitHook: DatabaseInitHook: Starting database initialization')
 
     try {
+      const databaseSecurity = new DatabaseSecurityPresenter()
+      context.databaseSecurity = databaseSecurity
+
+      const status = databaseSecurity.getStatus()
+      context.splashManager?.showDatabaseUnlockProgress?.(
+        {
+          active: status.enabled,
+          safeStorageAvailable: status.safeStorageAvailable
+        },
+        { skipDelay: status.enabled }
+      )
+      const password = await databaseSecurity.resolveStartupPassword(async (request) => {
+        return (
+          (await context.splashManager?.requestDatabaseUnlock?.({
+            reason: request.reason,
+            safeStorageAvailable: request.safeStorageAvailable
+          })) ?? null
+        )
+      })
+      context.splashManager?.showDatabaseUnlockProgress?.({
+        active: false,
+        safeStorageAvailable: databaseSecurity.getStatus().safeStorageAvailable
+      })
+
       // Create database initializer
-      const dbInitializer = new DatabaseInitializer()
+      const dbInitializer = new DatabaseInitializer({ password })
 
       // Initialize database
       const database = await dbInitializer.initialize()

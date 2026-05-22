@@ -38,6 +38,7 @@ import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAg
 import { SettingsActivityTable } from './tables/settingsActivity'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
+import { configureSQLiteConnection } from './connectionConfig'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
@@ -70,20 +71,10 @@ function ensureDatabaseDirectory(dbPath: string): void {
   }
 }
 
-function configureDatabaseConnection(db: Database.Database, password?: string): void {
-  if (password) {
-    db.pragma(`cipher='sqlcipher'`)
-    const hexPassword = Buffer.from(password, 'utf8').toString('hex')
-    db.pragma(`key = "x'${hexPassword}'"`)
-  }
-
-  db.pragma('journal_mode = WAL')
-}
-
 export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
   ensureDatabaseDirectory(dbPath)
   const db = new Database(dbPath)
-  configureDatabaseConnection(db, password)
+  configureSQLiteConnection(db, password)
   return db
 }
 
@@ -260,6 +251,19 @@ export class SQLitePresenter implements ISQLitePresenter {
 
   public openDatabaseConnection(dbPath = this.dbPath): Database.Database {
     return openSQLiteDatabase(dbPath, this.password)
+  }
+
+  public getDatabasePath(): string {
+    return this.dbPath
+  }
+
+  public getDatabasePassword(): string | undefined {
+    return this.password
+  }
+
+  public reopenWithPassword(password?: string): void {
+    this.password = password
+    this.reopen()
   }
 
   public async diagnoseSchema(): Promise<DatabaseSchemaDiagnosis> {

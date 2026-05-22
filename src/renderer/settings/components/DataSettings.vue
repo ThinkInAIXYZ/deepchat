@@ -170,6 +170,195 @@
       <PrivacySettingsSection />
 
       <div class="rounded-xl border border-border bg-card/30 p-4">
+        <div class="flex flex-col gap-4" :dir="languageStore.dir">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div class="flex gap-3">
+              <div
+                class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-foreground"
+              >
+                <Icon icon="lucide:user-key" class="h-4 w-4" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <div class="text-sm font-medium">
+                  {{ t('settings.data.databaseEncryption.title') }}
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.data.databaseEncryption.description') }}
+                </p>
+              </div>
+            </div>
+            <span
+              class="inline-flex w-fit items-center rounded-md border px-2 py-1 text-xs font-medium"
+              :class="
+                hasDatabaseSecurityStatusError && !databaseSecurityStatus
+                  ? 'border-amber-500/30 text-amber-600 dark:text-amber-400'
+                  : databaseSecurityStatus?.enabled
+                    ? 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                    : 'border-border text-muted-foreground'
+              "
+            >
+              {{ databaseSecurityStatusLabel }}
+            </span>
+          </div>
+
+          <div class="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+            <div class="flex justify-between gap-3">
+              <span>{{ t('settings.data.databaseEncryption.cipher') }}</span>
+              <span class="text-foreground">{{ databaseCipherLabel }}</span>
+            </div>
+            <div class="flex justify-between gap-3">
+              <span>{{ t('settings.data.databaseEncryption.systemUnlock') }}</span>
+              <span class="text-foreground">{{ systemUnlockLabel }}</span>
+            </div>
+            <div class="flex justify-between gap-3">
+              <span>{{ t('settings.data.databaseEncryption.startupUnlock') }}</span>
+              <span class="text-foreground">{{ startupUnlockLabel }}</span>
+            </div>
+            <div class="flex justify-between gap-3">
+              <span>{{ t('settings.data.databaseEncryption.lastMigration') }}</span>
+              <span class="text-foreground">{{ lastDatabaseMigrationLabel }}</span>
+            </div>
+          </div>
+
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.data.databaseEncryption.systemCredentialStore') }}
+          </p>
+          <p
+            v-if="databaseSecurityStatus && !databaseSecurityStatus.safeStorageAvailable"
+            class="text-xs text-amber-600 dark:text-amber-400"
+          >
+            {{ t('settings.data.databaseEncryption.safeStorageUnavailable') }}
+          </p>
+
+          <div
+            v-if="isDatabaseSecurityStatusLoaded && !hasDatabaseSecurityStatusError"
+            class="flex flex-col gap-2 sm:flex-row"
+          >
+            <Button
+              v-if="!databaseSecurityStatus?.enabled"
+              class="w-full justify-center sm:w-36"
+              :disabled="isDatabaseSecurityActionDisabled"
+              @click="openDatabaseEncryptionDialog('enable')"
+            >
+              <span>{{ t('settings.data.databaseEncryption.setPasswordButton') }}</span>
+            </Button>
+            <Button
+              v-else
+              variant="outline"
+              class="w-full justify-center sm:w-36"
+              :disabled="isDatabaseSecurityActionDisabled"
+              @click="openDatabaseEncryptionDialog('change')"
+            >
+              <span>{{ t('settings.data.databaseEncryption.changeButton') }}</span>
+            </Button>
+            <Button
+              v-if="databaseSecurityStatus?.enabled"
+              variant="destructive"
+              class="w-full justify-center sm:w-36"
+              :disabled="isDatabaseSecurityActionDisabled"
+              @click="openDatabaseEncryptionDialog('disable')"
+            >
+              <span>{{ t('settings.data.databaseEncryption.disableButton') }}</span>
+            </Button>
+          </div>
+
+          <Dialog v-model:open="isDatabaseEncryptionDialogOpen">
+            <DialogContent v-if="isDatabaseEncryptionDialogOpen" class="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle class="flex items-center gap-2 text-base">
+                  <Icon :icon="databaseEncryptionDialogIcon" class="h-4 w-4" />
+                  <span>{{ databaseEncryptionDialogTitle }}</span>
+                </DialogTitle>
+                <DialogDescription>
+                  {{ databaseEncryptionDialogDescription }}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div class="flex flex-col gap-3 py-2">
+                <div v-if="databaseEncryptionAction !== 'enable'" class="flex flex-col gap-1.5">
+                  <Label class="text-xs" for="database-current-password">
+                    {{ t('settings.data.databaseEncryption.currentPassword') }}
+                  </Label>
+                  <Input
+                    id="database-current-password"
+                    v-model="databaseCurrentPassword"
+                    type="password"
+                    autocomplete="current-password"
+                    class="h-9!"
+                    tabindex="1"
+                    autofocus
+                    @keydown.enter.prevent="submitDatabaseEncryptionDialog"
+                  />
+                </div>
+
+                <div v-if="databaseEncryptionAction !== 'disable'" class="flex flex-col gap-1.5">
+                  <Label class="text-xs" for="database-new-password">
+                    {{ t('settings.data.databaseEncryption.newPassword') }}
+                  </Label>
+                  <Input
+                    id="database-new-password"
+                    v-model="databaseNewPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    class="h-9!"
+                    :tabindex="databaseEncryptionAction === 'enable' ? 1 : 2"
+                    :autofocus="databaseEncryptionAction === 'enable'"
+                    @keydown.enter.prevent="submitDatabaseEncryptionDialog"
+                  />
+                </div>
+
+                <div v-if="databaseEncryptionAction !== 'disable'" class="flex flex-col gap-1.5">
+                  <Label class="text-xs" for="database-confirm-password">
+                    {{ t('settings.data.databaseEncryption.confirmPassword') }}
+                  </Label>
+                  <Input
+                    id="database-confirm-password"
+                    v-model="databaseConfirmPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    class="h-9!"
+                    :tabindex="databaseEncryptionAction === 'enable' ? 2 : 3"
+                    @keydown.enter.prevent="submitDatabaseEncryptionDialog"
+                  />
+                </div>
+              </div>
+
+              <p v-if="databasePasswordValidation" class="text-xs text-destructive">
+                {{ databasePasswordValidation }}
+              </p>
+              <p
+                v-if="databaseSecurityStatus && !databaseSecurityStatus.safeStorageAvailable"
+                class="text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t('settings.data.databaseEncryption.safeStorageUnavailable') }}
+              </p>
+
+              <DialogFooter class="gap-2 sm:justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  :disabled="isDatabaseSecurityBusy"
+                  :tabindex="databaseEncryptionAction === 'enable' ? 3 : 4"
+                  @click="closeDatabaseEncryptionDialog"
+                >
+                  {{ t('settings.data.databaseEncryption.cancelButton') }}
+                </Button>
+                <Button
+                  type="button"
+                  :variant="databaseEncryptionAction === 'disable' ? 'destructive' : 'default'"
+                  :disabled="!canSubmitDatabaseEncryptionDialog"
+                  :tabindex="databaseEncryptionAction === 'enable' ? 4 : 5"
+                  @click="submitDatabaseEncryptionDialog"
+                >
+                  <span>{{ databaseEncryptionSubmitLabel }}</span>
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-border bg-card/30 p-4">
         <div class="flex flex-col divide-y divide-border">
           <div
             ref="providerImportSectionRef"
@@ -531,6 +720,7 @@ import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { DatabaseRepairReport } from '@shared/presenter'
 import type { ProviderImportApplyResult } from '@shared/providerImport'
+import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import {
   Dialog,
   DialogContent,
@@ -567,6 +757,7 @@ import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
 import { useLegacyPresenter } from '@api/legacy/presenters'
 import { createOnboardingClient } from '@api/OnboardingClient'
+import { createDatabaseSecurityClient } from '@api/DatabaseSecurityClient'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/use-toast'
 import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
@@ -598,6 +789,7 @@ const yoBrowserPresenter = useLegacyPresenter('yoBrowserPresenter')
 const configPresenter = useLegacyPresenter('configPresenter')
 const sqlitePresenter = useLegacyPresenter('sqlitePresenter')
 const onboardingClient = createOnboardingClient()
+const databaseSecurityClient = createDatabaseSecurityClient()
 const {
   backups: backupsRef,
   isBackingUp: isBackingUpRef,
@@ -619,6 +811,15 @@ const isClearingSandbox = ref(false)
 const isClearSandboxDialogOpen = ref(false)
 const isRepairing = ref(false)
 const lastRepairReport = ref<DatabaseRepairReport | null>(null)
+const databaseSecurityStatus = ref<DatabaseSecurityStatus | null>(null)
+const isDatabaseSecurityStatusLoaded = ref(false)
+const hasDatabaseSecurityStatusError = ref(false)
+const isDatabaseSecurityBusy = ref(false)
+const isDatabaseEncryptionDialogOpen = ref(false)
+const databaseEncryptionAction = ref<'enable' | 'change' | 'disable'>('enable')
+const databaseCurrentPassword = ref('')
+const databaseNewPassword = ref('')
+const databaseConfirmPassword = ref('')
 const isBackupActive = computed(() => isBackingUpRef.value)
 const isImporting = computed(() => isImportingRef.value)
 const isRepairActionDisabled = computed(() => {
@@ -626,6 +827,162 @@ const isRepairActionDisabled = computed(() => {
 })
 const isResetActionDisabled = computed(() => {
   return isResetting.value || isBackupActive.value || isImporting.value
+})
+const databasePasswordValidation = computed(() => {
+  if (databaseEncryptionAction.value === 'disable') {
+    return ''
+  }
+  if (!databaseNewPassword.value && !databaseConfirmPassword.value) {
+    return ''
+  }
+  if (databaseNewPassword.value !== databaseConfirmPassword.value) {
+    return t('settings.data.databaseEncryption.passwordMismatch')
+  }
+  return ''
+})
+const isDatabaseSecurityActionDisabled = computed(() => {
+  return (
+    !isDatabaseSecurityStatusLoaded.value ||
+    hasDatabaseSecurityStatusError.value ||
+    isDatabaseSecurityBusy.value ||
+    isBackupActive.value ||
+    isImporting.value ||
+    Boolean(databaseSecurityStatus.value?.migrationInProgress)
+  )
+})
+const canEnableDatabaseEncryption = computed(() => {
+  return (
+    !isDatabaseSecurityActionDisabled.value &&
+    !databaseSecurityStatus.value?.enabled &&
+    Boolean(databaseNewPassword.value) &&
+    databaseNewPassword.value === databaseConfirmPassword.value
+  )
+})
+const canChangeDatabasePassword = computed(() => {
+  return (
+    !isDatabaseSecurityActionDisabled.value &&
+    Boolean(databaseSecurityStatus.value?.enabled) &&
+    Boolean(databaseCurrentPassword.value) &&
+    Boolean(databaseNewPassword.value) &&
+    databaseNewPassword.value === databaseConfirmPassword.value
+  )
+})
+const canDisableDatabaseEncryption = computed(() => {
+  return (
+    !isDatabaseSecurityActionDisabled.value &&
+    Boolean(databaseSecurityStatus.value?.enabled) &&
+    Boolean(databaseCurrentPassword.value)
+  )
+})
+const canSubmitDatabaseEncryptionDialog = computed(() => {
+  if (databaseEncryptionAction.value === 'enable') {
+    return canEnableDatabaseEncryption.value
+  }
+  if (databaseEncryptionAction.value === 'change') {
+    return canChangeDatabasePassword.value
+  }
+  return canDisableDatabaseEncryption.value
+})
+const databaseEncryptionDialogIcon = computed(() => {
+  if (databaseEncryptionAction.value === 'enable') {
+    return 'lucide:shield-lock'
+  }
+  if (databaseEncryptionAction.value === 'change') {
+    return 'lucide:key-round'
+  }
+  return 'lucide:shield-off'
+})
+const databaseEncryptionDialogTitle = computed(() => {
+  if (databaseEncryptionAction.value === 'enable') {
+    return t('settings.data.databaseEncryption.enableDialogTitle')
+  }
+  if (databaseEncryptionAction.value === 'change') {
+    return t('settings.data.databaseEncryption.changeDialogTitle')
+  }
+  return t('settings.data.databaseEncryption.disableDialogTitle')
+})
+const databaseEncryptionDialogDescription = computed(() => {
+  if (databaseEncryptionAction.value === 'enable') {
+    return t('settings.data.databaseEncryption.enableDialogDescription')
+  }
+  if (databaseEncryptionAction.value === 'change') {
+    return t('settings.data.databaseEncryption.changeDialogDescription')
+  }
+  return t('settings.data.databaseEncryption.disableDialogDescription')
+})
+const databaseEncryptionSubmitLabel = computed(() => {
+  if (databaseEncryptionAction.value === 'enable') {
+    return t('settings.data.databaseEncryption.enableButton')
+  }
+  if (databaseEncryptionAction.value === 'change') {
+    return t('settings.data.databaseEncryption.changeButton')
+  }
+  return t('settings.data.databaseEncryption.disableButton')
+})
+const databaseSecurityUnknownLabel = computed(() => t('settings.data.databaseEncryption.unknown'))
+const databaseSecurityLoadingLabel = computed(() => t('settings.data.databaseEncryption.loading'))
+const databaseSecurityHasNoStatus = computed(() => !databaseSecurityStatus.value)
+const databaseSecurityStatusLabel = computed(() => {
+  const status = databaseSecurityStatus.value
+  if (hasDatabaseSecurityStatusError.value && !status) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (!status) {
+    return databaseSecurityLoadingLabel.value
+  }
+  return status.enabled
+    ? t('settings.data.databaseEncryption.enabled')
+    : t('settings.data.databaseEncryption.disabled')
+})
+const databaseCipherLabel = computed(() => {
+  const status = databaseSecurityStatus.value
+  if (hasDatabaseSecurityStatusError.value && !status) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (!status) {
+    return databaseSecurityLoadingLabel.value
+  }
+  return status.cipher
+})
+const systemUnlockLabel = computed(() => {
+  const status = databaseSecurityStatus.value
+  if (hasDatabaseSecurityStatusError.value && !status) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (!status) {
+    return databaseSecurityLoadingLabel.value
+  }
+  return status.safeStorageAvailable
+    ? t('settings.data.databaseEncryption.systemUnlockAvailable')
+    : t('settings.data.databaseEncryption.systemUnlockUnavailable')
+})
+const startupUnlockLabel = computed(() => {
+  const status = databaseSecurityStatus.value
+  if (hasDatabaseSecurityStatusError.value && !status) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (!status) {
+    return databaseSecurityLoadingLabel.value
+  }
+  if (!status.enabled) {
+    return t('settings.data.databaseEncryption.notRequired')
+  }
+  return status.manualUnlockRequired
+    ? t('settings.data.databaseEncryption.manualUnlock')
+    : t('settings.data.databaseEncryption.systemUnlockMode')
+})
+const lastDatabaseMigrationLabel = computed(() => {
+  if (hasDatabaseSecurityStatusError.value && databaseSecurityHasNoStatus.value) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (databaseSecurityHasNoStatus.value) {
+    return databaseSecurityLoadingLabel.value
+  }
+  const lastMigrationAt = databaseSecurityStatus.value?.lastMigrationAt
+  if (!lastMigrationAt) {
+    return t('settings.data.never')
+  }
+  return new Date(lastMigrationAt).toLocaleString()
 })
 
 const syncEnabled = computed({
@@ -640,6 +997,124 @@ const syncFolderPath = computed({
 
 const handleSyncEnabledChange = (value: boolean) => {
   syncEnabled.value = value
+}
+
+const clearDatabasePasswordFields = () => {
+  databaseCurrentPassword.value = ''
+  databaseNewPassword.value = ''
+  databaseConfirmPassword.value = ''
+}
+
+const openDatabaseEncryptionDialog = (action: 'enable' | 'change' | 'disable') => {
+  if (isDatabaseSecurityActionDisabled.value) {
+    return
+  }
+  databaseEncryptionAction.value = action
+  clearDatabasePasswordFields()
+  isDatabaseEncryptionDialogOpen.value = true
+}
+
+const closeDatabaseEncryptionDialog = () => {
+  if (isDatabaseSecurityBusy.value) {
+    return
+  }
+  isDatabaseEncryptionDialogOpen.value = false
+  clearDatabasePasswordFields()
+}
+
+const refreshDatabaseSecurityStatus = async () => {
+  hasDatabaseSecurityStatusError.value = false
+  try {
+    databaseSecurityStatus.value = await databaseSecurityClient.getStatus()
+    isDatabaseSecurityStatusLoaded.value = true
+  } catch (error) {
+    console.error('Failed to load database encryption status:', error)
+    isDatabaseSecurityStatusLoaded.value = Boolean(databaseSecurityStatus.value)
+    hasDatabaseSecurityStatusError.value = true
+  }
+}
+
+const runDatabaseSecurityAction = async (
+  action: () => Promise<DatabaseSecurityStatus>,
+  successTitleKey: string
+) => {
+  if (isDatabaseSecurityBusy.value) {
+    return
+  }
+  isDatabaseSecurityBusy.value = true
+  try {
+    databaseSecurityStatus.value = await action()
+    isDatabaseSecurityStatusLoaded.value = true
+    hasDatabaseSecurityStatusError.value = false
+    clearDatabasePasswordFields()
+    isDatabaseEncryptionDialogOpen.value = false
+    toast({
+      title: t(successTitleKey),
+      duration: 4000
+    })
+  } catch (error) {
+    console.error('Database encryption action failed:', error)
+    toast({
+      title: t('settings.data.databaseEncryption.failedTitle'),
+      description:
+        error instanceof Error
+          ? error.message
+          : t('settings.data.databaseEncryption.failedDescription'),
+      variant: 'destructive',
+      duration: 5000
+    })
+  } finally {
+    isDatabaseSecurityBusy.value = false
+  }
+}
+
+const enableDatabaseEncryption = async () => {
+  if (!canEnableDatabaseEncryption.value) {
+    return
+  }
+  await runDatabaseSecurityAction(
+    () => databaseSecurityClient.enable(databaseNewPassword.value),
+    'settings.data.databaseEncryption.enabledTitle'
+  )
+}
+
+const changeDatabasePassword = async () => {
+  if (!canChangeDatabasePassword.value) {
+    return
+  }
+  await runDatabaseSecurityAction(
+    () =>
+      databaseSecurityClient.changePassword(
+        databaseCurrentPassword.value,
+        databaseNewPassword.value
+      ),
+    'settings.data.databaseEncryption.changedTitle'
+  )
+}
+
+const disableDatabaseEncryption = async () => {
+  if (!canDisableDatabaseEncryption.value) {
+    return
+  }
+  await runDatabaseSecurityAction(
+    () => databaseSecurityClient.disable(databaseCurrentPassword.value),
+    'settings.data.databaseEncryption.disabledTitle'
+  )
+}
+
+const submitDatabaseEncryptionDialog = async () => {
+  if (!canSubmitDatabaseEncryptionDialog.value) {
+    return
+  }
+  if (databaseEncryptionAction.value === 'enable') {
+    await enableDatabaseEncryption()
+    return
+  }
+  if (databaseEncryptionAction.value === 'change') {
+    await changeDatabasePassword()
+    return
+  }
+  await disableDatabaseEncryption()
 }
 
 const repairSummaryText = computed(() => {
@@ -819,6 +1294,7 @@ const handleSettingsSectionNavigation = (event: Event) => {
 
 onMounted(async () => {
   await syncStore.initialize()
+  await refreshDatabaseSecurityStatus()
   window.addEventListener(SETTINGS_SECTION_EVENT, handleSettingsSectionNavigation as EventListener)
 
   if (consumePendingSection(PROVIDER_IMPORT_SECTION)) {

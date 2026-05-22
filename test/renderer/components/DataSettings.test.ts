@@ -20,7 +20,11 @@ const passthroughStub = (name: string) =>
     template: '<div><slot /></div>'
   })
 
-const setup = async () => {
+const setup = async (
+  options: {
+    databaseSecurityGetStatus?: ReturnType<typeof vi.fn>
+  } = {}
+) => {
   vi.resetModules()
 
   const toast = vi.fn()
@@ -50,6 +54,32 @@ const setup = async () => {
       return Promise.resolve()
     })
   })
+  const databaseSecurityClient = {
+    getStatus:
+      options.databaseSecurityGetStatus ??
+      vi.fn().mockResolvedValue({
+        enabled: false,
+        cipher: 'sqlcipher',
+        safeStorageAvailable: true,
+        safeStorageBackend: undefined,
+        passwordStorage: 'none',
+        manualUnlockRequired: false,
+        migrationInProgress: false,
+        lastMigrationAt: undefined
+      }),
+    enable: vi.fn().mockResolvedValue({
+      enabled: true,
+      cipher: 'sqlcipher',
+      safeStorageAvailable: true,
+      safeStorageBackend: undefined,
+      passwordStorage: 'safeStorage',
+      manualUnlockRequired: false,
+      migrationInProgress: false,
+      lastMigrationAt: Date.now()
+    }),
+    changePassword: vi.fn(),
+    disable: vi.fn()
+  }
 
   const presenterMocks = {
     configPresenter: {
@@ -104,6 +134,9 @@ const setup = async () => {
   }))
   vi.doMock('@api/legacy/presenters', () => ({
     useLegacyPresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
+  }))
+  vi.doMock('@api/DatabaseSecurityClient', () => ({
+    createDatabaseSecurityClient: () => databaseSecurityClient
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({
@@ -172,7 +205,18 @@ const setup = async () => {
         AlertDialogTitle: passthroughStub('AlertDialogTitle'),
         AlertDialogTrigger: passthroughStub('AlertDialogTrigger'),
         Button: buttonStub,
-        Input: defineComponent({ name: 'Input', template: '<input />' }),
+        Input: defineComponent({
+          name: 'Input',
+          props: {
+            modelValue: {
+              type: String,
+              default: ''
+            }
+          },
+          emits: ['update:modelValue'],
+          template:
+            '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
+        }),
         Switch: defineComponent({
           name: 'Switch',
           inheritAttrs: false,
@@ -207,6 +251,7 @@ const setup = async () => {
     toast,
     syncStore,
     uiSettingsStore,
+    databaseSecurityClient,
     presenterMocks
   }
 }
@@ -239,6 +284,9 @@ const findResetChatButton = (wrapper: ReturnType<typeof mount>) =>
 const findResetConfirmButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.confirmReset', 'Reset confirm')
 
+const findDatabaseEncryptionButton = (wrapper: ReturnType<typeof mount>, text: string) =>
+  findButtonByText(wrapper, text, 'Database encryption')
+
 describe('DataSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -254,12 +302,14 @@ describe('DataSettings', () => {
     expect(wrapper.text()).toContain('Privacy Mode')
     expect(wrapper.text()).toContain('App update checks')
     expect(wrapper.text()).toContain('settings.data.databaseRepair.title')
+    expect(wrapper.text()).toContain('settings.data.databaseEncryption.title')
     expect(wrapper.text()).toContain('settings.data.modelConfigUpdate.title')
     expect(wrapper.text()).toContain('settings.data.dangerZone.title')
     expect(wrapper.text()).toContain('settings.data.resetChatData')
     expect(wrapper.text()).toContain('settings.data.resetKnowledgeData')
     expect(wrapper.text()).toContain('settings.data.resetAll')
     expect(wrapper.text()).toContain('settings.data.yoBrowser.title')
+    expect(wrapper.text()).toContain('settings.data.databaseEncryption.systemCredentialStore')
   })
 
   it('keeps long danger zone labels within taller wrapping buttons', async () => {
@@ -294,6 +344,49 @@ describe('DataSettings', () => {
     expect(wrapper.get('#privacy-mode-desc').text()).toContain(
       'Stop automatic outbound requests owned by DeepChat:'
     )
+  })
+
+  it('enables database encryption after matching password input', async () => {
+    const { wrapper, databaseSecurityClient, toast } = await setup()
+    await findDatabaseEncryptionButton(
+      wrapper,
+      'settings.data.databaseEncryption.setPasswordButton'
+    ).trigger('click')
+    await nextTick()
+
+    const inputs = wrapper.findAll('input[type="password"]')
+    expect(inputs).toHaveLength(2)
+
+    await inputs[0].setValue('sqlite-pass')
+    await inputs[1].setValue('sqlite-pass')
+    await findDatabaseEncryptionButton(
+      wrapper,
+      'settings.data.databaseEncryption.enableButton'
+    ).trigger('click')
+    await flushPromises()
+
+    expect(databaseSecurityClient.enable).toHaveBeenCalledWith('sqlite-pass')
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.data.databaseEncryption.enabledTitle',
+      duration: 4000
+    })
+  })
+
+  it('shows database encryption status as unknown when status loading fails', async () => {
+    const { wrapper } = await setup({
+      databaseSecurityGetStatus: vi.fn().mockRejectedValue(new Error('status unavailable'))
+    })
+
+    expect(wrapper.text()).toContain('settings.data.databaseEncryption.unknown')
+    expect(wrapper.text()).not.toContain('settings.data.databaseEncryption.disabled')
+    expect(wrapper.text()).not.toContain('settings.data.databaseEncryption.notRequired')
+    expect(
+      wrapper
+        .findAllComponents(buttonStub)
+        .some((button) =>
+          button.text().includes('settings.data.databaseEncryption.setPasswordButton')
+        )
+    ).toBe(false)
   })
 
   it('shows an error toast when updating privacy mode fails', async () => {
