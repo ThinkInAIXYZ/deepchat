@@ -7,6 +7,7 @@
     focusable="false"
   >
     <path
+      v-if="cutoutPathD"
       data-testid="onboarding-spotlight-path"
       :d="pathD"
       :fill="fillColor"

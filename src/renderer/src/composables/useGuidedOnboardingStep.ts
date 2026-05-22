@@ -70,6 +70,19 @@ export function useGuidedOnboardingStep(stepId: GuidedOnboardingStepId) {
     }
   }
 
+  const recoverStateFromBackend = async (
+    context: string
+  ): Promise<GuidedOnboardingState | null> => {
+    try {
+      const refreshed = await onboardingClient.getState()
+      onboardingState.value = refreshed
+      return refreshed
+    } catch (error) {
+      console.warn(`[GuidedOnboarding] Failed to recover state after ${context}:`, error)
+      return onboardingState.value
+    }
+  }
+
   const dismissGuide = () => {
     dismissed.value = true
   }
@@ -91,7 +104,7 @@ export function useGuidedOnboardingStep(stepId: GuidedOnboardingStepId) {
       return finalizeIfNeeded(onboardingState.value)
     } catch (error) {
       console.warn(`[GuidedOnboarding] Failed to set step ${stepId} status to ${status}:`, error)
-      return onboardingState.value
+      return recoverStateFromBackend(`setStepStatus(${stepId}, ${status})`)
     }
   }
 
@@ -103,7 +116,7 @@ export function useGuidedOnboardingStep(stepId: GuidedOnboardingStepId) {
       return onboardingState.value
     } catch (error) {
       console.warn(`[GuidedOnboarding] Failed to activate step ${targetStepId}:`, error)
-      return onboardingState.value
+      return recoverStateFromBackend(`activateStep(${targetStepId})`)
     }
   }
 
@@ -131,7 +144,7 @@ export function useGuidedOnboardingStep(stepId: GuidedOnboardingStepId) {
       return onboardingState.value
     } catch (error) {
       console.warn(`[GuidedOnboarding] Failed to force complete onboarding from ${stepId}:`, error)
-      return onboardingState.value
+      return recoverStateFromBackend(`forceComplete(${stepId})`)
     }
   }
 
