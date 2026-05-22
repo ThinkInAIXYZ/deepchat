@@ -1,5 +1,6 @@
 import type { GuidedOnboardingState, GuidedOnboardingStepId } from '@shared/contracts/routes'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
+import { createOnboardingClient } from '@api/OnboardingClient'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import type { Router } from 'vue-router'
 
@@ -28,8 +29,23 @@ export async function continueGuidedOnboardingFromSettings(options: {
     focusMainWindow?: () => Promise<boolean> | boolean
   }
 }) {
-  const { state, router, currentRoute, windowPresenter } = options
-  const stepId = resolveGuidedOnboardingResumeStepId(state)
+  const { router, currentRoute, windowPresenter } = options
+  let { state } = options
+  let stepId = resolveGuidedOnboardingResumeStepId(state)
+
+  // If the caller passed a stale/null state, the local handler likely failed
+  // its IPC call (or never received a response). Re-read from the backend so a
+  // transient renderer hiccup cannot force the helper into the fallback branch
+  // that focuses the main window instead of advancing within settings.
+  if (!stepId) {
+    try {
+      state = await createOnboardingClient().getState()
+      stepId = resolveGuidedOnboardingResumeStepId(state)
+    } catch (error) {
+      console.warn('[GuidedOnboarding] Failed to refresh state from backend:', error)
+    }
+  }
+
   const target = resolveGuidedOnboardingStepTarget(stepId)
 
   if (target?.surface === 'settings' && target.routeName) {
