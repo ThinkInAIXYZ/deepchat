@@ -294,4 +294,43 @@ describe('SplashWindowManager display gating', () => {
     expect(splashWindow.loadFile).toHaveBeenCalledTimes(1)
     expect(splashWindow.loadURL).toHaveBeenLastCalledWith(expect.stringMatching(/^data:text\/html/))
   })
+
+  it('stops splash renderer fallback quietly after the hidden splash is suppressed', async () => {
+    process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    splashLoadMocks.loadURL = vi.fn(async () => {
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
+        windowId: 1,
+        isMainWindow: true
+      })
+      throw new Error('dev renderer unavailable')
+    })
+    splashLoadMocks.loadFile = vi.fn(async () => {
+      throw new Error('file renderer unavailable')
+    })
+
+    try {
+      const { SplashWindowManager } =
+        await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+
+      manager = new SplashWindowManager()
+      await manager.create()
+      await flushPromises()
+
+      const splashWindow = createdWindows[0]
+      expect(splashWindow).toBeTruthy()
+      expect(splashWindow.close).toHaveBeenCalledTimes(1)
+      expect(splashWindow.loadURL).toHaveBeenCalledTimes(1)
+      expect(splashWindow.loadFile).not.toHaveBeenCalled()
+      expect(errorSpy).not.toHaveBeenCalledWith('Failed to load splash window:', expect.anything())
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('[SplashWindow] Failed to load dev splash URL'),
+        expect.anything()
+      )
+    } finally {
+      errorSpy.mockRestore()
+      warnSpy.mockRestore()
+    }
+  })
 })

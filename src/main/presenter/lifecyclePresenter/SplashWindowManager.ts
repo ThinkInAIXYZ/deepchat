@@ -66,6 +66,7 @@ export class SplashWindowManager implements ISplashWindowManager {
   private splashShowDelayElapsed = false
   private suppressSplashShow = false
   private forceShowWhenLoaded = false
+  private splashLoadCanceled = false
   private splashLoadPromise: Promise<void> | null = null
   private splashShowDelayTimer: ReturnType<typeof setTimeout> | null = null
   private readonly onHookExecuted = (data: HookExecutedEventData) => {
@@ -132,6 +133,7 @@ export class SplashWindowManager implements ISplashWindowManager {
     this.splashShowDelayElapsed = false
     this.suppressSplashShow = false
     this.forceShowWhenLoaded = false
+    this.splashLoadCanceled = false
     this.splashLoadPromise = null
     this.clearSplashShowDelayTimer()
     eventBus.on(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
@@ -181,6 +183,9 @@ export class SplashWindowManager implements ISplashWindowManager {
       })
 
       this.splashLoadPromise = this.loadSplashRenderer().catch((error) => {
+        if (!this.shouldContinueSplashLoad()) {
+          return
+        }
         console.error('Failed to load splash window:', error)
         this.markSplashLoaded()
       })
@@ -191,6 +196,7 @@ export class SplashWindowManager implements ISplashWindowManager {
         this.splashWindow = null
         this.splashDidFinishLoad = false
         this.forceShowWhenLoaded = false
+        this.splashLoadCanceled = true
         this.splashLoadPromise = null
       })
 
@@ -277,6 +283,7 @@ export class SplashWindowManager implements ISplashWindowManager {
     this.unlockRequest = null
     this.pendingUnlockProgress = null
     this.forceShowWhenLoaded = false
+    this.splashLoadCanceled = true
     this.splashLoadPromise = null
     this.emitState()
     this.clearSplashShowDelayTimer()
@@ -503,13 +510,23 @@ export class SplashWindowManager implements ISplashWindowManager {
         new URL('/splash/', rendererUrl).toString()
       ]
       for (const devUrl of devUrls) {
-        if (await this.tryLoadSplashUrl(devUrl, 'dev splash URL')) {
+        if (await this.tryLoadSplashUrl(devUrl, 'dev splash URL', { quiet: true })) {
+          return
+        }
+        if (!this.shouldContinueSplashLoad()) {
           return
         }
       }
     }
 
-    if (await this.tryLoadSplashFile(path.join(__dirname, '../renderer/splash/index.html'))) {
+    if (
+      await this.tryLoadSplashFile(path.join(__dirname, '../renderer/splash/index.html'), {
+        quiet: is.dev
+      })
+    ) {
+      return
+    }
+    if (!this.shouldContinueSplashLoad()) {
       return
     }
 
@@ -522,32 +539,69 @@ export class SplashWindowManager implements ISplashWindowManager {
     throw new Error('Unable to load any splash renderer')
   }
 
-  private async tryLoadSplashUrl(url: string, source: string): Promise<boolean> {
-    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
+  private shouldContinueSplashLoad(): boolean {
+    return Boolean(
+      this.splashWindow &&
+      !this.splashWindow.isDestroyed() &&
+      !this.splashLoadCanceled &&
+      (!this.suppressSplashShow || this.forceShowWhenLoaded)
+    )
+  }
+
+  private async tryLoadSplashUrl(
+    url: string,
+    source: string,
+    options: { quiet?: boolean } = {}
+  ): Promise<boolean> {
+    const splashWindow = this.splashWindow
+    if (!splashWindow || !this.shouldContinueSplashLoad()) {
       return false
     }
 
     try {
-      await this.splashWindow.loadURL(url)
+      await splashWindow.loadURL(url)
+      if (!this.shouldContinueSplashLoad()) {
+        return false
+      }
       this.markSplashLoaded()
       return true
     } catch (error) {
-      console.warn(`[SplashWindow] Failed to load ${source} (${url}); falling back:`, error)
+      if (!this.shouldContinueSplashLoad()) {
+        return false
+      }
+      if (!options.quiet) {
+        console.warn(`[SplashWindow] Failed to load ${source} (${url}); falling back:`, error)
+      }
       return false
     }
   }
 
-  private async tryLoadSplashFile(filePath: string): Promise<boolean> {
-    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
+  private async tryLoadSplashFile(
+    filePath: string,
+    options: { quiet?: boolean } = {}
+  ): Promise<boolean> {
+    const splashWindow = this.splashWindow
+    if (!splashWindow || !this.shouldContinueSplashLoad()) {
       return false
     }
 
     try {
-      await this.splashWindow.loadFile(filePath)
+      await splashWindow.loadFile(filePath)
+      if (!this.shouldContinueSplashLoad()) {
+        return false
+      }
       this.markSplashLoaded()
       return true
     } catch (error) {
-      console.warn(`[SplashWindow] Failed to load splash file (${filePath}); falling back:`, error)
+      if (!this.shouldContinueSplashLoad()) {
+        return false
+      }
+      if (!options.quiet) {
+        console.warn(
+          `[SplashWindow] Failed to load splash file (${filePath}); falling back:`,
+          error
+        )
+      }
       return false
     }
   }
