@@ -5,8 +5,8 @@ import {
   type Page,
   type TestInfo
 } from '@playwright/test'
-import { existsSync } from 'node:fs'
-import { arch } from 'node:os'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { arch, homedir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -20,6 +20,7 @@ const WINDOWS_PACKAGED_EXECUTABLE = resolve(
   arch() === 'arm64' ? 'win-arm64-unpacked' : 'win-unpacked',
   'DeepChat.exe'
 )
+const MAX_MAIN_LOG_ATTACHMENT_BYTES = 512 * 1024
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -95,6 +96,58 @@ const attachDiagnostics = async (
     body: Buffer.from(pageErrors.length > 0 ? pageErrors.join('\n') : 'No renderer page errors'),
     contentType: 'text/plain'
   })
+
+  await testInfo.attach('main-process.log', {
+    body: Buffer.from(readMainProcessLogs()),
+    contentType: 'text/plain'
+  })
+}
+
+const getDefaultUserDataDir = (): string => {
+  if (process.platform === 'win32') {
+    return resolve(process.env.APPDATA ?? resolve(homedir(), 'AppData', 'Roaming'), 'DeepChat')
+  }
+
+  if (process.platform === 'darwin') {
+    return resolve(homedir(), 'Library', 'Application Support', 'DeepChat')
+  }
+
+  return resolve(process.env.XDG_CONFIG_HOME ?? resolve(homedir(), '.config'), 'DeepChat')
+}
+
+const readTextFileTail = (filePath: string): string => {
+  const content = readFileSync(filePath)
+  const start = Math.max(0, content.length - MAX_MAIN_LOG_ATTACHMENT_BYTES)
+  const prefix =
+    start > 0
+      ? `[truncated first ${start} bytes, showing last ${MAX_MAIN_LOG_ATTACHMENT_BYTES} bytes]\n`
+      : ''
+
+  return `${prefix}${content.subarray(start).toString('utf8')}`
+}
+
+const readMainProcessLogs = (): string => {
+  const logDir = resolve(getDefaultUserDataDir(), 'logs')
+  if (!existsSync(logDir)) {
+    return `No main process log directory found at ${logDir}`
+  }
+
+  const files = readdirSync(logDir)
+    .map((fileName) => resolve(logDir, fileName))
+    .filter((filePath) => {
+      try {
+        return statSync(filePath).isFile()
+      } catch {
+        return false
+      }
+    })
+    .sort()
+
+  if (files.length === 0) {
+    return `No main process log files found at ${logDir}`
+  }
+
+  return files.map((filePath) => `== ${filePath} ==\n${readTextFileTail(filePath)}`).join('\n\n')
 }
 
 const ensureLaunchTargetExists = (): void => {
