@@ -6,23 +6,16 @@
       :data-guide-target="coachmarkTargetSurface"
       class="pointer-events-none fixed inset-0 z-70"
     >
-      <div
-        v-for="(blockerStyle, blockerIndex) in coachmarkBlockerStyles"
-        :key="blockerIndex"
-        data-testid="welcome-guide-blocker"
-        class="pointer-events-auto absolute"
-        :style="blockerStyle"
-        @click.stop.prevent
+      <OnBoardingSpotlight
+        :path-d="coachmarkPathD"
+        :cutout-path-d="coachmarkCutoutPathD"
+        :viewport-width="coachmarkViewportWidth"
+        :viewport-height="coachmarkViewportHeight"
+        :fill-opacity="0.56"
       />
 
       <div
-        v-if="coachmarkSpotlightStyle"
-        data-testid="welcome-guide-spotlight"
-        class="pointer-events-none absolute rounded-[28px] border border-primary/70 bg-transparent transition-all duration-200"
-        :style="coachmarkSpotlightStyle"
-      />
-
-      <div
+        ref="coachmarkPanelRef"
         data-testid="welcome-guide-panel"
         role="dialog"
         aria-modal="true"
@@ -251,7 +244,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useElementBounding } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -271,6 +265,8 @@ import {
   type GuidedOnboardingSettingsRouteName
 } from '@shared/guidedOnboarding'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
+import OnBoardingSpotlight from '@/components/onboarding/OnBoardingSpotlight.vue'
+import { useOnBoarding } from '@/composables/useOnBoarding'
 import type {
   GuidedOnboardingState,
   GuidedOnboardingStepId,
@@ -289,17 +285,7 @@ const rootRef = ref<HTMLElement | null>(null)
 const guideCardRef = ref<HTMLElement | null>(null)
 const providerGridRef = ref<HTMLElement | null>(null)
 const guideCoachmarkDismissed = ref(false)
-const coachmarkSpotlightStyle = ref<Record<string, string> | null>(null)
-const coachmarkBlockerStyles = ref<Record<string, string>[]>([
-  {
-    inset: '0'
-  }
-])
-const coachmarkPanelStyle = ref<Record<string, string>>({
-  top: '24px',
-  left: '24px',
-  width: 'min(320px, calc(100% - 32px))'
-})
+const coachmarkPanelRef = ref<HTMLElement | null>(null)
 
 const providers = [
   { id: 'claude', nameKey: 'welcome.page.providers.claude' },
@@ -389,106 +375,57 @@ const persistGuideResumeIntent = (
   persistGuidedOnboardingResumeIntent({ stepId, trigger })
 }
 
-const updateGuideCoachmarkLayout = async () => {
-  await nextTick()
+const coachmarkTargetEl = computed(() =>
+  showGuideCoachmark.value ? resolveCoachmarkTargetElement() : null
+)
 
-  const targetElement = resolveCoachmarkTargetElement()
-  if (!targetElement) {
-    coachmarkSpotlightStyle.value = null
-    coachmarkBlockerStyles.value = [{ inset: '0' }]
-    coachmarkPanelStyle.value = {
+const {
+  spotlightRect: coachmarkSpotlightRect,
+  viewportWidth: coachmarkViewportWidth,
+  viewportHeight: coachmarkViewportHeight,
+  pathD: coachmarkPathD,
+  cutoutPathD: coachmarkCutoutPathD
+} = useOnBoarding(coachmarkTargetEl, {
+  visible: showGuideCoachmark,
+  radius: 28
+})
+
+const { height: coachmarkPanelActualHeight } = useElementBounding(coachmarkPanelRef)
+
+const coachmarkPanelStyle = computed(() => {
+  const rect = coachmarkSpotlightRect.value
+  const fallbackWidth = showGuideImportAction.value
+    ? 'min(420px, calc(100% - 32px))'
+    : 'min(320px, calc(100% - 32px))'
+
+  if (!rect) {
+    return {
       top: '24px',
       left: '24px',
-      width: showGuideImportAction.value
-        ? 'min(420px, calc(100% - 32px))'
-        : 'min(320px, calc(100% - 32px))'
+      width: fallbackWidth
     }
-    return
   }
-
-  const targetRect = targetElement.getBoundingClientRect()
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
-  if (viewportWidth < 1 || viewportHeight < 1 || targetRect.width < 1 || targetRect.height < 1) {
-    coachmarkSpotlightStyle.value = null
-    coachmarkBlockerStyles.value = [{ inset: '0' }]
-    coachmarkPanelStyle.value = {
-      top: '24px',
-      left: '24px',
-      width: showGuideImportAction.value
-        ? 'min(420px, calc(100% - 32px))'
-        : 'min(320px, calc(100% - 32px))'
-    }
-    return
-  }
-
-  const padding = 12
-  const spotlightTop = Math.max(targetRect.top - padding, 16)
-  const spotlightLeft = Math.max(targetRect.left - padding, 16)
-  const spotlightWidth = Math.min(
-    targetRect.width + padding * 2,
-    Math.max(viewportWidth - spotlightLeft - 16, 0)
-  )
-  const spotlightHeight = Math.min(
-    targetRect.height + padding * 2,
-    Math.max(viewportHeight - spotlightTop - 16, 0)
-  )
-
-  coachmarkSpotlightStyle.value = {
-    top: `${spotlightTop}px`,
-    left: `${spotlightLeft}px`,
-    width: `${spotlightWidth}px`,
-    height: `${spotlightHeight}px`,
-    boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.56)'
-  }
-  const spotlightRight = spotlightLeft + spotlightWidth
-  const spotlightBottom = spotlightTop + spotlightHeight
-  coachmarkBlockerStyles.value = [
-    {
-      top: '0px',
-      left: '0px',
-      right: '0px',
-      height: `${spotlightTop}px`
-    },
-    {
-      top: `${spotlightTop}px`,
-      left: '0px',
-      width: `${spotlightLeft}px`,
-      height: `${spotlightHeight}px`
-    },
-    {
-      top: `${spotlightTop}px`,
-      left: `${spotlightRight}px`,
-      right: '0px',
-      height: `${spotlightHeight}px`
-    },
-    {
-      top: `${spotlightBottom}px`,
-      left: '0px',
-      right: '0px',
-      bottom: '0px'
-    }
-  ]
 
   const preferredPanelWidth = showGuideImportAction.value ? 420 : 320
-  const panelWidth = Math.min(preferredPanelWidth, Math.max(180, viewportWidth - 32))
-  const panelHeightEstimate = showGuideImportAction.value ? 172 : 168
-  const desiredTop = spotlightTop + spotlightHeight + 20
-  const placeAbove = desiredTop + panelHeightEstimate > viewportHeight - 16
+  const panelWidth = Math.min(preferredPanelWidth, Math.max(180, coachmarkViewportWidth.value - 32))
+  const fallbackHeight = showGuideImportAction.value ? 172 : 168
+  const panelHeightEstimate = Math.max(coachmarkPanelActualHeight.value, fallbackHeight)
+  const desiredTop = rect.y + rect.height + 20
+  const placeAbove = desiredTop + panelHeightEstimate > coachmarkViewportHeight.value - 16
   const panelTop = placeAbove
-    ? Math.max(16, spotlightTop - panelHeightEstimate - 20)
-    : Math.min(Math.max(16, viewportHeight - panelHeightEstimate - 16), desiredTop)
+    ? Math.max(16, rect.y - panelHeightEstimate - 20)
+    : Math.min(Math.max(16, coachmarkViewportHeight.value - panelHeightEstimate - 16), desiredTop)
   const panelLeft = Math.min(
-    Math.max(16, spotlightLeft),
-    Math.max(16, viewportWidth - panelWidth - 16)
+    Math.max(16, rect.x),
+    Math.max(16, coachmarkViewportWidth.value - panelWidth - 16)
   )
 
-  coachmarkPanelStyle.value = {
+  return {
     top: `${panelTop}px`,
     left: `${panelLeft}px`,
     width: `${panelWidth}px`
   }
-}
+})
 
 const dismissGuideCoachmark = () => {
   guideCoachmarkDismissed.value = true
@@ -685,23 +622,6 @@ const onSetupAcp = async () => {
 
 onMounted(() => {
   void syncOnboardingState()
-  window.addEventListener('resize', updateGuideCoachmarkLayout)
-})
-
-watch(
-  () => [showGuideCoachmark.value, coachmarkTargetSurface.value, coachmarkStepId.value] as const,
-  ([visible]) => {
-    if (!visible) {
-      return
-    }
-
-    void updateGuideCoachmarkLayout()
-  },
-  { flush: 'post', immediate: true }
-)
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateGuideCoachmarkLayout)
 })
 </script>
 
