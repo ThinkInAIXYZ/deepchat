@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.5-beta.3 (2026-05-22)
+- Added encrypted SQLite database storage to strengthen local data protection
+- Improved onboarding guide handoff by refreshing state after setup transitions
+- Refined onboarding spotlight rendering with SVG paths and fixed panel stacking and hover performance issues
+- 新增 SQLite 数据库加密存储，增强本地数据保护
+- 优化引导流程交接，在设置切换后刷新状态
+- 优化引导高亮的 SVG path 渲染，并修复面板层级与 hover 性能问题
+
 ## v1.0.5-beta.2 (2026-05-21)
 - Added provider configuration import with preview, validation, conflict handling, and localized settings UI
 - Added CC Switch configuration import and broader provider import path discovery for smoother migration from external tools
