@@ -4,20 +4,11 @@
     data-testid="guided-onboarding-overlay"
     class="pointer-events-none fixed inset-0 z-70"
   >
-    <div
-      v-for="(blockerStyle, index) in blockerStyles"
-      :key="`blocker-${index}`"
-      data-testid="guided-onboarding-blocker"
-      class="pointer-events-auto absolute bg-slate-950/22"
-      :style="blockerStyle"
-      @click.stop.prevent
-    />
-
-    <div
-      v-if="spotlightStyle"
-      data-testid="guided-onboarding-spotlight"
-      class="pointer-events-none absolute rounded-3xl border border-primary/70 bg-transparent transition-all duration-200"
-      :style="spotlightStyle"
+    <OnBoardingSpotlight
+      :path-d="pathD"
+      :cutout-path-d="cutoutPathD"
+      :viewport-width="viewportWidth"
+      :viewport-height="viewportHeight"
     />
 
     <div
@@ -105,7 +96,10 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
+import { useElementBounding } from '@vueuse/core'
+import OnBoardingSpotlight from './OnBoardingSpotlight.vue'
+import { useOnBoarding } from '@/composables/useOnBoarding'
 
 type GuidedOnboardingPanelPlacement = 'auto' | 'above' | 'below'
 
@@ -155,157 +149,50 @@ defineEmits<{
   expert: []
 }>()
 
-const spotlightStyle = ref<Record<string, string> | null>(null)
-const blockerStyles = ref<Array<Record<string, string>>>([])
+const PANEL_MIN_HEIGHT = 156
 const panelRef = ref<HTMLElement | null>(null)
-const panelStyle = ref<Record<string, string>>({
-  top: '24px',
-  left: '24px',
-  width: 'min(320px, calc(100% - 32px))'
-})
 
-const resetLayout = () => {
-  spotlightStyle.value = null
-  blockerStyles.value = [
-    {
-      top: '0px',
-      left: '0px',
-      width: '100vw',
-      height: '100vh'
+const { spotlightRect, viewportWidth, viewportHeight, pathD, cutoutPathD } = useOnBoarding(
+  () => props.targetEl,
+  { visible: () => props.visible }
+)
+
+const { height: panelActualHeight } = useElementBounding(panelRef)
+
+const panelStyle = computed(() => {
+  const rect = spotlightRect.value
+  if (!rect) {
+    return {
+      top: '24px',
+      left: '24px',
+      width: 'min(320px, calc(100% - 32px))'
     }
-  ]
-  panelStyle.value = {
-    top: '24px',
-    left: '24px',
-    width: 'min(320px, calc(100% - 32px))'
-  }
-}
-
-const updateLayout = async () => {
-  await nextTick()
-
-  const targetElement = props.targetEl
-  if (!props.visible || !targetElement) {
-    resetLayout()
-    return
   }
 
-  const targetRect = targetElement.getBoundingClientRect()
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
-  if (viewportWidth < 1 || viewportHeight < 1 || targetRect.width < 1 || targetRect.height < 1) {
-    resetLayout()
-    return
-  }
-
-  const padding = 12
-  const spotlightTop = Math.max(targetRect.top - padding, 16)
-  const spotlightLeft = Math.max(targetRect.left - padding, 16)
-  const spotlightWidth = Math.min(
-    targetRect.width + padding * 2,
-    Math.max(viewportWidth - spotlightLeft - 16, 0)
-  )
-  const spotlightHeight = Math.min(
-    targetRect.height + padding * 2,
-    Math.max(viewportHeight - spotlightTop - 16, 0)
-  )
-  const spotlightRight = spotlightLeft + spotlightWidth
-  const spotlightBottom = spotlightTop + spotlightHeight
-
-  blockerStyles.value = [
-    {
-      top: '0px',
-      left: '0px',
-      width: `${viewportWidth}px`,
-      height: `${Math.max(spotlightTop, 0)}px`
-    },
-    {
-      top: `${spotlightTop}px`,
-      left: '0px',
-      width: `${Math.max(spotlightLeft, 0)}px`,
-      height: `${Math.max(spotlightHeight, 0)}px`
-    },
-    {
-      top: `${spotlightTop}px`,
-      left: `${Math.max(spotlightRight, 0)}px`,
-      width: `${Math.max(viewportWidth - spotlightRight, 0)}px`,
-      height: `${Math.max(spotlightHeight, 0)}px`
-    },
-    {
-      top: `${Math.max(spotlightBottom, 0)}px`,
-      left: '0px',
-      width: `${viewportWidth}px`,
-      height: `${Math.max(viewportHeight - spotlightBottom, 0)}px`
-    }
-  ].filter((style) => Number.parseFloat(style.width) > 0 && Number.parseFloat(style.height) > 0)
-
-  spotlightStyle.value = {
-    top: `${spotlightTop}px`,
-    left: `${spotlightLeft}px`,
-    width: `${spotlightWidth}px`,
-    height: `${spotlightHeight}px`,
-    boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.26)'
-  }
-
-  const panelWidth = Math.min(320, Math.max(180, viewportWidth - 32))
-  const panelHeightEstimate = Math.max(panelRef.value?.getBoundingClientRect().height ?? 0, 156)
-  const desiredTop = spotlightTop + spotlightHeight + 18
-  const maxPanelTop = Math.max(16, viewportHeight - panelHeightEstimate - 16)
-  const aboveTop = Math.max(16, spotlightTop - panelHeightEstimate - 18)
+  const panelWidth = Math.min(320, Math.max(180, viewportWidth.value - 32))
+  const panelHeightEstimate = Math.max(panelActualHeight.value, PANEL_MIN_HEIGHT)
+  const desiredTop = rect.y + rect.height + 18
+  const maxPanelTop = Math.max(16, viewportHeight.value - panelHeightEstimate - 16)
+  const aboveTop = Math.max(16, rect.y - panelHeightEstimate - 18)
   const belowTop = Math.min(maxPanelTop, desiredTop)
+
   const panelTop = (() => {
-    if (props.preferredPanelPlacement === 'above') {
-      return aboveTop
-    }
-
-    if (props.preferredPanelPlacement === 'below') {
-      return belowTop
-    }
-
-    const placeAbove = desiredTop + panelHeightEstimate > viewportHeight - 16
+    if (props.preferredPanelPlacement === 'above') return aboveTop
+    if (props.preferredPanelPlacement === 'below') return belowTop
+    const placeAbove = desiredTop + panelHeightEstimate > viewportHeight.value - 16
     return placeAbove ? aboveTop : belowTop
   })()
+
   const panelLeft = Math.min(
-    Math.max(16, spotlightLeft),
-    Math.max(16, viewportWidth - panelWidth - 16)
+    Math.max(16, rect.x),
+    Math.max(16, viewportWidth.value - panelWidth - 16)
   )
 
-  panelStyle.value = {
+  return {
     top: `${panelTop}px`,
     left: `${panelLeft}px`,
     width: `${panelWidth}px`
   }
-}
-
-onMounted(() => {
-  window.addEventListener('resize', updateLayout)
-  window.addEventListener('scroll', updateLayout, true)
-})
-
-watch(
-  () =>
-    [
-      props.visible,
-      props.containerEl,
-      props.targetEl,
-      props.stepIndex,
-      props.totalSteps,
-      props.preferredPanelPlacement
-    ] as const,
-  ([visible]) => {
-    if (!visible) {
-      resetLayout()
-      return
-    }
-
-    void updateLayout()
-  },
-  { flush: 'post', immediate: true }
-)
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateLayout)
-  window.removeEventListener('scroll', updateLayout, true)
 })
 </script>
 
