@@ -228,6 +228,13 @@ export class SkillPresenter implements ISkillPresenter {
     const homeDir = homePath ? path.resolve(homePath) : path.resolve('.')
     const fallbackDir = path.join(homeDir, '.deepchat', 'skills')
     const resolved = normalized ? path.resolve(normalized) : fallbackDir
+    const repairedDefaultPath = normalized
+      ? this.repairPortableDefaultSkillsPath(normalized, homeDir)
+      : null
+
+    if (repairedDefaultPath) {
+      return repairedDefaultPath
+    }
 
     // Repair malformed paths like: C:\Users\name.deepchat\skills
     const brokenPrefix = `${homeDir}.deepchat`
@@ -244,6 +251,20 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     return resolved
+  }
+
+  private repairPortableDefaultSkillsPath(configuredPath: string, homeDir: string): string | null {
+    const slashPath = configuredPath.replace(/\\/g, '/')
+    const match =
+      slashPath.match(/^\/Users\/[^/]+\/\.deepchat\/skills(?:\/(.*))?$/i) ??
+      slashPath.match(/^[A-Za-z]:\/Users\/[^/]+\/\.deepchat\/skills(?:\/(.*))?$/i)
+
+    if (!match) {
+      return null
+    }
+
+    const suffixParts = (match[1] ?? '').split('/').filter(Boolean)
+    return path.join(homeDir, '.deepchat', 'skills', ...suffixParts)
   }
 
   /**

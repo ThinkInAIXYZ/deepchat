@@ -284,11 +284,12 @@ describe('SkillPresenter', () => {
       expect(fs.existsSync).toHaveBeenCalled()
     })
 
-    it('should use configured skills path when provided', () => {
+    it('should use configured skills path when provided', async () => {
       ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue('/custom/skills/path')
 
       const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
       expect(mockConfigPresenter.getSkillsPath).toHaveBeenCalled()
+      await expect(presenter.getSkillsDir()).resolves.toBe('/custom/skills/path')
       presenter.destroy()
     })
 
@@ -310,6 +311,36 @@ describe('SkillPresenter', () => {
 
       const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
+      presenter.destroy()
+    })
+
+    it('should repair stale POSIX default skills paths from another user profile', async () => {
+      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue(
+        '/Users/legacy-user/.deepchat/skills'
+      )
+      ;(app.getPath as Mock).mockImplementation((name: string) => {
+        if (name === 'home') return '/mock/home'
+        if (name === 'temp') return '/mock/temp'
+        return '/mock/' + name
+      })
+
+      const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
+      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
+      presenter.destroy()
+    })
+
+    it('should repair stale Windows default skills paths from another user profile', async () => {
+      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue(
+        'C:\\Users\\legacy-user\\.deepchat\\skills\\nested'
+      )
+      ;(app.getPath as Mock).mockImplementation((name: string) => {
+        if (name === 'home') return '/mock/home'
+        if (name === 'temp') return '/mock/temp'
+        return '/mock/' + name
+      })
+
+      const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
+      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills/nested')
       presenter.destroy()
     })
   })
