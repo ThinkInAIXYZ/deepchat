@@ -1385,6 +1385,56 @@
       }
     }
   },
+  "scheduledTasks": {
+    "title": "예약된 작업",
+    "description": "지정된 시간에 시스템 알림을 표시하거나 에이전트에게 자동으로 메시지를 보냅니다.",
+    "hint": "앱이 종료된 동안 놓친 일회성 작업은 다음 시작 시 실행됩니다. 반복 작업은 다음 시각으로 건너뜁니다.",
+    "newTask": "새 작업",
+    "empty": "작업이 아직 없습니다",
+    "namePlaceholder": "작업 이름",
+    "fireNow": "지금 실행",
+    "fireNowSuccess": "작업이 실행되었습니다",
+    "defaults": {
+      "name": "새 작업",
+      "title": "알림",
+      "body": "시간이 되었습니다"
+    },
+    "trigger": {
+      "title": "트리거",
+      "kind": "트리거 종류",
+      "kindOnce": "한 번",
+      "kindDaily": "매일",
+      "kindWeekly": "매주",
+      "firesAt": "실행 시각",
+      "dayOfWeek": "요일",
+      "time": "시간"
+    },
+    "action": {
+      "title": "액션",
+      "kind": "액션 종류",
+      "kindNotify": "알림",
+      "kindPrompt": "채팅 프롬프트",
+      "titleField": "제목",
+      "titlePlaceholder": "알림 제목",
+      "body": "내용",
+      "message": "메시지",
+      "agentId": "에이전트",
+      "agentIdPlaceholder": "기본: deepchat",
+      "modelId": "모델",
+      "modelIdPlaceholder": "비워두면 기본값",
+      "systemPrompt": "시스템 프롬프트",
+      "autoSend": "선택한 에이전트에 자동 전송"
+    },
+    "weekday": {
+      "sun": "일",
+      "mon": "월",
+      "tue": "화",
+      "wed": "수",
+      "thu": "목",
+      "fri": "금",
+      "sat": "토"
+    }
+  },
   "about": {
     "title": "우리에 대해",
     "version": "버전",

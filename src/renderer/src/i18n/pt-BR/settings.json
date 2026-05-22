@@ -1385,6 +1385,56 @@
       }
     }
   },
+  "scheduledTasks": {
+    "title": "Scheduled Tasks",
+    "description": "Fire a system notification or send a preset prompt to an agent at a chosen time.",
+    "hint": "One-shot tasks missed while the app was closed fire on next launch; recurring tasks jump to the next slot.",
+    "newTask": "New task",
+    "empty": "No tasks yet",
+    "namePlaceholder": "Task name",
+    "fireNow": "Run now",
+    "fireNowSuccess": "Task fired",
+    "defaults": {
+      "name": "New task",
+      "title": "Reminder",
+      "body": "Time's up"
+    },
+    "trigger": {
+      "title": "Trigger",
+      "kind": "Trigger kind",
+      "kindOnce": "Once",
+      "kindDaily": "Daily",
+      "kindWeekly": "Weekly",
+      "firesAt": "Fire at",
+      "dayOfWeek": "Day of week",
+      "time": "Time"
+    },
+    "action": {
+      "title": "Action",
+      "kind": "Action kind",
+      "kindNotify": "Notification",
+      "kindPrompt": "Chat prompt",
+      "titleField": "Title",
+      "titlePlaceholder": "Notification title",
+      "body": "Body",
+      "message": "Message",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "default: deepchat",
+      "modelId": "Model",
+      "modelIdPlaceholder": "leave blank for default",
+      "systemPrompt": "System prompt",
+      "autoSend": "Auto-send to the selected agent"
+    },
+    "weekday": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    }
+  },
   "about": {
     "title": "Sobre Nós",
     "version": "Versão",

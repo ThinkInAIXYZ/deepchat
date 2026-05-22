@@ -64,6 +64,7 @@ import type { SkillSessionStatePort } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
+import { ScheduledTasksService } from './scheduledTasks'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { ProjectPresenter } from './projectPresenter'
@@ -191,6 +192,7 @@ export class Presenter implements IPresenter {
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   hooksNotifications: HooksNotificationsService
+  scheduledTasks: ScheduledTasksService
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
@@ -485,6 +487,11 @@ export class Presenter implements IPresenter {
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
       getSession: async () => null,
       getMessage: async () => null
+    })
+    this.scheduledTasks = new ScheduledTasksService({
+      configPresenter: this.configPresenter,
+      notificationPresenter: this.notificationPresenter,
+      windowPresenter: this.windowPresenter
     })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
     const providerCatalogPort: ProviderCatalogPort = {
@@ -944,6 +951,41 @@ export class Presenter implements IPresenter {
 export let presenter: Presenter
 let cachedMainKernelRouteRuntime: ReturnType<typeof createMainKernelRouteRuntime> | undefined
 
+const buildMainKernelRouteRuntime = () =>
+  createMainKernelRouteRuntime({
+    configPresenter: presenter.configPresenter,
+    llmProviderPresenter: presenter.llmproviderPresenter,
+    agentSessionPresenter: presenter.agentSessionPresenter,
+    skillPresenter: presenter.skillPresenter,
+    mcpPresenter: presenter.mcpPresenter,
+    syncPresenter: presenter.syncPresenter,
+    upgradePresenter: presenter.upgradePresenter,
+    dialogPresenter: presenter.dialogPresenter,
+    toolPresenter: presenter.toolPresenter,
+    sqlitePresenter: presenter.sqlitePresenter,
+    windowPresenter: presenter.windowPresenter,
+    devicePresenter: presenter.devicePresenter,
+    projectPresenter: presenter.projectPresenter,
+    filePresenter: presenter.filePresenter,
+    workspacePresenter: presenter.workspacePresenter,
+    yoBrowserPresenter: presenter.yoBrowserPresenter,
+    tabPresenter: presenter.tabPresenter,
+    startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
+    pluginPresenter: presenter.pluginPresenter,
+    databaseSecurityPresenter: presenter.databaseSecurityPresenter,
+    scheduledTasks: presenter.scheduledTasks
+  })
+
+export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelRouteRuntime> {
+  if (!presenter) {
+    throw new Error('Presenter must be initialized before accessing the kernel route runtime')
+  }
+  if (!cachedMainKernelRouteRuntime) {
+    cachedMainKernelRouteRuntime = buildMainKernelRouteRuntime()
+  }
+  return cachedMainKernelRouteRuntime
+}
+
 // Initialize presenter with database instance and optional lifecycle manager
 export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
   // only allow initialize once
@@ -955,32 +997,7 @@ export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
   return presenter
 }
 
-registerMainKernelRoutes(ipcMain, () =>
-  presenter
-    ? (cachedMainKernelRouteRuntime ??= createMainKernelRouteRuntime({
-        configPresenter: presenter.configPresenter,
-        llmProviderPresenter: presenter.llmproviderPresenter,
-        agentSessionPresenter: presenter.agentSessionPresenter,
-        skillPresenter: presenter.skillPresenter,
-        mcpPresenter: presenter.mcpPresenter,
-        syncPresenter: presenter.syncPresenter,
-        upgradePresenter: presenter.upgradePresenter,
-        dialogPresenter: presenter.dialogPresenter,
-        toolPresenter: presenter.toolPresenter,
-        sqlitePresenter: presenter.sqlitePresenter,
-        windowPresenter: presenter.windowPresenter,
-        devicePresenter: presenter.devicePresenter,
-        projectPresenter: presenter.projectPresenter,
-        filePresenter: presenter.filePresenter,
-        workspacePresenter: presenter.workspacePresenter,
-        yoBrowserPresenter: presenter.yoBrowserPresenter,
-        tabPresenter: presenter.tabPresenter,
-        startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
-        pluginPresenter: presenter.pluginPresenter,
-        databaseSecurityPresenter: presenter.databaseSecurityPresenter
-      }))
-    : undefined
-)
+registerMainKernelRoutes(ipcMain, () => (presenter ? getMainKernelRouteRuntime() : undefined))
 
 // 检查对象属性是否为函数 (用于动态调用)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

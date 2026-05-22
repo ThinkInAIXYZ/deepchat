@@ -10,6 +10,7 @@ import type { VideoGenerationOptions } from '../../videoGenerationSettings'
 import type { TtsSettings } from '../../ttsSettings'
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
 import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
+import type { ScheduledTasksSettings } from '../../scheduledTasks'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import type { AcpConfigState } from './llmprovider.presenter'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
@@ -646,6 +647,8 @@ export interface IConfigPresenter {
   getHooksNotificationsConfig(): HooksNotificationsSettings
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings
   testHookCommand(hookId: string): Promise<HookTestResult>
+  getScheduledTasksConfig(): ScheduledTasksSettings
+  setScheduledTasksConfig(config: ScheduledTasksSettings): ScheduledTasksSettings
   // Skills settings
   getSkillsEnabled(): boolean
   setSkillsEnabled(enabled: boolean): void
