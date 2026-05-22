@@ -383,7 +383,8 @@
       "enableDialogDescription": "Cria um banco SQLite criptografado e migra os dados locais atuais para ele.",
       "changeDialogDescription": "Migra o banco criptografado atual para um novo banco criptografado com a nova senha.",
       "disableDialogDescription": "Migra o banco criptografado atual de volta para um banco local em texto puro.",
-      "cancelButton": "Cancelar"
+      "cancelButton": "Cancelar",
+      "unknown": "Desconhecido"
     }
   },
   "dashboard": {

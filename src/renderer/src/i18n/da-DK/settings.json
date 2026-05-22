@@ -316,7 +316,8 @@
       "enableDialogDescription": "Opret en krypteret SQLite-database, og migrér de aktuelle lokale data til den.",
       "changeDialogDescription": "Migrér den aktuelle krypterede database til en ny krypteret database med den nye adgangskode.",
       "disableDialogDescription": "Migrér den aktuelle krypterede database tilbage til en lokal database i klartekst.",
-      "cancelButton": "Annuller"
+      "cancelButton": "Annuller",
+      "unknown": "Ukendt"
     }
   },
   "dashboard": {

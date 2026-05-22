@@ -383,7 +383,8 @@
       "enableDialogDescription": "Crée une base SQLite chiffrée et y migre les données locales actuelles.",
       "changeDialogDescription": "Migre la base chiffrée actuelle vers une nouvelle base chiffrée avec le nouveau mot de passe.",
       "disableDialogDescription": "Migre la base chiffrée actuelle vers une base locale en clair.",
-      "cancelButton": "Annuler"
+      "cancelButton": "Annuler",
+      "unknown": "Inconnu"
     }
   },
   "dashboard": {

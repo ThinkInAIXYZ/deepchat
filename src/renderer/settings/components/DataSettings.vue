@@ -190,25 +190,21 @@
             <span
               class="inline-flex w-fit items-center rounded-md border px-2 py-1 text-xs font-medium"
               :class="
-                databaseSecurityStatus?.enabled
-                  ? 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                  : 'border-border text-muted-foreground'
+                hasDatabaseSecurityStatusError && !databaseSecurityStatus
+                  ? 'border-amber-500/30 text-amber-600 dark:text-amber-400'
+                  : databaseSecurityStatus?.enabled
+                    ? 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                    : 'border-border text-muted-foreground'
               "
             >
-              {{
-                databaseSecurityStatus?.enabled
-                  ? t('settings.data.databaseEncryption.enabled')
-                  : t('settings.data.databaseEncryption.disabled')
-              }}
+              {{ databaseSecurityStatusLabel }}
             </span>
           </div>
 
           <div class="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
             <div class="flex justify-between gap-3">
               <span>{{ t('settings.data.databaseEncryption.cipher') }}</span>
-              <span class="text-foreground">{{
-                databaseSecurityStatus?.cipher || 'sqlcipher'
-              }}</span>
+              <span class="text-foreground">{{ databaseCipherLabel }}</span>
             </div>
             <div class="flex justify-between gap-3">
               <span>{{ t('settings.data.databaseEncryption.systemUnlock') }}</span>
@@ -923,23 +919,65 @@ const databaseEncryptionSubmitLabel = computed(() => {
   }
   return t('settings.data.databaseEncryption.disableButton')
 })
-const systemUnlockLabel = computed(() => {
-  if (!databaseSecurityStatus.value) {
-    return t('settings.data.databaseEncryption.loading')
+const databaseSecurityUnknownLabel = computed(() => t('settings.data.databaseEncryption.unknown'))
+const databaseSecurityLoadingLabel = computed(() => t('settings.data.databaseEncryption.loading'))
+const databaseSecurityHasNoStatus = computed(() => !databaseSecurityStatus.value)
+const databaseSecurityStatusLabel = computed(() => {
+  const status = databaseSecurityStatus.value
+  if (hasDatabaseSecurityStatusError.value && !status) {
+    return databaseSecurityUnknownLabel.value
   }
-  return databaseSecurityStatus.value.safeStorageAvailable
+  if (!status) {
+    return databaseSecurityLoadingLabel.value
+  }
+  return status.enabled
+    ? t('settings.data.databaseEncryption.enabled')
+    : t('settings.data.databaseEncryption.disabled')
+})
+const databaseCipherLabel = computed(() => {
+  const status = databaseSecurityStatus.value
+  if (hasDatabaseSecurityStatusError.value && !status) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (!status) {
+    return databaseSecurityLoadingLabel.value
+  }
+  return status.cipher
+})
+const systemUnlockLabel = computed(() => {
+  const status = databaseSecurityStatus.value
+  if (hasDatabaseSecurityStatusError.value && !status) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (!status) {
+    return databaseSecurityLoadingLabel.value
+  }
+  return status.safeStorageAvailable
     ? t('settings.data.databaseEncryption.systemUnlockAvailable')
     : t('settings.data.databaseEncryption.systemUnlockUnavailable')
 })
 const startupUnlockLabel = computed(() => {
-  if (!databaseSecurityStatus.value?.enabled) {
+  const status = databaseSecurityStatus.value
+  if (hasDatabaseSecurityStatusError.value && !status) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (!status) {
+    return databaseSecurityLoadingLabel.value
+  }
+  if (!status.enabled) {
     return t('settings.data.databaseEncryption.notRequired')
   }
-  return databaseSecurityStatus.value.manualUnlockRequired
+  return status.manualUnlockRequired
     ? t('settings.data.databaseEncryption.manualUnlock')
     : t('settings.data.databaseEncryption.systemUnlockMode')
 })
 const lastDatabaseMigrationLabel = computed(() => {
+  if (hasDatabaseSecurityStatusError.value && databaseSecurityHasNoStatus.value) {
+    return databaseSecurityUnknownLabel.value
+  }
+  if (databaseSecurityHasNoStatus.value) {
+    return databaseSecurityLoadingLabel.value
+  }
   const lastMigrationAt = databaseSecurityStatus.value?.lastMigrationAt
   if (!lastMigrationAt) {
     return t('settings.data.never')
@@ -991,8 +1029,7 @@ const refreshDatabaseSecurityStatus = async () => {
     isDatabaseSecurityStatusLoaded.value = true
   } catch (error) {
     console.error('Failed to load database encryption status:', error)
-    databaseSecurityStatus.value = null
-    isDatabaseSecurityStatusLoaded.value = false
+    isDatabaseSecurityStatusLoaded.value = Boolean(databaseSecurityStatus.value)
     hasDatabaseSecurityStatusError.value = true
   }
 }

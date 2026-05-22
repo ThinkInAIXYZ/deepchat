@@ -383,7 +383,8 @@
       "enableDialogDescription": "建立加密 SQLite 資料庫，並將目前本機資料遷移進去。",
       "changeDialogDescription": "將目前加密資料庫遷移為使用新密碼的新加密資料庫。",
       "disableDialogDescription": "將目前加密資料庫遷移回本機明文資料庫。",
-      "cancelButton": "取消"
+      "cancelButton": "取消",
+      "unknown": "未知"
     }
   },
   "dashboard": {

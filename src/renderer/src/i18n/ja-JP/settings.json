@@ -383,7 +383,8 @@
       "enableDialogDescription": "暗号化された SQLite データベースを作成し、現在のローカルデータを移行します。",
       "changeDialogDescription": "現在の暗号化データベースを、新しいパスワードを使う新しい暗号化データベースへ移行します。",
       "disableDialogDescription": "現在の暗号化データベースをローカルの平文データベースに戻します。",
-      "cancelButton": "キャンセル"
+      "cancelButton": "キャンセル",
+      "unknown": "不明"
     }
   },
   "dashboard": {

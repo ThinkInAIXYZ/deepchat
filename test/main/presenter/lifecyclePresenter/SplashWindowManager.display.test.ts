@@ -12,6 +12,7 @@ const splashLoadMocks = vi.hoisted(() => ({
 }))
 
 class MockBrowserWindow {
+  private static nextWebContentsId = 1
   public visible = false
   public destroyed = false
   public readonly show = vi.fn(() => {
@@ -29,10 +30,16 @@ class MockBrowserWindow {
     return splashLoadMocks.loadFile?.(filePath) ?? Promise.resolve()
   })
   public readonly webContents = {
+    id: MockBrowserWindow.nextWebContentsId++,
     on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-      const handlers = this.webContentsHandlers.get(event) ?? []
-      handlers.push(handler)
-      this.webContentsHandlers.set(event, handlers)
+      this.addHandler(this.webContentsHandlers, event, handler)
+    }),
+    once: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      const wrappedHandler = (...args: unknown[]) => {
+        this.removeHandler(this.webContentsHandlers, event, wrappedHandler)
+        handler(...args)
+      }
+      this.addHandler(this.webContentsHandlers, event, wrappedHandler)
     }),
     send: vi.fn()
   }
@@ -45,19 +52,25 @@ class MockBrowserWindow {
   }
 
   on(event: string, handler: (...args: unknown[]) => void) {
-    const handlers = this.handlers.get(event) ?? []
-    handlers.push(handler)
-    this.handlers.set(event, handlers)
+    this.addHandler(this.handlers, event, handler)
+  }
+
+  once(event: string, handler: (...args: unknown[]) => void) {
+    const wrappedHandler = (...args: unknown[]) => {
+      this.removeHandler(this.handlers, event, wrappedHandler)
+      handler(...args)
+    }
+    this.addHandler(this.handlers, event, wrappedHandler)
   }
 
   emit(event: string, ...args: unknown[]) {
-    for (const handler of this.handlers.get(event) ?? []) {
+    for (const handler of [...(this.handlers.get(event) ?? [])]) {
       handler(...args)
     }
   }
 
   emitWebContents(event: string, ...args: unknown[]) {
-    for (const handler of this.webContentsHandlers.get(event) ?? []) {
+    for (const handler of [...(this.webContentsHandlers.get(event) ?? [])]) {
       handler(...args)
     }
   }
@@ -68,6 +81,28 @@ class MockBrowserWindow {
 
   isVisible() {
     return this.visible
+  }
+
+  private addHandler(
+    map: Map<string, Array<(...args: unknown[]) => void>>,
+    event: string,
+    handler: (...args: unknown[]) => void
+  ) {
+    const handlers = map.get(event) ?? []
+    handlers.push(handler)
+    map.set(event, handlers)
+  }
+
+  private removeHandler(
+    map: Map<string, Array<(...args: unknown[]) => void>>,
+    event: string,
+    handler: (...args: unknown[]) => void
+  ) {
+    const handlers = map.get(event) ?? []
+    const index = handlers.indexOf(handler)
+    if (index >= 0) {
+      handlers.splice(index, 1)
+    }
   }
 }
 

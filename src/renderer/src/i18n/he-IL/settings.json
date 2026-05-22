@@ -383,7 +383,8 @@
       "enableDialogDescription": "יצירת מסד נתונים SQLite מוצפן והעברת הנתונים המקומיים הנוכחיים אליו.",
       "changeDialogDescription": "העברת מסד הנתונים המוצפן הנוכחי למסד נתונים מוצפן חדש עם הסיסמה החדשה.",
       "disableDialogDescription": "העברת מסד הנתונים המוצפן הנוכחי בחזרה למסד נתונים מקומי גלוי.",
-      "cancelButton": "ביטול"
+      "cancelButton": "ביטול",
+      "unknown": "לא ידוע"
     }
   },
   "dashboard": {

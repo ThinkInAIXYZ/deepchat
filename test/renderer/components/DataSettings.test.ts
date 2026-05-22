@@ -20,7 +20,11 @@ const passthroughStub = (name: string) =>
     template: '<div><slot /></div>'
   })
 
-const setup = async () => {
+const setup = async (
+  options: {
+    databaseSecurityGetStatus?: ReturnType<typeof vi.fn>
+  } = {}
+) => {
   vi.resetModules()
 
   const toast = vi.fn()
@@ -51,16 +55,18 @@ const setup = async () => {
     })
   })
   const databaseSecurityClient = {
-    getStatus: vi.fn().mockResolvedValue({
-      enabled: false,
-      cipher: 'sqlcipher',
-      safeStorageAvailable: true,
-      safeStorageBackend: undefined,
-      passwordStorage: 'none',
-      manualUnlockRequired: false,
-      migrationInProgress: false,
-      lastMigrationAt: undefined
-    }),
+    getStatus:
+      options.databaseSecurityGetStatus ??
+      vi.fn().mockResolvedValue({
+        enabled: false,
+        cipher: 'sqlcipher',
+        safeStorageAvailable: true,
+        safeStorageBackend: undefined,
+        passwordStorage: 'none',
+        manualUnlockRequired: false,
+        migrationInProgress: false,
+        lastMigrationAt: undefined
+      }),
     enable: vi.fn().mockResolvedValue({
       enabled: true,
       cipher: 'sqlcipher',
@@ -364,6 +370,23 @@ describe('DataSettings', () => {
       title: 'settings.data.databaseEncryption.enabledTitle',
       duration: 4000
     })
+  })
+
+  it('shows database encryption status as unknown when status loading fails', async () => {
+    const { wrapper } = await setup({
+      databaseSecurityGetStatus: vi.fn().mockRejectedValue(new Error('status unavailable'))
+    })
+
+    expect(wrapper.text()).toContain('settings.data.databaseEncryption.unknown')
+    expect(wrapper.text()).not.toContain('settings.data.databaseEncryption.disabled')
+    expect(wrapper.text()).not.toContain('settings.data.databaseEncryption.notRequired')
+    expect(
+      wrapper
+        .findAllComponents(buttonStub)
+        .some((button) =>
+          button.text().includes('settings.data.databaseEncryption.setPasswordButton')
+        )
+    ).toBe(false)
   })
 
   it('shows an error toast when updating privacy mode fails', async () => {
