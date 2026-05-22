@@ -225,9 +225,6 @@
           </div>
 
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.data.databaseEncryption.warning') }}
-          </p>
-          <p class="text-xs text-muted-foreground">
             {{ t('settings.data.databaseEncryption.systemCredentialStore') }}
           </p>
           <p
@@ -329,9 +326,6 @@
 
               <p v-if="databasePasswordValidation" class="text-xs text-destructive">
                 {{ databasePasswordValidation }}
-              </p>
-              <p class="text-xs text-muted-foreground">
-                {{ t('settings.data.databaseEncryption.warning') }}
               </p>
               <p
                 v-if="databaseSecurityStatus && !databaseSecurityStatus.safeStorageAvailable"

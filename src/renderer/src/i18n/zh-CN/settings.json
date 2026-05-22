@@ -307,7 +307,6 @@
       "newPassword": "新的 SQLite 密码",
       "confirmPassword": "确认密码",
       "passwordMismatch": "两次输入的密码不一致",
-      "warning": "如果忘记密码，DeepChat 无法恢复加密数据库。旧备份和同步包不会被自动重写，删除旧数据库也不等同于 SSD 安全擦除。",
       "systemCredentialStore": "系统安全存储可用时，DeepChat 会把 SQLite 密码加密保存到系统凭据库（例如 macOS Keychain、Windows 凭据保险箱或 Linux secret store）。首次解锁成功后，后续启动通常会自动打开；只有迁移数据、系统凭据丢失或无法解密、以及安全存储不可用时，才需要再次输入加密密钥。",
       "safeStorageUnavailable": "当前系统无法使用 Electron safeStorage。启用后每次启动都需要手动输入密码。",
       "enableButton": "启用加密",

@@ -582,6 +582,21 @@ export class ConfigPresenter implements IConfigPresenter {
     }
   }
 
+  cleanupLegacyProviderJsonForDatabaseEncryption(): number {
+    if (!this.dbBackedSettingsStore) {
+      return 0
+    }
+
+    const legacyProviders = this.store.get(PROVIDERS_STORE_KEY)
+    if (!Array.isArray(legacyProviders) || legacyProviders.length === 0) {
+      return 0
+    }
+
+    this.store.delete(PROVIDERS_STORE_KEY)
+    console.info('[Config] Removed legacy providers from app-settings JSON after SQLite migration')
+    return legacyProviders.length
+  }
+
   private migrateConfigStoresToSqlite(sqlitePresenter: SQLitePresenter): void {
     const configTables = sqlitePresenter.configTables
     if (configTables.hasConfigMigration()) {

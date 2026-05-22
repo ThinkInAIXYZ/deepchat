@@ -180,9 +180,6 @@ Add the section to the current Data settings page near privacy/data management c
 | Confirm password       [ ************************ ]               |
 |                                                                  |
 | [ Change password ]    [ Disable encryption ]                    |
-|                                                                  |
-| If you forget the SQLite password, DeepChat cannot recover it.   |
-| Old backups may still contain plaintext data.                    |
 +------------------------------------------------------------------+
 ```
 

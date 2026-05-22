@@ -65,6 +65,8 @@ export class SplashWindowManager implements ISplashWindowManager {
   private splashDidFinishLoad = false
   private splashShowDelayElapsed = false
   private suppressSplashShow = false
+  private forceShowWhenLoaded = false
+  private splashLoadPromise: Promise<void> | null = null
   private splashShowDelayTimer: ReturnType<typeof setTimeout> | null = null
   private readonly onHookExecuted = (data: HookExecutedEventData) => {
     if (!this.isStartupPhase(data.phase)) {
@@ -129,6 +131,8 @@ export class SplashWindowManager implements ISplashWindowManager {
     this.splashDidFinishLoad = false
     this.splashShowDelayElapsed = false
     this.suppressSplashShow = false
+    this.forceShowWhenLoaded = false
+    this.splashLoadPromise = null
     this.clearSplashShowDelayTimer()
     eventBus.on(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
 
@@ -156,7 +160,7 @@ export class SplashWindowManager implements ISplashWindowManager {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          preload: path.join(__dirname, '../preload/index.mjs'),
+          preload: path.join(__dirname, '../preload/splash.mjs'),
           sandbox: false,
           devTools: is.dev
         }
@@ -173,23 +177,21 @@ export class SplashWindowManager implements ISplashWindowManager {
       })
 
       this.splashWindow.webContents.on('did-finish-load', () => {
-        this.splashDidFinishLoad = true
-        this.emitState()
-        this.emitDatabaseUnlockState()
+        this.markSplashLoaded()
       })
 
-      // Load the splash HTML template
-      if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-        this.splashWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/splash/index.html')
-      } else {
-        this.splashWindow.loadFile(path.join(__dirname, '../renderer/splash/index.html'))
-      }
+      this.splashLoadPromise = this.loadSplashRenderer().catch((error) => {
+        console.error('Failed to load splash window:', error)
+        this.markSplashLoaded()
+      })
 
       // Handle window closed event6
       this.splashWindow.on('closed', () => {
         this.clearSplashShowDelayTimer()
         this.splashWindow = null
         this.splashDidFinishLoad = false
+        this.forceShowWhenLoaded = false
+        this.splashLoadPromise = null
       })
 
       if (this.suppressSplashShow) {
@@ -229,9 +231,14 @@ export class SplashWindowManager implements ISplashWindowManager {
     } as ProgressUpdatedEventData)
   }
 
-  showDatabaseUnlockProgress(payload: DatabaseUnlockProgressPayload): void {
+  showDatabaseUnlockProgress(
+    payload: DatabaseUnlockProgressPayload,
+    options: { skipDelay?: boolean } = {}
+  ): void {
     this.pendingUnlockProgress = payload
-    this.forceShowSplash()
+    if (payload.active) {
+      this.forceShowSplash({ skipDelay: options.skipDelay })
+    }
     this.emitDatabaseUnlockState()
   }
 
@@ -239,7 +246,6 @@ export class SplashWindowManager implements ISplashWindowManager {
     reason: DatabaseUnlockReason
     safeStorageAvailable: boolean
   }): Promise<string | null> {
-    this.forceShowSplash()
     this.unlockRequest?.resolve(null)
 
     const requestId = `database-unlock-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -251,6 +257,7 @@ export class SplashWindowManager implements ISplashWindowManager {
 
     return await new Promise((resolve) => {
       this.unlockRequest = { requestId, payload: requestPayload, resolve }
+      this.forceShowSplash({ skipDelay: true })
       this.emitDatabaseUnlockState()
     })
   }
@@ -269,6 +276,8 @@ export class SplashWindowManager implements ISplashWindowManager {
     this.unlockRequest?.resolve(null)
     this.unlockRequest = null
     this.pendingUnlockProgress = null
+    this.forceShowWhenLoaded = false
+    this.splashLoadPromise = null
     this.emitState()
     this.clearSplashShowDelayTimer()
 
@@ -427,24 +436,222 @@ export class SplashWindowManager implements ISplashWindowManager {
       return
     }
 
-    this.splashWindow.show()
+    this.showSplashWindow()
   }
 
-  private forceShowSplash(): void {
+  private forceShowSplash(options: { skipDelay?: boolean } = {}): void {
     if (!this.splashWindow || this.splashWindow.isDestroyed()) {
       return
     }
     this.suppressSplashShow = false
     this.splashShowDelayElapsed = true
+    if (options.skipDelay) {
+      this.clearSplashShowDelayTimer()
+      this.forceShowWhenLoaded = true
+      if (this.splashDidFinishLoad || this.splashReadyToShow) {
+        this.showSplashWindow()
+        return
+      }
+      void this.splashLoadPromise?.finally(() => {
+        if (this.forceShowWhenLoaded) {
+          this.showSplashWindow()
+        }
+      })
+      return
+    }
     if (this.splashReadyToShow) {
-      this.splashWindow.show()
+      this.showSplashWindow()
       return
     }
     this.splashWindow.once('ready-to-show', () => {
       if (!this.splashWindow?.isDestroyed()) {
-        this.splashWindow?.show()
+        this.showSplashWindow()
       }
     })
+  }
+
+  private showSplashWindow(): void {
+    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
+      return
+    }
+    this.splashWindow.show()
+    this.splashWindow.focus()
+  }
+
+  private markSplashLoaded(): void {
+    if (this.splashDidFinishLoad) {
+      return
+    }
+    this.splashDidFinishLoad = true
+    this.emitState()
+    this.emitDatabaseUnlockState()
+    if (this.forceShowWhenLoaded) {
+      this.showSplashWindow()
+    }
+  }
+
+  private async loadSplashRenderer(): Promise<void> {
+    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
+      return
+    }
+
+    const rendererUrl = process.env['ELECTRON_RENDERER_URL']
+
+    if (is.dev && rendererUrl) {
+      const devUrls = [
+        new URL('/splash/index.html', rendererUrl).toString(),
+        new URL('/splash/', rendererUrl).toString()
+      ]
+      for (const devUrl of devUrls) {
+        if (await this.tryLoadSplashUrl(devUrl, 'dev splash URL')) {
+          return
+        }
+      }
+    }
+
+    if (await this.tryLoadSplashFile(path.join(__dirname, '../renderer/splash/index.html'))) {
+      return
+    }
+
+    if (
+      await this.tryLoadSplashUrl(this.buildInlineFallbackSplashUrl(), 'inline fallback splash')
+    ) {
+      return
+    }
+
+    throw new Error('Unable to load any splash renderer')
+  }
+
+  private async tryLoadSplashUrl(url: string, source: string): Promise<boolean> {
+    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
+      return false
+    }
+
+    try {
+      await this.splashWindow.loadURL(url)
+      this.markSplashLoaded()
+      return true
+    } catch (error) {
+      console.warn(`[SplashWindow] Failed to load ${source} (${url}); falling back:`, error)
+      return false
+    }
+  }
+
+  private async tryLoadSplashFile(filePath: string): Promise<boolean> {
+    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
+      return false
+    }
+
+    try {
+      await this.splashWindow.loadFile(filePath)
+      this.markSplashLoaded()
+      return true
+    } catch (error) {
+      console.warn(`[SplashWindow] Failed to load splash file (${filePath}); falling back:`, error)
+      return false
+    }
+  }
+
+  private buildInlineFallbackSplashUrl(): string {
+    const progressChannel = JSON.stringify(DATABASE_UNLOCK_PROGRESS_CHANNEL)
+    const requestChannel = JSON.stringify(DATABASE_UNLOCK_REQUEST_CHANNEL)
+    const submitChannel = JSON.stringify(DATABASE_UNLOCK_SUBMIT_CHANNEL)
+    const cancelChannel = JSON.stringify(DATABASE_UNLOCK_CANCEL_CHANNEL)
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DeepChat</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; background: #020817; color: #fff; overflow: hidden; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .shell { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 32px; }
+      .panel { width: min(340px, 100%); display: flex; flex-direction: column; gap: 11px; }
+      .title { font-size: 22px; font-weight: 600; }
+      .subtitle, .hint, label { color: rgba(255,255,255,.72); font-size: 13px; line-height: 1.45; }
+      label { margin-top: 8px; font-size: 12px; }
+      input { height: 36px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; outline: none; background: rgba(255,255,255,.08); color: white; padding: 0 10px; }
+      input:focus { border-color: rgba(255,255,255,.42); }
+      .actions { display: flex; gap: 8px; margin-top: 4px; }
+      button { height: 34px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(255,255,255,.08); color: white; padding: 0 14px; font-size: 13px; }
+      button.primary { border-color: #60a5fa; background: #2563eb; }
+      button:disabled { opacity: .58; }
+      .error { color: #fca5a5; font-size: 12px; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <form id="panel" class="panel">
+        <div class="title">DeepChat</div>
+        <div id="subtitle" class="subtitle">Unlocking local database</div>
+        <label id="label" for="password" hidden>SQLite password</label>
+        <input id="password" type="password" autocomplete="current-password" hidden />
+        <div id="error" class="error" hidden>Wrong password. Try again.</div>
+        <div id="actions" class="actions" hidden>
+          <button id="submit" class="primary" type="submit" disabled>Unlock</button>
+          <button id="quit" type="button">Quit</button>
+        </div>
+        <p id="hint" class="hint">DeepChat is reading the saved password from the system credential store.</p>
+      </form>
+    </div>
+    <script>
+      const ipc = window.electron && window.electron.ipcRenderer
+      let requestId = ''
+      const panel = document.getElementById('panel')
+      const subtitle = document.getElementById('subtitle')
+      const label = document.getElementById('label')
+      const password = document.getElementById('password')
+      const error = document.getElementById('error')
+      const actions = document.getElementById('actions')
+      const submit = document.getElementById('submit')
+      const quit = document.getElementById('quit')
+      const hint = document.getElementById('hint')
+      const setUnlock = (payload) => {
+        requestId = payload.requestId
+        subtitle.textContent = 'Local database is encrypted'
+        label.hidden = false
+        password.hidden = false
+        actions.hidden = false
+        error.hidden = payload.reason !== 'invalid'
+        password.value = ''
+        submit.textContent = 'Unlock'
+        submit.disabled = true
+        hint.textContent = payload.reason === 'system-key-missing'
+          ? 'The saved system credential is missing or cannot be decrypted. Enter the SQLite password once to unlock and save it again.'
+          : payload.safeStorageAvailable
+            ? 'Enter the SQLite password to unlock this database. Future startups can open automatically after it is saved to the system credential store.'
+            : 'System unlock is unavailable on this device, so manual unlock is required.'
+        setTimeout(() => password.focus(), 0)
+      }
+      password.addEventListener('input', () => {
+        submit.disabled = !password.value
+      })
+      panel.addEventListener('submit', (event) => {
+        event.preventDefault()
+        if (!ipc || !requestId || !password.value) return
+        ipc.send(${submitChannel}, { requestId, password: password.value })
+        password.value = ''
+        submit.disabled = true
+        submit.textContent = 'Opening...'
+      })
+      quit.addEventListener('click', () => {
+        if (!ipc || !requestId) return
+        ipc.send(${cancelChannel}, { requestId })
+      })
+      ipc && ipc.on(${requestChannel}, (_event, payload) => setUnlock(payload))
+      ipc && ipc.on(${progressChannel}, (_event, payload) => {
+        if (payload && payload.active && !requestId) {
+          subtitle.textContent = 'Unlocking local database'
+          hint.textContent = 'DeepChat is reading the saved password from the system credential store.'
+        }
+      })
+    </script>
+  </body>
+</html>`
+    return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
   }
 
   private clearSplashShowDelayTimer(): void {

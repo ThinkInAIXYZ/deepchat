@@ -63,6 +63,8 @@
 - [x] Migrate `custom_prompts` and `system_prompts` into SQLite and clear legacy prompt files.
 - [x] Remove legacy provider/model/MCP sensitive leftovers from JSON once SQLite-backed config is
       verified.
+- [x] Remove the legacy `providers` JSON copy when database encryption or password migration runs
+      after provider config has moved to SQLite.
 - [x] Update sync backup/import filtering and legacy backup import for migrated sensitive settings.
 - [ ] Add tests for idempotent sensitive config migration and legacy JSON redaction.
 

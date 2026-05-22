@@ -42,6 +42,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
+          splash: resolve('src/preload/splash-preload.ts'),
           floating: resolve('src/preload/floating-preload.ts'),
           browserOverlay: resolve('src/preload/browser-overlay-preload.ts'),
           pluginSettings: resolve('src/preload/plugin-settings-preload.ts')

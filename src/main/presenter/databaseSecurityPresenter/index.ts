@@ -159,6 +159,7 @@ export class DatabaseSecurityPresenter {
       throw new Error('Database encryption is already enabled')
     }
 
+    this.cleanupLegacyProviderJson(input.configPresenter)
     await this.migrateDatabase({
       sqlitePresenter: input.sqlitePresenter,
       configPresenter: input.configPresenter,
@@ -184,6 +185,7 @@ export class DatabaseSecurityPresenter {
     }
     this.validatePassword(input.currentPassword)
 
+    this.cleanupLegacyProviderJson(input.configPresenter)
     await this.migrateDatabase({
       sqlitePresenter: input.sqlitePresenter,
       configPresenter: input.configPresenter,
@@ -504,6 +506,15 @@ export class DatabaseSecurityPresenter {
 
   private persistMetadata(metadata: DatabaseSecurityMetadata): void {
     this.store.set('metadata', metadata)
+  }
+
+  private cleanupLegacyProviderJson(configPresenter: IConfigPresenter): void {
+    const cleanup = (
+      configPresenter as IConfigPresenter & {
+        cleanupLegacyProviderJsonForDatabaseEncryption?: () => number
+      }
+    ).cleanupLegacyProviderJsonForDatabaseEncryption
+    cleanup?.call(configPresenter)
   }
 
   private wrapPassword(password: string): string {

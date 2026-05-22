@@ -165,4 +165,25 @@ describe('DatabaseSecurityPresenter', () => {
     )
     expect(mocks.app.quit).toHaveBeenCalled()
   })
+
+  it('cleans legacy provider JSON before enabling encryption', async () => {
+    const { DatabaseSecurityPresenter } =
+      await import('../../../src/main/presenter/databaseSecurityPresenter')
+    const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const migrateDatabase = vi
+      .spyOn(presenter as unknown as { migrateDatabase: () => Promise<void> }, 'migrateDatabase')
+      .mockResolvedValue(undefined)
+    const cleanupLegacyProviderJsonForDatabaseEncryption = vi.fn(() => 1)
+
+    await presenter.enableEncryption({
+      password: 'secret',
+      sqlitePresenter: {} as never,
+      configPresenter: {
+        cleanupLegacyProviderJsonForDatabaseEncryption
+      } as never
+    })
+
+    expect(cleanupLegacyProviderJsonForDatabaseEncryption).toHaveBeenCalledTimes(1)
+    expect(migrateDatabase).toHaveBeenCalledTimes(1)
+  })
 })

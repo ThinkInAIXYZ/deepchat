@@ -21,10 +21,13 @@ export const databaseInitHook: LifecycleHook = {
       context.databaseSecurity = databaseSecurity
 
       const status = databaseSecurity.getStatus()
-      context.splashManager?.showDatabaseUnlockProgress?.({
-        active: status.enabled && !status.manualUnlockRequired,
-        safeStorageAvailable: status.safeStorageAvailable
-      })
+      context.splashManager?.showDatabaseUnlockProgress?.(
+        {
+          active: status.enabled,
+          safeStorageAvailable: status.safeStorageAvailable
+        },
+        { skipDelay: status.enabled }
+      )
       const password = await databaseSecurity.resolveStartupPassword(async (request) => {
         return (
           (await context.splashManager?.requestDatabaseUnlock?.({
