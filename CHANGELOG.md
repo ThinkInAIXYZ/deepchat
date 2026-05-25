@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.5-beta.4 (2026-05-25)
+- Added session tape memory to persist and compress agent conversation history more reliably
+- Synced CUA driver to v0.2.0 with diagnostic tools and improved app launching
+- Telegram replies now render Markdown as HTML for proper formatting
+- Improved agent steer execution responsiveness
+- Updated AI SDK packages and refreshed bundled provider registry data
+- 新增 Session Tape Memory，更可靠地持久化和压缩 Agent 会话历史
+- 同步 CUA driver 至 v0.2.0，新增诊断工具并改进应用启动能力
+- Telegram 回复现在将 Markdown 渲染为 HTML，格式展示更准确
+- 提升 Agent steer 执行的响应性
+- 更新 AI SDK 依赖并刷新内置 Provider registry 数据
+
 ## v1.0.5-beta.3 (2026-05-22)
 - Added encrypted SQLite database storage to strengthen local data protection
 - Improved onboarding guide handoff by refreshing state after setup transitions
