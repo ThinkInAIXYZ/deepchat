@@ -16,6 +16,7 @@
  * - Links `[label](url)` -> `<a href="url">label</a>`
  * - Headings `# … ######` -> `<b>text</b>`
  * - Unordered list markers `- / * / +` -> `• `
+ * - GFM pipe tables -> fixed-width `<pre>` text
  * - Blockquote lines `> ` -> grouped into `<blockquote>...</blockquote>`
  * - Horizontal rules `---` / `***` -> `———`
  *
@@ -51,6 +52,108 @@ const renderCodeBlock = (lang: string, body: string): string => {
 }
 
 const renderInlineCode = (body: string): string => `<code>${escapeHtml(body)}</code>`
+
+const parseMarkdownTableRow = (line: string): string[] | null => {
+  const trimmed = line.trim()
+  if (!trimmed.includes('|')) {
+    return null
+  }
+
+  const withoutOuterPipes =
+    trimmed.startsWith('|') && trimmed.endsWith('|') ? trimmed.slice(1, -1) : trimmed
+  const cells = withoutOuterPipes.split('|').map((cell) => cell.trim())
+
+  return cells.length >= 2 ? cells : null
+}
+
+const isMarkdownTableSeparator = (cells: string[]): boolean =>
+  cells.length >= 2 &&
+  cells.every((cell) => {
+    const normalized = cell.replace(/\s/g, '')
+    return /^:?-{3,}:?$/.test(normalized)
+  })
+
+const getCellWidth = (cell: string): number => Array.from(cell).length
+
+const padCell = (cell: string, width: number): string =>
+  `${cell}${' '.repeat(Math.max(0, width - getCellWidth(cell)))}`
+
+const formatMarkdownTableAsText = (rows: string[][]): string => {
+  const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 0)
+  const normalizedRows = rows.map((row) =>
+    Array.from({ length: columnCount }, (_, index) => row[index] ?? '')
+  )
+  const widths = Array.from({ length: columnCount }, (_, index) =>
+    Math.max(2, ...normalizedRows.map((row) => getCellWidth(row[index] ?? '')))
+  )
+
+  const formatRow = (row: string[]): string =>
+    row
+      .map((cell, index) => padCell(cell, widths[index] ?? 2))
+      .join(' | ')
+      .trimEnd()
+  const separator = widths.map((width) => '-'.repeat(width)).join('-|-')
+
+  return [formatRow(normalizedRows[0] ?? []), separator, ...normalizedRows.slice(1).map(formatRow)]
+    .filter(Boolean)
+    .join('\n')
+}
+
+const convertMarkdownTablesToCodeBlocks = (text: string): string => {
+  const lines = text.split('\n')
+  const output: string[] = []
+  let index = 0
+  let fenceMarker: string | null = null
+
+  while (index < lines.length) {
+    const line = lines[index] ?? ''
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/)
+    if (fenceMatch) {
+      const marker = fenceMatch[1] ?? ''
+      if (!fenceMarker) {
+        fenceMarker = marker
+      } else if (marker[0] === fenceMarker[0] && marker.length >= fenceMarker.length) {
+        fenceMarker = null
+      }
+      output.push(line)
+      index += 1
+      continue
+    }
+
+    if (fenceMarker) {
+      output.push(line)
+      index += 1
+      continue
+    }
+
+    const header = parseMarkdownTableRow(line)
+    const separator = parseMarkdownTableRow(lines[index + 1] ?? '')
+
+    if (header && separator && isMarkdownTableSeparator(separator)) {
+      const rows: string[][] = [header]
+      index += 2
+
+      while (index < lines.length) {
+        const row = parseMarkdownTableRow(lines[index] ?? '')
+        if (!row || isMarkdownTableSeparator(row)) {
+          break
+        }
+        rows.push(row)
+        index += 1
+      }
+
+      output.push('```')
+      output.push(formatMarkdownTableAsText(rows))
+      output.push('```')
+      continue
+    }
+
+    output.push(line)
+    index += 1
+  }
+
+  return output.join('\n')
+}
 
 const extractFencedCodeBlocks = (
   text: string,
@@ -172,7 +275,9 @@ export const convertMarkdownToTelegramHtml = (input: string): string => {
   }
 
   try {
-    const normalized = input.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    const normalized = convertMarkdownTablesToCodeBlocks(
+      input.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    )
 
     const codeBlocks: Array<{ lang: string; body: string }> = []
     const codeInlines: string[] = []

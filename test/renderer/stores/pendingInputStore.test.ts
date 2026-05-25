@@ -10,10 +10,10 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
-const createPendingItem = (id: string, sessionId: string) => ({
+const createPendingItem = (id: string, sessionId: string, mode: 'queue' | 'steer' = 'queue') => ({
   id,
   sessionId,
-  mode: 'queue' as const,
+  mode,
   state: 'pending' as const,
   payload: {
     text: id,
@@ -121,5 +121,20 @@ describe('pendingInput store', () => {
     store.$dispose()
 
     expect(unsubscribePendingInputsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('exposes steer inputs while counting only queue inputs toward queue capacity', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.listPendingInputs.mockResolvedValueOnce([
+      createPendingItem('q1', 's1'),
+      createPendingItem('steer1', 's1', 'steer')
+    ])
+
+    await store.loadPendingInputs('s1')
+
+    expect(store.queueItems).toHaveLength(1)
+    expect(store.steerItems).toHaveLength(1)
+    expect(store.activeCount).toBe(1)
+    expect(store.isAtCapacity).toBe(false)
   })
 })

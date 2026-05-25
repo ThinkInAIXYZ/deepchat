@@ -39,6 +39,20 @@ describe('convertMarkdownToTelegramHtml', () => {
     expect(convertMarkdownToTelegramHtml(input)).toBe('<pre>hello</pre>')
   })
 
+  it('renders GFM pipe tables as preformatted fixed-width text', () => {
+    const input = '| Name | Value |\n| --- | ---: |\n| Alpha | 1 |\n| Beta | 22 |'
+    expect(convertMarkdownToTelegramHtml(input)).toBe(
+      '<pre>Name  | Value\n------|------\nAlpha | 1\nBeta  | 22</pre>'
+    )
+  })
+
+  it('does not convert pipe table text inside fenced code blocks', () => {
+    const input = '```\n| A | B |\n| --- | --- |\n| 1 | 2 |\n```'
+    expect(convertMarkdownToTelegramHtml(input)).toBe(
+      '<pre>| A | B |\n| --- | --- |\n| 1 | 2 |</pre>'
+    )
+  })
+
   it('auto-closes a dangling fenced block at a chunk boundary', () => {
     const input = '```ts\nconst a = 1'
     expect(convertMarkdownToTelegramHtml(input)).toBe(

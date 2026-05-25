@@ -25,6 +25,7 @@ import {
 } from '../aiSdk'
 import { normalizeOllamaOpenAIBaseUrl, normalizeOllamaSdkHost } from '../aiSdk/providerFactory'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import { isInsecureTlsAllowed } from '@/lib/insecureTls'
 
 const OLLAMA_LIST_TIMEOUT_MS = 5000
 
@@ -678,7 +679,7 @@ export class OllamaProvider extends BaseLLMProvider {
     try {
       const stream = await this.ollama.pull({
         model: modelName,
-        insecure: true,
+        insecure: isInsecureTlsAllowed(),
         stream: true
       })
 

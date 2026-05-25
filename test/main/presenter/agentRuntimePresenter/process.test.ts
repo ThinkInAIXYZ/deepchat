@@ -356,6 +356,49 @@ describe('processStream', () => {
     expect(toolResultMsg.content).toBe('Sunny, 72F')
   })
 
+  it('yields after completed tool calls when a pending input should run next', async () => {
+    const coreStream = vi.fn(() =>
+      (async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'tc1',
+          tool_call_name: 'get_weather'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'tc1',
+          tool_call_arguments_complete: '{}'
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      })()
+    ) as unknown as ProcessParams['coreStream']
+
+    const shouldYieldForPendingInput = vi.fn(() => true)
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('get_weather')],
+      shouldYieldForPendingInput
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(coreStream).toHaveBeenCalledTimes(1)
+    expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+    expect(shouldYieldForPendingInput).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      status: 'completed',
+      stopReason: 'pending_input'
+    })
+
+    const finalizedBlocks = (messageStore.finalizeAssistantMessage as ReturnType<typeof vi.fn>).mock
+      .calls[0][1]
+    expect(finalizedBlocks[0].tool_call.response).toBe('Sunny, 72F')
+  })
+
   it('refreshes tools for the next loop iteration after skill_view activates a skill', async () => {
     let callCount = 0
     const toolPresenter = {

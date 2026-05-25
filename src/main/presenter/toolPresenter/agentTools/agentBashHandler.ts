@@ -288,7 +288,12 @@ export class AgentBashHandler {
       outputPrefix: options.outputPrefix
     })
 
-    backgroundExecSessionManager.write(conversationId, session.sessionId, options.stdin ?? '', true)
+    await backgroundExecSessionManager.write(
+      conversationId,
+      session.sessionId,
+      options.stdin ?? '',
+      true
+    )
 
     const yielded = await backgroundExecSessionManager.waitForCompletionOrYield(
       conversationId,
@@ -584,7 +589,12 @@ export class AgentBashHandler {
     })
 
     if (options.stdin !== undefined) {
-      backgroundExecSessionManager.write(conversationId, result.sessionId, options.stdin, true)
+      await backgroundExecSessionManager.write(
+        conversationId,
+        result.sessionId,
+        options.stdin,
+        true
+      )
     }
 
     return {

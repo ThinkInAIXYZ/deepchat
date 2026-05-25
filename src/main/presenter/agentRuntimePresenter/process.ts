@@ -423,14 +423,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       toolCallCount += executed.executed
       echo.flush()
 
-      if (executed.toolsChanged && params.refreshTools) {
-        try {
-          currentTools = await params.refreshTools()
-        } catch (error) {
-          console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
-        }
-      }
-
       if (executed.terminalError) {
         finalizeError(state, io, executed.terminalError)
         return {
@@ -461,6 +453,23 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           stopReason: 'user_stop',
           errorMessage: USER_CANCELED_GENERATION_ERROR,
           usage: buildUsageSnapshot(state)
+        }
+      }
+
+      if (params.shouldYieldForPendingInput?.()) {
+        finalize(state, io)
+        return {
+          status: 'completed' as const,
+          stopReason: 'pending_input',
+          usage: buildUsageSnapshot(state)
+        }
+      }
+
+      if (executed.toolsChanged && params.refreshTools) {
+        try {
+          currentTools = await params.refreshTools()
+        } catch (error) {
+          console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
         }
       }
     }

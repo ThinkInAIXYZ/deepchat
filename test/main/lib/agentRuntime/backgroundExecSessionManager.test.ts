@@ -4,6 +4,10 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockUtilityProcessFork } = vi.hoisted(() => ({
+  mockUtilityProcessFork: vi.fn()
+}))
+
 vi.mock('child_process', () => ({
   spawn: vi.fn()
 }))
@@ -11,6 +15,9 @@ vi.mock('child_process', () => ({
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn((name: string) => (name === 'userData' ? '/mock/userData' : '/mock/home'))
+  },
+  utilityProcess: {
+    fork: mockUtilityProcessFork
   }
 }))
 
@@ -28,7 +35,10 @@ vi.mock('@shared/logger', () => ({
   }
 }))
 
-import { BackgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
+import {
+  BackgroundExecSessionManager,
+  backgroundExecSessionManager
+} from '@/lib/agentRuntime/backgroundExecSessionManager'
 
 class MockStream extends EventEmitter {}
 
@@ -41,6 +51,11 @@ class MockChildProcess extends EventEmitter {
     destroyed: false
   }
   pid = 321
+}
+
+class MockUtilityProcess extends EventEmitter {
+  postMessage = vi.fn()
+  kill = vi.fn()
 }
 
 function mockStats(kind: 'file' | 'directory'): fs.Stats {
@@ -63,6 +78,7 @@ describe('BackgroundExecSessionManager', () => {
   beforeEach(() => {
     manager = new BackgroundExecSessionManager()
     clearInterval((manager as never).cleanupIntervalId)
+    mockUtilityProcessFork.mockReset()
     vi.spyOn(fs, 'existsSync').mockReturnValue(true)
     vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
       String(candidate).includes('workspace') ? mockStats('directory') : mockStats('file')
@@ -405,5 +421,90 @@ describe('BackgroundExecSessionManager', () => {
         timedOut: false
       }
     })
+  })
+})
+
+describe('backgroundExecSessionManager utility proxy', () => {
+  const resetProxyState = () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.host = null
+    proxy.hostReady = null
+    proxy.shuttingDown = false
+    proxy.activeSessions.clear()
+    proxy.crashedSessions.clear()
+    proxy.pendingRequests.clear()
+  }
+
+  beforeEach(() => {
+    mockUtilityProcessFork.mockReset()
+    resetProxyState()
+  })
+
+  afterEach(() => {
+    resetProxyState()
+  })
+
+  it('forks the main bootstrap entrypoint for the utility host', async () => {
+    const host = new MockUtilityProcess()
+    mockUtilityProcessFork.mockReturnValue(host)
+
+    const startPromise = (backgroundExecSessionManager as any).startHost()
+    await vi.waitFor(() => {
+      expect(mockUtilityProcessFork).toHaveBeenCalled()
+    })
+    host.emit('spawn')
+
+    await expect(startPromise).resolves.toBe(host)
+    expect(mockUtilityProcessFork).toHaveBeenCalledWith(
+      expect.stringMatching(/[\\/]src[\\/]main[\\/]index\.js$/),
+      ['--deepchat-exec-utility-host'],
+      expect.objectContaining({
+        serviceName: 'DeepChat Exec Utility',
+        env: expect.objectContaining({
+          DEEPCHAT_EXEC_UTILITY_HOST: '1'
+        })
+      })
+    )
+  })
+
+  it('returns crashed completion results without starting a fresh utility host', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.crashedSessions.set('bg_crashed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_crashed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1
+    })
+
+    await expect(
+      backgroundExecSessionManager.waitForCompletionOrYield('conv-1', 'bg_crashed', 10)
+    ).resolves.toEqual({
+      kind: 'completed',
+      result: {
+        status: 'error',
+        output: expect.stringContaining('pnpm test'),
+        exitCode: null,
+        offloaded: false,
+        timedOut: false
+      }
+    })
+    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
+  })
+
+  it('removes crashed sessions locally without RPC', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.crashedSessions.set('bg_crashed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_crashed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1
+    })
+
+    await backgroundExecSessionManager.remove('conv-1', 'bg_crashed')
+
+    expect(proxy.crashedSessions.has('bg_crashed')).toBe(false)
+    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
   })
 })
