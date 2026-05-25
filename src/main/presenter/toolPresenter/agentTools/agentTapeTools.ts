@@ -61,21 +61,22 @@ const tapeSearchSchema = z.object({
     .describe('Optional inclusive ISO date/time or millisecond timestamp upper bound.')
 })
 
-const tapeHandoffSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe('Handoff name. Values without a prefix are normalized to handoff/<name>.'),
-  state: z
-    .record(z.unknown())
-    .optional()
-    .default({})
-    .describe(
-      'Durable handoff state. Include a compact summary because earlier history becomes represented by this anchor in later context rebuilds.'
-    )
-})
+const tapeHandoffSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('Handoff name. Values without a prefix are normalized to handoff/<name>.'),
+    summary: z
+      .string()
+      .trim()
+      .optional()
+      .default('')
+      .describe('Compact durable summary for the handoff anchor.')
+  })
+  .strict()
 
 const tapeToolSchemas = {
   [TAPE_TOOL_NAMES.info]: tapeInfoSchema,
@@ -85,6 +86,12 @@ const tapeToolSchemas = {
 }
 
 type TapeToolName = (typeof TAPE_TOOL_NAMES)[keyof typeof TAPE_TOOL_NAMES]
+
+type TapeAnchorOverview = {
+  name: string | null
+  entryId: number
+  createdAt: number
+}
 
 function buildToolDefinition(
   name: TapeToolName,
@@ -129,6 +136,29 @@ function createTapeResult(
   }
 }
 
+function toTapeAnchorOverview(anchor: {
+  name: string | null
+  entryId: number
+  createdAt: number
+}): TapeAnchorOverview {
+  return {
+    name: anchor.name,
+    entryId: anchor.entryId,
+    createdAt: anchor.createdAt
+  }
+}
+
+function parseTapeHandoffArgs(rawArgs: Record<string, unknown>): z.infer<typeof tapeHandoffSchema> {
+  const parsed = tapeHandoffSchema.safeParse(rawArgs)
+  if (parsed.success) {
+    return parsed.data
+  }
+
+  throw new Error(
+    `Invalid arguments for ${TAPE_TOOL_NAMES.handoff}. Use only {"name"?: string, "summary"?: string}; do not pass "state" or arbitrary fields. Validation details: ${parsed.error.message}`
+  )
+}
+
 export class AgentTapeToolHandler {
   constructor(private readonly runtimePort: AgentToolRuntimePort) {}
 
@@ -170,7 +200,7 @@ export class AgentTapeToolHandler {
       ),
       buildToolDefinition(
         TAPE_TOOL_NAMES.handoff,
-        'Write a bub-style phase-transition anchor to this DeepChat session tape. The anchor becomes the durable reconstruction marker for later context builds; include summary, reason, next steps, or owner in state when earlier history should be carried forward.',
+        'Write a bub-style phase-transition anchor to this DeepChat session tape. The anchor becomes the durable reconstruction marker for later context builds; include a compact summary when earlier history should be carried forward.',
         tapeHandoffSchema
       )
     ]
@@ -219,22 +249,22 @@ export class AgentTapeToolHandler {
       const anchors = await this.runtimePort.listTapeAnchors(conversationId, {
         limit: args.limit
       })
-      return createTapeResult(toolName, anchors, `Found ${anchors.length} tape anchors.`)
+      const overview = anchors.map(toTapeAnchorOverview)
+      return createTapeResult(toolName, overview, `Found ${overview.length} tape anchors.`)
     }
 
     if (!this.runtimePort.handoffTape) {
       throw new Error('Tape handoff is not available.')
     }
-    const args = tapeToolSchemas[toolName].parse(rawArgs)
-    const handoff = await this.runtimePort.handoffTape(
-      conversationId,
-      args.name ?? 'manual',
-      args.state
-    )
+    const args = parseTapeHandoffArgs(rawArgs)
+    const handoff = await this.runtimePort.handoffTape(conversationId, args.name ?? 'manual', {
+      summary: args.summary
+    })
+    const overview = toTapeAnchorOverview(handoff)
     return createTapeResult(
       toolName,
-      handoff,
-      `Wrote tape handoff anchor ${handoff.name ?? 'unknown'}.`
+      overview,
+      `Wrote tape handoff anchor ${overview.name ?? 'unknown'}.`
     )
   }
 }

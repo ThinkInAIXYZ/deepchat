@@ -26,16 +26,17 @@ function createTapeTableMock() {
     }),
     append: vi.fn((input: any) => {
       const provenanceKey =
-        input.provenanceKey ??
-        (input.source
-          ? [
-              input.source.type,
-              input.source.id,
-              input.source.seq ?? 0,
-              input.kind,
-              input.name ?? ''
-            ].join(':')
-          : null)
+        input.provenanceKey !== undefined
+          ? input.provenanceKey
+          : input.source
+            ? [
+                input.source.type,
+                input.source.id,
+                input.source.seq ?? 0,
+                input.kind,
+                input.name ?? ''
+              ].join(':')
+            : null
       const existing = input.idempotent
         ? entries.find(
             (entry) =>
@@ -128,6 +129,9 @@ function createTapeTableMock() {
     ),
     search: vi.fn((sessionId: string, query: string, options: any = {}) => {
       const normalizedQuery = query.trim()
+      if (!normalizedQuery) {
+        return []
+      }
       const limit = Number.isFinite(options.limit) ? Math.floor(options.limit) : 20
       return entries
         .filter((entry) => entry.session_id === sessionId)
@@ -651,5 +655,17 @@ describe('DeepChatTapeService', () => {
 
     expect(service.getMessageRecords('s1')).toEqual([])
     expect(service.search('s1', 'edited', { kinds: ['message'] })).toEqual([])
+  })
+
+  it('appends non-idempotent retractions without generated provenance keys', () => {
+    const { table, entries } = createTapeTableMock()
+    const record = createRecord({ id: 'u1' })
+
+    appendMessageRetractionToTape(table as any, record, 'first_delete')
+    appendMessageRetractionToTape(table as any, record, 'second_delete')
+
+    const retractions = entries.filter((entry) => entry.name === 'message/retracted')
+    expect(retractions).toHaveLength(2)
+    expect(retractions.map((entry) => entry.provenance_key)).toEqual([null, null])
   })
 })

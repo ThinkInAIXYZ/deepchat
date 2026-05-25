@@ -142,6 +142,13 @@ describe('Agent tape tools', () => {
         TAPE_TOOL_NAMES.handoff
       ])
     )
+    const handoffDef = defs.find((def) => def.function.name === TAPE_TOOL_NAMES.handoff)
+    const handoffParameters = handoffDef?.function.parameters as
+      | { additionalProperties?: unknown; properties?: Record<string, unknown> }
+      | undefined
+    expect(handoffParameters?.properties).toHaveProperty('summary')
+    expect(handoffParameters?.properties).not.toHaveProperty('state')
+    expect(handoffParameters?.additionalProperties).toBe(false)
   })
 
   it('does not expose tape tools outside DeepChat sessions', async () => {
@@ -185,7 +192,7 @@ describe('Agent tape tools', () => {
     }
     const handoff = (await manager.callTool(
       TAPE_TOOL_NAMES.handoff,
-      { name: 'manual', state: { summary: 'done' } },
+      { name: 'manual', summary: 'done' },
       'conv-1'
     )) as {
       content: string
@@ -196,8 +203,15 @@ describe('Agent tape tools', () => {
 
     expect(JSON.parse(info.content)).toMatchObject({ entries: 3, migrationState: 'ready' })
     expect(JSON.parse(search.content)).toHaveLength(1)
-    expect(JSON.parse(handoff.content)).toMatchObject({ name: 'handoff/manual' })
-    expect(JSON.parse(anchors.content)).toMatchObject([{ name: 'session/start' }])
+    expect(JSON.parse(handoff.content)).toEqual({
+      name: 'handoff/manual',
+      entryId: 4,
+      createdAt: 20
+    })
+    expect(JSON.parse(anchors.content)).toEqual([
+      { name: 'session/start', entryId: 1, createdAt: 1 }
+    ])
+    expect(JSON.parse(anchors.content)[0]).not.toHaveProperty('payload')
     expect(runtimePort.getTapeInfo).toHaveBeenCalledWith('conv-1')
     expect(runtimePort.searchTape).toHaveBeenCalledWith('conv-1', 'auth', {
       limit: 5,
@@ -207,5 +221,20 @@ describe('Agent tape tools', () => {
     })
     expect(runtimePort.listTapeAnchors).toHaveBeenCalledWith('conv-1', { limit: 5 })
     expect(runtimePort.handoffTape).toHaveBeenCalledWith('conv-1', 'manual', { summary: 'done' })
+  })
+
+  it('rejects legacy tape_handoff state without writing an empty anchor', async () => {
+    const runtimePort = buildRuntimePort()
+    const manager = buildManager(runtimePort)
+
+    await expect(
+      manager.callTool(
+        TAPE_TOOL_NAMES.handoff,
+        { name: 'manual', state: { summary: 'done' } },
+        'conv-1'
+      )
+    ).rejects.toThrow('do not pass "state"')
+
+    expect(runtimePort.handoffTape).not.toHaveBeenCalled()
   })
 })

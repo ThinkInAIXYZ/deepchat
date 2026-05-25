@@ -218,6 +218,47 @@ describeIfSqlite('DeepChatSessionStore tape summary state', () => {
     sqlitePresenter.close()
   })
 
+  it('does not apply no-anchor summary updates over tape-backed state', () => {
+    const { sqlitePresenter, store } = createStore()
+
+    store.create('s1', 'openai', 'gpt-4o')
+    sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+      sessionId: 's1',
+      name: 'handoff/manual',
+      state: {
+        summary: 'handoff summary',
+        cursorOrderSeq: 8
+      },
+      createdAt: 120
+    })
+
+    const result = store.compareAndSetSummaryState(
+      's1',
+      {
+        summaryText: 'handoff summary',
+        summaryCursorOrderSeq: 8,
+        summaryUpdatedAt: 120
+      },
+      {
+        summaryText: 'legacy-only update',
+        summaryCursorOrderSeq: 10,
+        summaryUpdatedAt: 200
+      }
+    )
+
+    expect(result).toEqual({
+      applied: false,
+      currentState: {
+        summaryText: 'handoff summary',
+        summaryCursorOrderSeq: 8,
+        summaryUpdatedAt: 120
+      }
+    })
+    expect(store.getSummaryState('s1')).toEqual(result.currentState)
+
+    sqlitePresenter.close()
+  })
+
   it('does not write a stale anchor when summary compare-and-set fails', () => {
     const { sqlitePresenter, store } = createStore()
 

@@ -120,30 +120,40 @@ export function appendSummarySection(
   return composeSections([systemPrompt, summarySection])
 }
 
-const PROMPT_VISIBLE_RECONSTRUCTION_ANCHOR_PREFIXES = ['handoff/', 'auto_handoff/'] as const
-const HIDDEN_RECONSTRUCTION_STATE_KEYS = new Set([
-  'summary',
-  'summaryText',
-  'cursorOrderSeq',
-  'summaryCursorOrderSeq',
-  'range',
-  'sourceMessageIds'
-])
-
 function shouldExposeReconstructionAnchorState(anchorName: string): boolean {
-  return PROMPT_VISIBLE_RECONSTRUCTION_ANCHOR_PREFIXES.some((prefix) =>
-    anchorName.startsWith(prefix)
-  )
+  return anchorName.startsWith('handoff/') || anchorName.startsWith('auto_handoff/')
 }
 
-function visibleReconstructionState(state: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(state)) {
-    if (HIDDEN_RECONSTRUCTION_STATE_KEYS.has(key)) {
-      continue
-    }
-    result[key] = value
+function readPromptVisibleText(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
   }
+
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+function visibleReconstructionState(
+  anchorName: string,
+  state: Record<string, unknown>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+
+  if (anchorName.startsWith('handoff/')) {
+    const summary = readPromptVisibleText(state.summary)
+    if (summary) {
+      result.summary = summary
+    }
+    return result
+  }
+
+  if (anchorName.startsWith('auto_handoff/')) {
+    const reason = readPromptVisibleText(state.reason)
+    if (reason) {
+      result.reason = reason
+    }
+  }
+
   return result
 }
 
@@ -155,7 +165,7 @@ export function appendReconstructionAnchorStateSection(
     return systemPrompt
   }
 
-  const visibleState = visibleReconstructionState(anchor.state)
+  const visibleState = visibleReconstructionState(anchor.name, anchor.state)
   if (Object.keys(visibleState).length === 0) {
     return systemPrompt
   }

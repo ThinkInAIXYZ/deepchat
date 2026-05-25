@@ -207,14 +207,20 @@ export class DeepChatSessionStore {
     tapeAnchor?: SummaryTapeAnchorInput
   ): SummaryStateCompareAndSetResult {
     const applyUpdate = (): boolean => {
+      const tapeTable = this.sqlitePresenter.deepchatTapeEntriesTable
+      const latestTapeAnchor =
+        tapeTable?.getLatestReconstructionAnchor?.(id) ?? tapeTable?.getLatestSummaryAnchor(id)
       const currentState = this.getSummaryState(id)
       if (!summaryStatesEqual(currentState, expectedState)) {
         return false
       }
+      if (!tapeAnchor && latestTapeAnchor) {
+        return false
+      }
 
       this.sqlitePresenter.deepchatSessionsTable.updateSummaryState(id, nextState)
-      if (tapeAnchor && this.sqlitePresenter.deepchatTapeEntriesTable) {
-        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+      if (tapeAnchor && tapeTable) {
+        tapeTable.appendAnchor({
           sessionId: id,
           name: tapeAnchor.name,
           state: tapeAnchor.state,
@@ -226,7 +232,7 @@ export class DeepChatSessionStore {
     }
 
     const db = this.sqlitePresenter.getDatabase?.()
-    const applied = tapeAnchor && db ? (db.transaction(applyUpdate)() as boolean) : applyUpdate()
+    const applied = db ? (db.transaction(applyUpdate)() as boolean) : applyUpdate()
 
     if (applied) {
       return {

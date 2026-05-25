@@ -640,14 +640,28 @@ export class ToolPresenter implements IToolPresenter {
       return ''
     }
 
+    const toolNames = new Set(tools.map((tool) => tool.function.name))
     const names = tools.map((tool) => `\`${tool.function.name}\``).join(', ')
-    return [
-      '## Tape Tools',
-      `DeepChat tape tools are available in this session: ${names}.`,
-      '`tape_info`, `tape_search`, and `tape_handoff` are DeepChat-scoped tape tools inspired by bub tape.info, tape.search, and tape.handoff.',
-      '`tape_search` supports `query`, `limit`, `kinds`, `start`, and `end` for scoped tape lookup.',
-      '`tape_handoff` is a phase transition: it writes an anchor that becomes the next context reconstruction marker. Include a compact `summary`, `reason`, `nextSteps`, or `owner` in state when earlier history must be preserved.'
-    ].join('\n')
+    const lines = ['## Tape Tools', `DeepChat tape tools are available in this session: ${names}.`]
+
+    if (toolNames.has(TAPE_TOOL_NAMES.info)) {
+      lines.push('`tape_info` inspects this DeepChat-scoped tape subset inspired by bub tape.info.')
+    }
+    if (toolNames.has(TAPE_TOOL_NAMES.search)) {
+      lines.push(
+        '`tape_search` supports `query`, `limit`, `kinds`, `start`, and `end` for scoped canonical tape lookup.'
+      )
+    }
+    if (toolNames.has(TAPE_TOOL_NAMES.anchors)) {
+      lines.push('`tape_anchors` lists recent bub-style phase-transition anchors.')
+    }
+    if (toolNames.has(TAPE_TOOL_NAMES.handoff)) {
+      lines.push(
+        '`tape_handoff` writes a bub-style phase-transition anchor. Include a compact `summary` when earlier history must be preserved.'
+      )
+    }
+
+    return lines.join('\n')
   }
 
   private buildSettingsPrompt(tools: MCPToolDefinition[]): string {

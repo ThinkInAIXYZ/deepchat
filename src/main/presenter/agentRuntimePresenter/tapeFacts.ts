@@ -24,12 +24,18 @@ function parsePayload(row: DeepChatTapeEntryRow): Record<string, unknown> | null
   return null
 }
 
-function isCompactionMessage(record: ChatMessageRecord): boolean {
+function readCompactionStatus(record: ChatMessageRecord): string | null {
   try {
-    const parsed = JSON.parse(record.metadata) as { messageType?: string }
-    return parsed.messageType === 'compaction'
+    const parsed = JSON.parse(record.metadata) as {
+      messageType?: string
+      compactionStatus?: unknown
+    }
+    if (parsed.messageType !== 'compaction') {
+      return null
+    }
+    return typeof parsed.compactionStatus === 'string' ? parsed.compactionStatus : record.status
   } catch {
-    return false
+    return null
   }
 }
 
@@ -157,34 +163,44 @@ export function appendMessageRecordToTape(
   record: ChatMessageRecord,
   source: TapeFactSource
 ): number {
-  if (!table || typeof table.append !== 'function') {
+  if (!table) {
     return 0
   }
 
   table.ensureBootstrapAnchor?.(record.sessionId)
 
-  if (isCompactionMessage(record)) {
+  const compactionStatus = readCompactionStatus(record)
+  if (compactionStatus) {
+    if (typeof table.appendEvent !== 'function') {
+      return 0
+    }
     table.appendEvent({
       sessionId: record.sessionId,
       name: 'message/compaction_indicator',
       source: {
         type: 'message',
         id: record.id,
-        seq: 0
+        seq: record.updatedAt
       },
+      provenanceKey: `message:${record.id}:compaction_indicator:${compactionStatus}:${record.updatedAt}`,
       data: {
         messageId: record.id,
         orderSeq: record.orderSeq,
-        status: record.status,
+        status: compactionStatus,
         metadata: record.metadata
       },
       meta: {
-        source
+        source,
+        status: compactionStatus
       },
-      createdAt: record.createdAt,
+      createdAt: record.updatedAt,
       idempotent: true
     })
     return 1
+  }
+
+  if (typeof table.append !== 'function') {
+    return 0
   }
 
   table.append({
@@ -293,6 +309,7 @@ export function appendMessageRetractionToTape(
       id: record.id,
       seq: Date.now()
     },
+    provenanceKey: null,
     data: {
       messageId: record.id,
       orderSeq: record.orderSeq,
