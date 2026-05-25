@@ -7,6 +7,11 @@ import type {
 import type {
   DeepChatSubagentMeta,
   DeepChatSubagentSlot,
+  AgentTapeAnchorResult,
+  AgentTapeAnchorsOptions,
+  AgentTapeInfo,
+  AgentTapeSearchOptions,
+  AgentTapeSearchResult,
   PermissionMode,
   SendMessageInput,
   SessionGenerationSettings,
@@ -52,7 +57,32 @@ export interface CreateSubagentSessionInput {
 export interface AgentToolRuntimePort {
   resolveConversationWorkdir(conversationId: string): Promise<string | null>
   resolveConversationSessionInfo(conversationId: string): Promise<ConversationSessionInfo | null>
+  getTapeInfo?(conversationId: string): Promise<AgentTapeInfo>
+  searchTape?(
+    conversationId: string,
+    query: string,
+    options?: AgentTapeSearchOptions
+  ): Promise<AgentTapeSearchResult[]>
+  listTapeAnchors?(
+    conversationId: string,
+    options?: AgentTapeAnchorsOptions
+  ): Promise<AgentTapeAnchorResult[]>
+  handoffTape?(
+    conversationId: string,
+    name: string,
+    state?: Record<string, unknown>
+  ): Promise<AgentTapeAnchorResult>
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
+  mergeSubagentTape?(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+  discardSubagentTape?(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
   sendConversationMessage(conversationId: string, content: string | SendMessageInput): Promise<void>
   cancelConversation(conversationId: string): Promise<void>
   subscribeDeepChatSessionUpdates(

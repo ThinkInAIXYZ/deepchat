@@ -36,6 +36,49 @@ export interface SessionGenerationSettings {
   videoGeneration?: VideoGenerationOptions
 }
 
+export interface AgentTapeInfo {
+  sessionId: string
+  entries: number
+  anchors: number
+  lastAnchor: string | null
+  lastAnchorEntryId: number | null
+  entriesSinceLastAnchor: number
+  lastTokenUsage: number | null
+  migrationState: 'none' | 'ready'
+}
+
+export type AgentTapeEntryKind = 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
+
+export interface AgentTapeSearchOptions {
+  limit?: number
+  kinds?: AgentTapeEntryKind[]
+  start?: string
+  end?: string
+}
+
+export interface AgentTapeSearchResult {
+  entryId: number
+  kind: string
+  name: string | null
+  payload: Record<string, unknown>
+  meta: Record<string, unknown>
+  createdAt: number
+}
+
+export interface AgentTapeAnchorResult {
+  sessionId: string
+  entryId: number
+  kind: string
+  name: string | null
+  payload: Record<string, unknown>
+  meta: Record<string, unknown>
+  createdAt: number
+}
+
+export interface AgentTapeAnchorsOptions {
+  limit?: number
+}
+
 export interface DeepChatSessionState {
   status: SessionStatus
   providerId: string
@@ -135,6 +178,43 @@ export interface IAgentImplementation {
 
   /** Manually compact old conversation context without threshold checks */
   compactSession?(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
+
+  /** Inspect the append-only tape for this session */
+  getTapeInfo?(sessionId: string): Promise<AgentTapeInfo>
+
+  /** Search append-only tape entries for this session */
+  searchTape?(
+    sessionId: string,
+    query: string,
+    options?: AgentTapeSearchOptions
+  ): Promise<AgentTapeSearchResult[]>
+
+  /** List recent anchors for this session tape */
+  listTapeAnchors?(
+    sessionId: string,
+    options?: AgentTapeAnchorsOptions
+  ): Promise<AgentTapeAnchorResult[]>
+
+  /** Write a handoff anchor to this session tape */
+  handoffTape?(
+    sessionId: string,
+    name: string,
+    state?: Record<string, unknown>
+  ): Promise<AgentTapeAnchorResult>
+
+  /** Record a completed child session as a merged tape fork */
+  mergeSubagentTape?(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+
+  /** Record an abandoned child session as a discarded tape fork */
+  discardSubagentTape?(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
 
   /** Clear all messages in this session while keeping the session record */
   clearMessages?(sessionId: string): Promise<void>

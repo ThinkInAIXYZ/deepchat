@@ -110,6 +110,23 @@ function createAssistantBlockRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function createMessageRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'm1',
+    session_id: 's1',
+    order_seq: 1,
+    role: 'user',
+    content: '{"text":"hello"}',
+    status: 'sent',
+    is_context_edge: 0,
+    metadata: '{}',
+    trace_count: 0,
+    created_at: 1000,
+    updated_at: 1000,
+    ...overrides
+  }
+}
+
 describe('DeepChatMessageStore', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let store: DeepChatMessageStore
@@ -523,15 +540,74 @@ describe('DeepChatMessageStore', () => {
       ).toHaveBeenCalledWith(['m1'])
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('m1')
     })
+
+    it('does not delete rows when tape retraction append fails inside transaction', () => {
+      const transaction = vi.fn((operation: () => unknown) => () => operation())
+      sqlitePresenter.getDatabase = vi.fn().mockReturnValue({ transaction })
+      sqlitePresenter.deepchatTapeEntriesTable = {
+        ensureBootstrapAnchor: vi.fn(),
+        appendEvent: vi.fn(() => {
+          throw new Error('append failed')
+        })
+      }
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(createMessageRow())
+
+      expect(() => store.deleteMessage('m1')).toThrow('append failed')
+
+      expect(transaction).toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.delete).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.delete).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('updateCompactionMessage', () => {
+    it('records compaction status updates in tape with revision provenance', () => {
+      const appendEvent = vi.fn()
+      const transaction = vi.fn((operation: () => unknown) => () => operation())
+      sqlitePresenter.getDatabase = vi.fn().mockReturnValue({ transaction })
+      sqlitePresenter.deepchatTapeEntriesTable = {
+        ensureBootstrapAnchor: vi.fn(),
+        appendEvent
+      }
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(
+        createMessageRow({
+          id: 'compaction-message',
+          role: 'assistant',
+          content: '[]',
+          metadata: JSON.stringify({
+            messageType: 'compaction',
+            compactionStatus: 'compacted',
+            summaryUpdatedAt: 2000
+          }),
+          updated_at: 3000
+        })
+      )
+
+      store.updateCompactionMessage('compaction-message', 'compacted', 2000)
+
+      expect(transaction).toHaveBeenCalled()
+      expect(appendEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'message/compaction_indicator',
+          provenanceKey: 'message:compaction-message:compaction_indicator:compacted:3000',
+          data: expect.objectContaining({
+            status: 'compacted'
+          })
+        })
+      )
+    })
   })
 
   describe('deleteFromOrderSeq', () => {
     it('deletes traces for affected messages before deleting messages', () => {
-      sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq.mockReturnValue(['m2', 'm3'])
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        createMessageRow({ id: 'm1', order_seq: 1 }),
+        createMessageRow({ id: 'm2', order_seq: 2 }),
+        createMessageRow({ id: 'm3', order_seq: 3 })
+      ])
 
       store.deleteFromOrderSeq('s1', 2)
 
-      expect(sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq).toHaveBeenCalledWith('s1', 2)
       expect(sqlitePresenter.deepchatSearchDocumentsTable.deleteByMessageIds).toHaveBeenCalledWith([
         'm2',
         'm3'
@@ -558,7 +634,9 @@ describe('DeepChatMessageStore', () => {
     })
 
     it('skips trace deletion when no affected messages', () => {
-      sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq.mockReturnValue([])
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        createMessageRow({ id: 'm1', order_seq: 1 })
+      ])
 
       store.deleteFromOrderSeq('s1', 2)
 

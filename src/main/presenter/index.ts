@@ -339,6 +339,18 @@ export class Presenter implements IPresenter {
           availableSubagentSlots
         }
       },
+      getTapeInfo: async (conversationId) => {
+        return await this.agentSessionPresenter.getTapeInfo(conversationId)
+      },
+      searchTape: async (conversationId, query, options) => {
+        return await this.agentSessionPresenter.searchTape(conversationId, query, options)
+      },
+      listTapeAnchors: async (conversationId, options) => {
+        return await this.agentSessionPresenter.listTapeAnchors(conversationId, options)
+      },
+      handoffTape: async (conversationId, name, state) => {
+        return await this.agentSessionPresenter.handoffTape(conversationId, name, state)
+      },
       createSubagentSession: async (input) => {
         const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
           createSubagentSession?: (createInput: typeof input) => Promise<{
@@ -351,6 +363,12 @@ export class Presenter implements IPresenter {
         }
 
         return await agentToolRuntime.resolveConversationSessionInfo(created.id)
+      },
+      mergeSubagentTape: async (parentSessionId, childSessionId, meta) => {
+        await this.agentSessionPresenter.mergeSubagentTape(parentSessionId, childSessionId, meta)
+      },
+      discardSubagentTape: async (parentSessionId, childSessionId, meta) => {
+        await this.agentSessionPresenter.discardSubagentTape(parentSessionId, childSessionId, meta)
       },
       sendConversationMessage: async (conversationId, content) => {
         await this.agentSessionPresenter.sendMessage(conversationId, content)

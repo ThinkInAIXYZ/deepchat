@@ -1,5 +1,10 @@
 import type {
   Agent,
+  AgentTapeAnchorResult,
+  AgentTapeAnchorsOptions,
+  AgentTapeInfo,
+  AgentTapeSearchOptions,
+  AgentTapeSearchResult,
   ChatMessagePageResult,
   SessionListItem,
   SessionLightweightListResult,
@@ -1351,6 +1356,125 @@ export class AgentSessionPresenter {
     }
 
     return await agent.compactSession(sessionId)
+  }
+
+  async getTapeInfo(sessionId: string): Promise<AgentTapeInfo> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.getTapeInfo) {
+      throw new Error(`Agent ${session.agentId} does not support tape info.`)
+    }
+
+    return await agent.getTapeInfo(sessionId)
+  }
+
+  async searchTape(
+    sessionId: string,
+    query: string,
+    options?: AgentTapeSearchOptions
+  ): Promise<AgentTapeSearchResult[]> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.searchTape) {
+      throw new Error(`Agent ${session.agentId} does not support tape search.`)
+    }
+
+    return await agent.searchTape(sessionId, query, options)
+  }
+
+  async listTapeAnchors(
+    sessionId: string,
+    options?: AgentTapeAnchorsOptions
+  ): Promise<AgentTapeAnchorResult[]> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.listTapeAnchors) {
+      throw new Error(`Agent ${session.agentId} does not support tape anchors.`)
+    }
+
+    return await agent.listTapeAnchors(sessionId, options)
+  }
+
+  async handoffTape(
+    sessionId: string,
+    name: string,
+    state: Record<string, unknown> = {}
+  ): Promise<AgentTapeAnchorResult> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.handoffTape) {
+      throw new Error(`Agent ${session.agentId} does not support tape handoff.`)
+    }
+
+    return await agent.handoffTape(sessionId, name, state)
+  }
+
+  async mergeSubagentTape(
+    parentSessionId: string,
+    childSessionId: string,
+    meta: Record<string, unknown> = {}
+  ): Promise<void> {
+    const parentSession = this.sessionManager.get(parentSessionId)
+    if (!parentSession) {
+      throw new Error(`Session not found: ${parentSessionId}`)
+    }
+
+    const childSession = this.sessionManager.get(childSessionId)
+    if (!childSession) {
+      throw new Error(`Session not found: ${childSessionId}`)
+    }
+    if (childSession.parentSessionId !== parentSessionId) {
+      throw new Error(`Session ${childSessionId} is not a child of ${parentSessionId}.`)
+    }
+
+    const agent = await this.resolveAgentImplementation(parentSession.agentId)
+    if (!agent.mergeSubagentTape) {
+      throw new Error(`Agent ${parentSession.agentId} does not support subagent tape merge.`)
+    }
+
+    await agent.mergeSubagentTape(parentSessionId, childSessionId, meta)
+  }
+
+  async discardSubagentTape(
+    parentSessionId: string,
+    childSessionId: string,
+    meta: Record<string, unknown> = {}
+  ): Promise<void> {
+    const parentSession = this.sessionManager.get(parentSessionId)
+    if (!parentSession) {
+      throw new Error(`Session not found: ${parentSessionId}`)
+    }
+
+    const childSession = this.sessionManager.get(childSessionId)
+    if (!childSession) {
+      throw new Error(`Session not found: ${childSessionId}`)
+    }
+    if (childSession.parentSessionId !== parentSessionId) {
+      throw new Error(`Session ${childSessionId} is not a child of ${parentSessionId}.`)
+    }
+
+    const agent = await this.resolveAgentImplementation(parentSession.agentId)
+    if (!agent.discardSubagentTape) {
+      throw new Error(`Agent ${parentSession.agentId} does not support subagent tape discard.`)
+    }
+
+    await agent.discardSubagentTape(parentSessionId, childSessionId, meta)
   }
 
   async getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {

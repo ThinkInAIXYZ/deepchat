@@ -30,6 +30,7 @@ import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearc
 import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
+import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { ConfigTables } from './tables/configTables'
@@ -220,6 +221,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatSearchDocumentsTable!: DeepChatSearchDocumentsTable
   public deepchatPendingInputsTable!: DeepChatPendingInputsTable
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
+  public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
   public configTables!: ConfigTables
@@ -394,6 +396,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatSearchDocumentsTable = new DeepChatSearchDocumentsTable(this.db)
     this.deepchatPendingInputsTable = new DeepChatPendingInputsTable(this.db)
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
+    this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
     this.configTables = new ConfigTables(this.db)
@@ -418,6 +421,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatSearchDocumentsTable.createTable()
     this.deepchatPendingInputsTable.createTable()
     this.deepchatUsageStatsTable.createTable()
+    this.deepchatTapeEntriesTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
     this.configTables.createTable()
@@ -460,6 +464,7 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatSearchDocumentsTable,
       this.deepchatPendingInputsTable,
       this.deepchatUsageStatsTable,
+      this.deepchatTapeEntriesTable,
       this.legacyImportStatusTable,
       this.agentsTable,
       this.configTables,
@@ -550,6 +555,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_message_traces;
         DELETE FROM deepchat_messages;
         DELETE FROM deepchat_usage_stats;
+        DELETE FROM deepchat_tape_entries;
         DELETE FROM deepchat_sessions;
         DELETE FROM new_session_active_skills;
         DELETE FROM new_session_disabled_agent_tools;

@@ -19,7 +19,12 @@ import type {
   MessageStartResult,
   ToolInteractionResponse,
   ToolInteractionResult,
-  UsageDashboardData
+  UsageDashboardData,
+  AgentTapeInfo,
+  AgentTapeAnchorsOptions,
+  AgentTapeSearchOptions,
+  AgentTapeSearchResult,
+  AgentTapeAnchorResult
 } from '../agent-interface'
 import type { AcpConfigState } from './llmprovider.presenter'
 import type { SearchResult } from './thread.presenter'
@@ -102,6 +107,31 @@ export interface IAgentSessionPresenter {
   searchHistory(query: string, options?: HistorySearchOptions): Promise<HistorySearchHit[]>
   getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
   compactSession(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
+  getTapeInfo(sessionId: string): Promise<AgentTapeInfo>
+  searchTape(
+    sessionId: string,
+    query: string,
+    options?: AgentTapeSearchOptions
+  ): Promise<AgentTapeSearchResult[]>
+  listTapeAnchors(
+    sessionId: string,
+    options?: AgentTapeAnchorsOptions
+  ): Promise<AgentTapeAnchorResult[]>
+  handoffTape(
+    sessionId: string,
+    name: string,
+    state?: Record<string, unknown>
+  ): Promise<AgentTapeAnchorResult>
+  mergeSubagentTape(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+  discardSubagentTape(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   getLegacyImportStatus(): Promise<LegacyImportStatus>
   retryLegacyImport(): Promise<LegacyImportStatus>

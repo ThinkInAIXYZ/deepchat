@@ -212,6 +212,355 @@ describe('SubagentOrchestratorTool', () => {
     expect(cancelConversation).toHaveBeenCalledWith(childSession.sessionId)
   })
 
+  it('records completed child sessions as merged tape forks', async () => {
+    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    const parentSession = buildSessionInfo()
+    const childSession = buildSessionInfo({
+      sessionId: 'child-session',
+      agentName: 'Reviewer Clone',
+      sessionKind: 'subagent',
+      parentSessionId: parentSession.sessionId,
+      subagentEnabled: false,
+      availableSubagentSlots: []
+    })
+    const mergeSubagentTape = vi.fn().mockResolvedValue(undefined)
+    const discardSubagentTape = vi.fn().mockResolvedValue(undefined)
+
+    const tool = new SubagentOrchestratorTool({
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
+      createSubagentSession: vi.fn().mockResolvedValue(childSession),
+      sendConversationMessage: vi.fn(async (conversationId: string) => {
+        setTimeout(() => {
+          listener?.({
+            sessionId: conversationId,
+            kind: 'blocks',
+            updatedAt: Date.now(),
+            previewMarkdown: 'Completed review',
+            responseMarkdown: 'Completed review\nNo issues found.'
+          })
+          listener?.({
+            sessionId: conversationId,
+            kind: 'status',
+            updatedAt: Date.now() + 1,
+            status: 'idle'
+          })
+        }, 0)
+      }),
+      cancelConversation: vi.fn().mockResolvedValue(undefined),
+      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      }),
+      mergeSubagentTape,
+      discardSubagentTape,
+      getSkillPresenter: vi.fn(() => ({})),
+      getYoBrowserToolHandler: vi.fn(() => ({})),
+      getFilePresenter: vi.fn(() => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      })),
+      getLlmProviderPresenter: vi.fn(() => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+        generateCompletionStandalone: vi.fn(),
+        generateImageStandalone: vi.fn()
+      })),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn(),
+      getApprovedFilePaths: vi.fn(() => []),
+      consumeSettingsApproval: vi.fn(() => false)
+    } as any)
+
+    await tool.call(
+      {
+        mode: 'chain',
+        tasks: [
+          {
+            id: 'task-review',
+            slotId: 'reviewer',
+            title: 'Review task',
+            prompt: 'Review the current change.'
+          }
+        ]
+      },
+      parentSession.sessionId
+    )
+
+    expect(mergeSubagentTape).toHaveBeenCalledWith(
+      parentSession.sessionId,
+      childSession.sessionId,
+      expect.objectContaining({
+        taskId: 'task-review',
+        slotId: 'reviewer',
+        status: 'completed',
+        title: 'Review task'
+      })
+    )
+    expect(discardSubagentTape).not.toHaveBeenCalled()
+  })
+
+  it('leaves subagent tape unfinalized when merge fails so it can be retried', async () => {
+    const mergeSubagentTape = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('merge failed'))
+      .mockResolvedValueOnce(undefined)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const tool = new SubagentOrchestratorTool({
+      mergeSubagentTape
+    } as any)
+    const task = {
+      sessionId: 'child-session',
+      tapeFinalized: false,
+      taskId: 'task-review',
+      slotId: 'reviewer',
+      title: 'Review task',
+      status: 'completed',
+      resultSummary: 'Done'
+    }
+
+    await (tool as any).finalizeTaskTape({
+      parentSessionId: 'parent-session',
+      runId: 'run-1',
+      task
+    })
+    expect(task.tapeFinalized).toBe(false)
+    expect(task.tapeFinalizeError).toBe('merge failed')
+
+    await (tool as any).finalizeTaskTape({
+      parentSessionId: 'parent-session',
+      runId: 'run-1',
+      task
+    })
+
+    expect(mergeSubagentTape).toHaveBeenCalledTimes(2)
+    expect(task.tapeFinalized).toBe(true)
+    expect(task.tapeFinalizeError).toBeUndefined()
+    warnSpy.mockRestore()
+  })
+
+  it('marks subagent tape finalized when runtime has no tape merge support', async () => {
+    const tool = new SubagentOrchestratorTool({} as any)
+    const task = {
+      sessionId: 'child-session',
+      tapeFinalized: false,
+      taskId: 'task-review',
+      slotId: 'reviewer',
+      title: 'Review task',
+      status: 'completed',
+      resultSummary: 'Done'
+    }
+
+    await (tool as any).finalizeTaskTape({
+      parentSessionId: 'parent-session',
+      runId: 'run-1',
+      task
+    })
+
+    expect(task.tapeFinalized).toBe(true)
+    expect(task.tapeFinalizeError).toBeUndefined()
+  })
+
+  it('retries failed subagent tape finalization on terminal wait', async () => {
+    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    const parentSession = buildSessionInfo()
+    const childSession = buildSessionInfo({
+      sessionId: 'child-session',
+      agentName: 'Reviewer Clone',
+      sessionKind: 'subagent',
+      parentSessionId: parentSession.sessionId,
+      subagentEnabled: false,
+      availableSubagentSlots: []
+    })
+    const mergeSubagentTape = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('merge failed'))
+      .mockResolvedValueOnce(undefined)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const tool = new SubagentOrchestratorTool({
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
+      createSubagentSession: vi.fn().mockResolvedValue(childSession),
+      sendConversationMessage: vi.fn(async (conversationId: string) => {
+        setTimeout(() => {
+          listener?.({
+            sessionId: conversationId,
+            kind: 'blocks',
+            updatedAt: Date.now(),
+            previewMarkdown: 'Completed review',
+            responseMarkdown: 'Completed review\nNo issues found.'
+          })
+          listener?.({
+            sessionId: conversationId,
+            kind: 'status',
+            updatedAt: Date.now() + 1,
+            status: 'idle'
+          })
+        }, 0)
+      }),
+      cancelConversation: vi.fn().mockResolvedValue(undefined),
+      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      }),
+      mergeSubagentTape,
+      getSkillPresenter: vi.fn(() => ({})),
+      getYoBrowserToolHandler: vi.fn(() => ({})),
+      getFilePresenter: vi.fn(() => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      })),
+      getLlmProviderPresenter: vi.fn(() => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+        generateCompletionStandalone: vi.fn(),
+        generateImageStandalone: vi.fn()
+      })),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn(),
+      getApprovedFilePaths: vi.fn(() => []),
+      consumeSettingsApproval: vi.fn(() => false)
+    } as any)
+
+    const started = await tool.call(
+      {
+        mode: 'chain',
+        background: true,
+        tasks: [
+          {
+            id: 'task-review',
+            slotId: 'reviewer',
+            title: 'Review task',
+            prompt: 'Review the current change.'
+          }
+        ]
+      },
+      parentSession.sessionId
+    )
+    const runId = JSON.parse((started.rawData?.toolResult as any).subagentProgress).runId
+
+    const waited = await tool.call(
+      { operation: 'wait', runId, timeoutMs: 1000 },
+      parentSession.sessionId
+    )
+    const finalProgress = JSON.parse((waited.rawData?.toolResult as any).subagentFinal)
+
+    expect(mergeSubagentTape).toHaveBeenCalledTimes(2)
+    expect(waited.rawData?.isError).toBe(false)
+    expect(waited.content).not.toContain('Tape Finalization: failed')
+    expect(finalProgress.tasks[0]).toMatchObject({
+      tapeFinalized: true
+    })
+    expect(finalProgress.tasks[0].tapeFinalizeError).toBeUndefined()
+    warnSpy.mockRestore()
+  })
+
+  it('exposes persistent subagent tape finalization failures and keeps retrying', async () => {
+    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    const parentSession = buildSessionInfo()
+    const childSession = buildSessionInfo({
+      sessionId: 'child-session',
+      agentName: 'Reviewer Clone',
+      sessionKind: 'subagent',
+      parentSessionId: parentSession.sessionId,
+      subagentEnabled: false,
+      availableSubagentSlots: []
+    })
+    const mergeSubagentTape = vi.fn().mockRejectedValue(new Error('merge still failed'))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const tool = new SubagentOrchestratorTool({
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
+      createSubagentSession: vi.fn().mockResolvedValue(childSession),
+      sendConversationMessage: vi.fn(async (conversationId: string) => {
+        setTimeout(() => {
+          listener?.({
+            sessionId: conversationId,
+            kind: 'blocks',
+            updatedAt: Date.now(),
+            previewMarkdown: 'Completed review',
+            responseMarkdown: 'Completed review\nNo issues found.'
+          })
+          listener?.({
+            sessionId: conversationId,
+            kind: 'status',
+            updatedAt: Date.now() + 1,
+            status: 'idle'
+          })
+        }, 0)
+      }),
+      cancelConversation: vi.fn().mockResolvedValue(undefined),
+      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      }),
+      mergeSubagentTape,
+      getSkillPresenter: vi.fn(() => ({})),
+      getYoBrowserToolHandler: vi.fn(() => ({})),
+      getFilePresenter: vi.fn(() => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      })),
+      getLlmProviderPresenter: vi.fn(() => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+        generateCompletionStandalone: vi.fn(),
+        generateImageStandalone: vi.fn()
+      })),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn(),
+      getApprovedFilePaths: vi.fn(() => []),
+      consumeSettingsApproval: vi.fn(() => false)
+    } as any)
+
+    const started = await tool.call(
+      {
+        mode: 'chain',
+        background: true,
+        tasks: [
+          {
+            id: 'task-review',
+            slotId: 'reviewer',
+            title: 'Review task',
+            prompt: 'Review the current change.'
+          }
+        ]
+      },
+      parentSession.sessionId
+    )
+    const runId = JSON.parse((started.rawData?.toolResult as any).subagentProgress).runId
+
+    const waited = await tool.call(
+      { operation: 'wait', runId, timeoutMs: 1000 },
+      parentSession.sessionId
+    )
+    const waitedProgress = JSON.parse((waited.rawData?.toolResult as any).subagentFinal)
+
+    expect(mergeSubagentTape).toHaveBeenCalledTimes(2)
+    expect(waited.rawData?.isError).toBe(true)
+    expect(waited.content).toContain('Tape Finalization: failed: merge still failed')
+    expect(waitedProgress.tasks[0]).toMatchObject({
+      tapeFinalized: false,
+      tapeFinalizeError: 'merge still failed'
+    })
+
+    const info = await tool.call({ operation: 'info', runId }, parentSession.sessionId)
+
+    expect(mergeSubagentTape).toHaveBeenCalledTimes(3)
+    expect(info.rawData?.isError).toBe(true)
+
+    const logged = await tool.call({ operation: 'log', runId }, parentSession.sessionId)
+
+    expect(mergeSubagentTape).toHaveBeenCalledTimes(4)
+    expect(logged.rawData?.isError).toBe(true)
+    warnSpy.mockRestore()
+  })
+
   it('cancels a newly created child before handoff when the parent signal aborts', async () => {
     const parentSession = buildSessionInfo()
     const childSession = buildSessionInfo({

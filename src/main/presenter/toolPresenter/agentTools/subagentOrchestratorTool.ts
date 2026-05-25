@@ -92,6 +92,8 @@ type MutableTaskState = {
   runtimeStatus?: 'idle' | 'generating' | 'error'
   started: boolean
   cancelRequested: boolean
+  tapeFinalized: boolean
+  tapeFinalizeError?: string
   completion: {
     promise: Promise<void>
     resolve: () => void
@@ -142,6 +144,12 @@ const summarizeResult = (value: string): string | undefined => {
   return truncate(normalized, 2000)
 }
 
+const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
+
+const hasTapeFinalizeError = (tasks: MutableTaskState[]): boolean =>
+  tasks.some((task) => Boolean(task.tapeFinalizeError?.trim()))
+
 const renderProgressMarkdown = (
   mode: NonNullable<SubagentOrchestratorArgs['mode']>,
   tasks: MutableTaskState[]
@@ -154,6 +162,9 @@ const renderProgressMarkdown = (
     lines.push(`- Status: ${task.status}`)
     if (task.sessionId) {
       lines.push(`- Session: \`${task.sessionId}\``)
+    }
+    if (task.tapeFinalizeError?.trim()) {
+      lines.push(`- Tape Finalization: failed: ${task.tapeFinalizeError}`)
     }
 
     const previewLines = task.previewMarkdown
@@ -185,6 +196,9 @@ const renderFinalMarkdown = (
     lines.push(`Subagent: ${task.targetAgentName}`)
     lines.push(`Child Session: \`${task.sessionId ?? 'unknown'}\``)
     lines.push(`Status: ${task.status}`)
+    if (task.tapeFinalizeError?.trim()) {
+      lines.push(`Tape Finalization: failed: ${task.tapeFinalizeError}`)
+    }
     lines.push('')
     lines.push(task.resultSummary?.trim() || '_No result produced._')
     lines.push('')
@@ -286,7 +300,9 @@ export class SubagentOrchestratorTool {
         previewMarkdown: task.previewMarkdown,
         updatedAt: task.updatedAt,
         waitingInteraction: task.waitingInteraction,
-        resultSummary: task.resultSummary
+        resultSummary: task.resultSummary,
+        tapeFinalized: task.tapeFinalized,
+        tapeFinalizeError: task.tapeFinalizeError
       }))
     }
   }
@@ -339,7 +355,7 @@ export class SubagentOrchestratorTool {
       content,
       rawData: {
         content,
-        isError: run.status === 'error',
+        isError: run.status === 'error' || hasTapeFinalizeError(run.tasks),
         toolResult: {
           subagentProgress: JSON.stringify(this.serializeRun(run))
         }
@@ -355,7 +371,7 @@ export class SubagentOrchestratorTool {
       content: finalMarkdown,
       rawData: {
         content: finalMarkdown,
-        isError: run.status === 'error',
+        isError: run.status === 'error' || hasTapeFinalizeError(run.tasks),
         toolResult: {
           subagentFinal: JSON.stringify(finalProgress),
           subagentProgress: JSON.stringify(finalProgress)
@@ -372,6 +388,64 @@ export class SubagentOrchestratorTool {
     for (const run of completedRuns.slice(20)) {
       this.runs.delete(run.runId)
     }
+  }
+
+  private async finalizeTaskTape(params: {
+    parentSessionId: string
+    runId: string
+    task: MutableTaskState
+  }): Promise<void> {
+    const { parentSessionId, runId, task } = params
+    if (!task.sessionId || task.tapeFinalized) {
+      return
+    }
+
+    const meta = {
+      runId,
+      taskId: task.taskId,
+      slotId: task.slotId,
+      title: task.title,
+      status: task.status,
+      resultSummary: task.resultSummary ?? null
+    }
+
+    try {
+      if (task.status === 'completed') {
+        await this.runtimePort.mergeSubagentTape?.(parentSessionId, task.sessionId, meta)
+      } else {
+        await this.runtimePort.discardSubagentTape?.(parentSessionId, task.sessionId, meta)
+      }
+      task.tapeFinalized = true
+      task.tapeFinalizeError = undefined
+    } catch (error) {
+      task.tapeFinalizeError = errorMessage(error)
+      console.warn('[SubagentOrchestratorTool] Failed to finalize subagent tape fork:', {
+        parentSessionId,
+        childSessionId: task.sessionId,
+        status: task.status,
+        error
+      })
+    }
+  }
+
+  private async retryPendingTapeFinalization(run: MutableRunState): Promise<void> {
+    if (!isTerminalStatus(run.status)) {
+      return
+    }
+
+    for (const task of run.tasks) {
+      if (!task.sessionId || task.tapeFinalized || !isTerminalStatus(task.status)) {
+        continue
+      }
+
+      await this.finalizeTaskTape({
+        parentSessionId: run.parentSessionId,
+        runId: run.runId,
+        task
+      })
+    }
+
+    this.updateRunStatus(run)
   }
 
   private async handleRunOperation(
@@ -430,13 +504,23 @@ export class SubagentOrchestratorTool {
       if (!isTerminalStatus(run.status)) {
         await this.waitForRunCompletion(run, timeoutMs, options?.signal)
       }
+      if (isTerminalStatus(run.status)) {
+        await this.retryPendingTapeFinalization(run)
+      }
       return isTerminalStatus(run.status)
         ? this.buildRunFinalResult(run)
         : this.buildRunProgressResult(run, 'Subagent run still active')
     }
 
     if (args.operation === 'log') {
+      if (isTerminalStatus(run.status)) {
+        await this.retryPendingTapeFinalization(run)
+      }
       return this.buildRunFinalResult(run)
+    }
+
+    if (args.operation === 'info' && isTerminalStatus(run.status)) {
+      await this.retryPendingTapeFinalization(run)
     }
 
     return this.buildRunProgressResult(run)
@@ -707,6 +791,7 @@ export class SubagentOrchestratorTool {
         waitingInteraction: null,
         started: false,
         cancelRequested: false,
+        tapeFinalized: false,
         completion: createDeferred()
       }
     })
@@ -856,6 +941,11 @@ export class SubagentOrchestratorTool {
           throw new Error(`Failed to create subagent session for slot ${task.slotId}.`)
         }
 
+        task.sessionId = child.sessionId
+        task.targetAgentName = child.agentName || task.targetAgentName
+        task.updatedAt = Date.now()
+        sessionTaskMap.set(child.sessionId, task)
+
         if (options?.signal?.aborted || abortController.signal.aborted || task.cancelRequested) {
           task.cancelRequested = true
           task.updatedAt = Date.now()
@@ -863,14 +953,15 @@ export class SubagentOrchestratorTool {
           task.resultSummary = task.resultSummary || 'Cancelled by parent session.'
           maybeResolveTask(task)
           await this.runtimePort.cancelConversation(child.sessionId).catch(() => undefined)
+          await this.finalizeTaskTape({
+            parentSessionId: parent.sessionId,
+            runId,
+            task
+          })
           emitProgress()
           return
         }
 
-        task.sessionId = child.sessionId
-        task.targetAgentName = child.agentName || task.targetAgentName
-        task.updatedAt = Date.now()
-        sessionTaskMap.set(child.sessionId, task)
         emitProgress()
 
         const handoff = buildHandoffMessage({
@@ -889,12 +980,22 @@ export class SubagentOrchestratorTool {
         emitProgress()
 
         await task.completion.promise
+        await this.finalizeTaskTape({
+          parentSessionId: parent.sessionId,
+          runId,
+          task
+        })
       } catch (error) {
         task.updatedAt = Date.now()
         task.status = task.cancelRequested ? 'cancelled' : 'error'
         task.resultSummary =
           error instanceof Error ? error.message : 'Subagent session failed unexpectedly.'
         maybeResolveTask(task)
+        await this.finalizeTaskTape({
+          parentSessionId: parent.sessionId,
+          runId,
+          task
+        })
         emitProgress()
       }
     }
@@ -942,6 +1043,8 @@ export class SubagentOrchestratorTool {
     }
 
     await runCompletion
+
+    await this.retryPendingTapeFinalization(run)
 
     if (options?.signal?.aborted) {
       throw new Error('subagent_orchestrator cancelled.')

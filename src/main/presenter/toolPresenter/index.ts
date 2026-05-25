@@ -14,6 +14,8 @@ import {
   AgentToolManager,
   IMAGE_GENERATE_TOOL_NAME,
   UPDATE_PLAN_TOOL_NAME,
+  AGENT_TAPE_TOOL_SERVER_NAME,
+  TAPE_TOOL_NAMES,
   type AgentToolCallResult
 } from './agentTools'
 import type { AgentToolRuntimePort } from './runtimePorts'
@@ -95,7 +97,8 @@ const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
-  UPDATE_PLAN_TOOL_NAME
+  UPDATE_PLAN_TOOL_NAME,
+  ...Object.values(TAPE_TOOL_NAMES)
 ])
 
 const withToolSource = (tools: MCPToolDefinition[], source: 'mcp' | 'agent'): MCPToolDefinition[] =>
@@ -460,6 +463,7 @@ export class ToolPresenter implements IToolPresenter {
       this.buildQuestionPrompt(toolNames),
       this.buildImageGenerationPrompt(toolNames),
       this.buildProgressPrompt(toolNames),
+      this.buildTapePrompt(groupedTools.get(AGENT_TAPE_TOOL_SERVER_NAME) ?? []),
       this.buildSkillsPrompt(toolNames),
       this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
       this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
@@ -629,6 +633,35 @@ export class ToolPresenter implements IToolPresenter {
       'When a step completes, update the checklist immediately and move the next active step to in_progress in the same call.',
       'Use explanation only when the plan changes materially or progress would otherwise be unclear.'
     ].join('\n')
+  }
+
+  private buildTapePrompt(tools: MCPToolDefinition[]): string {
+    if (tools.length === 0) {
+      return ''
+    }
+
+    const toolNames = new Set(tools.map((tool) => tool.function.name))
+    const names = tools.map((tool) => `\`${tool.function.name}\``).join(', ')
+    const lines = ['## Tape Tools', `DeepChat tape tools are available in this session: ${names}.`]
+
+    if (toolNames.has(TAPE_TOOL_NAMES.info)) {
+      lines.push('`tape_info` inspects this DeepChat-scoped tape subset inspired by bub tape.info.')
+    }
+    if (toolNames.has(TAPE_TOOL_NAMES.search)) {
+      lines.push(
+        '`tape_search` supports `query`, `limit`, `kinds`, `start`, and `end` for scoped canonical tape lookup.'
+      )
+    }
+    if (toolNames.has(TAPE_TOOL_NAMES.anchors)) {
+      lines.push('`tape_anchors` lists recent bub-style phase-transition anchors.')
+    }
+    if (toolNames.has(TAPE_TOOL_NAMES.handoff)) {
+      lines.push(
+        '`tape_handoff` writes a bub-style phase-transition anchor. Include a compact `summary` when earlier history must be preserved.'
+      )
+    }
+
+    return lines.join('\n')
   }
 
   private buildSettingsPrompt(tools: MCPToolDefinition[]): string {

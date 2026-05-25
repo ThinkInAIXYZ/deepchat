@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolPresenter } from '@/presenter/toolPresenter'
-import { UPDATE_PLAN_TOOL_NAME } from '@/presenter/toolPresenter/agentTools'
+import { TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/presenter/toolPresenter/agentTools'
 import { CommandPermissionService } from '@/presenter/permission'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 
@@ -419,6 +419,45 @@ describe('ToolPresenter', () => {
     expect(withProgress).toContain('## Progress Checklist Tool')
     expect(withProgress).toContain('Use `update_plan` for non-trivial multi-step tasks.')
     expect(withProgress).toContain('At most one step may be in_progress at a time.')
+  })
+
+  it('describes only enabled tape tools in the tape prompt', () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    const prompt = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition(TAPE_TOOL_NAMES.info, 'agent-tape'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition(TAPE_TOOL_NAMES.anchors, 'agent-tape'),
+          source: 'agent'
+        }
+      ]
+    })
+
+    expect(prompt).toContain('## Tape Tools')
+    expect(prompt).toContain('`tape_info` inspects')
+    expect(prompt).toContain('`tape_anchors` lists')
+    expect(prompt).not.toContain('`tape_search` supports')
+    expect(prompt).not.toContain('`tape_handoff` writes')
   })
 
   it('describes the question schema and returns actionable validation errors', async () => {
