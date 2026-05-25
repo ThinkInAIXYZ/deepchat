@@ -714,7 +714,7 @@ export class AgentToolManager {
 
     switch (action) {
       case 'list': {
-        const sessions = backgroundExecSessionManager.list(conversationId)
+        const sessions = await backgroundExecSessionManager.list(conversationId)
         return {
           content: JSON.stringify({ status: 'ok', sessions }, null, 2)
         }
@@ -749,7 +749,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for write action')
         }
-        backgroundExecSessionManager.write(conversationId, sessionId, data ?? '', eof)
+        await backgroundExecSessionManager.write(conversationId, sessionId, data ?? '', eof)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -769,7 +769,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for clear action')
         }
-        backgroundExecSessionManager.clear(conversationId, sessionId)
+        await backgroundExecSessionManager.clear(conversationId, sessionId)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }

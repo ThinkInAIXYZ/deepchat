@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelType } from '../../../../src/shared/model'
 import type {
   IConfigPresenter,
@@ -32,6 +32,12 @@ vi.mock('@shared/logger', () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn()
+  }
+}))
+
+vi.mock('@electron-toolkit/utils', () => ({
+  is: {
+    dev: false
   }
 }))
 
@@ -82,10 +88,12 @@ const createModel = (
 describe('OllamaProvider.fetchModels', () => {
   let configPresenter: IConfigPresenter
   let provider: LLM_PROVIDER
+  const originalAllowInsecureTls = process.env.DEEPCHAT_ALLOW_INSECURE_TLS
 
   beforeEach(() => {
     mockOllamaConstructorOptions.length = 0
     mockExecFile.mockReset()
+    delete process.env.DEEPCHAT_ALLOW_INSECURE_TLS
     mockExecFile.mockImplementation((_command, _args, _options, callback) => {
       callback(null, '', '')
     })
@@ -116,6 +124,14 @@ describe('OllamaProvider.fetchModels', () => {
       apiKey: '',
       baseUrl: 'http://127.0.0.1:11434',
       enable: false
+    }
+  })
+
+  afterEach(() => {
+    if (originalAllowInsecureTls === undefined) {
+      delete process.env.DEEPCHAT_ALLOW_INSECURE_TLS
+    } else {
+      process.env.DEEPCHAT_ALLOW_INSECURE_TLS = originalAllowInsecureTls
     }
   })
 
@@ -273,6 +289,38 @@ describe('OllamaProvider.fetchModels', () => {
     })
 
     await expect(ollamaProvider.pullModel('qwen3:8b')).resolves.toBe(true)
+    expect((ollamaProvider as any).ollama.pull).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'qwen3:8b',
+        insecure: false,
+        stream: true
+      })
+    )
+  })
+
+  it('only enables insecure pulls behind the explicit TLS debug flag', async () => {
+    process.env.DEEPCHAT_ALLOW_INSECURE_TLS = '1'
+    const ollamaProvider = new OllamaProvider(provider, configPresenter)
+    ;(ollamaProvider as any).ollama = {
+      pull: vi.fn(async () => ({
+        async *[Symbol.asyncIterator]() {
+          yield { status: 'success' }
+        }
+      })),
+      list: vi.fn(async () => ({ models: [{ ...createModel('qwen3:8b') }] })),
+      show: vi.fn(async () => {
+        throw new Error('show unavailable')
+      })
+    }
+
+    await expect(ollamaProvider.pullModel('qwen3:8b')).resolves.toBe(true)
+    expect((ollamaProvider as any).ollama.pull).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'qwen3:8b',
+        insecure: true,
+        stream: true
+      })
+    )
   })
 
   it('treats latest tags from ollama list as a successful untagged pull', async () => {

@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
+import type { UtilityProcess } from 'electron'
 import { nanoid } from 'nanoid'
 import logger from '@shared/logger'
 import { getUserShell } from './shellEnvHelper'
@@ -106,6 +108,52 @@ interface LogResult {
   offloaded?: boolean
   outputFilePath?: string
   timedOut?: boolean
+}
+
+export type BackgroundExecRpcMethod =
+  | 'start'
+  | 'list'
+  | 'poll'
+  | 'log'
+  | 'waitForCompletionOrYield'
+  | 'getCompletionResult'
+  | 'write'
+  | 'kill'
+  | 'clear'
+  | 'remove'
+  | 'cleanupConversation'
+  | 'shutdown'
+
+export interface BackgroundExecRpcRequest {
+  type: 'background-exec:request'
+  id: string
+  method: BackgroundExecRpcMethod
+  args: unknown[]
+}
+
+export type BackgroundExecRpcResponse =
+  | {
+      type: 'background-exec:response'
+      id: string
+      ok: true
+      data: unknown
+    }
+  | {
+      type: 'background-exec:response'
+      id: string
+      ok: false
+      error: {
+        message: string
+        stack?: string
+      }
+    }
+
+interface TrackedSessionMeta {
+  conversationId: string
+  sessionId: string
+  command: string
+  createdAt: number
+  lastAccessedAt: number
 }
 
 export class BackgroundExecSessionManager {
@@ -893,4 +941,418 @@ export class BackgroundExecSessionManager {
   }
 }
 
-export const backgroundExecSessionManager = new BackgroundExecSessionManager()
+class BackgroundExecUtilityProxy {
+  private host: UtilityProcess | null = null
+  private hostReady: Promise<UtilityProcess> | null = null
+  private requestId = 0
+  private shuttingDown = false
+  private readonly pendingRequests = new Map<
+    string,
+    {
+      resolve: (value: unknown) => void
+      reject: (error: unknown) => void
+    }
+  >()
+  private readonly activeSessions = new Map<string, TrackedSessionMeta>()
+  private readonly crashedSessions = new Map<string, TrackedSessionMeta>()
+
+  async start(
+    conversationId: string,
+    command: string,
+    cwd: string,
+    options?: {
+      timeout?: number
+      env?: Record<string, string>
+      outputPrefix?: string
+    }
+  ): Promise<StartSessionResult> {
+    const result = await this.request<StartSessionResult>('start', [
+      conversationId,
+      command,
+      cwd,
+      options
+    ])
+    this.activeSessions.set(result.sessionId, {
+      conversationId,
+      sessionId: result.sessionId,
+      command,
+      createdAt: Date.now(),
+      lastAccessedAt: Date.now()
+    })
+    return result
+  }
+
+  async list(conversationId: string): Promise<SessionMeta[]> {
+    const active = Array.from(this.activeSessions.values())
+      .filter((session) => session.conversationId === conversationId)
+      .map((session) => this.toActiveSessionMeta(session))
+    const hostSessions = this.host
+      ? await this.request<SessionMeta[]>('list', [conversationId]).catch((error) => {
+          logger.warn('[BackgroundExecProxy] Failed to list utility sessions:', error)
+          return active
+        })
+      : active
+    const crashed = Array.from(this.crashedSessions.values())
+      .filter((session) => session.conversationId === conversationId)
+      .map((session) => this.toCrashedSessionMeta(session))
+
+    const sessionIds = new Set<string>()
+    return [...hostSessions, ...crashed].filter((session) => {
+      if (sessionIds.has(session.sessionId)) {
+        return false
+      }
+      sessionIds.add(session.sessionId)
+      return true
+    })
+  }
+
+  async poll(conversationId: string, sessionId: string): Promise<PollResult> {
+    const crashed = this.getCrashedSession(conversationId, sessionId)
+    if (crashed) {
+      return this.toCrashedPollResult(crashed)
+    }
+    const result = await this.request<PollResult>('poll', [conversationId, sessionId])
+    this.touchOrCompleteSession(conversationId, sessionId, result.status)
+    return result
+  }
+
+  async log(
+    conversationId: string,
+    sessionId: string,
+    offset = 0,
+    limit = 1000
+  ): Promise<LogResult> {
+    const crashed = this.getCrashedSession(conversationId, sessionId)
+    if (crashed) {
+      return {
+        ...this.toCrashedPollResult(crashed),
+        totalLength: this.crashMessage(crashed).length
+      }
+    }
+    const result = await this.request<LogResult>('log', [conversationId, sessionId, offset, limit])
+    this.touchOrCompleteSession(conversationId, sessionId, result.status)
+    return result
+  }
+
+  async waitForCompletionOrYield(
+    conversationId: string,
+    sessionId: string,
+    yieldMs = getConfig().backgroundMs
+  ): Promise<WaitForCompletionOrYieldResult> {
+    const crashed = this.getCrashedCompletionResult(conversationId, sessionId)
+    if (crashed) {
+      return {
+        kind: 'completed',
+        result: crashed
+      }
+    }
+
+    const result = await this.request<WaitForCompletionOrYieldResult>('waitForCompletionOrYield', [
+      conversationId,
+      sessionId,
+      yieldMs
+    ])
+    if (result.kind === 'completed') {
+      this.activeSessions.delete(sessionId)
+    }
+    return result
+  }
+
+  async getCompletionResult(
+    conversationId: string,
+    sessionId: string,
+    previewChars = FOREGROUND_PREVIEW_CHARS
+  ): Promise<SessionCompletionResult> {
+    const crashed = this.getCrashedCompletionResult(conversationId, sessionId)
+    if (crashed) {
+      return crashed
+    }
+
+    const result = await this.request<SessionCompletionResult>('getCompletionResult', [
+      conversationId,
+      sessionId,
+      previewChars
+    ])
+    this.activeSessions.delete(sessionId)
+    return result
+  }
+
+  async write(conversationId: string, sessionId: string, data: string, eof = false): Promise<void> {
+    await this.request('write', [conversationId, sessionId, data, eof])
+  }
+
+  async kill(conversationId: string, sessionId: string): Promise<void> {
+    await this.request('kill', [conversationId, sessionId])
+  }
+
+  async clear(conversationId: string, sessionId: string): Promise<void> {
+    await this.request('clear', [conversationId, sessionId])
+  }
+
+  async remove(conversationId: string, sessionId: string): Promise<void> {
+    this.activeSessions.delete(sessionId)
+    if (this.getCrashedSession(conversationId, sessionId)) {
+      this.crashedSessions.delete(sessionId)
+      return
+    }
+    await this.request('remove', [conversationId, sessionId])
+  }
+
+  async cleanupConversation(conversationId: string): Promise<void> {
+    for (const [sessionId, session] of this.activeSessions) {
+      if (session.conversationId === conversationId) {
+        this.activeSessions.delete(sessionId)
+      }
+    }
+    for (const [sessionId, session] of this.crashedSessions) {
+      if (session.conversationId === conversationId) {
+        this.crashedSessions.delete(sessionId)
+      }
+    }
+    await this.request('cleanupConversation', [conversationId])
+  }
+
+  async shutdown(): Promise<void> {
+    this.shuttingDown = true
+    try {
+      if (this.host) {
+        await this.request('shutdown', [])
+      }
+    } finally {
+      this.host?.kill()
+      this.host = null
+      this.hostReady = null
+      this.rejectPendingRequests(new Error('Background exec utility process shut down.'))
+      this.activeSessions.clear()
+    }
+  }
+
+  private async request<T = void>(method: BackgroundExecRpcMethod, args: unknown[]): Promise<T> {
+    const host = await this.ensureHost()
+    const id = `exec_rpc_${++this.requestId}`
+
+    return await new Promise<T>((resolve, reject) => {
+      this.pendingRequests.set(id, {
+        resolve: (value) => resolve(value as T),
+        reject
+      })
+
+      const payload: BackgroundExecRpcRequest = {
+        type: 'background-exec:request',
+        id,
+        method,
+        args
+      }
+
+      try {
+        host.postMessage(payload)
+      } catch (error) {
+        this.pendingRequests.delete(id)
+        reject(error)
+      }
+    })
+  }
+
+  private async ensureHost(): Promise<UtilityProcess> {
+    if (this.host) {
+      return this.host
+    }
+    if (this.hostReady) {
+      return await this.hostReady
+    }
+
+    this.shuttingDown = false
+    this.hostReady = this.startHost()
+    try {
+      return await this.hostReady
+    } finally {
+      this.hostReady = null
+    }
+  }
+
+  private async startHost(): Promise<UtilityProcess> {
+    const { utilityProcess } = await import('electron')
+    const modulePath = this.resolveUtilityHostEntryPoint()
+    const host = utilityProcess.fork(modulePath, ['--deepchat-exec-utility-host'], {
+      serviceName: 'DeepChat Exec Utility',
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        DEEPCHAT_EXEC_UTILITY_HOST: '1'
+      }
+    })
+
+    host.on('message', (message) => this.handleHostMessage(message))
+    host.on('exit', (code) => this.handleHostExit(code))
+    host.on('error', (type, location) => {
+      logger.error('[BackgroundExecProxy] Utility process error:', { type, location })
+    })
+
+    return await new Promise<UtilityProcess>((resolve, reject) => {
+      let settled = false
+      const settle = (callback: () => void) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        host.off('spawn', onSpawn)
+        host.off('exit', onExit)
+        callback()
+      }
+      const onSpawn = () => {
+        settle(() => {
+          this.host = host
+          resolve(host)
+        })
+      }
+      const onExit = (code: number) => {
+        settle(() => {
+          reject(new Error(`Background exec utility process exited before spawn: ${code}`))
+        })
+      }
+
+      host.once('spawn', onSpawn)
+      host.once('exit', onExit)
+    })
+  }
+
+  private resolveUtilityHostEntryPoint(): string {
+    const modulePath = fileURLToPath(import.meta.url)
+    if (path.basename(modulePath) === 'index.js') {
+      return modulePath
+    }
+    return fileURLToPath(new URL('../../index.js', import.meta.url))
+  }
+
+  private handleHostMessage(message: unknown): void {
+    if (!message || typeof message !== 'object') {
+      return
+    }
+    const response = message as BackgroundExecRpcResponse
+    if (response.type !== 'background-exec:response') {
+      return
+    }
+    const pending = this.pendingRequests.get(response.id)
+    if (!pending) {
+      return
+    }
+    this.pendingRequests.delete(response.id)
+    if (response.ok) {
+      pending.resolve(response.data)
+      return
+    }
+    const error = new Error(response.error.message)
+    if (response.error.stack) {
+      error.stack = response.error.stack
+    }
+    pending.reject(error)
+  }
+
+  private handleHostExit(code: number): void {
+    const error = new Error(`Background exec utility process exited with code ${code}.`)
+    if (!this.shuttingDown) {
+      for (const session of this.activeSessions.values()) {
+        this.crashedSessions.set(session.sessionId, {
+          ...session,
+          lastAccessedAt: Date.now()
+        })
+      }
+    }
+    this.host = null
+    this.hostReady = null
+    this.activeSessions.clear()
+    this.rejectPendingRequests(error)
+  }
+
+  private rejectPendingRequests(error: Error): void {
+    for (const pending of this.pendingRequests.values()) {
+      pending.reject(error)
+    }
+    this.pendingRequests.clear()
+  }
+
+  private getCrashedSession(conversationId: string, sessionId: string): TrackedSessionMeta | null {
+    const session = this.crashedSessions.get(sessionId)
+    return session?.conversationId === conversationId ? session : null
+  }
+
+  private getCrashedCompletionResult(
+    conversationId: string,
+    sessionId: string
+  ): SessionCompletionResult | null {
+    const session = this.getCrashedSession(conversationId, sessionId)
+    if (!session) {
+      return null
+    }
+    session.lastAccessedAt = Date.now()
+    this.activeSessions.delete(sessionId)
+    return this.toCrashedCompletionResult(session)
+  }
+
+  private touchOrCompleteSession(
+    conversationId: string,
+    sessionId: string,
+    status: PollResult['status']
+  ): void {
+    const session = this.activeSessions.get(sessionId)
+    if (!session || session.conversationId !== conversationId) {
+      return
+    }
+    if (status === 'running') {
+      session.lastAccessedAt = Date.now()
+      return
+    }
+    this.activeSessions.delete(sessionId)
+  }
+
+  private toCrashedSessionMeta(session: TrackedSessionMeta): SessionMeta {
+    return {
+      sessionId: session.sessionId,
+      command: session.command,
+      status: 'error',
+      createdAt: session.createdAt,
+      lastAccessedAt: session.lastAccessedAt,
+      outputLength: this.crashMessage(session).length,
+      offloaded: false,
+      timedOut: false
+    }
+  }
+
+  private toActiveSessionMeta(session: TrackedSessionMeta): SessionMeta {
+    return {
+      sessionId: session.sessionId,
+      command: session.command,
+      status: 'running',
+      createdAt: session.createdAt,
+      lastAccessedAt: session.lastAccessedAt,
+      outputLength: 0,
+      offloaded: false,
+      timedOut: false
+    }
+  }
+
+  private toCrashedPollResult(session: TrackedSessionMeta): PollResult {
+    return {
+      status: 'error',
+      output: this.crashMessage(session),
+      offloaded: false,
+      timedOut: false
+    }
+  }
+
+  private toCrashedCompletionResult(session: TrackedSessionMeta): SessionCompletionResult {
+    return {
+      status: 'error',
+      output: this.crashMessage(session),
+      exitCode: null,
+      offloaded: false,
+      timedOut: false
+    }
+  }
+
+  private crashMessage(session: TrackedSessionMeta): string {
+    return `Background exec utility process exited before session ${session.sessionId} completed. The command may have been terminated: ${session.command}`
+  }
+}
+
+export const backgroundExecSessionManager = new BackgroundExecUtilityProxy()

@@ -78,13 +78,7 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
-import {
-  buildContext,
-  buildResumeContext,
-  createUserChatMessage,
-  fitMessagesToContextWindow,
-  isContextHistoryRecord
-} from './contextBuilder'
+import { buildContext, buildResumeContext, isContextHistoryRecord } from './contextBuilder'
 import {
   capAgentDefaultMaxTokens,
   capAgentRequestMaxTokens,
@@ -131,6 +125,8 @@ type PendingInteractionEntry = {
   interaction: PendingToolInteraction
   blockIndex: number
 }
+
+type ProcessPendingInputSource = PendingInputEnqueueSource | 'steer'
 
 type DeferredToolExecutionResult = {
   responseText: string
@@ -236,8 +232,6 @@ type ActiveGeneration = {
   abortController: AbortController
 }
 
-type ActiveGenerationAbortReason = 'user_stop' | 'steer'
-
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -264,9 +258,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
   private readonly activeGenerations: Map<string, ActiveGeneration> = new Map()
-  private readonly activeGenerationAbortReasons: Map<string, ActiveGenerationAbortReason> =
-    new Map()
-  private readonly steerInterruptInputs: Map<string, SendMessageInput[]> = new Map()
+  private readonly activeSteerPendingInputIds: Map<string, string> = new Map()
   private readonly sessionAgentIds: Map<string, string> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
@@ -426,8 +418,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     this.abortDeferredToolAbortControllers(sessionId)
     this.activeGenerations.delete(sessionId)
-    this.activeGenerationAbortReasons.delete(sessionId)
-    this.steerInterruptInputs.delete(sessionId)
+    this.activeSteerPendingInputIds.delete(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
 
     this.pendingInputCoordinator.deleteBySession(sessionId)
@@ -538,30 +529,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const activeGeneration = this.activeGenerations.get(sessionId)
-    if (!activeGeneration) {
-      const preStreamController = this.abortControllers.get(sessionId)
-      if (state.status === 'generating' && preStreamController) {
-        this.enqueueSteerInterruptInput(sessionId, normalizedInput)
-        this.activeGenerationAbortReasons.set(sessionId, 'steer')
-        preStreamController.abort()
-        this.abortDeferredToolAbortControllers(sessionId)
-        this.clearActiveProviderPermissionsForSession(sessionId)
-        return
-      }
-
-      void this.processMessage(sessionId, normalizedInput, {
-        projectDir: this.resolveProjectDir(sessionId)
-      }).catch((error) => {
-        console.error('[AgentRuntime] Failed to process steer input:', error)
-      })
+    const preStreamController = this.abortControllers.get(sessionId)
+    if (activeGeneration || preStreamController) {
+      this.queueVisibleSteerInput(sessionId, normalizedInput)
       return
     }
 
-    this.enqueueSteerInterruptInput(sessionId, normalizedInput)
-    this.activeGenerationAbortReasons.set(sessionId, 'steer')
-    activeGeneration.abortController.abort()
-    this.abortDeferredToolAbortControllers(sessionId)
-    this.clearActiveProviderPermissionsForSession(sessionId)
+    void this.processMessage(sessionId, normalizedInput, {
+      projectDir: this.resolveProjectDir(sessionId)
+    }).catch((error) => {
+      console.error('[AgentRuntime] Failed to process steer input:', error)
+    })
   }
 
   async updateQueuedInput(
@@ -614,7 +592,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       projectDir?: string | null
       emitRefreshBeforeStream?: boolean
       pendingQueueItemId?: string
-      pendingQueueItemSource?: PendingInputEnqueueSource
+      pendingQueueItemSource?: ProcessPendingInputSource
     }
   ): Promise<MessageStartResult> {
     const state = this.runtimeState.get(sessionId)
@@ -634,6 +612,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.setSessionStatus(sessionId, 'generating')
     const preStreamAbortController = this.ensureSessionAbortController(sessionId)
     const preStreamAbortSignal = preStreamAbortController.signal
+    const pendingInputSource: ProcessPendingInputSource = context?.pendingQueueItemSource ?? 'send'
     let consumedPendingQueueItem = false
     let userMessageId: string | null = null
     let assistantMessageId: string | null = null
@@ -773,7 +752,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       assistantMessageId = this.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
       this.throwIfAbortRequested(preStreamAbortSignal)
 
-      if (context?.pendingQueueItemId && context.pendingQueueItemSource !== 'queue') {
+      if (context?.pendingQueueItemId && pendingInputSource === 'send') {
         this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
         consumedPendingQueueItem = true
       }
@@ -793,31 +772,26 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         interleavedReasoning
       })
       if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
-        if (context.pendingQueueItemSource === 'queue') {
+        if (pendingInputSource === 'queue' || pendingInputSource === 'steer') {
           if (result.status === 'completed' || result.status === 'paused') {
-            this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
+            this.consumeClaimedPendingInput(
+              sessionId,
+              context.pendingQueueItemId,
+              pendingInputSource
+            )
             consumedPendingQueueItem = true
           } else {
-            this.rollbackClaimedQueueInputTurn(sessionId, context.pendingQueueItemId, userMessageId)
+            this.rollbackClaimedPendingInputTurn(
+              sessionId,
+              context.pendingQueueItemId,
+              pendingInputSource,
+              userMessageId
+            )
             consumedPendingQueueItem = true
           }
         } else {
           this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
           consumedPendingQueueItem = true
-        }
-      }
-      const steerInput = result.status === 'aborted' ? this.consumeAbortSteerInput(sessionId) : null
-      if (steerInput) {
-        try {
-          this.settleSteerInterruptedAssistant(sessionId, assistantMessageId)
-          this.setSessionStatus(sessionId, 'idle')
-        } finally {
-          this.clearActiveGeneration(sessionId, runId)
-        }
-        this.continueWithSteerInput(sessionId, steerInput, projectDir)
-        return {
-          requestId: assistantMessageId,
-          messageId: assistantMessageId
         }
       }
       try {
@@ -836,12 +810,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       console.error('[DeepChatAgent] processMessage error:', err)
       if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
         try {
-          if (context.pendingQueueItemSource === 'queue') {
-            this.rollbackClaimedQueueInputTurn(sessionId, context.pendingQueueItemId, userMessageId)
-          } else {
-            this.pendingInputCoordinator.releaseClaimedQueueInput(
+          if (pendingInputSource === 'queue' || pendingInputSource === 'steer') {
+            this.rollbackClaimedPendingInputTurn(
               sessionId,
-              context.pendingQueueItemId
+              context.pendingQueueItemId,
+              pendingInputSource,
+              userMessageId
+            )
+          } else {
+            this.releaseClaimedPendingInput(
+              sessionId,
+              context.pendingQueueItemId,
+              pendingInputSource
             )
           }
           consumedPendingQueueItem = true
@@ -850,37 +830,27 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         }
       }
       if (this.isAbortError(err) || preStreamAbortSignal.aborted) {
-        const steerInput = this.consumeAbortSteerInput(sessionId)
         if (userMessageId) {
           this.emitMessageRefresh(sessionId, userMessageId)
         }
         if (assistantMessageId) {
-          if (steerInput) {
-            this.settleSteerInterruptedAssistant(sessionId, assistantMessageId)
-          } else {
-            const existingAssistant = this.messageStore.getMessage(assistantMessageId)
-            const existingBlocks = existingAssistant
-              ? this.parseAssistantBlocks(existingAssistant.content)
-              : []
-            const blocks = buildTerminalErrorBlocks(
-              existingBlocks,
-              'common.error.userCanceledGeneration'
-            )
-            this.messageStore.setMessageError(assistantMessageId, blocks)
-            this.emitMessageRefresh(sessionId, assistantMessageId)
-          }
+          const existingAssistant = this.messageStore.getMessage(assistantMessageId)
+          const existingBlocks = existingAssistant
+            ? this.parseAssistantBlocks(existingAssistant.content)
+            : []
+          const blocks = buildTerminalErrorBlocks(
+            existingBlocks,
+            'common.error.userCanceledGeneration'
+          )
+          this.messageStore.setMessageError(assistantMessageId, blocks)
+          this.emitMessageRefresh(sessionId, assistantMessageId)
         }
-        if (!steerInput) {
-          this.dispatchTerminalHooks(sessionId, state, {
-            status: 'aborted',
-            stopReason: 'user_stop',
-            errorMessage: 'common.error.userCanceledGeneration'
-          })
-        }
+        this.dispatchTerminalHooks(sessionId, state, {
+          status: 'aborted',
+          stopReason: 'user_stop',
+          errorMessage: 'common.error.userCanceledGeneration'
+        })
         this.setSessionStatus(sessionId, 'idle')
-        if (steerInput) {
-          this.continueWithSteerInput(sessionId, steerInput, projectDir)
-        }
         return {
           requestId: assistantMessageId,
           messageId: assistantMessageId
@@ -1288,10 +1258,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
-    this.steerInterruptInputs.delete(sessionId)
     const activeGeneration = this.activeGenerations.get(sessionId)
     if (activeGeneration) {
-      this.activeGenerationAbortReasons.set(sessionId, 'user_stop')
       activeGeneration.abortController.abort()
       this.clearActiveGeneration(sessionId, activeGeneration.runId)
 
@@ -2037,9 +2005,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const traceEnabled = this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
     const llmProviderPresenter = this.llmProviderPresenter
-    const pendingInputCoordinator = this.pendingInputCoordinator
     const shouldBypassContextBudget = this.shouldBypassDeepChatContextBudget.bind(this)
-    const injectSteerInputsIntoRequest = this.injectSteerInputsIntoRequest.bind(this)
     const recoverContextPressure = this.recoverRequestContextPressure.bind(this)
     const replaceLeadingSystemPromptInPlace = this.replaceLeadingSystemPromptInPlace.bind(this)
     const persistMessageTrace = this.persistMessageTrace.bind(this)
@@ -2104,39 +2070,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             state.providerId,
             requestModelConfig
           )
-          const claimedSteerBatch = pendingInputCoordinator.claimSteerBatchForNextLoop(sessionId)
-          const injectedMessages = injectSteerInputsIntoRequest(
-            requestMessages,
-            claimedSteerBatch,
-            supportsVision,
-            supportsAudioInput,
-            requestBypassesContextBudget
-              ? Number.MAX_SAFE_INTEGER
-              : requestModelConfig.contextLength,
-            requestMaxTokens
-          )
-
-          let didConsumeSteerBatch = false
           let queuedForRateLimit = false
 
           try {
-            let providerMessages = injectedMessages
+            let providerMessages = requestMessages
             let providerMaxTokens = requestMaxTokens
             const isTtsRequest =
               isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
             const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
 
             if (!requestBypassesContextBudget) {
-              const protectedSteerTailCount =
-                claimedSteerBatch.length > 0
-                  ? claimedSteerBatch.length + (requestMessages.at(-1)?.role === 'user' ? 1 : 0)
-                  : 0
               let requestPreflight = preflightRequestContext({
-                messages: injectedMessages,
+                messages: requestMessages,
                 tools: effectiveRequestTools,
                 contextLength: requestModelConfig.contextLength,
-                requestedMaxTokens: requestMaxTokens,
-                minimumProtectedTailCount: protectedSteerTailCount
+                requestedMaxTokens: requestMaxTokens
               })
               if (
                 requestPreflight.requiresContextPressureRecovery ||
@@ -2154,7 +2102,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                   supportsVision,
                   supportsAudioInput,
                   interleavedReasoning,
-                  minimumProtectedTailCount: protectedSteerTailCount,
+                  minimumProtectedTailCount: 0,
                   signal: abortController.signal
                 })
                 requestMessages.splice(0, requestMessages.length, ...recovered.messages)
@@ -2165,8 +2113,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                   messages: requestMessages,
                   tools: effectiveRequestTools,
                   contextLength: requestModelConfig.contextLength,
-                  requestedMaxTokens: requestMaxTokens,
-                  minimumProtectedTailCount: protectedSteerTailCount
+                  requestedMaxTokens: requestMaxTokens
                 })
                 requestMessages.splice(0, requestMessages.length, ...requestPreflight.messages)
               }
@@ -2205,22 +2152,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               providerMaxTokens,
               effectiveRequestTools
             )) {
-              if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
-                pendingInputCoordinator.consumeClaimedSteerBatch(sessionId)
-                didConsumeSteerBatch = true
-              }
               yield event
-            }
-
-            if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
-              pendingInputCoordinator.consumeClaimedSteerBatch(sessionId)
             }
           } catch (error) {
             if (queuedForRateLimit) {
               clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
-            }
-            if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
-              pendingInputCoordinator.releaseClaimedInputs(sessionId)
             }
             throw error
           }
@@ -2234,6 +2170,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         permissionMode: state.permissionMode,
         toolOutputGuard: this.toolOutputGuard,
         initialBlocks,
+        shouldYieldForPendingInput: () =>
+          Boolean(this.pendingInputCoordinator.getNextSteerInput(sessionId)),
         hooks: {
           onPreToolUse: (tool) => {
             this.dispatchHook('PreToolUse', {
@@ -2431,37 +2369,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     messages.unshift({ role: 'system', content: systemPrompt })
   }
 
-  private injectSteerInputsIntoRequest(
-    messages: ChatMessage[],
-    steerInputs: PendingSessionInputRecord[],
-    supportsVision: boolean,
-    supportsAudioInput: boolean,
-    contextLength: number,
-    reserveTokens: number
-  ): ChatMessage[] {
-    if (steerInputs.length === 0) {
-      return messages
-    }
-
-    const steerMessages = steerInputs.map((input) =>
-      createUserChatMessage(input.payload, supportsVision, supportsAudioInput)
-    )
-    const clonedMessages = [...messages]
-    const lastMessage = clonedMessages[clonedMessages.length - 1]
-    const trailingUserCount = lastMessage?.role === 'user' ? 1 : 0
-    const injectedMessages =
-      trailingUserCount > 0
-        ? [...clonedMessages.slice(0, -1), ...steerMessages, lastMessage]
-        : [...clonedMessages, ...steerMessages]
-
-    return fitMessagesToContextWindow(
-      injectedMessages,
-      contextLength,
-      reserveTokens,
-      steerMessages.length + trailingUserCount
-    )
-  }
-
   private async drainPendingQueueIfPossible(
     sessionId: string,
     reason: 'enqueue' | 'resume' | 'completed'
@@ -2481,20 +2388,29 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return false
     }
 
-    const nextQueuedInput = this.pendingInputCoordinator.getNextQueuedInput(sessionId)
-    if (!nextQueuedInput) {
+    const nextSteerInput = this.pendingInputCoordinator.getNextSteerInput(sessionId)
+    const nextQueuedInput = nextSteerInput
+      ? null
+      : this.pendingInputCoordinator.getNextQueuedInput(sessionId)
+    const nextPendingInput = nextSteerInput ?? nextQueuedInput
+    if (!nextPendingInput) {
       return false
     }
 
     this.drainingPendingQueues.add(sessionId)
     try {
-      const claimedInput = this.pendingInputCoordinator.claimQueuedInput(
-        sessionId,
-        nextQueuedInput.id
-      )
+      const pendingInputSource: ProcessPendingInputSource = nextSteerInput ? 'steer' : 'queue'
+      const claimedInput =
+        pendingInputSource === 'steer'
+          ? this.pendingInputCoordinator.claimSteerInput(sessionId, nextPendingInput.id)
+          : this.pendingInputCoordinator.claimQueuedInput(sessionId, nextPendingInput.id)
+      if (pendingInputSource === 'steer') {
+        this.activeSteerPendingInputIds.delete(sessionId)
+      }
       await this.processMessage(sessionId, claimedInput.payload, {
         projectDir: this.resolveProjectDir(sessionId),
-        pendingQueueItemId: claimedInput.id
+        pendingQueueItemId: claimedInput.id,
+        pendingQueueItemSource: pendingInputSource
       })
       return true
     } catch (error) {
@@ -2503,7 +2419,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     } finally {
       this.drainingPendingQueues.delete(sessionId)
       if (
-        this.pendingInputCoordinator.getNextQueuedInput(sessionId) &&
+        this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
         (await this.getSessionState(sessionId))?.status === 'idle' &&
         !this.hasPendingInteractions(sessionId)
       ) {
@@ -2525,7 +2441,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (this.drainingPendingQueues.has(sessionId)) {
       return false
     }
-    return this.pendingInputCoordinator.getNextQueuedInput(sessionId) === null
+    return !this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
   }
 
   private canDrainPendingQueueFromStatus(
@@ -2539,9 +2455,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return (reason === 'enqueue' || reason === 'resume') && status === 'error'
   }
 
-  private rollbackClaimedQueueInputTurn(
+  private rollbackClaimedPendingInputTurn(
     sessionId: string,
     pendingQueueItemId: string,
+    pendingInputSource: ProcessPendingInputSource,
     userMessageId: string | null
   ): void {
     const userMessage = userMessageId ? this.messageStore.getMessage(userMessageId) : null
@@ -2549,7 +2466,31 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.invalidateSummaryIfNeeded(sessionId, userMessage.orderSeq)
       this.messageStore.deleteFromOrderSeq(sessionId, userMessage.orderSeq)
     }
-    this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, pendingQueueItemId)
+    this.releaseClaimedPendingInput(sessionId, pendingQueueItemId, pendingInputSource)
+  }
+
+  private consumeClaimedPendingInput(
+    sessionId: string,
+    pendingInputId: string,
+    pendingInputSource: ProcessPendingInputSource
+  ): void {
+    if (pendingInputSource === 'steer') {
+      this.pendingInputCoordinator.consumeSteerInput(sessionId, pendingInputId)
+      return
+    }
+    this.pendingInputCoordinator.consumeQueuedInput(sessionId, pendingInputId)
+  }
+
+  private releaseClaimedPendingInput(
+    sessionId: string,
+    pendingInputId: string,
+    pendingInputSource: ProcessPendingInputSource
+  ): void {
+    if (pendingInputSource === 'steer') {
+      this.pendingInputCoordinator.releaseClaimedInput(sessionId, pendingInputId)
+      return
+    }
+    this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, pendingInputId)
   }
 
   private registerActiveGeneration(
@@ -4025,67 +3966,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return { text, files }
   }
 
-  private enqueueSteerInterruptInput(sessionId: string, input: SendMessageInput): void {
-    const existing = this.steerInterruptInputs.get(sessionId) ?? []
-    existing.push(input)
-    this.steerInterruptInputs.set(sessionId, existing)
-  }
-
-  private consumeAbortSteerInput(sessionId: string): SendMessageInput | null {
-    const abortReason = this.activeGenerationAbortReasons.get(sessionId) ?? 'user_stop'
-    this.activeGenerationAbortReasons.delete(sessionId)
-    return abortReason === 'steer' ? this.consumeSteerInterruptInput(sessionId) : null
-  }
-
-  private consumeSteerInterruptInput(sessionId: string): SendMessageInput | null {
-    const inputs = this.steerInterruptInputs.get(sessionId)
-    if (!inputs || inputs.length === 0) {
-      return null
+  private queueVisibleSteerInput(sessionId: string, input: SendMessageInput): void {
+    const mergeItemId = this.activeSteerPendingInputIds.get(sessionId) ?? null
+    try {
+      const record = this.pendingInputCoordinator.queueSteerInput(sessionId, input, {
+        mergeItemId
+      })
+      this.activeSteerPendingInputIds.set(sessionId, record.id)
+    } catch (error) {
+      if (!mergeItemId) {
+        throw error
+      }
+      this.activeSteerPendingInputIds.delete(sessionId)
+      const record = this.pendingInputCoordinator.queueSteerInput(sessionId, input)
+      this.activeSteerPendingInputIds.set(sessionId, record.id)
     }
-
-    this.steerInterruptInputs.delete(sessionId)
-    const text = inputs
-      .map((input) => input.text.trim())
-      .filter(Boolean)
-      .join('\n\n')
-    const files = inputs.flatMap((input) => input.files ?? []).filter(Boolean)
-    return { text, files }
-  }
-
-  private settleSteerInterruptedAssistant(sessionId: string, assistantMessageId: string): void {
-    const existingAssistant = this.messageStore.getMessage(assistantMessageId)
-    const existingBlocks = existingAssistant
-      ? this.parseAssistantBlocks(existingAssistant.content)
-      : []
-    const visibleBlocks = existingBlocks.filter(
-      (block) =>
-        !(block.type === 'error' && block.content === 'common.error.userCanceledGeneration')
-    )
-
-    if (visibleBlocks.length === 0) {
-      this.messageStore.deleteMessage(assistantMessageId)
-      this.emitMessageRefresh(sessionId, assistantMessageId)
-      return
-    }
-
-    const settledBlocks = visibleBlocks.map((block) =>
-      block.status === 'pending' || block.status === 'loading'
-        ? { ...block, status: 'success' as const }
-        : block
-    )
-    this.messageStore.updateAssistantContent(assistantMessageId, settledBlocks)
-    this.messageStore.updateMessageStatus(assistantMessageId, 'sent')
-    this.emitMessageRefresh(sessionId, assistantMessageId)
-  }
-
-  private continueWithSteerInput(
-    sessionId: string,
-    steerInput: SendMessageInput,
-    projectDir: string | null
-  ): void {
-    void this.processMessage(sessionId, steerInput, { projectDir }).catch((error) => {
-      console.error('[AgentRuntime] Failed to restart after steer interrupt:', error)
-    })
   }
 
   private supportsVision(providerId: string, modelId: string): boolean {

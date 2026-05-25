@@ -103,7 +103,7 @@ export class SkillExecutionService {
       )
 
       if (input.stdin) {
-        backgroundExecSessionManager.write(
+        await backgroundExecSessionManager.write(
           options.conversationId,
           result.sessionId,
           input.stdin,
