@@ -735,12 +735,20 @@ export class TelegramPoller {
     text: string,
     replyMarkup?: TelegramInlineKeyboardMarkup
   ): Promise<number> {
-    return await this.deps.client.sendMessage(
-      target,
-      convertMarkdownToTelegramHtml(text),
-      replyMarkup,
-      { parseMode: 'HTML' }
-    )
+    try {
+      return await this.deps.client.sendMessage(
+        target,
+        convertMarkdownToTelegramHtml(text),
+        replyMarkup,
+        { parseMode: 'HTML' }
+      )
+    } catch (error) {
+      if (this.isTelegramEntityParseError(error)) {
+        return await this.deps.client.sendMessage(target, text, replyMarkup)
+      }
+
+      throw error
+    }
   }
 
   private async sendPendingInteractionPrompt(
@@ -792,6 +800,16 @@ export class TelegramPoller {
       })
     } catch (error) {
       if (this.isMessageNotModifiedError(error)) {
+        return
+      }
+
+      if (this.isTelegramEntityParseError(error)) {
+        await this.deps.client.editMessageText({
+          target,
+          messageId: action.messageId,
+          text: action.text,
+          replyMarkup: action.replyMarkup ?? undefined
+        })
         return
       }
 
@@ -884,6 +902,16 @@ export class TelegramPoller {
       error instanceof TelegramApiRequestError &&
       error.code === 400 &&
       /message is not modified/i.test(error.message)
+    )
+  }
+
+  private isTelegramEntityParseError(error: unknown): boolean {
+    return (
+      error instanceof TelegramApiRequestError &&
+      error.code === 400 &&
+      /parse entities|can't parse entities|unsupported start tag|can't find end tag/i.test(
+        error.message
+      )
     )
   }
 
