@@ -1,0 +1,17 @@
+{
+  "title": "Minta pratinjau parameter",
+  "provider": "pemasok",
+  "model": "model",
+  "endpoint": "API Endpoint",
+  "headers": "Judul permintaan",
+  "body": "Permintaan tubuh",
+  "copyJson": "SalinJSON",
+  "copySuccess": "Disalin ke papan klip",
+  "close": "Tutup",
+  "loading": "Memuat...",
+  "error": "Gagal memuat",
+  "errorDesc": "Tidak dapat memperoleh informasi pratinjau permintaan, silakan coba lagi",
+  "notImplemented": "Belum didukung",
+  "notImplementedDesc": "Pemasok ini belum tersedia untuk pratinjau",
+  "mayNotMatch": "Catatan: Pratinjau ini dibuat ulang berdasarkan pengaturan sesi saat ini dan mungkin tidak sama persis dengan parameter yang sebenarnya dikirim."
+}

@@ -1,0 +1,79 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "Benvenuto",
+      "description": "Iniziamo a configurare DeepChat"
+    },
+    "provider": {
+      "title": "Provider modello",
+      "description": "Scegli il provider modello che preferisci"
+    },
+    "configuration": {
+      "title": "Configurazione modello",
+      "description": "Configura i modelli che vuoi usare"
+    },
+    "complete": {
+      "title": "Completato",
+      "description": "Tutto pronto, puoi iniziare!"
+    }
+  },
+  "title": "Benvenuto in DeepChat",
+  "description": "Completiamo insieme la configurazione",
+  "provider": {
+    "select": "Seleziona provider",
+    "apiUrl": "Indirizzo API",
+    "apiKey": "API Key",
+    "verifyLink": "Verifica link"
+  },
+  "complete": {
+    "title": "Tutto completato!",
+    "description": "Hai completato la configurazione. Iniziamo!"
+  },
+  "buttons": {
+    "getStarted": "Inizia",
+    "next": "Avanti",
+    "back": "Indietro"
+  },
+  "page": {
+    "title": "Benvenuto in DeepChat Agent",
+    "description": "Collega un provider modello per iniziare",
+    "guide": {
+      "title": "Avanzamento guida",
+      "description": "Passaggio corrente: {step}",
+      "or": "oppure",
+      "coreProgress": "Avanzamento configurazione principale",
+      "optional": "Passaggi facoltativi",
+      "actions": {
+        "continueSetup": "Continua configurazione",
+        "goToChat": "Vai alla chat"
+      },
+      "steps": {
+        "provider": "Provider",
+        "first-chat": "Prima chat",
+        "switch-model": "Cambia modello",
+        "mcp": "MCP",
+        "skills": "Skills",
+        "plugins": "Plugin"
+      }
+    },
+    "browseProviders": "Sfoglia tutti i provider...",
+    "connectAgent": "oppure collega un Agent",
+    "acpTitle": "Configura ACP Agent",
+    "acpDescription": "Claude Code, Codex, Kimi o il tuo Agent",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    },
+    "importProviders": "Importa da altri Agent"
+  },
+  "agentPage": {
+    "title": "Scegli un Agent per iniziare a creare",
+    "deepchatType": "DeepChat Agent",
+    "acpType": "ACP Agent",
+    "manageAgents": "Gestisci DeepChat Agent"
+  }
+}

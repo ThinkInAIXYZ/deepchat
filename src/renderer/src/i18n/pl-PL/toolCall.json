@@ -1,0 +1,25 @@
+{
+  "calling": "Dzwonię...",
+  "response": "Bieganie...",
+  "end": "Gotowe",
+  "error": "Błąd",
+  "title": "Wezwanie narzędzia",
+  "clickToView": "Kliknij, aby zobaczyć szczegóły",
+  "functionName": "Nazwa funkcji",
+  "permission": "Prośba o pozwolenie...",
+  "params": "Parametry funkcji",
+  "responseData": "Odpowiedź",
+  "imagePreview": "Podgląd obrazu",
+  "imagePreviewCount": "Brak podglądów obrazów | Jeden podgląd obrazu | {count} podglądy obrazów | {count} podglądów obrazów",
+  "terminalOutput": "Wyjście terminala",
+  "badge": {
+    "rtk": "RTK"
+  },
+  "replacementsCount": "Zakończono wymianę {count}",
+  "fileOperation": "Operacja na pliku",
+  "fileRead": "Przeczytaj plik",
+  "fileWrite": "Zapisz plik",
+  "filePath": "Ścieżka pliku",
+  "success": "Sukces",
+  "failed": "Nie udało się"
+}

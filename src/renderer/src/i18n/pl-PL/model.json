@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "Wyszukaj modele..."
+  },
+  "error": {
+    "loadFailed": "Nie udało się załadować modeli"
+  },
+  "type": {
+    "custom": "Model niestandardowy",
+    "official": "Oficjalny model"
+  },
+  "add": {
+    "namePlaceholder": "Nazwa modelu",
+    "idPlaceholder": "Identyfikator modelu",
+    "contextLengthPlaceholder": "Długość kontekstu",
+    "maxTokensPlaceholder": "Maks. Tokens"
+  },
+  "actions": {
+    "add": "Dodaj model",
+    "enableAll": "Włącz wszystko",
+    "disableAll": "Wyłącz wszystko"
+  },
+  "sort": {
+    "status": "Według statusu",
+    "name": "Według nazwy"
+  },
+  "filter": {
+    "label": "Filtruj",
+    "clearAll": "Wyczyść filtry",
+    "visibleCount": "Wyświetlanie {visible} / {total}",
+    "capabilities": "Możliwości",
+    "types": "Typy",
+    "capabilityOptions": {
+      "vision": "Wizja",
+      "functionCall": "Wywołanie funkcji",
+      "reasoning": "Rozumowanie",
+      "search": "Wyszukiwanie w Internecie"
+    },
+    "typeOptions": {
+      "chat": "Czat",
+      "embedding": "Osadzanie",
+      "rerank": "Zmień rangę",
+      "imageGeneration": "Generowanie obrazu",
+      "videoGeneration": "Generowanie wideo"
+    }
+  },
+  "tags": {
+    "reasoning": "Rozumowanie",
+    "chat": "Czat",
+    "code": "Kod",
+    "writing": "Pisanie",
+    "analysis": "Analiza"
+  }
+}

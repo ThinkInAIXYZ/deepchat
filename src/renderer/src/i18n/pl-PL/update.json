@@ -1,0 +1,20 @@
+{
+  "newVersion": "Znaleziono nową wersję",
+  "version": "Wersja",
+  "releaseDate": "Data wydania",
+  "releaseNotes": "Informacje o wydaniu",
+  "later": "Później",
+  "githubDownload": "Pobierz z GitHuba",
+  "officialDownload": "Oficjalne pobieranie",
+  "checkUpdate": "Sprawdź aktualizacje",
+  "downloading": "Pobieranie",
+  "installNow": "Zainstaluj teraz",
+  "installUpdate": "Zainstaluj aktualizację",
+  "versionAvailable": "Dostępny jest {version}",
+  "autoUpdateFailed": "Automatyczna aktualizacja nie powiodła się. Skorzystaj z poniższych linków do ręcznego pobierania.",
+  "topbarButton": "Aktualizacja",
+  "autoUpdate": "Automatyczna aktualizacja",
+  "restarting": "Ponowne uruchamianie",
+  "alreadyUpToDate": "Już aktualne",
+  "alreadyUpToDateDesc": "Twój DeepChat jest już zaktualizowany do najnowszej wersji, aktualizacja nie jest wymagana."
+}

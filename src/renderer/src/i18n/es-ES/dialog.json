@@ -1,0 +1,44 @@
+{
+  "cancel": "Cancelar",
+  "confirm": "Confirmar",
+  "close": "Cerrar",
+  "ok": "OK",
+  "delete": {
+    "title": "¿Estás seguro de que deseas eliminar esta conversación?",
+    "description": "Esta acción no se puede deshacer.",
+    "confirm": "Eliminar"
+  },
+  "rename": {
+    "title": "Cambiar el nombre de la conversación",
+    "description": "Introduce un nuevo nombre para la conversación."
+  },
+  "cleanMessages": {
+    "title": "Borrar todos los mensajes",
+    "description": "Esto eliminará todos los mensajes y archivos de esta conversación. ¿Estás seguro de que quieres continuar?",
+    "confirm": "Borrar"
+  },
+  "fork": {
+    "title": "Crear rama",
+    "description": "Esto copiará todos los mensajes desde el primer mensaje hasta el mensaje actual en una nueva conversación, donde podrás continuar el diálogo.",
+    "confirm": "Crear rama",
+    "tag": "Rama"
+  },
+  "error": {
+    "title": "Error"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Confirmar activación del razonamiento",
+      "functionCall": "Confirmar activación de llamadas a funciones"
+    },
+    "message": {
+      "reasoning": "Habilitar el razonamiento deshabilitará automáticamente las llamadas a funciones. Esta es una limitación de los modelos DeepSeek-V3.1; ambas funciones no pueden usarse a la vez. ¿Continuar?",
+      "functionCall": "Habilitar las llamadas a funciones deshabilitará automáticamente el razonamiento. Esta es una limitación de los modelos DeepSeek-V3.1; ambas funciones no pueden usarse a la vez. ¿Continuar?"
+    },
+    "warningText": {
+      "reasoning": "Nota: habilitar el razonamiento deshabilitará automáticamente las llamadas a funciones; es un requisito de los modelos DeepSeek-V3.1.",
+      "functionCall": "Nota: habilitar las llamadas a funciones deshabilitará automáticamente el razonamiento; es un requisito de los modelos DeepSeek-V3.1."
+    },
+    "confirmEnable": "Confirmar activación"
+  }
+}

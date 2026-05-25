@@ -1,0 +1,20 @@
+{
+  "newVersion": "versi baru ditemukan",
+  "version": "versi",
+  "releaseDate": "Tanggal rilis",
+  "releaseNotes": "Perbarui konten",
+  "later": "Bicaralah denganmu nanti",
+  "githubDownload": "Gitpengunduhan hub",
+  "officialDownload": "Pengunduhan situs web resmi",
+  "checkUpdate": "Periksa pembaruan",
+  "downloading": "Mengunduh",
+  "installNow": "Instal sekarang",
+  "installUpdate": "Instal pembaruan",
+  "versionAvailable": "{version} tersedia",
+  "autoUpdateFailed": "Pembaruan otomatis gagal, silakan gunakan tautan unduh manual di bawah.",
+  "topbarButton": "memperbarui",
+  "autoUpdate": "Pembaruan otomatis",
+  "restarting": "Memulai ulang",
+  "alreadyUpToDate": "Sudah versi terbaru",
+  "alreadyUpToDateDesc": "DeepChat Anda saat ini adalah versi terbaru dan tidak perlu diperbarui."
+}

@@ -1,0 +1,44 @@
+{
+  "cancel": "Abbrechen",
+  "confirm": "Bestätigen",
+  "close": "Schließen",
+  "ok": "OK",
+  "delete": {
+    "title": "Diesen Chat wirklich löschen?",
+    "description": "Diese Aktion kann nicht rückgängig gemacht werden. Bitte vorsichtig fortfahren.",
+    "confirm": "Löschen"
+  },
+  "rename": {
+    "title": "Chat umbenennen",
+    "description": "Bitte geben Sie einen neuen Chatnamen ein."
+  },
+  "cleanMessages": {
+    "title": "Chatnachrichten leeren",
+    "description": "Beim Leeren werden alle Nachrichten und Dateien dieses Chats gelöscht. Fortfahren?",
+    "confirm": "Leeren"
+  },
+  "fork": {
+    "title": "Chat-Zweig erstellen",
+    "description": "Kopiert alle Nachrichten von der ersten bis zur aktuell ausgewählten Nachricht in einen neuen Chat. Dort können Sie die Unterhaltung fortsetzen.",
+    "confirm": "Zweig erstellen",
+    "tag": "Zweig"
+  },
+  "error": {
+    "title": "Fehler"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Reasoning aktivieren bestätigen",
+      "functionCall": "Funktionsaufrufe aktivieren bestätigen"
+    },
+    "message": {
+      "reasoning": "Das Aktivieren von Reasoning deaktiviert automatisch Funktionsaufrufe. Das ist eine Einschränkung des DeepSeek-V3.1-Modells; beide Funktionen können nicht gleichzeitig verwendet werden. Fortfahren?",
+      "functionCall": "Das Aktivieren von Funktionsaufrufen deaktiviert automatisch Reasoning. Das ist eine Einschränkung des DeepSeek-V3.1-Modells; beide Funktionen können nicht gleichzeitig verwendet werden. Fortfahren?"
+    },
+    "warningText": {
+      "reasoning": "Hinweis: Das Aktivieren von Reasoning deaktiviert automatisch Funktionsaufrufe. Dies ist eine Einschränkung des DeepSeek-V3.1-Modells.",
+      "functionCall": "Hinweis: Das Aktivieren von Funktionsaufrufen deaktiviert automatisch Reasoning. Dies ist eine Einschränkung des DeepSeek-V3.1-Modells."
+    },
+    "confirmEnable": "Aktivieren bestätigen"
+  }
+}

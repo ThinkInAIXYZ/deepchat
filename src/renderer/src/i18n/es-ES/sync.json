@@ -1,0 +1,20 @@
+{
+  "success": {
+    "importComplete": "Se importaron correctamente {count} conversaciones."
+  },
+  "error": {
+    "notEnabled": "La sincronización no está habilitada",
+    "folderNotExists": "La carpeta de sincronización no existe",
+    "noValidBackup": "No se encontraron archivos de copia de seguridad válidos en la carpeta de sincronización.",
+    "unsupportedBackupVersion": "Esta copia de seguridad fue creada por una versión más reciente de DeepChat y no se puede importar.",
+    "dbNotExists": "El archivo de base de datos no existe",
+    "configNotExists": "El archivo de configuración no existe",
+    "tempDbFailed": "No se pudo crear el archivo de copia de seguridad de la base de datos temporal",
+    "tempConfigFailed": "No se pudo crear el archivo de copia de seguridad de configuración temporal",
+    "importFailed": "La importación falló, los datos originales han sido restaurados",
+    "importProcess": "Se produjo un error durante el proceso de importación.",
+    "unknown": "Error desconocido",
+    "encryptedBackupPasswordMissing": "Esta copia de seguridad está cifrada, pero la clave de la base de datos local no está disponible. Primero desbloquee la base de datos cifrada y luego importe nuevamente.",
+    "overwriteEncryptionMismatch": "La importación sobrescrita requiere que la copia de seguridad y la base de datos actual utilicen el mismo estado de cifrado."
+  }
+}

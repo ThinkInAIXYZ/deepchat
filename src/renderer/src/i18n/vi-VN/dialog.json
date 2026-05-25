@@ -1,0 +1,44 @@
+{
+  "cancel": "Hủy bỏ",
+  "confirm": "Xác nhận",
+  "close": "Đóng",
+  "ok": "được rồi",
+  "delete": {
+    "title": "Bạn có chắc chắn muốn xóa cuộc trò chuyện này không?",
+    "description": "Không thể hoàn tác hành động này.",
+    "confirm": "Xóa"
+  },
+  "rename": {
+    "title": "Đổi tên cuộc trò chuyện",
+    "description": "Vui lòng nhập tên mới cho cuộc trò chuyện."
+  },
+  "cleanMessages": {
+    "title": "Xóa tất cả tin nhắn",
+    "description": "Thao tác này sẽ xóa tất cả tin nhắn và tập tin trong cuộc trò chuyện này. Bạn có chắc chắn muốn tiếp tục không?",
+    "confirm": "Xóa"
+  },
+  "fork": {
+    "title": "Tạo chi nhánh",
+    "description": "Thao tác này sẽ sao chép tất cả tin nhắn từ tin nhắn đầu tiên sang tin nhắn hiện tại vào một cuộc trò chuyện mới nơi bạn có thể tiếp tục cuộc đối thoại.",
+    "confirm": "Tạo chi nhánh",
+    "tag": "chi nhánh"
+  },
+  "error": {
+    "title": "Lỗi"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Xác nhận Kích hoạt lý luận",
+      "functionCall": "Xác nhận kích hoạt chức năng gọi"
+    },
+    "message": {
+      "reasoning": "Việc kích hoạt lý luận sẽ tự động vô hiệu hóa chức năng gọi hàm. Đây là hạn chế của mẫu DeepSeek-V3.1 và không thể sử dụng đồng thời cả hai tính năng. Tiếp tục?",
+      "functionCall": "Việc kích hoạt chức năng gọi sẽ tự động vô hiệu hóa lý luận. Đây là hạn chế của mẫu DeepSeek-V3.1 và không thể sử dụng đồng thời cả hai tính năng. Tiếp tục?"
+    },
+    "warningText": {
+      "reasoning": "Lưu ý: Việc bật lý luận sẽ tự động tắt chức năng gọi hàm, đây là yêu cầu của các mô hình DeepSeek-V3.1.",
+      "functionCall": "Lưu ý: Việc kích hoạt chức năng gọi hàm sẽ tự động vô hiệu hóa khả năng suy luận, đây là yêu cầu của các mô hình DeepSeek-V3.1."
+    },
+    "confirmEnable": "Xác nhận kích hoạt"
+  }
+}

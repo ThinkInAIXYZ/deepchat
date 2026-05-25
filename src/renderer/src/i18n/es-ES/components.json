@@ -1,0 +1,70 @@
+{
+  "emojiPicker": {
+    "search": "Buscar emojis",
+    "smileys": "Emoticonos y emociones",
+    "people": "Personas y cuerpo",
+    "animals": "Animales y naturaleza",
+    "food": "Comida y bebida",
+    "travel": "Viajes y lugares",
+    "activities": "Actividades",
+    "objects": "Objetos",
+    "symbols": "Símbolos",
+    "flags": "Banderas"
+  },
+  "messageBlockAction": {
+    "continue": "Continuar",
+    "continued": "Continuado"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Permiso requerido",
+    "allow": "Permitir",
+    "allowOnce": "Permitir una vez",
+    "allowForSession": "Permitir en la sesión",
+    "allowOnceTooltip": "Ejecuta este comando una vez sin guardar la decisión.",
+    "allowForSessionTooltip": "Recordar este comando solo en esta conversación.",
+    "deny": "Denegar",
+    "rememberChoice": "Recordar esta elección",
+    "granted": "Permiso concedido",
+    "denied": "Permiso denegado",
+    "riskLabel": "Riesgo",
+    "type": {
+      "read": "Acceso de lectura",
+      "write": "Acceso de escritura",
+      "all": "Acceso completo",
+      "command": "Ejecutar comando"
+    },
+    "description": {
+      "read": "¿Permitir que '{toolName}' de '{serverName}' realice operaciones de lectura?",
+      "write": "¿Permitir que '{toolName}' de '{serverName}' realice operaciones de escritura?",
+      "all": "¿Permitir que '{toolName}' de '{serverName}' realice operaciones de lectura y escritura?",
+      "command": "Ejecutar comando: {command}",
+      "commandWithRisk": "Ejecutar comando: {command}\n\nNivel de riesgo: {riskLevel}\n\nSugerencia: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "Bajo",
+      "medium": "Medio",
+      "high": "Alto",
+      "critical": "Crítico"
+    },
+    "suggestion": {
+      "low": "Este comando es de solo lectura y tiene un impacto mínimo.",
+      "medium": "Este comando puede cambiar el estado o instalar dependencias. Revísalo antes de ejecutarlo.",
+      "high": "Este comando modifica archivos o el estado del sistema. Procede con cuidado.",
+      "critical": "Este comando puede ser destructivo o acceder a redes externas. Verifica la intención."
+    }
+  },
+  "promptParamsDialog": {
+    "title": "{name}: configuración de parámetros",
+    "description": "Rellena los parámetros siguientes. Los campos marcados con * son obligatorios.",
+    "required": "Este campo es obligatorio."
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Pregunta",
+    "send": "Enviar",
+    "reject": "Rechazar",
+    "selected": "Seleccionado",
+    "rejected": "Rechazado",
+    "customPlaceholder": "Escribe tu respuesta...",
+    "answerLabel": "Respuesta"
+  }
+}

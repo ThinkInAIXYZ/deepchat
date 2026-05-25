@@ -1,0 +1,70 @@
+{
+  "emojiPicker": {
+    "search": "Emoji Ara",
+    "smileys": "Suratlar ve Duygular",
+    "people": "İnsanlar ve Vücut",
+    "animals": "Hayvanlar ve Doğa",
+    "food": "Yiyecek ve İçecek",
+    "travel": "Seyahat ve Yerler",
+    "activities": "Faaliyetler",
+    "objects": "Nesneler",
+    "symbols": "Semboller",
+    "flags": "Bayraklar"
+  },
+  "messageBlockAction": {
+    "continue": "Devam etmek",
+    "continued": "Devamı"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "İzin Gerekli",
+    "allow": "İzin vermek",
+    "allowOnce": "Bir Kez İzin Ver",
+    "allowForSession": "Oturuma İzin Ver",
+    "allowOnceTooltip": "Kararı kaydetmeden bu komutu bir kez yürütün.",
+    "allowForSessionTooltip": "Bu komutu yalnızca bu konuşma için hatırlayın.",
+    "deny": "Reddetmek",
+    "rememberChoice": "Bu seçimi hatırla",
+    "granted": "İzin verildi",
+    "denied": "İzin reddedildi",
+    "riskLabel": "Risk",
+    "type": {
+      "read": "Okuma Erişimi",
+      "write": "Yazma Erişimi",
+      "all": "Tam Erişim",
+      "command": "Komutu Yürüt"
+    },
+    "description": {
+      "read": "'{serverName}'den '{toolName}' öğesinin okuma işlemlerini gerçekleştirmesine izin verilsin mi?",
+      "write": "'{serverName}'den '{toolName}'nin yazma işlemlerini gerçekleştirmesine izin verilsin mi?",
+      "all": "'{serverName}'den '{toolName}' öğesinin okuma ve yazma işlemlerini gerçekleştirmesine izin verilsin mi?",
+      "command": "Komutu yürütün: {command}",
+      "commandWithRisk": "Komutu yürütün: {command}\n\nRisk düzeyi: {riskLevel}\n\nÖneri: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "Düşük",
+      "medium": "Orta",
+      "high": "Yüksek",
+      "critical": "Kritik"
+    },
+    "suggestion": {
+      "low": "Bu, etkisi minimum düzeyde olan salt okunur bir komuttur.",
+      "medium": "Bu komut durumu değiştirebilir veya bağımlılıkları yükleyebilir. Çalıştırmadan önce inceleyin.",
+      "high": "Bu komut, dosyaları veya sistem durumunu değiştirir. Dikkatlice ilerleyin.",
+      "critical": "Bu komut yıkıcı olabilir veya harici ağlara erişebilir. Amacı doğrulayın."
+    }
+  },
+  "promptParamsDialog": {
+    "title": "{name} Parametre Ayarları",
+    "description": "Lütfen aşağıdaki parametreleri doldurun. * işaretli alanların doldurulması zorunludur.",
+    "required": "Bu alan gereklidir."
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Soru",
+    "send": "Göndermek",
+    "reject": "Reddetmek",
+    "selected": "Seçildi",
+    "rejected": "Reddedilmiş",
+    "customPlaceholder": "Cevabınızı yazın...",
+    "answerLabel": "Cevap"
+  }
+}

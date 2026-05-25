@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "Cari model..."
+  },
+  "error": {
+    "loadFailed": "Gagal memuat model"
+  },
+  "type": {
+    "custom": "model khusus",
+    "official": "model resmi"
+  },
+  "add": {
+    "namePlaceholder": "Nama model",
+    "idPlaceholder": "ID Model",
+    "contextLengthPlaceholder": "panjang konteks",
+    "maxTokensPlaceholder": "Token maksimum"
+  },
+  "actions": {
+    "add": "Tambahkan model",
+    "enableAll": "Aktifkan semua",
+    "disableAll": "Nonaktifkan semua"
+  },
+  "sort": {
+    "status": "berdasarkan status",
+    "name": "berdasarkan nama"
+  },
+  "filter": {
+    "label": "Menyaring",
+    "clearAll": "Hapus penyaring",
+    "visibleCount": "Tampilkan {visible} / {total}",
+    "capabilities": "Kemampuan",
+    "types": "Ketik",
+    "capabilityOptions": {
+      "vision": "Visi",
+      "functionCall": "panggilan fungsi",
+      "reasoning": "penalaran",
+      "search": "Pencarian internet"
+    },
+    "typeOptions": {
+      "chat": "dialog",
+      "embedding": "vektor",
+      "rerank": "mengatur ulang",
+      "imageGeneration": "generasi gambar",
+      "videoGeneration": "generasi video"
+    }
+  },
+  "tags": {
+    "reasoning": "penalaran",
+    "chat": "dialog",
+    "code": "kode",
+    "writing": "menulis",
+    "analysis": "analisis"
+  }
+}

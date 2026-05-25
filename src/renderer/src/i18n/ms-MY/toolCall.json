@@ -1,0 +1,25 @@
+{
+  "calling": "Memanggil",
+  "response": "Berlari",
+  "end": "Selesai",
+  "error": "kesilapan",
+  "title": "Panggilan alat",
+  "clickToView": "Klik untuk melihat butiran",
+  "functionName": "nama fungsi",
+  "permission": "Meminta kebenaran",
+  "params": "Parameter fungsi",
+  "responseData": "tindak balas fungsi",
+  "imagePreview": "Pratonton gambar",
+  "imagePreviewCount": "Tiada pratonton gambar | Pratonton gambar {count} | Pratonton gambar {count}",
+  "terminalOutput": "Keluaran terminal",
+  "badge": {
+    "rtk": "RTK"
+  },
+  "replacementsCount": "Selesai penggantian di {count}",
+  "fileOperation": "Operasi fail",
+  "fileRead": "membaca fail",
+  "fileWrite": "tulis fail",
+  "filePath": "laluan fail",
+  "success": "kejayaan",
+  "failed": "gagal"
+}

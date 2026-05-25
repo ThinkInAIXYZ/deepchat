@@ -1,0 +1,25 @@
+{
+  "calling": "Arıyorum...",
+  "response": "Koşma...",
+  "end": "Tamamlamak",
+  "error": "Hata",
+  "title": "Araç Çağrısı",
+  "clickToView": "Ayrıntıları görüntülemek için tıklayın",
+  "functionName": "İşlev Adı",
+  "permission": "İzin isteniyor...",
+  "params": "Fonksiyon Parametreleri",
+  "responseData": "Cevap",
+  "imagePreview": "Resim Önizleme",
+  "imagePreviewCount": "Resim önizlemesi yok | {count} resim önizlemesi | {count} resim önizlemesi",
+  "terminalOutput": "Terminal Çıkışı",
+  "badge": {
+    "rtk": "RTK"
+  },
+  "replacementsCount": "{count} değiştirmeleri tamamlandı",
+  "fileOperation": "Dosya İşlemi",
+  "fileRead": "Dosyayı Oku",
+  "fileWrite": "Dosya Yaz",
+  "filePath": "Dosya Yolu",
+  "success": "Başarı",
+  "failed": "Arızalı"
+}

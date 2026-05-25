@@ -1,0 +1,17 @@
+{
+  "title": "Vorschau der Anfrageparameter",
+  "provider": "Anbieter",
+  "model": "Modell",
+  "endpoint": "API Endpoint",
+  "headers": "Anfrage-Header",
+  "body": "Anfrage-Body",
+  "copyJson": "JSON kopieren",
+  "copySuccess": "In die Zwischenablage kopiert",
+  "close": "Schließen",
+  "loading": "Wird geladen...",
+  "error": "Laden fehlgeschlagen",
+  "errorDesc": "Vorschauinformationen konnten nicht abgerufen werden. Bitte erneut versuchen",
+  "notImplemented": "Noch nicht unterstützt",
+  "notImplementedDesc": "Für diesen Anbieter ist die Vorschau noch nicht verfügbar",
+  "mayNotMatch": "Hinweis: Diese Vorschau wird aus den aktuellen Sitzungseinstellungen rekonstruiert und stimmt möglicherweise nicht vollständig mit den tatsächlich gesendeten Parametern überein"
+}

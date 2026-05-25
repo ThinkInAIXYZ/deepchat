@@ -1,0 +1,70 @@
+{
+  "emojiPicker": {
+    "search": "Cari emotikon",
+    "smileys": "Ekspresi dan emosi",
+    "people": "Angka dan tubuh",
+    "animals": "hewan dan alam",
+    "food": "makanan dan minuman",
+    "travel": "Perjalanan dan Tempat",
+    "activities": "Kegiatan",
+    "objects": "Barang",
+    "symbols": "simbol",
+    "flags": "bendera"
+  },
+  "messageBlockAction": {
+    "continue": "lanjutkan",
+    "continued": "Lanjutan"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Izin diperlukan",
+    "allow": "mengizinkan",
+    "allowOnce": "diperbolehkan satu kali",
+    "allowForSession": "Jalankan sesi saat ini secara otomatis",
+    "allowOnceTooltip": "Perintah ini hanya dijalankan kali ini dan keputusan tidak disimpan.",
+    "allowForSessionTooltip": "Ingat perintah ini dalam sesi saat ini.",
+    "deny": "menolak",
+    "rememberChoice": "Ingat pilihan ini",
+    "granted": "Izin diberikan",
+    "denied": "Izin ditolak",
+    "riskLabel": "risiko",
+    "type": {
+      "read": "Izin baca",
+      "write": "Izin menulis",
+      "all": "izin penuh",
+      "command": "jalankan perintah"
+    },
+    "description": {
+      "read": "Izinkan '{toolName}' dari '{serverName}' melakukan operasi baca?",
+      "write": "Izinkan '{toolName}' dari '{serverName}' menulis?",
+      "all": "Izinkan '{toolName}' dari '{serverName}' melakukan operasi baca dan tulis?",
+      "command": "Perintah eksekusi: {command}",
+      "commandWithRisk": "Perintah eksekusi: {command}\n\nTingkat risiko: {riskLevel}\n\nSaran: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "rendah",
+      "medium": "di",
+      "high": "tinggi",
+      "critical": "serius"
+    },
+    "suggestion": {
+      "low": "Perintah ini merupakan operasi read-only dan memiliki dampak yang kecil.",
+      "medium": "Perintah ini dapat menginstal dependensi atau mengubah status, harap konfirmasi sebelum menjalankan.",
+      "high": "Perintah ini akan mengubah file atau status sistem, jadi harap berhati-hati.",
+      "critical": "Perintah ini mungkin merusak atau mengakses jaringan eksternal, harap verifikasi."
+    }
+  },
+  "promptParamsDialog": {
+    "title": "{name} Pengaturan parameter",
+    "description": "Silakan isi parameter berikut, item dengan * wajib diisi.",
+    "required": "Parameter ini diperlukan"
+  },
+  "messageBlockQuestionRequest": {
+    "title": "pertanyaan",
+    "send": "kirim",
+    "reject": "menolak",
+    "selected": "Dipilih",
+    "rejected": "Ditolak",
+    "customPlaceholder": "Masukkan jawaban Anda...",
+    "answerLabel": "jawaban"
+  }
+}

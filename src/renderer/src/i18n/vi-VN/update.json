@@ -1,0 +1,20 @@
+{
+  "newVersion": "Đã tìm thấy phiên bản mới",
+  "version": "Phiên bản",
+  "releaseDate": "Ngày phát hành",
+  "releaseNotes": "Ghi chú phát hành",
+  "later": "sau này",
+  "githubDownload": "Tải xuống GitHub",
+  "officialDownload": "Tải xuống chính thức",
+  "checkUpdate": "Kiểm tra cập nhật",
+  "downloading": "Đang tải xuống",
+  "installNow": "Cài đặt ngay",
+  "installUpdate": "Cài đặt bản cập nhật",
+  "versionAvailable": "{version} có sẵn",
+  "autoUpdateFailed": "Cập nhật tự động không thành công. Vui lòng sử dụng các liên kết tải xuống thủ công bên dưới.",
+  "topbarButton": "cập nhật",
+  "autoUpdate": "Tự động cập nhật",
+  "restarting": "Khởi động lại",
+  "alreadyUpToDate": "Đã cập nhật",
+  "alreadyUpToDateDesc": "DeepChat của bạn đã được cập nhật lên phiên bản mới nhất, không cần cập nhật."
+}

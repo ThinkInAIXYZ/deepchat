@@ -1,0 +1,20 @@
+{
+  "success": {
+    "importComplete": "{count} konuşma(lar)ı başarıyla içe aktarıldı."
+  },
+  "error": {
+    "notEnabled": "Senkronizasyon etkin değil",
+    "folderNotExists": "Senkronizasyon klasörü mevcut değil",
+    "noValidBackup": "Senkronizasyon klasöründe geçerli bir yedekleme dosyası bulunamadı.",
+    "unsupportedBackupVersion": "Bu yedekleme, DeepChat'nin daha yeni bir sürümü tarafından oluşturuldu ve içe aktarılamaz.",
+    "dbNotExists": "Veritabanı dosyası mevcut değil",
+    "configNotExists": "Yapılandırma dosyası mevcut değil",
+    "tempDbFailed": "Geçici veritabanı yedekleme dosyası oluşturulamadı",
+    "tempConfigFailed": "Geçici yapılandırma yedekleme dosyası oluşturulamadı",
+    "importFailed": "İçe aktarma başarısız oldu, orijinal veriler geri yüklendi",
+    "importProcess": "İçe aktarma işlemi sırasında bir hata oluştu",
+    "unknown": "Bilinmeyen hata",
+    "encryptedBackupPasswordMissing": "Bu yedekleme şifrelenmiştir ancak yerel veritabanı anahtarı mevcut değildir. Önce şifrelenmiş veritabanının kilidini açın, ardından tekrar içe aktarın.",
+    "overwriteEncryptionMismatch": "Üzerine yazma içe aktarma, yedek ve geçerli veritabanının aynı şifreleme durumunu kullanmasını gerektirir."
+  }
+}

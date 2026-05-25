@@ -1,0 +1,70 @@
+{
+  "emojiPicker": {
+    "search": "Wyszukaj emotikony",
+    "smileys": "Buźki i emocje",
+    "people": "Ludzie i ciało",
+    "animals": "Zwierzęta i przyroda",
+    "food": "Jedzenie i napoje",
+    "travel": "Podróże i miejsca",
+    "activities": "Działania",
+    "objects": "Obiekty",
+    "symbols": "Symbole",
+    "flags": "Flagi"
+  },
+  "messageBlockAction": {
+    "continue": "Kontynuuj",
+    "continued": "Ciąg dalszy"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Wymagane pozwolenie",
+    "allow": "Zezwól",
+    "allowOnce": "Zezwól raz",
+    "allowForSession": "Zezwól na sesję",
+    "allowOnceTooltip": "Wykonaj to polecenie raz, bez zapisywania decyzji.",
+    "allowForSessionTooltip": "Zapamiętaj to polecenie tylko dla tej rozmowy.",
+    "deny": "Odmów",
+    "rememberChoice": "Zapamiętaj ten wybór",
+    "granted": "Pozwolenie udzielone",
+    "denied": "Odmowa pozwolenia",
+    "riskLabel": "Ryzyko",
+    "type": {
+      "read": "Przeczytaj Dostęp",
+      "write": "Napisz dostęp",
+      "all": "Pełny dostęp",
+      "command": "Wykonaj polecenie"
+    },
+    "description": {
+      "read": "Zezwolić „{toolName}” z „{serverName}” na wykonanie operacji odczytu?",
+      "write": "Zezwolić „{toolName}” z „{serverName}” na wykonywanie operacji zapisu?",
+      "all": "Zezwolić „{toolName}” z „{serverName}” na wykonywanie operacji odczytu i zapisu?",
+      "command": "Wykonaj polecenie: {command}",
+      "commandWithRisk": "Wykonaj polecenie: {command}\n\nPoziom ryzyka: {riskLevel}\n\nSugestia: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "Niski",
+      "medium": "Średni",
+      "high": "Wysoka",
+      "critical": "Krytyczny"
+    },
+    "suggestion": {
+      "low": "Jest to polecenie tylko do odczytu, które ma minimalny wpływ.",
+      "medium": "To polecenie może zmienić stan lub zainstalować zależności. Przejrzyj przed uruchomieniem.",
+      "high": "To polecenie modyfikuje pliki lub stan systemu. Postępuj ostrożnie.",
+      "critical": "To polecenie może być destrukcyjne lub umożliwiać dostęp do sieci zewnętrznych. Zweryfikuj intencję."
+    }
+  },
+  "promptParamsDialog": {
+    "title": "Ustawienia parametrów {name}",
+    "description": "Proszę wypełnić poniższe parametry. Pola oznaczone * są wymagane.",
+    "required": "To pole jest wymagane."
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Pytanie",
+    "send": "Wyślij",
+    "reject": "Odrzuć",
+    "selected": "Wybrane",
+    "rejected": "Odrzucony",
+    "customPlaceholder": "Wpisz swoją odpowiedź...",
+    "answerLabel": "Odpowiedź"
+  }
+}

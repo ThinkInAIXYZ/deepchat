@@ -1,0 +1,9 @@
+{
+  "loadError": "Nie udało się załadować obrazu",
+  "loading": "Ładowanie obrazu...",
+  "preview": "Podgląd obrazu",
+  "save": "Zapisz obraz",
+  "saveAs": "Zapisz obraz jako...",
+  "saveSuccess": "Obraz został zapisany",
+  "saveFailed": "Nie udało się zapisać obrazu"
+}

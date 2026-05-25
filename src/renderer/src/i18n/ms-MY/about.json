@@ -1,0 +1,23 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat ialah pelanggan AI merentas platform, khusus untuk membolehkan lebih ramai orang menggunakan AI dengan mudah.",
+  "website": "Layari laman web kami",
+  "disclaimerButton": "Penafian",
+  "feedbackButton": "Maklum balas",
+  "disclaimerTitle": "Pernyataan syarat penggunaan",
+  "checkUpdateButton": "Semak kemas kini",
+  "mockUpdateButton": "Kemas kini yang dimuat turun simulasi",
+  "clearMockUpdateButton": "Kosongkan kemas kini simulasi",
+  "mockOnboardingButton": "Simulasikan but untuk kali pertama",
+  "updateChannel": "Kemas kini saluran",
+  "stableChannel": "Versi rasmi",
+  "betaChannel": "Versi beta dalaman",
+  "deviceInfo": {
+    "title": "Maklumat peranti",
+    "platform": "platform",
+    "arch": "Seni bina",
+    "cpuModel": "Model CPU",
+    "totalMemory": "jumlah ingatan",
+    "osVersion": "Versi sistem"
+  }
+}
