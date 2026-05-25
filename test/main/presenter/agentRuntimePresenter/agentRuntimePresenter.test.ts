@@ -117,6 +117,64 @@ function createMockSqlitePresenter() {
     summary_cursor_order_seq: 1,
     summary_updated_at: null
   }
+  const pendingRows: any[] = []
+  let pendingRowClock = 1
+  const pendingInputsTable = {
+    insert: vi.fn((input: any) => {
+      const now = pendingRowClock++
+      const existingIndex = pendingRows.findIndex((row) => row.id === input.id)
+      const row = {
+        id: input.id,
+        session_id: input.sessionId ?? input.session_id,
+        mode: input.mode,
+        state: input.state,
+        payload_json: input.payloadJson ?? input.payload_json,
+        queue_order: input.queueOrder ?? input.queue_order ?? null,
+        claimed_at: input.claimedAt ?? input.claimed_at ?? null,
+        consumed_at: input.consumedAt ?? input.consumed_at ?? null,
+        created_at: now,
+        updated_at: now
+      }
+      if (existingIndex >= 0) {
+        pendingRows.splice(existingIndex, 1, row)
+      } else {
+        pendingRows.push(row)
+      }
+    }),
+    get: vi.fn((id: string) => pendingRows.find((row) => row.id === id)),
+    listBySession: vi.fn((sessionId: string) =>
+      pendingRows.filter((row) => row.session_id === sessionId)
+    ),
+    listClaimed: vi.fn(() => pendingRows.filter((row) => row.state === 'claimed')),
+    listActiveBySession: vi.fn((sessionId: string) =>
+      pendingRows.filter((row) => row.session_id === sessionId && row.state !== 'consumed')
+    ),
+    countActiveBySession: vi.fn(
+      (sessionId: string) =>
+        pendingRows.filter((row) => row.session_id === sessionId && row.state !== 'consumed').length
+    ),
+    update: vi.fn((id: string, patch: Record<string, unknown>) => {
+      const row = pendingRows.find((item) => item.id === id)
+      if (!row) {
+        return
+      }
+      Object.assign(row, patch, { updated_at: pendingRowClock++ })
+    }),
+    delete: vi.fn((id: string) => {
+      for (let index = pendingRows.length - 1; index >= 0; index -= 1) {
+        if (pendingRows[index].id === id) {
+          pendingRows.splice(index, 1)
+        }
+      }
+    }),
+    deleteBySession: vi.fn((sessionId: string) => {
+      for (let index = pendingRows.length - 1; index >= 0; index -= 1) {
+        if (pendingRows[index].session_id === sessionId) {
+          pendingRows.splice(index, 1)
+        }
+      }
+    })
+  }
   const deepchatMessagesTable = {
     insert: vi.fn(),
     updateContent: vi.fn(),
@@ -231,17 +289,7 @@ function createMockSqlitePresenter() {
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
     },
-    deepchatPendingInputsTable: {
-      insert: vi.fn(),
-      get: vi.fn(),
-      listBySession: vi.fn().mockReturnValue([]),
-      listClaimed: vi.fn().mockReturnValue([]),
-      listActiveBySession: vi.fn().mockReturnValue([]),
-      countActiveBySession: vi.fn().mockReturnValue(0),
-      update: vi.fn(),
-      delete: vi.fn(),
-      deleteBySession: vi.fn()
-    }
+    deepchatPendingInputsTable: pendingInputsTable
   } as any
 }
 
@@ -742,7 +790,7 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
-    it('steers during pre-stream setup without starting a parallel turn', async () => {
+    it('queues steer during pre-stream setup and drains it as the next visible turn', async () => {
       let releaseTools: (() => void) | null = null
       toolPresenter.getAllToolDefinitions.mockImplementationOnce(
         () =>
@@ -761,20 +809,21 @@ describe('AgentRuntimePresenter', () => {
       releaseTools?.()
       await firstProcess
 
-      let steeredUserInsert: any = null
       for (let attempt = 0; attempt < 20; attempt += 1) {
-        steeredUserInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.find(
-          ([row]) => row.role === 'user'
-        )?.[0]
-        if (steeredUserInsert) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
           break
         }
         await new Promise((resolve) => setTimeout(resolve, 0))
       }
 
-      expect(steeredUserInsert).toBeTruthy()
-      expect(JSON.parse(steeredUserInsert.content).text).toBe('Refine before stream')
-      expect(processStream).toHaveBeenCalledTimes(1)
+      const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
+        .map(([row]) => row)
+        .filter((row) => row.role === 'user')
+
+      expect(userInserts).toHaveLength(2)
+      expect(JSON.parse(userInserts[0].content).text).toBe('First prompt')
+      expect(JSON.parse(userInserts[1].content).text).toBe('Refine before stream')
+      expect(processStream).toHaveBeenCalledTimes(2)
 
       for (let attempt = 0; attempt < 20; attempt += 1) {
         if ((await agent.getSessionState('s1'))?.status === 'idle') {
@@ -785,53 +834,25 @@ describe('AgentRuntimePresenter', () => {
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
-    it('interrupts an active stream for steer without marking the partial assistant as error', async () => {
+    it('queues active stream steer without aborting the current stream', async () => {
+      let releaseFirstStream: (() => void) | null = null
+      let firstAbortSignal: AbortSignal | null = null
       ;(processStream as ReturnType<typeof vi.fn>)
         .mockImplementationOnce(
           async (params: { io: { abortSignal: AbortSignal } }) =>
             await new Promise((resolve) => {
-              params.io.abortSignal.addEventListener(
-                'abort',
-                () => {
-                  resolve({
-                    status: 'aborted',
-                    stopReason: 'user_stop',
-                    errorMessage: 'common.error.userCanceledGeneration'
-                  })
-                },
-                { once: true }
-              )
+              firstAbortSignal = params.io.abortSignal
+              releaseFirstStream = () =>
+                resolve({
+                  status: 'completed',
+                  stopReason: 'complete'
+                })
             })
         )
         .mockResolvedValueOnce({
           status: 'completed',
           stopReason: 'complete'
         })
-      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
-        id: 'mock-msg-id',
-        session_id: 's1',
-        order_seq: 2,
-        role: 'assistant',
-        content: JSON.stringify([
-          {
-            type: 'content',
-            content: 'partial',
-            status: 'pending',
-            timestamp: 1
-          },
-          {
-            type: 'error',
-            content: 'common.error.userCanceledGeneration',
-            status: 'error',
-            timestamp: 2
-          }
-        ]),
-        status: 'pending',
-        is_context_edge: 0,
-        metadata: null,
-        created_at: 1,
-        updated_at: 1
-      })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const firstProcess = agent.processMessage('s1', 'First prompt')
@@ -844,6 +865,19 @@ describe('AgentRuntimePresenter', () => {
       }
 
       await agent.steerActiveTurn('s1', 'Refine active stream')
+      await agent.steerActiveTurn('s1', 'Add second steer note')
+      expect(firstAbortSignal?.aborted).toBe(false)
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect((processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          shouldYieldForPendingInput: expect.any(Function)
+        })
+      )
+      expect(
+        (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].shouldYieldForPendingInput()
+      ).toBe(true)
+
+      releaseFirstStream?.()
       await firstProcess
 
       for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -853,25 +887,19 @@ describe('AgentRuntimePresenter', () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       }
 
-      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
-        'mock-msg-id',
-        'sent'
-      )
-      expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledWith(
-        'mock-msg-id',
-        JSON.stringify([
-          {
-            type: 'content',
-            content: 'partial',
-            status: 'success',
-            timestamp: 1
-          }
-        ])
-      )
       expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalledWith(
         'mock-msg-id',
         expect.any(String),
         'error'
+      )
+      const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
+        .map(([row]) => row)
+        .filter((row) => row.role === 'user')
+
+      expect(userInserts).toHaveLength(2)
+      expect(JSON.parse(userInserts[0].content).text).toBe('First prompt')
+      expect(JSON.parse(userInserts[1].content).text).toBe(
+        'Refine active stream\n\nAdd second steer note'
       )
       expect(processStream).toHaveBeenCalledTimes(2)
 

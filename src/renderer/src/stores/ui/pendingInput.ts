@@ -19,7 +19,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
       .filter((item) => item.mode === 'queue')
       .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))
   )
-  const activeCount = computed(() => items.value.length)
+  const activeCount = computed(() => queueItems.value.length)
   const isAtCapacity = computed(() => activeCount.value >= MAX_PENDING_INPUTS)
 
   async function loadPendingInputs(sessionId: string): Promise<void> {

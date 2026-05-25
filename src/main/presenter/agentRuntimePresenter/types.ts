@@ -178,6 +178,7 @@ export interface ProcessParams {
   permissionMode: PermissionMode
   toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]
+  shouldYieldForPendingInput?: () => boolean
   hooks?: ProcessHooks
   io: IoParams
 }

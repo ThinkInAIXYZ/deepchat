@@ -1035,7 +1035,7 @@ describe('Integration: multi-turn context', () => {
     await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
   })
 
-  it('injects steer inputs before the next queued user message', async () => {
+  it('drains converted steer inputs as visible user messages before queued messages', async () => {
     let releaseFirstTurn: (() => void) | null = null
     const providerInstance = {
       coreStream: vi
@@ -1068,26 +1068,38 @@ describe('Integration: multi-turn context', () => {
     await agentPresenter.convertPendingInputToSteer(session.id, pendingInputs[0].id)
 
     releaseFirstTurn?.()
-    await new Promise((r) => setTimeout(r, 80))
+    await new Promise((r) => setTimeout(r, 120))
 
-    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
-    const trailingUserMessages = secondCallMessages.filter(
+    const secondCallUserMessages = secondCallMessages.filter(
+      (message: any) => message.role === 'user'
+    )
+    const thirdCallMessages = providerInstance.coreStream.mock.calls[2][0]
+    const thirdCallUserMessages = thirdCallMessages.filter(
       (message: any) => message.role === 'user'
     )
 
-    expect(trailingUserMessages[trailingUserMessages.length - 2]).toEqual({
+    expect(secondCallUserMessages[secondCallUserMessages.length - 1]).toEqual({
       role: 'user',
       content: 'Steer instruction'
     })
-    expect(trailingUserMessages[trailingUserMessages.length - 1]).toEqual({
+    expect(thirdCallUserMessages[thirdCallUserMessages.length - 1]).toEqual({
       role: 'user',
       content: 'Queued target'
     })
+
+    const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessages = messages.filter((message: any) => message.role === 'user')
+    expect(userMessages.map((message: any) => JSON.parse(message.content).text)).toEqual([
+      'Turn one',
+      'Steer instruction',
+      'Queued target'
+    ])
     await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
   })
 
-  it('rebudgets long steer inputs before streaming the next queued turn', async () => {
+  it('rebudgets long converted steer inputs as their own visible turn', async () => {
     let releaseFirstTurn: (() => void) | null = null
     const firstPrompt = 'P'.repeat(2000)
     const firstResponse = 'R'.repeat(2000)
@@ -1138,27 +1150,31 @@ describe('Integration: multi-turn context', () => {
     await agentPresenter.convertPendingInputToSteer(session.id, pendingInputs[0].id)
 
     releaseFirstTurn?.()
-    await new Promise((r) => setTimeout(r, 80))
+    await new Promise((r) => setTimeout(r, 120))
 
-    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
     const secondCallContents = secondCallMessages.map((message: any) =>
       typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
     )
-    const trailingUserMessages = secondCallMessages.filter(
+    const secondCallUserMessages = secondCallMessages.filter(
+      (message: any) => message.role === 'user'
+    )
+    const thirdCallMessages = providerInstance.coreStream.mock.calls[2][0]
+    const thirdCallUserMessages = thirdCallMessages.filter(
       (message: any) => message.role === 'user'
     )
 
     expect(secondCallContents).not.toContain(firstPrompt)
     expect(secondCallContents).not.toContain(firstResponse)
     expect(estimateMessagesTokens(secondCallMessages) + 128).toBeLessThanOrEqual(2048)
-    expect(trailingUserMessages[trailingUserMessages.length - 2].content).toEqual(
+    expect(secondCallUserMessages[secondCallUserMessages.length - 1].content).toEqual(
       expect.stringContaining('[Attached File 1]')
     )
-    expect(trailingUserMessages[trailingUserMessages.length - 2].content).toEqual(
+    expect(secondCallUserMessages[secondCallUserMessages.length - 1].content).toEqual(
       expect.stringContaining('steer.txt')
     )
-    expect(trailingUserMessages[trailingUserMessages.length - 1]).toEqual({
+    expect(thirdCallUserMessages[thirdCallUserMessages.length - 1]).toEqual({
       role: 'user',
       content: 'Queued target'
     })

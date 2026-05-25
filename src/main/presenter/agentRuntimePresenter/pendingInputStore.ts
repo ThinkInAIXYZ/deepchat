@@ -28,12 +28,18 @@ export class DeepChatPendingInputStore {
   listPendingInputs(sessionId: string): PendingSessionInputRecord[] {
     return this.sqlitePresenter.deepchatPendingInputsTable
       .listActiveBySession(sessionId)
-      .filter((row) => !(row.mode === 'queue' && row.state === 'claimed'))
+      .filter((row) => row.state !== 'claimed')
       .map((row) => this.toRecord(row))
   }
 
   countActive(sessionId: string): number {
     return this.sqlitePresenter.deepchatPendingInputsTable.countActiveBySession(sessionId)
+  }
+
+  countActiveQueue(sessionId: string): number {
+    return this.sqlitePresenter.deepchatPendingInputsTable
+      .listActiveBySession(sessionId)
+      .filter((row) => row.mode === 'queue').length
   }
 
   createQueueInput(sessionId: string, input: string | SendMessageInput): PendingSessionInputRecord {
@@ -63,6 +69,44 @@ export class DeepChatPendingInputStore {
       throw new Error(`Failed to create pending input ${id}`)
     }
     return this.toRecord(row)
+  }
+
+  createSteerInput(sessionId: string, input: string | SendMessageInput): PendingSessionInputRecord {
+    const normalized = normalizeInput(input)
+    const id = nanoid()
+    this.sqlitePresenter.deepchatPendingInputsTable.insert({
+      id,
+      sessionId,
+      mode: 'steer',
+      state: 'pending',
+      payloadJson: JSON.stringify(normalized),
+      queueOrder: null,
+      claimedAt: null
+    })
+    const row = this.sqlitePresenter.deepchatPendingInputsTable.get(id)
+    if (!row) {
+      throw new Error(`Failed to create steer input ${id}`)
+    }
+    return this.toRecord(row)
+  }
+
+  appendSteerInput(itemId: string, input: string | SendMessageInput): PendingSessionInputRecord {
+    const row = this.requireRow(itemId)
+    if (row.mode !== 'steer') {
+      throw new Error(`Pending input ${itemId} is not a steer item.`)
+    }
+    if (row.state !== 'pending') {
+      throw new Error(`Pending steer item ${itemId} is not editable.`)
+    }
+
+    const existing = this.parsePayload(row.payload_json)
+    const next = normalizeInput(input)
+    const text = [existing.text.trim(), next.text.trim()].filter(Boolean).join('\n\n')
+    const files = [...(existing.files ?? []), ...(next.files ?? [])].filter(Boolean)
+    this.sqlitePresenter.deepchatPendingInputsTable.update(itemId, {
+      payload_json: JSON.stringify({ text, files })
+    })
+    return this.toRecord(this.requireRow(itemId, row.session_id))
   }
 
   updateQueueInput(itemId: string, input: string | SendMessageInput): PendingSessionInputRecord {
@@ -115,6 +159,11 @@ export class DeepChatPendingInputStore {
     return row ? this.toRecord(row) : null
   }
 
+  getNextPendingSteerInput(sessionId: string): PendingSessionInputRecord | null {
+    const row = this.getPendingSteerRows(sessionId)[0]
+    return row ? this.toRecord(row) : null
+  }
+
   claimQueueInput(itemId: string): PendingSessionInputRecord {
     const row = this.requireRow(itemId)
     if (row.mode !== 'queue') {
@@ -131,11 +180,35 @@ export class DeepChatPendingInputStore {
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }
 
+  claimSteerInput(itemId: string): PendingSessionInputRecord {
+    const row = this.requireRow(itemId)
+    if (row.mode !== 'steer') {
+      throw new Error(`Pending input ${itemId} is not a steer item.`)
+    }
+    if (row.state !== 'pending') {
+      throw new Error(`Pending steer item ${itemId} is not claimable.`)
+    }
+
+    this.sqlitePresenter.deepchatPendingInputsTable.update(itemId, {
+      state: 'claimed',
+      claimed_at: Date.now()
+    })
+    return this.toRecord(this.requireRow(itemId, row.session_id))
+  }
+
   releaseClaimedQueueInput(itemId: string): PendingSessionInputRecord {
     const row = this.requireRow(itemId)
     if (row.mode !== 'queue') {
       throw new Error(`Pending input ${itemId} is not a queue item.`)
     }
+    return this.releaseClaimedInput(itemId, row)
+  }
+
+  releaseClaimedInput(
+    itemId: string,
+    existingRow?: DeepChatPendingInputRow
+  ): PendingSessionInputRecord {
+    const row = existingRow ?? this.requireRow(itemId)
     if (row.state !== 'claimed') {
       return this.toRecord(row)
     }
@@ -151,36 +224,15 @@ export class DeepChatPendingInputStore {
     this.deleteInput(itemId)
   }
 
-  claimSteerBatch(sessionId: string): PendingSessionInputRecord[] {
-    const now = Date.now()
-    const steerRows = this.getSteerRows(sessionId).filter((row) => row.state === 'pending')
-    if (steerRows.length === 0) {
-      return []
+  consumeSteerInput(itemId: string): void {
+    const row = this.requireRow(itemId)
+    if (row.mode !== 'steer') {
+      throw new Error(`Pending input ${itemId} is not a steer item.`)
     }
-
-    for (const row of steerRows) {
-      this.sqlitePresenter.deepchatPendingInputsTable.update(row.id, {
-        state: 'claimed',
-        claimed_at: now
-      })
-    }
-
-    return this.getSteerRows(sessionId)
-      .filter((row) => row.state === 'claimed')
-      .map((row) => this.toRecord(row))
-  }
-
-  releaseClaimedInputs(sessionId: string): number {
-    const claimedRows = this.sqlitePresenter.deepchatPendingInputsTable
-      .listActiveBySession(sessionId)
-      .filter((row) => row.state === 'claimed')
-    for (const row of claimedRows) {
-      this.sqlitePresenter.deepchatPendingInputsTable.update(row.id, {
-        state: 'pending',
-        claimed_at: null
-      })
-    }
-    return claimedRows.length
+    this.sqlitePresenter.deepchatPendingInputsTable.update(itemId, {
+      state: 'consumed',
+      consumed_at: Date.now()
+    })
   }
 
   recoverClaimedInputs(): string[] {
@@ -200,22 +252,6 @@ export class DeepChatPendingInputStore {
     }
 
     return Array.from(recoveredSessionIds)
-  }
-
-  consumeClaimedSteerBatch(sessionId: string): number {
-    const claimedSteerRows = this.getSteerRows(sessionId).filter((row) => row.state === 'claimed')
-    if (claimedSteerRows.length === 0) {
-      return 0
-    }
-
-    const now = Date.now()
-    for (const row of claimedSteerRows) {
-      this.sqlitePresenter.deepchatPendingInputsTable.update(row.id, {
-        state: 'consumed',
-        consumed_at: now
-      })
-    }
-    return claimedSteerRows.length
   }
 
   deleteBySession(sessionId: string): void {
@@ -255,6 +291,10 @@ export class DeepChatPendingInputStore {
       .listActiveBySession(sessionId)
       .filter((row) => row.mode === 'steer')
       .sort((left, right) => left.created_at - right.created_at)
+  }
+
+  private getPendingSteerRows(sessionId: string): DeepChatPendingInputRow[] {
+    return this.getSteerRows(sessionId).filter((row) => row.state === 'pending')
   }
 
   private listClaimedRows(): DeepChatPendingInputRow[] {

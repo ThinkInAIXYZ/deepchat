@@ -144,7 +144,8 @@ describe('PendingInputLane', () => {
             }
           }),
           buildPendingInput('queue-2', 'queue'),
-          buildPendingInput('queue-3', 'queue')
+          buildPendingInput('queue-3', 'queue'),
+          buildPendingInput('queue-4', 'queue')
         ]
       }
     })

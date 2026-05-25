@@ -49,6 +49,23 @@ export class PendingInputCoordinator {
     return record
   }
 
+  queueSteerInput(
+    sessionId: string,
+    input: string | SendMessageInput,
+    options?: {
+      mergeItemId?: string | null
+    }
+  ): PendingSessionInputRecord {
+    let record: PendingSessionInputRecord
+    if (options?.mergeItemId) {
+      record = this.store.appendSteerInput(options.mergeItemId, normalizeInput(input))
+    } else {
+      record = this.store.createSteerInput(sessionId, normalizeInput(input))
+    }
+    this.emitUpdated(sessionId)
+    return record
+  }
+
   updateQueuedInput(
     sessionId: string,
     itemId: string,
@@ -84,9 +101,24 @@ export class PendingInputCoordinator {
     return this.store.getNextPendingQueueInput(sessionId)
   }
 
+  getNextSteerInput(sessionId: string): PendingSessionInputRecord | null {
+    return this.store.getNextPendingSteerInput(sessionId)
+  }
+
+  hasPendingTurnInput(sessionId: string): boolean {
+    return Boolean(this.getNextSteerInput(sessionId) ?? this.getNextQueuedInput(sessionId))
+  }
+
   claimQueuedInput(sessionId: string, itemId: string): PendingSessionInputRecord {
     this.assertQueueInput(sessionId, itemId)
     const record = this.store.claimQueueInput(itemId)
+    this.emitUpdated(sessionId)
+    return record
+  }
+
+  claimSteerInput(sessionId: string, itemId: string): PendingSessionInputRecord {
+    this.assertSteerInput(sessionId, itemId)
+    const record = this.store.claimSteerInput(itemId)
     this.emitUpdated(sessionId)
     return record
   }
@@ -97,33 +129,20 @@ export class PendingInputCoordinator {
     return record
   }
 
+  releaseClaimedInput(sessionId: string, itemId: string): PendingSessionInputRecord {
+    const record = this.store.releaseClaimedInput(itemId)
+    this.emitUpdated(sessionId)
+    return record
+  }
+
   consumeQueuedInput(sessionId: string, itemId: string): void {
     this.store.consumeQueueInput(itemId)
     this.emitUpdated(sessionId)
   }
 
-  claimSteerBatchForNextLoop(sessionId: string): PendingSessionInputRecord[] {
-    const claimed = this.store.claimSteerBatch(sessionId)
-    if (claimed.length > 0) {
-      this.emitUpdated(sessionId)
-    }
-    return claimed
-  }
-
-  releaseClaimedInputs(sessionId: string): number {
-    const released = this.store.releaseClaimedInputs(sessionId)
-    if (released > 0) {
-      this.emitUpdated(sessionId)
-    }
-    return released
-  }
-
-  consumeClaimedSteerBatch(sessionId: string): number {
-    const consumed = this.store.consumeClaimedSteerBatch(sessionId)
-    if (consumed > 0) {
-      this.emitUpdated(sessionId)
-    }
-    return consumed
+  consumeSteerInput(sessionId: string, itemId: string): void {
+    this.store.consumeSteerInput(itemId)
+    this.emitUpdated(sessionId)
   }
 
   recoverClaimedInputsAfterRestart(): number {
@@ -139,7 +158,7 @@ export class PendingInputCoordinator {
   }
 
   isAtCapacity(sessionId: string): boolean {
-    return this.store.countActive(sessionId) >= MAX_ACTIVE_PENDING_INPUTS
+    return this.store.countActiveQueue(sessionId) >= MAX_ACTIVE_PENDING_INPUTS
   }
 
   deleteBySession(sessionId: string): void {
@@ -148,7 +167,7 @@ export class PendingInputCoordinator {
   }
 
   private ensureWithinLimit(sessionId: string): void {
-    if (this.store.countActive(sessionId) >= MAX_ACTIVE_PENDING_INPUTS) {
+    if (this.store.countActiveQueue(sessionId) >= MAX_ACTIVE_PENDING_INPUTS) {
       throw new Error('Pending input limit reached for this session.')
     }
   }
@@ -160,6 +179,16 @@ export class PendingInputCoordinator {
     }
     if (record.mode !== 'queue') {
       throw new Error('Steer inputs are locked and cannot be modified.')
+    }
+  }
+
+  private assertSteerInput(sessionId: string, itemId: string): void {
+    const record = this.store.listPendingInputs(sessionId).find((item) => item.id === itemId)
+    if (!record) {
+      throw new Error(`Pending input not found: ${itemId}`)
+    }
+    if (record.mode !== 'steer') {
+      throw new Error('Pending input is not a steer item.')
     }
   }
 
