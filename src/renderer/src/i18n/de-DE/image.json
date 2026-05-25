@@ -1,0 +1,9 @@
+{
+  "loadError": "Bild konnte nicht geladen werden",
+  "loading": "Bild wird geladen...",
+  "preview": "Bildvorschau",
+  "save": "Bild speichern",
+  "saveAs": "Bild speichern unter...",
+  "saveSuccess": "Bild wurde gespeichert",
+  "saveFailed": "Bild konnte nicht gespeichert werden"
+}

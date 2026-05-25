@@ -1,0 +1,70 @@
+{
+  "emojiPicker": {
+    "search": "Emojis suchen",
+    "smileys": "Smileys & Emotionen",
+    "people": "Menschen & Körper",
+    "animals": "Tiere & Natur",
+    "food": "Essen & Getränke",
+    "travel": "Reisen & Orte",
+    "activities": "Aktivitäten",
+    "objects": "Objekte",
+    "symbols": "Symbole",
+    "flags": "Flaggen"
+  },
+  "messageBlockAction": {
+    "continue": "Fortfahren",
+    "continued": "Fortgesetzt"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Berechtigung erforderlich",
+    "allow": "Zulassen",
+    "allowOnce": "Einmal zulassen",
+    "allowForSession": "Für diese Sitzung zulassen",
+    "allowOnceTooltip": "Diesen Befehl nur diesmal ausführen, ohne die Entscheidung zu speichern.",
+    "allowForSessionTooltip": "Diesen Befehl für die aktuelle Sitzung merken.",
+    "deny": "Ablehnen",
+    "rememberChoice": "Diese Auswahl merken",
+    "granted": "Berechtigung erteilt",
+    "denied": "Berechtigung abgelehnt",
+    "riskLabel": "Risiko",
+    "type": {
+      "read": "Lesezugriff",
+      "write": "Schreibzugriff",
+      "all": "Vollzugriff",
+      "command": "Befehl ausführen"
+    },
+    "description": {
+      "read": "Soll '{toolName}' von '{serverName}' Leseoperationen ausführen dürfen?",
+      "write": "Soll '{toolName}' von '{serverName}' Schreiboperationen ausführen dürfen?",
+      "all": "Soll '{toolName}' von '{serverName}' Lese- und Schreiboperationen ausführen dürfen?",
+      "command": "Befehl ausführen: {command}",
+      "commandWithRisk": "Befehl ausführen: {command}\n\nRisikostufe: {riskLevel}\n\nEmpfehlung: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch",
+      "critical": "Kritisch"
+    },
+    "suggestion": {
+      "low": "Dieser Befehl ist schreibgeschützt und hat geringe Auswirkungen.",
+      "medium": "Dieser Befehl kann Abhängigkeiten installieren oder den Zustand ändern. Bitte vor dem Ausführen prüfen.",
+      "high": "Dieser Befehl ändert Dateien oder Systemzustand. Bitte vorsichtig fortfahren.",
+      "critical": "Dieser Befehl kann destruktiv sein oder auf externe Netzwerke zugreifen. Bitte genau prüfen."
+    }
+  },
+  "promptParamsDialog": {
+    "title": "{name} Parametereinstellungen",
+    "description": "Bitte füllen Sie die folgenden Parameter aus. Mit * markierte Felder sind erforderlich.",
+    "required": "Dieser Parameter ist erforderlich"
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Frage",
+    "send": "Senden",
+    "reject": "Ablehnen",
+    "selected": "Ausgewählt",
+    "rejected": "Abgelehnt",
+    "customPlaceholder": "Antwort eingeben...",
+    "answerLabel": "Antwort"
+  }
+}

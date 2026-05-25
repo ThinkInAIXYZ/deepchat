@@ -1,0 +1,44 @@
+{
+  "cancel": "Annulla",
+  "confirm": "Conferma",
+  "close": "Chiudi",
+  "ok": "OK",
+  "delete": {
+    "title": "Vuoi davvero eliminare questa conversazione?",
+    "description": "Questa operazione non può essere annullata. Procedi con cautela.",
+    "confirm": "Elimina"
+  },
+  "rename": {
+    "title": "Rinomina conversazione",
+    "description": "Inserisci il nuovo nome della conversazione."
+  },
+  "cleanMessages": {
+    "title": "Cancella messaggi della conversazione",
+    "description": "La cancellazione rimuoverà tutti i messaggi e i file della conversazione. Vuoi continuare?",
+    "confirm": "Cancella"
+  },
+  "fork": {
+    "title": "Crea ramo della conversazione",
+    "description": "I messaggi dal primo a quello selezionato verranno copiati in una nuova conversazione, dove potrai continuare il dialogo.",
+    "confirm": "Crea ramo",
+    "tag": "Ramo"
+  },
+  "error": {
+    "title": "Errore"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Conferma attivazione reasoning",
+      "functionCall": "Conferma attivazione chiamata funzione"
+    },
+    "message": {
+      "reasoning": "L'attivazione del reasoning disattiverà automaticamente la chiamata funzione. È una limitazione dei modelli DeepSeek-V3.1: le due funzioni non possono essere usate insieme. Continuare?",
+      "functionCall": "L'attivazione della chiamata funzione disattiverà automaticamente il reasoning. È una limitazione dei modelli DeepSeek-V3.1: le due funzioni non possono essere usate insieme. Continuare?"
+    },
+    "warningText": {
+      "reasoning": "Nota: l'attivazione del reasoning disattiverà automaticamente la chiamata funzione, come richiesto dai modelli DeepSeek-V3.1.",
+      "functionCall": "Nota: l'attivazione della chiamata funzione disattiverà automaticamente il reasoning, come richiesto dai modelli DeepSeek-V3.1."
+    },
+    "confirmEnable": "Conferma attivazione"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat ist ein plattformübergreifender KI-Client, der KI für mehr Menschen einfach zugänglich macht.",
+  "website": "Unsere Website besuchen",
+  "disclaimerButton": "Haftungsausschluss",
+  "feedbackButton": "Feedback",
+  "disclaimerTitle": "Nutzungsbedingungen",
+  "checkUpdateButton": "Nach Updates suchen",
+  "mockUpdateButton": "Heruntergeladenes Update simulieren",
+  "clearMockUpdateButton": "Simuliertes Update löschen",
+  "mockOnboardingButton": "Ersteinrichtungsassistent simulieren",
+  "updateChannel": "Update-Kanal",
+  "stableChannel": "Stabil",
+  "betaChannel": "Beta",
+  "deviceInfo": {
+    "title": "Geräteinformationen",
+    "platform": "Plattform",
+    "arch": "Architektur",
+    "cpuModel": "CPU-Modell",
+    "totalMemory": "Gesamtspeicher",
+    "osVersion": "Systemversion"
+  }
+}

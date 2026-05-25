@@ -1,0 +1,70 @@
+{
+  "emojiPicker": {
+    "search": "Cerca emoji",
+    "smileys": "Faccine ed emozioni",
+    "people": "Persone e corpo",
+    "animals": "Animali e natura",
+    "food": "Cibo e bevande",
+    "travel": "Viaggi e luoghi",
+    "activities": "Attività",
+    "objects": "Oggetti",
+    "symbols": "Simboli",
+    "flags": "Bandiere"
+  },
+  "messageBlockAction": {
+    "continue": "Continua",
+    "continued": "Continuato"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Autorizzazione richiesta",
+    "allow": "Consenti",
+    "allowOnce": "Consenti una volta",
+    "allowForSession": "Consenti per la sessione",
+    "allowOnceTooltip": "Esegue questo comando una sola volta senza salvare la scelta.",
+    "allowForSessionTooltip": "Ricorda questo comando nella sessione corrente.",
+    "deny": "Rifiuta",
+    "rememberChoice": "Ricorda questa scelta",
+    "granted": "Autorizzazione concessa",
+    "denied": "Autorizzazione negata",
+    "riskLabel": "Rischio",
+    "type": {
+      "read": "Accesso in lettura",
+      "write": "Accesso in scrittura",
+      "all": "Accesso completo",
+      "command": "Esegui comando"
+    },
+    "description": {
+      "read": "Consentire a '{toolName}' di '{serverName}' di eseguire operazioni di lettura?",
+      "write": "Consentire a '{toolName}' di '{serverName}' di eseguire operazioni di scrittura?",
+      "all": "Consentire a '{toolName}' di '{serverName}' di eseguire operazioni di lettura e scrittura?",
+      "command": "Esegui comando: {command}",
+      "commandWithRisk": "Esegui comando: {command}\n\nLivello di rischio: {riskLevel}\n\nSuggerimento: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "Basso",
+      "medium": "Medio",
+      "high": "Alto",
+      "critical": "Critico"
+    },
+    "suggestion": {
+      "low": "Questo comando è di sola lettura e ha impatto ridotto.",
+      "medium": "Questo comando può installare dipendenze o modificare lo stato. Verifica prima di eseguirlo.",
+      "high": "Questo comando modifica file o stato del sistema. Procedi con cautela.",
+      "critical": "Questo comando può essere distruttivo o accedere a reti esterne. Verifica l'intento."
+    }
+  },
+  "promptParamsDialog": {
+    "title": "Impostazioni parametri {name}",
+    "description": "Compila i parametri seguenti. I campi contrassegnati con * sono obbligatori.",
+    "required": "Questo parametro è obbligatorio"
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Domanda",
+    "send": "Invia",
+    "reject": "Rifiuta",
+    "selected": "Selezionato",
+    "rejected": "Rifiutato",
+    "customPlaceholder": "Inserisci la tua risposta...",
+    "answerLabel": "Risposta"
+  }
+}

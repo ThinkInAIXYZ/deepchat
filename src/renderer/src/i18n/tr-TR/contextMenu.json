@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "Çevir",
+    "original": "Orijinal",
+    "translated": "Çeviri",
+    "error": "Çeviri başarısız oldu"
+  },
+  "askAI": {
+    "title": "Yapay zekaya sor",
+    "question": "Soru",
+    "answer": "Cevap",
+    "error": "AI yanıtı başarısız oldu"
+  },
+  "copy": "Kopyala",
+  "paste": "Yapıştır",
+  "cut": "Kesmek"
+}

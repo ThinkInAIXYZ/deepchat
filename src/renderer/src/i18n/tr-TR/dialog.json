@@ -1,0 +1,44 @@
+{
+  "cancel": "İptal etmek",
+  "confirm": "Onaylamak",
+  "close": "Kapalı",
+  "ok": "TAMAM",
+  "delete": {
+    "title": "Bu görüşmeyi silmek istediğinizden emin misiniz?",
+    "description": "Bu eylem geri alınamaz.",
+    "confirm": "Silmek"
+  },
+  "rename": {
+    "title": "Konuşmayı Yeniden Adlandır",
+    "description": "Lütfen görüşme için yeni bir ad girin."
+  },
+  "cleanMessages": {
+    "title": "Tüm Mesajları Temizle",
+    "description": "Bu işlem, bu görüşmedeki tüm mesajları ve dosyaları silecektir. Devam etmek istediğinizden emin misiniz?",
+    "confirm": "Temizlemek"
+  },
+  "fork": {
+    "title": "Şube Oluştur",
+    "description": "Bu, ilk mesajdaki tüm mesajları mevcut mesaja, diyaloğa devam edebileceğiniz yeni bir sohbete kopyalayacaktır.",
+    "confirm": "Şube Oluştur",
+    "tag": "Dal"
+  },
+  "error": {
+    "title": "Hata"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Akıl Yürütmeyi Etkinleştirmeyi Onaylayın",
+      "functionCall": "İşlev Çağrısını Etkinleştirmeyi Onaylayın"
+    },
+    "message": {
+      "reasoning": "Akıl yürütmenin etkinleştirilmesi, işlev çağrısını otomatik olarak devre dışı bırakacaktır. Bu, DeepSeek-V3.1 modellerinin bir sınırlamasıdır ve her iki özellik aynı anda kullanılamaz. Devam etmek?",
+      "functionCall": "İşlev çağrısını etkinleştirmek, akıl yürütmeyi otomatik olarak devre dışı bırakacaktır. Bu, DeepSeek-V3.1 modellerinin bir sınırlamasıdır ve her iki özellik aynı anda kullanılamaz. Devam etmek?"
+    },
+    "warningText": {
+      "reasoning": "Not: Akıl yürütmenin etkinleştirilmesi, DeepSeek-V3.1 modellerinin bir gereği olan işlev çağrısını otomatik olarak devre dışı bırakacaktır.",
+      "functionCall": "Not: İşlev çağrısının etkinleştirilmesi, DeepSeek-V3.1 modellerinin bir gereği olan akıl yürütmeyi otomatik olarak devre dışı bırakacaktır."
+    },
+    "confirmEnable": "Etkinleştirmeyi Onayla"
+  }
+}

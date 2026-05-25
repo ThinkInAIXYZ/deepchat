@@ -1,0 +1,17 @@
+{
+  "title": "Anteprima parametri richiesta",
+  "provider": "Provider",
+  "model": "Modello",
+  "endpoint": "API Endpoint",
+  "headers": "Header richiesta",
+  "body": "Corpo richiesta",
+  "copyJson": "Copia JSON",
+  "copySuccess": "Copiato negli appunti",
+  "close": "Chiudi",
+  "loading": "Caricamento...",
+  "error": "Caricamento non riuscito",
+  "errorDesc": "Impossibile ottenere l'anteprima della richiesta. Riprova",
+  "notImplemented": "Non supportato",
+  "notImplementedDesc": "Questo provider non supporta ancora l'anteprima",
+  "mayNotMatch": "Nota: questa anteprima è ricostruita dalle impostazioni correnti della sessione e potrebbe non corrispondere esattamente ai parametri inviati"
+}

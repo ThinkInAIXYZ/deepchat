@@ -351,7 +351,15 @@ const languageOptions = [
   { value: 'fa-IR', label: 'فارسی (ایران)' },
   { value: 'pt-BR', label: 'Português (Brasil)' },
   { value: 'da-DK', label: 'Dansk' },
-  { value: 'he-IL', label: 'עברית (ישראל)' }
+  { value: 'he-IL', label: 'עברית (ישראל)' },
+  { value: 'es-ES', label: 'Español (España)' },
+  { value: 'de-DE', label: 'Deutsch (Deutschland)' },
+  { value: 'tr-TR', label: 'Türkçe' },
+  { value: 'id-ID', label: 'Bahasa Indonesia' },
+  { value: 'ms-MY', label: 'Bahasa Melayu' },
+  { value: 'it-IT', label: 'Italiano' },
+  { value: 'pl-PL', label: 'Polski' },
+  { value: 'vi-VN', label: 'Tiếng Việt' }
 ]
 
 watch(selectedLanguage, async (newValue) => {

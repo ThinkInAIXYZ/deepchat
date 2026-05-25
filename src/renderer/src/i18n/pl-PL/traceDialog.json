@@ -1,0 +1,17 @@
+{
+  "title": "Poproś o podgląd",
+  "provider": "Dostawca",
+  "model": "Modelka",
+  "endpoint": "Punkt końcowy API",
+  "headers": "Nagłówki",
+  "body": "Treść żądania",
+  "copyJson": "Skopiuj JSON",
+  "copySuccess": "Skopiowano do schowka",
+  "close": "Zamknij",
+  "loading": "Ładowanie...",
+  "error": "Nie udało się załadować",
+  "errorDesc": "Nie można pobrać podglądu żądania. Spróbuj ponownie",
+  "notImplemented": "Nieobsługiwane",
+  "notImplementedDesc": "Ten dostawca nie wdrożył jeszcze podglądu żądań",
+  "mayNotMatch": "Uwaga: ten podgląd jest rekonstruowany na podstawie bieżących ustawień konwersacji i może nie odpowiadać dokładnie rzeczywistym parametrom żądania"
+}

@@ -1,0 +1,23 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat là ứng dụng khách AI đa nền tảng, chuyên giúp nhiều người có thể tiếp cận AI hơn.",
+  "website": "Ghé thăm trang web của chúng tôi",
+  "deviceInfo": {
+    "title": "Thông tin thiết bị",
+    "platform": "Nền tảng",
+    "arch": "Kiến trúc",
+    "cpuModel": "Mẫu CPU",
+    "totalMemory": "Tổng bộ nhớ",
+    "osVersion": "Phiên bản hệ thống"
+  },
+  "disclaimerButton": "Tuyên bố từ chối trách nhiệm",
+  "feedbackButton": "Phản hồi",
+  "disclaimerTitle": "Điều khoản sử dụng",
+  "checkUpdateButton": "Kiểm tra cập nhật",
+  "mockUpdateButton": "Cập nhật đã tải xuống mô phỏng",
+  "clearMockUpdateButton": "Xóa bản cập nhật giả",
+  "mockOnboardingButton": "Hướng dẫn mô phỏng lần chạy đầu tiên",
+  "updateChannel": "Cập nhật kênh",
+  "stableChannel": "Ổn định",
+  "betaChannel": "bản thử nghiệm"
+}

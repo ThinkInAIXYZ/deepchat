@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "Modelle suchen..."
+  },
+  "error": {
+    "loadFailed": "Modelle konnten nicht geladen werden"
+  },
+  "type": {
+    "custom": "Benutzerdefiniertes Modell",
+    "official": "Offizielles Modell"
+  },
+  "add": {
+    "namePlaceholder": "Modellname",
+    "idPlaceholder": "Modell-ID",
+    "contextLengthPlaceholder": "Kontextlänge",
+    "maxTokensPlaceholder": "Maximale token"
+  },
+  "actions": {
+    "add": "Modell hinzufügen",
+    "enableAll": "Alle aktivieren",
+    "disableAll": "Alle deaktivieren"
+  },
+  "sort": {
+    "status": "Nach Status",
+    "name": "Nach Name"
+  },
+  "filter": {
+    "label": "Filter",
+    "clearAll": "Filter löschen",
+    "visibleCount": "{visible} / {total} anzeigen",
+    "capabilities": "Fähigkeiten",
+    "types": "Typen",
+    "capabilityOptions": {
+      "vision": "Vision",
+      "functionCall": "Funktionsaufrufe",
+      "reasoning": "Reasoning",
+      "search": "Websuche"
+    },
+    "typeOptions": {
+      "chat": "Chat",
+      "embedding": "Embedding",
+      "rerank": "Rerank",
+      "imageGeneration": "Bilderzeugung",
+      "videoGeneration": "Videoerzeugung"
+    }
+  },
+  "tags": {
+    "reasoning": "Reasoning",
+    "chat": "Chat",
+    "code": "Code",
+    "writing": "Schreiben",
+    "analysis": "Analyse"
+  }
+}

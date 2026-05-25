@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "Cerca modelli..."
+  },
+  "error": {
+    "loadFailed": "Caricamento modelli non riuscito"
+  },
+  "type": {
+    "custom": "Modello personalizzato",
+    "official": "Modello ufficiale"
+  },
+  "add": {
+    "namePlaceholder": "Nome modello",
+    "idPlaceholder": "ID modello",
+    "contextLengthPlaceholder": "Lunghezza contesto",
+    "maxTokensPlaceholder": "Token massimi"
+  },
+  "actions": {
+    "add": "Aggiungi modello",
+    "enableAll": "Attiva tutti",
+    "disableAll": "Disattiva tutti"
+  },
+  "sort": {
+    "status": "Per stato",
+    "name": "Per nome"
+  },
+  "filter": {
+    "label": "Filtro",
+    "clearAll": "Cancella filtri",
+    "visibleCount": "Mostra {visible} / {total}",
+    "capabilities": "Capacità",
+    "types": "Tipi",
+    "capabilityOptions": {
+      "vision": "Visione",
+      "functionCall": "Chiamata funzione",
+      "reasoning": "Reasoning",
+      "search": "Ricerca web"
+    },
+    "typeOptions": {
+      "chat": "Chat",
+      "embedding": "Embedding",
+      "rerank": "Rerank",
+      "imageGeneration": "Generazione immagini",
+      "videoGeneration": "Generazione video"
+    }
+  },
+  "tags": {
+    "reasoning": "Reasoning",
+    "chat": "Chat",
+    "code": "Codice",
+    "writing": "Scrittura",
+    "analysis": "Analisi"
+  }
+}

@@ -10,6 +10,14 @@ import faIR from './fa-IR'
 import ptBR from './pt-BR'
 import daDK from './da-DK'
 import heIL from './he-IL'
+import esES from './es-ES'
+import deDE from './de-DE'
+import trTR from './tr-TR'
+import idID from './id-ID'
+import msMY from './ms-MY'
+import itIT from './it-IT'
+import plPL from './pl-PL'
+import viVN from './vi-VN'
 
 const locales = {
   'zh-CN': zhCN,
@@ -24,12 +32,28 @@ const locales = {
   'pt-BR': ptBR,
   'da-DK': daDK,
   'he-IL': heIL,
+  'es-ES': esES,
+  'de-DE': deDE,
+  'tr-TR': trTR,
+  'id-ID': idID,
+  'ms-MY': msMY,
+  'it-IT': itIT,
+  'pl-PL': plPL,
+  'vi-VN': viVN,
   zh: zhCN,
   en: enUS,
   fr: frFR,
   pt: ptBR,
   da: daDK,
-  he: heIL
+  he: heIL,
+  es: esES,
+  de: deDE,
+  tr: trTR,
+  id: idID,
+  ms: msMY,
+  it: itIT,
+  pl: plPL,
+  vi: viVN
 }
 
 export const pluralRules = {
@@ -46,6 +70,26 @@ export const pluralRules = {
     const mod10 = absoluteChoice % 10
     const mod100 = absoluteChoice % 100
     if (mod10 === 1 && mod100 !== 11) {
+      return 1
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return 2
+    }
+    return 3
+  },
+  'pl-PL': (choice: number, choicesLength: number) => {
+    if (choicesLength !== 4) {
+      return Math.min(Math.abs(choice), choicesLength - 1)
+    }
+
+    const absoluteChoice = Math.abs(choice)
+    if (absoluteChoice === 0) {
+      return 0
+    }
+
+    const mod10 = absoluteChoice % 10
+    const mod100 = absoluteChoice % 100
+    if (absoluteChoice === 1) {
       return 1
     }
     if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {

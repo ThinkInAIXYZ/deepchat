@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "Terjemahkan",
+    "original": "Teks asli",
+    "translated": "Hasil terjemahan",
+    "error": "Terjemahan gagal"
+  },
+  "askAI": {
+    "title": "Permintaan AI",
+    "question": "pertanyaan",
+    "answer": "jawaban",
+    "error": "AI gagal menjawab"
+  },
+  "copy": "Salin",
+  "paste": "Tempel",
+  "cut": "potong"
+}

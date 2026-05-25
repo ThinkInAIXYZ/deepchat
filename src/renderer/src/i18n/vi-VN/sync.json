@@ -1,0 +1,20 @@
+{
+  "success": {
+    "importComplete": "Đã nhập thành công (các) cuộc trò chuyện {count}."
+  },
+  "error": {
+    "notEnabled": "Đồng bộ hóa chưa được bật",
+    "folderNotExists": "Thư mục đồng bộ hóa không tồn tại",
+    "noValidBackup": "Không tìm thấy tệp sao lưu hợp lệ nào trong thư mục đồng bộ hóa.",
+    "unsupportedBackupVersion": "Bản sao lưu này được tạo bởi phiên bản mới hơn của DeepChat và không thể nhập được.",
+    "dbNotExists": "Tệp cơ sở dữ liệu không tồn tại",
+    "configNotExists": "Tập tin cấu hình không tồn tại",
+    "tempDbFailed": "Không tạo được tệp sao lưu cơ sở dữ liệu tạm thời",
+    "tempConfigFailed": "Không tạo được tệp sao lưu cấu hình tạm thời",
+    "importFailed": "Nhập không thành công, dữ liệu gốc đã được khôi phục",
+    "importProcess": "Đã xảy ra lỗi trong quá trình nhập",
+    "unknown": "Lỗi không xác định",
+    "encryptedBackupPasswordMissing": "Bản sao lưu này được mã hóa nhưng không có khóa cơ sở dữ liệu cục bộ. Mở khóa cơ sở dữ liệu được mã hóa trước, sau đó nhập lại.",
+    "overwriteEncryptionMismatch": "Quá trình nhập ghi đè yêu cầu bản sao lưu và cơ sở dữ liệu hiện tại sử dụng cùng trạng thái mã hóa."
+  }
+}

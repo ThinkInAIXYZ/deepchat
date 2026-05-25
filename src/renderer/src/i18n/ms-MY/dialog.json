@@ -1,0 +1,44 @@
+{
+  "cancel": "Batal",
+  "confirm": "mengesahkan",
+  "close": "penutupan",
+  "ok": "pasti",
+  "delete": {
+    "title": "Adakah anda pasti mahu memadamkan perbualan ini?",
+    "description": "Operasi ini tidak boleh dibuat asal, sila teruskan dengan berhati-hati.",
+    "confirm": "padam"
+  },
+  "rename": {
+    "title": "Namakan semula sesi",
+    "description": "Sila masukkan nama sesi baharu."
+  },
+  "cleanMessages": {
+    "title": "Kosongkan mesej perbualan",
+    "description": "Mengosongkan mesej akan memadamkan semua mesej dan fail dalam sesi. Adakah anda pasti mahu meneruskan?",
+    "confirm": "Jelas"
+  },
+  "fork": {
+    "title": "Buat cawangan sesi",
+    "description": "Menyalin mesej pertama ke mesej yang dipilih pada masa ini ke dalam perbualan baharu di mana anda boleh meneruskan perbualan.",
+    "confirm": "Buat cawangan",
+    "tag": "cawangan"
+  },
+  "error": {
+    "title": "kesilapan"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Sahkan untuk membolehkan keupayaan penaakulan",
+      "functionCall": "Sahkan untuk mendayakan panggilan fungsi"
+    },
+    "message": {
+      "reasoning": "Menghidupkan keupayaan inferens akan mematikan fungsi panggilan fungsi secara automatik. Ini adalah had model DeepSeek-V3.1, dan kedua-dua fungsi tidak boleh digunakan pada masa yang sama. teruskan?",
+      "functionCall": "Mendayakan panggilan fungsi akan mematikan keupayaan inferens secara automatik. Ini adalah had model DeepSeek-V3.1, dan kedua-dua fungsi tidak boleh digunakan pada masa yang sama. teruskan?"
+    },
+    "warningText": {
+      "reasoning": "Nota: Menghidupkan keupayaan inferens akan mematikan fungsi panggilan secara automatik, yang merupakan pengehadan model DeepSeek-V3.1.",
+      "functionCall": "Nota: Mendayakan panggilan fungsi akan mematikan keupayaan inferens secara automatik, yang merupakan pengehadan model DeepSeek-V3.1."
+    },
+    "confirmEnable": "Sahkan untuk membuka"
+  }
+}

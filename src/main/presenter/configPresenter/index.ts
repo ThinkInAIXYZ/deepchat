@@ -1757,7 +1757,15 @@ export class ConfigPresenter implements IConfigPresenter {
       'fa-IR',
       'pt-BR',
       'da-DK',
-      'he-IL'
+      'he-IL',
+      'es-ES',
+      'de-DE',
+      'tr-TR',
+      'id-ID',
+      'ms-MY',
+      'it-IT',
+      'pl-PL',
+      'vi-VN'
     ]
 
     // Exact match

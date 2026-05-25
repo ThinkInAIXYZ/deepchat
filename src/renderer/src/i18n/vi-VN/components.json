@@ -1,0 +1,70 @@
+{
+  "emojiPicker": {
+    "search": "Tìm kiếm biểu tượng cảm xúc",
+    "smileys": "Mặt cười & Cảm xúc",
+    "people": "Con người & Cơ thể",
+    "animals": "Động vật & Thiên nhiên",
+    "food": "Đồ ăn & Đồ uống",
+    "travel": "Du lịch & Địa điểm",
+    "activities": "Hoạt động",
+    "objects": "Đối tượng",
+    "symbols": "Biểu tượng",
+    "flags": "Cờ"
+  },
+  "messageBlockAction": {
+    "continue": "Tiếp tục",
+    "continued": "Tiếp tục"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Cần có sự cho phép",
+    "allow": "Cho phép",
+    "allowOnce": "Cho phép một lần",
+    "allowForSession": "Cho phép phiên",
+    "allowOnceTooltip": "Thực hiện lệnh này một lần mà không lưu quyết định.",
+    "allowForSessionTooltip": "Hãy nhớ lệnh này chỉ cho cuộc trò chuyện này.",
+    "deny": "Từ chối",
+    "rememberChoice": "Hãy nhớ sự lựa chọn này",
+    "granted": "Đã cấp quyền",
+    "denied": "Quyền bị từ chối",
+    "riskLabel": "Rủi ro",
+    "type": {
+      "read": "Đọc quyền truy cập",
+      "write": "Viết quyền truy cập",
+      "all": "Toàn quyền truy cập",
+      "command": "Thực thi lệnh"
+    },
+    "description": {
+      "read": "Cho phép '{toolName}' từ '{serverName}' thực hiện thao tác đọc?",
+      "write": "Cho phép '{toolName}' từ '{serverName}' thực hiện thao tác ghi?",
+      "all": "Cho phép '{toolName}' từ '{serverName}' thực hiện thao tác đọc và ghi?",
+      "command": "Thực hiện lệnh: {command}",
+      "commandWithRisk": "Thực hiện lệnh: {command}\n\nMức độ rủi ro: {riskLevel}\n\nĐề xuất: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "Thấp",
+      "medium": "Trung bình",
+      "high": "Cao",
+      "critical": "Quan trọng"
+    },
+    "suggestion": {
+      "low": "Đây là lệnh chỉ đọc với tác động tối thiểu.",
+      "medium": "Lệnh này có thể thay đổi trạng thái hoặc cài đặt các phần phụ thuộc. Xem xét trước khi chạy.",
+      "high": "Lệnh này sửa đổi tập tin hoặc trạng thái hệ thống. Tiến hành cẩn thận.",
+      "critical": "Lệnh này có thể phá hoại hoặc truy cập vào mạng bên ngoài. Xác minh ý định."
+    }
+  },
+  "promptParamsDialog": {
+    "title": "Cài đặt thông số {name}",
+    "description": "Vui lòng điền các thông số bên dưới. Các trường được đánh dấu * là bắt buộc.",
+    "required": "Trường này là bắt buộc."
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Câu hỏi",
+    "send": "Gửi",
+    "reject": "Từ chối",
+    "selected": "Đã chọn",
+    "rejected": "Bị từ chối",
+    "customPlaceholder": "Nhập câu trả lời của bạn...",
+    "answerLabel": "Trả lời"
+  }
+}

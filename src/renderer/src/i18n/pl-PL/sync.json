@@ -1,0 +1,20 @@
+{
+  "success": {
+    "importComplete": "Pomyślnie zaimportowano konwersacje {count}."
+  },
+  "error": {
+    "notEnabled": "Synchronizacja nie jest włączona",
+    "folderNotExists": "Folder synchronizacji nie istnieje",
+    "noValidBackup": "W folderze synchronizacji nie znaleziono prawidłowych plików kopii zapasowych.",
+    "unsupportedBackupVersion": "Ta kopia zapasowa została utworzona przez nowszą wersję DeepChat i nie można jej zaimportować.",
+    "dbNotExists": "Plik bazy danych nie istnieje",
+    "configNotExists": "Plik konfiguracyjny nie istnieje",
+    "tempDbFailed": "Nie udało się utworzyć tymczasowego pliku kopii zapasowej bazy danych",
+    "tempConfigFailed": "Nie udało się utworzyć tymczasowego pliku kopii zapasowej konfiguracji",
+    "importFailed": "Import nie powiódł się, oryginalne dane zostały przywrócone",
+    "importProcess": "Wystąpił błąd podczas procesu importowania",
+    "unknown": "Nieznany błąd",
+    "encryptedBackupPasswordMissing": "Ta kopia zapasowa jest zaszyfrowana, ale klucz lokalnej bazy danych nie jest dostępny. Najpierw odblokuj zaszyfrowaną bazę danych, a następnie zaimportuj ją ponownie.",
+    "overwriteEncryptionMismatch": "Import nadpisujący wymaga, aby kopia zapasowa i bieżąca baza danych korzystały z tego samego stanu szyfrowania."
+  }
+}
