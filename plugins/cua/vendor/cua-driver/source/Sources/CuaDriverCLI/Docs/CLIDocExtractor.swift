@@ -81,6 +81,7 @@ enum CLIDocExtractor {
             updateDoc,
             diagnoseDoc,
             doctorDoc,
+            cleanupDoc,
             dumpDocsDoc,
         ]
     }
@@ -91,11 +92,28 @@ enum CLIDocExtractor {
         CommandDoc(
             name: "mcp",
             abstract: "Run the stdio MCP server.",
-            discussion: nil,
+            discussion: """
+                When invoked from a shell or IDE terminal (Claude Code, Cursor,
+                VS Code, Warp), macOS TCC attributes the process to the parent
+                terminal — not to DeepChat Computer Use.app — so AX probes silently fail
+                against the wrong bundle id. To sidestep this without breaking
+                the stdio MCP transport, `mcp` detects the context, ensures a
+                `cua-driver serve` daemon is running under LaunchServices
+                (relaunching via `open -n -g -a "DeepChat Computer Use" --args serve` if not),
+                and proxies every MCP tool call through the daemon's Unix
+                socket. Tool semantics are identical to the in-process path.
+                Pass `--no-daemon-relaunch` (or set CUA_DRIVER_MCP_NO_RELAUNCH=1)
+                to force in-process execution — useful when the calling context
+                already has the right TCC grants (e.g. spawned from DeepChat Computer Use.app
+                directly), or for diagnosing in-process failures.
+                """,
             arguments: [],
-            options: [],
+            options: [
+                OptionDoc(name: "socket", shortName: nil, help: "Override the daemon Unix socket path used by the proxy fallback.", type: "String", defaultValue: nil, isOptional: true),
+            ],
             flags: [
                 FlagDoc(name: "claude-code-computer-use-compat", shortName: nil, help: "Expose normal CuaDriver tools, replacing only `screenshot` with a Claude Code-friendly window-only screenshot that establishes the vision coordinate frame.", defaultValue: false),
+                FlagDoc(name: "no-daemon-relaunch", shortName: nil, help: "Stay in the current process instead of auto-launching a daemon and proxying through its Unix socket when invoked from a shell without DeepChat Computer Use.app's TCC grants. Also toggleable via CUA_DRIVER_MCP_NO_RELAUNCH=1.", defaultValue: false),
             ],
             subcommands: []
         )
@@ -191,7 +209,7 @@ enum CLIDocExtractor {
                 OptionDoc(name: "socket", shortName: nil, help: "Override the Unix socket path.", type: "String", defaultValue: nil, isOptional: true),
             ],
             flags: [
-                FlagDoc(name: "no-relaunch", shortName: nil, help: "Stay in the current process instead of re-execing via `open -n -g -a CuaDriver`.", defaultValue: false),
+                FlagDoc(name: "no-relaunch", shortName: nil, help: "Stay in the current process instead of re-execing via `open -n -g -a \"DeepChat Computer Use\"`.", defaultValue: false),
             ],
             subcommands: []
         )
@@ -456,6 +474,22 @@ enum CLIDocExtractor {
     private static var doctorDoc: CommandDoc {
         CommandDoc(
             name: "doctor",
+            abstract: "Check Accessibility, Screen Recording, and SCK; recommend a capture mode.",
+            discussion: nil,
+            arguments: [],
+            options: [],
+            flags: [
+                FlagDoc(name: "json", shortName: nil, help: "Emit machine-readable JSON instead of human text.", defaultValue: false),
+            ],
+            subcommands: []
+        )
+    }
+
+    // MARK: - cleanup
+
+    private static var cleanupDoc: CommandDoc {
+        CommandDoc(
+            name: "cleanup",
             abstract: "Clean up stale install bits left from older cua-driver versions.",
             discussion: nil,
             arguments: [],
