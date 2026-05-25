@@ -85,27 +85,10 @@ export type TelegramBotCommand = {
   description: string
 }
 
-export type TelegramMessageParseMode = 'HTML'
-
-export type TelegramSendMessageOptions = {
-  replyMarkup?: TelegramInlineKeyboardMarkup
-  parseMode?: TelegramMessageParseMode
-}
-
 const buildReplyMarkup = (
   replyMarkup?: TelegramInlineKeyboardMarkup | null
 ): TelegramInlineKeyboardMarkup | undefined =>
   replyMarkup === null ? { inline_keyboard: [] } : replyMarkup
-
-const normalizeSendMessageOptions = (
-  options?: TelegramInlineKeyboardMarkup | TelegramSendMessageOptions
-): TelegramSendMessageOptions => {
-  if (!options) {
-    return {}
-  }
-
-  return 'inline_keyboard' in options ? { replyMarkup: options } : options
-}
 
 const TELEGRAM_FILE_REQUEST_TIMEOUT_MS = 35_000
 
@@ -174,15 +157,13 @@ export class TelegramClient {
   async sendMessage(
     target: TelegramTransportTarget,
     text: string,
-    options?: TelegramInlineKeyboardMarkup | TelegramSendMessageOptions
+    replyMarkup?: TelegramInlineKeyboardMarkup
   ): Promise<number> {
-    const normalizedOptions = normalizeSendMessageOptions(options)
     const message = await this.request<TelegramSentMessage>('sendMessage', {
       chat_id: target.chatId,
       message_thread_id: target.messageThreadId || undefined,
       text,
-      parse_mode: normalizedOptions.parseMode,
-      reply_markup: buildReplyMarkup(normalizedOptions.replyMarkup)
+      reply_markup: buildReplyMarkup(replyMarkup)
     })
     return message.message_id
   }
@@ -284,14 +265,12 @@ export class TelegramClient {
     target: TelegramTransportTarget
     messageId: number
     text: string
-    parseMode?: TelegramMessageParseMode
     replyMarkup?: TelegramInlineKeyboardMarkup | null
   }): Promise<void> {
     await this.request('editMessageText', {
       chat_id: params.target.chatId,
       message_id: params.messageId,
       text: params.text,
-      parse_mode: params.parseMode,
       reply_markup: buildReplyMarkup(params.replyMarkup)
     })
   }

@@ -119,7 +119,6 @@
     "run-applescript": "^7.1.0",
     "safe-regex2": "^5.1.1",
     "sharp": "^0.34.5",
-    "telegram-markdown-formatter": "^0.1.2",
     "tokenx": "^0.4.1",
     "turndown": "^7.2.4",
     "undici": "^7.25.0",

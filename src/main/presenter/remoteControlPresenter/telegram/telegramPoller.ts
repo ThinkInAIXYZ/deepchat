@@ -19,11 +19,7 @@ import {
   type RemoteCommandRouteResult
 } from '../services/remoteCommandRouter'
 import type { RemoteConversationExecution } from '../services/remoteConversationRunner'
-import {
-  chunkTelegramMarkdownText,
-  chunkTelegramText,
-  type TelegramFormattedTextChunk
-} from './telegramOutbound'
+import { chunkTelegramText } from './telegramOutbound'
 import { buildTelegramPendingInteractionPrompt } from './telegramInteractionPrompt'
 import { TelegramApiRequestError, TelegramClient, type TelegramRawUpdate } from './telegramClient'
 import { TelegramParser } from './telegramParser'
@@ -416,7 +412,7 @@ export class TelegramPoller {
           }
           this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
         } else if (finalText) {
-          await this.sendChunkedMarkdownMessage(target, finalText)
+          await this.sendChunkedMessage(target, finalText)
         }
         await this.sendGeneratedImages(target, snapshot)
         return
@@ -647,12 +643,12 @@ export class TelegramPoller {
     segment: RemoteDeliverySegment
   ): Promise<TelegramRemoteDeliveryState['segments'][number]> {
     const normalized = segment.text.trim()
-    const nextChunks = this.getDeliveryTextChunks(segment.kind, normalized)
+    const nextChunks = chunkTelegramText(normalized)
 
     if (!existing) {
       const messageIds: number[] = []
       for (const chunk of nextChunks) {
-        messageIds.push(await this.sendTextChunk(target, chunk))
+        messageIds.push(await this.deps.client.sendMessage(target, chunk))
       }
 
       return {
@@ -663,19 +659,17 @@ export class TelegramPoller {
       }
     }
 
-    const previousChunks = existing.lastText
-      ? this.getDeliveryTextChunks(segment.kind, existing.lastText)
-      : []
+    const previousChunks = existing.lastText ? chunkTelegramText(existing.lastText) : []
     if (
       nextChunks.length < existing.messageIds.length ||
       previousChunks.length < existing.messageIds.length ||
       previousChunks
         .slice(0, Math.max(0, existing.messageIds.length - 1))
-        .some((chunk, index) => chunk.text !== nextChunks[index]?.text)
+        .some((chunk, index) => chunk !== nextChunks[index])
     ) {
       const messageIds: number[] = []
       for (const chunk of nextChunks) {
-        messageIds.push(await this.sendTextChunk(target, chunk))
+        messageIds.push(await this.deps.client.sendMessage(target, chunk))
       }
 
       return {
@@ -691,7 +685,7 @@ export class TelegramPoller {
     const retainedCount = Math.min(messageIds.length, nextChunks.length)
 
     for (let index = editableIndex; index < retainedCount; index += 1) {
-      if (previousChunks[index]?.text === nextChunks[index]?.text) {
+      if (previousChunks[index] === nextChunks[index]) {
         continue
       }
 
@@ -700,11 +694,16 @@ export class TelegramPoller {
         continue
       }
 
-      await this.editTextChunk(target, messageId, nextChunks[index])
+      await this.editMessageText(target, {
+        type: 'editMessageText',
+        messageId,
+        text: nextChunks[index],
+        replyMarkup: null
+      })
     }
 
     for (let index = messageIds.length; index < nextChunks.length; index += 1) {
-      messageIds.push(await this.sendTextChunk(target, nextChunks[index]))
+      messageIds.push(await this.deps.client.sendMessage(target, nextChunks[index]))
     }
 
     return {
@@ -726,50 +725,6 @@ export class TelegramPoller {
   private async sendChunkedMessage(target: TelegramTransportTarget, text: string): Promise<void> {
     for (const chunk of chunkTelegramText(text)) {
       await this.deps.client.sendMessage(target, chunk)
-    }
-  }
-
-  private async sendChunkedMarkdownMessage(
-    target: TelegramTransportTarget,
-    text: string
-  ): Promise<void> {
-    for (const chunk of chunkTelegramMarkdownText(text)) {
-      await this.sendTextChunk(target, chunk)
-    }
-  }
-
-  private getDeliveryTextChunks(
-    kind: RemoteDeliverySegment['kind'],
-    text: string
-  ): TelegramFormattedTextChunk[] {
-    if (kind === 'answer' || kind === 'terminal') {
-      return chunkTelegramMarkdownText(text)
-    }
-
-    return chunkTelegramText(text).map((chunk) => ({
-      text: chunk,
-      fallbackText: chunk
-    }))
-  }
-
-  private async sendTextChunk(
-    target: TelegramTransportTarget,
-    chunk: TelegramFormattedTextChunk
-  ): Promise<number> {
-    if (!chunk.parseMode) {
-      return await this.deps.client.sendMessage(target, chunk.text)
-    }
-
-    try {
-      return await this.deps.client.sendMessage(target, chunk.text, {
-        parseMode: chunk.parseMode
-      })
-    } catch (error) {
-      if (this.isTelegramEntityParseError(error)) {
-        return await this.deps.client.sendMessage(target, chunk.fallbackText)
-      }
-
-      throw error
     }
   }
 
@@ -821,36 +776,6 @@ export class TelegramPoller {
       })
     } catch (error) {
       if (this.isMessageNotModifiedError(error)) {
-        return
-      }
-
-      throw error
-    }
-  }
-
-  private async editTextChunk(
-    target: TelegramTransportTarget,
-    messageId: number,
-    chunk: TelegramFormattedTextChunk
-  ): Promise<void> {
-    try {
-      await this.deps.client.editMessageText({
-        target,
-        messageId,
-        text: chunk.text,
-        parseMode: chunk.parseMode
-      })
-    } catch (error) {
-      if (this.isMessageNotModifiedError(error)) {
-        return
-      }
-
-      if (chunk.parseMode && this.isTelegramEntityParseError(error)) {
-        await this.deps.client.editMessageText({
-          target,
-          messageId,
-          text: chunk.fallbackText
-        })
         return
       }
 
@@ -943,16 +868,6 @@ export class TelegramPoller {
       error instanceof TelegramApiRequestError &&
       error.code === 400 &&
       /message is not modified/i.test(error.message)
-    )
-  }
-
-  private isTelegramEntityParseError(error: unknown): boolean {
-    return (
-      error instanceof TelegramApiRequestError &&
-      error.code === 400 &&
-      /parse entities|can't parse entities|unsupported start tag|can't find end tag/i.test(
-        error.message
-      )
     )
   }
 
