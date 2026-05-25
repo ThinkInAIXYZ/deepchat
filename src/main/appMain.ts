@@ -12,6 +12,7 @@ import {
   isDeepLinkUrl,
   storeStartupDeepLink
 } from './lib/startupDeepLink'
+import { isInsecureTlsAllowed } from './lib/insecureTls'
 
 registerWorkspacePreviewSchemes()
 
@@ -49,7 +50,10 @@ process.on('unhandledRejection', (reason) => {
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // Allow video autoplay
 app.commandLine.appendSwitch('webrtc-max-cpu-consumption-percentage', '100') // Set WebRTC max CPU usage
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096') // Set V8 heap memory size
-app.commandLine.appendSwitch('ignore-certificate-errors') // Ignore certificate errors (for dev or specific scenarios)
+if (isInsecureTlsAllowed()) {
+  // This disables certificate validation app-wide, so keep it limited to local debugging.
+  app.commandLine.appendSwitch('ignore-certificate-errors')
+}
 
 // Set platform-specific command line arguments
 if (process.platform == 'win32') {

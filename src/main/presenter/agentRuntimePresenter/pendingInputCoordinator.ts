@@ -124,23 +124,27 @@ export class PendingInputCoordinator {
   }
 
   releaseClaimedQueueInput(sessionId: string, itemId: string): PendingSessionInputRecord {
+    this.assertQueueInputForSession(sessionId, itemId)
     const record = this.store.releaseClaimedQueueInput(itemId)
     this.emitUpdated(sessionId)
     return record
   }
 
   releaseClaimedInput(sessionId: string, itemId: string): PendingSessionInputRecord {
+    this.assertInputOwnedBySession(sessionId, itemId)
     const record = this.store.releaseClaimedInput(itemId)
     this.emitUpdated(sessionId)
     return record
   }
 
   consumeQueuedInput(sessionId: string, itemId: string): void {
+    this.assertQueueInputForSession(sessionId, itemId)
     this.store.consumeQueueInput(itemId)
     this.emitUpdated(sessionId)
   }
 
   consumeSteerInput(sessionId: string, itemId: string): void {
+    this.assertSteerInputForSession(sessionId, itemId)
     this.store.consumeSteerInput(itemId)
     this.emitUpdated(sessionId)
   }
@@ -187,6 +191,31 @@ export class PendingInputCoordinator {
     if (!record) {
       throw new Error(`Pending input not found: ${itemId}`)
     }
+    if (record.mode !== 'steer') {
+      throw new Error('Pending input is not a steer item.')
+    }
+  }
+
+  private assertInputOwnedBySession(sessionId: string, itemId: string): PendingSessionInputRecord {
+    const record = this.store.getInput(itemId)
+    if (!record) {
+      throw new Error(`Pending input not found: ${itemId}`)
+    }
+    if (record.sessionId !== sessionId) {
+      throw new Error(`Pending input ${itemId} does not belong to session ${sessionId}`)
+    }
+    return record
+  }
+
+  private assertQueueInputForSession(sessionId: string, itemId: string): void {
+    const record = this.assertInputOwnedBySession(sessionId, itemId)
+    if (record.mode !== 'queue') {
+      throw new Error('Steer inputs are locked and cannot be modified.')
+    }
+  }
+
+  private assertSteerInputForSession(sessionId: string, itemId: string): void {
+    const record = this.assertInputOwnedBySession(sessionId, itemId)
     if (record.mode !== 'steer') {
       throw new Error('Pending input is not a steer item.')
     }

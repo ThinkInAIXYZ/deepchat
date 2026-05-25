@@ -804,12 +804,19 @@ export class TelegramPoller {
       }
 
       if (this.isTelegramEntityParseError(error)) {
-        await this.deps.client.editMessageText({
-          target,
-          messageId: action.messageId,
-          text: action.text,
-          replyMarkup: action.replyMarkup ?? undefined
-        })
+        try {
+          await this.deps.client.editMessageText({
+            target,
+            messageId: action.messageId,
+            text: action.text,
+            replyMarkup: action.replyMarkup ?? undefined
+          })
+        } catch (fallbackError) {
+          if (this.isMessageNotModifiedError(fallbackError)) {
+            return
+          }
+          throw fallbackError
+        }
         return
       }
 

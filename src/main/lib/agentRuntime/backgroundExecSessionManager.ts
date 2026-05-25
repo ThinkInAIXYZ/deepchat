@@ -1039,6 +1039,14 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     yieldMs = getConfig().backgroundMs
   ): Promise<WaitForCompletionOrYieldResult> {
+    const crashed = this.getCrashedCompletionResult(conversationId, sessionId)
+    if (crashed) {
+      return {
+        kind: 'completed',
+        result: crashed
+      }
+    }
+
     const result = await this.request<WaitForCompletionOrYieldResult>('waitForCompletionOrYield', [
       conversationId,
       sessionId,
@@ -1055,6 +1063,11 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     previewChars = FOREGROUND_PREVIEW_CHARS
   ): Promise<SessionCompletionResult> {
+    const crashed = this.getCrashedCompletionResult(conversationId, sessionId)
+    if (crashed) {
+      return crashed
+    }
+
     const result = await this.request<SessionCompletionResult>('getCompletionResult', [
       conversationId,
       sessionId,
@@ -1078,7 +1091,10 @@ class BackgroundExecUtilityProxy {
 
   async remove(conversationId: string, sessionId: string): Promise<void> {
     this.activeSessions.delete(sessionId)
-    this.crashedSessions.delete(sessionId)
+    if (this.getCrashedSession(conversationId, sessionId)) {
+      this.crashedSessions.delete(sessionId)
+      return
+    }
     await this.request('remove', [conversationId, sessionId])
   }
 
@@ -1156,7 +1172,7 @@ class BackgroundExecUtilityProxy {
 
   private async startHost(): Promise<UtilityProcess> {
     const { utilityProcess } = await import('electron')
-    const modulePath = fileURLToPath(import.meta.url)
+    const modulePath = this.resolveUtilityHostEntryPoint()
     const host = utilityProcess.fork(modulePath, ['--deepchat-exec-utility-host'], {
       serviceName: 'DeepChat Exec Utility',
       stdio: 'ignore',
@@ -1198,6 +1214,14 @@ class BackgroundExecUtilityProxy {
       host.once('spawn', onSpawn)
       host.once('exit', onExit)
     })
+  }
+
+  private resolveUtilityHostEntryPoint(): string {
+    const modulePath = fileURLToPath(import.meta.url)
+    if (path.basename(modulePath) === 'index.js') {
+      return modulePath
+    }
+    return fileURLToPath(new URL('../../index.js', import.meta.url))
   }
 
   private handleHostMessage(message: unknown): void {
@@ -1252,6 +1276,19 @@ class BackgroundExecUtilityProxy {
     return session?.conversationId === conversationId ? session : null
   }
 
+  private getCrashedCompletionResult(
+    conversationId: string,
+    sessionId: string
+  ): SessionCompletionResult | null {
+    const session = this.getCrashedSession(conversationId, sessionId)
+    if (!session) {
+      return null
+    }
+    session.lastAccessedAt = Date.now()
+    this.activeSessions.delete(sessionId)
+    return this.toCrashedCompletionResult(session)
+  }
+
   private touchOrCompleteSession(
     conversationId: string,
     sessionId: string,
@@ -1298,6 +1335,16 @@ class BackgroundExecUtilityProxy {
     return {
       status: 'error',
       output: this.crashMessage(session),
+      offloaded: false,
+      timedOut: false
+    }
+  }
+
+  private toCrashedCompletionResult(session: TrackedSessionMeta): SessionCompletionResult {
+    return {
+      status: 'error',
+      output: this.crashMessage(session),
+      exitCode: null,
       offloaded: false,
       timedOut: false
     }

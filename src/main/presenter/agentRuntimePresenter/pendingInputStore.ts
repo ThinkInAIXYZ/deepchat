@@ -42,6 +42,11 @@ export class DeepChatPendingInputStore {
       .filter((row) => row.mode === 'queue').length
   }
 
+  getInput(itemId: string): PendingSessionInputRecord | null {
+    const row = this.sqlitePresenter.deepchatPendingInputsTable.get(itemId)
+    return row ? this.toRecord(row) : null
+  }
+
   createQueueInput(sessionId: string, input: string | SendMessageInput): PendingSessionInputRecord {
     return this.createQueueInputWithState(sessionId, input, 'pending')
   }

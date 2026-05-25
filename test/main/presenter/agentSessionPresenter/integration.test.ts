@@ -1068,7 +1068,9 @@ describe('Integration: multi-turn context', () => {
     await agentPresenter.convertPendingInputToSteer(session.id, pendingInputs[0].id)
 
     releaseFirstTurn?.()
-    await new Promise((r) => setTimeout(r, 120))
+    await vi.waitFor(() => {
+      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    })
 
     expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
@@ -1150,7 +1152,9 @@ describe('Integration: multi-turn context', () => {
     await agentPresenter.convertPendingInputToSteer(session.id, pendingInputs[0].id)
 
     releaseFirstTurn?.()
-    await new Promise((r) => setTimeout(r, 120))
+    await vi.waitFor(() => {
+      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    })
 
     expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]

@@ -151,7 +151,12 @@ function createMockSqlitePresenter() {
     ),
     countActiveBySession: vi.fn(
       (sessionId: string) =>
-        pendingRows.filter((row) => row.session_id === sessionId && row.state !== 'consumed').length
+        pendingRows.filter(
+          (row) =>
+            row.session_id === sessionId &&
+            row.state !== 'consumed' &&
+            !(row.mode === 'queue' && row.state === 'claimed')
+        ).length
     ),
     update: vi.fn((id: string, patch: Record<string, unknown>) => {
       const row = pendingRows.find((item) => item.id === id)

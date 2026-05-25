@@ -1819,6 +1819,106 @@ describe('TelegramPoller', () => {
     warnSpy.mockRestore()
   })
 
+  it('ignores not-modified errors from plain edit fallback', async () => {
+    const client = createClient()
+    client.editMessageText
+      .mockRejectedValueOnce(new TelegramApiRequestError("Bad Request: can't parse entities", 400))
+      .mockRejectedValueOnce(
+        new TelegramApiRequestError(
+          'Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message',
+          400
+        )
+      )
+    client.getUpdates
+      .mockResolvedValueOnce([
+        {
+          update_id: 2,
+          callback_query: {
+            id: 'callback-1',
+            from: {
+              id: 123
+            },
+            data: 'model:menu-token:p:0',
+            message: {
+              message_id: 30,
+              chat: {
+                id: 100,
+                type: 'private'
+              }
+            }
+          }
+        }
+      ])
+      .mockImplementation(createBlockingUpdates())
+
+    const poller = new TelegramPoller({
+      client: client as any,
+      parser: {
+        parseUpdate: vi.fn().mockReturnValue({
+          kind: 'callback_query',
+          updateId: 2,
+          chatId: 100,
+          messageThreadId: 0,
+          messageId: 30,
+          chatType: 'private',
+          fromId: 123,
+          callbackQueryId: 'callback-1',
+          data: 'model:menu-token:p:0'
+        })
+      } as any,
+      router: {
+        handleMessage: vi.fn().mockResolvedValue({
+          replies: [],
+          outboundActions: [
+            {
+              type: 'editMessageText',
+              messageId: 30,
+              text: '**fallback**',
+              replyMarkup: null
+            }
+          ],
+          callbackAnswer: {
+            text: 'Choose a model'
+          }
+        })
+      } as any,
+      bindingStore: {
+        getPollOffset: vi.fn().mockReturnValue(0),
+        setPollOffset: vi.fn(),
+        getTelegramConfig: vi.fn().mockReturnValue({
+          streamMode: 'draft'
+        })
+      } as any
+    })
+
+    await poller.start()
+
+    await vi.waitFor(() => {
+      expect(client.editMessageText).toHaveBeenCalledTimes(2)
+    })
+    expect(client.editMessageText).toHaveBeenNthCalledWith(1, {
+      target: {
+        chatId: 100,
+        messageThreadId: 0
+      },
+      messageId: 30,
+      text: '<b>fallback</b>',
+      replyMarkup: undefined,
+      parseMode: 'HTML'
+    })
+    expect(client.editMessageText).toHaveBeenNthCalledWith(2, {
+      target: {
+        chatId: 100,
+        messageThreadId: 0
+      },
+      messageId: 30,
+      text: '**fallback**',
+      replyMarkup: undefined
+    })
+
+    await poller.stop()
+  })
+
   it('sends pending interaction prompts after completed conversation output', async () => {
     const client = createClient()
     const bindingStore = createBindingStore()
