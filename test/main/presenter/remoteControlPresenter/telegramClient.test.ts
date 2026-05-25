@@ -49,6 +49,7 @@ describe('TelegramClient', () => {
       chat_id: 100,
       message_thread_id: undefined,
       text: 'Choose a provider',
+      parse_mode: undefined,
       reply_markup: {
         inline_keyboard: [
           [
@@ -59,6 +60,50 @@ describe('TelegramClient', () => {
           ]
         ]
       }
+    })
+  })
+
+  it('forwards parse_mode option through sendMessage', async () => {
+    const client = new TelegramClient('token')
+
+    await client.sendMessage(
+      {
+        chatId: 100,
+        messageThreadId: 0
+      },
+      '<b>hello</b>',
+      undefined,
+      { parseMode: 'HTML' }
+    )
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0]
+    expect(fetchCall[0]).toContain('/sendMessage')
+    expect(JSON.parse(fetchCall[1]!.body as string)).toMatchObject({
+      text: '<b>hello</b>',
+      parse_mode: 'HTML'
+    })
+  })
+
+  it('forwards parse_mode option through editMessageText', async () => {
+    const client = new TelegramClient('token')
+
+    await client.editMessageText({
+      target: {
+        chatId: 100,
+        messageThreadId: 0
+      },
+      messageId: 30,
+      text: '<b>hello</b>',
+      parseMode: 'HTML'
+    })
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0]
+    expect(fetchCall[0]).toContain('/editMessageText')
+    expect(JSON.parse(fetchCall[1]!.body as string)).toMatchObject({
+      chat_id: 100,
+      message_id: 30,
+      text: '<b>hello</b>',
+      parse_mode: 'HTML'
     })
   })
 

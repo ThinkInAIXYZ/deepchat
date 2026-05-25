@@ -7,6 +7,7 @@ import {
   type RemoteDeliverySegment,
   type RemotePendingInteraction,
   type TelegramInboundMessage,
+  type TelegramInlineKeyboardMarkup,
   type TelegramOutboundAction,
   type TelegramPollerStatusSnapshot,
   type TelegramTransportTarget
@@ -20,6 +21,7 @@ import {
 } from '../services/remoteCommandRouter'
 import type { RemoteConversationExecution } from '../services/remoteConversationRunner'
 import { chunkTelegramText } from './telegramOutbound'
+import { convertMarkdownToTelegramHtml } from './telegramMarkdown'
 import { buildTelegramPendingInteractionPrompt } from './telegramInteractionPrompt'
 import { TelegramApiRequestError, TelegramClient, type TelegramRawUpdate } from './telegramClient'
 import { TelegramParser } from './telegramParser'
@@ -648,7 +650,7 @@ export class TelegramPoller {
     if (!existing) {
       const messageIds: number[] = []
       for (const chunk of nextChunks) {
-        messageIds.push(await this.deps.client.sendMessage(target, chunk))
+        messageIds.push(await this.sendChunk(target, chunk))
       }
 
       return {
@@ -669,7 +671,7 @@ export class TelegramPoller {
     ) {
       const messageIds: number[] = []
       for (const chunk of nextChunks) {
-        messageIds.push(await this.deps.client.sendMessage(target, chunk))
+        messageIds.push(await this.sendChunk(target, chunk))
       }
 
       return {
@@ -703,7 +705,7 @@ export class TelegramPoller {
     }
 
     for (let index = messageIds.length; index < nextChunks.length; index += 1) {
-      messageIds.push(await this.deps.client.sendMessage(target, nextChunks[index]))
+      messageIds.push(await this.sendChunk(target, nextChunks[index]))
     }
 
     return {
@@ -724,8 +726,21 @@ export class TelegramPoller {
 
   private async sendChunkedMessage(target: TelegramTransportTarget, text: string): Promise<void> {
     for (const chunk of chunkTelegramText(text)) {
-      await this.deps.client.sendMessage(target, chunk)
+      await this.sendChunk(target, chunk)
     }
+  }
+
+  private async sendChunk(
+    target: TelegramTransportTarget,
+    text: string,
+    replyMarkup?: TelegramInlineKeyboardMarkup
+  ): Promise<number> {
+    return await this.deps.client.sendMessage(
+      target,
+      convertMarkdownToTelegramHtml(text),
+      replyMarkup,
+      { parseMode: 'HTML' }
+    )
   }
 
   private async sendPendingInteractionPrompt(
@@ -737,7 +752,7 @@ export class TelegramPoller {
     const prompt = buildTelegramPendingInteractionPrompt(interaction, token)
 
     if (prompt.replyMarkup) {
-      await this.deps.client.sendMessage(target, prompt.text, prompt.replyMarkup)
+      await this.sendChunk(target, prompt.text, prompt.replyMarkup)
       return
     }
 
@@ -751,7 +766,7 @@ export class TelegramPoller {
     for (const action of actions) {
       if (action.type === 'sendMessage') {
         if (action.replyMarkup) {
-          await this.deps.client.sendMessage(target, action.text, action.replyMarkup)
+          await this.sendChunk(target, action.text, action.replyMarkup)
           continue
         }
 
@@ -771,8 +786,9 @@ export class TelegramPoller {
       await this.deps.client.editMessageText({
         target,
         messageId: action.messageId,
-        text: action.text,
-        replyMarkup: action.replyMarkup ?? undefined
+        text: convertMarkdownToTelegramHtml(action.text),
+        replyMarkup: action.replyMarkup ?? undefined,
+        parseMode: 'HTML'
       })
     } catch (error) {
       if (this.isMessageNotModifiedError(error)) {
