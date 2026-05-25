@@ -62,6 +62,55 @@ describe('TelegramClient', () => {
     })
   })
 
+  it('sends HTML parse mode payloads with sendMessage', async () => {
+    const client = new TelegramClient('token')
+
+    await client.sendMessage(
+      {
+        chatId: 100,
+        messageThreadId: 0
+      },
+      '<b>Hello</b>',
+      {
+        parseMode: 'HTML'
+      }
+    )
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0]
+    expect(fetchCall[0]).toContain('/sendMessage')
+    expect(JSON.parse(fetchCall[1]!.body as string)).toEqual({
+      chat_id: 100,
+      message_thread_id: undefined,
+      text: '<b>Hello</b>',
+      parse_mode: 'HTML',
+      reply_markup: undefined
+    })
+  })
+
+  it('sends HTML parse mode payloads with editMessageText', async () => {
+    const client = new TelegramClient('token')
+
+    await client.editMessageText({
+      target: {
+        chatId: 100,
+        messageThreadId: 0
+      },
+      messageId: 30,
+      text: '<b>Edited</b>',
+      parseMode: 'HTML'
+    })
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0]
+    expect(fetchCall[0]).toContain('/editMessageText')
+    expect(JSON.parse(fetchCall[1]!.body as string)).toEqual({
+      chat_id: 100,
+      message_id: 30,
+      text: '<b>Edited</b>',
+      parse_mode: 'HTML',
+      reply_markup: undefined
+    })
+  })
+
   it('clears inline keyboards through editMessageReplyMarkup', async () => {
     const client = new TelegramClient('token')
 

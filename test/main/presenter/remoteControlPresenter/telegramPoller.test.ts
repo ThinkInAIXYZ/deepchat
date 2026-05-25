@@ -393,6 +393,167 @@ describe('TelegramPoller', () => {
     await poller.stop()
   })
 
+  it('sends markdown answer segments with Telegram HTML parse mode', async () => {
+    const client = createClient()
+    const bindingStore = createBindingStore()
+    client.getUpdates
+      .mockResolvedValueOnce([
+        {
+          update_id: 1,
+          message: {
+            message_id: 20,
+            chat: {
+              id: 100,
+              type: 'private'
+            },
+            from: {
+              id: 123
+            },
+            text: 'hello'
+          }
+        }
+      ])
+      .mockImplementation(createBlockingUpdates())
+
+    const poller = new TelegramPoller({
+      client: client as any,
+      parser: {
+        parseUpdate: vi.fn().mockReturnValue({
+          kind: 'message',
+          updateId: 1,
+          chatId: 100,
+          messageThreadId: 0,
+          messageId: 20,
+          chatType: 'private',
+          fromId: 123,
+          text: 'hello',
+          command: null
+        })
+      } as any,
+      router: {
+        handleMessage: vi.fn().mockResolvedValue({
+          replies: [],
+          conversation: {
+            sessionId: 'session-1',
+            eventId: 'msg-1',
+            getSnapshot: vi.fn().mockResolvedValue({
+              messageId: 'msg-1',
+              text: '# Result\n\n**bold** and `code`',
+              completed: true,
+              pendingInteraction: null
+            })
+          }
+        })
+      } as any,
+      bindingStore: bindingStore as any
+    })
+
+    await poller.start()
+
+    await vi.waitFor(() => {
+      expect(client.sendMessage).toHaveBeenCalledWith(
+        {
+          chatId: 100,
+          messageThreadId: 0
+        },
+        '<b>Result</b>\n\n<b>bold</b> and <code>code</code>',
+        {
+          parseMode: 'HTML'
+        }
+      )
+    })
+
+    await poller.stop()
+  })
+
+  it('retries formatted markdown chunks as plain text when Telegram rejects entities', async () => {
+    const client = createClient()
+    const bindingStore = createBindingStore()
+    client.sendMessage.mockImplementation(async (_target, _text, options) => {
+      if (options?.parseMode === 'HTML') {
+        throw new TelegramApiRequestError("Bad Request: can't parse entities", 400)
+      }
+      return 100
+    })
+    client.getUpdates
+      .mockResolvedValueOnce([
+        {
+          update_id: 1,
+          message: {
+            message_id: 20,
+            chat: {
+              id: 100,
+              type: 'private'
+            },
+            from: {
+              id: 123
+            },
+            text: 'hello'
+          }
+        }
+      ])
+      .mockImplementation(createBlockingUpdates())
+
+    const poller = new TelegramPoller({
+      client: client as any,
+      parser: {
+        parseUpdate: vi.fn().mockReturnValue({
+          kind: 'message',
+          updateId: 1,
+          chatId: 100,
+          messageThreadId: 0,
+          messageId: 20,
+          chatType: 'private',
+          fromId: 123,
+          text: 'hello',
+          command: null
+        })
+      } as any,
+      router: {
+        handleMessage: vi.fn().mockResolvedValue({
+          replies: [],
+          conversation: {
+            sessionId: 'session-1',
+            eventId: 'msg-1',
+            getSnapshot: vi.fn().mockResolvedValue({
+              messageId: 'msg-1',
+              text: '**fallback**',
+              completed: true,
+              pendingInteraction: null
+            })
+          }
+        })
+      } as any,
+      bindingStore: bindingStore as any
+    })
+
+    await poller.start()
+
+    await vi.waitFor(() => {
+      expect(client.sendMessage).toHaveBeenNthCalledWith(
+        1,
+        {
+          chatId: 100,
+          messageThreadId: 0
+        },
+        '<b>fallback</b>',
+        {
+          parseMode: 'HTML'
+        }
+      )
+      expect(client.sendMessage).toHaveBeenNthCalledWith(
+        2,
+        {
+          chatId: 100,
+          messageThreadId: 0
+        },
+        '**fallback**'
+      )
+    })
+
+    await poller.stop()
+  })
+
   it('streams answer text beside a persistent trace log', async () => {
     vi.useFakeTimers()
 
