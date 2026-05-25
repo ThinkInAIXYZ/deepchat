@@ -85,6 +85,8 @@ export type TelegramBotCommand = {
   description: string
 }
 
+export type TelegramParseMode = 'HTML' | 'MarkdownV2'
+
 const buildReplyMarkup = (
   replyMarkup?: TelegramInlineKeyboardMarkup | null
 ): TelegramInlineKeyboardMarkup | undefined =>
@@ -157,12 +159,14 @@ export class TelegramClient {
   async sendMessage(
     target: TelegramTransportTarget,
     text: string,
-    replyMarkup?: TelegramInlineKeyboardMarkup
+    replyMarkup?: TelegramInlineKeyboardMarkup,
+    options?: { parseMode?: TelegramParseMode }
   ): Promise<number> {
     const message = await this.request<TelegramSentMessage>('sendMessage', {
       chat_id: target.chatId,
       message_thread_id: target.messageThreadId || undefined,
       text,
+      parse_mode: options?.parseMode,
       reply_markup: buildReplyMarkup(replyMarkup)
     })
     return message.message_id
@@ -199,7 +203,8 @@ export class TelegramClient {
   async sendPhoto(
     target: TelegramTransportTarget,
     filePath: string,
-    caption?: string
+    caption?: string,
+    options?: { parseMode?: TelegramParseMode }
   ): Promise<number> {
     const form = new FormData()
     form.set('chat_id', String(target.chatId))
@@ -208,6 +213,9 @@ export class TelegramClient {
     }
     if (caption?.trim()) {
       form.set('caption', caption.trim())
+      if (options?.parseMode) {
+        form.set('parse_mode', options.parseMode)
+      }
     }
     const fileBuffer = await fs.readFile(filePath)
     const fileName = path.basename(filePath) || 'image'
@@ -266,11 +274,13 @@ export class TelegramClient {
     messageId: number
     text: string
     replyMarkup?: TelegramInlineKeyboardMarkup | null
+    parseMode?: TelegramParseMode
   }): Promise<void> {
     await this.request('editMessageText', {
       chat_id: params.target.chatId,
       message_id: params.messageId,
       text: params.text,
+      parse_mode: params.parseMode,
       reply_markup: buildReplyMarkup(params.replyMarkup)
     })
   }

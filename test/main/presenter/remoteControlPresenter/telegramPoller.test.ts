@@ -381,7 +381,9 @@ describe('TelegramPoller', () => {
           chatId: 100,
           messageThreadId: 0
         },
-        'pong'
+        'pong',
+        undefined,
+        { parseMode: 'HTML' }
       )
       expect(client.setMessageReaction).toHaveBeenNthCalledWith(2, {
         chatId: 100,
@@ -527,7 +529,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          '💻 shell_command: "git status"'
+          '💻 shell_command: "git status"',
+          undefined,
+          { parseMode: 'HTML' }
         )
       })
 
@@ -539,7 +543,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          'Draft answer'
+          'Draft answer',
+          undefined,
+          { parseMode: 'HTML' }
         )
         expect(bindingStore.rememberRemoteDeliveryState).toHaveBeenCalledWith(
           'telegram:100:0',
@@ -578,7 +584,8 @@ describe('TelegramPoller', () => {
           },
           messageId: 101,
           text: 'Final answer',
-          replyMarkup: undefined
+          replyMarkup: undefined,
+          parseMode: 'HTML'
         })
         expect(bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith('telegram:100:0')
       })
@@ -681,7 +688,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          firstText
+          firstText,
+          undefined,
+          { parseMode: 'HTML' }
         )
       })
 
@@ -695,14 +704,17 @@ describe('TelegramPoller', () => {
           },
           messageId: 100,
           text: 'A'.repeat(4_096),
-          replyMarkup: undefined
+          replyMarkup: undefined,
+          parseMode: 'HTML'
         })
         expect(client.sendMessage).toHaveBeenCalledWith(
           {
             chatId: 100,
             messageThreadId: 0
           },
-          'A'.repeat(109)
+          'A'.repeat(109),
+          undefined,
+          { parseMode: 'HTML' }
         )
       })
 
@@ -924,7 +936,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          'Partial answer'
+          'Partial answer',
+          undefined,
+          { parseMode: 'HTML' }
         )
       })
 
@@ -936,7 +950,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          'The conversation ended with an error.'
+          'The conversation ended with an error.',
+          undefined,
+          { parseMode: 'HTML' }
         )
         expect(client.editMessageText).not.toHaveBeenCalledWith(
           expect.objectContaining({
@@ -1036,14 +1052,18 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          'Final answer'
+          'Final answer',
+          undefined,
+          { parseMode: 'HTML' }
         )
         expect(client.sendMessage).toHaveBeenCalledWith(
           {
             chatId: 100,
             messageThreadId: 0
           },
-          '💻 shell_command: "git status"'
+          '💻 shell_command: "git status"',
+          undefined,
+          { parseMode: 'HTML' }
         )
       })
 
@@ -1053,7 +1073,8 @@ describe('TelegramPoller', () => {
           messageThreadId: 0
         },
         'Final answer',
-        expect.anything()
+        expect.anything(),
+        { parseMode: 'HTML' }
       )
       expect(
         client.sendMessage.mock.calls.filter(([, text]) => text === 'Final answer')
@@ -1197,7 +1218,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          'Let me inspect these files.'
+          'Let me inspect these files.',
+          undefined,
+          { parseMode: 'HTML' }
         )
       })
 
@@ -1209,7 +1232,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          '📖 read_file: "/tmp/report.md"'
+          '📖 read_file: "/tmp/report.md"',
+          undefined,
+          { parseMode: 'HTML' }
         )
       })
 
@@ -1221,7 +1246,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          'Summary ready.'
+          'Summary ready.',
+          undefined,
+          { parseMode: 'HTML' }
         )
         expect(client.editMessageText).not.toHaveBeenCalledWith(
           expect.objectContaining({
@@ -1310,7 +1337,9 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          '📖 read_file: "/tmp/report.md"'
+          '📖 read_file: "/tmp/report.md"',
+          undefined,
+          { parseMode: 'HTML' }
         )
         expect(bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith('telegram:100:0')
       })
@@ -1382,7 +1411,9 @@ describe('TelegramPoller', () => {
           chatId: 100,
           messageThreadId: 0
         },
-        'running'
+        'running',
+        undefined,
+        { parseMode: 'HTML' }
       )
     })
 
@@ -1487,7 +1518,8 @@ describe('TelegramPoller', () => {
               }
             ]
           ]
-        }
+        },
+        parseMode: 'HTML'
       })
     })
 
@@ -1776,7 +1808,9 @@ describe('TelegramPoller', () => {
           chatId: 100,
           messageThreadId: 0
         },
-        'Partial answer'
+        'Partial answer',
+        undefined,
+        { parseMode: 'HTML' }
       )
       expect(client.sendMessage).toHaveBeenNthCalledWith(
         2,
@@ -1787,7 +1821,8 @@ describe('TelegramPoller', () => {
         expect.stringContaining('Permission Required'),
         expect.objectContaining({
           inline_keyboard: expect.any(Array)
-        })
+        }),
+        { parseMode: 'HTML' }
       )
     })
 
@@ -1878,7 +1913,8 @@ describe('TelegramPoller', () => {
         },
         messageId: 30,
         text: 'Permission handled.\nApproved. Continuing...',
-        replyMarkup: undefined
+        replyMarkup: undefined,
+        parseMode: 'HTML'
       })
     })
 
@@ -1904,7 +1940,9 @@ describe('TelegramPoller', () => {
           chatId: 100,
           messageThreadId: 0
         },
-        'Done'
+        'Done',
+        undefined,
+        { parseMode: 'HTML' }
       )
     })
 
