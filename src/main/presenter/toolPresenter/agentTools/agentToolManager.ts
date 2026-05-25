@@ -29,6 +29,7 @@ import {
 } from './subagentOrchestratorTool'
 import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
 import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
+import { AgentTapeToolHandler } from './agentTapeTools'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -123,6 +124,7 @@ export class AgentToolManager {
   private subagentOrchestratorTool: SubagentOrchestratorTool | null = null
   private imageGenerationTool: AgentImageGenerationTool | null = null
   private planTool: AgentPlanTool | null = null
+  private tapeToolHandler: AgentTapeToolHandler | null = null
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
   private readonly fileSystemSchemas = {
@@ -288,6 +290,7 @@ export class AgentToolManager {
       runtimePort: this.runtimePort
     })
     this.planTool = new AgentPlanTool()
+    this.tapeToolHandler = new AgentTapeToolHandler(this.runtimePort)
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -351,6 +354,17 @@ export class AgentToolManager {
     // 2.1. Progress checklist tool (deepchat regular sessions only)
     if (isAgentMode && this.planTool) {
       defs.push(this.planTool.getToolDefinition())
+    }
+
+    // 2.15. Session tape tools (DeepChat sessions only)
+    if (isAgentMode && this.tapeToolHandler) {
+      try {
+        if (await this.tapeToolHandler.canUse(context.conversationId)) {
+          defs.push(...this.tapeToolHandler.getToolDefinitions())
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve tape tool availability', { error })
+      }
     }
 
     // 2.25. Image generation tool (deepchat agent sessions with an image model)
@@ -480,6 +494,10 @@ export class AgentToolManager {
       }
 
       return await this.imageGenerationTool.call(args, conversationId, options)
+    }
+
+    if (this.tapeToolHandler?.isTapeTool(toolName)) {
+      return await this.tapeToolHandler.call(toolName, args, conversationId)
     }
 
     // Route to process tool

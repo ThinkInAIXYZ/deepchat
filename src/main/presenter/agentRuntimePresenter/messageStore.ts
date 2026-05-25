@@ -23,6 +23,11 @@ import {
   resolveUsageModelId,
   resolveUsageProviderId
 } from '../usageStats'
+import {
+  appendMessageRecordToTape,
+  appendMessageReplacementToTape,
+  appendMessageRetractionToTape
+} from './tapeFacts'
 
 function shouldConvertPendingBlockToError(
   status: AssistantMessageBlock['status']
@@ -141,6 +146,7 @@ export class DeepChatMessageStore {
     })
     this.persistUserContent(id, content)
     this.upsertMessageSearchDocument(sessionId, id, 'user', serializedContent)
+    this.appendLiveTapeFacts(id)
     return id
   }
 
@@ -173,6 +179,7 @@ export class DeepChatMessageStore {
       status: 'sent',
       metadata: JSON.stringify(this.buildCompactionMetadata(status, summaryUpdatedAt))
     })
+    this.appendLiveTapeFacts(id)
     return id
   }
 
@@ -199,6 +206,7 @@ export class DeepChatMessageStore {
     )
     this.upsertAssistantSearchDocument(messageId, blocks)
     this.persistUsageStats(messageId, metadata, 'live')
+    this.appendLiveTapeFacts(messageId)
   }
 
   updateCompactionMessage(
@@ -224,6 +232,7 @@ export class DeepChatMessageStore {
         'error'
       )
       this.upsertAssistantSearchDocument(messageId, blocks)
+      this.appendLiveTapeFacts(messageId)
       return
     }
     this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
@@ -234,6 +243,7 @@ export class DeepChatMessageStore {
     )
     this.upsertAssistantSearchDocument(messageId, blocks)
     this.persistUsageStats(messageId, metadata, 'live')
+    this.appendLiveTapeFacts(messageId)
   }
 
   getMessages(sessionId: string): ChatMessageRecord[] {
@@ -311,6 +321,14 @@ export class DeepChatMessageStore {
         this.persistUserContent(messageId, parsed)
         this.upsertMessageSearchDocument(row.session_id, messageId, 'user', content, row.updated_at)
       }
+      const updated = this.getMessage(messageId)
+      if (updated) {
+        appendMessageReplacementToTape(
+          this.sqlitePresenter.deepchatTapeEntriesTable,
+          updated,
+          'message_content_updated'
+        )
+      }
       return
     }
 
@@ -323,6 +341,14 @@ export class DeepChatMessageStore {
         'assistant',
         content,
         row.updated_at
+      )
+    }
+    const updated = this.getMessage(messageId)
+    if (updated) {
+      appendMessageReplacementToTape(
+        this.sqlitePresenter.deepchatTapeEntriesTable,
+        updated,
+        'message_content_updated'
       )
     }
   }
@@ -343,6 +369,14 @@ export class DeepChatMessageStore {
   }
 
   deleteMessage(messageId: string): void {
+    const record = this.getMessage(messageId)
+    if (record) {
+      appendMessageRetractionToTape(
+        this.sqlitePresenter.deepchatTapeEntriesTable,
+        record,
+        'message_deleted'
+      )
+    }
     this.sqlitePresenter.deepchatSearchDocumentsTable.delete(`message:${messageId}`)
     this.sqlitePresenter.deepchatAssistantBlocksTable.delete(messageId)
     this.sqlitePresenter.deepchatUserMessageLinksTable.delete(messageId)
@@ -354,6 +388,14 @@ export class DeepChatMessageStore {
   }
 
   deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
+    const records = this.getMessages(sessionId).filter((record) => record.orderSeq >= fromOrderSeq)
+    for (const record of records) {
+      appendMessageRetractionToTape(
+        this.sqlitePresenter.deepchatTapeEntriesTable,
+        record,
+        'messages_deleted_from_order_seq'
+      )
+    }
     const messageIds = this.sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq(
       sessionId,
       fromOrderSeq
@@ -579,6 +621,18 @@ export class DeepChatMessageStore {
         block.status === 'pending' &&
         block.extra?.needsUserAction !== false
     )
+  }
+
+  private appendLiveTapeFacts(messageId: string): void {
+    if (!this.sqlitePresenter.deepchatTapeEntriesTable) {
+      return
+    }
+
+    const record = this.getMessage(messageId)
+    if (!record) {
+      return
+    }
+    appendMessageRecordToTape(this.sqlitePresenter.deepchatTapeEntriesTable, record, 'live')
   }
 
   private toRecord(row: DeepChatMessageRow): ChatMessageRecord {

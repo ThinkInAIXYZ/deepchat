@@ -9,7 +9,11 @@ import type {
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { DeepChatMessageStore } from './messageStore'
-import type { DeepChatSessionStore, SessionSummaryState } from './sessionStore'
+import type {
+  DeepChatSessionStore,
+  ReconstructionAnchorPromptState,
+  SessionSummaryState
+} from './sessionStore'
 import {
   buildHistoryTurns,
   buildUserMessageContent,
@@ -56,6 +60,13 @@ export type CompactionIntent = {
   summaryBlocks: string[]
   currentModel: ModelSpec
   reserveTokens: number
+  anchorName?: string
+  summaryRange?: {
+    fromOrderSeq: number
+    toOrderSeq: number
+  } | null
+  sourceMessageIds?: string[]
+  summaryableTurnCount?: number
 }
 
 export type CompactionExecutionResult = {
@@ -107,6 +118,61 @@ export function appendSummarySection(
     buildUntrustedPromptBlock('Persisted conversation summary', normalizedSummary)
   ])
   return composeSections([systemPrompt, summarySection])
+}
+
+const PROMPT_VISIBLE_RECONSTRUCTION_ANCHOR_PREFIXES = ['handoff/', 'auto_handoff/'] as const
+const HIDDEN_RECONSTRUCTION_STATE_KEYS = new Set([
+  'summary',
+  'summaryText',
+  'cursorOrderSeq',
+  'summaryCursorOrderSeq',
+  'range',
+  'sourceMessageIds'
+])
+
+function shouldExposeReconstructionAnchorState(anchorName: string): boolean {
+  return PROMPT_VISIBLE_RECONSTRUCTION_ANCHOR_PREFIXES.some((prefix) =>
+    anchorName.startsWith(prefix)
+  )
+}
+
+function visibleReconstructionState(state: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(state)) {
+    if (HIDDEN_RECONSTRUCTION_STATE_KEYS.has(key)) {
+      continue
+    }
+    result[key] = value
+  }
+  return result
+}
+
+export function appendReconstructionAnchorStateSection(
+  systemPrompt: string,
+  anchor: ReconstructionAnchorPromptState | null | undefined
+): string {
+  if (!anchor || !shouldExposeReconstructionAnchorState(anchor.name)) {
+    return systemPrompt
+  }
+
+  const visibleState = visibleReconstructionState(anchor.state)
+  if (Object.keys(visibleState).length === 0) {
+    return systemPrompt
+  }
+
+  const stateJson = JSON.stringify(
+    {
+      anchor: anchor.name,
+      state: visibleState
+    },
+    null,
+    2
+  )
+  const anchorSection = composeSections([
+    '## Tape Handoff State',
+    buildUntrustedPromptBlock('Persisted tape handoff state', stateJson)
+  ])
+  return composeSections([systemPrompt, anchorSection])
 }
 
 function parseAssistantBlocks(record: ChatMessageRecord): AssistantMessageBlock[] {
@@ -255,6 +321,7 @@ export class CompactionService {
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     newUserContent: string | SendMessageInput
+    historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
     throwIfAbortRequested(params.signal)
@@ -264,8 +331,9 @@ export class CompactionService {
       return null
     }
 
-    const historyRecords = this.messageStore
-      .getMessages(params.sessionId)
+    const historyRecords = (
+      params.historyRecords ?? this.messageStore.getMessages(params.sessionId)
+    )
       .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
 
@@ -280,7 +348,8 @@ export class CompactionService {
           params.supportsVision,
           params.supportsAudioInput === true
         )
-      ]
+      ],
+      anchorName: 'compaction/auto'
     })
   }
 
@@ -297,6 +366,7 @@ export class CompactionService {
     supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
+    historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
     throwIfAbortRequested(params.signal)
@@ -306,8 +376,7 @@ export class CompactionService {
       return null
     }
 
-    const allMessages = this.messageStore
-      .getMessages(params.sessionId)
+    const allMessages = (params.historyRecords ?? this.messageStore.getMessages(params.sessionId))
       .filter((record) => !isCompactionRecord(record))
       .sort((a, b) => a.orderSeq - b.orderSeq)
     const target = allMessages.find((record) => record.id === params.messageId)
@@ -330,7 +399,8 @@ export class CompactionService {
       records: resumeRecords,
       protectedTurnCount: settings.retainRecentPairs + 1,
       triggerThreshold: settings.triggerThreshold,
-      projectedMessages: []
+      projectedMessages: [],
+      anchorName: 'compaction/resume'
     })
   }
 
@@ -347,6 +417,7 @@ export class CompactionService {
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     projectedMessages: ChatMessage[]
+    historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
     throwIfAbortRequested(params.signal)
@@ -356,8 +427,9 @@ export class CompactionService {
       return null
     }
 
-    const historyRecords = this.messageStore
-      .getMessages(params.sessionId)
+    const historyRecords = (
+      params.historyRecords ?? this.messageStore.getMessages(params.sessionId)
+    )
       .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
 
@@ -367,7 +439,8 @@ export class CompactionService {
       protectedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: params.projectedMessages,
-      force: true
+      force: true,
+      anchorName: 'auto_handoff/context_overflow'
     })
   }
 
@@ -383,12 +456,14 @@ export class CompactionService {
     supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
+    historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
     throwIfAbortRequested(params.signal)
 
-    const historyRecords = this.messageStore
-      .getMessages(params.sessionId)
+    const historyRecords = (
+      params.historyRecords ?? this.messageStore.getMessages(params.sessionId)
+    )
       .filter(isContextHistoryRecord)
       .sort((a, b) => a.orderSeq - b.orderSeq)
 
@@ -398,7 +473,8 @@ export class CompactionService {
       protectedTurnCount: 0,
       triggerThreshold: 0,
       projectedMessages: [],
-      force: true
+      force: true,
+      anchorName: 'compaction/manual'
     })
   }
 
@@ -416,17 +492,34 @@ export class CompactionService {
         reserveTokens: intent.reserveTokens,
         signal
       })
+      const summaryUpdatedAt = Date.now()
 
       const updatedState: SessionSummaryState = {
         summaryText: nextSummary,
         summaryCursorOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
-        summaryUpdatedAt: Date.now()
+        summaryUpdatedAt
       }
 
       const compareAndSet = this.sessionStore.compareAndSetSummaryState(
         intent.sessionId,
         intent.previousState,
-        updatedState
+        updatedState,
+        {
+          name: intent.anchorName ?? 'compaction/auto',
+          state: {
+            summary: nextSummary,
+            cursorOrderSeq: updatedState.summaryCursorOrderSeq,
+            range: intent.summaryRange ?? null,
+            sourceMessageIds: intent.sourceMessageIds ?? [],
+            summaryableTurnCount: intent.summaryableTurnCount ?? intent.summaryBlocks.length,
+            previousSummaryUpdatedAt: intent.previousState.summaryUpdatedAt
+          },
+          meta: {
+            providerId: intent.currentModel.providerId,
+            modelId: intent.currentModel.modelId,
+            reserveTokens: intent.reserveTokens
+          }
+        }
       )
       if (compareAndSet.applied) {
         return {
@@ -469,6 +562,7 @@ export class CompactionService {
     triggerThreshold: number
     projectedMessages: ChatMessage[]
     force?: boolean
+    anchorName?: string
   }): CompactionIntent | null {
     const summaryState = this.sessionStore.getSummaryState(params.sessionId)
     const scopedRecords = params.records.filter(
@@ -521,6 +615,14 @@ export class CompactionService {
     const summaryBlocks = summaryableTurns.map((turn) =>
       turn.records.map((record) => serializeRecord(record)).join('\n\n')
     )
+    const summaryableRecords = summaryableTurns.flatMap((turn) => turn.records)
+    const summaryRange =
+      summaryableRecords.length > 0
+        ? {
+            fromOrderSeq: summaryableRecords[0].orderSeq,
+            toOrderSeq: summaryableRecords[summaryableRecords.length - 1].orderSeq
+          }
+        : null
 
     const nextCursor =
       rawTailTurns[0]?.records[0]?.orderSeq ??
@@ -536,7 +638,11 @@ export class CompactionService {
         params.modelId,
         params.contextLength
       ),
-      reserveTokens: params.reserveTokens
+      reserveTokens: params.reserveTokens,
+      anchorName: params.anchorName ?? 'compaction/auto',
+      summaryRange,
+      sourceMessageIds: summaryableRecords.map((record) => record.id),
+      summaryableTurnCount: summaryableTurns.length
     }
   }
 

@@ -117,6 +117,7 @@ function createMockSqlitePresenter() {
     summary_cursor_order_seq: 1,
     summary_updated_at: null
   }
+  const tapeEntries: any[] = []
   const deepchatMessagesTable = {
     insert: vi.fn(),
     updateContent: vi.fn(),
@@ -146,7 +147,11 @@ function createMockSqlitePresenter() {
     delete: vi.fn(),
     deleteByMessageIds: vi.fn()
   }
+  let deepchatTapeEntriesTable: any
   return {
+    getDatabase: vi.fn(() => ({
+      transaction: (fn: () => unknown) => () => fn()
+    })),
     newSessionsTable: {
       get: vi.fn(),
       getDisabledAgentTools: vi.fn().mockReturnValue([])
@@ -185,6 +190,104 @@ function createMockSqlitePresenter() {
       }),
       delete: vi.fn()
     },
+    deepchatTapeEntriesTable: (deepchatTapeEntriesTable = {
+      ensureBootstrapAnchor: vi.fn(),
+      append: vi.fn((input: any) => {
+        const provenanceKey =
+          input.provenanceKey ??
+          (input.source
+            ? [
+                input.source.type,
+                input.source.id,
+                input.source.seq ?? 0,
+                input.kind,
+                input.name ?? ''
+              ].join(':')
+            : null)
+        const existing = input.idempotent
+          ? tapeEntries.find(
+              (entry) =>
+                entry.session_id === input.sessionId &&
+                entry.provenance_key &&
+                entry.provenance_key === provenanceKey
+            )
+          : undefined
+        if (existing) {
+          return existing
+        }
+        const row = {
+          session_id: input.sessionId,
+          entry_id:
+            Math.max(
+              0,
+              ...tapeEntries
+                .filter((entry) => entry.session_id === input.sessionId)
+                .map((entry) => entry.entry_id)
+            ) + 1,
+          kind: input.kind,
+          name: input.name ?? null,
+          source_type: input.source?.type ?? null,
+          source_id: input.source?.id ?? null,
+          source_seq: input.source?.seq ?? null,
+          provenance_key: provenanceKey,
+          payload_json: JSON.stringify(input.payload ?? {}),
+          meta_json: JSON.stringify(input.meta ?? {}),
+          created_at: input.createdAt ?? Date.now()
+        }
+        tapeEntries.push(row)
+        return row
+      }),
+      appendAnchor: vi.fn((input: any) => {
+        return deepchatTapeEntriesTable.append({
+          ...input,
+          kind: 'anchor',
+          payload: { name: input.name, state: input.state }
+        })
+      }),
+      appendEvent: vi.fn((input: any) => {
+        return deepchatTapeEntriesTable.append({
+          ...input,
+          kind: 'event',
+          payload: { name: input.name, data: input.data }
+        })
+      }),
+      getBySession: vi.fn((sessionId: string) =>
+        tapeEntries.filter((entry) => entry.session_id === sessionId)
+      ),
+      getLatestAnchor: vi.fn(
+        (sessionId: string) =>
+          tapeEntries
+            .filter((entry) => entry.session_id === sessionId && entry.kind === 'anchor')
+            .sort((left, right) => right.entry_id - left.entry_id)[0]
+      ),
+      getLatestSummaryAnchor: vi.fn(),
+      getByProvenanceKey: vi.fn((sessionId: string, provenanceKey: string) =>
+        tapeEntries.find(
+          (entry) => entry.session_id === sessionId && entry.provenance_key === provenanceKey
+        )
+      ),
+      countBySession: vi.fn(
+        (sessionId: string) => tapeEntries.filter((entry) => entry.session_id === sessionId).length
+      ),
+      countAnchorsBySession: vi.fn(
+        (sessionId: string) =>
+          tapeEntries.filter((entry) => entry.session_id === sessionId && entry.kind === 'anchor')
+            .length
+      ),
+      countEntriesAfter: vi.fn(
+        (sessionId: string, entryId: number) =>
+          tapeEntries.filter((entry) => entry.session_id === sessionId && entry.entry_id > entryId)
+            .length
+      ),
+      search: vi.fn().mockReturnValue([]),
+      deleteBySession: vi.fn((sessionId: string) => {
+        for (let index = tapeEntries.length - 1; index >= 0; index -= 1) {
+          if (tapeEntries[index].session_id === sessionId) {
+            tapeEntries.splice(index, 1)
+          }
+        }
+      })
+    }),
     deepchatMessagesTable,
     deepchatUserMessagesTable: {
       upsert: vi.fn(),
@@ -1224,18 +1327,11 @@ describe('AgentRuntimePresenter', () => {
           signal: expect.any(AbortSignal)
         })
       )
-      expect(
-        sqlitePresenter.deepchatSessionsTable.updateSummaryStateIfMatches
-      ).toHaveBeenCalledWith(
+      expect(sqlitePresenter.deepchatSessionsTable.updateSummaryState).toHaveBeenCalledWith(
         's1',
         expect.objectContaining({
           summaryText: expect.stringContaining('## Current Goal'),
           summaryCursorOrderSeq: 3
-        }),
-        expect.objectContaining({
-          summaryText: null,
-          summaryCursorOrderSeq: 1,
-          summaryUpdatedAt: null
         })
       )
 

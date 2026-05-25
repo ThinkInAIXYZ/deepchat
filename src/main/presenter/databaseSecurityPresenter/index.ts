@@ -40,6 +40,7 @@ const VALIDATION_TABLES = [
   'schema_versions',
   'new_sessions',
   'deepchat_sessions',
+  'deepchat_tape_entries',
   'providers',
   'mcp_servers',
   'agents'

@@ -481,12 +481,13 @@ deepchatへの貢献をご検討いただきありがとうございます！貢
 
 ## 🙏🏻 謝辞
 
-このプロジェクトは、以下の素晴らしいライブラリの支援により構築されています：
+このプロジェクトは、以下の素晴らしいライブラリとプロジェクトの支援により構築されています：
 
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
 - [Electron-Vite](https://electron-vite.org/)
 - [oxlint](https://github.com/oxc-project/oxc)
+- [Bub](https://github.com/bubbuild/bub)。その tape model は DeepChat の session tape 設計に着想を与えました。基盤となる tape アーキテクチャに関心がある方は [tape.systems](https://tape.systems/) をご覧ください。
 
 ## 📃 ライセンス
 

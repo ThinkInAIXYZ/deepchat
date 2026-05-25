@@ -92,6 +92,7 @@ type MutableTaskState = {
   runtimeStatus?: 'idle' | 'generating' | 'error'
   started: boolean
   cancelRequested: boolean
+  tapeFinalized: boolean
   completion: {
     promise: Promise<void>
     resolve: () => void
@@ -371,6 +372,42 @@ export class SubagentOrchestratorTool {
 
     for (const run of completedRuns.slice(20)) {
       this.runs.delete(run.runId)
+    }
+  }
+
+  private async finalizeTaskTape(params: {
+    parentSessionId: string
+    runId: string
+    task: MutableTaskState
+  }): Promise<void> {
+    const { parentSessionId, runId, task } = params
+    if (!task.sessionId || task.tapeFinalized) {
+      return
+    }
+
+    task.tapeFinalized = true
+    const meta = {
+      runId,
+      taskId: task.taskId,
+      slotId: task.slotId,
+      title: task.title,
+      status: task.status,
+      resultSummary: task.resultSummary ?? null
+    }
+
+    try {
+      if (task.status === 'completed') {
+        await this.runtimePort.mergeSubagentTape?.(parentSessionId, task.sessionId, meta)
+      } else {
+        await this.runtimePort.discardSubagentTape?.(parentSessionId, task.sessionId, meta)
+      }
+    } catch (error) {
+      console.warn('[SubagentOrchestratorTool] Failed to finalize subagent tape fork:', {
+        parentSessionId,
+        childSessionId: task.sessionId,
+        status: task.status,
+        error
+      })
     }
   }
 
@@ -707,6 +744,7 @@ export class SubagentOrchestratorTool {
         waitingInteraction: null,
         started: false,
         cancelRequested: false,
+        tapeFinalized: false,
         completion: createDeferred()
       }
     })
@@ -856,6 +894,11 @@ export class SubagentOrchestratorTool {
           throw new Error(`Failed to create subagent session for slot ${task.slotId}.`)
         }
 
+        task.sessionId = child.sessionId
+        task.targetAgentName = child.agentName || task.targetAgentName
+        task.updatedAt = Date.now()
+        sessionTaskMap.set(child.sessionId, task)
+
         if (options?.signal?.aborted || abortController.signal.aborted || task.cancelRequested) {
           task.cancelRequested = true
           task.updatedAt = Date.now()
@@ -863,14 +906,15 @@ export class SubagentOrchestratorTool {
           task.resultSummary = task.resultSummary || 'Cancelled by parent session.'
           maybeResolveTask(task)
           await this.runtimePort.cancelConversation(child.sessionId).catch(() => undefined)
+          await this.finalizeTaskTape({
+            parentSessionId: parent.sessionId,
+            runId,
+            task
+          })
           emitProgress()
           return
         }
 
-        task.sessionId = child.sessionId
-        task.targetAgentName = child.agentName || task.targetAgentName
-        task.updatedAt = Date.now()
-        sessionTaskMap.set(child.sessionId, task)
         emitProgress()
 
         const handoff = buildHandoffMessage({
@@ -889,12 +933,22 @@ export class SubagentOrchestratorTool {
         emitProgress()
 
         await task.completion.promise
+        await this.finalizeTaskTape({
+          parentSessionId: parent.sessionId,
+          runId,
+          task
+        })
       } catch (error) {
         task.updatedAt = Date.now()
         task.status = task.cancelRequested ? 'cancelled' : 'error'
         task.resultSummary =
           error instanceof Error ? error.message : 'Subagent session failed unexpectedly.'
         maybeResolveTask(task)
+        await this.finalizeTaskTape({
+          parentSessionId: parent.sessionId,
+          runId,
+          task
+        })
         emitProgress()
       }
     }

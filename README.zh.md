@@ -482,12 +482,13 @@ DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献
 
 ## 🙏🏻 致谢
 
-本项目的构建得益于这些优秀的开源库：
+本项目的构建得益于这些优秀的开源库和项目：
 
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
 - [Electron-Vite](https://electron-vite.org/)
 - [oxlint](https://github.com/oxc-project/oxc)
+- [Bub](https://github.com/bubbuild/bub)，其 tape model 启发了 DeepChat 的 session tape 设计。如果你对底层 tape 架构感兴趣，推荐访问 [tape.systems](https://tape.systems/)。
 
 ## 📃 许可证
 

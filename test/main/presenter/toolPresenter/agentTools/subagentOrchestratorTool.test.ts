@@ -212,6 +212,95 @@ describe('SubagentOrchestratorTool', () => {
     expect(cancelConversation).toHaveBeenCalledWith(childSession.sessionId)
   })
 
+  it('records completed child sessions as merged tape forks', async () => {
+    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    const parentSession = buildSessionInfo()
+    const childSession = buildSessionInfo({
+      sessionId: 'child-session',
+      agentName: 'Reviewer Clone',
+      sessionKind: 'subagent',
+      parentSessionId: parentSession.sessionId,
+      subagentEnabled: false,
+      availableSubagentSlots: []
+    })
+    const mergeSubagentTape = vi.fn().mockResolvedValue(undefined)
+    const discardSubagentTape = vi.fn().mockResolvedValue(undefined)
+
+    const tool = new SubagentOrchestratorTool({
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
+      createSubagentSession: vi.fn().mockResolvedValue(childSession),
+      sendConversationMessage: vi.fn(async (conversationId: string) => {
+        setTimeout(() => {
+          listener?.({
+            sessionId: conversationId,
+            kind: 'blocks',
+            updatedAt: Date.now(),
+            previewMarkdown: 'Completed review',
+            responseMarkdown: 'Completed review\nNo issues found.'
+          })
+          listener?.({
+            sessionId: conversationId,
+            kind: 'status',
+            updatedAt: Date.now() + 1,
+            status: 'idle'
+          })
+        }, 0)
+      }),
+      cancelConversation: vi.fn().mockResolvedValue(undefined),
+      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      }),
+      mergeSubagentTape,
+      discardSubagentTape,
+      getSkillPresenter: vi.fn(() => ({})),
+      getYoBrowserToolHandler: vi.fn(() => ({})),
+      getFilePresenter: vi.fn(() => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      })),
+      getLlmProviderPresenter: vi.fn(() => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+        generateCompletionStandalone: vi.fn(),
+        generateImageStandalone: vi.fn()
+      })),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn(),
+      getApprovedFilePaths: vi.fn(() => []),
+      consumeSettingsApproval: vi.fn(() => false)
+    } as any)
+
+    await tool.call(
+      {
+        mode: 'chain',
+        tasks: [
+          {
+            id: 'task-review',
+            slotId: 'reviewer',
+            title: 'Review task',
+            prompt: 'Review the current change.'
+          }
+        ]
+      },
+      parentSession.sessionId
+    )
+
+    expect(mergeSubagentTape).toHaveBeenCalledWith(
+      parentSession.sessionId,
+      childSession.sessionId,
+      expect.objectContaining({
+        taskId: 'task-review',
+        slotId: 'reviewer',
+        status: 'completed',
+        title: 'Review task'
+      })
+    )
+    expect(discardSubagentTape).not.toHaveBeenCalled()
+  })
+
   it('cancels a newly created child before handoff when the parent signal aborts', async () => {
     const parentSession = buildSessionInfo()
     const childSession = buildSessionInfo({

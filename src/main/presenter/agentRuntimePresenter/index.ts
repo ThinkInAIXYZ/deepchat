@@ -2,6 +2,11 @@ import fs from 'fs'
 import path from 'path'
 import type {
   AssistantMessageBlock,
+  AgentTapeAnchorResult,
+  AgentTapeAnchorsOptions,
+  AgentTapeInfo,
+  AgentTapeSearchOptions,
+  AgentTapeSearchResult,
   ChatMessagePageResult,
   ChatMessageRecord,
   DeepChatSessionState,
@@ -66,6 +71,7 @@ import {
 } from '@shared/videoGenerationSettings'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
+import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS, SESSION_EVENTS, STREAM_EVENTS } from '@/events'
 import {
@@ -87,9 +93,15 @@ import {
   fitRequestMessagesToContextWindow,
   preflightRequestContext
 } from './contextBudget'
-import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
+import {
+  appendReconstructionAnchorStateSection,
+  appendSummarySection,
+  CompactionService,
+  type CompactionIntent
+} from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
+import { DeepChatTapeService } from './tapeService'
 import { PendingInputCoordinator } from './pendingInputCoordinator'
 import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
@@ -244,6 +256,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly toolPresenter: IToolPresenter | null
   private readonly sessionStore: DeepChatSessionStore
   private readonly messageStore: DeepChatMessageStore
+  private readonly tapeService: DeepChatTapeService
   private readonly pendingInputStore: DeepChatPendingInputStore
   private readonly pendingInputCoordinator: PendingInputCoordinator
   private readonly runtimeState: Map<string, DeepChatSessionState> = new Map()
@@ -303,6 +316,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.toolPresenter = toolPresenter ?? null
     this.sessionStore = new DeepChatSessionStore(sqlitePresenter)
     this.messageStore = new DeepChatMessageStore(sqlitePresenter)
+    this.tapeService = new DeepChatTapeService(sqlitePresenter)
     this.pendingInputStore = new DeepChatPendingInputStore(sqlitePresenter)
     this.pendingInputCoordinator = new PendingInputCoordinator(this.pendingInputStore)
     this.compactionService = new CompactionService(
@@ -656,7 +670,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         activeSkillNames
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const historyRecords = this.messageStore.getMessages(sessionId).filter(isContextHistoryRecord)
+      const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+      const historyRecords = tapeReady.historyRecords.filter(isContextHistoryRecord)
       const userContent: UserMessageContent = {
         text: normalizedInput.text,
         files: normalizedInput.files || [],
@@ -680,6 +695,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             preserveEmptyInterleavedReasoning:
               interleavedReasoning.preserveEmptyReasoningContent === true,
             newUserContent: normalizedInput,
+            historyRecords,
             signal: preStreamAbortSignal
           })
         : null
@@ -730,7 +746,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         projectDir
       })
 
-      const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
+      const systemPrompt = appendReconstructionAnchorStateSection(
+        appendSummarySection(baseSystemPrompt, summaryState.summaryText),
+        this.sessionStore.getReconstructionAnchorPromptState(sessionId)
+      )
       const messages = buildContext(
         sessionId,
         normalizedInput,
@@ -1574,6 +1593,28 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
   }
 
+  private toTapeAnchorResult(row: DeepChatTapeEntryRow): AgentTapeAnchorResult {
+    const parseJsonObject = (raw: string): Record<string, unknown> => {
+      try {
+        const parsed = JSON.parse(raw) as unknown
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>
+        }
+      } catch {}
+      return {}
+    }
+
+    return {
+      sessionId: row.session_id,
+      entryId: row.entry_id,
+      kind: row.kind,
+      name: row.name,
+      payload: parseJsonObject(row.payload_json),
+      meta: parseJsonObject(row.meta_json),
+      createdAt: row.created_at
+    }
+  }
+
   private dispatchResolvedToolHook(params: {
     sessionId: string
     messageId: string
@@ -1613,6 +1654,62 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
     return this.messageStore.getMessages(sessionId)
+  }
+
+  async getTapeInfo(sessionId: string): Promise<AgentTapeInfo> {
+    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    return this.tapeService.info(sessionId)
+  }
+
+  async searchTape(
+    sessionId: string,
+    query: string,
+    options?: AgentTapeSearchOptions
+  ): Promise<AgentTapeSearchResult[]> {
+    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    return this.tapeService.search(sessionId, query, options)
+  }
+
+  async listTapeAnchors(
+    sessionId: string,
+    options?: AgentTapeAnchorsOptions
+  ): Promise<AgentTapeAnchorResult[]> {
+    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    return this.tapeService.anchors(sessionId, options)
+  }
+
+  async handoffTape(
+    sessionId: string,
+    name: string,
+    state: Record<string, unknown> = {}
+  ): Promise<AgentTapeAnchorResult> {
+    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    const row = this.tapeService.handoff(sessionId, name, state)
+    return this.toTapeAnchorResult(row)
+  }
+
+  async mergeSubagentTape(
+    parentSessionId: string,
+    childSessionId: string,
+    meta: Record<string, unknown> = {}
+  ): Promise<void> {
+    this.tapeService.ensureSessionTapeReady(parentSessionId, this.messageStore)
+    this.tapeService.ensureSessionTapeReady(childSessionId, this.messageStore)
+    this.tapeService.recordExternalForkMerge(parentSessionId, childSessionId, childSessionId, meta)
+  }
+
+  async discardSubagentTape(
+    parentSessionId: string,
+    childSessionId: string,
+    meta: Record<string, unknown> = {}
+  ): Promise<void> {
+    this.tapeService.ensureSessionTapeReady(parentSessionId, this.messageStore)
+    this.tapeService.recordExternalForkDiscard(
+      parentSessionId,
+      childSessionId,
+      childSessionId,
+      meta
+    )
   }
 
   async listMessagesPage(
@@ -1706,6 +1803,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         tools,
         activeSkillNames
       )
+      const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
 
       const intent = await this.compactionService.prepareForManualCompaction({
         sessionId,
@@ -1719,7 +1817,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
         preserveEmptyInterleavedReasoning:
-          interleavedReasoning.preserveEmptyReasoningContent === true
+          interleavedReasoning.preserveEmptyReasoningContent === true,
+        historyRecords: tapeReady.historyRecords
       })
 
       if (!intent) {
@@ -1749,6 +1848,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     await this.cancelGeneration(sessionId)
     this.pendingInputCoordinator.deleteBySession(sessionId)
     this.messageStore.deleteBySession(sessionId)
+    this.sessionStore.resetTape(sessionId)
     this.resetSummaryState(sessionId)
     this.setSessionStatus(sessionId, 'idle')
   }
@@ -2255,6 +2355,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     let messages = params.requestMessages
     const systemPromptBase =
       params.baseSystemPrompt ?? this.getLeadingSystemPrompt(params.requestMessages) ?? ''
+    const tapeReady = this.tapeService.ensureSessionTapeReady(params.sessionId, this.messageStore)
     const intent = await this.compactionService.prepareForContextPressureRecovery({
       sessionId: params.sessionId,
       providerId: params.providerId,
@@ -2269,6 +2370,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       preserveEmptyInterleavedReasoning:
         params.interleavedReasoning.preserveEmptyReasoningContent === true,
       projectedMessages: this.withoutLeadingSystemMessage(params.requestMessages),
+      historyRecords: tapeReady.historyRecords,
       signal: params.signal
     })
 
@@ -2279,7 +2381,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const summaryState = await this.applyCompactionIntent(params.sessionId, intent, {
       signal: params.signal
     })
-    const systemPrompt = appendSummarySection(systemPromptBase, summaryState.summaryText)
+    const systemPrompt = appendReconstructionAnchorStateSection(
+      appendSummarySection(systemPromptBase, summaryState.summaryText),
+      this.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
+    )
     messages = this.replaceLeadingSystemPrompt(messages, systemPrompt)
 
     return {
@@ -2636,6 +2741,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         activeSkillNames
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
+      const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
       const summaryState = useContextBudget
         ? await this.resolveCompactionStateForResumeTurn({
             sessionId,
@@ -2651,11 +2757,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
             preserveEmptyInterleavedReasoning:
               interleavedReasoning.preserveEmptyReasoningContent === true,
+            historyRecords: tapeReady.historyRecords,
             signal: preStreamAbortSignal
           })
         : this.sessionStore.getSummaryState(sessionId)
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
+      const systemPrompt = appendReconstructionAnchorStateSection(
+        appendSummarySection(baseSystemPrompt, summaryState.summaryText),
+        this.sessionStore.getReconstructionAnchorPromptState(sessionId)
+      )
       let resumeContext = buildResumeContext(
         sessionId,
         messageId,
@@ -2666,6 +2776,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         this.supportsVision(state.providerId, state.modelId),
         {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
+          historyRecords: tapeReady.historyRecords,
           fallbackProtectedTurnCount: 1,
           supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
           extraReserveTokens: toolReserveTokens,
@@ -5028,6 +5139,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     supportsAudioInput: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
+    historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<SessionSummaryState> {
     const intent = await this.compactionService.prepareForResumeTurn(params)

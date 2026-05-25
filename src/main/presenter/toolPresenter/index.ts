@@ -14,6 +14,8 @@ import {
   AgentToolManager,
   IMAGE_GENERATE_TOOL_NAME,
   UPDATE_PLAN_TOOL_NAME,
+  AGENT_TAPE_TOOL_SERVER_NAME,
+  TAPE_TOOL_NAMES,
   type AgentToolCallResult
 } from './agentTools'
 import type { AgentToolRuntimePort } from './runtimePorts'
@@ -95,7 +97,8 @@ const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
-  UPDATE_PLAN_TOOL_NAME
+  UPDATE_PLAN_TOOL_NAME,
+  ...Object.values(TAPE_TOOL_NAMES)
 ])
 
 const withToolSource = (tools: MCPToolDefinition[], source: 'mcp' | 'agent'): MCPToolDefinition[] =>
@@ -460,6 +463,7 @@ export class ToolPresenter implements IToolPresenter {
       this.buildQuestionPrompt(toolNames),
       this.buildImageGenerationPrompt(toolNames),
       this.buildProgressPrompt(toolNames),
+      this.buildTapePrompt(groupedTools.get(AGENT_TAPE_TOOL_SERVER_NAME) ?? []),
       this.buildSkillsPrompt(toolNames),
       this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
       this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
@@ -628,6 +632,21 @@ export class ToolPresenter implements IToolPresenter {
       'At most one step may be in_progress at a time.',
       'When a step completes, update the checklist immediately and move the next active step to in_progress in the same call.',
       'Use explanation only when the plan changes materially or progress would otherwise be unclear.'
+    ].join('\n')
+  }
+
+  private buildTapePrompt(tools: MCPToolDefinition[]): string {
+    if (tools.length === 0) {
+      return ''
+    }
+
+    const names = tools.map((tool) => `\`${tool.function.name}\``).join(', ')
+    return [
+      '## Tape Tools',
+      `DeepChat tape tools are available in this session: ${names}.`,
+      '`tape_info`, `tape_search`, and `tape_handoff` are DeepChat-scoped tape tools inspired by bub tape.info, tape.search, and tape.handoff.',
+      '`tape_search` supports `query`, `limit`, `kinds`, `start`, and `end` for scoped tape lookup.',
+      '`tape_handoff` is a phase transition: it writes an anchor that becomes the next context reconstruction marker. Include a compact `summary`, `reason`, `nextSteps`, or `owner` in state when earlier history must be preserved.'
     ].join('\n')
   }
 

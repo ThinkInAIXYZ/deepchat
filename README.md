@@ -487,12 +487,13 @@ Thank you for considering contributing to deepchat! The contribution guide can b
 
 ## 🙏🏻 Thanks
 
-This project is built with the help of these awesome libraries:
+This project is built with the help of these awesome libraries and projects:
 
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
 - [Electron-Vite](https://electron-vite.org/)
 - [oxlint](https://github.com/oxc-project/oxc)
+- [Bub](https://github.com/bubbuild/bub), whose tape model inspired DeepChat's session tape design. For the underlying tape architecture, visit [tape.systems](https://tape.systems/).
 
 ## 📃 License
 

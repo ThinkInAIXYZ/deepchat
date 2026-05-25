@@ -959,7 +959,7 @@ export function buildResumeContext(
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
   const supportsAudioInput = options.supportsAudioInput === true
-  const allMessages = messageStore.getMessages(sessionId)
+  const allMessages = options.historyRecords ?? messageStore.getMessages(sessionId)
   const targetMessage = allMessages.find((message) => message.id === assistantMessageId)
   const targetOrderSeq = targetMessage?.orderSeq
   const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)

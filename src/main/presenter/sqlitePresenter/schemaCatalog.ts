@@ -18,6 +18,7 @@ import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearc
 import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
+import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
@@ -182,6 +183,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
         'ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER NOT NULL DEFAULT 0;'
     },
     typeCheckedColumns: ['cache_write_input_tokens']
+  },
+  {
+    name: 'deepchat_tape_entries',
+    createTable: (db) => new DeepChatTapeEntriesTable(db)
   },
   {
     name: 'legacy_import_status',
