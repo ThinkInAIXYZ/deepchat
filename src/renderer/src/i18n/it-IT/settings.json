@@ -2192,5 +2192,65 @@
       "backupImported": "Backup importato: {name}",
       "databaseRepaired": "Riparazione database completata: {status}"
     }
+  },
+  "scheduledTasks": {
+    "title": "Attività pianificate",
+    "description": "Attiva una notifica di sistema o invia un prompt predefinito a un agente all’orario scelto.",
+    "hint": "Le attività una tantum perse mentre l’app era chiusa vengono eseguite al prossimo avvio; quelle ricorrenti passano allo slot successivo.",
+    "newTask": "Nuova attività",
+    "empty": "Nessuna attività",
+    "namePlaceholder": "Nome attività",
+    "fireNow": "Esegui ora",
+    "fireNowSuccess": "Attività eseguita",
+    "defaults": {
+      "name": "Nuova attività",
+      "title": "Promemoria",
+      "body": "Tempo scaduto"
+    },
+    "trigger": {
+      "title": "Trigger",
+      "kind": "Tipo di trigger",
+      "kindOnce": "Una volta",
+      "kindDaily": "Giornaliero",
+      "kindWeekly": "Settimanale",
+      "firesAt": "Esegui alle",
+      "dayOfWeek": "Giorno della settimana",
+      "time": "Ora",
+      "description": "Scegli quando eseguire questa attività."
+    },
+    "action": {
+      "title": "Azione",
+      "kind": "Tipo di azione",
+      "kindNotify": "Notifica",
+      "kindPrompt": "Prompt chat",
+      "titleField": "Titolo",
+      "titlePlaceholder": "Titolo notifica",
+      "body": "Corpo",
+      "message": "Messaggio",
+      "agentId": "Agente",
+      "agentIdPlaceholder": "predefinito: deepchat",
+      "modelId": "Modello",
+      "modelIdPlaceholder": "lascia vuoto per predefinito",
+      "systemPrompt": "Prompt di sistema",
+      "autoSend": "Invia automaticamente all’agente selezionato",
+      "description": "Scegli una notifica o un prompt agente."
+    },
+    "weekday": {
+      "sun": "Dom",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Gio",
+      "fri": "Ven",
+      "sat": "Sab"
+    },
+    "listTitle": "Elenco attività",
+    "listDescription": "Gestisci pianificazioni, azioni e stato di abilitazione in un unico posto.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Ogni giorno alle {time}",
+      "weekly": "{day} alle {time}"
+    }
   }
 }

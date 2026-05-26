@@ -143,6 +143,13 @@ import {
   onboardingStartRoute
 } from './routes/onboarding.routes'
 import {
+  scheduledTasksDeleteRoute,
+  scheduledTasksFireNowRoute,
+  scheduledTasksListRoute,
+  scheduledTasksToggleRoute,
+  scheduledTasksUpsertRoute
+} from './routes/scheduledTasks.routes'
+import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
   providersGetRateLimitStatusRoute,
@@ -309,6 +316,7 @@ export * from './routes/onboarding.routes'
 export * from './routes/plugins.routes'
 export * from './routes/providers.routes'
 export * from './routes/project.routes'
+export * from './routes/scheduledTasks.routes'
 export * from './routes/settings.routes'
 export * from './routes/startup.routes'
 export * from './routes/sessions.routes'
@@ -342,6 +350,11 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [onboardingSetStepStatusRoute.name]: onboardingSetStepStatusRoute,
   [onboardingCompleteRoute.name]: onboardingCompleteRoute,
   [onboardingResetRoute.name]: onboardingResetRoute,
+  [scheduledTasksListRoute.name]: scheduledTasksListRoute,
+  [scheduledTasksUpsertRoute.name]: scheduledTasksUpsertRoute,
+  [scheduledTasksDeleteRoute.name]: scheduledTasksDeleteRoute,
+  [scheduledTasksToggleRoute.name]: scheduledTasksToggleRoute,
+  [scheduledTasksFireNowRoute.name]: scheduledTasksFireNowRoute,
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,

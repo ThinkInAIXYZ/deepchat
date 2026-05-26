@@ -20,5 +20,6 @@
   "settings-environments": "lingkungan direktori",
   "settings-remote": "terpencil",
   "settings-plugins": "plugin",
-  "settings-overview": "Ikhtisar pengaturan"
+  "settings-overview": "Ikhtisar pengaturan",
+  "settings-scheduled-tasks": "Tugas Terjadwal"
 }

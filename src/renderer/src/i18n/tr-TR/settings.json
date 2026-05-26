@@ -2192,5 +2192,65 @@
       "backupImported": "İçe aktarılan yedekleme: {name}",
       "databaseRepaired": "Veritabanı onarımı tamamlandı: {status}"
     }
+  },
+  "scheduledTasks": {
+    "title": "Zamanlanmış Görevler",
+    "description": "Seçilen zamanda bir sistem bildirimi tetikleyin veya bir ajana hazır istem gönderin.",
+    "hint": "Uygulama kapalıyken kaçırılan tek seferlik görevler sonraki açılışta çalışır; yinelenen görevler bir sonraki zamana geçer.",
+    "newTask": "Yeni görev",
+    "empty": "Henüz görev yok",
+    "namePlaceholder": "Görev adı",
+    "fireNow": "Şimdi çalıştır",
+    "fireNowSuccess": "Görev çalıştırıldı",
+    "defaults": {
+      "name": "Yeni görev",
+      "title": "Hatırlatıcı",
+      "body": "Süre doldu"
+    },
+    "trigger": {
+      "title": "Tetikleyici",
+      "kind": "Tetikleyici türü",
+      "kindOnce": "Bir kez",
+      "kindDaily": "Günlük",
+      "kindWeekly": "Haftalık",
+      "firesAt": "Çalışma zamanı",
+      "dayOfWeek": "Haftanın günü",
+      "time": "Saat",
+      "description": "Bu görevin ne zaman çalışacağını seçin."
+    },
+    "action": {
+      "title": "Eylem",
+      "kind": "Eylem türü",
+      "kindNotify": "Bildirim",
+      "kindPrompt": "Sohbet istemi",
+      "titleField": "Başlık",
+      "titlePlaceholder": "Bildirim başlığı",
+      "body": "Gövde",
+      "message": "Mesaj",
+      "agentId": "Ajan",
+      "agentIdPlaceholder": "varsayılan: deepchat",
+      "modelId": "Model",
+      "modelIdPlaceholder": "varsayılan için boş bırakın",
+      "systemPrompt": "Sistem istemi",
+      "autoSend": "Seçili ajana otomatik gönder",
+      "description": "Bir bildirim veya Ajan istemi seçin."
+    },
+    "weekday": {
+      "sun": "Paz",
+      "mon": "Pzt",
+      "tue": "Sal",
+      "wed": "Çar",
+      "thu": "Per",
+      "fri": "Cum",
+      "sat": "Cmt"
+    },
+    "listTitle": "Görev listesi",
+    "listDescription": "Zamanlamaları, eylemleri ve etkin durumunu tek yerden yönetin.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Her gün {time}",
+      "weekly": "{day} {time}"
+    }
   }
 }

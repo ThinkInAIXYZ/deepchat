@@ -1385,6 +1385,66 @@
       }
     }
   },
+  "scheduledTasks": {
+    "title": "Tarefas agendadas",
+    "description": "Dispare uma notificação do sistema ou envie um prompt predefinido para um agente no horário escolhido.",
+    "hint": "Tarefas únicas perdidas enquanto o app estava fechado são executadas na próxima abertura; tarefas recorrentes pulam para o próximo horário.",
+    "newTask": "Nova tarefa",
+    "empty": "Nenhuma tarefa ainda",
+    "namePlaceholder": "Nome da tarefa",
+    "fireNow": "Executar agora",
+    "fireNowSuccess": "Tarefa executada",
+    "defaults": {
+      "name": "Nova tarefa",
+      "title": "Lembrete",
+      "body": "Chegou a hora"
+    },
+    "trigger": {
+      "title": "Gatilho",
+      "kind": "Tipo de gatilho",
+      "kindOnce": "Uma vez",
+      "kindDaily": "Diariamente",
+      "kindWeekly": "Semanalmente",
+      "firesAt": "Executar em",
+      "dayOfWeek": "Dia da semana",
+      "time": "Hora",
+      "description": "Escolha quando esta tarefa será executada."
+    },
+    "action": {
+      "title": "Ação",
+      "kind": "Tipo de ação",
+      "kindNotify": "Notificação",
+      "kindPrompt": "Prompt de chat",
+      "titleField": "Título",
+      "titlePlaceholder": "Título da notificação",
+      "body": "Corpo",
+      "message": "Mensagem",
+      "agentId": "Agente",
+      "agentIdPlaceholder": "padrão: deepchat",
+      "modelId": "Modelo",
+      "modelIdPlaceholder": "deixe em branco para usar o padrão",
+      "systemPrompt": "Prompt do sistema",
+      "autoSend": "Enviar automaticamente para o agente selecionado",
+      "description": "Escolha uma notificação ou um prompt de agente."
+    },
+    "weekday": {
+      "sun": "Dom",
+      "mon": "Seg",
+      "tue": "Ter",
+      "wed": "Qua",
+      "thu": "Qui",
+      "fri": "Sex",
+      "sat": "Sáb"
+    },
+    "listTitle": "Lista de tarefas",
+    "listDescription": "Gerencie agendas, ações e status de ativação em um só lugar.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Todos os dias às {time}",
+      "weekly": "{day} às {time}"
+    }
+  },
   "about": {
     "title": "Sobre Nós",
     "version": "Versão",

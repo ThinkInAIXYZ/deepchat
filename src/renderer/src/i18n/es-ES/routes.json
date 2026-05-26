@@ -20,5 +20,6 @@
   "settings-environments": "Ambientes",
   "settings-remote": "Remoto",
   "settings-plugins": "Complementos",
-  "settings-overview": "Descripción general de la configuración"
+  "settings-overview": "Descripción general de la configuración",
+  "settings-scheduled-tasks": "Tareas programadas"
 }

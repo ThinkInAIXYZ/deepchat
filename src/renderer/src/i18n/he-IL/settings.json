@@ -1385,6 +1385,66 @@
       }
     }
   },
+  "scheduledTasks": {
+    "title": "משימות מתוזמנות",
+    "description": "הצג התראת מערכת או שלח פרומפט מוכן לסוכן בזמן שנבחר.",
+    "hint": "משימות חד-פעמיות שפוספסו כשהאפליקציה הייתה סגורה יופעלו בהפעלה הבאה; משימות חוזרות יקפצו למועד הבא.",
+    "newTask": "משימה חדשה",
+    "empty": "אין עדיין משימות",
+    "namePlaceholder": "שם המשימה",
+    "fireNow": "הפעל עכשיו",
+    "fireNowSuccess": "המשימה הופעלה",
+    "defaults": {
+      "name": "משימה חדשה",
+      "title": "תזכורת",
+      "body": "הגיע הזמן"
+    },
+    "trigger": {
+      "title": "טריגר",
+      "kind": "סוג טריגר",
+      "kindOnce": "פעם אחת",
+      "kindDaily": "יומי",
+      "kindWeekly": "שבועי",
+      "firesAt": "הפעל בשעה",
+      "dayOfWeek": "יום בשבוע",
+      "time": "שעה",
+      "description": "בחר מתי המשימה הזו תפעל."
+    },
+    "action": {
+      "title": "פעולה",
+      "kind": "סוג פעולה",
+      "kindNotify": "התראה",
+      "kindPrompt": "פרומפט צ׳אט",
+      "titleField": "כותרת",
+      "titlePlaceholder": "כותרת ההתראה",
+      "body": "גוף",
+      "message": "הודעה",
+      "agentId": "סוכן",
+      "agentIdPlaceholder": "ברירת מחדל: deepchat",
+      "modelId": "מודל",
+      "modelIdPlaceholder": "השאר ריק לברירת המחדל",
+      "systemPrompt": "פרומפט מערכת",
+      "autoSend": "שלח אוטומטית לסוכן שנבחר",
+      "description": "בחר התראה או פרומפט לסוכן."
+    },
+    "weekday": {
+      "sun": "א׳",
+      "mon": "ב׳",
+      "tue": "ג׳",
+      "wed": "ד׳",
+      "thu": "ה׳",
+      "fri": "ו׳",
+      "sat": "ש׳"
+    },
+    "listTitle": "רשימת משימות",
+    "listDescription": "נהל לוחות זמנים, פעולות ומצב הפעלה במקום אחד.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "כל יום בשעה {time}",
+      "weekly": "{day} בשעה {time}"
+    }
+  },
   "about": {
     "title": "אודותינו",
     "version": "גרסה",

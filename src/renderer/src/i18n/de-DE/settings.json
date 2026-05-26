@@ -2192,5 +2192,65 @@
       "backupImported": "Backup importiert: {name}",
       "databaseRepaired": "Datenbankreparatur abgeschlossen: {status}"
     }
+  },
+  "scheduledTasks": {
+    "title": "Geplante Aufgaben",
+    "description": "Lösen Sie zu einer gewählten Zeit eine Systembenachrichtigung aus oder senden Sie einen vordefinierten Prompt an einen Agenten.",
+    "hint": "Einmalige Aufgaben, die bei geschlossener App verpasst wurden, werden beim nächsten Start ausgeführt; wiederkehrende Aufgaben springen zum nächsten Termin.",
+    "newTask": "Neue Aufgabe",
+    "empty": "Noch keine Aufgaben",
+    "namePlaceholder": "Aufgabenname",
+    "fireNow": "Jetzt ausführen",
+    "fireNowSuccess": "Aufgabe ausgelöst",
+    "defaults": {
+      "name": "Neue Aufgabe",
+      "title": "Erinnerung",
+      "body": "Die Zeit ist um"
+    },
+    "trigger": {
+      "title": "Auslöser",
+      "kind": "Auslösertyp",
+      "kindOnce": "Einmal",
+      "kindDaily": "Täglich",
+      "kindWeekly": "Wöchentlich",
+      "firesAt": "Ausführen um",
+      "dayOfWeek": "Wochentag",
+      "time": "Zeit",
+      "description": "Wählen Sie, wann diese Aufgabe ausgeführt wird."
+    },
+    "action": {
+      "title": "Aktion",
+      "kind": "Aktionstyp",
+      "kindNotify": "Benachrichtigung",
+      "kindPrompt": "Chat-Prompt",
+      "titleField": "Titel",
+      "titlePlaceholder": "Benachrichtigungstitel",
+      "body": "Inhalt",
+      "message": "Nachricht",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "Standard: deepchat",
+      "modelId": "Modell",
+      "modelIdPlaceholder": "leer lassen für Standard",
+      "systemPrompt": "System-Prompt",
+      "autoSend": "Automatisch an den ausgewählten Agenten senden",
+      "description": "Wählen Sie eine Benachrichtigung oder einen Agenten-Prompt."
+    },
+    "weekday": {
+      "sun": "So",
+      "mon": "Mo",
+      "tue": "Di",
+      "wed": "Mi",
+      "thu": "Do",
+      "fri": "Fr",
+      "sat": "Sa"
+    },
+    "listTitle": "Aufgabenliste",
+    "listDescription": "Verwalten Sie Zeitpläne, Aktionen und Aktivierungsstatus an einem Ort.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Jeden Tag um {time}",
+      "weekly": "{day} um {time}"
+    }
   }
 }

@@ -1318,6 +1318,66 @@
       }
     }
   },
+  "scheduledTasks": {
+    "title": "Planlagte opgaver",
+    "description": "Vis en systemnotifikation, eller send en foruddefineret prompt til en agent på et valgt tidspunkt.",
+    "hint": "Engangsopgaver, der blev overset mens appen var lukket, køres ved næste start; gentagne opgaver springer til næste tidspunkt.",
+    "newTask": "Ny opgave",
+    "empty": "Ingen opgaver endnu",
+    "namePlaceholder": "Opgavenavn",
+    "fireNow": "Kør nu",
+    "fireNowSuccess": "Opgaven blev kørt",
+    "defaults": {
+      "name": "Ny opgave",
+      "title": "Påmindelse",
+      "body": "Tiden er gået"
+    },
+    "trigger": {
+      "title": "Udløser",
+      "kind": "Udløsertype",
+      "kindOnce": "Én gang",
+      "kindDaily": "Dagligt",
+      "kindWeekly": "Ugentligt",
+      "firesAt": "Kør kl.",
+      "dayOfWeek": "Ugedag",
+      "time": "Tid",
+      "description": "Vælg hvornår opgaven skal køre."
+    },
+    "action": {
+      "title": "Handling",
+      "kind": "Handlingstype",
+      "kindNotify": "Notifikation",
+      "kindPrompt": "Chatprompt",
+      "titleField": "Titel",
+      "titlePlaceholder": "Notifikationstitel",
+      "body": "Indhold",
+      "message": "Besked",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "standard: deepchat",
+      "modelId": "Model",
+      "modelIdPlaceholder": "lad stå tom for standard",
+      "systemPrompt": "Systemprompt",
+      "autoSend": "Send automatisk til den valgte agent",
+      "description": "Vælg en notifikation eller en agentprompt."
+    },
+    "weekday": {
+      "sun": "Søn",
+      "mon": "Man",
+      "tue": "Tir",
+      "wed": "Ons",
+      "thu": "Tor",
+      "fri": "Fre",
+      "sat": "Lør"
+    },
+    "listTitle": "Opgaveliste",
+    "listDescription": "Administrer tidsplaner, handlinger og aktiveret status ét sted.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Hver dag kl. {time}",
+      "weekly": "{day} kl. {time}"
+    }
+  },
   "about": {
     "title": "Om os",
     "version": "Version",

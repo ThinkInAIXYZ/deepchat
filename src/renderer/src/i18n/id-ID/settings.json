@@ -2192,5 +2192,65 @@
       "backupImported": "Impor cadangan: {name}",
       "databaseRepaired": "Perbaikan basis data selesai: {status}"
     }
+  },
+  "scheduledTasks": {
+    "title": "Tugas Terjadwal",
+    "description": "Picu notifikasi sistem atau kirim prompt preset ke agen pada waktu yang dipilih.",
+    "hint": "Tugas sekali jalan yang terlewat saat aplikasi tertutup akan dijalankan saat peluncuran berikutnya; tugas berulang melompat ke slot berikutnya.",
+    "newTask": "Tugas baru",
+    "empty": "Belum ada tugas",
+    "namePlaceholder": "Nama tugas",
+    "fireNow": "Jalankan sekarang",
+    "fireNowSuccess": "Tugas dijalankan",
+    "defaults": {
+      "name": "Tugas baru",
+      "title": "Pengingat",
+      "body": "Waktunya tiba"
+    },
+    "trigger": {
+      "title": "Pemicu",
+      "kind": "Jenis pemicu",
+      "kindOnce": "Sekali",
+      "kindDaily": "Harian",
+      "kindWeekly": "Mingguan",
+      "firesAt": "Jalankan pada",
+      "dayOfWeek": "Hari dalam minggu",
+      "time": "Waktu",
+      "description": "Pilih kapan tugas ini berjalan."
+    },
+    "action": {
+      "title": "Aksi",
+      "kind": "Jenis aksi",
+      "kindNotify": "Notifikasi",
+      "kindPrompt": "Prompt chat",
+      "titleField": "Judul",
+      "titlePlaceholder": "Judul notifikasi",
+      "body": "Isi",
+      "message": "Pesan",
+      "agentId": "Agen",
+      "agentIdPlaceholder": "default: deepchat",
+      "modelId": "Model",
+      "modelIdPlaceholder": "kosongkan untuk default",
+      "systemPrompt": "Prompt sistem",
+      "autoSend": "Kirim otomatis ke agen yang dipilih",
+      "description": "Pilih notifikasi atau prompt Agen."
+    },
+    "weekday": {
+      "sun": "Min",
+      "mon": "Sen",
+      "tue": "Sel",
+      "wed": "Rab",
+      "thu": "Kam",
+      "fri": "Jum",
+      "sat": "Sab"
+    },
+    "listTitle": "Daftar tugas",
+    "listDescription": "Kelola jadwal, aksi, dan status aktif di satu tempat.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Setiap hari pukul {time}",
+      "weekly": "{day} pukul {time}"
+    }
   }
 }

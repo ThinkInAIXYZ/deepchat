@@ -24,6 +24,7 @@ const settingsRouteComponents = {
   'settings-acp': () => import('./components/AcpSettings.vue'),
   'settings-remote': () => import('./components/RemoteSettings.vue'),
   'settings-notifications-hooks': () => import('./components/NotificationsHooksSettings.vue'),
+  'settings-scheduled-tasks': () => import('./components/ScheduledTasksSettings.vue'),
   'settings-plugins': () => import('./components/PluginsSettings.vue'),
   'settings-skills': () => import('./components/skills/SkillsSettings.vue'),
   'settings-prompt': () => import('./components/PromptSetting.vue'),

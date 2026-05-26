@@ -243,6 +243,14 @@ import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoor
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
+import {
+  scheduledTasksDeleteRoute,
+  scheduledTasksFireNowRoute,
+  scheduledTasksListRoute,
+  scheduledTasksToggleRoute,
+  scheduledTasksUpsertRoute
+} from '@shared/contracts/routes/scheduledTasks.routes'
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -270,6 +278,7 @@ export type MainKernelRouteRuntime = {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
+  scheduledTasks: ScheduledTasksService
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -293,6 +302,7 @@ export function createMainKernelRouteRuntime(deps: {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
+  scheduledTasks: ScheduledTasksService
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -301,6 +311,47 @@ export function createMainKernelRouteRuntime(deps: {
     },
     configPresenter: deps.configPresenter,
     llmProviderPresenter: deps.llmProviderPresenter
+  })
+
+  const sessionService = new SessionService({
+    sessionRepository: hotPathPorts.sessionRepository,
+    messageRepository: hotPathPorts.messageRepository,
+    scheduler
+  })
+  const chatService = new ChatService({
+    sessionRepository: hotPathPorts.sessionRepository,
+    messageRepository: hotPathPorts.messageRepository,
+    providerExecutionPort: hotPathPorts.providerExecutionPort,
+    providerCatalogPort: hotPathPorts.providerCatalogPort,
+    sessionPermissionPort: hotPathPorts.sessionPermissionPort,
+    scheduler
+  })
+
+  // Wire scheduled tasks -> sessions for the auto-send action.
+  deps.scheduledTasks.setSessionCreator({
+    async createSessionForTask(input) {
+      const session = await sessionService.createSession(
+        {
+          agentId: input.agentId,
+          message: input.message,
+          providerId: input.providerId,
+          modelId: input.modelId,
+          ...(input.systemPrompt
+            ? { generationSettings: { systemPrompt: input.systemPrompt } }
+            : {})
+        },
+        {
+          webContentsId: deps.windowPresenter.mainWindow?.webContents?.id ?? -1,
+          windowId: deps.windowPresenter.mainWindow?.id ?? null
+        }
+      )
+      if (!session?.id) {
+        return { sessionId: null }
+      }
+
+      await chatService.sendMessage(session.id, input.message)
+      return { sessionId: session.id }
+    }
   })
 
   return {
@@ -332,19 +383,8 @@ export function createMainKernelRouteRuntime(deps: {
         }),
         listSettingsActivity: async () => []
       } as unknown as ISQLitePresenter),
-    sessionService: new SessionService({
-      sessionRepository: hotPathPorts.sessionRepository,
-      messageRepository: hotPathPorts.messageRepository,
-      scheduler
-    }),
-    chatService: new ChatService({
-      sessionRepository: hotPathPorts.sessionRepository,
-      messageRepository: hotPathPorts.messageRepository,
-      providerExecutionPort: hotPathPorts.providerExecutionPort,
-      providerCatalogPort: hotPathPorts.providerCatalogPort,
-      sessionPermissionPort: hotPathPorts.sessionPermissionPort,
-      scheduler
-    }),
+    sessionService,
+    chatService,
     providerService: new ProviderService({
       providerCatalogPort: hotPathPorts.providerCatalogPort,
       providerExecutionPort: hotPathPorts.providerExecutionPort,
@@ -360,7 +400,8 @@ export function createMainKernelRouteRuntime(deps: {
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     pluginPresenter: deps.pluginPresenter,
-    databaseSecurityPresenter: deps.databaseSecurityPresenter
+    databaseSecurityPresenter: deps.databaseSecurityPresenter,
+    scheduledTasks: deps.scheduledTasks
   }
 }
 
@@ -1555,6 +1596,36 @@ export async function dispatchDeepchatRoute(
       onboardingResetRoute.input.parse(rawInput)
       const state = resetGuidedOnboarding(runtime.configPresenter)
       return onboardingResetRoute.output.parse({ state })
+    }
+
+    case scheduledTasksListRoute.name: {
+      scheduledTasksListRoute.input.parse(rawInput)
+      const settings = runtime.scheduledTasks.list()
+      return scheduledTasksListRoute.output.parse({ settings })
+    }
+
+    case scheduledTasksUpsertRoute.name: {
+      const input = scheduledTasksUpsertRoute.input.parse(rawInput)
+      const { task, settings } = runtime.scheduledTasks.upsert(input)
+      return scheduledTasksUpsertRoute.output.parse({ task, settings })
+    }
+
+    case scheduledTasksDeleteRoute.name: {
+      const input = scheduledTasksDeleteRoute.input.parse(rawInput)
+      const settings = runtime.scheduledTasks.delete(input.id)
+      return scheduledTasksDeleteRoute.output.parse({ settings })
+    }
+
+    case scheduledTasksToggleRoute.name: {
+      const input = scheduledTasksToggleRoute.input.parse(rawInput)
+      const { task, settings } = runtime.scheduledTasks.toggle(input.id, input.enabled)
+      return scheduledTasksToggleRoute.output.parse({ task, settings })
+    }
+
+    case scheduledTasksFireNowRoute.name: {
+      const input = scheduledTasksFireNowRoute.input.parse(rawInput)
+      const { task, settings } = await runtime.scheduledTasks.fireNow(input.id)
+      return scheduledTasksFireNowRoute.output.parse({ task, settings })
     }
 
     case startupGetBootstrapRoute.name: {

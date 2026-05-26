@@ -89,6 +89,11 @@ import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
 } from '../hooksNotifications/config'
+import { normalizeScheduledTasksConfig } from '../scheduledTasks/normalize'
+import {
+  createDefaultScheduledTasksSettings,
+  type ScheduledTasksSettings
+} from '@shared/scheduledTasks'
 import {
   AcpDbStore,
   AppSettingsDbBackedStore,
@@ -131,6 +136,7 @@ interface IAppSettings {
   enableSkills?: boolean // Skills system global toggle
   skillDraftSuggestionsEnabled?: boolean // Whether agent may propose skill drafts after tasks
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
+  scheduledTasks?: ScheduledTasksSettings // User-defined scheduled tasks
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
   defaultProjectPath?: string | null
@@ -434,7 +440,8 @@ export class ConfigPresenter implements IConfigPresenter {
         skillDraftSuggestionsEnabled: false,
         updateChannel: 'stable', // Default to stable version
         appVersion: this.currentAppVersion,
-        hooksNotifications: createDefaultHooksNotificationsConfig()
+        hooksNotifications: createDefaultHooksNotificationsConfig(),
+        scheduledTasks: createDefaultScheduledTasksSettings()
       }
     })
 
@@ -3188,6 +3195,21 @@ export class ConfigPresenter implements IConfigPresenter {
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
     const normalized = normalizeHooksNotificationsConfig(config)
     this.getSettingsStoreForKey('hooksNotifications').set('hooksNotifications', normalized)
+    return normalized
+  }
+
+  getScheduledTasksConfig(): ScheduledTasksSettings {
+    const raw = this.store.get('scheduledTasks')
+    const normalized = normalizeScheduledTasksConfig(raw)
+    if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
+      this.store.set('scheduledTasks', normalized)
+    }
+    return normalized
+  }
+
+  setScheduledTasksConfig(config: ScheduledTasksSettings): ScheduledTasksSettings {
+    const normalized = normalizeScheduledTasksConfig(config)
+    this.store.set('scheduledTasks', normalized)
     return normalized
   }
 

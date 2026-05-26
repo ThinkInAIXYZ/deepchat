@@ -1385,6 +1385,66 @@
       }
     }
   },
+  "scheduledTasks": {
+    "title": "Tâches planifiées",
+    "description": "Déclenchez une notification système ou envoyez une invite prédéfinie à un agent à l’heure choisie.",
+    "hint": "Les tâches ponctuelles manquées lorsque l’application était fermée s’exécutent au prochain lancement ; les tâches récurrentes passent au prochain créneau.",
+    "newTask": "Nouvelle tâche",
+    "empty": "Aucune tâche pour le moment",
+    "namePlaceholder": "Nom de la tâche",
+    "fireNow": "Exécuter maintenant",
+    "fireNowSuccess": "Tâche déclenchée",
+    "defaults": {
+      "name": "Nouvelle tâche",
+      "title": "Rappel",
+      "body": "C’est l’heure"
+    },
+    "trigger": {
+      "title": "Déclencheur",
+      "kind": "Type de déclencheur",
+      "kindOnce": "Une fois",
+      "kindDaily": "Tous les jours",
+      "kindWeekly": "Toutes les semaines",
+      "firesAt": "Déclencher à",
+      "dayOfWeek": "Jour de la semaine",
+      "time": "Heure",
+      "description": "Choisissez quand cette tâche s’exécute."
+    },
+    "action": {
+      "title": "Action",
+      "kind": "Type d’action",
+      "kindNotify": "Notification",
+      "kindPrompt": "Invite de chat",
+      "titleField": "Titre",
+      "titlePlaceholder": "Titre de la notification",
+      "body": "Corps",
+      "message": "Message",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "par défaut : deepchat",
+      "modelId": "Modèle",
+      "modelIdPlaceholder": "laisser vide pour la valeur par défaut",
+      "systemPrompt": "Invite système",
+      "autoSend": "Envoyer automatiquement à l’agent sélectionné",
+      "description": "Choisissez une notification ou une invite d’agent."
+    },
+    "weekday": {
+      "sun": "Dim",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Jeu",
+      "fri": "Ven",
+      "sat": "Sam"
+    },
+    "listTitle": "Liste des tâches",
+    "listDescription": "Gérez les planifications, les actions et l’état d’activation au même endroit.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Tous les jours à {time}",
+      "weekly": "{day} à {time}"
+    }
+  },
   "about": {
     "checkUpdate": "Vérifier les mises à jour",
     "checking": "Vérification...",

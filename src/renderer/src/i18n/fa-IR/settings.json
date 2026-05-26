@@ -1385,6 +1385,66 @@
       }
     }
   },
+  "scheduledTasks": {
+    "title": "کارهای زمان‌بندی‌شده",
+    "description": "در زمان انتخاب‌شده یک اعلان سیستم نمایش دهید یا یک پرامپت آماده را به یک عامل ارسال کنید.",
+    "hint": "کارهای یک‌باره‌ای که هنگام بسته بودن برنامه از دست رفته‌اند در اجرای بعدی انجام می‌شوند؛ کارهای تکرارشونده به نوبت بعدی می‌روند.",
+    "newTask": "کار جدید",
+    "empty": "هنوز کاری وجود ندارد",
+    "namePlaceholder": "نام کار",
+    "fireNow": "اکنون اجرا کن",
+    "fireNowSuccess": "کار اجرا شد",
+    "defaults": {
+      "name": "کار جدید",
+      "title": "یادآوری",
+      "body": "زمانش رسیده است"
+    },
+    "trigger": {
+      "title": "محرک",
+      "kind": "نوع محرک",
+      "kindOnce": "یک‌بار",
+      "kindDaily": "روزانه",
+      "kindWeekly": "هفتگی",
+      "firesAt": "اجرا در",
+      "dayOfWeek": "روز هفته",
+      "time": "زمان",
+      "description": "زمان اجرای این کار را انتخاب کنید."
+    },
+    "action": {
+      "title": "عملیات",
+      "kind": "نوع عملیات",
+      "kindNotify": "اعلان",
+      "kindPrompt": "پرامپت گفتگو",
+      "titleField": "عنوان",
+      "titlePlaceholder": "عنوان اعلان",
+      "body": "متن",
+      "message": "پیام",
+      "agentId": "عامل",
+      "agentIdPlaceholder": "پیش‌فرض: deepchat",
+      "modelId": "مدل",
+      "modelIdPlaceholder": "برای پیش‌فرض خالی بگذارید",
+      "systemPrompt": "پرامپت سیستم",
+      "autoSend": "ارسال خودکار به عامل انتخاب‌شده",
+      "description": "یک اعلان یا پرامپت عامل را انتخاب کنید."
+    },
+    "weekday": {
+      "sun": "یکشنبه",
+      "mon": "دوشنبه",
+      "tue": "سه‌شنبه",
+      "wed": "چهارشنبه",
+      "thu": "پنجشنبه",
+      "fri": "جمعه",
+      "sat": "شنبه"
+    },
+    "listTitle": "فهرست کارها",
+    "listDescription": "زمان‌بندی‌ها، عملیات و وضعیت فعال بودن را در یکجا مدیریت کنید.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "هر روز ساعت {time}",
+      "weekly": "{day} ساعت {time}"
+    }
+  },
   "about": {
     "title": "درباره ما",
     "version": "نگارش",

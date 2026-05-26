@@ -11,6 +11,7 @@ export interface SettingsNavigationItem {
     | 'settings-acp'
     | 'settings-remote'
     | 'settings-notifications-hooks'
+    | 'settings-scheduled-tasks'
     | 'settings-plugins'
     | 'settings-skills'
     | 'settings-prompt'
@@ -182,6 +183,25 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     position: 5.5,
     groupKey: 'tools',
     keywords: ['notification', 'hook', 'webhook', '通知']
+  },
+  {
+    routeName: 'settings-scheduled-tasks',
+    path: '/scheduled-tasks',
+    titleKey: 'routes.settings-scheduled-tasks',
+    icon: 'lucide:clock-9',
+    position: 5.6,
+    groupKey: 'tools',
+    keywords: [
+      'schedule',
+      'scheduled',
+      'reminder',
+      'timer',
+      'cron',
+      '定时',
+      '提醒',
+      '计划',
+      '定时任务'
+    ]
   },
   {
     routeName: 'settings-plugins',

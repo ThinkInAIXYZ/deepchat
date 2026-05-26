@@ -1448,6 +1448,66 @@
       }
     }
   },
+  "scheduledTasks": {
+    "title": "定时任务",
+    "description": "在设定的时间触发系统通知或自动向 Agent 发送消息。",
+    "hint": "App 未运行时错过的一次性任务会在下次启动时补发，重复任务只跳到下一个时间点。",
+    "newTask": "新建任务",
+    "empty": "暂无任务",
+    "namePlaceholder": "任务名称",
+    "fireNow": "立即执行",
+    "fireNowSuccess": "任务已触发",
+    "defaults": {
+      "name": "新任务",
+      "title": "提醒",
+      "body": "到点啦"
+    },
+    "trigger": {
+      "title": "触发时间",
+      "kind": "触发方式",
+      "kindOnce": "一次性",
+      "kindDaily": "每天",
+      "kindWeekly": "每周",
+      "firesAt": "时间点",
+      "dayOfWeek": "星期",
+      "time": "时间",
+      "description": "选择执行频率和时间。"
+    },
+    "action": {
+      "title": "执行动作",
+      "kind": "动作类型",
+      "kindNotify": "系统通知",
+      "kindPrompt": "聊天提示",
+      "titleField": "标题",
+      "titlePlaceholder": "通知标题",
+      "body": "通知内容",
+      "message": "消息内容",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "默认 deepchat",
+      "modelId": "模型",
+      "modelIdPlaceholder": "留空使用默认",
+      "systemPrompt": "系统提示词",
+      "autoSend": "自动发送到所选 Agent",
+      "description": "选择通知或发送给 Agent 的提示。"
+    },
+    "weekday": {
+      "sun": "周日",
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六"
+    },
+    "listTitle": "任务列表",
+    "listDescription": "集中管理定时触发、执行动作和启用状态。",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "每天 {time}",
+      "weekly": "{day} {time}"
+    }
+  },
   "about": {
     "title": "关于我们",
     "version": "版本",
