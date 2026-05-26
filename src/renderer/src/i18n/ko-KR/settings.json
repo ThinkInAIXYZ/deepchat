@@ -1205,6 +1205,7 @@
     "stopServer": "서버 중지",
     "startServer": "서버 시작",
     "noServersFound": "서버 없음",
+    "noServersDescription": "도구, 프롬프트, 리소스를 사용하려면 MCP 서버를 추가하세요.",
     "addServerDialog": {
       "title": "서버 추가",
       "description": "새 MCP 서버 구성"

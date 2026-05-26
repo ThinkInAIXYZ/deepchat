@@ -1279,6 +1279,7 @@
     "stopServer": "Zatrzymaj serwer",
     "startServer": "Uruchom serwer",
     "noServersFound": "Nie znaleziono serwerów",
+    "noServersDescription": "Dodaj serwer MCP, aby używać narzędzi, promptów i zasobów.",
     "addServerDialog": {
       "title": "Dodaj serwer",
       "description": "Skonfiguruj nowy serwer MCP"

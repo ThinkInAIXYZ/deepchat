@@ -43,6 +43,7 @@
   "noFiles": "Brak plików",
   "noFilesUploadDesc": "Kliknij powyżej, aby przesłać pliki",
   "uploadSuccess": "Przesyłanie powiodło się",
+  "uploadFailed": "Przesyłanie nie powiodło się",
   "uploadedCount": "Przesłano pliki {count}",
   "confirmDelete": "Czy na pewno chcesz usunąć prompt \"{name}\"?",
   "confirmDeleteDescription": "Tej akcji nie można cofnąć. prompt zostanie trwale usunięty.",

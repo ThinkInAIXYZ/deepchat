@@ -1216,6 +1216,7 @@
     "stopServer": "עצור שרת",
     "startServer": "התחל שרת",
     "noServersFound": "לא נמצאו שרתים",
+    "noServersDescription": "הוסף שרת MCP כדי להשתמש בכלים, הנחיות ומשאבים.",
     "addServerDialog": {
       "title": "הוסף שרת",
       "description": "הגדר שרת MCP חדש"

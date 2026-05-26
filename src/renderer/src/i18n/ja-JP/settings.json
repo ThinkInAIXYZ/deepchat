@@ -1205,6 +1205,7 @@
     "stopServer": "停止サーバー",
     "startServer": "起動サーバー",
     "noServersFound": "サーバーは見つかりません",
+    "noServersDescription": "ツール、プロンプト、リソースを使用するにはMCPサーバーを追加してください。",
     "addServerDialog": {
       "title": "サーバーを追加",
       "description": "新しいMCPサーバーを構成します"

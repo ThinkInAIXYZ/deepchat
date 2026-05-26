@@ -43,6 +43,7 @@
   "noFiles": "Aucun fichier",
   "noFilesUploadDesc": "Cliquez ci-dessus pour télécharger des fichiers",
   "uploadSuccess": "Téléchargement réussi",
+  "uploadFailed": "Échec du téléchargement",
   "uploadedCount": "{count} fichiers téléchargés",
   "confirmDelete": "Êtes-vous sûr de vouloir supprimer le prompt \"{name}\" ?",
   "confirmDeleteDescription": "Cette action ne peut pas être annulée. Le prompt sera définitivement supprimé.",

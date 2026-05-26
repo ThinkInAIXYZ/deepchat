@@ -1149,6 +1149,7 @@
     "stopServer": "Stop server",
     "startServer": "Start server",
     "noServersFound": "Ingen servere fundet",
+    "noServersDescription": "Tilføj en MCP-server for at bruge værktøjer, prompts og ressourcer.",
     "addServerDialog": {
       "title": "Tilføj server",
       "description": "Konfigurér en ny MCP-server"

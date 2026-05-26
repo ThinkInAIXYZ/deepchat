@@ -1279,6 +1279,7 @@
     "stopServer": "Dừng máy chủ",
     "startServer": "Khởi động máy chủ",
     "noServersFound": "Không tìm thấy máy chủ",
+    "noServersDescription": "Thêm máy chủ MCP để sử dụng công cụ, prompt và tài nguyên.",
     "addServerDialog": {
       "title": "Thêm máy chủ",
       "description": "Định cấu hình máy chủ MCP mới"

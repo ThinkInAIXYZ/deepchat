@@ -43,6 +43,7 @@
   "noFiles": "Không có tập tin",
   "noFilesUploadDesc": "Nhấp vào bên trên để tải tập tin lên",
   "uploadSuccess": "Tải lên thành công",
+  "uploadFailed": "Tải lên thất bại",
   "uploadedCount": "Đã tải lên tệp {count}",
   "confirmDelete": "Bạn có chắc chắn muốn xóa prompt \"{name}\" không?",
   "confirmDeleteDescription": "Không thể hoàn tác hành động này. prompt sẽ bị xóa vĩnh viễn.",

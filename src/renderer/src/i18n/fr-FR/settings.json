@@ -1205,6 +1205,7 @@
     "stopServer": "Arrêter le serveur",
     "startServer": "Démarrer le serveur",
     "noServersFound": "Aucun serveur trouvé",
+    "noServersDescription": "Ajoutez un serveur MCP pour utiliser les outils, prompts et ressources.",
     "addServerDialog": {
       "title": "Ajouter un serveur",
       "description": "Configurer un nouveau serveur MCP"

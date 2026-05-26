@@ -43,6 +43,7 @@
   "noFiles": "Keine Dateien",
   "noFilesUploadDesc": "Klicken Sie oben, um Dateien hochzuladen",
   "uploadSuccess": "Upload erfolgreich",
+  "uploadFailed": "Upload fehlgeschlagen",
   "uploadedCount": "{count} Dateien hochgeladen",
   "confirmDelete": "Prompt \"{name}\" wirklich löschen?",
   "confirmDeleteDescription": "Diese Aktion kann nicht rückgängig gemacht werden. Der Prompt wird dauerhaft gelöscht.",

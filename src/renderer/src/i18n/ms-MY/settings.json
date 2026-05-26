@@ -1278,6 +1278,7 @@
     "stopServer": "Hentikan pelayan",
     "startServer": "Mulakan pelayan",
     "noServersFound": "Pelayan tidak ditemui",
+    "noServersDescription": "Tambah pelayan MCP untuk menggunakan alat, prompt dan sumber.",
     "addServerDialog": {
       "title": "Tambah pelayan",
       "description": "Konfigurasikan pelayan MCP baharu"

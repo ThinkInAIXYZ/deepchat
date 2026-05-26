@@ -1278,6 +1278,7 @@
     "stopServer": "Hentikan servernya",
     "startServer": "Mulai servernya",
     "noServersFound": "Server tidak ditemukan",
+    "noServersDescription": "Tambahkan server MCP untuk menggunakan alat, prompt, dan sumber daya.",
     "addServerDialog": {
       "title": "Tambahkan server",
       "description": "Konfigurasikan server MCP baru"

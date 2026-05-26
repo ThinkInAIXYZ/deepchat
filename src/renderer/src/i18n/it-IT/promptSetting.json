@@ -43,6 +43,7 @@
   "noFiles": "Nessun file",
   "noFilesUploadDesc": "Fai clic sopra per caricare file",
   "uploadSuccess": "Caricamento riuscito",
+  "uploadFailed": "Caricamento non riuscito",
   "uploadedCount": "{count} file caricati",
   "confirmDelete": "Vuoi davvero eliminare il prompt \"{name}\"?",
   "confirmDeleteDescription": "Questa operazione non può essere annullata. Il prompt non potrà essere recuperato.",

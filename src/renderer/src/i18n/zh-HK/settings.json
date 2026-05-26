@@ -1205,6 +1205,7 @@
     "stopServer": "停止服務器",
     "startServer": "啟動服務器",
     "noServersFound": "未找到服務器",
+    "noServersDescription": "添加 MCP 服務器後即可使用工具、提示詞和資源。",
     "addServerDialog": {
       "title": "添加服務器",
       "description": "配置新的MCP服務器"
