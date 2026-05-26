@@ -491,6 +491,61 @@ describe('RemoteControlPresenter', () => {
     )
   })
 
+  it('preserves paired Feishu users when saving stale settings input', async () => {
+    const configPresenter = createConfigPresenter()
+    configPresenter.setSetting('remoteControl', {
+      feishu: {
+        brand: 'feishu',
+        appId: 'cli_old',
+        appSecret: 'secret',
+        verificationToken: 'verify',
+        encryptKey: '',
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        pairedUserOpenIds: ['ou_paired'],
+        lastFatalError: null,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        },
+        bindings: {}
+      }
+    })
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any
+    })
+
+    const saved = await presenter.saveFeishuSettings({
+      brand: 'lark',
+      appId: 'cli_new',
+      appSecret: 'secret',
+      verificationToken: 'verify',
+      encryptKey: '',
+      remoteEnabled: true,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
+      pairedUserOpenIds: []
+    })
+
+    expect(saved.pairedUserOpenIds).toEqual(['ou_paired'])
+    expect(configPresenter.setSetting).toHaveBeenCalledWith(
+      'remoteControl',
+      expect.objectContaining({
+        feishu: expect.objectContaining({
+          appId: 'cli_new',
+          pairedUserOpenIds: ['ou_paired']
+        })
+      })
+    )
+  })
+
   it('persists the lark brand inside feishu remote settings', async () => {
     const configPresenter = createConfigPresenter()
 
