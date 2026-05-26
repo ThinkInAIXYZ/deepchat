@@ -532,7 +532,7 @@ export class RemoteControlPresenter {
       enabled: normalized.remoteEnabled,
       defaultAgentId,
       defaultWorkdir: normalized.defaultWorkdir,
-      pairedUserOpenIds: normalized.pairedUserOpenIds,
+      pairedUserOpenIds: config.pairedUserOpenIds,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
     }))
