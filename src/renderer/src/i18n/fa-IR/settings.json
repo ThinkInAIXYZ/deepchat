@@ -1216,6 +1216,7 @@
     "stopServer": "ایست کارساز",
     "startServer": "راه‌اندازی کارساز",
     "noServersFound": "کارسازی یافت نشد",
+    "noServersDescription": "برای استفاده از ابزارها، دستورکارها و منابع، یک کارساز MCP اضافه کنید.",
     "addServerDialog": {
       "title": "افزودن کارساز",
       "description": "پیکربندی کارساز جدید MCP"

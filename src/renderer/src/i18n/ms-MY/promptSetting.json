@@ -43,6 +43,7 @@
   "noFiles": "Tiada fail lagi",
   "noFilesUploadDesc": "Klik di atas untuk memuat naik fail",
   "uploadSuccess": "Muat naik berjaya",
+  "uploadFailed": "Muat naik gagal",
   "uploadedCount": "Fail {count} dimuat naik",
   "confirmDelete": "Adakah anda pasti mahu memadamkan perkataan gesaan \"{name}\"?",
   "confirmDeleteDescription": "Operasi ini tidak boleh diterbalikkan, dan perkataan gesaan tidak boleh dipulihkan selepas pemadaman.",

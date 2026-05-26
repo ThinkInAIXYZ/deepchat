@@ -1205,6 +1205,7 @@
     "stopServer": "Остановить сервер",
     "startServer": "Запустить сервер",
     "noServersFound": "Серверы не найдены",
+    "noServersDescription": "Добавьте MCP-сервер, чтобы использовать инструменты, промпты и ресурсы.",
     "addServerDialog": {
       "title": "Добавить сервер",
       "description": "Настройка нового сервера MCP"

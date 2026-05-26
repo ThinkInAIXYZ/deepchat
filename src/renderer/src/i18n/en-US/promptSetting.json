@@ -43,6 +43,7 @@
   "noFiles": "No files",
   "noFilesUploadDesc": "Click above to upload files",
   "uploadSuccess": "Upload successful",
+  "uploadFailed": "Upload failed",
   "uploadedCount": "Uploaded {count} files",
   "confirmDelete": "Are you sure you want to delete prompt \"{name}\"?",
   "confirmDeleteDescription": "This action cannot be undone. The prompt will be permanently deleted.",

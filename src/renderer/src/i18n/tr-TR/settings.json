@@ -1278,6 +1278,7 @@
     "stopServer": "Sunucuyu Durdur",
     "startServer": "Sunucuyu Başlat",
     "noServersFound": "Sunucu Bulunamadı",
+    "noServersDescription": "Araçları, promptları ve kaynakları kullanmak için bir MCP sunucusu ekleyin.",
     "addServerDialog": {
       "title": "Sunucu Ekle",
       "description": "Yeni bir MCP sunucusu yapılandırın"

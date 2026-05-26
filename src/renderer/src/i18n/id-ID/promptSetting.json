@@ -43,6 +43,7 @@
   "noFiles": "Belum ada file",
   "noFilesUploadDesc": "Klik di atas untuk mengunggah file",
   "uploadSuccess": "Unggahan berhasil",
+  "uploadFailed": "Unggahan gagal",
   "uploadedCount": "{count} file diunggah",
   "confirmDelete": "Apakah Anda yakin ingin menghapus prompt \"{name}\"?",
   "confirmDeleteDescription": "Operasi ini tidak dapat diubah dan prompt tidak dapat dipulihkan setelah penghapusan.",

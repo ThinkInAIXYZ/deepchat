@@ -43,6 +43,7 @@
   "noFiles": "Sin archivos",
   "noFilesUploadDesc": "Haga clic arriba para cargar archivos",
   "uploadSuccess": "Subida exitosa",
+  "uploadFailed": "Error al subir",
   "uploadedCount": "Archivos {count} cargados",
   "confirmDelete": "¿Seguro que quieres eliminar el prompt \"{name}\"?",
   "confirmDeleteDescription": "Esta acción no se puede deshacer. El prompt se eliminará de forma permanente.",

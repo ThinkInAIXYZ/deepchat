@@ -42,6 +42,7 @@
   "noFiles": "ファイルがありません",
   "noFilesUploadDesc": "上記をクリックしてファイルをアップロードしてください",
   "uploadSuccess": "アップロード成功",
+  "uploadFailed": "アップロードに失敗しました",
   "uploadedCount": "{count}個のファイルがアップロードされました",
   "confirmDelete": "プロンプト「{name}」を削除してもよろしいですか？",
   "confirmDeleteDescription": "この操作は元に戻すことができません。プロンプトは完全に削除されます。",

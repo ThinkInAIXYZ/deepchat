@@ -1279,6 +1279,7 @@
     "stopServer": "Stop Server",
     "startServer": "Start Server",
     "noServersFound": "No Servers Found",
+    "noServersDescription": "Add an MCP server to use tools, prompts, and resources.",
     "addServerDialog": {
       "title": "Add Server",
       "description": "Configure a new MCP server"

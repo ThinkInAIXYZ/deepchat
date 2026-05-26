@@ -43,6 +43,7 @@
   "noFiles": "Dosya yok",
   "noFilesUploadDesc": "Dosyaları yüklemek için yukarıya tıklayın",
   "uploadSuccess": "Yükleme başarılı",
+  "uploadFailed": "Yükleme başarısız oldu",
   "uploadedCount": "{count} dosyaları yüklendi",
   "confirmDelete": "prompt \"{name}\" silmek istediğinizden emin misiniz?",
   "confirmDeleteDescription": "Bu eylem geri alınamaz. prompt kalıcı olarak silinecek.",

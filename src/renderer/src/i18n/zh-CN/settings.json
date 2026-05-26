@@ -1278,6 +1278,7 @@
     "stopServer": "停止服务器",
     "startServer": "启动服务器",
     "noServersFound": "未找到服务器",
+    "noServersDescription": "添加 MCP 服务器后即可使用工具、提示词和资源。",
     "addServerDialog": {
       "title": "添加服务器",
       "description": "配置新的MCP服务器"
