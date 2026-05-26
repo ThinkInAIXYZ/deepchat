@@ -259,21 +259,25 @@ export class ScheduledTasksService {
   }
 
   private async runAction(taskId: string, action: ScheduledTaskAction): Promise<void> {
-    if (action.kind === 'notify') {
-      await this.notificationPresenter.showNotification({
-        id: `scheduled:${taskId}`,
-        title: action.title,
-        body: action.body
-      })
-      return
-    }
-
-    if (action.kind === 'prompt') {
-      if (action.autoSend) {
-        await this.runPromptAutoSend(taskId, action)
+    switch (action.kind) {
+      case 'notify':
+        await this.notificationPresenter.showNotification({
+          id: `scheduled:${taskId}`,
+          title: action.title,
+          body: action.body
+        })
         return
+      case 'prompt':
+        if (action.autoSend) {
+          await this.runPromptAutoSend(taskId, action)
+          return
+        }
+        await this.runPromptDraft(taskId, action)
+        return
+      default: {
+        const _exhaustive: never = action
+        throw new Error(`[ScheduledTasks] Unhandled action kind: ${String(_exhaustive)}`)
       }
-      await this.runPromptDraft(taskId, action)
     }
   }
 

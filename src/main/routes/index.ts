@@ -328,7 +328,6 @@ export function createMainKernelRouteRuntime(deps: {
   })
 
   // Wire scheduled tasks -> sessions for the auto-send action.
-  const mainWindowWebContentsId = deps.windowPresenter.mainWindow?.webContents?.id ?? -1
   deps.scheduledTasks.setSessionCreator({
     async createSessionForTask(input) {
       const session = await sessionService.createSession(
@@ -342,7 +341,7 @@ export function createMainKernelRouteRuntime(deps: {
             : {})
         },
         {
-          webContentsId: mainWindowWebContentsId,
+          webContentsId: deps.windowPresenter.mainWindow?.webContents?.id ?? -1,
           windowId: deps.windowPresenter.mainWindow?.id ?? null
         }
       )

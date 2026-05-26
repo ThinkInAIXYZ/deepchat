@@ -106,6 +106,20 @@ const sanitizeTask = (input: unknown, fallbackIndex: number, now: number): Sched
   return parsed.success ? parsed.data : null
 }
 
+const makeUniqueTaskId = (id: string, seenIds: Set<string>): string => {
+  if (!seenIds.has(id)) {
+    return id
+  }
+
+  let suffix = 2
+  let nextId = `${id}-${suffix}`
+  while (seenIds.has(nextId)) {
+    suffix += 1
+    nextId = `${id}-${suffix}`
+  }
+  return nextId
+}
+
 export const normalizeScheduledTasksConfig = (
   input: unknown,
   now: number = Date.now()
@@ -118,10 +132,13 @@ export const normalizeScheduledTasksConfig = (
   }
 
   const rawTasks = Array.isArray(parsed.data.tasks) ? parsed.data.tasks : []
+  const seenIds = new Set<string>()
   const tasks = rawTasks.reduce<ScheduledTask[]>((acc, candidate, index) => {
     const sanitized = sanitizeTask(candidate, index, now)
     if (sanitized) {
-      acc.push(sanitized)
+      const id = makeUniqueTaskId(sanitized.id, seenIds)
+      seenIds.add(id)
+      acc.push(id === sanitized.id ? sanitized : { ...sanitized, id })
     } else {
       log.warn(`[ScheduledTasks] Dropping malformed task at index ${index}`)
     }

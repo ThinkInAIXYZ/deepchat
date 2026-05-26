@@ -13,3 +13,4 @@
 - [x] Unit tests for `computeNextFireAt` and `normalizeScheduledTasksConfig`.
 - [x] Add service tests for notification firing, one-shot disable, and prompt auto-send dispatch.
 - [x] Run `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`.
+- [x] Address PR review comments without changing scheduled-task behavior.

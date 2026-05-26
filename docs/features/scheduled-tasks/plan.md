@@ -57,7 +57,7 @@
 - `pnpm run i18n`
 - `pnpm run lint`
 - `pnpm run typecheck`
-- Unit tests in `test/main/scheduledTasks/` cover `computeNextFireAt`
-  (daily wrap, weekly across the week, one-shot past with/without
-  `lastFiredAt`) and `normalizeScheduledTasksConfig` (drops malformed
-  entries, preserves valid ones).
+- Unit tests in `test/main/presenter/scheduledTasks.test.ts` cover
+  `computeNextFireAt` (daily wrap, weekly across the week, one-shot past
+  with/without `lastFiredAt`) and `normalizeScheduledTasksConfig`
+  (drops malformed entries, deduplicates ids, preserves valid ones).

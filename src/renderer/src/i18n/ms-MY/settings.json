@@ -2192,5 +2192,65 @@
       "backupImported": "Import sandaran: {name}",
       "databaseRepaired": "Pembaikan pangkalan data selesai: {status}"
     }
+  },
+  "scheduledTasks": {
+    "title": "Tugasan Berjadual",
+    "description": "Cetuskkan pemberitahuan sistem atau hantar prompt pratetap kepada ejen pada masa yang dipilih.",
+    "hint": "Tugasan sekali yang terlepas ketika aplikasi ditutup akan dijalankan pada pelancaran seterusnya; tugasan berulang melompat ke slot berikutnya.",
+    "newTask": "Tugasan baharu",
+    "empty": "Belum ada tugasan",
+    "namePlaceholder": "Nama tugasan",
+    "fireNow": "Jalankan sekarang",
+    "fireNowSuccess": "Tugasan dijalankan",
+    "defaults": {
+      "name": "Tugasan baharu",
+      "title": "Peringatan",
+      "body": "Masa sudah tiba"
+    },
+    "trigger": {
+      "title": "Pencetus",
+      "kind": "Jenis pencetus",
+      "kindOnce": "Sekali",
+      "kindDaily": "Harian",
+      "kindWeekly": "Mingguan",
+      "firesAt": "Jalankan pada",
+      "dayOfWeek": "Hari minggu",
+      "time": "Masa",
+      "description": "Pilih bila tugasan ini berjalan."
+    },
+    "action": {
+      "title": "Tindakan",
+      "kind": "Jenis tindakan",
+      "kindNotify": "Pemberitahuan",
+      "kindPrompt": "Prompt sembang",
+      "titleField": "Tajuk",
+      "titlePlaceholder": "Tajuk pemberitahuan",
+      "body": "Kandungan",
+      "message": "Mesej",
+      "agentId": "Ejen",
+      "agentIdPlaceholder": "lalai: deepchat",
+      "modelId": "Model",
+      "modelIdPlaceholder": "biarkan kosong untuk lalai",
+      "systemPrompt": "Prompt sistem",
+      "autoSend": "Hantar automatik kepada ejen dipilih",
+      "description": "Pilih pemberitahuan atau prompt Ejen."
+    },
+    "weekday": {
+      "sun": "Ahd",
+      "mon": "Isn",
+      "tue": "Sel",
+      "wed": "Rab",
+      "thu": "Kha",
+      "fri": "Jum",
+      "sat": "Sab"
+    },
+    "listTitle": "Senarai tugasan",
+    "listDescription": "Urus jadual, tindakan dan status aktif di satu tempat.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Setiap hari pada {time}",
+      "weekly": "{day} pada {time}"
+    }
   }
 }

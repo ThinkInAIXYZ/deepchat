@@ -2192,5 +2192,65 @@
       "backupImported": "Bản sao lưu đã nhập: {name}",
       "databaseRepaired": "Sửa chữa cơ sở dữ liệu đã hoàn tất: {status}"
     }
+  },
+  "scheduledTasks": {
+    "title": "Tác vụ đã lên lịch",
+    "description": "Kích hoạt thông báo hệ thống hoặc gửi prompt đặt sẵn cho tác nhân vào thời điểm đã chọn.",
+    "hint": "Tác vụ một lần bị bỏ lỡ khi ứng dụng đóng sẽ chạy ở lần khởi động tiếp theo; tác vụ lặp lại chuyển sang khung giờ kế tiếp.",
+    "newTask": "Tác vụ mới",
+    "empty": "Chưa có tác vụ",
+    "namePlaceholder": "Tên tác vụ",
+    "fireNow": "Chạy ngay",
+    "fireNowSuccess": "Tác vụ đã chạy",
+    "defaults": {
+      "name": "Tác vụ mới",
+      "title": "Nhắc nhở",
+      "body": "Đã đến giờ"
+    },
+    "trigger": {
+      "title": "Kích hoạt",
+      "kind": "Loại kích hoạt",
+      "kindOnce": "Một lần",
+      "kindDaily": "Hằng ngày",
+      "kindWeekly": "Hằng tuần",
+      "firesAt": "Chạy lúc",
+      "dayOfWeek": "Ngày trong tuần",
+      "time": "Thời gian",
+      "description": "Chọn thời điểm chạy tác vụ này."
+    },
+    "action": {
+      "title": "Hành động",
+      "kind": "Loại hành động",
+      "kindNotify": "Thông báo",
+      "kindPrompt": "Prompt trò chuyện",
+      "titleField": "Tiêu đề",
+      "titlePlaceholder": "Tiêu đề thông báo",
+      "body": "Nội dung",
+      "message": "Tin nhắn",
+      "agentId": "Tác nhân",
+      "agentIdPlaceholder": "mặc định: deepchat",
+      "modelId": "Mô hình",
+      "modelIdPlaceholder": "để trống để dùng mặc định",
+      "systemPrompt": "Prompt hệ thống",
+      "autoSend": "Tự động gửi tới tác nhân đã chọn",
+      "description": "Chọn thông báo hoặc prompt Tác nhân."
+    },
+    "weekday": {
+      "sun": "CN",
+      "mon": "T2",
+      "tue": "T3",
+      "wed": "T4",
+      "thu": "T5",
+      "fri": "T6",
+      "sat": "T7"
+    },
+    "listTitle": "Danh sách tác vụ",
+    "listDescription": "Quản lý lịch, hành động và trạng thái bật ở một nơi.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Mỗi ngày lúc {time}",
+      "weekly": "{day} lúc {time}"
+    }
   }
 }

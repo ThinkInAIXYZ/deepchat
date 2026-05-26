@@ -2192,5 +2192,65 @@
       "backupImported": "Zaimportowana kopia zapasowa: {name}",
       "databaseRepaired": "Zakończono naprawę bazy danych: {status}"
     }
+  },
+  "scheduledTasks": {
+    "title": "Zaplanowane zadania",
+    "description": "Wyświetl powiadomienie systemowe lub wyślij gotowy prompt do agenta o wybranej godzinie.",
+    "hint": "Jednorazowe zadania pominięte przy zamkniętej aplikacji uruchomią się przy następnym starcie; cykliczne przejdą do następnego terminu.",
+    "newTask": "Nowe zadanie",
+    "empty": "Brak zadań",
+    "namePlaceholder": "Nazwa zadania",
+    "fireNow": "Uruchom teraz",
+    "fireNowSuccess": "Zadanie uruchomione",
+    "defaults": {
+      "name": "Nowe zadanie",
+      "title": "Przypomnienie",
+      "body": "Czas minął"
+    },
+    "trigger": {
+      "title": "Wyzwalacz",
+      "kind": "Typ wyzwalacza",
+      "kindOnce": "Raz",
+      "kindDaily": "Codziennie",
+      "kindWeekly": "Co tydzień",
+      "firesAt": "Uruchom o",
+      "dayOfWeek": "Dzień tygodnia",
+      "time": "Godzina",
+      "description": "Wybierz, kiedy zadanie ma zostać uruchomione."
+    },
+    "action": {
+      "title": "Akcja",
+      "kind": "Typ akcji",
+      "kindNotify": "Powiadomienie",
+      "kindPrompt": "Prompt czatu",
+      "titleField": "Tytuł",
+      "titlePlaceholder": "Tytuł powiadomienia",
+      "body": "Treść",
+      "message": "Wiadomość",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "domyślnie: deepchat",
+      "modelId": "Model",
+      "modelIdPlaceholder": "zostaw puste dla domyślnego",
+      "systemPrompt": "Prompt systemowy",
+      "autoSend": "Wyślij automatycznie do wybranego agenta",
+      "description": "Wybierz powiadomienie lub prompt agenta."
+    },
+    "weekday": {
+      "sun": "Nd",
+      "mon": "Pn",
+      "tue": "Wt",
+      "wed": "Śr",
+      "thu": "Cz",
+      "fri": "Pt",
+      "sat": "Sb"
+    },
+    "listTitle": "Lista zadań",
+    "listDescription": "Zarządzaj harmonogramami, akcjami i stanem włączenia w jednym miejscu.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Codziennie o {time}",
+      "weekly": "{day} o {time}"
+    }
   }
 }

@@ -1486,7 +1486,7 @@
       "agentIdPlaceholder": "默认 deepchat",
       "modelId": "模型",
       "modelIdPlaceholder": "留空使用默认",
-      "systemPrompt": "System Prompt",
+      "systemPrompt": "系统提示词",
       "autoSend": "自动发送到所选 Agent",
       "description": "选择通知或发送给 Agent 的提示。"
     },

@@ -229,7 +229,7 @@
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem
-                                  v-for="(label, value) in dayOfWeekOptions"
+                                  v-for="(label, value) in DAY_OF_WEEK_OPTIONS"
                                   :key="value"
                                   :value="String(value)"
                                 >
@@ -538,6 +538,7 @@ const modelStore = useModelStore()
 
 const settings = ref<ScheduledTasksSettings | null>(null)
 const agents = ref<Agent[]>([])
+const saveCounter = ref(0)
 const isLoading = ref(false)
 const isSaving = ref(false)
 const firingId = ref<string | null>(null)
@@ -547,7 +548,7 @@ const openTaskIds = ref<string[]>([])
 const onceInputValues = ref<string[]>([])
 const recurringTimeValues = ref<string[]>([])
 
-const dayOfWeekOptions: Record<number, string> = {
+const DAY_OF_WEEK_OPTIONS: Record<number, string> = {
   0: 'settings.scheduledTasks.weekday.sun',
   1: 'settings.scheduledTasks.weekday.mon',
   2: 'settings.scheduledTasks.weekday.tue',
@@ -584,7 +585,7 @@ const getTriggerSummary = (trigger: ScheduledTaskTrigger): string => {
       })
     case 'weekly':
       return t('settings.scheduledTasks.summary.weekly', {
-        day: t(dayOfWeekOptions[trigger.dayOfWeek]),
+        day: t(DAY_OF_WEEK_OPTIONS[trigger.dayOfWeek]),
         time: `${padTwo(trigger.hour)}:${padTwo(trigger.minute)}`
       })
   }
@@ -625,6 +626,14 @@ const parseDateTimeLocal = (value: string): number | null => {
 }
 
 const cloneForIpc = <T>(value: T): T => structuredClone(toRaw(value))
+
+const applySettingsResponse = (nextSettings: ScheduledTasksSettings, requestId: number): void => {
+  if (requestId !== saveCounter.value) {
+    return
+  }
+  settings.value = nextSettings
+  refreshFormBuffers()
+}
 
 const refreshFormBuffers = () => {
   onceInputValues.value = tasks.value.map((task) =>
@@ -667,6 +676,7 @@ const loadSettings = async () => {
 }
 
 const persistTask = async (task: ScheduledTask): Promise<void> => {
+  const requestId = ++saveCounter.value
   isSaving.value = true
   try {
     const response = await client.upsert({
@@ -676,8 +686,7 @@ const persistTask = async (task: ScheduledTask): Promise<void> => {
       trigger: cloneForIpc(task.trigger),
       action: cloneForIpc(task.action)
     })
-    settings.value = response.settings
-    refreshFormBuffers()
+    applySettingsResponse(response.settings, requestId)
   } catch (error) {
     console.error('[ScheduledTasks] Failed to persist task:', error)
     toast({
@@ -862,6 +871,7 @@ const updateModelSelection = (
 }
 
 const addTask = async () => {
+  const requestId = ++saveCounter.value
   isSaving.value = true
   try {
     const response = await client.upsert({
@@ -874,9 +884,8 @@ const addTask = async () => {
         body: t('settings.scheduledTasks.defaults.body')
       }
     })
-    settings.value = response.settings
-    refreshFormBuffers()
-    if (response.task) {
+    applySettingsResponse(response.settings, requestId)
+    if (requestId === saveCounter.value && response.task) {
       setTaskOpen(response.task.id, true)
     }
   } catch (error) {
@@ -892,10 +901,10 @@ const addTask = async () => {
 }
 
 const toggleTask = async (id: string, enabled: boolean) => {
+  const requestId = ++saveCounter.value
   try {
     const response = await client.toggle(id, enabled)
-    settings.value = response.settings
-    refreshFormBuffers()
+    applySettingsResponse(response.settings, requestId)
   } catch (error) {
     console.error('[ScheduledTasks] Failed to toggle task:', error)
     toast({
@@ -907,10 +916,10 @@ const toggleTask = async (id: string, enabled: boolean) => {
 }
 
 const deleteTask = async (id: string) => {
+  const requestId = ++saveCounter.value
   try {
     const response = await client.remove(id)
-    settings.value = response
-    refreshFormBuffers()
+    applySettingsResponse(response, requestId)
   } catch (error) {
     console.error('[ScheduledTasks] Failed to delete task:', error)
     toast({
@@ -922,11 +931,11 @@ const deleteTask = async (id: string) => {
 }
 
 const runTaskNow = async (id: string) => {
+  const requestId = ++saveCounter.value
   firingId.value = id
   try {
     const response = await client.fireNow(id)
-    settings.value = response.settings
-    refreshFormBuffers()
+    applySettingsResponse(response.settings, requestId)
     toast({
       title: t('settings.scheduledTasks.fireNowSuccess'),
       description: response.task.name

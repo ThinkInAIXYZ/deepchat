@@ -242,6 +242,45 @@ describe('normalizeScheduledTasksConfig', () => {
     expect(result.tasks[0]?.id).toBe('t1')
   })
 
+  it('deduplicates task ids deterministically', () => {
+    const result = normalizeScheduledTasksConfig(
+      {
+        tasks: [
+          {
+            id: 'same',
+            name: 'first',
+            enabled: true,
+            trigger: { kind: 'daily', hour: 8, minute: 0 },
+            action: { kind: 'notify', title: 'hi', body: 'there' },
+            createdAt: 100,
+            lastFiredAt: null
+          },
+          {
+            id: 'same',
+            name: 'second',
+            enabled: true,
+            trigger: { kind: 'daily', hour: 9, minute: 0 },
+            action: { kind: 'notify', title: 'hi', body: 'there' },
+            createdAt: 100,
+            lastFiredAt: null
+          },
+          {
+            id: 'same-2',
+            name: 'third',
+            enabled: true,
+            trigger: { kind: 'daily', hour: 10, minute: 0 },
+            action: { kind: 'notify', title: 'hi', body: 'there' },
+            createdAt: 100,
+            lastFiredAt: null
+          }
+        ]
+      },
+      1000
+    )
+
+    expect(result.tasks.map((task) => task.id)).toEqual(['same', 'same-2', 'same-2-2'])
+  })
+
   it('fills missing optional fields and generates an id when absent', () => {
     const result = normalizeScheduledTasksConfig(
       {

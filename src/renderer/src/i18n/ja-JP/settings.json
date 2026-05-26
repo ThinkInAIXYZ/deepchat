@@ -1408,7 +1408,7 @@
       "firesAt": "実行時刻",
       "dayOfWeek": "曜日",
       "time": "時刻",
-      "description": "Choose when this task runs."
+      "description": "このタスクを実行するタイミングを選択します。"
     },
     "action": {
       "title": "アクション",
@@ -1420,12 +1420,12 @@
       "body": "本文",
       "message": "メッセージ",
       "agentId": "エージェント",
-      "agentIdPlaceholder": "デフォルト: deepchat",
+      "agentIdPlaceholder": "既定: deepchat",
       "modelId": "モデル",
-      "modelIdPlaceholder": "空欄でデフォルト",
+      "modelIdPlaceholder": "空欄で既定を使用",
       "systemPrompt": "システムプロンプト",
-      "autoSend": "選択したエージェントに自動送信",
-      "description": "Choose a notification or an Agent prompt."
+      "autoSend": "選択したエージェントへ自動送信",
+      "description": "通知またはエージェントへのプロンプトを選択します。"
     },
     "weekday": {
       "sun": "日",
@@ -1436,13 +1436,13 @@
       "fri": "金",
       "sat": "土"
     },
-    "listTitle": "Task list",
-    "listDescription": "Manage schedules, actions, and enabled status in one place.",
+    "listTitle": "タスクリスト",
+    "listDescription": "スケジュール、アクション、有効状態をまとめて管理します。",
     "summary": {
       "task": "{trigger} · {action}",
       "once": "{time}",
-      "daily": "Every day at {time}",
-      "weekly": "{day} at {time}"
+      "daily": "毎日 {time}",
+      "weekly": "{day} {time}"
     }
   },
   "about": {

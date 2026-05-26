@@ -20,5 +20,6 @@
   "settings-environments": "Verzeichnisumgebungen",
   "settings-remote": "Remote",
   "settings-plugins": "Plugins",
-  "settings-overview": "Einstellungsübersicht"
+  "settings-overview": "Einstellungsübersicht",
+  "settings-scheduled-tasks": "Geplante Aufgaben"
 }
