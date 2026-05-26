@@ -1407,7 +1407,8 @@
       "kindWeekly": "毎週",
       "firesAt": "実行時刻",
       "dayOfWeek": "曜日",
-      "time": "時刻"
+      "time": "時刻",
+      "description": "Choose when this task runs."
     },
     "action": {
       "title": "アクション",
@@ -1423,7 +1424,8 @@
       "modelId": "モデル",
       "modelIdPlaceholder": "空欄でデフォルト",
       "systemPrompt": "システムプロンプト",
-      "autoSend": "選択したエージェントに自動送信"
+      "autoSend": "選択したエージェントに自動送信",
+      "description": "Choose a notification or an Agent prompt."
     },
     "weekday": {
       "sun": "日",
@@ -1433,6 +1435,14 @@
       "thu": "木",
       "fri": "金",
       "sat": "土"
+    },
+    "listTitle": "Task list",
+    "listDescription": "Manage schedules, actions, and enabled status in one place.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Every day at {time}",
+      "weekly": "{day} at {time}"
     }
   },
   "about": {

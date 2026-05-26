@@ -1407,7 +1407,8 @@
       "kindWeekly": "每週",
       "firesAt": "時間點",
       "dayOfWeek": "星期",
-      "time": "時間"
+      "time": "時間",
+      "description": "選擇執行頻率和時間。"
     },
     "action": {
       "title": "執行動作",
@@ -1423,7 +1424,8 @@
       "modelId": "模型",
       "modelIdPlaceholder": "留空使用預設",
       "systemPrompt": "System Prompt",
-      "autoSend": "自動發送到所選 Agent"
+      "autoSend": "自動發送到所選 Agent",
+      "description": "選擇通知或傳送給 Agent 的提示。"
     },
     "weekday": {
       "sun": "週日",
@@ -1433,6 +1435,14 @@
       "thu": "週四",
       "fri": "週五",
       "sat": "週六"
+    },
+    "listTitle": "任務列表",
+    "listDescription": "集中管理定時觸發、執行動作和啟用狀態。",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "每天 {time}",
+      "weekly": "{day} {time}"
     }
   },
   "about": {

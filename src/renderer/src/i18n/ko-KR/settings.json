@@ -1407,7 +1407,8 @@
       "kindWeekly": "매주",
       "firesAt": "실행 시각",
       "dayOfWeek": "요일",
-      "time": "시간"
+      "time": "시간",
+      "description": "Choose when this task runs."
     },
     "action": {
       "title": "액션",
@@ -1423,7 +1424,8 @@
       "modelId": "모델",
       "modelIdPlaceholder": "비워두면 기본값",
       "systemPrompt": "시스템 프롬프트",
-      "autoSend": "선택한 에이전트에 자동 전송"
+      "autoSend": "선택한 에이전트에 자동 전송",
+      "description": "Choose a notification or an Agent prompt."
     },
     "weekday": {
       "sun": "일",
@@ -1433,6 +1435,14 @@
       "thu": "목",
       "fri": "금",
       "sat": "토"
+    },
+    "listTitle": "Task list",
+    "listDescription": "Manage schedules, actions, and enabled status in one place.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Every day at {time}",
+      "weekly": "{day} at {time}"
     }
   },
   "about": {

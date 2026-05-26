@@ -318,8 +318,16 @@ export function createMainKernelRouteRuntime(deps: {
     messageRepository: hotPathPorts.messageRepository,
     scheduler
   })
+  const chatService = new ChatService({
+    sessionRepository: hotPathPorts.sessionRepository,
+    messageRepository: hotPathPorts.messageRepository,
+    providerExecutionPort: hotPathPorts.providerExecutionPort,
+    providerCatalogPort: hotPathPorts.providerCatalogPort,
+    sessionPermissionPort: hotPathPorts.sessionPermissionPort,
+    scheduler
+  })
 
-  // Wire scheduled tasks → sessions for the auto-send action.
+  // Wire scheduled tasks -> sessions for the auto-send action.
   const mainWindowWebContentsId = deps.windowPresenter.mainWindow?.webContents?.id ?? -1
   deps.scheduledTasks.setSessionCreator({
     async createSessionForTask(input) {
@@ -338,7 +346,12 @@ export function createMainKernelRouteRuntime(deps: {
           windowId: deps.windowPresenter.mainWindow?.id ?? null
         }
       )
-      return { sessionId: session?.id ?? null }
+      if (!session?.id) {
+        return { sessionId: null }
+      }
+
+      await chatService.sendMessage(session.id, input.message)
+      return { sessionId: session.id }
     }
   })
 
@@ -372,14 +385,7 @@ export function createMainKernelRouteRuntime(deps: {
         listSettingsActivity: async () => []
       } as unknown as ISQLitePresenter),
     sessionService,
-    chatService: new ChatService({
-      sessionRepository: hotPathPorts.sessionRepository,
-      messageRepository: hotPathPorts.messageRepository,
-      providerExecutionPort: hotPathPorts.providerExecutionPort,
-      providerCatalogPort: hotPathPorts.providerCatalogPort,
-      sessionPermissionPort: hotPathPorts.sessionPermissionPort,
-      scheduler
-    }),
+    chatService,
     providerService: new ProviderService({
       providerCatalogPort: hotPathPorts.providerCatalogPort,
       providerExecutionPort: hotPathPorts.providerExecutionPort,

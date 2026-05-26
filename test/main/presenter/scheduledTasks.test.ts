@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { ScheduledTasksService } from '../../../src/main/presenter/scheduledTasks'
 import {
   computeNextFireAt,
   normalizeScheduledTasksConfig,
@@ -7,6 +8,46 @@ import {
 import type { ScheduledTask } from '@shared/scheduledTasks'
 
 const baseTask = <T extends ScheduledTask>(overrides: T): T => overrides
+
+interface ServiceHarnessOptions {
+  createSessionForTask?: ReturnType<typeof vi.fn>
+}
+
+const createServiceHarness = (tasks: ScheduledTask[], options: ServiceHarnessOptions = {}) => {
+  let settings = { version: 1 as const, tasks }
+  const showNotification = vi.fn().mockResolvedValue(undefined)
+  const sendToWindow = vi.fn()
+  const focusMainWindow = vi.fn()
+  const createSessionForTask =
+    options.createSessionForTask ?? vi.fn().mockResolvedValue({ sessionId: 'session-1' })
+
+  const service = new ScheduledTasksService({
+    configPresenter: {
+      getScheduledTasksConfig: () => settings,
+      setScheduledTasksConfig: (nextSettings) => {
+        settings = nextSettings
+        return settings
+      },
+      getNotificationsEnabled: () => true
+    },
+    notificationPresenter: { showNotification },
+    windowPresenter: {
+      mainWindow: null,
+      sendToWindow,
+      focusMainWindow
+    },
+    sessionCreator: { createSessionForTask }
+  })
+
+  return {
+    service,
+    getSettings: () => settings,
+    showNotification,
+    sendToWindow,
+    focusMainWindow,
+    createSessionForTask
+  }
+}
 
 describe('computeNextFireAt', () => {
   it('returns the absolute one-shot time when it is still in the future', () => {
@@ -223,5 +264,71 @@ describe('normalizeScheduledTasksConfig', () => {
     expect(task?.enabled).toBe(false)
     expect(task?.createdAt).toBe(4242)
     expect(task?.lastFiredAt).toBeNull()
+  })
+})
+
+describe('ScheduledTasksService', () => {
+  it('fires notification tasks immediately and disables one-shot tasks after firing', async () => {
+    const task = baseTask<ScheduledTask>({
+      id: 'once-notify',
+      name: 'once notify',
+      enabled: true,
+      trigger: { kind: 'once', firesAt: Date.now() + 60_000 },
+      action: { kind: 'notify', title: 'Reminder', body: 'Stand up' },
+      createdAt: 1,
+      lastFiredAt: null
+    })
+    const harness = createServiceHarness([task])
+
+    const result = await harness.service.fireNow(task.id)
+
+    expect(harness.showNotification).toHaveBeenCalledWith({
+      id: 'scheduled:once-notify',
+      title: 'Reminder',
+      body: 'Stand up'
+    })
+    expect(result.task.enabled).toBe(false)
+    expect(result.task.lastFiredAt).toEqual(expect.any(Number))
+    expect(harness.getSettings().tasks[0]?.enabled).toBe(false)
+  })
+
+  it('auto-sends prompt tasks through the wired session creator', async () => {
+    const task = baseTask<ScheduledTask>({
+      id: 'daily-prompt',
+      name: 'daily prompt',
+      enabled: true,
+      trigger: { kind: 'daily', hour: 9, minute: 0 },
+      action: {
+        kind: 'prompt',
+        title: 'Daily plan',
+        message: 'Create my plan',
+        autoSend: true,
+        agentId: 'deepchat',
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        systemPrompt: 'Be concise'
+      },
+      createdAt: 1,
+      lastFiredAt: null
+    })
+    const harness = createServiceHarness([task])
+
+    const result = await harness.service.fireNow(task.id)
+
+    expect(harness.createSessionForTask).toHaveBeenCalledWith({
+      agentId: 'deepchat',
+      message: 'Create my plan',
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      systemPrompt: 'Be concise'
+    })
+    expect(harness.sendToWindow).not.toHaveBeenCalled()
+    expect(harness.showNotification).toHaveBeenCalledWith({
+      id: 'scheduled:daily-prompt',
+      title: 'Daily plan',
+      body: 'Create my plan'
+    })
+    expect(result.task.enabled).toBe(true)
+    expect(result.task.lastFiredAt).toEqual(expect.any(Number))
   })
 })

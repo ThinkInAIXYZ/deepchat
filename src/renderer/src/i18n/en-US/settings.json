@@ -1470,7 +1470,8 @@
       "kindWeekly": "Weekly",
       "firesAt": "Fire at",
       "dayOfWeek": "Day of week",
-      "time": "Time"
+      "time": "Time",
+      "description": "Choose when this task runs."
     },
     "action": {
       "title": "Action",
@@ -1486,7 +1487,8 @@
       "modelId": "Model",
       "modelIdPlaceholder": "leave blank for default",
       "systemPrompt": "System prompt",
-      "autoSend": "Auto-send to the selected agent"
+      "autoSend": "Auto-send to the selected agent",
+      "description": "Choose a notification or an Agent prompt."
     },
     "weekday": {
       "sun": "Sun",
@@ -1496,6 +1498,14 @@
       "thu": "Thu",
       "fri": "Fri",
       "sat": "Sat"
+    },
+    "listTitle": "Task list",
+    "listDescription": "Manage schedules, actions, and enabled status in one place.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Every day at {time}",
+      "weekly": "{day} at {time}"
     }
   },
   "about": {
