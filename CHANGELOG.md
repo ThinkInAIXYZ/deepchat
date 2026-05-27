@@ -3,10 +3,12 @@
 ## v1.0.5-beta.5 (2026-05-27)
 - Added scheduled tasks for recurring agent work
 - Added high-priority language support and completed missing locale keys for broader localization coverage
+- Simplified the data settings Danger Zone entry so reset choices stay inside the confirmation dialog
 - Fixed MiMo Pro TTS routing so it uses chat-compatible provider behavior
 - Preserved paired Feishu users across remote-control state updates
 - 新增定时任务能力，支持周期性的 Agent 工作
 - 新增高优先级语言支持，并补齐缺失的本地化 keys，扩大多语言覆盖
+- 简化数据设置中的 Danger Zone 入口，将具体重置选项收进确认弹窗
 - 修复 MiMo Pro 的 TTS 路由，使其使用兼容聊天的 Provider 行为
 - 修复飞书远程控制状态更新时配对用户被丢失的问题
 
