@@ -272,14 +272,8 @@ const findRefreshButton = (wrapper: ReturnType<typeof mount>) =>
 const findRepairButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.databaseRepair', 'Repair database')
 
-const findResetAllButton = (wrapper: ReturnType<typeof mount>) =>
-  findButtonByText(wrapper, 'settings.data.resetAll', 'Reset all data')
-
-const findResetKnowledgeButton = (wrapper: ReturnType<typeof mount>) =>
-  findButtonByText(wrapper, 'settings.data.resetKnowledgeData', 'Reset knowledge data')
-
-const findResetChatButton = (wrapper: ReturnType<typeof mount>) =>
-  findButtonByText(wrapper, 'settings.data.resetChatData', 'Reset chat data')
+const findResetEntryButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.resetData', 'Reset data')
 
 const findResetConfirmButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.confirmReset', 'Reset confirm')
@@ -307,22 +301,24 @@ describe('DataSettings', () => {
     expect(wrapper.text()).toContain('settings.data.dangerZone.title')
     expect(wrapper.text()).toContain('settings.data.resetChatData')
     expect(wrapper.text()).toContain('settings.data.resetKnowledgeData')
+    expect(wrapper.text()).toContain('settings.data.resetConfig')
     expect(wrapper.text()).toContain('settings.data.resetAll')
     expect(wrapper.text()).toContain('settings.data.yoBrowser.title')
     expect(wrapper.text()).toContain('settings.data.databaseEncryption.systemCredentialStore')
   })
 
-  it('keeps long danger zone labels within taller wrapping buttons', async () => {
+  it('renders a quiet danger zone entry and keeps reset choices in the dialog', async () => {
     const { wrapper } = await setup()
 
-    const resetButtons = [findResetChatButton(wrapper), findResetKnowledgeButton(wrapper)]
+    const resetEntry = findResetEntryButton(wrapper)
 
-    for (const button of resetButtons) {
-      expect(button.classes()).toContain('min-h-12')
-      expect(button.classes()).toContain('whitespace-normal')
-      expect(button.find('span').classes()).toContain('min-w-0')
-      expect(button.find('span').classes()).toContain('leading-tight')
-    }
+    expect(resetEntry.attributes('variant')).toBe('outline')
+    expect(resetEntry.classes()).toContain('text-destructive')
+    expect(resetEntry.classes()).toContain('border-destructive/30')
+    expect(wrapper.find('[data-testid="danger-zone-reset-option-chat"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="danger-zone-reset-option-knowledge"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="danger-zone-reset-option-config"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="danger-zone-reset-option-all"]').exists()).toBe(true)
   })
 
   it('updates privacy mode from the data settings page', async () => {
@@ -588,9 +584,8 @@ describe('DataSettings', () => {
     syncStore.syncEnabled = false
     await nextTick()
 
-    expect(findResetChatButton(wrapper).attributes('disabled')).toBeUndefined()
-    expect(findResetKnowledgeButton(wrapper).attributes('disabled')).toBeUndefined()
-    expect(findResetAllButton(wrapper).attributes('disabled')).toBeUndefined()
+    expect(findResetEntryButton(wrapper).attributes('disabled')).toBeUndefined()
+    expect(findResetConfirmButton(wrapper).attributes('disabled')).toBeUndefined()
   })
 
   it('disables reset actions during import and blocks the reset handler', async () => {
@@ -599,12 +594,34 @@ describe('DataSettings', () => {
     syncStore.isImporting = true
     await nextTick()
 
-    expect(findResetAllButton(wrapper).attributes('disabled')).toBeDefined()
+    expect(findResetEntryButton(wrapper).attributes('disabled')).toBeDefined()
     expect(findResetConfirmButton(wrapper).attributes('disabled')).toBeDefined()
 
     findResetConfirmButton(wrapper).vm.$emit('click')
     await flushPromises()
 
     expect(presenterMocks.devicePresenter.resetDataByType).not.toHaveBeenCalled()
+  })
+
+  it('defaults reset type to chat when opening the reset dialog', async () => {
+    const { wrapper, presenterMocks } = await setup()
+
+    await wrapper.find('[data-testid="danger-zone-reset-option-all"]').trigger('click')
+    await findResetEntryButton(wrapper).trigger('click')
+    await findResetConfirmButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(presenterMocks.devicePresenter.resetDataByType).toHaveBeenCalledWith('chat')
+  })
+
+  it('calls resetDataByType with the selected dialog reset type', async () => {
+    const { wrapper, presenterMocks } = await setup()
+
+    await findResetEntryButton(wrapper).trigger('click')
+    await wrapper.find('[data-testid="danger-zone-reset-option-knowledge"]').trigger('click')
+    await findResetConfirmButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(presenterMocks.devicePresenter.resetDataByType).toHaveBeenCalledWith('knowledge')
   })
 })
