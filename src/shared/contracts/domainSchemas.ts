@@ -234,6 +234,7 @@ export const ModelConfigSchema = z
     maxTokens: z.number().int(),
     contextLength: z.number().int(),
     temperature: z.number().optional(),
+    topP: z.number().min(0.1).max(1).optional(),
     vision: z.boolean(),
     speechRecognition: z.boolean().optional(),
     functionCall: z.boolean(),

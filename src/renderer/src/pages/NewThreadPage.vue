@@ -861,6 +861,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.subagentEnabled = false
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
+  draftStore.topP = undefined
   draftStore.contextLength = undefined
   draftStore.maxTokens = undefined
   draftStore.timeout = undefined

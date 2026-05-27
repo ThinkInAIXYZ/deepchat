@@ -177,6 +177,8 @@
     "systemPromptPlaceholder": "Bir ön ayar seçin",
     "temperature": "Sıcaklık",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6, düşünme etkinleştirildiğinde sıcaklığı {enabled}'ye ve devre dışı bırakıldığında {disabled}'ye sabitler.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus örnekleme; sağlayıcı varsayılanını kullanmak için boş bırakın",
     "contextLength": "Bağlam Uzunluğu",
     "maxTokens": "Maksimum token",
     "thinkingBudget": "Thinking Budget",
@@ -193,7 +195,8 @@
       "finiteNumber": "Sonlu bir sayı olmalı",
       "nonNegativeInteger": "Negatif olmayan bir tam sayı olmalıdır",
       "contextLengthAtLeastMaxTokens": "Maksimum token değerinden büyük veya ona eşit olmalıdır",
-      "maxTokensWithinContextLength": "Bağlam Uzunluğundan küçük veya ona eşit olmalıdır"
+      "maxTokensWithinContextLength": "Bağlam Uzunluğundan küçük veya ona eşit olmalıdır",
+      "topPRange": "0’dan büyük ve 1’e eşit ya da küçük olmalıdır"
     }
   },
   "modelPicker": {

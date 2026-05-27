@@ -166,6 +166,8 @@
     "systemPromptPlaceholder": "یک پیش‌تنظیم را انتخاب کنید",
     "temperature": "دما",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 وقتی تفکر فعال باشد دما را روی {enabled} و وقتی غیرفعال باشد روی {disabled} ثابت نگه می‌دارد.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "طول زمینه",
     "maxTokens": "حداکثر توکن",
     "thinkingBudget": "بودجه تفکر",
@@ -182,7 +184,8 @@
       "finiteNumber": "باید یک عدد متناهی باشد",
       "nonNegativeInteger": "باید یک عدد صحیح نامنفی باشد",
       "contextLengthAtLeastMaxTokens": "باید بزرگ‌تر یا مساوی حداکثر توکن‌ها باشد",
-      "maxTokensWithinContextLength": "باید کوچک‌تر یا مساوی طول زمینه باشد"
+      "maxTokensWithinContextLength": "باید کوچک‌تر یا مساوی طول زمینه باشد",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
     }
   },
   "workspace": {

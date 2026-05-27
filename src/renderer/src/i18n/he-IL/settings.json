@@ -624,6 +624,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 מקבע את הטמפרטורה ל-{enabled} כשהחשיבה מופעלת ול-{disabled} כשהיא כבויה.",
         "label": "טמפרטורה"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
+      },
       "title": "פרמטרים מותאמים למודל",
       "type": {
         "description": "בחר את סוג המודל",
@@ -647,7 +651,8 @@
         "temperatureMin": "הטמפרטורה חייבת להיות גדולה או שווה ל-0",
         "temperatureRequired": "הטמפרטורה אינה יכולה להיות ריקה",
         "timeoutMin": "הטיימאוט חייב להיות לפחות 1000ms",
-        "timeoutMax": "הטיימאוט אינו יכול לעלות על 3600000ms"
+        "timeoutMax": "הטיימאוט אינו יכול לעלות על 3600000ms",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "vision": {
         "description": "האם המודל תומך ביכולת חזותית?",

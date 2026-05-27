@@ -166,6 +166,8 @@
     "systemPromptPlaceholder": "Sélectionner un préréglage",
     "temperature": "Température",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixe la température à {enabled} lorsque la réflexion est activée et à {disabled} lorsqu’elle est désactivée.",
+    "topP": "Top P",
+    "topPDescription": "Échantillonnage nucleus ; laissez vide pour utiliser la valeur par défaut du fournisseur",
     "contextLength": "Longueur du contexte",
     "maxTokens": "Jetons max",
     "thinkingBudget": "Budget de réflexion",
@@ -182,7 +184,8 @@
       "finiteNumber": "Doit être un nombre fini",
       "nonNegativeInteger": "Doit être un entier positif ou nul",
       "contextLengthAtLeastMaxTokens": "Doit être supérieur ou égal au nombre maximal de tokens",
-      "maxTokensWithinContextLength": "Doit être inférieur ou égal à la longueur de contexte"
+      "maxTokensWithinContextLength": "Doit être inférieur ou égal à la longueur de contexte",
+      "topPRange": "Doit être supérieur à 0 et inférieur ou égal à 1"
     }
   },
   "workspace": {

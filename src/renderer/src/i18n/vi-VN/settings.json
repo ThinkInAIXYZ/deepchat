@@ -687,6 +687,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 sửa nhiệt độ thành {enabled} khi tính năng suy nghĩ được bật và {disabled} khi tính năng này bị tắt.",
         "label": "Nhiệt độ"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
+      },
       "title": "Thông số mô hình tùy chỉnh",
       "type": {
         "description": "Chọn loại mô hình",
@@ -710,7 +714,8 @@
         "temperatureMin": "Nhiệt độ phải lớn hơn hoặc bằng 0",
         "temperatureRequired": "Nhiệt độ không thể trống",
         "timeoutMin": "Thời gian chờ yêu cầu phải ít nhất là 1000ms",
-        "timeoutMax": "Thời gian chờ yêu cầu không thể vượt quá 3600000ms"
+        "timeoutMax": "Thời gian chờ yêu cầu không thể vượt quá 3600000ms",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "vision": {
         "description": "Mô hình có hỗ trợ khả năng thị giác không?",

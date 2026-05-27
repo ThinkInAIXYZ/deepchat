@@ -166,6 +166,8 @@
     "systemPromptPlaceholder": "Выберите пресет",
     "temperature": "Температура",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 фиксирует температуру на уровне {enabled}, когда мышление включено, и на уровне {disabled}, когда оно отключено.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; оставьте пустым, чтобы использовать значение провайдера по умолчанию",
     "contextLength": "Длина контекста",
     "maxTokens": "Макс. токенов",
     "thinkingBudget": "Бюджет размышления",
@@ -182,7 +184,8 @@
       "finiteNumber": "Должно быть конечным числом",
       "nonNegativeInteger": "Должно быть неотрицательным целым числом",
       "contextLengthAtLeastMaxTokens": "Должно быть больше или равно максимальному числу токенов",
-      "maxTokensWithinContextLength": "Должно быть меньше или равно длине контекста"
+      "maxTokensWithinContextLength": "Должно быть меньше или равно длине контекста",
+      "topPRange": "Должно быть больше 0 и меньше либо равно 1"
     }
   },
   "workspace": {

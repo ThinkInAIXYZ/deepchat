@@ -174,6 +174,8 @@
     "systemPromptPlaceholder": "選擇預設",
     "temperature": "溫度",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在開啟思考時固定為 {enabled}，關閉思考時固定為 {disabled}。",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "上下文長度",
     "maxTokens": "最大輸出",
     "thinkingBudget": "思考預算",
@@ -190,7 +192,8 @@
       "finiteNumber": "必須是有限數字",
       "nonNegativeInteger": "必須是非負整數",
       "contextLengthAtLeastMaxTokens": "必須大於或等於最大輸出",
-      "maxTokensWithinContextLength": "必須小於或等於上下文長度"
+      "maxTokensWithinContextLength": "必須小於或等於上下文長度",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
     }
   },
   "workspace": {

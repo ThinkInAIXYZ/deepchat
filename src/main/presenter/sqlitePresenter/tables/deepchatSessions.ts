@@ -21,6 +21,7 @@ type DeepChatSessionGenerationSettings = Pick<
   SessionGenerationSettings,
   | 'systemPrompt'
   | 'temperature'
+  | 'topP'
   | 'contextLength'
   | 'maxTokens'
   | 'timeout'
@@ -40,6 +41,7 @@ export interface DeepChatSessionRow {
   permission_mode: 'default' | 'full_access'
   system_prompt: string | null
   temperature: number | null
+  top_p: number | null
   context_length: number | null
   max_tokens: number | null
   timeout_ms: number | null
@@ -119,6 +121,10 @@ export class DeepChatSessionsTable extends BaseTable {
       columns.push('video_generation_options_json TEXT')
     }
 
+    if (version >= 29) {
+      columns.push('top_p REAL')
+    }
+
     if (version >= 14) {
       columns.push(
         'summary_text TEXT',
@@ -157,6 +163,9 @@ export class DeepChatSessionsTable extends BaseTable {
     }
     if (!this.hasColumn('context_length')) {
       statements.push('ALTER TABLE deepchat_sessions ADD COLUMN context_length INTEGER;')
+    }
+    if (!this.hasColumn('top_p')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN top_p REAL;')
     }
     if (!this.hasColumn('max_tokens')) {
       statements.push('ALTER TABLE deepchat_sessions ADD COLUMN max_tokens INTEGER;')
@@ -248,11 +257,14 @@ export class DeepChatSessionsTable extends BaseTable {
     if (version === 28) {
       return 'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
     }
+    if (version === 29) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN top_p REAL;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 28
+    return 29
   }
 
   private serializeImageGenerationOptions(
@@ -311,6 +323,7 @@ export class DeepChatSessionsTable extends BaseTable {
            permission_mode,
            system_prompt,
            temperature,
+           top_p,
            context_length,
            max_tokens,
            timeout_ms,
@@ -325,7 +338,7 @@ export class DeepChatSessionsTable extends BaseTable {
            summary_cursor_order_seq,
            summary_updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -334,6 +347,7 @@ export class DeepChatSessionsTable extends BaseTable {
         permissionMode,
         generationSettings?.systemPrompt ?? null,
         generationSettings?.temperature ?? null,
+        generationSettings?.topP ?? null,
         generationSettings?.contextLength ?? null,
         generationSettings?.maxTokens ?? null,
         generationSettings?.timeout ?? null,
@@ -373,6 +387,9 @@ export class DeepChatSessionsTable extends BaseTable {
     }
     if (row.temperature !== null) {
       settings.temperature = row.temperature
+    }
+    if (row.top_p !== null) {
+      settings.topP = row.top_p
     }
     if (row.context_length !== null) {
       settings.contextLength = row.context_length
@@ -431,6 +448,10 @@ export class DeepChatSessionsTable extends BaseTable {
     if (Object.prototype.hasOwnProperty.call(settings, 'temperature')) {
       updates.push('temperature = ?')
       params.push(settings.temperature ?? null)
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'topP')) {
+      updates.push('top_p = ?')
+      params.push(settings.topP ?? null)
     }
     if (Object.prototype.hasOwnProperty.call(settings, 'contextLength')) {
       updates.push('context_length = ?')

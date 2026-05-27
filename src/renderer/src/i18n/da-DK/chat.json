@@ -166,6 +166,8 @@
     "systemPromptPlaceholder": "Vælg en forudindstilling",
     "temperature": "Temperatur",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 låser temperaturen til {enabled}, når tænkning er aktiveret, og til {disabled}, når den er deaktiveret.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus-sampling; lad feltet stå tomt for at bruge udbyderens standard",
     "contextLength": "Kontekstlængde",
     "maxTokens": "Maks. tokens",
     "thinkingBudget": "Tænkebudget",
@@ -182,7 +184,8 @@
       "finiteNumber": "Skal være et endeligt tal",
       "nonNegativeInteger": "Skal være et ikke-negativt heltal",
       "contextLengthAtLeastMaxTokens": "Skal være større end eller lig med maksimumtokens",
-      "maxTokensWithinContextLength": "Skal være mindre end eller lig med kontekstlængden"
+      "maxTokensWithinContextLength": "Skal være mindre end eller lig med kontekstlængden",
+      "topPRange": "Skal være større end 0 og mindre end eller lig med 1"
     }
   },
   "workspace": {

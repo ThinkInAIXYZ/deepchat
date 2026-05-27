@@ -623,6 +623,10 @@
         "description": "Controlar la aleatoriedad de la salida. La mayoría de los modelos son 0-1 y algunos admiten entre 0-2. Los valores más altos aumentan la aleatoriedad.",
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fija la temperatura en {enabled} cuando el pensamiento está habilitado y en {disabled} cuando está deshabilitado."
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controla el muestreo núcleo. Déjalo vacío para usar el valor predeterminado del modelo o proveedor."
+      },
       "vision": {
         "label": "Habilidad visual",
         "description": "¿El modelo admite la capacidad visual?"
@@ -723,7 +727,8 @@
         "temperatureMin": "La temperatura debe ser mayor o igual a 0",
         "temperatureMax": "La temperatura debe ser menor o igual a 2",
         "timeoutMin": "El tiempo de espera de la solicitud debe ser de al menos 1000 ms.",
-        "timeoutMax": "El tiempo de espera de la solicitud no puede exceder los 3600000 ms"
+        "timeoutMax": "El tiempo de espera de la solicitud no puede exceder los 3600000 ms",
+        "topPRange": "Top P debe ser mayor que 0 y menor o igual que 1"
       },
       "endpointType": {
         "label": "Tipo de punto final",

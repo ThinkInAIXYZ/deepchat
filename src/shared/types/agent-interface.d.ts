@@ -24,6 +24,7 @@ export interface SessionCompactionState {
 export interface SessionGenerationSettings {
   systemPrompt: string
   temperature: number
+  topP?: number
   contextLength: number
   maxTokens: number
   timeout: number

@@ -623,6 +623,10 @@
         "description": "Kontrol keacakan output. Kebanyakan model mendukung 0-1, dan beberapa mendukung 0-2. Semakin tinggi nilainya, semakin acak.",
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ditetapkan ke {enabled} saat pemikiran diaktifkan, dan ditetapkan ke {disabled} saat pemikiran dimatikan."
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
+      },
       "vision": {
         "label": "kemampuan visual",
         "description": "Apakah model tersebut mendukung kemampuan visual?"
@@ -723,7 +727,8 @@
         "temperatureMin": "Suhu harus lebih besar dari atau sama dengan 0",
         "temperatureMax": "Suhu harus kurang dari atau sama dengan 2",
         "timeoutMin": "Batas waktu permintaan tidak boleh kurang dari 1000 milidetik",
-        "timeoutMax": "Batas waktu permintaan tidak boleh melebihi 3600000 milidetik"
+        "timeoutMax": "Batas waktu permintaan tidak boleh melebihi 3600000 milidetik",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "endpointType": {
         "label": "jenis protokol",

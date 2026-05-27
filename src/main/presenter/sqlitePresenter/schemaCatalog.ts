@@ -117,6 +117,7 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     repairableColumns: {
       system_prompt: 'ALTER TABLE deepchat_sessions ADD COLUMN system_prompt TEXT;',
       temperature: 'ALTER TABLE deepchat_sessions ADD COLUMN temperature REAL;',
+      top_p: 'ALTER TABLE deepchat_sessions ADD COLUMN top_p REAL;',
       context_length: 'ALTER TABLE deepchat_sessions ADD COLUMN context_length INTEGER;',
       max_tokens: 'ALTER TABLE deepchat_sessions ADD COLUMN max_tokens INTEGER;',
       thinking_budget: 'ALTER TABLE deepchat_sessions ADD COLUMN thinking_budget INTEGER;',
@@ -131,7 +132,9 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
         'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;',
       reasoning_visibility: 'ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;',
       image_generation_options_json:
-        'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
+        'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;',
+      video_generation_options_json:
+        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
     },
     typeCheckedColumns: [
       'summary_cursor_order_seq',
