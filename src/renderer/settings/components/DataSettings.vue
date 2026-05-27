@@ -496,44 +496,18 @@
               </div>
             </div>
             <AlertDialog v-model:open="isResetDialogOpen">
-              <div class="grid w-full shrink-0 gap-2 lg:w-[42rem] lg:grid-cols-3">
-                <Button
-                  variant="destructive"
-                  class="h-auto min-h-12 w-full whitespace-normal px-3 py-2"
-                  :disabled="isResetActionDisabled"
-                  :dir="languageStore.dir"
-                  @click="openResetDialog('chat')"
-                >
-                  <Icon icon="lucide:rotate-ccw" class="h-4 w-4 shrink-0" />
-                  <span class="min-w-0 text-center text-sm font-medium leading-tight">{{
-                    t('settings.data.resetChatData')
-                  }}</span>
-                </Button>
-                <Button
-                  variant="destructive"
-                  class="h-auto min-h-12 w-full whitespace-normal px-3 py-2"
-                  :disabled="isResetActionDisabled"
-                  :dir="languageStore.dir"
-                  @click="openResetDialog('knowledge')"
-                >
-                  <Icon icon="lucide:book-x" class="h-4 w-4 shrink-0" />
-                  <span class="min-w-0 text-center text-sm font-medium leading-tight">{{
-                    t('settings.data.resetKnowledgeData')
-                  }}</span>
-                </Button>
-                <Button
-                  variant="destructive"
-                  class="h-auto min-h-12 w-full whitespace-normal px-3 py-2"
-                  :disabled="isResetActionDisabled"
-                  :dir="languageStore.dir"
-                  @click="openResetDialog('all')"
-                >
-                  <Icon icon="lucide:triangle-alert" class="h-4 w-4 shrink-0" />
-                  <span class="min-w-0 text-center text-sm font-medium leading-tight">{{
-                    t('settings.data.resetAll')
-                  }}</span>
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                class="w-full shrink-0 justify-center border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive lg:w-40"
+                :disabled="isResetActionDisabled"
+                :dir="languageStore.dir"
+                data-testid="danger-zone-reset-entry"
+                aria-haspopup="dialog"
+                @click="openResetDialog"
+              >
+                <Icon icon="lucide:triangle-alert" class="h-4 w-4" />
+                <span class="text-sm font-medium">{{ t('settings.data.resetData') }}</span>
+              </Button>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>{{ t('settings.data.resetConfirmTitle') }}</AlertDialogTitle>
@@ -544,7 +518,9 @@
                 <div class="p-4">
                   <RadioGroup v-model="resetType" class="flex flex-col gap-3">
                     <div
-                      class="flex items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
+                      :class="resetType === 'chat' ? 'border-destructive/25 bg-destructive/5' : ''"
+                      data-testid="danger-zone-reset-option-chat"
                       @click="resetType = 'chat'"
                     >
                       <RadioGroupItem value="chat" id="reset-chat" class="mt-1" />
@@ -558,7 +534,11 @@
                       </div>
                     </div>
                     <div
-                      class="flex items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
+                      :class="
+                        resetType === 'knowledge' ? 'border-destructive/25 bg-destructive/5' : ''
+                      "
+                      data-testid="danger-zone-reset-option-knowledge"
                       @click="resetType = 'knowledge'"
                     >
                       <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
@@ -572,7 +552,11 @@
                       </div>
                     </div>
                     <div
-                      class="flex items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
+                      :class="
+                        resetType === 'config' ? 'border-destructive/25 bg-destructive/5' : ''
+                      "
+                      data-testid="danger-zone-reset-option-config"
                       @click="resetType = 'config'"
                     >
                       <RadioGroupItem value="config" id="reset-config" class="mt-1" />
@@ -586,7 +570,9 @@
                       </div>
                     </div>
                     <div
-                      class="flex items-start space-x-3 rounded-lg p-2 -m-2 hover:bg-accent"
+                      class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
+                      :class="resetType === 'all' ? 'border-destructive/25 bg-destructive/5' : ''"
+                      data-testid="danger-zone-reset-option-all"
                       @click="resetType = 'all'"
                     >
                       <RadioGroupItem value="all" id="reset-all" class="mt-1" />
@@ -1449,8 +1435,12 @@ const closeResetDialog = () => {
   resetType.value = 'chat'
 }
 
-const openResetDialog = (type: 'chat' | 'knowledge' | 'all') => {
-  resetType.value = type
+const openResetDialog = () => {
+  if (isResetActionDisabled.value) {
+    return
+  }
+
+  resetType.value = 'chat'
   isResetDialogOpen.value = true
 }
 
