@@ -367,6 +367,43 @@ describe('AI SDK runtime', () => {
     expect(request).not.toHaveProperty('providerOptions')
   })
 
+  it('uses normal chat streaming for non-TTS MiMo Pro models', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'xiaomimimo',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key'
+      },
+      configPresenter: {},
+      defaultHeaders: {}
+    } as any
+
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'hello mimo' }],
+      'mimo-v2.5-pro',
+      {
+        apiEndpoint: 'chat',
+        functionCall: false
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      events.push(event)
+    }
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockStreamText).toHaveBeenCalledTimes(1)
+    expect(events).toEqual([])
+  })
+
   it('includes an assistant role message for chat-audio TTS requests', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -448,6 +485,141 @@ describe('AI SDK runtime', () => {
         stop_reason: 'complete'
       }
     ])
+  })
+
+  it('extracts chat-audio TTS data from content audio parts', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: [
+                  { type: 'text', text: 'ok' },
+                  {
+                    type: 'audio',
+                    audio: {
+                      data: 'ZmFrZS1hdWRpby1wYXJ0'
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'xiaomimimo',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseTts: () => true
+    } as any
+
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'hello tts' }],
+      'mimo-v2.5-tts',
+      {
+        apiEndpoint: 'chat',
+        tts: {
+          responseFormat: 'wav'
+        }
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      events.push(event)
+    }
+
+    expect(events).toEqual([
+      {
+        type: 'image_data',
+        image_data: {
+          data: 'cached://image',
+          mimeType: 'audio/wav'
+        }
+      },
+      {
+        type: 'stop',
+        stop_reason: 'complete'
+      }
+    ])
+  })
+
+  it('fails cleanly when chat-audio TTS content is text without audio data', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: 'plain text response without audio'
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'xiaomimimo',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseTts: () => true
+    } as any
+
+    const drainStream = async () => {
+      for await (const _event of runAiSdkCoreStream(
+        context,
+        [{ role: 'user', content: 'hello tts' }],
+        'mimo-v2.5-tts',
+        {
+          apiEndpoint: 'chat',
+          tts: {
+            responseFormat: 'wav'
+          }
+        } as any,
+        0.7,
+        1024,
+        []
+      )) {
+        // Drain stream.
+      }
+    }
+
+    await expect(drainStream()).rejects.toThrow(
+      'TTS response missing audio data in choices[0].message.audio.data'
+    )
   })
 
   it('uses Gemini generateContent compatibility mode for AIHubMix Gemini TTS models', async () => {

@@ -403,6 +403,22 @@ function extractTtsText(messages: ChatMessage[]): string {
   return ''
 }
 
+function extractChatAudioContentData(content: unknown): string | undefined {
+  if (!Array.isArray(content)) {
+    return undefined
+  }
+
+  const audioPart = content.find(
+    (item) => item && typeof item === 'object' && 'type' in item && item.type === 'audio'
+  )
+  const audioData =
+    audioPart && typeof audioPart === 'object' && 'audio' in audioPart
+      ? (audioPart.audio as { data?: unknown } | undefined)?.data
+      : undefined
+
+  return typeof audioData === 'string' && audioData ? audioData : undefined
+}
+
 /**
  * Pattern A: calls the standard OpenAI-compatible /audio/speech endpoint.
  */
@@ -521,15 +537,15 @@ async function executeTtsPatternB(
     const json = (await response.json()) as {
       choices?: Array<{
         message?: {
-          audio?: { data?: string }
-          content?: Array<{ type?: string; audio?: { data?: string } }>
+          audio?: { data?: unknown }
+          content?: unknown
         }
       }>
     }
     const firstMessage = json.choices?.[0]?.message
-    const audioData =
-      firstMessage?.audio?.data ??
-      firstMessage?.content?.find((item) => item?.type === 'audio')?.audio?.data
+    const directAudioData =
+      typeof firstMessage?.audio?.data === 'string' ? firstMessage.audio.data : undefined
+    const audioData = directAudioData ?? extractChatAudioContentData(firstMessage?.content)
     if (!audioData) {
       throw new Error('TTS response missing audio data in choices[0].message.audio.data')
     }
