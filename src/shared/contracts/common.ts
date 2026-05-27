@@ -130,6 +130,7 @@ export const DeepChatSubagentMetaSchema = z
 export const SessionGenerationSettingsSchema = z.object({
   systemPrompt: z.string(),
   temperature: z.number(),
+  topP: z.number().gt(0).lte(1).optional(),
   contextLength: z.number().int(),
   maxTokens: z.number().int(),
   timeout: z.number().int(),

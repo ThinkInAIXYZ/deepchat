@@ -3,6 +3,7 @@ import type { SessionGenerationSettings } from '../types/agent-interface'
 
 export type GenerationNumericField =
   | 'temperature'
+  | 'topP'
   | 'contextLength'
   | 'maxTokens'
   | 'timeout'
@@ -15,6 +16,7 @@ export type GenerationNumericValidationCode =
   | 'max_tokens_exceed_context_length'
   | 'timeout_too_small'
   | 'timeout_too_large'
+  | 'top_p_out_of_range'
 
 type GenerationRelationContext = Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'>
 
@@ -56,6 +58,13 @@ export const validateGenerationNumericField = (
 
   if (field === 'temperature') {
     return numeric === undefined ? 'finite_number' : null
+  }
+
+  if (field === 'topP') {
+    if (numeric === undefined) {
+      return 'finite_number'
+    }
+    return numeric > 0 && numeric <= 1 ? null : 'top_p_out_of_range'
   }
 
   if (!isNonNegativeInteger(numeric)) {

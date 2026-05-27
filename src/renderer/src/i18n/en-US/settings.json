@@ -687,6 +687,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
         "label": "Temperature"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
+      },
       "title": "Custom model parameters",
       "type": {
         "description": "Select the type of model",
@@ -710,7 +714,8 @@
         "temperatureMin": "The temperature must be greater than or equal to 0",
         "temperatureRequired": "The temperature cannot be empty",
         "timeoutMin": "Request timeout must be at least 1000ms",
-        "timeoutMax": "Request timeout cannot exceed 3600000ms"
+        "timeoutMax": "Request timeout cannot exceed 3600000ms",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "vision": {
         "description": "Does the model support visual ability?",

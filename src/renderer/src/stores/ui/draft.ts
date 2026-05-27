@@ -27,6 +27,7 @@ export const useDraftStore = defineStore('draft', () => {
   const agentId = ref<string>('deepchat')
   const systemPrompt = ref<string | undefined>(undefined)
   const temperature = ref<number | undefined>(undefined)
+  const topP = ref<number | undefined>(undefined)
   const contextLength = ref<number | undefined>(undefined)
   const maxTokens = ref<number | undefined>(undefined)
   const timeout = ref<number | undefined>(undefined)
@@ -68,6 +69,7 @@ export const useDraftStore = defineStore('draft', () => {
 
     if (systemPrompt.value !== undefined) settings.systemPrompt = systemPrompt.value
     if (temperature.value !== undefined) settings.temperature = temperature.value
+    if (topP.value !== undefined) settings.topP = topP.value
     if (contextLength.value !== undefined) settings.contextLength = contextLength.value
     if (maxTokens.value !== undefined) settings.maxTokens = maxTokens.value
     if (timeout.value !== undefined) settings.timeout = timeout.value
@@ -113,6 +115,9 @@ export const useDraftStore = defineStore('draft', () => {
     if (Object.prototype.hasOwnProperty.call(settings, 'temperature')) {
       temperature.value = settings.temperature
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'topP')) {
+      topP.value = settings.topP
+    }
     if (Object.prototype.hasOwnProperty.call(settings, 'contextLength')) {
       contextLength.value = settings.contextLength
     }
@@ -148,6 +153,7 @@ export const useDraftStore = defineStore('draft', () => {
   function resetGenerationSettings(): void {
     systemPrompt.value = undefined
     temperature.value = undefined
+    topP.value = undefined
     contextLength.value = undefined
     maxTokens.value = undefined
     timeout.value = undefined
@@ -193,6 +199,7 @@ export const useDraftStore = defineStore('draft', () => {
     agentId,
     systemPrompt,
     temperature,
+    topP,
     contextLength,
     maxTokens,
     timeout,

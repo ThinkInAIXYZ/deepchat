@@ -623,6 +623,10 @@
         "description": "控制输出的随机性，大部分模型0-1，部分支持0-2之间，越高越随机",
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在开启思考时固定为 {enabled}，关闭思考时固定为 {disabled}。"
       },
+      "topP": {
+        "label": "Top P（核采样）",
+        "description": "控制核采样范围。留空使用模型或服务商默认值。"
+      },
       "vision": {
         "label": "视觉能力",
         "description": "模型是否支持视觉能力"
@@ -723,7 +727,8 @@
         "temperatureMin": "温度必须大于等于0",
         "temperatureMax": "温度必须小于等于2",
         "timeoutMin": "请求超时时间不能小于1000毫秒",
-        "timeoutMax": "请求超时时间不能超过3600000毫秒"
+        "timeoutMax": "请求超时时间不能超过3600000毫秒",
+        "topPRange": "Top P 必须大于 0 且小于或等于 1"
       },
       "endpointType": {
         "label": "协议类型",

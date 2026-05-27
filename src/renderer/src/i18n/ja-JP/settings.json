@@ -624,6 +624,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 は、思考を有効にすると温度が {enabled} に固定され、無効にすると {disabled} に固定されます。",
         "label": "温度"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "核サンプリングを制御します。空欄でモデルまたはプロバイダーの既定値を使用します。"
+      },
       "title": "カスタムモデルパラメーター",
       "type": {
         "description": "モデルのタイプを選択します",
@@ -647,7 +651,8 @@
         "temperatureMin": "温度は0以上でなければなりません",
         "temperatureRequired": "温度を空にすることはできません",
         "timeoutMin": "タイムアウトは最低1000msでなければなりません",
-        "timeoutMax": "タイムアウトは3600000msを超えることはできません"
+        "timeoutMax": "タイムアウトは3600000msを超えることはできません",
+        "topPRange": "Top P は 0 より大きく 1 以下である必要があります"
       },
       "vision": {
         "description": "モデルは視覚能力をサポートしていますか？",

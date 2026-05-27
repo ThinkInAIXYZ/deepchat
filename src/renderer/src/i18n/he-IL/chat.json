@@ -166,6 +166,8 @@
     "systemPromptPlaceholder": "בחר תבנית",
     "temperature": "טמפרטורה",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 מקבע את הטמפרטורה ל-{enabled} כשהחשיבה מופעלת ול-{disabled} כשהיא כבויה.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "אורך הקשר",
     "maxTokens": "מקסימום טוקנים",
     "thinkingBudget": "תקציב חשיבה",
@@ -182,7 +184,8 @@
       "finiteNumber": "חייב להיות מספר סופי",
       "nonNegativeInteger": "חייב להיות מספר שלם לא שלילי",
       "contextLengthAtLeastMaxTokens": "חייב להיות גדול או שווה למספר הטוקנים המרבי",
-      "maxTokensWithinContextLength": "חייב להיות קטן או שווה לאורך ההקשר"
+      "maxTokensWithinContextLength": "חייב להיות קטן או שווה לאורך ההקשר",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
     }
   },
   "workspace": {

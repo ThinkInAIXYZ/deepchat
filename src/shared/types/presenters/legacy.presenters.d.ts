@@ -161,6 +161,7 @@ export interface ModelConfig {
   contextLength: number
   timeout?: number
   temperature?: number
+  topP?: number
   vision: boolean
   speechRecognition?: boolean
   functionCall: boolean

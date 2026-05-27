@@ -1178,7 +1178,8 @@ export async function runAiSdkGenerateText(
     maxOutputTokens: maxTokens,
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
-      : {})
+      : {}),
+    ...(normalizedModelConfig.topP !== undefined ? { topP: normalizedModelConfig.topP } : {})
   }
 
   await context.emitRequestTrace?.(normalizedModelConfig, {
@@ -1195,6 +1196,7 @@ export async function runAiSdkGenerateText(
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),
+    ...(normalizedModelConfig.topP !== undefined ? { topP: normalizedModelConfig.topP } : {}),
     maxOutputTokens: maxTokens
   })
 
@@ -1380,6 +1382,7 @@ export async function* runAiSdkCoreStream(
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),
+    ...(normalizedModelConfig.topP !== undefined ? { topP: normalizedModelConfig.topP } : {}),
     tools: tools.map((tool) => tool.function.name)
   }
 
@@ -1398,6 +1401,7 @@ export async function* runAiSdkCoreStream(
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),
+    ...(normalizedModelConfig.topP !== undefined ? { topP: normalizedModelConfig.topP } : {}),
     maxOutputTokens: maxTokens
   })
 

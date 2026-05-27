@@ -687,6 +687,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ustala temperaturę na {enabled}, gdy myślenie jest włączone, i {disabled}, gdy jest wyłączone.",
         "label": "Temperatura"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
+      },
       "title": "Niestandardowe parametry modelu",
       "type": {
         "description": "Wybierz typ modelu",
@@ -710,7 +714,8 @@
         "temperatureMin": "Temperatura musi być większa lub równa 0",
         "temperatureRequired": "Temperatura nie może być pusta",
         "timeoutMin": "Limit czasu żądania musi wynosić co najmniej 1000 ms",
-        "timeoutMax": "Limit czasu żądania nie może przekroczyć 3600000 ms"
+        "timeoutMax": "Limit czasu żądania nie może przekroczyć 3600000 ms",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "vision": {
         "description": "Czy model obsługuje zdolności wizualne?",

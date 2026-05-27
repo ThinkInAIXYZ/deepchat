@@ -557,6 +557,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 låser temperaturen til {enabled}, når tænkning er aktiveret, og til {disabled}, når den er deaktiveret.",
         "label": "Temperatur"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Styrer nucleus-sampling. Lad feltet stå tomt for at bruge model- eller udbyderstandarden."
+      },
       "title": "Brugerdefinerede modelparametre",
       "type": {
         "description": "Vælg modeltype",
@@ -580,7 +584,8 @@
         "temperatureMin": "Temperaturen skal være større end eller lig 0",
         "temperatureRequired": "Temperaturen må ikke være tom",
         "timeoutMin": "Tidsgrænsen for anmodning skal være mindst 1000ms",
-        "timeoutMax": "Tidsgrænsen for anmodning må ikke overstige 3600000ms"
+        "timeoutMax": "Tidsgrænsen for anmodning må ikke overstige 3600000ms",
+        "topPRange": "Top P skal være større end 0 og mindre end eller lig med 1"
       },
       "vision": {
         "description": "Understøtter modellen visuelle funktioner?",

@@ -177,6 +177,8 @@
     "systemPromptPlaceholder": "Seleziona preset",
     "temperature": "Temperatura",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 usa {enabled} quando il ragionamento è attivo e {disabled} quando è disattivo.",
+    "topP": "Top P",
+    "topPDescription": "Campionamento nucleus; lascia vuoto per usare il valore predefinito del provider",
     "contextLength": "Lunghezza contesto",
     "maxTokens": "Output massimo",
     "thinkingBudget": "Budget ragionamento",
@@ -193,7 +195,8 @@
       "finiteNumber": "Deve essere un numero finito",
       "nonNegativeInteger": "Deve essere un intero non negativo",
       "contextLengthAtLeastMaxTokens": "Deve essere maggiore o uguale all'output massimo",
-      "maxTokensWithinContextLength": "Deve essere minore o uguale alla lunghezza contesto"
+      "maxTokensWithinContextLength": "Deve essere minore o uguale alla lunghezza contesto",
+      "topPRange": "Deve essere maggiore di 0 e minore o uguale a 1"
     }
   },
   "modelPicker": {

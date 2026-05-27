@@ -166,6 +166,8 @@
     "systemPromptPlaceholder": "프리셋 선택",
     "temperature": "온도",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6은 생각이 활성화되면 온도를 {enabled}로, 비활성화되면 {disabled}로 고정합니다.",
+    "topP": "Top P",
+    "topPDescription": "핵 샘플링입니다. 비워 두면 제공업체 기본값을 사용합니다",
     "contextLength": "컨텍스트 길이",
     "maxTokens": "최대 토큰",
     "thinkingBudget": "사고 예산",
@@ -182,7 +184,8 @@
       "finiteNumber": "유한한 숫자여야 합니다",
       "nonNegativeInteger": "0 이상의 정수여야 합니다",
       "contextLengthAtLeastMaxTokens": "최대 출력 이상이어야 합니다",
-      "maxTokensWithinContextLength": "컨텍스트 길이 이하여야 합니다"
+      "maxTokensWithinContextLength": "컨텍스트 길이 이하여야 합니다",
+      "topPRange": "0보다 크고 1 이하여야 합니다"
     }
   },
   "workspace": {

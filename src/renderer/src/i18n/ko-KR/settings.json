@@ -624,6 +624,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6은 생각이 활성화되면 온도를 {enabled}로, 비활성화되면 {disabled}로 고정합니다.",
         "label": "온도"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "핵 샘플링 범위를 제어합니다. 비워 두면 모델 또는 제공업체 기본값을 사용합니다."
+      },
       "title": "사용자 정의 모델 매개 변수",
       "type": {
         "description": "모델 유형을 선택하십시오",
@@ -647,7 +651,8 @@
         "temperatureMin": "온도는 0보다 크거나 같아야합니다.",
         "temperatureRequired": "온도는 비어있을 수 없습니다",
         "timeoutMin": "요청 시간 초과는 최소 1000ms여야 합니다",
-        "timeoutMax": "요청 시간 초과는 3600000ms를 초과할 수 없습니다"
+        "timeoutMax": "요청 시간 초과는 3600000ms를 초과할 수 없습니다",
+        "topPRange": "Top P는 0보다 크고 1 이하여야 합니다"
       },
       "vision": {
         "description": "모델이 시각적 능력을 지원합니까?",

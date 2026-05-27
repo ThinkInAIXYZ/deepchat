@@ -166,6 +166,8 @@
     "systemPromptPlaceholder": "プリセットを選択",
     "temperature": "温度",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 は、思考を有効にすると温度が {enabled} に固定され、無効にすると {disabled} に固定されます。",
+    "topP": "Top P",
+    "topPDescription": "核サンプリング。空欄でプロバイダーの既定値を使用",
     "contextLength": "コンテキスト長",
     "maxTokens": "最大トークン",
     "thinkingBudget": "思考予算",
@@ -182,7 +184,8 @@
       "finiteNumber": "有限の数値である必要があります",
       "nonNegativeInteger": "0以上の整数である必要があります",
       "contextLengthAtLeastMaxTokens": "最大トークン数以上である必要があります",
-      "maxTokensWithinContextLength": "コンテキスト長以下である必要があります"
+      "maxTokensWithinContextLength": "コンテキスト長以下である必要があります",
+      "topPRange": "0 より大きく 1 以下である必要があります"
     }
   },
   "workspace": {

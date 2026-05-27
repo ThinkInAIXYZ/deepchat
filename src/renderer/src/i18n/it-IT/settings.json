@@ -623,6 +623,10 @@
         "description": "Controlla la casualità dell'output. La maggior parte dei modelli usa 0-1, alcuni supportano 0-2; più alto significa più casuale",
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 usa {enabled} quando il ragionamento è attivo e {disabled} quando è disattivo."
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controlla il campionamento nucleus. Lascia vuoto per usare il valore predefinito del modello o del provider."
+      },
       "vision": {
         "label": "Capacità visiva",
         "description": "Indica se il modello supporta capacità visive"
@@ -723,7 +727,8 @@
         "temperatureMin": "La temperatura deve essere maggiore o uguale a 0",
         "temperatureMax": "La temperatura deve essere minore o uguale a 2",
         "timeoutMin": "Il timeout richiesta non può essere inferiore a 1000 millisecondi",
-        "timeoutMax": "Il timeout richiesta non può superare 3600000 millisecondi"
+        "timeoutMax": "Il timeout richiesta non può superare 3600000 millisecondi",
+        "topPRange": "Top P deve essere maggiore di 0 e minore o uguale a 1"
       },
       "endpointType": {
         "label": "Tipo protocollo",

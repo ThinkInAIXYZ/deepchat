@@ -177,6 +177,8 @@
     "systemPromptPlaceholder": "Pilih pratetap",
     "temperature": "suhu",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ditetapkan pada {enabled} apabila pemikiran dihidupkan dan {disabled} apabila pemikiran dimatikan.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "panjang konteks",
     "maxTokens": "keluaran maksimum",
     "thinkingBudget": "Fikirkan tentang bajet",
@@ -193,7 +195,8 @@
       "finiteNumber": "Mesti nombor terhingga",
       "nonNegativeInteger": "Mestilah integer bukan negatif",
       "contextLengthAtLeastMaxTokens": "Mesti lebih besar daripada atau sama dengan keluaran maksimum",
-      "maxTokensWithinContextLength": "Mesti kurang daripada atau sama dengan panjang konteks"
+      "maxTokensWithinContextLength": "Mesti kurang daripada atau sama dengan panjang konteks",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
     }
   },
   "modelPicker": {

@@ -281,6 +281,8 @@ declare module 'vue-i18n' {
       systemPromptPlaceholder: string
       temperature: string
       temperatureFixedMoonshotKimi: string
+      topP: string
+      topPDescription: string
       contextLength: string
       maxTokens: string
       thinkingBudget: string
@@ -298,6 +300,7 @@ declare module 'vue-i18n' {
         nonNegativeInteger: string
         contextLengthAtLeastMaxTokens: string
         maxTokensWithinContextLength: string
+        topPRange: string
       }
     }
     modelPicker: {

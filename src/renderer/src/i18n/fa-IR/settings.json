@@ -624,6 +624,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 وقتی تفکر فعال باشد دما را روی {enabled} و وقتی غیرفعال باشد روی {disabled} ثابت نگه می‌دارد.",
         "label": "درجه حرارت"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
+      },
       "title": "پارامترهای مدل سفارشی",
       "type": {
         "description": "نوع مدل را انتخاب کنید",
@@ -647,7 +651,8 @@
         "temperatureMin": "دما باید بیشتر یا برابر با 0 باشد",
         "temperatureRequired": "درجه حرارت نمی تواند خالی باشد",
         "timeoutMin": "تایم‌اوت باید حداقل 1000ms باشد",
-        "timeoutMax": "تایم‌اوت نمی‌تواند از 3600000ms بیشتر باشد"
+        "timeoutMax": "تایم‌اوت نمی‌تواند از 3600000ms بیشتر باشد",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "vision": {
         "description": "آیا مدل از توانایی بصری پشتیبانی می کند؟",

@@ -154,6 +154,11 @@ type PackageJsonManifest = {
   scripts?: Record<string, unknown>
 }
 
+function normalizeTopP(value: unknown): number | undefined {
+  const numeric = parseFiniteNumericValue(value)
+  return numeric !== undefined && numeric > 0 && numeric <= 1 ? numeric : undefined
+}
+
 function readPackageJsonManifest(workdir: string): PackageJsonManifest | null {
   try {
     const packageJsonPath = path.join(workdir, 'package.json')
@@ -202,6 +207,7 @@ type PersistedSessionGenerationRow = {
   permission_mode: PermissionMode
   system_prompt: string | null
   temperature: number | null
+  top_p: number | null
   context_length: number | null
   max_tokens: number | null
   timeout_ms: number | null
@@ -1237,7 +1243,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!state && !dbSession) {
       throw new Error(`Session ${sessionId} not found`)
     }
-
     const providerId = state?.providerId ?? dbSession?.provider_id
     const modelId = state?.modelId ?? dbSession?.model_id
     if (!providerId || !modelId) {
@@ -1987,6 +1992,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const modelConfig: ModelConfig = {
       ...baseModelConfig,
       temperature: generationSettings.temperature,
+      topP: generationSettings.topP,
       contextLength: generationSettings.contextLength,
       maxTokens: capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength),
       timeout: generationSettings.timeout,
@@ -3328,6 +3334,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (sessionRow.temperature !== null) {
       patch.temperature = sessionRow.temperature
     }
+    if (sessionRow.top_p !== null) {
+      patch.topP = sessionRow.top_p
+    }
     if (sessionRow.context_length !== null) {
       patch.contextLength = sessionRow.context_length
     }
@@ -3375,6 +3384,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (Object.prototype.hasOwnProperty.call(requestedPatch, 'temperature')) {
       patch.temperature = sanitized.temperature
     }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'topP')) {
+      patch.topP = sanitized.topP
+    }
     if (Object.prototype.hasOwnProperty.call(requestedPatch, 'contextLength')) {
       patch.contextLength = sanitized.contextLength
     }
@@ -3402,6 +3414,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (Object.prototype.hasOwnProperty.call(requestedPatch, 'imageGeneration')) {
       patch.imageGeneration = sanitized.imageGeneration
     }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'videoGeneration')) {
+      patch.videoGeneration = sanitized.videoGeneration
+    }
 
     return patch
   }
@@ -3412,6 +3427,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return {
       systemPrompt: settings.systemPrompt,
       temperature: settings.temperature,
+      topP: settings.topP,
       contextLength: settings.contextLength,
       maxTokens: settings.maxTokens,
       timeout: settings.timeout,
@@ -3420,7 +3436,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       reasoningVisibility: settings.reasoningVisibility,
       verbosity: settings.verbosity,
       forceInterleavedThinkingCompat: settings.forceInterleavedThinkingCompat,
-      imageGeneration: settings.imageGeneration
+      imageGeneration: settings.imageGeneration,
+      videoGeneration: settings.videoGeneration
     }
   }
 
@@ -3466,6 +3483,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         fixedTemperatureKimi?.temperature ??
         parseFiniteNumericValue(modelConfig.temperature) ??
         0.7,
+      topP: normalizeTopP(modelConfig.topP),
       contextLength: contextLengthDefault,
       timeout:
         timeoutDefault >= MODEL_TIMEOUT_MIN_MS && timeoutDefault <= MODEL_TIMEOUT_MAX_MS
@@ -3604,6 +3622,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const numeric = parseFiniteNumericValue(patch.temperature)
       if (numeric !== undefined) {
         next.temperature = numeric
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'topP')) {
+      const normalizedTopP = normalizeTopP(patch.topP)
+      if (normalizedTopP !== undefined) {
+        next.topP = normalizedTopP
+      } else {
+        delete next.topP
       }
     }
 

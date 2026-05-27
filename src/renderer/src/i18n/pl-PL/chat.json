@@ -177,6 +177,8 @@
     "systemPromptPlaceholder": "Wybierz ustawienie wstępne",
     "temperature": "Temperatura",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ustala temperaturę na {enabled}, gdy myślenie jest włączone, i {disabled}, gdy jest wyłączone.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "Długość kontekstu",
     "maxTokens": "Maks. Tokens",
     "thinkingBudget": "Myślący budżet",
@@ -193,7 +195,8 @@
       "finiteNumber": "Musi to być liczba skończona",
       "nonNegativeInteger": "Musi być nieujemną liczbą całkowitą",
       "contextLengthAtLeastMaxTokens": "Musi być większy lub równy Max Tokens",
-      "maxTokensWithinContextLength": "Musi być mniejsza lub równa Długość kontekstu"
+      "maxTokensWithinContextLength": "Musi być mniejsza lub równa Długość kontekstu",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
     }
   },
   "modelPicker": {

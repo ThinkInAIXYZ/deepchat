@@ -624,6 +624,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在開啟思考時固定為 {enabled}，關閉思考時固定為 {disabled}。",
         "label": "溫度"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
+      },
       "title": "自定義模型參數",
       "type": {
         "description": "選擇模型的類型",
@@ -647,7 +651,8 @@
         "temperatureMin": "溫度必須大於等於0",
         "temperatureRequired": "溫度不能為空",
         "timeoutMin": "請求逾時時間不能小於1000毫秒",
-        "timeoutMax": "請求逾時時間不能超過3600000毫秒"
+        "timeoutMax": "請求逾時時間不能超過3600000毫秒",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "vision": {
         "description": "模型是否支持視覺能力",

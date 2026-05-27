@@ -177,6 +177,8 @@
     "systemPromptPlaceholder": "Seleccionar preajuste",
     "temperature": "Temperatura",
     "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fija la temperatura en {enabled} cuando el razonamiento está activado y en {disabled} cuando está desactivado.",
+    "topP": "Top P",
+    "topPDescription": "Muestreo núcleo; déjalo vacío para usar el valor predeterminado del proveedor",
     "contextLength": "Longitud del contexto",
     "maxTokens": "Tokens máximos",
     "thinkingBudget": "Presupuesto de razonamiento",
@@ -193,7 +195,8 @@
       "finiteNumber": "Debe ser un número finito",
       "nonNegativeInteger": "Debe ser un número entero no negativo",
       "contextLengthAtLeastMaxTokens": "Debe ser mayor o igual que Tokens máximos",
-      "maxTokensWithinContextLength": "Debe ser menor o igual que la longitud del contexto"
+      "maxTokensWithinContextLength": "Debe ser menor o igual que la longitud del contexto",
+      "topPRange": "Debe ser mayor que 0 y menor o igual que 1"
     }
   },
   "modelPicker": {

@@ -623,6 +623,10 @@
         "description": "Kawal rawak keluaran. Kebanyakan model menyokong 0-1, dan beberapa menyokong 0-2. Semakin tinggi nilai, semakin rawak.",
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ditetapkan pada {enabled} apabila pemikiran dihidupkan dan {disabled} apabila pemikiran dimatikan."
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
+      },
       "vision": {
         "label": "keupayaan visual",
         "description": "Adakah model menyokong keupayaan visual?"
@@ -723,7 +727,8 @@
         "temperatureMin": "Suhu mestilah lebih besar daripada atau sama dengan 0",
         "temperatureMax": "Suhu mestilah kurang daripada atau sama dengan 2",
         "timeoutMin": "Tamat masa permintaan tidak boleh kurang daripada 1000 milisaat",
-        "timeoutMax": "Tamat masa permintaan tidak boleh melebihi 3600000 milisaat"
+        "timeoutMax": "Tamat masa permintaan tidak boleh melebihi 3600000 milisaat",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "endpointType": {
         "label": "jenis protokol",

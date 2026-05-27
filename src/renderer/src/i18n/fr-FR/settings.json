@@ -624,6 +624,10 @@
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixe la température à {enabled} lorsque la réflexion est activée et à {disabled} lorsqu’elle est désactivée.",
         "label": "Température"
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Contrôle l’échantillonnage nucleus. Laissez vide pour utiliser la valeur par défaut du modèle ou du fournisseur."
+      },
       "title": "Paramètres du modèle personnalisé",
       "type": {
         "description": "Sélectionnez le type de modèle",
@@ -647,7 +651,8 @@
         "temperatureMin": "La température doit être supérieure ou égale à 0",
         "temperatureRequired": "La température ne peut pas être vide",
         "timeoutMin": "Le délai d'attente doit être d'au moins 1000ms",
-        "timeoutMax": "Le délai d'attente ne peut pas dépasser 3600000ms"
+        "timeoutMax": "Le délai d'attente ne peut pas dépasser 3600000ms",
+        "topPRange": "Top P doit être supérieur à 0 et inférieur ou égal à 1"
       },
       "vision": {
         "description": "Le modèle soutient-il la capacité visuelle?",

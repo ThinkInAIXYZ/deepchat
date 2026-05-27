@@ -158,6 +158,26 @@
             </p>
           </div>
 
+          <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-2">
+            <Label for="topP">{{ t('settings.model.modelConfig.topP.label') }}</Label>
+            <Input
+              id="topP"
+              v-model="topPDraft"
+              type="number"
+              step="0.01"
+              :min="0.01"
+              :max="1"
+              :placeholder="t('settings.model.modelConfig.useModelDefault')"
+              :class="{ 'border-destructive': errors.topP }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.topP.description') }}
+            </p>
+            <p v-if="errors.topP" class="text-xs text-destructive">
+              {{ errors.topP }}
+            </p>
+          </div>
+
           <!-- 模型类型 -->
           <div
             v-if="!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls"
@@ -683,6 +703,7 @@ const createDefaultConfig = (): ModelConfig => ({
   contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
   timeout: DEFAULT_MODEL_TIMEOUT,
   temperature: 0.7,
+  topP: undefined,
   vision: DEFAULT_MODEL_VISION,
   speechRecognition: DEFAULT_MODEL_SPEECH_RECOGNITION,
   functionCall: DEFAULT_MODEL_FUNCTION_CALL,
@@ -700,6 +721,7 @@ const DEFAULT_VERBOSITY_OPTIONS: Array<'low' | 'medium' | 'high'> = ['low', 'med
 
 // 配置数据
 const config = ref<ModelConfig>(createDefaultConfig())
+const topPDraft = ref('')
 const modelNameField = ref(props.modelName ?? '')
 const modelIdField = ref(props.modelId ?? '')
 const originalModelId = ref(props.modelId ?? '')
@@ -748,6 +770,19 @@ const showOpenAIMediaGenerationRouteControls = computed(
   () => showOpenAIImageGenerationRouteControls.value || showOpenAIVideoGenerationRouteControls.value
 )
 const showTtsSettings = computed(() => config.value.type === ModelType.TTS)
+
+const syncTopPDraftFromConfig = () => {
+  topPDraft.value = typeof config.value.topP === 'number' ? String(config.value.topP) : ''
+}
+
+const parseTopPDraft = (): number | undefined => {
+  const raw = topPDraft.value.trim()
+  if (!raw) {
+    return undefined
+  }
+
+  return Number(raw)
+}
 
 // 重置确认对话框
 const showResetConfirm = ref(false)
@@ -1128,6 +1163,7 @@ const loadConfig = async () => {
 
   if (isCreateMode.value) {
     config.value = createDefaultConfig()
+    syncTopPDraftFromConfig()
     syncNewApiDerivedFields()
     await fetchCapabilities()
     return
@@ -1137,7 +1173,8 @@ const loadConfig = async () => {
 
   try {
     const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
-    config.value = { ...modelConfig }
+    config.value = { ...createDefaultConfig(), ...modelConfig }
+    syncTopPDraftFromConfig()
 
     if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
       config.value.endpointType =
@@ -1160,6 +1197,7 @@ const loadConfig = async () => {
   } catch (error) {
     console.error('Failed to load model config:', error)
     config.value = createDefaultConfig()
+    syncTopPDraftFromConfig()
   }
 
   await fetchCapabilities()
@@ -1275,6 +1313,18 @@ const validateForm = () => {
     }
   }
 
+  if (!showOpenAIMediaGenerationSettings.value) {
+    const parsedTopP = parseTopPDraft()
+    config.value.topP = parsedTopP
+    if (parsedTopP !== undefined) {
+      if (!Number.isFinite(parsedTopP)) {
+        errors.value.topP = t('chat.advancedSettings.validation.finiteNumber')
+      } else if (parsedTopP <= 0 || parsedTopP > 1) {
+        errors.value.topP = t('settings.model.modelConfig.validation.topPRange')
+      }
+    }
+  }
+
   if (config.value.timeout !== undefined && config.value.timeout !== null) {
     const timeout = Number(config.value.timeout)
     if (!Number.isFinite(timeout) || timeout < MODEL_TIMEOUT_MIN_MS) {
@@ -1308,9 +1358,17 @@ const handleSave = async () => {
   const timeout = Number(config.value.timeout)
   const normalizedTimeout =
     Number.isFinite(timeout) && timeout > 0 ? Math.round(timeout) : undefined
+  const parsedTopP = parseTopPDraft()
   const configToSave: ModelConfig = {
     ...config.value,
     ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
+    topP:
+      typeof parsedTopP === 'number' &&
+      Number.isFinite(parsedTopP) &&
+      parsedTopP > 0 &&
+      parsedTopP <= 1
+        ? parsedTopP
+        : undefined,
     imageGeneration: showOpenAIImageGenerationSettings.value
       ? normalizeImageGenerationOptions(config.value.imageGeneration)
       : undefined,
@@ -1384,6 +1442,7 @@ const confirmReset = async () => {
   try {
     if (isCreateMode.value) {
       config.value = createDefaultConfig()
+      syncTopPDraftFromConfig()
       modelNameField.value = ''
       modelIdField.value = ''
       showResetConfirm.value = false

@@ -623,6 +623,10 @@
         "description": "Çıktının rastgeleliğini kontrol edin. Çoğu model 0-1'dir ve bazıları 0-2 arasındadır. Daha yüksek değerler rastgeleliği artırır.",
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6, düşünme etkinleştirildiğinde sıcaklığı {enabled}'ye ve devre dışı bırakıldığında {disabled}'ye sabitler."
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Nucleus örneklemeyi kontrol eder. Model veya sağlayıcı varsayılanını kullanmak için boş bırakın."
+      },
       "vision": {
         "label": "Görsel yetenek",
         "description": "Model görsel yeteneği destekliyor mu?"
@@ -723,7 +727,8 @@
         "temperatureMin": "Sıcaklık 0'dan büyük veya ona eşit olmalıdır",
         "temperatureMax": "Sıcaklık 2'ye eşit veya daha az olmalıdır",
         "timeoutMin": "İstek zaman aşımı en az 1000 ms olmalıdır",
-        "timeoutMax": "İstek zaman aşımı 3600000 ms'yi aşamaz"
+        "timeoutMax": "İstek zaman aşımı 3600000 ms'yi aşamaz",
+        "topPRange": "Top P 0’dan büyük ve 1’e eşit ya da küçük olmalıdır"
       },
       "endpointType": {
         "label": "Uç Nokta Türü",

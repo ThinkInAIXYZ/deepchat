@@ -623,6 +623,10 @@
         "description": "Steuert die Zufälligkeit der Ausgabe. Die meisten Modelle nutzen 0-1, manche unterstützen 0-2; je höher, desto zufälliger.",
         "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ist bei aktiviertem Denken fest auf {enabled} und bei deaktiviertem Denken fest auf {disabled} gesetzt."
       },
+      "topP": {
+        "label": "Top P",
+        "description": "Steuert Nucleus Sampling. Leer lassen, um den Modell- oder Anbieterstandard zu verwenden."
+      },
       "vision": {
         "label": "Vision-Fähigkeit",
         "description": "Ob das Modell Vision-Funktionen unterstützt"
@@ -723,7 +727,8 @@
         "temperatureMin": "Temperatur muss größer oder gleich 0 sein",
         "temperatureMax": "Temperatur muss kleiner oder gleich 2 sein",
         "timeoutMin": "Anfrage-Timeout darf nicht kleiner als 1000 Millisekunden sein",
-        "timeoutMax": "Anfrage-Timeout darf 3600000 Millisekunden nicht überschreiten"
+        "timeoutMax": "Anfrage-Timeout darf 3600000 Millisekunden nicht überschreiten",
+        "topPRange": "Top P muss größer als 0 und kleiner oder gleich 1 sein"
       },
       "endpointType": {
         "label": "Protokolltyp",

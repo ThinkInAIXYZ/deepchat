@@ -338,6 +338,75 @@
                       </p>
                     </div>
 
+                    <div v-if="showTopPControl" class="space-y-1.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.topP')
+                        }}</label>
+                        <span class="text-[11px] text-muted-foreground">{{
+                          t('chat.advancedSettings.topPDescription')
+                        }}</span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="topP"
+                          data-setting-action="decrement"
+                          :aria-label="
+                            t('chat.advancedSettings.decreaseValue', {
+                              label: t('chat.advancedSettings.topP')
+                            })
+                          "
+                          :disabled="hasNumericInputError('topP') || topPDecreaseDisabled"
+                          @click="stepTopP(-1)"
+                        >
+                          <Icon icon="lucide:minus" class="h-3 w-3" />
+                        </Button>
+                        <Input
+                          :class="[
+                            'h-8 flex-1 text-xs tabular-nums',
+                            hasNumericInputError('topP') ? 'border-destructive' : ''
+                          ]"
+                          data-setting-control="topP"
+                          type="number"
+                          :step="TOP_P_STEP"
+                          :min="TOP_P_MIN"
+                          :max="TOP_P_MAX"
+                          :aria-invalid="hasNumericInputError('topP')"
+                          :placeholder="t('chat.advancedSettings.useDefault')"
+                          :model-value="topPInputValue"
+                          @focus="startNumericInputEdit('topP')"
+                          @update:model-value="onTopPInput"
+                          @blur="commitTopPInput"
+                          @keydown.enter.prevent="commitTopPInput"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="topP"
+                          data-setting-action="increment"
+                          :aria-label="
+                            t('chat.advancedSettings.increaseValue', {
+                              label: t('chat.advancedSettings.topP')
+                            })
+                          "
+                          :disabled="hasNumericInputError('topP') || topPIncreaseDisabled"
+                          @click="stepTopP(1)"
+                        >
+                          <Icon icon="lucide:plus" class="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p
+                        v-if="getNumericInputErrorMessage('topP')"
+                        class="text-[11px] text-destructive"
+                      >
+                        {{ getNumericInputErrorMessage('topP') }}
+                      </p>
+                    </div>
+
                     <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
                       <label class="text-xs font-medium">{{
                         t('chat.advancedSettings.contextLength')
@@ -1016,6 +1085,9 @@ type GroupedModelList = {
 }
 
 const TEMPERATURE_STEP = 0.1
+const TOP_P_STEP = 0.01
+const TOP_P_MIN = 0.01
+const TOP_P_MAX = 1
 const CONTEXT_LENGTH_STEP = 1024
 const MAX_TOKENS_STEP = 128
 const TIMEOUT_STEP = 1000
@@ -1058,6 +1130,7 @@ let modelSettingsTargetConfigToken = 0
 const activeNumericInput = ref<GenerationNumericField | null>(null)
 const numericInputDrafts = ref<Record<GenerationNumericField, string>>({
   temperature: '',
+  topP: '',
   contextLength: '',
   maxTokens: '',
   timeout: '',
@@ -1067,6 +1140,7 @@ const numericInputErrors = ref<
   Record<GenerationNumericField, GenerationNumericValidationCode | null>
 >({
   temperature: null,
+  topP: null,
   contextLength: null,
   maxTokens: null,
   timeout: null,
@@ -1413,6 +1487,10 @@ const getCommittedNumericInputValue = (field: GenerationNumericField): string =>
   switch (field) {
     case 'temperature':
       return String(localSettings.value.temperature)
+    case 'topP': {
+      const value = localSettings.value.topP
+      return value === undefined ? '' : String(value)
+    }
     case 'contextLength':
       return String(localSettings.value.contextLength)
     case 'maxTokens':
@@ -1449,6 +1527,7 @@ const resetNumericInputFieldState = (field: GenerationNumericField): void => {
 const resetNumericInputState = (): void => {
   activeNumericInput.value = null
   resetNumericInputFieldState('temperature')
+  resetNumericInputFieldState('topP')
   resetNumericInputFieldState('contextLength')
   resetNumericInputFieldState('maxTokens')
   resetNumericInputFieldState('timeout')
@@ -1509,6 +1588,8 @@ const getNumericInputErrorMessage = (field: GenerationNumericField): string => {
       return t('settings.model.modelConfig.validation.timeoutMin')
     case 'timeout_too_large':
       return t('settings.model.modelConfig.validation.timeoutMax')
+    case 'top_p_out_of_range':
+      return t('chat.advancedSettings.validation.topPRange')
   }
 }
 
@@ -1716,6 +1797,14 @@ const invalidateGenerationPersistResponses = () => {
 }
 
 const temperatureInputValue = computed(() => getNumericInputValue('temperature'))
+const topPInputValue = computed(() => getNumericInputValue('topP'))
+const topPCommittedValue = computed(() => localSettings.value?.topP ?? TOP_P_MAX)
+const topPDecreaseDisabled = computed(
+  () => localSettings.value?.topP === undefined || topPCommittedValue.value <= TOP_P_MIN
+)
+const topPIncreaseDisabled = computed(
+  () => localSettings.value?.topP !== undefined && topPCommittedValue.value >= TOP_P_MAX
+)
 const contextLengthInputValue = computed(() => getNumericInputValue('contextLength'))
 const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
 const timeoutInputValue = computed(() => getNumericInputValue('timeout'))
@@ -1746,6 +1835,9 @@ const showTemperatureControl = computed(
   () =>
     (capabilitySupportsTemperature.value !== false || isMoonshotKimiTemperatureLocked.value) &&
     Boolean(localSettings.value)
+)
+const showTopPControl = computed(
+  () => !showOpenAIMediaGenerationSettings.value && Boolean(localSettings.value)
 )
 
 const showVerbosity = computed(
@@ -2035,6 +2127,7 @@ const resolveDefaultGenerationSettings = async (
     systemPrompt: agentConfig.systemPrompt ?? '',
     temperature:
       fixedTemperatureKimi?.temperature ?? parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+    topP: normalizeTopP(modelConfig.topP),
     contextLength: contextLengthDefault,
     timeout:
       timeoutDefault >= TIMEOUT_MIN && timeoutDefault <= TIMEOUT_MAX
@@ -2240,6 +2333,10 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   }
   if (Object.prototype.hasOwnProperty.call(nextPatch, 'temperature')) {
     normalizedPatch.temperature = next.temperature
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'topP')) {
+    normalizedPatch.topP = normalizeTopP(next.topP)
+    next.topP = normalizedPatch.topP
   }
   if (Object.prototype.hasOwnProperty.call(nextPatch, 'contextLength')) {
     normalizedPatch.contextLength = next.contextLength
@@ -2587,6 +2684,7 @@ async function changeModelSelection(
   const previousDraftGenerationSettings = {
     systemPrompt: draftStore.systemPrompt,
     temperature: draftStore.temperature,
+    topP: draftStore.topP,
     contextLength: draftStore.contextLength,
     maxTokens: draftStore.maxTokens,
     timeout: draftStore.timeout,
@@ -2600,6 +2698,7 @@ async function changeModelSelection(
   } as Partial<SessionGenerationSettings>
   const clearedDraftModelOverrides = {
     temperature: undefined,
+    topP: undefined,
     contextLength: undefined,
     maxTokens: undefined,
     timeout: undefined,
@@ -2746,6 +2845,50 @@ function stepTemperature(direction: -1 | 1) {
   )
   updateLocalGenerationSettings({ temperature: next })
   resetNumericInputFieldState('temperature')
+}
+
+const roundTopPStepValue = (value: number): number => Number(value.toFixed(10))
+
+function normalizeTopP(value: unknown): number | undefined {
+  const numeric = parseFiniteNumericValue(value)
+  return numeric !== undefined && numeric > 0 && numeric <= 1 ? numeric : undefined
+}
+
+function stepTopP(direction: -1 | 1) {
+  if (!localSettings.value) {
+    return
+  }
+  if (hasNumericInputError('topP')) {
+    return
+  }
+  if (direction === -1 && localSettings.value.topP === undefined) {
+    return
+  }
+  const current = localSettings.value.topP ?? TOP_P_MAX
+  const next = Math.min(TOP_P_MAX, Math.max(TOP_P_MIN, current + direction * TOP_P_STEP))
+  updateLocalGenerationSettings({ topP: roundTopPStepValue(next) })
+  resetNumericInputFieldState('topP')
+}
+
+function onTopPInput(value: string | number) {
+  setNumericInputDraft('topP', value)
+}
+
+function commitTopPInput() {
+  if (numericInputDrafts.value.topP.trim() === '') {
+    stopNumericInputEdit('topP')
+    clearNumericInputError('topP')
+    updateLocalGenerationSettings({ topP: undefined })
+    resetNumericInputFieldState('topP')
+    return
+  }
+
+  const next = commitNumericField('topP', numericInputDrafts.value.topP)
+  if (next === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ topP: next })
+  resetNumericInputFieldState('topP')
 }
 
 function onTemperatureInput(value: string | number) {
