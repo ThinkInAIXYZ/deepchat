@@ -263,558 +263,579 @@
                   </div>
 
                   <div v-else-if="localSettings" class="space-y-4">
-                    <div
-                      v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
-                      class="space-y-1.5"
-                    >
-                      <label class="text-xs font-medium">{{
-                        t('chat.advancedSettings.temperature')
-                      }}</label>
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="temperature"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.temperature')
-                            })
-                          "
-                          :disabled="
-                            isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
-                          "
-                          @click="stepTemperature(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('temperature') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="temperature"
-                          type="number"
-                          :step="TEMPERATURE_STEP"
-                          :disabled="isMoonshotKimiTemperatureLocked"
-                          :aria-invalid="hasNumericInputError('temperature')"
-                          :model-value="temperatureInputValue"
-                          @focus="startNumericInputEdit('temperature')"
-                          @update:model-value="onTemperatureInput"
-                          @blur="commitTemperatureInput"
-                          @keydown.enter.prevent="commitTemperatureInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="temperature"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.temperature')
-                            })
-                          "
-                          :disabled="
-                            isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
-                          "
-                          @click="stepTemperature(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="moonshotKimiTemperatureHint"
-                        class="text-[11px] text-muted-foreground"
+                    <TooltipProvider :delay-duration="200">
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
+                        class="space-y-1.5"
                       >
-                        {{ moonshotKimiTemperatureHint }}
-                      </p>
-                      <p
-                        v-if="getNumericInputErrorMessage('temperature')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('temperature') }}
-                      </p>
-                    </div>
-
-                    <div v-if="showTopPControl" class="space-y-1.5">
-                      <div class="flex items-center justify-between gap-2">
                         <label class="text-xs font-medium">{{
-                          t('chat.advancedSettings.topP')
-                        }}</label>
-                        <span class="text-[11px] text-muted-foreground">{{
-                          t('chat.advancedSettings.topPDescription')
-                        }}</span>
-                      </div>
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="topP"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.topP')
-                            })
-                          "
-                          :disabled="hasNumericInputError('topP') || topPDecreaseDisabled"
-                          @click="stepTopP(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('topP') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="topP"
-                          type="number"
-                          :step="TOP_P_STEP"
-                          :min="TOP_P_MIN"
-                          :max="TOP_P_MAX"
-                          :aria-invalid="hasNumericInputError('topP')"
-                          :placeholder="t('chat.advancedSettings.useDefault')"
-                          :model-value="topPInputValue"
-                          @focus="startNumericInputEdit('topP')"
-                          @update:model-value="onTopPInput"
-                          @blur="commitTopPInput"
-                          @keydown.enter.prevent="commitTopPInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="topP"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.topP')
-                            })
-                          "
-                          :disabled="hasNumericInputError('topP') || topPIncreaseDisabled"
-                          @click="stepTopP(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('topP')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('topP') }}
-                      </p>
-                    </div>
-
-                    <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
-                      <label class="text-xs font-medium">{{
-                        t('chat.advancedSettings.contextLength')
-                      }}</label>
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="contextLength"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.contextLength')
-                            })
-                          "
-                          :disabled="
-                            hasNumericInputError('contextLength') ||
-                            localSettings.contextLength <= 0
-                          "
-                          @click="stepContextLength(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('contextLength') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="contextLength"
-                          type="number"
-                          :step="CONTEXT_LENGTH_STEP"
-                          :aria-invalid="hasNumericInputError('contextLength')"
-                          :model-value="contextLengthInputValue"
-                          @focus="startNumericInputEdit('contextLength')"
-                          @update:model-value="onContextLengthInput"
-                          @blur="commitContextLengthInput"
-                          @keydown.enter.prevent="commitContextLengthInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="contextLength"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.contextLength')
-                            })
-                          "
-                          :disabled="hasNumericInputError('contextLength')"
-                          @click="stepContextLength(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('contextLength')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('contextLength') }}
-                      </p>
-                    </div>
-
-                    <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
-                      <label class="text-xs font-medium">{{
-                        t('chat.advancedSettings.maxTokens')
-                      }}</label>
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="maxTokens"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.maxTokens')
-                            })
-                          "
-                          :disabled="
-                            hasNumericInputError('maxTokens') || localSettings.maxTokens <= 0
-                          "
-                          @click="stepMaxTokens(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('maxTokens') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="maxTokens"
-                          type="number"
-                          :step="MAX_TOKENS_STEP"
-                          :aria-invalid="hasNumericInputError('maxTokens')"
-                          :model-value="maxTokensInputValue"
-                          @focus="startNumericInputEdit('maxTokens')"
-                          @update:model-value="onMaxTokensInput"
-                          @blur="commitMaxTokensInput"
-                          @keydown.enter.prevent="commitMaxTokensInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="maxTokens"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.maxTokens')
-                            })
-                          "
-                          :disabled="hasNumericInputError('maxTokens')"
-                          @click="stepMaxTokens(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('maxTokens')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('maxTokens') }}
-                      </p>
-                    </div>
-
-                    <div class="space-y-1.5">
-                      <label class="text-xs font-medium">{{
-                        t('settings.model.modelConfig.timeout.label')
-                      }}</label>
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="timeout"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('settings.model.modelConfig.timeout.label')
-                            })
-                          "
-                          :disabled="
-                            hasNumericInputError('timeout') ||
-                            (localSettings.timeout ?? 0) <= TIMEOUT_MIN
-                          "
-                          @click="stepTimeout(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('timeout') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="timeout"
-                          type="number"
-                          :step="TIMEOUT_STEP"
-                          :min="TIMEOUT_MIN"
-                          :max="TIMEOUT_MAX"
-                          :aria-invalid="hasNumericInputError('timeout')"
-                          :model-value="timeoutInputValue"
-                          @focus="startNumericInputEdit('timeout')"
-                          @update:model-value="onTimeoutInput"
-                          @blur="commitTimeoutInput"
-                          @keydown.enter.prevent="commitTimeoutInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="timeout"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('settings.model.modelConfig.timeout.label')
-                            })
-                          "
-                          :disabled="
-                            hasNumericInputError('timeout') ||
-                            (localSettings.timeout ?? 0) >= TIMEOUT_MAX
-                          "
-                          @click="stepTimeout(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('timeout')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('timeout') }}
-                      </p>
-                    </div>
-
-                    <OpenAIImageGenerationSettingsFields
-                      v-if="showOpenAIImageGenerationSettings"
-                      density="compact"
-                      :model-value="localSettings.imageGeneration"
-                      @update:model-value="onImageGenerationSettingsUpdate"
-                    />
-
-                    <OpenAIVideoGenerationSettingsFields
-                      v-if="showOpenAIVideoGenerationSettings"
-                      density="compact"
-                      :model-value="localSettings.videoGeneration"
-                      @update:model-value="onVideoGenerationSettingsUpdate"
-                    />
-
-                    <div
-                      v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort"
-                      class="space-y-1.5"
-                    >
-                      <label class="text-xs font-medium">{{
-                        t('settings.model.modelConfig.reasoningEffort.label')
-                      }}</label>
-                      <Select
-                        :model-value="localSettings.reasoningEffort ?? effortOptions[0]?.value"
-                        @update:model-value="onReasoningEffortSelect($event as string)"
-                      >
-                        <SelectTrigger class="h-8 text-xs">
-                          <SelectValue
-                            :placeholder="
-                              t('settings.model.modelConfig.reasoningEffort.placeholder')
-                            "
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="option in effortOptions"
-                            :key="option.value"
-                            :value="option.value"
-                          >
-                            {{ option.label }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div
-                      v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
-                      class="space-y-1.5"
-                    >
-                      <label class="text-xs font-medium">{{
-                        t('settings.model.modelConfig.reasoningVisibility.label')
-                      }}</label>
-                      <Select
-                        :model-value="
-                          localSettings.reasoningVisibility ?? reasoningVisibilityOptions[0]?.value
-                        "
-                        @update:model-value="onReasoningVisibilitySelect($event as string)"
-                      >
-                        <SelectTrigger class="h-8 text-xs">
-                          <SelectValue
-                            :placeholder="
-                              t('settings.model.modelConfig.reasoningVisibility.placeholder')
-                            "
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="option in reasoningVisibilityOptions"
-                            :key="option.value"
-                            :value="option.value"
-                          >
-                            {{ option.label }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div
-                      v-if="!showOpenAIMediaGenerationSettings && showVerbosity"
-                      class="space-y-1.5"
-                    >
-                      <label class="text-xs font-medium">{{
-                        t('settings.model.modelConfig.verbosity.label')
-                      }}</label>
-                      <Select
-                        :model-value="localSettings.verbosity ?? verbosityOptions[0]?.value"
-                        @update:model-value="onVerbositySelect($event as string)"
-                      >
-                        <SelectTrigger class="h-8 text-xs">
-                          <SelectValue
-                            :placeholder="t('settings.model.modelConfig.verbosity.placeholder')"
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="option in verbosityOptions"
-                            :key="option.value"
-                            :value="option.value"
-                          >
-                            {{ option.label }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div
-                      v-if="!showOpenAIMediaGenerationSettings && showThinkingBudget"
-                      class="space-y-1.5"
-                    >
-                      <div class="flex items-center justify-between">
-                        <label class="text-xs font-medium">{{
-                          t('chat.advancedSettings.thinkingBudget')
+                          t('chat.advancedSettings.temperature')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <span v-if="thinkingBudgetHint" class="text-[11px] text-muted-foreground">
-                            {{ thinkingBudgetHint }}
-                          </span>
-                          <Switch
-                            data-setting-control="thinkingBudget-toggle"
-                            :model-value="isThinkingBudgetEnabled"
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="temperature"
+                            data-setting-action="decrement"
                             :aria-label="
-                              t('chat.advancedSettings.toggleValue', {
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.temperature')
+                              })
+                            "
+                            :disabled="
+                              isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
+                            "
+                            @click="stepTemperature(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('temperature') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="temperature"
+                            type="number"
+                            :step="TEMPERATURE_STEP"
+                            :disabled="isMoonshotKimiTemperatureLocked"
+                            :aria-invalid="hasNumericInputError('temperature')"
+                            :model-value="temperatureInputValue"
+                            @focus="startNumericInputEdit('temperature')"
+                            @update:model-value="onTemperatureInput"
+                            @blur="commitTemperatureInput"
+                            @keydown.enter.prevent="commitTemperatureInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="temperature"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.temperature')
+                              })
+                            "
+                            :disabled="
+                              isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
+                            "
+                            @click="stepTemperature(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="moonshotKimiTemperatureHint"
+                          class="text-[11px] text-muted-foreground"
+                        >
+                          {{ moonshotKimiTemperatureHint }}
+                        </p>
+                        <p
+                          v-if="getNumericInputErrorMessage('temperature')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('temperature') }}
+                        </p>
+                      </div>
+
+                      <div v-if="showTopPControl" class="space-y-1.5">
+                        <div class="flex items-center gap-1.5">
+                          <label class="text-xs font-medium">{{
+                            t('chat.advancedSettings.topP')
+                          }}</label>
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <button
+                                type="button"
+                                class="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                :aria-label="t('chat.advancedSettings.topPDescription')"
+                              >
+                                <Icon icon="lucide:help-circle" class="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              align="start"
+                              class="z-[1000] max-w-80 text-xs"
+                            >
+                              {{ t('chat.advancedSettings.topPDescription') }}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="topP"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.topP')
+                              })
+                            "
+                            :disabled="hasNumericInputError('topP') || topPDecreaseDisabled"
+                            @click="stepTopP(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('topP') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="topP"
+                            type="number"
+                            :step="TOP_P_STEP"
+                            :min="TOP_P_MIN"
+                            :max="TOP_P_MAX"
+                            :aria-invalid="hasNumericInputError('topP')"
+                            :placeholder="t('chat.advancedSettings.useDefault')"
+                            :model-value="topPInputValue"
+                            @focus="startNumericInputEdit('topP')"
+                            @update:model-value="onTopPInput"
+                            @blur="commitTopPInput"
+                            @keydown.enter.prevent="commitTopPInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="topP"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.topP')
+                              })
+                            "
+                            :disabled="hasNumericInputError('topP') || topPIncreaseDisabled"
+                            @click="stepTopP(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('topP')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('topP') }}
+                        </p>
+                      </div>
+
+                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.contextLength')
+                        }}</label>
+                        <div class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="contextLength"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.contextLength')
+                              })
+                            "
+                            :disabled="
+                              hasNumericInputError('contextLength') ||
+                              localSettings.contextLength <= 0
+                            "
+                            @click="stepContextLength(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('contextLength') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="contextLength"
+                            type="number"
+                            :step="CONTEXT_LENGTH_STEP"
+                            :aria-invalid="hasNumericInputError('contextLength')"
+                            :model-value="contextLengthInputValue"
+                            @focus="startNumericInputEdit('contextLength')"
+                            @update:model-value="onContextLengthInput"
+                            @blur="commitContextLengthInput"
+                            @keydown.enter.prevent="commitContextLengthInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="contextLength"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.contextLength')
+                              })
+                            "
+                            :disabled="hasNumericInputError('contextLength')"
+                            @click="stepContextLength(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('contextLength')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('contextLength') }}
+                        </p>
+                      </div>
+
+                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.maxTokens')
+                        }}</label>
+                        <div class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="maxTokens"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.maxTokens')
+                              })
+                            "
+                            :disabled="
+                              hasNumericInputError('maxTokens') || localSettings.maxTokens <= 0
+                            "
+                            @click="stepMaxTokens(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('maxTokens') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="maxTokens"
+                            type="number"
+                            :step="MAX_TOKENS_STEP"
+                            :aria-invalid="hasNumericInputError('maxTokens')"
+                            :model-value="maxTokensInputValue"
+                            @focus="startNumericInputEdit('maxTokens')"
+                            @update:model-value="onMaxTokensInput"
+                            @blur="commitMaxTokensInput"
+                            @keydown.enter.prevent="commitMaxTokensInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="maxTokens"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.maxTokens')
+                              })
+                            "
+                            :disabled="hasNumericInputError('maxTokens')"
+                            @click="stepMaxTokens(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('maxTokens')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('maxTokens') }}
+                        </p>
+                      </div>
+
+                      <div class="space-y-1.5">
+                        <label class="text-xs font-medium">{{
+                          t('settings.model.modelConfig.timeout.label')
+                        }}</label>
+                        <div class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="timeout"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('settings.model.modelConfig.timeout.label')
+                              })
+                            "
+                            :disabled="
+                              hasNumericInputError('timeout') ||
+                              (localSettings.timeout ?? 0) <= TIMEOUT_MIN
+                            "
+                            @click="stepTimeout(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('timeout') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="timeout"
+                            type="number"
+                            :step="TIMEOUT_STEP"
+                            :min="TIMEOUT_MIN"
+                            :max="TIMEOUT_MAX"
+                            :aria-invalid="hasNumericInputError('timeout')"
+                            :model-value="timeoutInputValue"
+                            @focus="startNumericInputEdit('timeout')"
+                            @update:model-value="onTimeoutInput"
+                            @blur="commitTimeoutInput"
+                            @keydown.enter.prevent="commitTimeoutInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="timeout"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('settings.model.modelConfig.timeout.label')
+                              })
+                            "
+                            :disabled="
+                              hasNumericInputError('timeout') ||
+                              (localSettings.timeout ?? 0) >= TIMEOUT_MAX
+                            "
+                            @click="stepTimeout(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('timeout')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('timeout') }}
+                        </p>
+                      </div>
+
+                      <OpenAIImageGenerationSettingsFields
+                        v-if="showOpenAIImageGenerationSettings"
+                        density="compact"
+                        :model-value="localSettings.imageGeneration"
+                        @update:model-value="onImageGenerationSettingsUpdate"
+                      />
+
+                      <OpenAIVideoGenerationSettingsFields
+                        v-if="showOpenAIVideoGenerationSettings"
+                        density="compact"
+                        :model-value="localSettings.videoGeneration"
+                        @update:model-value="onVideoGenerationSettingsUpdate"
+                      />
+
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort"
+                        class="space-y-1.5"
+                      >
+                        <label class="text-xs font-medium">{{
+                          t('settings.model.modelConfig.reasoningEffort.label')
+                        }}</label>
+                        <Select
+                          :model-value="localSettings.reasoningEffort ?? effortOptions[0]?.value"
+                          @update:model-value="onReasoningEffortSelect($event as string)"
+                        >
+                          <SelectTrigger class="h-8 text-xs">
+                            <SelectValue
+                              :placeholder="
+                                t('settings.model.modelConfig.reasoningEffort.placeholder')
+                              "
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              v-for="option in effortOptions"
+                              :key="option.value"
+                              :value="option.value"
+                            >
+                              {{ option.label }}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
+                        class="space-y-1.5"
+                      >
+                        <label class="text-xs font-medium">{{
+                          t('settings.model.modelConfig.reasoningVisibility.label')
+                        }}</label>
+                        <Select
+                          :model-value="
+                            localSettings.reasoningVisibility ??
+                            reasoningVisibilityOptions[0]?.value
+                          "
+                          @update:model-value="onReasoningVisibilitySelect($event as string)"
+                        >
+                          <SelectTrigger class="h-8 text-xs">
+                            <SelectValue
+                              :placeholder="
+                                t('settings.model.modelConfig.reasoningVisibility.placeholder')
+                              "
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              v-for="option in reasoningVisibilityOptions"
+                              :key="option.value"
+                              :value="option.value"
+                            >
+                              {{ option.label }}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showVerbosity"
+                        class="space-y-1.5"
+                      >
+                        <label class="text-xs font-medium">{{
+                          t('settings.model.modelConfig.verbosity.label')
+                        }}</label>
+                        <Select
+                          :model-value="localSettings.verbosity ?? verbosityOptions[0]?.value"
+                          @update:model-value="onVerbositySelect($event as string)"
+                        >
+                          <SelectTrigger class="h-8 text-xs">
+                            <SelectValue
+                              :placeholder="t('settings.model.modelConfig.verbosity.placeholder')"
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              v-for="option in verbosityOptions"
+                              :key="option.value"
+                              :value="option.value"
+                            >
+                              {{ option.label }}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showThinkingBudget"
+                        class="space-y-1.5"
+                      >
+                        <div class="flex items-center justify-between">
+                          <label class="text-xs font-medium">{{
+                            t('chat.advancedSettings.thinkingBudget')
+                          }}</label>
+                          <div class="flex items-center gap-2">
+                            <span
+                              v-if="thinkingBudgetHint"
+                              class="text-[11px] text-muted-foreground"
+                            >
+                              {{ thinkingBudgetHint }}
+                            </span>
+                            <Switch
+                              data-setting-control="thinkingBudget-toggle"
+                              :model-value="isThinkingBudgetEnabled"
+                              :aria-label="
+                                t('chat.advancedSettings.toggleValue', {
+                                  label: t('chat.advancedSettings.thinkingBudget')
+                                })
+                              "
+                              @update:model-value="onThinkingBudgetToggle(Boolean($event))"
+                            />
+                          </div>
+                        </div>
+                        <div v-if="isThinkingBudgetEnabled" class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="thinkingBudget"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
                                 label: t('chat.advancedSettings.thinkingBudget')
                               })
                             "
-                            @update:model-value="onThinkingBudgetToggle(Boolean($event))"
+                            :disabled="
+                              hasNumericInputError('thinkingBudget') ||
+                              (localSettings.thinkingBudget ?? 0) <= 0
+                            "
+                            @click="stepThinkingBudget(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('thinkingBudget') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="thinkingBudget"
+                            type="number"
+                            :step="THINKING_BUDGET_STEP"
+                            :aria-invalid="hasNumericInputError('thinkingBudget')"
+                            :model-value="thinkingBudgetInputValue"
+                            @focus="startNumericInputEdit('thinkingBudget')"
+                            @update:model-value="onThinkingBudgetInput"
+                            @blur="commitThinkingBudgetInput"
+                            @keydown.enter.prevent="commitThinkingBudgetInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="thinkingBudget"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.thinkingBudget')
+                              })
+                            "
+                            :disabled="hasNumericInputError('thinkingBudget')"
+                            @click="stepThinkingBudget(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('thinkingBudget')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('thinkingBudget') }}
+                        </p>
+                      </div>
+
+                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <label class="text-xs font-medium">
+                              {{ t('chat.advancedSettings.forceInterleavedThinkingCompat') }}
+                            </label>
+                            <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                              {{
+                                t('chat.advancedSettings.forceInterleavedThinkingCompatDescription')
+                              }}
+                            </p>
+                          </div>
+                          <Switch
+                            data-setting-control="forceInterleavedThinkingCompat-toggle"
+                            :model-value="isInterleavedThinkingEnabled"
+                            :aria-label="
+                              t('chat.advancedSettings.toggleValue', {
+                                label: t('chat.advancedSettings.forceInterleavedThinkingCompat')
+                              })
+                            "
+                            @update:model-value="onInterleavedThinkingToggle(Boolean($event))"
                           />
                         </div>
                       </div>
-                      <div v-if="isThinkingBudgetEnabled" class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="thinkingBudget"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.thinkingBudget')
-                            })
-                          "
-                          :disabled="
-                            hasNumericInputError('thinkingBudget') ||
-                            (localSettings.thinkingBudget ?? 0) <= 0
-                          "
-                          @click="stepThinkingBudget(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('thinkingBudget') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="thinkingBudget"
-                          type="number"
-                          :step="THINKING_BUDGET_STEP"
-                          :aria-invalid="hasNumericInputError('thinkingBudget')"
-                          :model-value="thinkingBudgetInputValue"
-                          @focus="startNumericInputEdit('thinkingBudget')"
-                          @update:model-value="onThinkingBudgetInput"
-                          @blur="commitThinkingBudgetInput"
-                          @keydown.enter.prevent="commitThinkingBudgetInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="thinkingBudget"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.thinkingBudget')
-                            })
-                          "
-                          :disabled="hasNumericInputError('thinkingBudget')"
-                          @click="stepThinkingBudget(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('thinkingBudget')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('thinkingBudget') }}
-                      </p>
-                    </div>
-
-                    <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                          <label class="text-xs font-medium">
-                            {{ t('chat.advancedSettings.forceInterleavedThinkingCompat') }}
-                          </label>
-                          <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                            {{
-                              t('chat.advancedSettings.forceInterleavedThinkingCompatDescription')
-                            }}
-                          </p>
-                        </div>
-                        <Switch
-                          data-setting-control="forceInterleavedThinkingCompat-toggle"
-                          :model-value="isInterleavedThinkingEnabled"
-                          :aria-label="
-                            t('chat.advancedSettings.toggleValue', {
-                              label: t('chat.advancedSettings.forceInterleavedThinkingCompat')
-                            })
-                          "
-                          @update:model-value="onInterleavedThinkingToggle(Boolean($event))"
-                        />
-                      </div>
-                    </div>
+                    </TooltipProvider>
                   </div>
                 </div>
               </div>
@@ -972,6 +993,12 @@ import {
 import { Input } from '@shadcn/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -1085,8 +1112,8 @@ type GroupedModelList = {
 }
 
 const TEMPERATURE_STEP = 0.1
-const TOP_P_STEP = 0.01
-const TOP_P_MIN = 0.01
+const TOP_P_STEP = 0.1
+const TOP_P_MIN = 0.1
 const TOP_P_MAX = 1
 const CONTEXT_LENGTH_STEP = 1024
 const MAX_TOKENS_STEP = 128
@@ -2851,7 +2878,7 @@ const roundTopPStepValue = (value: number): number => Number(value.toFixed(10))
 
 function normalizeTopP(value: unknown): number | undefined {
   const numeric = parseFiniteNumericValue(value)
-  return numeric !== undefined && numeric > 0 && numeric <= 1 ? numeric : undefined
+  return numeric !== undefined && numeric >= 0.1 && numeric <= 1 ? numeric : undefined
 }
 
 function stepTopP(direction: -1 | 1) {
@@ -2881,6 +2908,15 @@ function commitTopPInput() {
     updateLocalGenerationSettings({ topP: undefined })
     resetNumericInputFieldState('topP')
     return
+  }
+
+  const draftNum = parseFiniteNumericValue(numericInputDrafts.value.topP)
+  if (draftNum !== undefined) {
+    if (draftNum < TOP_P_MIN) {
+      numericInputDrafts.value.topP = String(TOP_P_MIN)
+    } else if (draftNum > TOP_P_MAX) {
+      numericInputDrafts.value.topP = String(TOP_P_MAX)
+    }
   }
 
   const next = commitNumericField('topP', numericInputDrafts.value.topP)

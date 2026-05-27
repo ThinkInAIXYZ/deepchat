@@ -163,12 +163,10 @@
             <Input
               id="topP"
               v-model="topPDraft"
-              type="number"
-              step="0.01"
-              :min="0.01"
-              :max="1"
+              type="text"
               :placeholder="t('settings.model.modelConfig.useModelDefault')"
               :class="{ 'border-destructive': errors.topP }"
+              @blur="clampTopPDraft"
             />
             <p class="text-xs text-muted-foreground">
               {{ t('settings.model.modelConfig.topP.description') }}
@@ -544,6 +542,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
@@ -613,6 +612,12 @@ import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import {
   Select,
   SelectContent,
@@ -782,6 +787,20 @@ const parseTopPDraft = (): number | undefined => {
   }
 
   return Number(raw)
+}
+
+const clampTopPDraft = () => {
+  const raw = topPDraft.value.trim()
+  if (!raw) return
+
+  const num = Number(raw)
+  if (!Number.isFinite(num)) return
+
+  if (num < 0.1) {
+    topPDraft.value = '0.1'
+  } else if (num > 1) {
+    topPDraft.value = '1'
+  }
 }
 
 // 重置确认对话框
@@ -1319,7 +1338,7 @@ const validateForm = () => {
     if (parsedTopP !== undefined) {
       if (!Number.isFinite(parsedTopP)) {
         errors.value.topP = t('chat.advancedSettings.validation.finiteNumber')
-      } else if (parsedTopP <= 0 || parsedTopP > 1) {
+      } else if (parsedTopP < 0.1 || parsedTopP > 1) {
         errors.value.topP = t('settings.model.modelConfig.validation.topPRange')
       }
     }
@@ -1365,7 +1384,7 @@ const handleSave = async () => {
     topP:
       typeof parsedTopP === 'number' &&
       Number.isFinite(parsedTopP) &&
-      parsedTopP > 0 &&
+      parsedTopP >= 0.1 &&
       parsedTopP <= 1
         ? parsedTopP
         : undefined,

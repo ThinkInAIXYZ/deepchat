@@ -8,13 +8,14 @@ Implement `topP` as an optional generation setting, mirroring the existing sessi
 
 - `src/shared/types/agent-interface.d.ts`: add optional `topP` to `SessionGenerationSettings`.
 - `src/shared/contracts/common.ts`: add optional `topP` to route schemas.
-- `src/shared/utils/generationSettingsValidation.ts`: validate `topP` as a finite number in `(0, 1]`.
+- `src/shared/utils/generationSettingsValidation.ts`: validate `topP` as a finite number in `[0.1, 1]`.
 - `src/main/presenter/sqlitePresenter/tables/deepchatSessions.ts`: add `top_p` storage and migration.
 - `src/main/presenter/agentRuntimePresenter/index.ts`: sanitize, persist, and pass `topP` through runtime model config.
 - `src/main/presenter/llmProviderPresenter/aiSdk/runtime.ts`: include `topP` in AI SDK `generateText` and `streamText` calls and request traces when defined.
 - `src/renderer/src/stores/ui/draft.ts`: carry draft `topP` overrides for new sessions.
 - `src/renderer/src/components/chat/ChatStatusBar.vue`: show and persist the compact `topP` control.
-- i18n `chat.json` and `settings.json` files: add `topP` label/description/validation.
+- i18n `chat.json` and `settings.json` files: add `topP` label, hover description, and validation.
+- `topP` number inputs use min `0.1`, max `1`, and step `0.1` so values align with common AI SDK/provider constraints.
 
 ## Data Flow
 

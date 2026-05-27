@@ -20,7 +20,7 @@ describe('validateGenerationNumericField timeout bounds', () => {
 
 describe('validateGenerationNumericField topP bounds', () => {
   it('accepts finite topP values in the supported range', () => {
-    expect(validateGenerationNumericField('topP', 0.01)).toBeNull()
+    expect(validateGenerationNumericField('topP', 0.1)).toBeNull()
     expect(validateGenerationNumericField('topP', 1)).toBeNull()
     expect(validateGenerationNumericField('topP', '0.5')).toBeNull()
   })
@@ -29,6 +29,7 @@ describe('validateGenerationNumericField topP bounds', () => {
     expect(validateGenerationNumericField('topP', '')).toBe('finite_number')
     expect(validateGenerationNumericField('topP', Number.NaN)).toBe('finite_number')
     expect(validateGenerationNumericField('topP', 0)).toBe('top_p_out_of_range')
+    expect(validateGenerationNumericField('topP', 0.01)).toBe('top_p_out_of_range')
     expect(validateGenerationNumericField('topP', -0.1)).toBe('top_p_out_of_range')
     expect(validateGenerationNumericField('topP', 1.01)).toBe('top_p_out_of_range')
   })

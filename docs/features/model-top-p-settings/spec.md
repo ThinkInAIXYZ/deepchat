@@ -11,7 +11,8 @@ Add an optional per-session `topP` generation setting for text chat requests and
 ## Acceptance Criteria
 
 - Users can set `topP` from the chat model advanced settings panel for regular text chat models.
-- `topP` accepts values greater than 0 and less than or equal to 1.
+- `topP` accepts values greater than or equal to 0.1 and less than or equal to 1.
+- The Top P UI uses the plain label "Top P" and moves explanatory copy into a hover help icon.
 - Existing conversations and new sessions continue to work when no `topP` is set.
 - `topP` persists with DeepChat session generation settings and survives app restart.
 - Text `generateText` and streaming requests pass `topP` to AI SDK only when it is defined.

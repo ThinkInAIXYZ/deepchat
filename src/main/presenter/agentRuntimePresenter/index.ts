@@ -156,7 +156,7 @@ type PackageJsonManifest = {
 
 function normalizeTopP(value: unknown): number | undefined {
   const numeric = parseFiniteNumericValue(value)
-  return numeric !== undefined && numeric > 0 && numeric <= 1 ? numeric : undefined
+  return numeric !== undefined && numeric >= 0.1 && numeric <= 1 ? numeric : undefined
 }
 
 function readPackageJsonManifest(workdir: string): PackageJsonManifest | null {

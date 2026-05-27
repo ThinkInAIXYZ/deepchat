@@ -64,7 +64,7 @@ export const validateGenerationNumericField = (
     if (numeric === undefined) {
       return 'finite_number'
     }
-    return numeric > 0 && numeric <= 1 ? null : 'top_p_out_of_range'
+    return numeric >= 0.1 && numeric <= 1 ? null : 'top_p_out_of_range'
   }
 
   if (!isNonNegativeInteger(numeric)) {
