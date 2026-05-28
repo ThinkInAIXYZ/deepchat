@@ -380,5 +380,24 @@
       "description": "Sekarang Anda siap, kirim pesan pertama Anda ke sini untuk menyelesaikan boot.",
       "caption": "Sorotan akan tetap berada di kotak masukan hingga Anda benar-benar mengirim pesan pertama."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Draf skill",
+    "confirmationQuestion": "Draf skill telah dibuat: {name}",
+    "previewTitle": "Pratinjau konten draf",
+    "actions": {
+      "view": "Lihat konten",
+      "viewDescription": "Pratinjau konten SKILL.md draf",
+      "install": "Instal sebagai skill",
+      "installDescription": "Impor ke folder skills untuk dikelola",
+      "discard": "Buang",
+      "discardDescription": "Hapus draf sementara ini"
+    },
+    "result": {
+      "viewed": "Pratinjau konten draf terbuka. Pilih instal atau buang.",
+      "installed": "Draf skill terinstal: {name}",
+      "discarded": "Draf skill dibuang.",
+      "failed": "Gagal menangani draf skill: {error}"
+    }
   }
 }

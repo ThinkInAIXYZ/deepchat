@@ -380,5 +380,24 @@
       "description": "Wszystko jest gotowe. Wpisz tutaj swoją pierwszą wiadomość, aby zakończyć proces wdrażania.",
       "caption": "Światło reflektora pozostaje w polu wprowadzania, dopóki nie wyślesz pierwszej wiadomości."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Szkic umiejętności",
+    "confirmationQuestion": "Wygenerowano szkic umiejętności: {name}",
+    "previewTitle": "Podgląd treści szkicu",
+    "actions": {
+      "view": "Wyświetl treść",
+      "viewDescription": "Podejrzyj treść SKILL.md szkicu",
+      "install": "Zainstaluj jako umiejętność",
+      "installDescription": "Zaimportuj go do folderu umiejętności w celu zarządzania",
+      "discard": "Odrzuć",
+      "discardDescription": "Usuń ten tymczasowy szkic"
+    },
+    "result": {
+      "viewed": "Podgląd treści szkicu jest otwarty. Wybierz instalację albo odrzucenie.",
+      "installed": "Zainstalowano szkic umiejętności: {name}",
+      "discarded": "Odrzucono szkic umiejętności.",
+      "failed": "Nie udało się obsłużyć szkicu umiejętności: {error}"
+    }
   }
 }

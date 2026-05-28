@@ -380,5 +380,24 @@
       "description": "Sekarang setelah anda bersedia, hantarkan mesej pertama anda di sini untuk melengkapkan but.",
       "caption": "Lampu sorot akan kekal dalam kotak input sehingga anda benar-benar menghantar mesej pertama."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Draf skill",
+    "confirmationQuestion": "Draf skill telah dijana: {name}",
+    "previewTitle": "Pratonton kandungan draf",
+    "actions": {
+      "view": "Lihat kandungan",
+      "viewDescription": "Pratonton kandungan SKILL.md draf",
+      "install": "Pasang sebagai skill",
+      "installDescription": "Import ke folder skills untuk pengurusan",
+      "discard": "Buang",
+      "discardDescription": "Padam draf sementara ini"
+    },
+    "result": {
+      "viewed": "Pratonton kandungan draf dibuka. Pilih pasang atau buang.",
+      "installed": "Draf skill telah dipasang: {name}",
+      "discarded": "Draf skill telah dibuang.",
+      "failed": "Gagal mengendalikan draf skill: {error}"
+    }
   }
 }

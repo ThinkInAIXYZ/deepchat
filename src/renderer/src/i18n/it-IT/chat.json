@@ -380,5 +380,24 @@
       "description": "Ora è tutto pronto. Invia qui il primo messaggio per completare la guida.",
       "caption": "L'evidenziazione resterà sul campo di input finché non invii il primo messaggio."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Bozza di skill",
+    "confirmationQuestion": "È stata generata una bozza di skill: {name}",
+    "previewTitle": "Anteprima del contenuto della bozza",
+    "actions": {
+      "view": "Visualizza contenuto",
+      "viewDescription": "Visualizza in anteprima il contenuto SKILL.md della bozza",
+      "install": "Installa come skill",
+      "installDescription": "Importala nella cartella delle skill per la gestione",
+      "discard": "Scarta",
+      "discardDescription": "Elimina questa bozza temporanea"
+    },
+    "result": {
+      "viewed": "L’anteprima del contenuto della bozza è aperta. Scegli se installarla o scartarla.",
+      "installed": "Bozza di skill installata: {name}",
+      "discarded": "Bozza di skill scartata.",
+      "failed": "Impossibile gestire la bozza di skill: {error}"
+    }
   }
 }

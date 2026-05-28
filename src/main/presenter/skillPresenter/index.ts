@@ -16,6 +16,7 @@ import {
   SkillExtensionConfig,
   SkillManageRequest,
   SkillManageResult,
+  SkillDraftActionResult,
   SkillRuntimePolicy,
   SkillScriptDescriptor,
   SkillScriptRuntime,
@@ -719,7 +720,13 @@ export class SkillPresenter implements ISkillPresenter {
           const { draftId, draftPath } = this.createDraftHandle(conversationId)
           this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
           this.touchDraftActivity(draftPath)
-          return { success: true, action, draftId, skillName: parsed.skillName }
+          return {
+            success: true,
+            action,
+            draftId,
+            skillName: parsed.skillName,
+            draftStatus: 'created'
+          }
         }
         case 'edit': {
           const parsed = this.validateDraftSkillDocument(request.content)
@@ -747,7 +754,13 @@ export class SkillPresenter implements ISkillPresenter {
           }
           this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
           this.touchDraftActivity(draftPath)
-          return { success: true, action, draftId, skillName: parsed.skillName }
+          return {
+            success: true,
+            action,
+            draftId,
+            skillName: parsed.skillName,
+            draftStatus: 'updated'
+          }
         }
         case 'write_file': {
           const draftId = this.validateDraftId(request.draftId)
@@ -871,6 +884,130 @@ export class SkillPresenter implements ISkillPresenter {
         error: error instanceof Error ? error.message : String(error)
       }
     }
+  }
+
+  async viewDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult> {
+    const normalizedDraftId = this.validateDraftId(draftId)
+    if (!normalizedDraftId) {
+      return { success: false, action: 'view', draftId, error: 'Draft handle is invalid' }
+    }
+
+    const draftPath = this.getDraftPathForId(conversationId, normalizedDraftId)
+    if (!draftPath || !fs.existsSync(draftPath)) {
+      return {
+        success: false,
+        action: 'view',
+        draftId: normalizedDraftId,
+        error: 'Draft not found'
+      }
+    }
+
+    try {
+      const skillMdPath = path.join(draftPath, 'SKILL.md')
+      const stats = fs.statSync(skillMdPath)
+      if (!stats.isFile()) {
+        return {
+          success: false,
+          action: 'view',
+          draftId: normalizedDraftId,
+          error: 'Draft SKILL.md not found'
+        }
+      }
+      if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
+        return {
+          success: false,
+          action: 'view',
+          draftId: normalizedDraftId,
+          error: `Draft skill file too large: ${stats.size} bytes`
+        }
+      }
+      const content = fs.readFileSync(skillMdPath, 'utf-8')
+      this.touchDraftActivity(draftPath)
+      const parsed = this.validateDraftSkillDocument(content)
+      return {
+        success: parsed.success,
+        action: 'view',
+        draftId: normalizedDraftId,
+        ...(parsed.success ? { skillName: parsed.skillName, content } : { error: parsed.error })
+      }
+    } catch (error) {
+      return {
+        success: false,
+        action: 'view',
+        draftId: normalizedDraftId,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async installDraftSkill(
+    conversationId: string,
+    draftId: string
+  ): Promise<SkillDraftActionResult> {
+    const normalizedDraftId = this.validateDraftId(draftId)
+    if (!normalizedDraftId) {
+      return { success: false, action: 'install', draftId, error: 'Draft handle is invalid' }
+    }
+
+    const draftPath = this.getDraftPathForId(conversationId, normalizedDraftId)
+    if (!draftPath || !fs.existsSync(draftPath)) {
+      return {
+        success: false,
+        action: 'install',
+        draftId: normalizedDraftId,
+        error: 'Draft not found'
+      }
+    }
+
+    const viewed = await this.viewDraftSkill(conversationId, normalizedDraftId)
+    if (!viewed.success) {
+      return { ...viewed, action: 'install' }
+    }
+
+    const result = await this.installFromDirectory(draftPath, { overwrite: false })
+    if (!result.success) {
+      return {
+        success: false,
+        action: 'install',
+        draftId: normalizedDraftId,
+        skillName: viewed.skillName,
+        error: result.error
+      }
+    }
+
+    fs.rmSync(draftPath, { recursive: true, force: true })
+    this.removeEmptyDraftConversationDir(conversationId)
+    return {
+      success: true,
+      action: 'install',
+      draftId: normalizedDraftId,
+      skillName: viewed.skillName,
+      installedSkillName: result.skillName ?? viewed.skillName
+    }
+  }
+
+  async discardDraftSkill(
+    conversationId: string,
+    draftId: string
+  ): Promise<SkillDraftActionResult> {
+    const normalizedDraftId = this.validateDraftId(draftId)
+    if (!normalizedDraftId) {
+      return { success: false, action: 'discard', draftId, error: 'Draft handle is invalid' }
+    }
+
+    const draftPath = this.getDraftPathForId(conversationId, normalizedDraftId)
+    if (!draftPath || !fs.existsSync(draftPath)) {
+      return {
+        success: false,
+        action: 'discard',
+        draftId: normalizedDraftId,
+        error: 'Draft not found'
+      }
+    }
+
+    fs.rmSync(draftPath, { recursive: true, force: true })
+    this.removeEmptyDraftConversationDir(conversationId)
+    return { success: true, action: 'discard', draftId: normalizedDraftId }
   }
 
   private replacePathVariables(content: string, metadata: SkillMetadata): string {
@@ -1126,7 +1263,11 @@ export class SkillPresenter implements ISkillPresenter {
         }
       }
 
-      if (skillName.includes('/') || skillName.includes('\\')) {
+      if (
+        skillName.includes('/') ||
+        skillName.includes('\\') ||
+        !SKILL_NAME_PATTERN.test(skillName)
+      ) {
         return {
           success: false,
           error: 'Invalid skill name in SKILL.md frontmatter',
@@ -2321,6 +2462,18 @@ export class SkillPresenter implements ISkillPresenter {
       }
     }
     return null
+  }
+
+  private removeEmptyDraftConversationDir(conversationId: string): void {
+    const safeConversationId = this.validateDraftConversationId(conversationId)
+    if (!safeConversationId) {
+      return
+    }
+
+    const conversationDir = path.join(this.draftsRoot, safeConversationId)
+    if (fs.existsSync(conversationDir) && fs.readdirSync(conversationDir).length === 0) {
+      fs.rmSync(conversationDir, { recursive: true, force: true })
+    }
   }
 
   private getPersistedNewSessionSkills(conversationId: string): string[] {

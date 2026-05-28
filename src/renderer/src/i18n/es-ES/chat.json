@@ -380,5 +380,24 @@
       "description": "Todo está listo. Escribe aquí tu primer mensaje para completar la introducción.",
       "caption": "El foco permanece en el cuadro de entrada hasta que envíes el primer mensaje."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Borrador de skill",
+    "confirmationQuestion": "Se ha generado un borrador de skill: {name}",
+    "previewTitle": "Vista previa del contenido del borrador",
+    "actions": {
+      "view": "Ver contenido",
+      "viewDescription": "Previsualizar el contenido SKILL.md del borrador",
+      "install": "Instalar como skill",
+      "installDescription": "Importarlo a la carpeta de skills para gestionarlo",
+      "discard": "Descartar",
+      "discardDescription": "Eliminar este borrador temporal"
+    },
+    "result": {
+      "viewed": "La vista previa del contenido del borrador está abierta. Elige instalarlo o descartarlo.",
+      "installed": "Borrador de skill instalado: {name}",
+      "discarded": "Borrador de skill descartado.",
+      "failed": "No se pudo gestionar el borrador de skill: {error}"
+    }
   }
 }

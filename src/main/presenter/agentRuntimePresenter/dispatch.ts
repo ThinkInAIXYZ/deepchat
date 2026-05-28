@@ -73,7 +73,21 @@ type StagedToolResult = {
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
   imagePreviews?: ToolCallImagePreview[]
+  skillDraftPrompt?: SkillDraftPromptPayload
   postHookKind: 'success' | 'failure'
+}
+
+type SkillDraftPromptPayload = {
+  draftId: string
+  skillName: string
+}
+
+type SkillDraftToolResult = {
+  skillDraft?: {
+    status?: unknown
+    draftId?: unknown
+    skillName?: unknown
+  }
 }
 
 type ToolRunOutcome =
@@ -399,6 +413,28 @@ function extractSubagentToolState(rawData: MCPToolResponse): {
   }
 }
 
+function extractSkillDraftPromptPayload(
+  rawData: MCPToolResponse
+): SkillDraftPromptPayload | undefined {
+  const toolResult = rawData.toolResult as SkillDraftToolResult | null | undefined
+  const skillDraft = toolResult?.skillDraft
+  if (!skillDraft || typeof skillDraft !== 'object') {
+    return undefined
+  }
+  if (skillDraft.status !== 'created') {
+    return undefined
+  }
+  if (typeof skillDraft.draftId !== 'string' || typeof skillDraft.skillName !== 'string') {
+    return undefined
+  }
+  const draftId = skillDraft.draftId.trim()
+  const skillName = skillDraft.skillName.trim()
+  if (!draftId || !skillName) {
+    return undefined
+  }
+  return { draftId, skillName }
+}
+
 function shouldRefreshToolsAfterCall(toolName: string, rawData: MCPToolResponse): boolean {
   if (toolName !== 'skill_view') {
     return false
@@ -598,6 +634,21 @@ function applyFinalizedToolResults(params: {
       imagePresentation.promotedBlocks
     )
 
+    if (stagedResult.skillDraftPrompt && !fittedResult.isError && !fittedResult.downgraded) {
+      const interaction = appendSkillDraftQuestionActionBlock(
+        state,
+        io,
+        {
+          id: stagedResult.toolCallId,
+          name: stagedResult.toolName,
+          args: stagedResult.toolArgs,
+          serverName: stagedResult.serverName
+        },
+        stagedResult.skillDraftPrompt
+      )
+      state.pendingInteractions = [...(state.pendingInteractions ?? []), interaction]
+    }
+
     if (fittedResult.isError) {
       hooks?.onPostToolUseFailure?.({
         callId: stagedResult.toolCallId,
@@ -733,7 +784,8 @@ function appendQuestionActionBlock(
     serverIcons?: string
     serverDescription?: string
   },
-  question: NonNullable<PendingToolInteraction['question']>
+  question: NonNullable<PendingToolInteraction['question']>,
+  extra?: Record<string, unknown>
 ): PendingToolInteraction {
   state.blocks.push({
     type: 'action',
@@ -756,7 +808,8 @@ function appendQuestionActionBlock(
       questionOptions: question.options,
       questionMultiple: question.multiple,
       questionCustom: question.custom,
-      questionResolution: 'asked'
+      questionResolution: 'asked',
+      ...extra
     }
   })
   state.dirty = true
@@ -771,6 +824,47 @@ function appendQuestionActionBlock(
     serverDescription: toolCall.serverDescription,
     question
   }
+}
+
+function buildSkillDraftQuestion(
+  _payload: SkillDraftPromptPayload
+): NonNullable<PendingToolInteraction['question']> {
+  return {
+    header: 'chat.skillDraft.confirmationTitle',
+    question: 'chat.skillDraft.confirmationQuestion',
+    options: [
+      {
+        label: 'chat.skillDraft.actions.view',
+        description: 'chat.skillDraft.actions.viewDescription'
+      },
+      {
+        label: 'chat.skillDraft.actions.install',
+        description: 'chat.skillDraft.actions.installDescription'
+      },
+      {
+        label: 'chat.skillDraft.actions.discard',
+        description: 'chat.skillDraft.actions.discardDescription'
+      }
+    ],
+    custom: false,
+    multiple: false
+  }
+}
+
+function appendSkillDraftQuestionActionBlock(
+  state: StreamState,
+  io: IoParams,
+  toolContext: ToolExecutionContext['toolContext'],
+  payload: SkillDraftPromptPayload
+): PendingToolInteraction {
+  const question = buildSkillDraftQuestion(payload)
+  return appendQuestionActionBlock(state, io, toolContext, question, {
+    skillDraftAction: 'confirm',
+    skillDraftId: payload.draftId,
+    skillDraftName: payload.skillName,
+    skillDraftPreview: '',
+    skillDraftStatus: 'pending'
+  })
 }
 
 function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): void {
@@ -961,6 +1055,7 @@ async function runToolCall(params: {
         rtkMode: toolRawData.rtkMode,
         rtkFallbackReason: toolRawData.rtkFallbackReason,
         imagePreviews,
+        skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),
         postHookKind: stagedIsError ? 'failure' : 'success'
       },
       toolsChanged: shouldRefreshToolsAfterCall(completedToolCall.name, toolRawData)
@@ -994,6 +1089,10 @@ export async function executeTools(
 }> {
   finalizePendingNarrativeBeforeToolExecution(state)
   persistToolExecutionState(io, state, rendererFlushHandle)
+
+  if (state.pendingInteractions?.length) {
+    state.pendingInteractions = []
+  }
 
   for (const tc of state.completedToolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)
@@ -1155,6 +1254,10 @@ export async function executeTools(
         hooks,
         appendToConversation: fittedResults.kind === 'ok'
       })
+      if (state.pendingInteractions?.length) {
+        pendingInteractions.push(...state.pendingInteractions)
+        state.pendingInteractions = []
+      }
       persistToolExecutionState(io, state, rendererFlushHandle)
 
       if (fittedResults.kind === 'terminal_error') {
@@ -1316,6 +1419,10 @@ export async function executeTools(
       hooks,
       appendToConversation: fittedResults.kind === 'ok'
     })
+    if (state.pendingInteractions?.length) {
+      pendingInteractions.push(...state.pendingInteractions)
+      state.pendingInteractions = []
+    }
     persistToolExecutionState(io, state, rendererFlushHandle)
 
     if (fittedResults.kind === 'terminal_error') {

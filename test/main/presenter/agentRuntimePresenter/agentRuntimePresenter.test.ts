@@ -53,7 +53,10 @@ vi.mock('@/presenter', () => ({
     skillPresenter: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),
-      loadSkillContent: vi.fn().mockResolvedValue(null)
+      loadSkillContent: vi.fn().mockResolvedValue(null),
+      viewDraftSkill: vi.fn(),
+      installDraftSkill: vi.fn(),
+      discardDraftSkill: vi.fn()
     },
     commandPermissionService: {
       extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
@@ -108,6 +111,9 @@ function getSkillPresenterMock() {
     getMetadataList: ReturnType<typeof vi.fn>
     getActiveSkills: ReturnType<typeof vi.fn>
     loadSkillContent: ReturnType<typeof vi.fn>
+    viewDraftSkill: ReturnType<typeof vi.fn>
+    installDraftSkill: ReturnType<typeof vi.fn>
+    discardDraftSkill: ReturnType<typeof vi.fn>
   }
 }
 
@@ -583,6 +589,17 @@ describe('AgentRuntimePresenter', () => {
     skillPresenter.getMetadataList.mockResolvedValue([])
     skillPresenter.getActiveSkills.mockResolvedValue([])
     skillPresenter.loadSkillContent.mockResolvedValue(null)
+    skillPresenter.viewDraftSkill.mockResolvedValue({ success: false, action: 'view', draftId: '' })
+    skillPresenter.installDraftSkill.mockResolvedValue({
+      success: false,
+      action: 'install',
+      draftId: ''
+    })
+    skillPresenter.discardDraftSkill.mockResolvedValue({
+      success: false,
+      action: 'discard',
+      draftId: ''
+    })
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
@@ -4464,6 +4481,199 @@ describe('AgentRuntimePresenter', () => {
         }
       ])
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('views a skill draft inline and keeps the confirmation pending', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.viewDraftSkill.mockResolvedValue({
+        success: true,
+        action: 'view',
+        draftId: 'draft-1',
+        skillName: 'draft-skill',
+        content: '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: '',
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'chat.skillDraft.confirmationQuestion',
+              questionOptions: [
+                { label: 'chat.skillDraft.actions.view' },
+                { label: 'chat.skillDraft.actions.install' },
+                { label: 'chat.skillDraft.actions.discard' }
+              ],
+              questionCustom: false,
+              skillDraftAction: 'confirm',
+              skillDraftId: 'draft-1',
+              skillDraftName: 'draft-skill',
+              skillDraftStatus: 'pending'
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.view'
+      })
+
+      expect(result).toEqual({ resumed: false, handledInline: true })
+      expect(skillPresenter.viewDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
+      expect(processStream).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
+        'm1',
+        'pending'
+      )
+
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toContain('"action":"view"')
+      expect(updatedBlocks[0].status).toBe('success')
+      expect(updatedBlocks[1].status).toBe('pending')
+      expect(updatedBlocks[1].extra.needsUserAction).toBe(true)
+      expect(updatedBlocks[1].extra.skillDraftStatus).toBe('viewed')
+      expect(updatedBlocks[1].extra.skillDraftPreview).toContain('# Draft body')
+      expect(updatedBlocks[1].extra.questionOptions.map((option: any) => option.label)).toEqual([
+        'chat.skillDraft.actions.install',
+        'chat.skillDraft.actions.discard'
+      ])
+    })
+
+    it('installs a skill draft and resumes assistant message', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.installDraftSkill.mockResolvedValue({
+        success: true,
+        action: 'install',
+        draftId: 'draft-1',
+        skillName: 'draft-skill',
+        installedSkillName: 'draft-skill'
+      })
+      const invalidateSystemPromptCache = vi.spyOn(agent as any, 'invalidateSystemPromptCache')
+      const invalidateToolProfileCache = vi.spyOn(agent as any, 'invalidateToolProfileCache')
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      invalidateSystemPromptCache.mockClear()
+      invalidateToolProfileCache.mockClear()
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: '',
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'chat.skillDraft.confirmationQuestion',
+              questionOptions: [
+                { label: 'chat.skillDraft.actions.install' },
+                { label: 'chat.skillDraft.actions.discard' }
+              ],
+              questionCustom: false,
+              skillDraftAction: 'confirm',
+              skillDraftId: 'draft-1',
+              skillDraftName: 'draft-skill',
+              skillDraftStatus: 'viewed'
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.install'
+      })
+
+      expect(result).toEqual({ resumed: true })
+      expect(skillPresenter.installDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(invalidateSystemPromptCache).toHaveBeenCalledWith('s1')
+      expect(invalidateToolProfileCache).toHaveBeenCalledWith('s1')
+
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toContain('"action":"install"')
+      expect(updatedBlocks[1].status).toBe('success')
+      expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
+      expect(updatedBlocks[1].extra.answerText).toBe('chat.skillDraft.actions.install')
+      expect(updatedBlocks[1].extra.skillDraftStatus).toBe('installed')
+    })
+
+    it('discards a skill draft and resumes assistant message', async () => {
+      const skillPresenter = getSkillPresenterMock()
+      skillPresenter.discardDraftSkill.mockResolvedValue({
+        success: true,
+        action: 'discard',
+        draftId: 'draft-1'
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: '',
+            tool_call: { id: 'tc1', name: 'skill_manage', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'chat.skillDraft.confirmationQuestion',
+              questionOptions: [
+                { label: 'chat.skillDraft.actions.install' },
+                { label: 'chat.skillDraft.actions.discard' }
+              ],
+              questionCustom: false,
+              skillDraftAction: 'confirm',
+              skillDraftId: 'draft-1',
+              skillDraftName: 'draft-skill'
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'chat.skillDraft.actions.discard'
+      })
+
+      expect(result).toEqual({ resumed: true })
+      expect(skillPresenter.discardDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toContain('"action":"discard"')
+      expect(updatedBlocks[1].status).toBe('success')
+      expect(updatedBlocks[1].extra.skillDraftStatus).toBe('discarded')
+      expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
     })
 
     it('handles question_other and waits for user message without resume', async () => {

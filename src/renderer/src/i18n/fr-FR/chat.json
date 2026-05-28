@@ -380,5 +380,24 @@
       "description": "Tout est prêt. Saisissez ici votre premier message pour terminer l’onboarding.",
       "caption": "Le projecteur reste sur la zone de saisie jusqu’à l’envoi de votre premier message."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Brouillon de compétence",
+    "confirmationQuestion": "Un brouillon de compétence a été généré : {name}",
+    "previewTitle": "Aperçu du contenu du brouillon",
+    "actions": {
+      "view": "Afficher le contenu",
+      "viewDescription": "Prévisualiser le contenu SKILL.md du brouillon",
+      "install": "Installer comme compétence",
+      "installDescription": "L’importer dans le dossier des compétences pour gestion",
+      "discard": "Ignorer",
+      "discardDescription": "Supprimer ce brouillon temporaire"
+    },
+    "result": {
+      "viewed": "L’aperçu du contenu du brouillon est ouvert. Choisissez de l’installer ou de l’ignorer.",
+      "installed": "Brouillon de compétence installé : {name}",
+      "discarded": "Brouillon de compétence ignoré.",
+      "failed": "Impossible de traiter le brouillon de compétence : {error}"
+    }
   }
 }

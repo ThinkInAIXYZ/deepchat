@@ -70,6 +70,25 @@
     "audioInputUnsupportedTitle": "Current model does not support audio attachments",
     "audioInputUnsupportedDescription": "Model {model} does not support audio input. Ignored {count} audio attachment(s)."
   },
+  "skillDraft": {
+    "confirmationTitle": "Skill Draft",
+    "confirmationQuestion": "Generated skill draft: {name}",
+    "previewTitle": "Draft content preview",
+    "actions": {
+      "view": "View content",
+      "viewDescription": "Preview the draft SKILL.md content",
+      "install": "Install as Skill",
+      "installDescription": "Import it into the Skills folder for management",
+      "discard": "Discard",
+      "discardDescription": "Delete this temporary draft"
+    },
+    "result": {
+      "viewed": "Draft content preview is open. Choose install or discard.",
+      "installed": "Installed skill draft: {name}",
+      "discarded": "Discarded skill draft.",
+      "failed": "Failed to handle skill draft: {error}"
+    }
+  },
   "pendingInput": {
     "steer": "Steer",
     "queueCount": "Queued {count}/{max}",

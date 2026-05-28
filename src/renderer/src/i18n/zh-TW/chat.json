@@ -380,5 +380,24 @@
       "description": "現在已經準備好了，在這裡傳送第一條訊息即可完成引導。",
       "caption": "聚光會一直停留在輸入框，直到你真正送出第一條訊息。"
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "技能草稿",
+    "confirmationQuestion": "已產生技能草稿：{name}",
+    "previewTitle": "草稿內容預覽",
+    "actions": {
+      "view": "檢視內容",
+      "viewDescription": "預覽草稿的 SKILL.md 內容",
+      "install": "安裝為技能",
+      "installDescription": "匯入到技能目錄並啟用管理",
+      "discard": "捨棄",
+      "discardDescription": "刪除這個暫存草稿"
+    },
+    "result": {
+      "viewed": "已開啟草稿內容預覽。請選擇安裝或捨棄。",
+      "installed": "已安裝技能草稿：{name}",
+      "discarded": "已捨棄技能草稿。",
+      "failed": "處理技能草稿失敗：{error}"
+    }
   }
 }

@@ -15,6 +15,18 @@
       {{ bodyText }}
     </p>
 
+    <div
+      v-if="isSkillDraft && skillDraftPreview"
+      class="mt-3 rounded-md border bg-background/60 p-3"
+    >
+      <div class="text-[11px] uppercase tracking-wide text-muted-foreground">
+        {{ t('chat.skillDraft.previewTitle') }}
+      </div>
+      <pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-5">{{
+        skillDraftPreview
+      }}</pre>
+    </div>
+
     <div v-if="isPermission" class="mt-3 space-y-2">
       <div class="rounded-md border bg-muted/50 px-3 py-2">
         <div class="text-[11px] uppercase tracking-wide text-muted-foreground">Tool</div>
@@ -36,7 +48,7 @@
         variant="outline"
         size="sm"
         class="h-auto min-h-8 px-3 py-1.5 text-left"
-        @click="onQuestionOption(option.label)"
+        @click="onQuestionOption(option)"
       >
         <span class="flex flex-col items-start gap-0.5">
           <span class="text-xs font-medium">{{ option.label }}</span>
@@ -110,57 +122,84 @@ const { t } = useI18n()
 
 const isQuestion = computed(() => props.interaction.actionType === 'question_request')
 const isPermission = computed(() => props.interaction.actionType === 'tool_call_permission')
+const isSkillDraft = computed(() => props.interaction.block.extra?.skillDraftAction === 'confirm')
+
+const translateMaybeKey = (value: string, params?: Record<string, unknown>) => {
+  return value.includes('.') ? t(value, params ?? {}) : value
+}
 
 const headerIcon = computed(() =>
   isQuestion.value ? 'lucide:message-circle-question' : 'lucide:shield'
 )
-const headerText = computed(() =>
-  isQuestion.value
-    ? t('components.messageBlockQuestionRequest.title')
-    : t('components.messageBlockPermissionRequest.title')
-)
+const headerText = computed(() => {
+  if (isQuestion.value) {
+    const raw = props.interaction.block.extra?.questionHeader
+    if (typeof raw === 'string' && raw.trim()) {
+      return translateMaybeKey(raw)
+    }
+    return t('components.messageBlockQuestionRequest.title')
+  }
+
+  return t('components.messageBlockPermissionRequest.title')
+})
+
+const skillDraftName = computed(() => {
+  const raw = props.interaction.block.extra?.skillDraftName
+  return typeof raw === 'string' ? raw : ''
+})
+
+const skillDraftPreview = computed(() => {
+  const raw = props.interaction.block.extra?.skillDraftPreview
+  return typeof raw === 'string' ? raw : ''
+})
 
 const questionText = computed(() => {
   const raw = props.interaction.block.extra?.questionText
   if (typeof raw === 'string' && raw.trim()) {
-    return raw
+    return translateMaybeKey(raw, { name: skillDraftName.value })
   }
   return props.interaction.block.content || ''
 })
 
-const parseQuestionOption = (value: unknown): { label: string; description?: string } | null => {
+type QuestionOptionView = { label: string; rawLabel: string; description?: string }
+
+const parseQuestionOption = (value: unknown): QuestionOptionView | null => {
   if (!value || typeof value !== 'object') return null
   const candidate = value as { label?: unknown; description?: unknown }
   if (typeof candidate.label !== 'string') return null
   const label = candidate.label.trim()
   if (!label) return null
+  const translatedLabel = translateMaybeKey(label)
   if (typeof candidate.description === 'string' && candidate.description.trim()) {
-    return { label, description: candidate.description.trim() }
+    return {
+      label: translatedLabel,
+      rawLabel: label,
+      description: translateMaybeKey(candidate.description.trim())
+    }
   }
-  return { label }
+  return { label: translatedLabel, rawLabel: label }
 }
 
-const questionOptions = computed(() => {
-  const raw = props.interaction.block.extra?.questionOptions
+const parseQuestionOptionsPayload = (raw: unknown): unknown[] => {
   if (Array.isArray(raw)) {
     return raw
-      .map((item) => parseQuestionOption(item))
-      .filter((item): item is { label: string; description?: string } => Boolean(item))
   }
   if (typeof raw === 'string' && raw.trim()) {
     try {
       const parsed = JSON.parse(raw) as unknown
-      if (Array.isArray(parsed)) {
-        return parsed
-          .map((item) => parseQuestionOption(item))
-          .filter((item): item is { label: string; description?: string } => Boolean(item))
-      }
+      return Array.isArray(parsed) ? parsed : []
     } catch (error) {
       console.error('[ChatToolInteractionOverlay] parse question options failed:', error)
     }
   }
   return []
-})
+}
+
+const questionOptions = computed(() =>
+  parseQuestionOptionsPayload(props.interaction.block.extra?.questionOptions)
+    .map((item) => parseQuestionOption(item))
+    .filter((item): item is QuestionOptionView => Boolean(item))
+)
 
 const allowOther = computed(() => props.interaction.block.extra?.questionCustom !== false)
 
@@ -216,8 +255,11 @@ const onPermission = (granted: boolean) => {
   emit('respond', { kind: 'permission', granted })
 }
 
-const onQuestionOption = (optionLabel: string) => {
-  emit('respond', { kind: 'question_option', optionLabel })
+const onQuestionOption = (option: QuestionOptionView) => {
+  emit('respond', {
+    kind: 'question_option',
+    optionLabel: isSkillDraft.value ? option.rawLabel : option.label
+  })
 }
 
 const onQuestionOther = () => {

@@ -5,20 +5,27 @@ import MessageBlockAction from '@/components/message/MessageBlockAction.vue'
 import MessageBlockError from '@/components/message/MessageBlockError.vue'
 import MessageBlockPlan from '@/components/message/MessageBlockPlan.vue'
 import MessageBlockQuestionRequest from '@/components/message/MessageBlockQuestionRequest.vue'
+import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: Record<string, string>) => {
+    t: (key: string, params?: Record<string, unknown>) => {
       const messages: Record<string, string> = {
         'chat.workspace.plan.section': 'Plan',
         'chat.workspace.plan.empty': 'No tasks yet',
         'chat.workspace.plan.itemAriaLabel': '{status}: {step}',
         'chat.workspace.plan.status.completed': 'Completed',
         'chat.workspace.plan.status.in_progress': 'In Progress',
-        'chat.workspace.plan.status.pending': 'Pending'
+        'chat.workspace.plan.status.pending': 'Pending',
+        'chat.skillDraft.confirmationTitle': 'Skill Draft',
+        'chat.skillDraft.confirmationQuestion': '已生成 skill draft：{name}',
+        'chat.skillDraft.actions.view': '查看内容',
+        'chat.skillDraft.actions.install': '安装为 Skill',
+        'chat.skillDraft.actions.discard': '丢弃',
+        'chat.skillDraft.previewTitle': 'Draft content preview'
       }
-      return (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => params?.[name] ?? '')
+      return (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => String(params?.[name] ?? ''))
     }
   })
 }))
@@ -92,6 +99,77 @@ describe('MessageBlock basics', () => {
     expect(wrapper.find('[data-rate-limit-block="true"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('chat.messages.rateLimitCompactLoading')
     expect(wrapper.findAll('button')).toHaveLength(0)
+  })
+
+  it('translates skill draft question keys with the draft name', () => {
+    const wrapper = mount(MessageBlockQuestionRequest, {
+      props: {
+        block: createBlock({
+          action_type: 'question_request',
+          content: '',
+          extra: {
+            questionText: 'chat.skillDraft.confirmationQuestion',
+            questionOptions: JSON.stringify([
+              { label: 'chat.skillDraft.actions.view' },
+              { label: 'chat.skillDraft.actions.install' },
+              { label: 'chat.skillDraft.actions.discard' }
+            ]),
+            answerText: 'chat.skillDraft.actions.install',
+            skillDraftName: 'draft-skill'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.text()).toContain('已生成 skill draft：draft-skill')
+    expect(wrapper.text()).toContain('查看内容')
+    expect(wrapper.text()).toContain('安装为 Skill')
+    expect(wrapper.text()).toContain('丢弃')
+  })
+
+  it('renders skill draft preview and emits the raw action key from the overlay', async () => {
+    const wrapper = mount(ChatToolInteractionOverlay, {
+      props: {
+        interaction: {
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          actionType: 'question_request',
+          toolName: 'skill_manage',
+          toolArgs: '{}',
+          block: createBlock({
+            action_type: 'question_request',
+            status: 'pending',
+            extra: {
+              questionHeader: 'chat.skillDraft.confirmationTitle',
+              questionText: 'chat.skillDraft.confirmationQuestion',
+              questionOptions: [
+                { label: 'chat.skillDraft.actions.install' },
+                { label: 'chat.skillDraft.actions.discard' }
+              ],
+              questionCustom: false,
+              skillDraftAction: 'confirm',
+              skillDraftName: 'draft-skill',
+              skillDraftPreview: '# Draft body'
+            }
+          })
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('已生成 skill draft：draft-skill')
+    expect(wrapper.text()).toContain('Draft content preview')
+    expect(wrapper.text()).toContain('# Draft body')
+    expect(wrapper.text()).toContain('安装为 Skill')
+
+    const installButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('安装为 Skill'))
+    expect(installButton).toBeTruthy()
+    await installButton!.trigger('click')
+
+    expect(wrapper.emitted('respond')).toEqual([
+      [{ kind: 'question_option', optionLabel: 'chat.skillDraft.actions.install' }]
+    ])
   })
 
   it('renders question request content and answer', () => {

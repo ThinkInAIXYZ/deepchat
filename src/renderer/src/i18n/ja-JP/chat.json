@@ -380,5 +380,24 @@
       "description": "準備は完了です。ここに最初のメッセージを入力してオンボーディングを完了しましょう。",
       "caption": "最初のメッセージを送信するまで、スポットライトは入力欄に表示されたままです。"
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "スキルドラフト",
+    "confirmationQuestion": "スキルドラフトが生成されました: {name}",
+    "previewTitle": "ドラフト内容のプレビュー",
+    "actions": {
+      "view": "内容を表示",
+      "viewDescription": "ドラフトの SKILL.md 内容をプレビュー",
+      "install": "スキルとしてインストール",
+      "installDescription": "管理できるようにスキルフォルダへインポート",
+      "discard": "破棄",
+      "discardDescription": "この一時ドラフトを削除"
+    },
+    "result": {
+      "viewed": "ドラフト内容のプレビューを開きました。インストールまたは破棄を選択してください。",
+      "installed": "スキルドラフトをインストールしました: {name}",
+      "discarded": "スキルドラフトを破棄しました。",
+      "failed": "スキルドラフトの処理に失敗しました: {error}"
+    }
   }
 }

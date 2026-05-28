@@ -46,6 +46,7 @@ export interface StreamState {
     }
   >
   completedToolCalls: ToolCallResult[]
+  pendingInteractions?: PendingToolInteraction[]
   stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens'
   dirty: boolean
 }

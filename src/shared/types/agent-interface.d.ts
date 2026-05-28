@@ -376,6 +376,12 @@ export interface AssistantMessageExtra {
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  skillDraftAction?: string
+  skillDraftId?: string
+  skillDraftName?: string
+  skillDraftPreview?: string
+  skillDraftStatus?: string
+  skillDraftError?: string
   internalTool?: boolean
   plan_entries?: AgentPlanDisplayItem[]
   plan_explanation?: string
@@ -750,6 +756,7 @@ export type ToolInteractionResponse =
 export interface ToolInteractionResult {
   resumed?: boolean
   waitingForUserMessage?: boolean
+  handledInline?: boolean
 }
 
 export interface CreateSessionInput {

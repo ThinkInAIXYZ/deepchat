@@ -159,6 +159,20 @@ export interface SkillManageResult {
   draftId?: string
   filePath?: string
   skillName?: string
+  draftStatus?: 'created' | 'updated' | 'deleted' | 'installed' | 'viewed'
+  content?: string
+  error?: string
+}
+
+export type SkillDraftUserAction = 'view' | 'install' | 'discard'
+
+export interface SkillDraftActionResult {
+  success: boolean
+  action: SkillDraftUserAction
+  draftId: string
+  skillName?: string
+  content?: string
+  installedSkillName?: string
   error?: string
 }
 
@@ -181,6 +195,9 @@ export interface ISkillPresenter {
       conversationId?: string
     }
   ): Promise<SkillViewResult>
+  viewDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
+  installDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
+  discardDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
   manageDraftSkill(conversationId: string, request: SkillManageRequest): Promise<SkillManageResult>
 
   // Installation and uninstallation

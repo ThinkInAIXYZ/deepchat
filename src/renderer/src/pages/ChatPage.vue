@@ -1376,13 +1376,16 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
 
   isHandlingInteraction.value = true
   try {
-    await chatClient.respondToolInteraction({
+    const result = await chatClient.respondToolInteraction({
       sessionId: interaction.sessionId,
       messageId: interaction.messageId,
       toolCallId: interaction.toolCallId,
       response
     })
     applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    if (result.handledInline) {
+      return
+    }
   } catch (error) {
     console.error('[ChatPage] respond tool interaction failed:', error)
   } finally {

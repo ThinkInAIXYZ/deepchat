@@ -238,6 +238,21 @@ type ActiveGeneration = {
   abortController: AbortController
 }
 
+type SkillDraftStatus = 'pending' | 'viewed' | 'installed' | 'discarded' | 'error'
+
+type SkillDraftChoice = 'view' | 'install' | 'discard'
+
+const SKILL_DRAFT_ACTION_LABELS: Record<SkillDraftChoice, string> = {
+  view: 'chat.skillDraft.actions.view',
+  install: 'chat.skillDraft.actions.install',
+  discard: 'chat.skillDraft.actions.discard'
+}
+
+const SKILL_DRAFT_STATUS_BY_CHOICE: Record<Exclude<SkillDraftChoice, 'view'>, SkillDraftStatus> = {
+  install: 'installed',
+  discard: 'discarded'
+}
+
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -286,7 +301,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
-    'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
+    | 'getMetadataList'
+    | 'getActiveSkills'
+    | 'loadSkillContent'
+    | 'viewDraftSkill'
+    | 'installDraftSkill'
+    | 'discardDraftSkill'
   >
   private toolRegistryRevision = 0
   private nextRunSequence = 0
@@ -304,7 +324,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       cacheImage?: (data: string) => Promise<string>
       skillPresenter?: Pick<
         ISkillPresenter,
-        'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
+        | 'getMetadataList'
+        | 'getActiveSkills'
+        | 'loadSkillContent'
+        | 'viewDraftSkill'
+        | 'installDraftSkill'
+        | 'discardDraftSkill'
       >
     }
   ) {
@@ -896,6 +921,184 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
+  private resolveSkillDraftChoice(answerText: string): SkillDraftChoice | null {
+    const normalized = answerText.trim()
+    for (const [choice, label] of Object.entries(SKILL_DRAFT_ACTION_LABELS) as Array<
+      [SkillDraftChoice, string]
+    >) {
+      if (normalized === choice || normalized === label) {
+        return choice
+      }
+    }
+    return null
+  }
+
+  private isSkillDraftConfirmationBlock(block: AssistantMessageBlock): boolean {
+    return (
+      block.action_type === 'question_request' &&
+      block.extra?.skillDraftAction === 'confirm' &&
+      typeof block.extra?.skillDraftId === 'string'
+    )
+  }
+
+  private updateSkillDraftQuestionOptions(block: AssistantMessageBlock, viewed: boolean): void {
+    const options = [
+      ...(viewed
+        ? []
+        : [
+            {
+              label: SKILL_DRAFT_ACTION_LABELS.view,
+              description: 'chat.skillDraft.actions.viewDescription'
+            }
+          ]),
+      {
+        label: SKILL_DRAFT_ACTION_LABELS.install,
+        description: 'chat.skillDraft.actions.installDescription'
+      },
+      {
+        label: SKILL_DRAFT_ACTION_LABELS.discard,
+        description: 'chat.skillDraft.actions.discardDescription'
+      }
+    ]
+    block.extra = {
+      ...block.extra,
+      questionOptions: options
+    }
+  }
+
+  private updateSkillDraftToolCallResponse(
+    blocks: AssistantMessageBlock[],
+    toolCallId: string,
+    responseText: string,
+    isError: boolean
+  ): void {
+    this.updateToolCallResponse(blocks, toolCallId, responseText, isError)
+  }
+
+  private buildSkillDraftToolResponse(result: {
+    success: boolean
+    action: SkillDraftChoice
+    draftId: string
+    skillName?: string
+    installedSkillName?: string
+    error?: string
+  }): string {
+    if (!result.success) {
+      return JSON.stringify({
+        success: false,
+        action: result.action,
+        draftId: result.draftId,
+        error: result.error || 'Unknown error'
+      })
+    }
+
+    return JSON.stringify({
+      success: true,
+      action: result.action,
+      draftId: result.draftId,
+      ...(result.skillName ? { skillName: result.skillName } : {}),
+      ...(result.installedSkillName ? { installedSkillName: result.installedSkillName } : {})
+    })
+  }
+
+  private async handleSkillDraftInteraction(
+    sessionId: string,
+    blocks: AssistantMessageBlock[],
+    actionBlock: AssistantMessageBlock,
+    toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
+    response: Exclude<ToolInteractionResponse, { kind: 'permission' }>
+  ): Promise<{ keepPending: boolean; waitingForUserMessage: boolean; handledInline?: boolean }> {
+    if (!this.skillPresenter) {
+      throw new Error('Skill presenter is not available.')
+    }
+
+    if (response.kind === 'question_other') {
+      throw new Error('Custom skill draft responses are not supported.')
+    }
+
+    const answerText =
+      response.kind === 'question_option' ? response.optionLabel : response.answerText
+    const choice = this.resolveSkillDraftChoice(answerText)
+    if (!choice) {
+      throw new Error('Unknown skill draft action.')
+    }
+
+    const draftId = String(actionBlock.extra?.skillDraftId ?? '').trim()
+    if (!draftId) {
+      throw new Error('Skill draft id is missing.')
+    }
+
+    if (choice === 'view') {
+      const result = await this.skillPresenter.viewDraftSkill(sessionId, draftId)
+      if (!result.success) {
+        const error = result.error || 'Unknown error'
+        actionBlock.extra = {
+          ...actionBlock.extra,
+          skillDraftStatus: 'error',
+          skillDraftError: error
+        }
+        this.updateSkillDraftToolCallResponse(
+          blocks,
+          toolCall.id!,
+          this.buildSkillDraftToolResponse({ success: false, action: 'view', draftId, error }),
+          true
+        )
+        this.markQuestionResolved(actionBlock, SKILL_DRAFT_ACTION_LABELS.view)
+        return { keepPending: false, waitingForUserMessage: false }
+      }
+
+      const responseText = this.buildSkillDraftToolResponse({
+        success: true,
+        action: 'view',
+        draftId,
+        skillName: result.skillName
+      })
+      actionBlock.status = 'pending'
+      const currentExtra = actionBlock.extra ?? {}
+      actionBlock.extra = {
+        ...currentExtra,
+        needsUserAction: true,
+        questionResolution: 'asked',
+        skillDraftStatus: 'viewed',
+        skillDraftName: result.skillName ?? currentExtra.skillDraftName,
+        skillDraftPreview: result.content ?? ''
+      }
+      this.updateSkillDraftQuestionOptions(actionBlock, true)
+      this.updateSkillDraftToolCallResponse(blocks, toolCall.id!, responseText, false)
+      return { keepPending: true, waitingForUserMessage: false, handledInline: true }
+    }
+
+    const result =
+      choice === 'install'
+        ? await this.skillPresenter.installDraftSkill(sessionId, draftId)
+        : await this.skillPresenter.discardDraftSkill(sessionId, draftId)
+
+    const responseText = this.buildSkillDraftToolResponse({
+      success: result.success,
+      action: result.action,
+      draftId,
+      skillName: result.skillName,
+      installedSkillName: result.installedSkillName,
+      error: result.error
+    })
+
+    const error = result.error || 'Unknown error'
+    actionBlock.extra = {
+      ...actionBlock.extra,
+      skillDraftStatus: result.success ? SKILL_DRAFT_STATUS_BY_CHOICE[choice] : 'error',
+      ...(result.success ? {} : { skillDraftError: error })
+    }
+    this.markQuestionResolved(actionBlock, SKILL_DRAFT_ACTION_LABELS[choice])
+    this.updateSkillDraftToolCallResponse(blocks, toolCall.id!, responseText, !result.success)
+
+    if (choice === 'install' && result.success) {
+      this.invalidateSystemPromptCache(sessionId)
+      this.invalidateToolProfileCache(sessionId)
+    }
+
+    return { keepPending: false, waitingForUserMessage: false }
+  }
+
   async respondToolInteraction(
     sessionId: string,
     messageId: string,
@@ -942,7 +1145,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           throw new Error('Invalid response kind for question interaction.')
         }
 
-        if (response.kind === 'question_other') {
+        if (this.isSkillDraftConfirmationBlock(actionBlock)) {
+          const result = await this.handleSkillDraftInteraction(
+            sessionId,
+            blocks,
+            actionBlock,
+            toolCall,
+            response
+          )
+          waitingForUserMessage = result.waitingForUserMessage
+          if (result.keepPending) {
+            this.messageStore.updateAssistantContent(messageId, blocks)
+            this.emitMessageRefresh(sessionId, messageId)
+            this.messageStore.updateMessageStatus(messageId, 'pending')
+            this.setSessionStatus(sessionId, 'generating')
+            return { resumed: false, handledInline: result.handledInline === true }
+          }
+        } else if (response.kind === 'question_other') {
           const deferredResult = 'User chose to answer with a follow-up message.'
           this.markQuestionResolved(actionBlock, '')
           this.updateToolCallResponse(blocks, toolCall.id, deferredResult, false)

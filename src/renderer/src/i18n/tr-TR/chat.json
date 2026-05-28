@@ -380,5 +380,24 @@
       "description": "Her şey hazır. İlk katılım akışını tamamlamak için ilk mesajınızı buraya yazın.",
       "caption": "Siz ilk mesajınızı gönderene kadar spot ışığı giriş kutusunun üzerinde kalır."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Skill taslağı",
+    "confirmationQuestion": "Bir skill taslağı oluşturuldu: {name}",
+    "previewTitle": "Taslak içeriği önizlemesi",
+    "actions": {
+      "view": "İçeriği görüntüle",
+      "viewDescription": "Taslağın SKILL.md içeriğini önizle",
+      "install": "Skill olarak yükle",
+      "installDescription": "Yönetim için Skills klasörüne içe aktar",
+      "discard": "Vazgeç",
+      "discardDescription": "Bu geçici taslağı sil"
+    },
+    "result": {
+      "viewed": "Taslak içerik önizlemesi açık. Yüklemeyi veya vazgeçmeyi seçin.",
+      "installed": "Skill taslağı yüklendi: {name}",
+      "discarded": "Skill taslağından vazgeçildi.",
+      "failed": "Skill taslağı işlenemedi: {error}"
+    }
   }
 }

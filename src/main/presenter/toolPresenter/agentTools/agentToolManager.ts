@@ -8,6 +8,7 @@ import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { SkillManageResult } from '@shared/types/skill'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
@@ -1975,10 +1976,36 @@ export class AgentToolManager {
         throw new Error(`Invalid arguments for skill_manage: ${validationResult.error.message}`)
       }
       const result = await skillTools.handleSkillManage(conversationId, validationResult.data)
-      return { content: JSON.stringify(result) }
+      return {
+        content: JSON.stringify(result),
+        rawData: {
+          content: JSON.stringify(result),
+          isError: result.success !== true,
+          toolResult: this.buildSkillManageToolResult(result)
+        }
+      }
     }
 
     throw new Error(`Unknown skill tool: ${toolName}`)
+  }
+
+  private buildSkillManageToolResult(result: SkillManageResult): Record<string, unknown> {
+    return {
+      toolName: 'skill_manage',
+      ...result,
+      ...(result.success === true &&
+      result.action === 'create' &&
+      result.draftId &&
+      result.skillName
+        ? {
+            skillDraft: {
+              status: 'created',
+              draftId: result.draftId,
+              skillName: result.skillName
+            }
+          }
+        : {})
+    }
   }
 
   private async callSkillExecutionTool(

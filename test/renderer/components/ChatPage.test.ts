@@ -153,6 +153,7 @@ const setup = async (options: SetupOptions = {}) => {
     editUserMessage: vi.fn().mockResolvedValue(undefined),
     forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
   }
+  const chatRespondToolInteraction = vi.fn().mockResolvedValue({ accepted: true })
   const chatClient = {
     sendMessage: vi.fn().mockResolvedValue({
       accepted: true,
@@ -163,7 +164,7 @@ const setup = async (options: SetupOptions = {}) => {
       accepted: true
     }),
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
-    respondToolInteraction: vi.fn().mockResolvedValue({ accepted: true }),
+    respondToolInteraction: chatRespondToolInteraction,
     onPlanUpdated: vi.fn().mockReturnValue(() => {})
   }
   const sessionClient = {
@@ -418,6 +419,7 @@ const setup = async (options: SetupOptions = {}) => {
     wrapper,
     agentSessionPresenter,
     chatClient,
+    chatRespondToolInteraction,
     sessionClient,
     sessionStore,
     toast,
@@ -701,6 +703,38 @@ describe('ChatPage', () => {
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-tool-interaction-overlay-stub')
     )
+  })
+
+  it('keeps the interaction overlay open after an inline skill draft view', async () => {
+    const { wrapper, chatRespondToolInteraction, messageStore } = await setup({
+      messages: [
+        buildAssistantMessage([
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: {
+              id: 'tool-1',
+              name: 'skill_manage'
+            },
+            extra: {
+              needsUserAction: true,
+              skillDraftAction: 'confirm',
+              skillDraftId: 'draft-1'
+            }
+          }
+        ])
+      ]
+    })
+    chatRespondToolInteraction.mockResolvedValueOnce({ accepted: true, handledInline: true })
+
+    await wrapper.find('.chat-tool-interaction-overlay-stub').trigger('click')
+    await flushPromises()
+
+    expect(chatRespondToolInteraction).toHaveBeenCalledTimes(1)
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
   })
 
   it('routes tool interaction responses through ChatClient and refreshes messages', async () => {
