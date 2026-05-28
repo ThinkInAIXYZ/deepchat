@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "חשבונות {channel} האלה מורשים לבצע צימוד ולשלוט בסשנים.",
       "authorizedPrincipalsEmpty": "עדיין אין ישויות מורשות.",
       "sessionBindingsTitle": "קישורי סשנים",
-      "sessionBindingsDescription": "כל נקודת קצה מרוחקת שלהלן מקושרת כעת לסשן אחד של DeepChat."
+      "sessionBindingsDescription": "כל נקודת קצה מרוחקת שלהלן מקושרת כעת לסשן אחד של DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "נדרשת תיקיית ברירת מחדל",
+      "acpDefaultWorkdirRequiredDescription": "סוכני ACP זקוקים לסביבת עבודה מקומית. בחר תיקיית ברירת מחדל לפני השמירה."
     },
     "hooks": {
       "title": "Hooks של Telegram",

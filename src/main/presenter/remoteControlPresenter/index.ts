@@ -46,6 +46,7 @@ import {
 } from './types'
 import type { ChannelAdapterConfig } from './types/channel'
 import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
+import { REMOTE_CONTROL_ERROR_MESSAGES } from '@shared/contracts/remoteControlErrors'
 import type { RemoteControlPresenterDeps } from './interface'
 import { RemoteBindingStore } from './services/remoteBindingStore'
 import { RemoteConversationRunner } from './services/remoteConversationRunner'
@@ -1777,24 +1778,24 @@ export class RemoteControlPresenter {
     channel: RemoteChannel,
     candidate: string | null | undefined
   ): Promise<string> {
-    const normalizedCandidate = resolveAcpAgentAlias(
-      candidate?.trim() ||
-        (channel === 'qqbot'
-          ? QQBOT_REMOTE_DEFAULT_AGENT_ID
-          : channel === 'discord'
-            ? DISCORD_REMOTE_DEFAULT_AGENT_ID
-            : channel === 'weixin-ilink'
-              ? WEIXIN_ILINK_REMOTE_DEFAULT_AGENT_ID
-              : TELEGRAM_REMOTE_DEFAULT_AGENT_ID)
-    )
+    const channelDefault =
+      channel === 'qqbot'
+        ? QQBOT_REMOTE_DEFAULT_AGENT_ID
+        : channel === 'discord'
+          ? DISCORD_REMOTE_DEFAULT_AGENT_ID
+          : channel === 'weixin-ilink'
+            ? WEIXIN_ILINK_REMOTE_DEFAULT_AGENT_ID
+            : TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+    const rawCandidate = candidate?.trim() || channelDefault
+    const normalizedCandidate = resolveAcpAgentAlias(rawCandidate)
     const agents = await this.deps.configPresenter.listAgents()
     const enabledAgents = agents.filter((agent) => agent.enabled !== false)
-    const enabledAgentIds = new Set(enabledAgents.map((agent) => resolveAcpAgentAlias(agent.id)))
-    const nextDefaultAgentId = enabledAgentIds.has(normalizedCandidate)
-      ? normalizedCandidate
-      : enabledAgentIds.has(TELEGRAM_REMOTE_DEFAULT_AGENT_ID)
-        ? TELEGRAM_REMOTE_DEFAULT_AGENT_ID
-        : enabledAgents[0]?.id || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+    const matchedAgent =
+      enabledAgents.find((agent) => agent.id === rawCandidate) ??
+      enabledAgents.find((agent) => resolveAcpAgentAlias(agent.id) === normalizedCandidate)
+    const fallbackAgent = enabledAgents.find((agent) => agent.id === channelDefault)
+    const nextDefaultAgentId =
+      matchedAgent?.id ?? fallbackAgent?.id ?? enabledAgents[0]?.id ?? channelDefault
 
     if (channel === 'telegram') {
       if (this.bindingStore.getTelegramDefaultAgentId() !== nextDefaultAgentId) {
@@ -1843,7 +1844,7 @@ export class RemoteControlPresenter {
       return
     }
 
-    throw new Error('ACP remote agent requires a channel default directory.')
+    throw new Error(REMOTE_CONTROL_ERROR_MESSAGES.acpDefaultWorkdirRequired)
   }
 
   private async registerTelegramCommands(client: TelegramClient): Promise<void> {

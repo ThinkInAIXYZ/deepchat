@@ -2016,7 +2016,9 @@
       "authorizedPrincipalsDescription": "Bu {channel} hesapları oturumları eşleştirme ve kontrol etme yetkisine sahiptir.",
       "authorizedPrincipalsEmpty": "Henüz yetkili müdür yok.",
       "sessionBindingsTitle": "Oturum Bağlamaları",
-      "sessionBindingsDescription": "Aşağıdaki her uzak uç nokta şu anda bir DeepChat oturumuna bağlıdır."
+      "sessionBindingsDescription": "Aşağıdaki her uzak uç nokta şu anda bir DeepChat oturumuna bağlıdır.",
+      "acpDefaultWorkdirRequiredTitle": "Varsayılan dizin gerekli",
+      "acpDefaultWorkdirRequiredDescription": "ACP ajanları yerel bir çalışma alanı ister. Kaydetmeden önce varsayılan bir dizin seçin."
     },
     "hooks": {
       "title": "Telegram Kancalar",

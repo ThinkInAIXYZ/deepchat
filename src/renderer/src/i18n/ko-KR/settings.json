@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "이 {channel} 계정들은 승인되어 페어링과 세션 제어를 수행할 수 있습니다.",
       "authorizedPrincipalsEmpty": "아직 승인된 주체가 없습니다.",
       "sessionBindingsTitle": "세션 바인딩",
-      "sessionBindingsDescription": "아래의 각 원격 엔드포인트는 현재 하나의 DeepChat 세션에 바인딩되어 있습니다."
+      "sessionBindingsDescription": "아래의 각 원격 엔드포인트는 현재 하나의 DeepChat 세션에 바인딩되어 있습니다.",
+      "acpDefaultWorkdirRequiredTitle": "기본 디렉터리가 필요합니다",
+      "acpDefaultWorkdirRequiredDescription": "ACP 에이전트는 로컬 작업 공간이 필요합니다. 저장하기 전에 기본 디렉터리를 선택하세요."
     },
     "hooks": {
       "title": "Telegram 훅 알림",

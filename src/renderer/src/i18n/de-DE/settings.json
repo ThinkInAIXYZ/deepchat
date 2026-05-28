@@ -2016,7 +2016,9 @@
       "authorizedPrincipalsDescription": "Diese {channel}-Konten sind autorisiert und können Sitzungen koppeln und steuern.",
       "authorizedPrincipalsEmpty": "Aktuell keine autorisierten Subjekte.",
       "sessionBindingsTitle": "Sitzungsbindungen",
-      "sessionBindingsDescription": "Jeder Remote-Einstieg unten ist aktuell an eine DeepChat-Sitzung gebunden."
+      "sessionBindingsDescription": "Jeder Remote-Einstieg unten ist aktuell an eine DeepChat-Sitzung gebunden.",
+      "acpDefaultWorkdirRequiredTitle": "Standardverzeichnis erforderlich",
+      "acpDefaultWorkdirRequiredDescription": "ACP-Agenten benötigen einen lokalen Arbeitsbereich. Wähle vor dem Speichern ein Standardverzeichnis."
     },
     "hooks": {
       "title": "Telegram Hook-Benachrichtigungen",

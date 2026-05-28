@@ -2076,7 +2076,9 @@
       "authorizedPrincipalsDescription": "These {channel} accounts are authorized to pair and control sessions.",
       "authorizedPrincipalsEmpty": "No authorized principals yet.",
       "sessionBindingsTitle": "Session Bindings",
-      "sessionBindingsDescription": "Each remote endpoint below is currently bound to one DeepChat session."
+      "sessionBindingsDescription": "Each remote endpoint below is currently bound to one DeepChat session.",
+      "acpDefaultWorkdirRequiredTitle": "Default Directory Required",
+      "acpDefaultWorkdirRequiredDescription": "ACP agents need a local workspace. Pick a Default Directory before saving."
     },
     "hooks": {
       "title": "Telegram Hooks",

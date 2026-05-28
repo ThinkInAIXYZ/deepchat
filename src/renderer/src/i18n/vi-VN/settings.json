@@ -2016,7 +2016,9 @@
       "authorizedPrincipalsDescription": "Các tài khoản {channel} này được phép ghép nối và kiểm soát các phiên.",
       "authorizedPrincipalsEmpty": "Chưa có hiệu trưởng được ủy quyền.",
       "sessionBindingsTitle": "Ràng buộc phiên",
-      "sessionBindingsDescription": "Mỗi điểm cuối từ xa bên dưới hiện được liên kết với một phiên DeepChat."
+      "sessionBindingsDescription": "Mỗi điểm cuối từ xa bên dưới hiện được liên kết với một phiên DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Cần thư mục mặc định",
+      "acpDefaultWorkdirRequiredDescription": "Tác tử ACP cần một không gian làm việc cục bộ. Hãy chọn thư mục mặc định trước khi lưu."
     },
     "hooks": {
       "title": "Móc Telegram",

@@ -1547,6 +1547,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import { useLegacyPresenter, useLegacyRemoteControlPresenter } from '@api/legacy/presenters'
 import { useToast } from '@/components/use-toast'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
+import { isAcpDefaultWorkdirRequiredError } from '@shared/contracts/remoteControlErrors'
 import type { Agent, Project } from '@shared/types/agent-interface'
 import type {
   DiscordPairingSnapshot,
@@ -1623,7 +1625,7 @@ const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
   }
 ]
 
-const remoteControlPresenter = useLegacyRemoteControlPresenter()
+const remoteControlPresenter = useLegacyRemoteControlPresenter({ safeCall: false })
 const agentSessionPresenter = useLegacyPresenter('agentSessionPresenter')
 const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
 const { t } = useI18n()
@@ -2155,9 +2157,13 @@ const defaultAgentOptions = (currentAgentId: string) => {
     }))
 
   if (currentAgentId && !options.some((agent) => agent.id === currentAgentId)) {
+    const aliasMatch = availableAgents.value.find(
+      (agent) =>
+        agent.enabled && resolveAcpAgentAlias(agent.id) === resolveAcpAgentAlias(currentAgentId)
+    )
     options.unshift({
       id: currentAgentId,
-      name: currentAgentId
+      name: aliasMatch ? formatAgentOptionName(aliasMatch) : currentAgentId
     })
   }
 
@@ -2378,24 +2384,28 @@ const getSnapshotPrincipalIds = (
             .pairedChannelIds
 
 const refreshStatus = async () => {
-  const [
-    nextTelegramStatus,
-    nextFeishuStatus,
-    nextQQBotStatus,
-    nextDiscordStatus,
-    nextWeixinIlinkStatus
-  ] = await Promise.all([
-    getChannelStatusCompat('telegram'),
-    getChannelStatusCompat('feishu'),
-    getChannelStatusCompat('qqbot'),
-    getChannelStatusCompat('discord'),
-    getChannelStatusCompat('weixin-ilink')
-  ])
-  telegramStatus.value = nextTelegramStatus
-  feishuStatus.value = nextFeishuStatus
-  qqbotStatus.value = nextQQBotStatus
-  discordStatus.value = nextDiscordStatus
-  weixinIlinkStatus.value = nextWeixinIlinkStatus
+  try {
+    const [
+      nextTelegramStatus,
+      nextFeishuStatus,
+      nextQQBotStatus,
+      nextDiscordStatus,
+      nextWeixinIlinkStatus
+    ] = await Promise.all([
+      getChannelStatusCompat('telegram'),
+      getChannelStatusCompat('feishu'),
+      getChannelStatusCompat('qqbot'),
+      getChannelStatusCompat('discord'),
+      getChannelStatusCompat('weixin-ilink')
+    ])
+    telegramStatus.value = nextTelegramStatus
+    feishuStatus.value = nextFeishuStatus
+    qqbotStatus.value = nextQQBotStatus
+    discordStatus.value = nextDiscordStatus
+    weixinIlinkStatus.value = nextWeixinIlinkStatus
+  } catch (error) {
+    console.warn('Failed to refresh remote channel status:', error)
+  }
 }
 
 const refreshPairingSnapshot = async (
@@ -2538,6 +2548,15 @@ const buildWeixinIlinkDraftSettings = (): WeixinIlinkRemoteSettings | null => {
 }
 
 const toastSaveError = (error: unknown) => {
+  if (isAcpDefaultWorkdirRequiredError(error)) {
+    toast({
+      title: t('settings.remote.remoteControl.acpDefaultWorkdirRequiredTitle'),
+      description: t('settings.remote.remoteControl.acpDefaultWorkdirRequiredDescription'),
+      variant: 'destructive'
+    })
+    return
+  }
+
   toast({
     title: t('common.error.operationFailed'),
     description: error instanceof Error ? error.message : String(error),

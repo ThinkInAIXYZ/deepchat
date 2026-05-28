@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "これらの {channel} アカウントは認可済みで、ペアリングとセッション操作を行えます。",
       "authorizedPrincipalsEmpty": "認可済み主体はまだありません。",
       "sessionBindingsTitle": "セッション紐付け",
-      "sessionBindingsDescription": "下の各リモート入口は現在 1 つの DeepChat セッションに紐付いています。"
+      "sessionBindingsDescription": "下の各リモート入口は現在 1 つの DeepChat セッションに紐付いています。",
+      "acpDefaultWorkdirRequiredTitle": "既定のディレクトリが必要です",
+      "acpDefaultWorkdirRequiredDescription": "ACP エージェントにはローカルの作業ディレクトリが必要です。保存する前に「既定のディレクトリ」を選択してください。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",

@@ -2076,7 +2076,9 @@
       "authorizedPrincipalsDescription": "这些 {channel} 账号已经授权，可以配对并操作会话。",
       "authorizedPrincipalsEmpty": "当前还没有已授权主体。",
       "sessionBindingsTitle": "会话绑定",
-      "sessionBindingsDescription": "下方每个远程入口当前都绑定到了一个 DeepChat 会话。"
+      "sessionBindingsDescription": "下方每个远程入口当前都绑定到了一个 DeepChat 会话。",
+      "acpDefaultWorkdirRequiredTitle": "需要先设置默认目录",
+      "acpDefaultWorkdirRequiredDescription": "ACP 智能体需要本地工作目录。请先在「默认目录」中选择一个目录，再保存。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",

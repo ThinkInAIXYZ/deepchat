@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "這些 {channel} 帳號已獲授權，可以配對並操作會話。",
       "authorizedPrincipalsEmpty": "目前還沒有已授權主體。",
       "sessionBindingsTitle": "會話綁定",
-      "sessionBindingsDescription": "下方每個遠端入口目前都綁定到一個 DeepChat 會話。"
+      "sessionBindingsDescription": "下方每個遠端入口目前都綁定到一個 DeepChat 會話。",
+      "acpDefaultWorkdirRequiredTitle": "需要先設定預設目錄",
+      "acpDefaultWorkdirRequiredDescription": "ACP 智能體需要本機工作目錄。請先在「預設目錄」中選擇一個目錄，再儲存。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",

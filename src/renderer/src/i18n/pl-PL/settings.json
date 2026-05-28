@@ -2016,7 +2016,9 @@
       "authorizedPrincipalsDescription": "Te konta {channel} są upoważnione do parowania i kontrolowania sesji.",
       "authorizedPrincipalsEmpty": "Brak jeszcze autoryzowanych podmiotów zabezpieczeń.",
       "sessionBindingsTitle": "Powiązania sesji",
-      "sessionBindingsDescription": "Każdy zdalny punkt końcowy poniżej jest obecnie powiązany z jedną sesją DeepChat."
+      "sessionBindingsDescription": "Każdy zdalny punkt końcowy poniżej jest obecnie powiązany z jedną sesją DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Wymagany domyślny katalog",
+      "acpDefaultWorkdirRequiredDescription": "Agenci ACP potrzebują lokalnego obszaru roboczego. Wybierz domyślny katalog przed zapisaniem."
     },
     "hooks": {
       "title": "Haki Telegram",
