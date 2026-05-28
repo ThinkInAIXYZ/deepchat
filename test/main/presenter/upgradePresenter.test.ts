@@ -10,7 +10,8 @@ const {
   setApplicationQuittingMock,
   appQuitMock,
   appRelaunchMock,
-  appExitMock
+  appExitMock,
+  appGetVersionMock
 } = vi.hoisted(() => {
   const autoUpdaterState = {
     listeners: new Map<string, (...args: unknown[]) => void>(),
@@ -28,13 +29,15 @@ const {
     setApplicationQuittingMock: vi.fn(),
     appQuitMock: vi.fn(),
     appRelaunchMock: vi.fn(),
-    appExitMock: vi.fn()
+    appExitMock: vi.fn(),
+    appGetVersionMock: vi.fn(() => '1.0.0')
   }
 })
 
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => '/tmp/deepchat-test'),
+    getVersion: appGetVersionMock,
     quit: appQuitMock,
     relaunch: appRelaunchMock,
     exit: appExitMock
@@ -100,6 +103,8 @@ describe('UpgradePresenter', () => {
     appQuitMock.mockReset()
     appRelaunchMock.mockReset()
     appExitMock.mockReset()
+    appGetVersionMock.mockReset()
+    appGetVersionMock.mockReturnValue('1.0.0')
     vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockReset()
   })
 
@@ -180,5 +185,60 @@ describe('UpgradePresenter', () => {
     await presenter.checkUpdate()
 
     expect(electronUpdater.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores cross-channel downgrades when current install is a prerelease', () => {
+    appGetVersionMock.mockReturnValue('1.0.5-beta.5')
+    const configPresenter = {
+      getUpdateChannel: vi.fn(() => 'stable'),
+      getPrivacyModeEnabled: vi.fn(() => false)
+    } as any
+
+    const presenter = new UpgradePresenter(configPresenter)
+    const handler = autoUpdaterState.listeners.get('update-available')
+    expect(handler).toBeDefined()
+
+    // 模拟 electron-updater 在 channel 错配下推送的旧正式版
+    handler!({ version: '1.0.4', releaseDate: '2026-05-01', releaseNotes: '' })
+
+    expect((presenter as any)._status).toBe('not-available')
+    expect((presenter as any)._versionInfo).toBeNull()
+    // 不应触发自动下载
+    expect(electronUpdater.autoUpdater.downloadUpdate).not.toHaveBeenCalled()
+  })
+
+  it('accepts in-channel upgrades from one beta to a newer beta', () => {
+    appGetVersionMock.mockReturnValue('1.0.5-beta.2')
+    const configPresenter = {
+      getUpdateChannel: vi.fn(() => 'beta'),
+      getPrivacyModeEnabled: vi.fn(() => false)
+    } as any
+
+    const presenter = new UpgradePresenter(configPresenter)
+    const handler = autoUpdaterState.listeners.get('update-available')
+    expect(handler).toBeDefined()
+
+    handler!({ version: '1.0.5-beta.5', releaseDate: '2026-05-15', releaseNotes: '' })
+
+    expect((presenter as any)._status).toBe('available')
+    expect((presenter as any)._versionInfo?.version).toBe('1.0.5-beta.5')
+  })
+
+  it('accepts beta to same-version stable release as a legitimate channel convergence', () => {
+    // beta 测试完成，1.0.5 正式版发布；用户从 1.0.5-beta.5 升级到 1.0.5 应被允许
+    appGetVersionMock.mockReturnValue('1.0.5-beta.5')
+    const configPresenter = {
+      getUpdateChannel: vi.fn(() => 'stable'),
+      getPrivacyModeEnabled: vi.fn(() => false)
+    } as any
+
+    const presenter = new UpgradePresenter(configPresenter)
+    const handler = autoUpdaterState.listeners.get('update-available')
+    expect(handler).toBeDefined()
+
+    handler!({ version: '1.0.5', releaseDate: '2026-06-01', releaseNotes: '' })
+
+    expect((presenter as any)._status).toBe('available')
+    expect((presenter as any)._versionInfo?.version).toBe('1.0.5')
   })
 })

@@ -438,7 +438,7 @@ export class ConfigPresenter implements IConfigPresenter {
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         skillDraftSuggestionsEnabled: false,
-        updateChannel: 'stable', // Default to stable version
+        // updateChannel 不预填，首次由 getUpdateChannel() 根据当前应用版本号推断（避免 beta 安装包被默认推入 stable 渠道）
         appVersion: this.currentAppVersion,
         hooksNotifications: createDefaultHooksNotificationsConfig(),
         scheduledTasks: createDefaultScheduledTasksSettings()
@@ -2992,12 +2992,15 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取更新渠道
   getUpdateChannel(): string {
-    const raw = this.getSetting<string>('updateChannel') || 'stable'
-    const channel = raw === 'stable' || raw === 'beta' ? raw : 'beta'
-    if (channel !== raw) {
-      this.setSetting('updateChannel', channel)
+    const raw = this.getSetting<string>('updateChannel')
+    if (raw === 'stable' || raw === 'beta') {
+      return raw
     }
-    return channel
+    // 首次启动或值非法时，按当前应用版本号推断：含 -alpha/-beta/-rc/-canary 等预发后缀的安装包默认进入 beta 渠道
+    const isPrerelease = /-(?:alpha|beta|rc|canary)(?:[.-]\d+)?$/i.test(this.currentAppVersion)
+    const inferred = isPrerelease ? 'beta' : 'stable'
+    this.setSetting('updateChannel', inferred)
+    return inferred
   }
 
   // 设置更新渠道
