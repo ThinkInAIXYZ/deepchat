@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "스킬 초안",
+    "confirmationQuestion": "스킬 초안이 생성되었습니다: {name}",
+    "previewTitle": "초안 내용 미리보기",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "내용 보기",
+      "viewDescription": "초안의 SKILL.md 내용을 미리 봅니다",
+      "install": "스킬로 설치",
+      "installDescription": "관리를 위해 Skills 폴더로 가져옵니다",
+      "discard": "버리기",
+      "discardDescription": "이 임시 초안을 삭제합니다"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "초안 내용 미리보기가 열려 있습니다. 설치하거나 버리기를 선택하세요.",
+      "installed": "스킬 초안이 설치되었습니다: {name}",
+      "discarded": "스킬 초안을 버렸습니다.",
+      "failed": "스킬 초안 처리에 실패했습니다: {error}"
     }
   }
 }

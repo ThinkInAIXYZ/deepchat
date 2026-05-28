@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Borrador de skill",
+    "confirmationQuestion": "Se ha generado un borrador de skill: {name}",
+    "previewTitle": "Vista previa del contenido del borrador",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Ver contenido",
+      "viewDescription": "Previsualizar el contenido SKILL.md del borrador",
+      "install": "Instalar como skill",
+      "installDescription": "Importarlo a la carpeta de skills para gestionarlo",
+      "discard": "Descartar",
+      "discardDescription": "Eliminar este borrador temporal"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "La vista previa del contenido del borrador está abierta. Elige instalarlo o descartarlo.",
+      "installed": "Borrador de skill instalado: {name}",
+      "discarded": "Borrador de skill descartado.",
+      "failed": "No se pudo gestionar el borrador de skill: {error}"
     }
   }
 }

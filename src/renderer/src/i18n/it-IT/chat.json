@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Bozza di skill",
+    "confirmationQuestion": "È stata generata una bozza di skill: {name}",
+    "previewTitle": "Anteprima del contenuto della bozza",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Visualizza contenuto",
+      "viewDescription": "Visualizza in anteprima il contenuto SKILL.md della bozza",
+      "install": "Installa come skill",
+      "installDescription": "Importala nella cartella delle skill per la gestione",
+      "discard": "Scarta",
+      "discardDescription": "Elimina questa bozza temporanea"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "L’anteprima del contenuto della bozza è aperta. Scegli se installarla o scartarla.",
+      "installed": "Bozza di skill installata: {name}",
+      "discarded": "Bozza di skill scartata.",
+      "failed": "Impossibile gestire la bozza di skill: {error}"
     }
   }
 }

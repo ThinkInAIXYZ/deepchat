@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Szkic umiejętności",
+    "confirmationQuestion": "Wygenerowano szkic umiejętności: {name}",
+    "previewTitle": "Podgląd treści szkicu",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Wyświetl treść",
+      "viewDescription": "Podejrzyj treść SKILL.md szkicu",
+      "install": "Zainstaluj jako umiejętność",
+      "installDescription": "Zaimportuj go do folderu umiejętności w celu zarządzania",
+      "discard": "Odrzuć",
+      "discardDescription": "Usuń ten tymczasowy szkic"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "Podgląd treści szkicu jest otwarty. Wybierz instalację albo odrzucenie.",
+      "installed": "Zainstalowano szkic umiejętności: {name}",
+      "discarded": "Odrzucono szkic umiejętności.",
+      "failed": "Nie udało się obsłużyć szkicu umiejętności: {error}"
     }
   }
 }

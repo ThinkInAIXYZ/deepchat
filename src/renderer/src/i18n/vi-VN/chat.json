@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Bản nháp kỹ năng",
+    "confirmationQuestion": "Đã tạo bản nháp kỹ năng: {name}",
+    "previewTitle": "Xem trước nội dung bản nháp",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Xem nội dung",
+      "viewDescription": "Xem trước nội dung SKILL.md của bản nháp",
+      "install": "Cài đặt làm kỹ năng",
+      "installDescription": "Nhập vào thư mục kỹ năng để quản lý",
+      "discard": "Loại bỏ",
+      "discardDescription": "Xóa bản nháp tạm thời này"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "Bản xem trước nội dung bản nháp đang mở. Hãy chọn cài đặt hoặc loại bỏ.",
+      "installed": "Đã cài đặt bản nháp kỹ năng: {name}",
+      "discarded": "Đã loại bỏ bản nháp kỹ năng.",
+      "failed": "Không thể xử lý bản nháp kỹ năng: {error}"
     }
   }
 }

@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Rascunho de skill",
+    "confirmationQuestion": "Um rascunho de skill foi gerado: {name}",
+    "previewTitle": "Prévia do conteúdo do rascunho",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Ver conteúdo",
+      "viewDescription": "Pré-visualizar o conteúdo SKILL.md do rascunho",
+      "install": "Instalar como skill",
+      "installDescription": "Importar para a pasta de skills para gerenciamento",
+      "discard": "Descartar",
+      "discardDescription": "Excluir este rascunho temporário"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "A prévia do conteúdo do rascunho está aberta. Escolha instalar ou descartar.",
+      "installed": "Rascunho de skill instalado: {name}",
+      "discarded": "Rascunho de skill descartado.",
+      "failed": "Falha ao lidar com o rascunho de skill: {error}"
     }
   }
 }

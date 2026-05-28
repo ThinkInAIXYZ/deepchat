@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "スキルドラフト",
+    "confirmationQuestion": "スキルドラフトが生成されました: {name}",
+    "previewTitle": "ドラフト内容のプレビュー",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "内容を表示",
+      "viewDescription": "ドラフトの SKILL.md 内容をプレビュー",
+      "install": "スキルとしてインストール",
+      "installDescription": "管理できるようにスキルフォルダへインポート",
+      "discard": "破棄",
+      "discardDescription": "この一時ドラフトを削除"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "ドラフト内容のプレビューを開きました。インストールまたは破棄を選択してください。",
+      "installed": "スキルドラフトをインストールしました: {name}",
+      "discarded": "スキルドラフトを破棄しました。",
+      "failed": "スキルドラフトの処理に失敗しました: {error}"
     }
   }
 }

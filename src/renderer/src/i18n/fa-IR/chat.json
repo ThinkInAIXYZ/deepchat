@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "پیش‌نویس مهارت",
+    "confirmationQuestion": "یک پیش‌نویس مهارت ایجاد شد: {name}",
+    "previewTitle": "پیش‌نمایش محتوای پیش‌نویس",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "مشاهدهٔ محتوا",
+      "viewDescription": "پیش‌نمایش محتوای SKILL.md پیش‌نویس",
+      "install": "نصب به‌عنوان مهارت",
+      "installDescription": "درون‌ریزی به پوشهٔ مهارت‌ها برای مدیریت",
+      "discard": "دور انداختن",
+      "discardDescription": "حذف این پیش‌نویس موقت"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "پیش‌نمایش محتوای پیش‌نویس باز است. نصب یا دور انداختن را انتخاب کنید.",
+      "installed": "پیش‌نویس مهارت نصب شد: {name}",
+      "discarded": "پیش‌نویس مهارت دور انداخته شد.",
+      "failed": "رسیدگی به پیش‌نویس مهارت ناموفق بود: {error}"
     }
   }
 }

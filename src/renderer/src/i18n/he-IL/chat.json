@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "טיוטת מיומנות",
+    "confirmationQuestion": "נוצרה טיוטת מיומנות: {name}",
+    "previewTitle": "תצוגה מקדימה של תוכן הטיוטה",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "הצגת תוכן",
+      "viewDescription": "תצוגה מקדימה של תוכן ה-SKILL.md של הטיוטה",
+      "install": "התקנה כמיומנות",
+      "installDescription": "ייבוא לתיקיית המיומנויות לצורך ניהול",
+      "discard": "מחיקה",
+      "discardDescription": "מחיקת הטיוטה הזמנית הזו"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "תצוגת תוכן הטיוטה פתוחה. בחרו להתקין או למחוק.",
+      "installed": "טיוטת המיומנות הותקנה: {name}",
+      "discarded": "טיוטת המיומנות נמחקה.",
+      "failed": "הטיפול בטיוטת המיומנות נכשל: {error}"
     }
   }
 }

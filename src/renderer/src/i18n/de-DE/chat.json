@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Skill-Entwurf",
+    "confirmationQuestion": "Ein Skill-Entwurf wurde erstellt: {name}",
+    "previewTitle": "Vorschau des Entwurfsinhalts",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Inhalt anzeigen",
+      "viewDescription": "SKILL.md-Inhalt des Entwurfs in der Vorschau anzeigen",
+      "install": "Als Skill installieren",
+      "installDescription": "Zur Verwaltung in den Skills-Ordner importieren",
+      "discard": "Verwerfen",
+      "discardDescription": "Diesen temporären Entwurf löschen"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "Die Vorschau des Entwurfsinhalts ist geöffnet. Wählen Sie Installieren oder Verwerfen.",
+      "installed": "Skill-Entwurf installiert: {name}",
+      "discarded": "Skill-Entwurf verworfen.",
+      "failed": "Skill-Entwurf konnte nicht verarbeitet werden: {error}"
     }
   }
 }

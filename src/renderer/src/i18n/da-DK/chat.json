@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Skill-kladde",
+    "confirmationQuestion": "Der er oprettet en skill-kladde: {name}",
+    "previewTitle": "Forhåndsvisning af kladdeindhold",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Vis indhold",
+      "viewDescription": "Forhåndsvis kladdens SKILL.md-indhold",
+      "install": "Installér som skill",
+      "installDescription": "Importér den til skills-mappen til administration",
+      "discard": "Kassér",
+      "discardDescription": "Slet denne midlertidige kladde"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "Forhåndsvisningen af kladdeindholdet er åben. Vælg installér eller kassér.",
+      "installed": "Skill-kladden er installeret: {name}",
+      "discarded": "Skill-kladden er kasseret.",
+      "failed": "Kunne ikke håndtere skill-kladden: {error}"
     }
   }
 }

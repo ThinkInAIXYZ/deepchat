@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Draf skill",
+    "confirmationQuestion": "Draf skill telah dibuat: {name}",
+    "previewTitle": "Pratinjau konten draf",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Lihat konten",
+      "viewDescription": "Pratinjau konten SKILL.md draf",
+      "install": "Instal sebagai skill",
+      "installDescription": "Impor ke folder skills untuk dikelola",
+      "discard": "Buang",
+      "discardDescription": "Hapus draf sementara ini"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "Pratinjau konten draf terbuka. Pilih instal atau buang.",
+      "installed": "Draf skill terinstal: {name}",
+      "discarded": "Draf skill dibuang.",
+      "failed": "Gagal menangani draf skill: {error}"
     }
   }
 }

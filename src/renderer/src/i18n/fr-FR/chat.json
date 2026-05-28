@@ -382,22 +382,22 @@
     }
   },
   "skillDraft": {
-    "confirmationTitle": "Skill Draft",
-    "confirmationQuestion": "A skill draft has been generated: {name}",
-    "previewTitle": "Draft Content Preview",
+    "confirmationTitle": "Brouillon de compétence",
+    "confirmationQuestion": "Un brouillon de compétence a été généré : {name}",
+    "previewTitle": "Aperçu du contenu du brouillon",
     "actions": {
-      "view": "View Content",
-      "viewDescription": "Preview the draft skill content",
-      "install": "Install as Skill",
-      "installDescription": "Install the draft into the skills directory",
-      "discard": "Discard",
-      "discardDescription": "Delete the temporary draft"
+      "view": "Afficher le contenu",
+      "viewDescription": "Prévisualiser le contenu SKILL.md du brouillon",
+      "install": "Installer comme compétence",
+      "installDescription": "L’importer dans le dossier des compétences pour gestion",
+      "discard": "Ignorer",
+      "discardDescription": "Supprimer ce brouillon temporaire"
     },
     "result": {
-      "viewed": "Draft viewed",
-      "installed": "Draft installed",
-      "discarded": "Draft discarded",
-      "failed": "Draft action failed"
+      "viewed": "L’aperçu du contenu du brouillon est ouvert. Choisissez de l’installer ou de l’ignorer.",
+      "installed": "Brouillon de compétence installé : {name}",
+      "discarded": "Brouillon de compétence ignoré.",
+      "failed": "Impossible de traiter le brouillon de compétence : {error}"
     }
   }
 }
