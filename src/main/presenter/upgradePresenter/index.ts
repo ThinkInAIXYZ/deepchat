@@ -11,6 +11,7 @@ import { presenter } from '@/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
+import { compare } from 'compare-versions'
 import fs from 'fs'
 import path from 'path'
 
@@ -21,6 +22,11 @@ const GITHUB_REPO = 'deepchat'
 const OFFICIAL_DOWNLOAD_URL = 'https://deepchatai.cn/#/download'
 const UPDATE_CHANNEL_STABLE = 'stable'
 const UPDATE_CHANNEL_BETA = 'beta'
+const PRERELEASE_VERSION_REGEX = /-(?:alpha|beta|rc|canary)(?:[.-]\d+)?$/i
+
+const isPrereleaseVersion = (version: string): boolean => {
+  return PRERELEASE_VERSION_REGEX.test(version)
+}
 
 type ReleaseNoteItem = {
   version?: string | null
@@ -174,6 +180,41 @@ export class UpgradePresenter implements IUpgradePresenter {
     autoUpdater.on('update-available', (info) => {
       console.log('检测到新版本', info)
       this._lock = false
+
+      // 版本号兜底保护：electron-updater 在 channel 错配时可能把当前 beta 安装包"更新"成更旧的正式版。
+      // 严格按 semver 判定——只要远端版本 <= 当前版本就拒绝。这里不再单独以"channel 是否同源"为拒绝条件，
+      // 以免误伤"beta → 同版本号 stable 正式发布"这类合法的渠道收敛升级。
+      const currentVersion = app.getVersion()
+      const remoteVersion = info?.version || ''
+
+      let isDowngradeOrSame = false
+      try {
+        if (!remoteVersion) {
+          isDowngradeOrSame = true
+        } else if (compare(remoteVersion, currentVersion, '<=')) {
+          isDowngradeOrSame = true
+        }
+      } catch (e) {
+        console.warn('版本号对比失败，忽略此次更新提示', currentVersion, remoteVersion, e)
+        isDowngradeOrSame = true
+      }
+
+      if (isDowngradeOrSame) {
+        console.log('忽略降级或同版本的更新提示', {
+          current: currentVersion,
+          remote: remoteVersion
+        })
+        this._status = 'not-available'
+        this._error = null
+        this._progress = null
+        this._versionInfo = null
+        this.emitStatusChanged({
+          status: this._status,
+          type: this._lastCheckType
+        })
+        return
+      }
+
       this._versionInfo = toVersionInfo(info)
       this._error = null
       this._progress = null
@@ -245,6 +286,19 @@ export class UpgradePresenter implements IUpgradePresenter {
           // 删除标记文件
           fs.unlinkSync(this._updateMarkerPath)
           return
+        }
+
+        // 渠道一致性校验：marker 中的目标版本若与当前安装包不属于同一渠道（beta vs stable），
+        // 说明上次的"待完成更新"来自渠道错配，应直接丢弃而不是钉死为 previousUpdateFailed
+        const markerVersion = typeof updateInfo.version === 'string' ? updateInfo.version : ''
+        if (markerVersion) {
+          const markerIsPre = isPrereleaseVersion(markerVersion)
+          const currentIsPre = isPrereleaseVersion(currentVersion)
+          if (markerIsPre !== currentIsPre) {
+            console.log('忽略跨渠道的旧 update marker', { marker: markerVersion, currentVersion })
+            fs.unlinkSync(this._updateMarkerPath)
+            return
+          }
         }
 
         // 否则说明上次更新失败，标记为错误状态
