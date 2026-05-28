@@ -29,7 +29,14 @@ If a change is tiny, keep all three files short.
 3. **Task Breakdown** - Small tasks that can be reviewed independently
 4. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality gates
 
-Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. Move completed or stale goal folders to `docs/archives/<goal>/`. Add an archive note when historical documents reference code paths that moved or were removed. Delete documents that only describe removed code and have no reusable decision record.
+Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. Keep SDD folders active only while they are driving current work. When a goal is implemented, fold durable maintenance facts into the current project docs and delete the old goal folder. Delete stale goal folders that only describe removed code, abandoned implementation ideas, old branch plans, or one-off bug fixes with no reusable decision record.
+
+Retention policy:
+
+- Feature and architecture SDD folders stay only while the work is active.
+- Completed feature/architecture SDD content should become current documentation in `README.md`, `ARCHITECTURE.md`, `FLOWS.md`, `architecture/*.md`, or `guides/*.md`.
+- Bug-fix issue SDD folders older than two weeks should be removed unless they still describe an active regression.
+- Long-term history should be recovered from git history, not accumulated under `docs/archives/`.
 
 ## Six Core Principles
 

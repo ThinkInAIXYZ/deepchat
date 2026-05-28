@@ -1,7 +1,7 @@
 # Agent 系统架构详解
 
-本文档描述 retirement 后仍然有效的 agent system。旧 `AgentPresenter` 细节已归档到
-[../archives/legacy-agentpresenter-architecture.md](../archives/legacy-agentpresenter-architecture.md)。
+本文档描述 retirement 后仍然有效的 agent system。旧 `AgentPresenter` 细节不再作为仓库内
+长期文档保留；需要对照时用 `git log` / `git show` 查看历史提交。
 
 ## 当前运行时所有权
 
@@ -81,6 +81,8 @@ agentRuntimePresenter/
 | Tool dispatch | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | 调用 `ToolPresenter`、暂停交互、生成 tool 结果 |
 | Context build | `src/main/presenter/agentRuntimePresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
 | Persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 消息持久化、分页读取、结构化内容重组与故障恢复 |
+| Compaction | `src/main/presenter/agentRuntimePresenter/compactionService.ts` | 手动/自动上下文压缩与压缩状态消息 |
+| Pending input | `src/main/presenter/agentRuntimePresenter/pendingInputStore.ts` | queued input、steer、重排与恢复 |
 
 ## 持久化热路径
 
@@ -96,6 +98,18 @@ agentRuntimePresenter/
 - streaming 期间只增量更新 `deepchat_assistant_blocks`
 - 最终进入 `sent/error` 时才写回稳定的 `deepchat_messages.content`
 - 读路径优先从结构化表重组 `ChatMessageRecord.content`，缺行时再回退旧 JSON
+- `sessions.restore` 默认只恢复最近一页消息，历史继续通过 `sessions.listMessagesPage` 翻页
+- `deepchat_search_documents` / `_fts` 提供历史搜索索引，FTS 不可用时回退 `LIKE`
+
+## 运行时能力
+
+- Session generation settings 随 session 创建和更新持久化，覆盖 system prompt、temperature、
+  topP、max tokens、reasoning effort、verbosity 等设置。
+- Message trace 独立落库，供消息工具栏查看运行时 trace。
+- Subagent 会话以 `sessionKind='subagent'` 进入同一套 session/message store，父会话通过
+  tape merge/discard 吸收或丢弃子会话结果。
+- 本地录音转写、TTS、image generation、video generation 都复用 provider/model capability 判定，
+  不再绕开 provider runtime。
 
 ## 兼容边界
 
@@ -132,4 +146,4 @@ agentRuntimePresenter/
 - `permissionHandler`
 - `startStreamCompletion`
 
-需要对照旧实现时，只看归档文档，不再把历史源码快照当作活跃导航入口。
+需要对照旧实现时，从历史提交中查看旧源码快照，不再把已经删除的历史设计当作活跃导航入口。

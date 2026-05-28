@@ -45,13 +45,13 @@ Renderer
   -> agentSessionPresenter / agentRuntimePresenter / toolPresenter / llmProviderPresenter
 ```
 
-如果你在历史文档或旧提交里看到 `AgentPresenter`、`startStreamCompletion`、`agentLoopHandler`，
-那已经是 archive 内容。
+如果你在旧提交里看到 `AgentPresenter`、`startStreamCompletion`、`agentLoopHandler`，
+那已经是退休实现。
 
 如果你在现有代码里看到 `useLegacyPresenter()`、`window.electron`、`window.api`，请先把它理解为兼容层，
-而不是新功能默认入口。`phase5` 之后的默认规则见
-`docs/architecture/renderer-main-single-track/`。如果迁移期间必须临时保留 legacy transport，唯一允许的
-quarantine 路径是 `src/renderer/api/legacy/**`。
+而不是新功能默认入口。当前默认规则写在 `docs/ARCHITECTURE.md`：新 renderer-main 能力走
+`renderer/api/*Client` + `window.deepchat` + shared contracts；临时 legacy transport 只允许放在
+`src/renderer/api/legacy/**`。
 
 ## 项目目录速览
 
@@ -152,8 +152,5 @@ pnpm run lint:architecture
 
 ## 历史资料
 
-要对照旧实现时，请看：
-
-- `docs/archives/legacy-agentpresenter-architecture.md`
-- `docs/archives/legacy-agentpresenter-flows.md`
-- `docs/archives/thread-presenter-migration-plan.md`
+历史 SDD 和旧架构快照不再长期保留在 `docs/`。要对照旧实现时，请用
+`git log -- docs` 或 `git show <commit>:<path>` 查看对应提交。

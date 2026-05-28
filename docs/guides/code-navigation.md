@@ -116,7 +116,7 @@ rg "settingsChangedEvent|sessionsUpdatedEvent|chatStream" src/shared src/main sr
 | `agentSessionPresenter` | presenter-backed runtime collaborator，不是 migrated renderer 的直连入口 |
 | `agentRuntimePresenter` | 当前聊天 runtime 与持久化 owner |
 | `SessionPresenter` | legacy conversation 兼容层，不是 migrated chat 主链路 |
-| `agentPresenter` | 已退休；只会出现在 archive 或历史 spec 里 |
+| `agentPresenter` | 已退休；只应出现在旧提交或已删除的历史 spec 里 |
 
 ## 不要再从这里找主链路
 
@@ -127,8 +127,4 @@ rg "settingsChangedEvent|sessionsUpdatedEvent|chatStream" src/shared src/main sr
 - `agentLoopHandler`
 - `streamGenerationHandler`
 
-如果确实需要历史对照，请去：
-
-- `docs/archives/legacy-agentpresenter-architecture.md`
-- `docs/archives/legacy-agentpresenter-flows.md`
-- `docs/archives/thread-presenter-migration-plan.md`
+如果确实需要历史对照，请用 `git log` / `git show` 查看旧提交中的文档或源码快照。

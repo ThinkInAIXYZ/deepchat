@@ -6,7 +6,7 @@
 
 - 当前 active renderer-main boundary 已经优先走 `renderer/api/*Client` + `window.deepchat` + typed contracts
 - 下文中涉及 `useLegacyPresenter()`、`window.api`、raw `window.electron` 的内容，应视为 legacy / compatibility 背景
-- `phase5` 之后的 single-track 规则见 `docs/architecture/renderer-main-single-track/`
+- 当前 single-track 规则见 `docs/ARCHITECTURE.md` 的 renderer-main boundary 章节
 
 ## 📋 核心组件
 
@@ -850,4 +850,3 @@ export const useChatStore = defineStore('chat', {
 - [Agent 系统详解](./agent-system.md)
 - [工具系统详解](./tool-system.md)
 - [核心流程](../FLOWS.md)
-
