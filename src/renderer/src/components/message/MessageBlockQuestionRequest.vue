@@ -37,15 +37,26 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
+const translateMaybeKey = (value: string, params?: Record<string, unknown>) => {
+  return value.includes('.') ? t(value, params ?? {}) : value
+}
+
+const skillDraftName = computed(() => {
+  const raw = props.block.extra?.skillDraftName
+  return typeof raw === 'string' ? raw : ''
+})
+
 const questionText = computed(() => {
   const raw = props.block.extra?.questionText
-  if (typeof raw === 'string' && raw.trim()) return raw
+  if (typeof raw === 'string' && raw.trim()) {
+    return translateMaybeKey(raw, { name: skillDraftName.value })
+  }
   return props.block.content || ''
 })
 
 const answerText = computed(() => {
   const raw = props.block.extra?.answerText
-  return typeof raw === 'string' ? raw : ''
+  return typeof raw === 'string' ? translateMaybeKey(raw) : ''
 })
 
 const normalizeOption = (option: unknown): QuestionOption | null => {
@@ -57,18 +68,31 @@ const normalizeOption = (option: unknown): QuestionOption | null => {
   if (typeof candidate.description === 'string') {
     const description = candidate.description.trim()
     if (description) {
-      return { label, description }
+      return { label: translateMaybeKey(label), description: translateMaybeKey(description) }
     }
   }
-  return { label }
+  return { label: translateMaybeKey(label) }
+}
+
+const parseQuestionOptionsPayload = (raw: unknown): unknown[] => {
+  if (Array.isArray(raw)) {
+    return raw
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
 }
 
 const options = computed<QuestionOption[]>(() =>
-  Array.isArray(props.block.extra?.questionOptions)
-    ? props.block.extra.questionOptions
-        .map((option) => normalizeOption(option))
-        .filter((option): option is QuestionOption => Boolean(option))
-    : []
+  parseQuestionOptionsPayload(props.block.extra?.questionOptions)
+    .map((option) => normalizeOption(option))
+    .filter((option): option is QuestionOption => Boolean(option))
 )
 </script>
 

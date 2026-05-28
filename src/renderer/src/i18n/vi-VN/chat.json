@@ -380,5 +380,24 @@
       "description": "Mọi thứ đã sẵn sàng. Nhập tin nhắn đầu tiên của bạn vào đây để hoàn tất quy trình giới thiệu.",
       "caption": "Đèn chiếu vẫn ở trên hộp nhập cho đến khi bạn gửi tin nhắn đầu tiên."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Skill Draft",
+    "confirmationQuestion": "A skill draft has been generated: {name}",
+    "previewTitle": "Draft Content Preview",
+    "actions": {
+      "view": "View Content",
+      "viewDescription": "Preview the draft skill content",
+      "install": "Install as Skill",
+      "installDescription": "Install the draft into the skills directory",
+      "discard": "Discard",
+      "discardDescription": "Delete the temporary draft"
+    },
+    "result": {
+      "viewed": "Draft viewed",
+      "installed": "Draft installed",
+      "discarded": "Draft discarded",
+      "failed": "Draft action failed"
+    }
   }
 }

@@ -380,5 +380,24 @@
       "description": "모든 준비가 완료되었습니다. 첫 메시지를 입력해 온보딩을 완료하세요.",
       "caption": "첫 메시지를 보낼 때까지 스포트라이트가 입력창에 유지됩니다."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Skill Draft",
+    "confirmationQuestion": "A skill draft has been generated: {name}",
+    "previewTitle": "Draft Content Preview",
+    "actions": {
+      "view": "View Content",
+      "viewDescription": "Preview the draft skill content",
+      "install": "Install as Skill",
+      "installDescription": "Install the draft into the skills directory",
+      "discard": "Discard",
+      "discardDescription": "Delete the temporary draft"
+    },
+    "result": {
+      "viewed": "Draft viewed",
+      "installed": "Draft installed",
+      "discarded": "Draft discarded",
+      "failed": "Draft action failed"
+    }
   }
 }

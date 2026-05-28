@@ -70,6 +70,25 @@
     "audioInputUnsupportedTitle": "当前模型不支持音频附件",
     "audioInputUnsupportedDescription": "模型 {model} 不支持音频输入，已忽略 {count} 个音频附件。"
   },
+  "skillDraft": {
+    "confirmationTitle": "Skill Draft",
+    "confirmationQuestion": "已生成 skill draft：{name}",
+    "previewTitle": "Draft 内容预览",
+    "actions": {
+      "view": "查看内容",
+      "viewDescription": "预览 draft 的 SKILL.md 内容",
+      "install": "安装为 Skill",
+      "installDescription": "导入到 Skills 目录并启用管理",
+      "discard": "丢弃",
+      "discardDescription": "删除这个临时 draft"
+    },
+    "result": {
+      "viewed": "已打开 draft 内容预览。请选择安装或丢弃。",
+      "installed": "已安装 skill draft：{name}",
+      "discarded": "已丢弃 skill draft。",
+      "failed": "处理 skill draft 失败：{error}"
+    }
+  },
   "pendingInput": {
     "steer": "引导",
     "queueCount": "待发 {count}/{max}",

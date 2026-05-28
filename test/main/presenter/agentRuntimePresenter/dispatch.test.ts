@@ -729,6 +729,102 @@ describe('dispatch', () => {
       expect(trailingBlockAfterExecution?.status).toBe('success')
     })
 
+    it('pauses with a skill draft confirmation question after successful draft creation', async () => {
+      const tools = [makeTool('skill_manage')]
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn().mockResolvedValue({
+          content:
+            '{"success":true,"action":"create","draftId":"draft-1","skillName":"draft-skill"}',
+          rawData: {
+            toolCallId: 'tc1',
+            content:
+              '{"success":true,"action":"create","draftId":"draft-1","skillName":"draft-skill"}',
+            isError: false,
+            toolResult: {
+              toolName: 'skill_manage',
+              success: true,
+              action: 'create',
+              draftId: 'draft-1',
+              skillName: 'draft-skill',
+              skillDraft: {
+                status: 'created',
+                draftId: 'draft-1',
+                skillName: 'draft-skill'
+              }
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_manage',
+          params: '{"action":"create"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_manage', arguments: '{"action":"create"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.pendingInteractions[0]).toEqual(
+        expect.objectContaining({
+          type: 'question',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          toolName: 'skill_manage'
+        })
+      )
+      expect(state.blocks[0].status).toBe('success')
+      expect(state.blocks[1]).toEqual(
+        expect.objectContaining({
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          tool_call: expect.objectContaining({ id: 'tc1', name: 'skill_manage' }),
+          extra: expect.objectContaining({
+            needsUserAction: true,
+            questionHeader: 'chat.skillDraft.confirmationTitle',
+            questionText: 'chat.skillDraft.confirmationQuestion',
+            questionCustom: false,
+            skillDraftAction: 'confirm',
+            skillDraftId: 'draft-1',
+            skillDraftName: 'draft-skill',
+            skillDraftStatus: 'pending'
+          })
+        })
+      )
+      expect(
+        (state.blocks[1].extra?.questionOptions as any[]).map((option) => option.label)
+      ).toEqual([
+        'chat.skillDraft.actions.view',
+        'chat.skillDraft.actions.install',
+        'chat.skillDraft.actions.discard'
+      ])
+    })
+
     it('does not emit PreToolUse for question interactions that pause execution', async () => {
       const hooks = {
         onPreToolUse: vi.fn(),

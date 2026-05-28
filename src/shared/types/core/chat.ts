@@ -2,6 +2,7 @@
 
 import type { ToolCallImagePreview } from './mcp'
 import type { AgentPlanDisplayItem } from '../agent-plan'
+import type { QuestionOption } from './question'
 
 export type Message = {
   id: string
@@ -108,6 +109,30 @@ export type AssistantMessageBlock = {
 }
 
 export type AssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
+  needsUserAction?: boolean
+  permissionType?: 'read' | 'write' | 'all' | 'command'
+  grantedPermissions?: 'read' | 'write' | 'all' | 'command'
+  toolName?: string
+  serverName?: string
+  providerId?: string
+  permissionRequestId?: string
+  permissionRequest?: string
+  commandInfo?: string
+  rememberable?: boolean
+  questionHeader?: string
+  questionText?: string
+  questionOptions?: QuestionOption[] | string
+  questionMultiple?: boolean
+  questionCustom?: boolean
+  questionResolution?: 'asked' | 'replied' | 'rejected'
+  answerText?: string
+  answerMessageId?: string
+  skillDraftAction?: string
+  skillDraftId?: string
+  skillDraftName?: string
+  skillDraftPreview?: string
+  skillDraftStatus?: string
+  skillDraftError?: string
   internalTool?: boolean
   plan_entries?: AgentPlanDisplayItem[]
   plan_explanation?: string

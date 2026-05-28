@@ -1092,6 +1092,119 @@ describe('SkillPresenter', () => {
       })
     })
 
+    it('views draft content without exposing draft paths', async () => {
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'draft-skill', description: 'Draft' },
+        content: '# Draft body'
+      })
+      const draftPath =
+        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        return (
+          target === draftPath ||
+          target === `${draftPath}/SKILL.md` ||
+          target === '/mock/temp/deepchat-skill-drafts'
+        )
+      })
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (target === `${draftPath}/SKILL.md`) {
+          return '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
+        }
+        return 'test'
+      })
+
+      const result = await skillPresenter.viewDraftSkill(
+        'conv-draft',
+        'draft-12345678-1234-1234-1234-123456789abc'
+      )
+
+      expect(result).toEqual({
+        success: true,
+        action: 'view',
+        draftId: 'draft-12345678-1234-1234-1234-123456789abc',
+        skillName: 'draft-skill',
+        content: '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
+      })
+      expect(result).not.toHaveProperty('draftPath')
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        `${draftPath}/.lastActivity`,
+        expect.any(String),
+        'utf-8'
+      )
+    })
+
+    it('installs draft content and removes the temp draft', async () => {
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'draft-skill', description: 'Draft' },
+        content: '# Draft body'
+      })
+      const draftPath =
+        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === `${DEFAULT_SKILLS_DIR}/draft-skill`) return false
+        return (
+          target === draftPath ||
+          target === `${draftPath}/SKILL.md` ||
+          target === '/mock/temp/deepchat-skill-drafts' ||
+          target === `${DEFAULT_SKILLS_DIR}`
+        )
+      })
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (target === `${draftPath}/SKILL.md`) {
+          return '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
+        }
+        return 'test'
+      })
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
+        if (target === draftPath) return [createFileEntry('SKILL.md')]
+        return []
+      })
+
+      const result = await skillPresenter.installDraftSkill(
+        'conv-draft',
+        'draft-12345678-1234-1234-1234-123456789abc'
+      )
+
+      expect(result).toEqual({
+        success: true,
+        action: 'install',
+        draftId: 'draft-12345678-1234-1234-1234-123456789abc',
+        skillName: 'draft-skill',
+        installedSkillName: 'draft-skill'
+      })
+      expect(fs.copyFileSync).toHaveBeenCalledWith(
+        `${draftPath}/SKILL.md`,
+        `${DEFAULT_SKILLS_DIR}/draft-skill/SKILL.md`
+      )
+      expect(fs.rmSync).toHaveBeenCalledWith(draftPath, { recursive: true, force: true })
+    })
+
+    it('discards draft content and removes empty conversation draft folder', async () => {
+      const draftPath =
+        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
+      const conversationPath = '/mock/temp/deepchat-skill-drafts/conv-draft'
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        return target === draftPath || target === conversationPath
+      })
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
+        if (target === conversationPath) return []
+        return []
+      })
+
+      const result = await skillPresenter.discardDraftSkill(
+        'conv-draft',
+        'draft-12345678-1234-1234-1234-123456789abc'
+      )
+
+      expect(result).toEqual({
+        success: true,
+        action: 'discard',
+        draftId: 'draft-12345678-1234-1234-1234-123456789abc'
+      })
+      expect(fs.rmSync).toHaveBeenCalledWith(draftPath, { recursive: true, force: true })
+      expect(fs.rmSync).toHaveBeenCalledWith(conversationPath, { recursive: true, force: true })
+    })
+
     it('rejects injected draft content', async () => {
       const result = await skillPresenter.manageDraftSkill('conv-draft', {
         action: 'create',

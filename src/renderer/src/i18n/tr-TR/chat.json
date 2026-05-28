@@ -380,5 +380,24 @@
       "description": "Her şey hazır. İlk katılım akışını tamamlamak için ilk mesajınızı buraya yazın.",
       "caption": "Siz ilk mesajınızı gönderene kadar spot ışığı giriş kutusunun üzerinde kalır."
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Skill Draft",
+    "confirmationQuestion": "A skill draft has been generated: {name}",
+    "previewTitle": "Draft Content Preview",
+    "actions": {
+      "view": "View Content",
+      "viewDescription": "Preview the draft skill content",
+      "install": "Install as Skill",
+      "installDescription": "Install the draft into the skills directory",
+      "discard": "Discard",
+      "discardDescription": "Delete the temporary draft"
+    },
+    "result": {
+      "viewed": "Draft viewed",
+      "installed": "Draft installed",
+      "discarded": "Draft discarded",
+      "failed": "Draft action failed"
+    }
   }
 }

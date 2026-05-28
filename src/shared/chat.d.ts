@@ -182,6 +182,12 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  skillDraftAction?: string
+  skillDraftId?: string
+  skillDraftName?: string
+  skillDraftPreview?: string
+  skillDraftStatus?: string
+  skillDraftError?: string
   internalTool?: boolean
   plan_entries?: AgentPlanDisplayItem[]
   plan_explanation?: string

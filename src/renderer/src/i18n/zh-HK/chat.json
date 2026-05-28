@@ -380,5 +380,24 @@
       "description": "現在已經準備好了，在這裡傳送第一條訊息即可完成引導。",
       "caption": "聚光會一直停留在輸入框，直到你真正送出第一條訊息。"
     }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Skill Draft",
+    "confirmationQuestion": "A skill draft has been generated: {name}",
+    "previewTitle": "Draft Content Preview",
+    "actions": {
+      "view": "View Content",
+      "viewDescription": "Preview the draft skill content",
+      "install": "Install as Skill",
+      "installDescription": "Install the draft into the skills directory",
+      "discard": "Discard",
+      "discardDescription": "Delete the temporary draft"
+    },
+    "result": {
+      "viewed": "Draft viewed",
+      "installed": "Draft installed",
+      "discarded": "Draft discarded",
+      "failed": "Draft action failed"
+    }
   }
 }

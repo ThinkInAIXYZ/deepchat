@@ -193,6 +193,7 @@ export class ChatService {
     accepted: true
     resumed?: boolean
     waitingForUserMessage?: boolean
+    handledInline?: boolean
   }> {
     const result = await this.deps.scheduler.timeout({
       task: this.deps.providerExecutionPort.respondToolInteraction(

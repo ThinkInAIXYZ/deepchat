@@ -72,6 +72,12 @@ export type DisplayAssistantMessageExtra = Record<string, string | number | obje
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  skillDraftAction?: string
+  skillDraftId?: string
+  skillDraftName?: string
+  skillDraftPreview?: string
+  skillDraftStatus?: string
+  skillDraftError?: string
   internalTool?: boolean
   plan_entries?: AgentPlanDisplayItem[]
   plan_explanation?: string

@@ -263,7 +263,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     skillPresenter.manageDraftSkill.mockResolvedValue({
       success: true,
       action: 'create',
-      draftId: 'draft-1'
+      draftId: 'draft-1',
+      skillName: 'draft'
     })
     const manager = buildManager()
 
@@ -274,13 +275,27 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         content: '---\nname: draft\ndescription: Draft\n---\n\nBody'
       },
       'conv-1'
-    )) as { content: string }
+    )) as { content: string; rawData?: { toolResult?: unknown } }
 
     expect(skillPresenter.manageDraftSkill).toHaveBeenCalledWith('conv-1', {
       action: 'create',
       content: '---\nname: draft\ndescription: Draft\n---\n\nBody'
     })
     expect(result.content).toContain('"success":true')
+    expect(result.rawData?.toolResult).toEqual(
+      expect.objectContaining({
+        toolName: 'skill_manage',
+        success: true,
+        action: 'create',
+        draftId: 'draft-1',
+        skillName: 'draft',
+        skillDraft: {
+          status: 'created',
+          draftId: 'draft-1',
+          skillName: 'draft'
+        }
+      })
+    )
   })
 
   it('resolves workdir from new session first', async () => {

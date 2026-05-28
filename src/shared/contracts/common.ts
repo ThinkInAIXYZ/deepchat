@@ -182,7 +182,8 @@ export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [
 
 export const ToolInteractionResultSchema = z.object({
   resumed: z.boolean().optional(),
-  waitingForUserMessage: z.boolean().optional()
+  waitingForUserMessage: z.boolean().optional(),
+  handledInline: z.boolean().optional()
 })
 
 export const ProviderModelSummarySchema = z.object({
