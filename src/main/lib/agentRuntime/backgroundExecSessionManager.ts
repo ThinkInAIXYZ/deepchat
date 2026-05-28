@@ -4,7 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import type { UtilityProcess } from 'electron'
 import { nanoid } from 'nanoid'
-import logger from '@shared/logger'
+import logger from './backgroundExecLogger'
 import { getUserShell } from './shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
@@ -1171,8 +1171,8 @@ class BackgroundExecUtilityProxy {
   }
 
   private async startHost(): Promise<UtilityProcess> {
-    const { utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint()
+    const { app, utilityProcess } = await import('electron')
+    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
     const host = utilityProcess.fork(modulePath, ['--deepchat-exec-utility-host'], {
       serviceName: 'DeepChat Exec Utility',
       stdio: 'ignore',
@@ -1216,12 +1216,20 @@ class BackgroundExecUtilityProxy {
     })
   }
 
-  private resolveUtilityHostEntryPoint(): string {
+  private resolveUtilityHostEntryPoint(appPath?: string): string {
     const modulePath = fileURLToPath(import.meta.url)
-    if (path.basename(modulePath) === 'index.js') {
-      return modulePath
-    }
-    return fileURLToPath(new URL('../../index.js', import.meta.url))
+    const candidates = [
+      ...(appPath
+        ? [
+            path.join(appPath, 'out/main/backgroundExecUtilityHost.js'),
+            path.join(appPath, 'backgroundExecUtilityHost.js')
+          ]
+        : []),
+      path.resolve(path.dirname(modulePath), 'backgroundExecUtilityHost.js'),
+      path.resolve(path.dirname(modulePath), '../backgroundExecUtilityHost.js'),
+      path.resolve(process.cwd(), 'out/main/backgroundExecUtilityHost.js')
+    ]
+    return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0]
   }
 
   private handleHostMessage(message: unknown): void {

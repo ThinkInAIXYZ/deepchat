@@ -14,6 +14,7 @@ vi.mock('child_process', () => ({
 
 vi.mock('electron', () => ({
   app: {
+    getAppPath: vi.fn(() => '/mock/app'),
     getPath: vi.fn((name: string) => (name === 'userData' ? '/mock/userData' : '/mock/home'))
   },
   utilityProcess: {
@@ -444,7 +445,7 @@ describe('backgroundExecSessionManager utility proxy', () => {
     resetProxyState()
   })
 
-  it('forks the main bootstrap entrypoint for the utility host', async () => {
+  it('forks the dedicated entrypoint for the utility host', async () => {
     const host = new MockUtilityProcess()
     mockUtilityProcessFork.mockReturnValue(host)
 
@@ -456,7 +457,9 @@ describe('backgroundExecSessionManager utility proxy', () => {
 
     await expect(startPromise).resolves.toBe(host)
     expect(mockUtilityProcessFork).toHaveBeenCalledWith(
-      expect.stringMatching(/[\\/]src[\\/]main[\\/]index\.js$/),
+      expect.stringMatching(
+        /[\\/]mock[\\/]app[\\/]out[\\/]main[\\/]backgroundExecUtilityHost\.js$/
+      ),
       ['--deepchat-exec-utility-host'],
       expect.objectContaining({
         serviceName: 'DeepChat Exec Utility',

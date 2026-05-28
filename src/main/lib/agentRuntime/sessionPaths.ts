@@ -1,12 +1,12 @@
 import { createHash } from 'crypto'
-import { app } from 'electron'
+import os from 'os'
 import path from 'path'
 
 const INVALID_WINDOWS_SEGMENT_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*'])
 const TRAILING_WINDOWS_SEGMENT_CHARS = /[. ]+$/g
 
 export function getSessionsRoot(): string {
-  return path.resolve(app.getPath('home'), '.deepchat', 'sessions')
+  return path.resolve(os.homedir(), '.deepchat', 'sessions')
 }
 
 export function resolveSessionDir(conversationId: string): string | null {
