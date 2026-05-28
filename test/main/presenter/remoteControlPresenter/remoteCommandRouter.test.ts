@@ -44,6 +44,9 @@ const createBindingStore = () => ({
   createModelMenuState: vi.fn().mockReturnValue('menu-token'),
   getModelMenuState: vi.fn(),
   clearModelMenuState: vi.fn(),
+  createAgentMenuState: vi.fn().mockReturnValue('agent-token'),
+  getAgentMenuState: vi.fn(),
+  clearAgentMenuState: vi.fn(),
   createPendingInteractionState: vi.fn().mockReturnValue('pending-token'),
   getPendingInteractionState: vi.fn(),
   clearPendingInteractionState: vi.fn()
@@ -870,5 +873,229 @@ describe('RemoteCommandRouter', () => {
       execution: null
     })
     await (result as Exclude<typeof result, 'timeout'>).deferred
+  })
+
+  it('shows /agent in help output', async () => {
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn(),
+        pair: vi.fn()
+      } as any,
+      runner: {} as any,
+      bindingStore: createBindingStore() as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/help',
+        command: { name: 'help', args: '' }
+      })
+    )
+
+    expect(result.replies[0]).toContain('/agent')
+  })
+
+  it('returns a prompt when /agent is used without a bound session', async () => {
+    const runner = createRunner({
+      getCurrentSession: vi.fn().mockResolvedValue(null)
+    })
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({ ok: true, userId: 123 }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/agent',
+        command: { name: 'agent', args: '' }
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['No bound session. Send a message, /new, or /use first.']
+    })
+  })
+
+  it('renders an agent menu for /agent', async () => {
+    const runner = createRunner({
+      getCurrentSession: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Remote chat',
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-5'
+      }),
+      listAvailableAgents: vi.fn().mockResolvedValue([
+        {
+          agentId: 'deepchat',
+          agentName: 'DeepChat',
+          agentType: 'deepchat',
+          source: 'builtin'
+        },
+        {
+          agentId: 'claude-code',
+          agentName: 'Claude Code',
+          agentType: 'acp',
+          source: 'registry'
+        }
+      ])
+    })
+    const bindingStore = createBindingStore()
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({ ok: true, userId: 123 }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: bindingStore as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/agent',
+        command: { name: 'agent', args: '' }
+      })
+    )
+
+    expect(bindingStore.createAgentMenuState).toHaveBeenCalledWith(
+      'telegram:100:0',
+      'session-1',
+      expect.any(Array)
+    )
+    expect(result.outboundActions).toEqual([
+      expect.objectContaining({
+        type: 'sendMessage',
+        text: expect.stringContaining('Choose an agent'),
+        replyMarkup: {
+          inline_keyboard: expect.arrayContaining([
+            [expect.objectContaining({ text: expect.stringContaining('DeepChat') })]
+          ])
+        }
+      })
+    ])
+  })
+
+  it('switches the channel default agent from a callback query', async () => {
+    const bindingStore = createBindingStore()
+    bindingStore.getAgentMenuState.mockReturnValue({
+      endpointKey: 'telegram:100:0',
+      sessionId: 'session-1',
+      createdAt: Date.now(),
+      agents: [
+        {
+          agentId: 'claude-code',
+          agentName: 'Claude Code',
+          agentType: 'acp',
+          source: 'registry'
+        }
+      ]
+    })
+    const setChannelDefaultAgent = vi.fn().mockResolvedValue({
+      session: {
+        id: 'session-2',
+        title: 'New Chat',
+        providerId: 'acp',
+        modelId: 'claude-code',
+        agentId: 'claude-code'
+      },
+      agent: {
+        agentId: 'claude-code',
+        agentName: 'Claude Code',
+        agentType: 'acp',
+        source: 'registry'
+      }
+    })
+    const runner = createRunner({
+      getCurrentSession: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Remote chat',
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-5'
+      }),
+      setChannelDefaultAgent
+    })
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({ ok: true, userId: 123 }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: bindingStore as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createCallbackQuery({
+        data: 'agent:agent-token:a:0'
+      })
+    )
+
+    expect(setChannelDefaultAgent).toHaveBeenCalledWith('telegram:100:0', 'claude-code')
+    expect(bindingStore.clearAgentMenuState).toHaveBeenCalledWith('agent-token')
+    expect(result.callbackAnswer).toEqual({ text: 'Agent switched.' })
+    expect(result.outboundActions).toEqual([
+      expect.objectContaining({
+        type: 'editMessageText',
+        messageId: 30,
+        text: expect.stringContaining('Started a new session')
+      })
+    ])
+  })
+
+  it('surfaces agent switch errors via callback alert', async () => {
+    const bindingStore = createBindingStore()
+    bindingStore.getAgentMenuState.mockReturnValue({
+      endpointKey: 'telegram:100:0',
+      sessionId: 'session-1',
+      createdAt: Date.now(),
+      agents: [
+        {
+          agentId: 'claude-code',
+          agentName: 'Claude Code',
+          agentType: 'acp'
+        }
+      ]
+    })
+    const runner = createRunner({
+      getCurrentSession: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Remote chat',
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-5'
+      }),
+      setChannelDefaultAgent: vi
+        .fn()
+        .mockRejectedValue(
+          new Error('Cannot switch to ACP agent: this channel has no default workdir set.')
+        )
+    })
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({ ok: true, userId: 123 }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: bindingStore as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createCallbackQuery({ data: 'agent:agent-token:a:0' })
+    )
+
+    expect(result.callbackAnswer).toEqual({
+      text: expect.stringContaining('Cannot switch to ACP agent'),
+      showAlert: true
+    })
+    expect(bindingStore.clearAgentMenuState).not.toHaveBeenCalled()
   })
 })

@@ -490,4 +490,54 @@ describe('RemoteBindingStore', () => {
 
     expect(store.getTelegramPairingState().failedAttempts).toBe(0)
   })
+
+  it('persists agent menu state and clears it on demand', () => {
+    const configPresenter = createConfigPresenter()
+    const store = new RemoteBindingStore(configPresenter as any)
+    const agents = [
+      {
+        agentId: 'deepchat',
+        agentName: 'DeepChat',
+        agentType: 'deepchat' as const,
+        source: 'builtin' as const
+      },
+      {
+        agentId: 'codex',
+        agentName: 'Codex',
+        agentType: 'acp' as const,
+        source: 'registry' as const
+      }
+    ]
+
+    const token = store.createAgentMenuState('telegram:100:0', 'session-1', agents)
+    const state = store.getAgentMenuState(token, 60_000)
+
+    expect(state).not.toBeNull()
+    expect(state?.endpointKey).toBe('telegram:100:0')
+    expect(state?.agents).toHaveLength(2)
+    expect(state?.agents[1].agentId).toBe('codex')
+
+    store.clearAgentMenuState(token)
+    expect(store.getAgentMenuState(token, 60_000)).toBeNull()
+  })
+
+  it('updates the channel default agent id by endpoint prefix', () => {
+    const configPresenter = createConfigPresenter()
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    store.setChannelDefaultAgentId('telegram:100:0', 'codex')
+    expect(store.getTelegramDefaultAgentId()).toBe('codex')
+
+    store.setChannelDefaultAgentId('feishu:oc_x:root', 'codex')
+    expect(store.getFeishuDefaultAgentId()).toBe('codex')
+
+    store.setChannelDefaultAgentId('qqbot:c2c:abc', 'codex')
+    expect(store.getQQBotDefaultAgentId()).toBe('codex')
+
+    store.setChannelDefaultAgentId('discord:dm:abc', 'codex')
+    expect(store.getDiscordDefaultAgentId()).toBe('codex')
+
+    store.setChannelDefaultAgentId('weixin-ilink:acct:user', 'codex')
+    expect(store.getWeixinIlinkDefaultAgentId()).toBe('codex')
+  })
 })
