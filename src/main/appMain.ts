@@ -78,16 +78,17 @@ export function startApp(): void {
   if (!gotSingleInstanceLock) {
     console.log('Another DeepChat instance is already running. Exiting current process.')
     app.quit()
+    return
   }
 
   // Initialize presenter after ready
   let presenter: Presenter | undefined
 
   console.log('Main process starting, checking for deeplink...')
-  console.log('Full command line arguments:', process.argv)
+  console.log('Startup arguments received', { argc: process.argv.length })
   const startupDeepLink = findStartupDeepLink(process.argv, process.env)
   if (startupDeepLink) {
-    console.log('Found startup deeplink during initialization:', startupDeepLink)
+    console.log('Found startup deeplink during initialization')
     storeStartupDeepLink(startupDeepLink)
   } else {
     console.log('No startup deeplink detected during initialization')
@@ -111,7 +112,7 @@ export function startApp(): void {
       return
     }
 
-    console.log(`${source}:`, url)
+    console.log(source)
     const normalizedUrl = storeStartupDeepLink(url)
     if (!normalizedUrl) {
       return
@@ -132,7 +133,7 @@ export function startApp(): void {
   // Also listen for second-instance events (Windows/Linux)
   if (gotSingleInstanceLock) {
     app.on('second-instance', (_event, commandLine) => {
-      console.log('Received second-instance event with command line:', commandLine)
+      console.log('Received second-instance event', { argc: commandLine.length })
       focusExistingAppWindow()
 
       const deepLinkUrl = findDeepLinkArg(commandLine)
