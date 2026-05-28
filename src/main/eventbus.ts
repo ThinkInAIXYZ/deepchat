@@ -43,20 +43,44 @@ export class EventBus extends EventEmitter {
       return
     }
 
+    this.dispatchToRenderer(this.windowPresenter, eventName, target, ...args)
+  }
+
+  /**
+   * 向渲染进程发送事件（如果窗口展示器已可用）
+   * @returns 是否已发送到渲染进程
+   */
+  sendToRendererIfAvailable(
+    eventName: string,
+    target: SendTarget = SendTarget.ALL_WINDOWS,
+    ...args: unknown[]
+  ): boolean {
+    if (!this.windowPresenter) {
+      return false
+    }
+
+    this.dispatchToRenderer(this.windowPresenter, eventName, target, ...args)
+    return true
+  }
+
+  private dispatchToRenderer(
+    windowPresenter: IWindowPresenter,
+    eventName: string,
+    target: SendTarget = SendTarget.ALL_WINDOWS,
+    ...args: unknown[]
+  ) {
     switch (target) {
       case SendTarget.ALL_WINDOWS:
-        this.windowPresenter.sendToAllWindows(eventName, ...args)
+        windowPresenter.sendToAllWindows(eventName, ...args)
         break
       case SendTarget.DEFAULT_WINDOW:
+        windowPresenter.sendToDefaultWindow(eventName, true, ...args)
+        break
       case SendTarget.DEFAULT_TAB:
-        if (typeof this.windowPresenter.sendToDefaultWindow === 'function') {
-          this.windowPresenter.sendToDefaultWindow(eventName, true, ...args)
-        } else {
-          this.windowPresenter.sendToDefaultTab(eventName, true, ...args)
-        }
+        windowPresenter.sendToDefaultTab(eventName, true, ...args)
         break
       default:
-        this.windowPresenter.sendToAllWindows(eventName, ...args)
+        windowPresenter.sendToAllWindows(eventName, ...args)
     }
   }
 
@@ -70,8 +94,8 @@ export class EventBus extends EventEmitter {
     // 发送到主进程
     this.sendToMain(eventName, ...args)
 
-    // 发送到渲染进程
-    this.sendToRenderer(eventName, target, ...args)
+    // 发送到渲染进程（启动早期没有窗口时静默跳过）
+    this.sendToRendererIfAvailable(eventName, target, ...args)
   }
 
   /**
