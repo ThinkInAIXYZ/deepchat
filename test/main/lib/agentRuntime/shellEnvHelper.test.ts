@@ -251,6 +251,7 @@ describe('shellEnvHelper', () => {
       value: 'win32'
     })
     delete process.env.SHELL
+    process.env.USERPROFILE = 'C:\\Users\\tester'
     process.env.Path = 'C:\\Tools;C:\\Windows\\System32'
     process.env.PATH = 'C:\\Tools;C:\\Other'
 

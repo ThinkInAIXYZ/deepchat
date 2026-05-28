@@ -1,5 +1,3 @@
-import { runBackgroundExecUtilityHostIfRequested } from './lib/agentRuntime/backgroundExecUtilityHost'
+import { startApp } from './appMain'
 
-if (!runBackgroundExecUtilityHostIfRequested()) {
-  void import('./appMain')
-}
+startApp()

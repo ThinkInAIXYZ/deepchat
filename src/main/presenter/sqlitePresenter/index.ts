@@ -40,6 +40,7 @@ import { SettingsActivityTable } from './tables/settingsActivity'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
 import { configureSQLiteConnection } from './connectionConfig'
+import { LegacyChatImportService } from '../agentSessionPresenter/legacyImportService'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
@@ -583,7 +584,6 @@ export class SQLitePresenter implements ISQLitePresenter {
     importedMessages: number
     importedSearchResults: number
   }> {
-    const { LegacyChatImportService } = await import('../agentSessionPresenter/legacyImportService')
     const service = new LegacyChatImportService(this)
     return await service.importFromSourceDb(sourceDbPath, mode)
   }

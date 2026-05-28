@@ -9,6 +9,11 @@ const EXEC_UTILITY_HOST_ARG = '--deepchat-exec-utility-host'
 type ParentPort = {
   postMessage(message: unknown): void
   on(event: 'message', listener: (message: unknown) => void): void
+  start?(): void
+}
+
+type ParentPortMessageEvent = {
+  data?: unknown
 }
 
 function getParentPort(): ParentPort | null {
@@ -38,6 +43,26 @@ function serializeError(error: unknown): { message: string; stack?: string } {
 
 function sendResponse(parentPort: ParentPort, response: BackgroundExecRpcResponse): void {
   parentPort.postMessage(response)
+}
+
+function isBackgroundExecRpcRequest(message: unknown): message is BackgroundExecRpcRequest {
+  return (
+    Boolean(message) &&
+    typeof message === 'object' &&
+    (message as BackgroundExecRpcRequest).type === 'background-exec:request'
+  )
+}
+
+export function getParentPortMessagePayload(message: unknown): unknown {
+  if (isBackgroundExecRpcRequest(message)) {
+    return message
+  }
+
+  if (message && typeof message === 'object' && 'data' in message) {
+    return (message as ParentPortMessageEvent).data
+  }
+
+  return message
 }
 
 async function handleRequest(
@@ -80,19 +105,19 @@ export function runBackgroundExecUtilityHostIfRequested(): boolean {
   }
 
   const manager = new BackgroundExecSessionManager()
+  const keepAliveIntervalId = setInterval(() => {}, 2 ** 31 - 1)
+  parentPort.start?.()
 
   parentPort.on('message', (message) => {
-    if (!message || typeof message !== 'object') {
-      return
-    }
-    const request = message as BackgroundExecRpcRequest
-    if (request.type !== 'background-exec:request') {
+    const request = getParentPortMessagePayload(message)
+    if (!isBackgroundExecRpcRequest(request)) {
       return
     }
     void handleRequest(manager, parentPort, request)
   })
 
   process.once('beforeExit', () => {
+    clearInterval(keepAliveIntervalId)
     void manager.shutdown()
   })
 

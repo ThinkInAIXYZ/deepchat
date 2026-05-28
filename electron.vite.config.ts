@@ -24,10 +24,15 @@ export default defineConfig({
         exclude: ['mermaid']
       },
       rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          backgroundExecUtilityHost: resolve('src/main/backgroundExecUtilityHostEntry.ts')
+        },
         external: ['sharp', '@duckdb/node-api'],
         output: {
-          inlineDynamicImports: true,
-          manualChunks: undefined,  // Disable automatic chunk splitting
+          entryFileNames: '[name].js',
+          chunkFileNames: 'chunks/[name]-[hash].js',
+          manualChunks: undefined
         }
       }
     }

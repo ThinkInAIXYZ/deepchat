@@ -1,10 +1,6 @@
 import { spawn } from 'child_process'
-import { app } from 'electron'
 import fs from 'fs'
 import * as path from 'path'
-import { RuntimeHelper } from '../runtimeHelper'
-
-const runtimeHelper = RuntimeHelper.getInstance()
 
 const PATH_ENV_KEYS = ['PATH', 'Path', 'path'] as const
 const NODE_ENV_KEYS = [
@@ -76,12 +72,30 @@ function pickRelevantEnvironment(
 }
 
 function getDefaultPathEntries(): string[] {
-  try {
-    return runtimeHelper.getDefaultPaths(app.getPath('home'))
-  } catch {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || ''
-    return homeDir ? runtimeHelper.getDefaultPaths(homeDir) : []
+  const homeDir =
+    process.platform === 'win32'
+      ? process.env.USERPROFILE || process.env.HOME || ''
+      : process.env.HOME || process.env.USERPROFILE || ''
+
+  if (process.platform === 'darwin') {
+    return [
+      '/bin',
+      '/usr/bin',
+      '/usr/local/bin',
+      '/usr/local/sbin',
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/opt/node/bin',
+      '/opt/local/bin',
+      ...(homeDir ? [`${homeDir}/.cargo/bin`] : [])
+    ]
   }
+
+  if (process.platform === 'linux') {
+    return ['/bin', '/usr/bin', '/usr/local/bin', ...(homeDir ? [`${homeDir}/.cargo/bin`] : [])]
+  }
+
+  return homeDir ? [`${homeDir}\\.cargo\\bin`, `${homeDir}\\.local\\bin`] : []
 }
 
 export function getPathEntriesFromEnv(

@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
+import os from 'os'
 import path from 'path'
-import { app } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
 
@@ -12,7 +12,7 @@ describe('sessionPaths offload path sanitization', () => {
   })
 
   it('sanitizes colon-based tool call ids into a normal .offload file name', () => {
-    vi.spyOn(app, 'getPath').mockReturnValue(homeDir)
+    vi.spyOn(os, 'homedir').mockReturnValue(homeDir)
 
     const toolCallId = 'function.cdp_send:11'
     const fingerprint = createHash('sha1').update(toolCallId).digest('hex').slice(0, 8)
@@ -32,7 +32,7 @@ describe('sessionPaths offload path sanitization', () => {
   })
 
   it('sanitizes other windows-invalid characters and trailing dots or spaces', () => {
-    vi.spyOn(app, 'getPath').mockReturnValue(homeDir)
+    vi.spyOn(os, 'homedir').mockReturnValue(homeDir)
 
     const filePath = resolveToolOffloadPath('session-a', 'bad<>:"/\\\\|?*\u0001name. ')
     const fileName = path.basename(filePath!)
@@ -43,7 +43,7 @@ describe('sessionPaths offload path sanitization', () => {
   })
 
   it('adds a fingerprint so colliding sanitized tool ids still map to different files', () => {
-    vi.spyOn(app, 'getPath').mockReturnValue(homeDir)
+    vi.spyOn(os, 'homedir').mockReturnValue(homeDir)
 
     const colonFilePath = resolveToolOffloadPath('session-a', 'tool:1')
     const slashFilePath = resolveToolOffloadPath('session-a', 'tool/1')
