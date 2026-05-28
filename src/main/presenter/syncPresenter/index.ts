@@ -20,6 +20,7 @@ import {
   SyncConfigImportService,
   type SyncBackupManifest
 } from './configImportService'
+import { presenter } from '../index'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -840,7 +841,6 @@ export class SyncPresenter implements ISyncPresenter {
 
   private async broadcastThreadListUpdateAfterImport(): Promise<void> {
     try {
-      const { presenter } = await import('../index')
       await presenter?.broadcastConversationThreadListUpdate?.()
     } catch (error) {
       console.warn('Failed to broadcast thread list update after import:', error)

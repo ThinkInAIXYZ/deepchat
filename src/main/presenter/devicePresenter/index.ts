@@ -11,6 +11,7 @@ import { is } from '@electron-toolkit/utils'
 import { eventBus, SendTarget } from '../../eventbus'
 import { NOTIFICATION_EVENTS } from '../../events'
 import { svgSanitizer } from '../../lib/svgSanitizer'
+import { presenter } from '../index'
 const execAsync = promisify(exec)
 
 function toMimeType(value: unknown): string {
@@ -325,7 +326,6 @@ export class DevicePresenter implements IDevicePresenter {
   async resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void> {
     try {
       const userDataPath = app.getPath('userData')
-      const { presenter } = await import('../index')
 
       const removeDirectory = (dirPath: string): void => {
         if (fs.existsSync(dirPath)) {

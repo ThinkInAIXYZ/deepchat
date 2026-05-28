@@ -25,6 +25,7 @@ import {
   BaseLifecycleEvent
 } from './types'
 import { is } from '@electron-toolkit/utils'
+import { presenter } from '@/presenter'
 
 export { registerCoreHooks } from './coreHooks'
 
@@ -431,7 +432,6 @@ export class LifecycleManager implements ILifecycleManager {
         this.state.isShuttingDown = true
 
         try {
-          const { presenter } = await import('@/presenter')
           if (presenter?.windowPresenter) {
             console.log('LifecycleManager: Setting application quitting flag via presenter')
             presenter.windowPresenter.setApplicationQuitting(true)
@@ -453,7 +453,6 @@ export class LifecycleManager implements ILifecycleManager {
         } else {
           this.state.isShuttingDown = false
           try {
-            const { presenter } = await import('@/presenter')
             if (presenter?.windowPresenter) {
               presenter.windowPresenter.setApplicationQuitting(false)
             }

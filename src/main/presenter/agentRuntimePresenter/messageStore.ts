@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { SQLitePresenter } from '../sqlitePresenter'
+import type { SQLitePresenter } from '../sqlitePresenter'
 import type {
   ChatMessagePageResult,
   ChatMessageRecord,
