@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "Ces comptes {channel} sont autorisés à s’associer et à piloter des sessions.",
       "authorizedPrincipalsEmpty": "Aucune identité autorisée pour le moment.",
       "sessionBindingsTitle": "Liaisons de session",
-      "sessionBindingsDescription": "Chaque point d’accès distant ci-dessous est actuellement lié à une session DeepChat."
+      "sessionBindingsDescription": "Chaque point d’accès distant ci-dessous est actuellement lié à une session DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Répertoire par défaut requis",
+      "acpDefaultWorkdirRequiredDescription": "Les agents ACP ont besoin d’un espace de travail local. Choisissez un répertoire par défaut avant d’enregistrer."
     },
     "hooks": {
       "title": "Hooks Telegram",

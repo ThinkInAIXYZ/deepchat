@@ -2016,7 +2016,9 @@
       "authorizedPrincipalsDescription": "Estas cuentas {channel} están autorizadas para emparejar y controlar sesiones.",
       "authorizedPrincipalsEmpty": "Aún no hay directores autorizados.",
       "sessionBindingsTitle": "Enlaces de sesión",
-      "sessionBindingsDescription": "Cada punto final remoto a continuación está actualmente vinculado a una sesión de DeepChat."
+      "sessionBindingsDescription": "Cada punto final remoto a continuación está actualmente vinculado a una sesión de DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Se requiere un directorio predeterminado",
+      "acpDefaultWorkdirRequiredDescription": "Los agentes ACP necesitan un espacio de trabajo local. Selecciona un directorio predeterminado antes de guardar."
     },
     "hooks": {
       "title": "Telegram Ganchos",

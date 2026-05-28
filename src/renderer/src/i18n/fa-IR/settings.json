@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "این حساب‌های {channel} مجاز هستند و می‌توانند جفت‌سازی و کنترل نشست‌ها را انجام دهند.",
       "authorizedPrincipalsEmpty": "هنوز هیچ شناسهٔ مجاز ثبت نشده است.",
       "sessionBindingsTitle": "پیوندهای نشست",
-      "sessionBindingsDescription": "هر نقطهٔ ورودی راه‌دورِ زیر در حال حاضر به یک نشست DeepChat متصل است."
+      "sessionBindingsDescription": "هر نقطهٔ ورودی راه‌دورِ زیر در حال حاضر به یک نشست DeepChat متصل است.",
+      "acpDefaultWorkdirRequiredTitle": "شاخه پیش‌فرض الزامی است",
+      "acpDefaultWorkdirRequiredDescription": "عامل‌های ACP به فضای کاری محلی نیاز دارند. پیش از ذخیره، یک شاخه پیش‌فرض انتخاب کنید."
     },
     "hooks": {
       "title": "هوک‌های تلگرام",

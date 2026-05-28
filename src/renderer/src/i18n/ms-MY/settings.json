@@ -2016,7 +2016,9 @@
       "authorizedPrincipalsDescription": "Akaun {channel} ini diberi kuasa untuk menggandingkan dan mengendalikan sesi.",
       "authorizedPrincipalsEmpty": "Pada masa ini tiada pengetua yang diberi kuasa.",
       "sessionBindingsTitle": "mengikat sesi",
-      "sessionBindingsDescription": "Setiap portal jauh di bawah terikat pada sesi DeepChat pada masa ini."
+      "sessionBindingsDescription": "Setiap portal jauh di bawah terikat pada sesi DeepChat pada masa ini.",
+      "acpDefaultWorkdirRequiredTitle": "Direktori lalai diperlukan",
+      "acpDefaultWorkdirRequiredDescription": "Ejen ACP memerlukan ruang kerja tempatan. Pilih direktori lalai sebelum menyimpan."
     },
     "hooks": {
       "title": "Notis Telegram Hook",

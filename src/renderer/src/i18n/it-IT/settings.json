@@ -2016,7 +2016,9 @@
       "authorizedPrincipalsDescription": "Questi account {channel} sono autorizzati ad associarsi e controllare le sessioni.",
       "authorizedPrincipalsEmpty": "Nessun soggetto autorizzato al momento.",
       "sessionBindingsTitle": "Binding sessioni",
-      "sessionBindingsDescription": "Ogni ingresso remoto qui sotto è attualmente associato a una sessione DeepChat."
+      "sessionBindingsDescription": "Ogni ingresso remoto qui sotto è attualmente associato a una sessione DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Directory predefinita richiesta",
+      "acpDefaultWorkdirRequiredDescription": "Gli agenti ACP necessitano di un’area di lavoro locale. Scegli una directory predefinita prima di salvare."
     },
     "hooks": {
       "title": "Notifiche Telegram Hook",

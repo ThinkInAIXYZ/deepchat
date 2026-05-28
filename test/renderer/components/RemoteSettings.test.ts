@@ -1249,4 +1249,20 @@ describe('RemoteSettings', () => {
       })
     )
   })
+
+  it('renders the alias-equivalent agent label when binding holds a legacy ACP agent id', async () => {
+    const { wrapper } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [],
+        defaultAgentId: 'claude-code-acp'
+      },
+      agents: [{ id: 'claude-acp', name: 'Claude', type: 'acp', enabled: true }]
+    })
+
+    expect(wrapper.find('[data-testid="remote-default-agent-select"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Claude (ACP)')
+    expect(wrapper.text()).not.toContain('claude-code-acp')
+  })
 })

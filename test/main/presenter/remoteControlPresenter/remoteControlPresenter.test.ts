@@ -423,6 +423,96 @@ describe('RemoteControlPresenter', () => {
     expect(saved.defaultAgentId).toBe('acp-agent')
   })
 
+  it('returns the SQLite agent id when candidate uses the legacy alias key', async () => {
+    const configPresenter = createConfigPresenter()
+    const listAgents = vi.fn().mockResolvedValue([
+      { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+      { id: 'claude-acp', name: 'Claude (ACP)', type: 'acp', enabled: true }
+    ])
+    const getAgentType = vi.fn(async (agentId: string) =>
+      agentId === 'claude-acp' ? 'acp' : 'deepchat'
+    )
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: {
+        ...configPresenter,
+        listAgents,
+        getAgentType
+      } as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any
+    })
+
+    const saved = await presenter.saveTelegramSettings({
+      botToken: 'test-bot-token',
+      remoteEnabled: true,
+      defaultAgentId: 'claude-code-acp',
+      defaultWorkdir: '/workspace'
+    })
+
+    expect(saved.defaultAgentId).toBe('claude-acp')
+  })
+
+  it('keeps a legacy SQLite agent id intact when the candidate matches it', async () => {
+    const configPresenter = createConfigPresenter()
+    const listAgents = vi.fn().mockResolvedValue([
+      { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+      { id: 'claude-code-acp', name: 'Claude Code (ACP)', type: 'acp', enabled: true }
+    ])
+    const getAgentType = vi.fn(async (agentId: string) =>
+      agentId === 'claude-code-acp' ? 'acp' : 'deepchat'
+    )
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: {
+        ...configPresenter,
+        listAgents,
+        getAgentType
+      } as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any
+    })
+
+    const saved = await presenter.saveTelegramSettings({
+      botToken: 'test-bot-token',
+      remoteEnabled: true,
+      defaultAgentId: 'claude-code-acp',
+      defaultWorkdir: '/workspace'
+    })
+
+    expect(saved.defaultAgentId).toBe('claude-code-acp')
+  })
+
+  it('falls back to channel default when no alias-equivalent agent exists', async () => {
+    const configPresenter = createConfigPresenter()
+    const listAgents = vi
+      .fn()
+      .mockResolvedValue([{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }])
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: {
+        ...configPresenter,
+        listAgents
+      } as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any
+    })
+
+    const saved = await presenter.saveTelegramSettings({
+      botToken: 'test-bot-token',
+      remoteEnabled: true,
+      defaultAgentId: 'claude-code-acp'
+    })
+
+    expect(saved.defaultAgentId).toBe('deepchat')
+  })
+
   it('lists builtin remote channels including discord, qqbot, and weixin-ilink', async () => {
     const configPresenter = createConfigPresenter()
 

@@ -2016,7 +2016,9 @@
       "authorizedPrincipalsDescription": "Akun {channel} ini diberi wewenang untuk memasangkan dan mengoperasikan sesi.",
       "authorizedPrincipalsEmpty": "Saat ini tidak ada prinsipal yang berwenang.",
       "sessionBindingsTitle": "pengikatan sesi",
-      "sessionBindingsDescription": "Setiap portal jarak jauh di bawah saat ini terikat pada sesi DeepChat."
+      "sessionBindingsDescription": "Setiap portal jarak jauh di bawah saat ini terikat pada sesi DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Direktori default diperlukan",
+      "acpDefaultWorkdirRequiredDescription": "Agen ACP memerlukan ruang kerja lokal. Pilih direktori default sebelum menyimpan."
     },
     "hooks": {
       "title": "Telegram Pemberitahuan kait",

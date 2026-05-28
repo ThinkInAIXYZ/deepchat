@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "Эти аккаунты {channel} авторизованы и могут выполнять привязку и управлять сессиями.",
       "authorizedPrincipalsEmpty": "Пока нет авторизованных субъектов.",
       "sessionBindingsTitle": "Привязки сессий",
-      "sessionBindingsDescription": "Каждая удалённая точка входа ниже сейчас привязана к одной сессии DeepChat."
+      "sessionBindingsDescription": "Каждая удалённая точка входа ниже сейчас привязана к одной сессии DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Требуется каталог по умолчанию",
+      "acpDefaultWorkdirRequiredDescription": "Агентам ACP нужен локальный рабочий каталог. Выберите каталог по умолчанию перед сохранением."
     },
     "hooks": {
       "title": "Уведомления хуков Telegram",

@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "Disse {channel}-konti er autoriseret til at parre og styre sessioner.",
       "authorizedPrincipalsEmpty": "Der er endnu ingen autoriserede identiteter.",
       "sessionBindingsTitle": "Sessionsbindinger",
-      "sessionBindingsDescription": "Hvert fjernendepunkt nedenfor er i øjeblikket bundet til en DeepChat-session."
+      "sessionBindingsDescription": "Hvert fjernendepunkt nedenfor er i øjeblikket bundet til en DeepChat-session.",
+      "acpDefaultWorkdirRequiredTitle": "Standardmappe påkrævet",
+      "acpDefaultWorkdirRequiredDescription": "ACP-agenter har brug for et lokalt arbejdsområde. Vælg en standardmappe, før du gemmer."
     },
     "hooks": {
       "title": "Telegram-hooks",

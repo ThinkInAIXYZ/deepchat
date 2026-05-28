@@ -2022,7 +2022,9 @@
       "authorizedPrincipalsDescription": "Essas contas do {channel} estão autorizadas a fazer o pareamento e controlar sessões.",
       "authorizedPrincipalsEmpty": "Ainda não há identidades autorizadas.",
       "sessionBindingsTitle": "Vínculos de sessão",
-      "sessionBindingsDescription": "Cada ponto de acesso remoto abaixo está atualmente vinculado a uma sessão do DeepChat."
+      "sessionBindingsDescription": "Cada ponto de acesso remoto abaixo está atualmente vinculado a uma sessão do DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Diretório padrão obrigatório",
+      "acpDefaultWorkdirRequiredDescription": "Agentes ACP precisam de um workspace local. Escolha um diretório padrão antes de salvar."
     },
     "hooks": {
       "title": "Hooks do Telegram",

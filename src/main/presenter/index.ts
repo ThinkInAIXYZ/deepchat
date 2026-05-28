@@ -1080,8 +1080,8 @@ ipcMain.handle(
 ipcMain.handle(
   'remoteControlPresenter:call',
   async (event: IpcMainInvokeEvent, method: string, ...payloads: unknown[]) => {
+    const webContentsId = event.sender.id
     try {
-      const webContentsId = event.sender.id
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
@@ -1109,35 +1109,38 @@ ipcMain.handle(
           method.startsWith('getDiscord') ||
           method.startsWith('getWeixinIlink'))
 
-      if (!shouldTrackRemoteRuntime) {
-        return await presenter.callRemoteControl(
-          method as keyof IRemoteControlPresenter,
-          ...payloads
-        )
-      }
+      const result = shouldTrackRemoteRuntime
+        ? presenter.startupWorkloadCoordinator.scheduleTask({
+            id: `settings.remote.runtime:${method}`,
+            target: 'settings',
+            phase: 'deferred',
+            resource: 'io',
+            labelKey: 'startup.settings.remote.runtime',
+            visibleId: 'settings.remote.runtime',
+            runId: presenter.startupWorkloadCoordinator.getRunId('settings'),
+            run: async () => {
+              return await presenter.callRemoteControl(
+                method as keyof IRemoteControlPresenter,
+                ...payloads
+              )
+            }
+          })
+        : presenter.callRemoteControl(method as keyof IRemoteControlPresenter, ...payloads)
 
-      return await presenter.startupWorkloadCoordinator.scheduleTask({
-        id: `settings.remote.runtime:${method}`,
-        target: 'settings',
-        phase: 'deferred',
-        resource: 'io',
-        labelKey: 'startup.settings.remote.runtime',
-        visibleId: 'settings.remote.runtime',
-        runId: presenter.startupWorkloadCoordinator.getRunId('settings'),
-        run: async () => {
-          return await presenter.callRemoteControl(
-            method as keyof IRemoteControlPresenter,
-            ...payloads
-          )
-        }
+      return handlePresenterCallResult(result, {
+        webContentsId,
+        presenterName: 'remoteControlPresenter',
+        methodName: method
       })
     } catch (
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       e: any
     ) {
-      const webContentsId = event.sender.id
-      console.error(`[IPC Error] WebContents:${webContentsId} remoteControlPresenter.${method}:`, e)
-      return { error: e.message || String(e) }
+      return handlePresenterCallError(e, {
+        webContentsId,
+        presenterName: 'remoteControlPresenter',
+        methodName: method
+      })
     }
   }
 )
