@@ -80,3 +80,14 @@ sequenceDiagram
 - renderer `messageStore` 首屏只加载第一页，`ChatPage` 在接近顶部时再拉旧历史
 
 这样可以让大会话恢复保持稳定首屏时间，也把“历史很长”和“首屏可用”两个目标解耦开。
+
+## 当前会话能力
+
+- 会话列表支持 lightweight 分页、按 agent/project/subagent 过滤、固定字母排序和置顶优先。
+- `generationSettings` 保存在 session runtime 中，renderer 可通过 `sessions.getGenerationSettings`
+  / `sessions.updateGenerationSettings` 读取和更新。
+- `sessions.compact` 提供手动上下文压缩；自动压缩默认值来自 agent/settings 配置。
+- `sessions.listMessageTraces` 提供消息 trace 查询，不再把 trace 混在消息正文里。
+- `sessions.searchHistory` 通过结构化搜索文档表优先走 FTS5，失败时回退 `LIKE`。
+- Subagent session 与普通 session 共用表结构，但通过 `sessionKind`、`parentSessionId`、
+  `subagentMeta` 区分生命周期和展示。
