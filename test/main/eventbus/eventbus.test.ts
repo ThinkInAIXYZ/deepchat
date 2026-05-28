@@ -136,6 +136,32 @@ describe('EventBus 事件总线', () => {
 
       consoleSpy.mockRestore()
     })
+
+    it('当WindowPresenter未设置时应该静默跳过可选渲染发送', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const newEventBus = new EventBus()
+
+      const sent = newEventBus.sendToRendererIfAvailable(
+        'test:event',
+        SendTarget.ALL_WINDOWS,
+        'data'
+      )
+
+      expect(sent).toBe(false)
+      expect(consoleSpy).not.toHaveBeenCalled()
+
+      consoleSpy.mockRestore()
+    })
+
+    it('应该能够通过可选渲染发送路径发送到所有窗口', () => {
+      const eventName = 'renderer:optional'
+      const testData = { message: 'optional renderer' }
+
+      const sent = eventBus.sendToRendererIfAvailable(eventName, SendTarget.ALL_WINDOWS, testData)
+
+      expect(sent).toBe(true)
+      expect(mockWindowPresenter.sendToAllWindows).toHaveBeenCalledWith(eventName, testData)
+    })
   })
 
   describe('同时发送到主进程和渲染进程', () => {
@@ -166,6 +192,22 @@ describe('EventBus 事件总线', () => {
       eventBus.send(eventName, undefined, testData)
 
       expect(mockWindowPresenter.sendToAllWindows).toHaveBeenCalledWith(eventName, testData)
+    })
+
+    it('当WindowPresenter未设置时仍应发送到主进程且不警告', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const newEventBus = new EventBus()
+      const eventName = 'both:no-renderer'
+      const testData = { message: 'main only' }
+      const mockListener = vi.fn()
+      newEventBus.on(eventName, mockListener)
+
+      newEventBus.send(eventName, SendTarget.ALL_WINDOWS, testData)
+
+      expect(mockListener).toHaveBeenCalledWith(testData)
+      expect(consoleSpy).not.toHaveBeenCalled()
+
+      consoleSpy.mockRestore()
     })
   })
 

@@ -26,6 +26,7 @@ import {
 } from './types'
 import { is } from '@electron-toolkit/utils'
 import { presenter } from '@/presenter'
+import { normalizeLifecycleHookDelayMs } from './lifecycleDelay'
 
 export { registerCoreHooks } from './coreHooks'
 
@@ -379,7 +380,9 @@ export class LifecycleManager implements ILifecycleManager {
       const result = await hook.execute(context)
 
       if (is.dev) {
-        const hookDelay = Number(import.meta.env.VITE_APP_LIFECYCLE_HOOK_DELAY)
+        const hookDelay = normalizeLifecycleHookDelayMs(
+          import.meta.env.VITE_APP_LIFECYCLE_HOOK_DELAY
+        )
         await new Promise((resolve) => setTimeout(resolve, hookDelay))
       }
 
