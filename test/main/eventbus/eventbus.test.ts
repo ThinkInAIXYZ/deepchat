@@ -124,6 +124,16 @@ describe('EventBus 事件总线', () => {
       )
     })
 
+    it('应该能够发送事件到默认标签页', () => {
+      const eventName = 'renderer:default-tab'
+      const testData = { message: 'default tab' }
+
+      eventBus.sendToRenderer(eventName, SendTarget.DEFAULT_TAB, testData)
+
+      expect(mockWindowPresenter.sendToDefaultTab).toHaveBeenCalledWith(eventName, true, testData)
+      expect(mockWindowPresenter.sendToDefaultWindow).not.toHaveBeenCalled()
+    })
+
     it('当WindowPresenter未设置时应该显示警告', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const newEventBus = new EventBus()

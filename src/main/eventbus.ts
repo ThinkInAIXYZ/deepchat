@@ -74,12 +74,10 @@ export class EventBus extends EventEmitter {
         windowPresenter.sendToAllWindows(eventName, ...args)
         break
       case SendTarget.DEFAULT_WINDOW:
+        windowPresenter.sendToDefaultWindow(eventName, true, ...args)
+        break
       case SendTarget.DEFAULT_TAB:
-        if (typeof windowPresenter.sendToDefaultWindow === 'function') {
-          windowPresenter.sendToDefaultWindow(eventName, true, ...args)
-        } else {
-          windowPresenter.sendToDefaultTab(eventName, true, ...args)
-        }
+        windowPresenter.sendToDefaultTab(eventName, true, ...args)
         break
       default:
         windowPresenter.sendToAllWindows(eventName, ...args)
