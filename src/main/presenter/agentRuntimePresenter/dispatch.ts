@@ -608,6 +608,7 @@ function applyFinalizedToolResults(params: {
     }
 
     const imagePresentation = prepareToolImagePreviewPresentation({
+      toolCallId: stagedResult.toolCallId,
       toolName: stagedResult.toolName,
       toolSource: stagedResult.toolSource,
       serverName: stagedResult.serverName,

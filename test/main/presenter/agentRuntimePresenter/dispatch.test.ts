@@ -1487,9 +1487,8 @@ describe('dispatch', () => {
       expect(io.messageStore.updateAssistantContent).toHaveBeenCalled()
     })
 
-    it('stores image previews from structured tool output', async () => {
+    it('promotes image previews from structured tool output into assistant image blocks', async () => {
       const tools = [makeTool('tool_image')]
-      const cacheImage = vi.fn(async () => 'imgcache://cached.png')
       const toolPresenter = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         callTool: vi.fn(async (request) => ({
@@ -1497,7 +1496,20 @@ describe('dispatch', () => {
           rawData: {
             toolCallId: request.id,
             content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }],
-            isError: false
+            isError: false,
+            imagePreviews: [
+              {
+                id: 'mcp_image-1',
+                data: 'imgcache://cached.png',
+                mimeType: 'image/png',
+                source: 'mcp_image'
+              },
+              {
+                id: 'metadata-only',
+                mimeType: 'image/png',
+                source: 'mcp_image'
+              }
+            ]
           }
         })),
         buildToolSystemPrompt: vi.fn().mockReturnValue('')
@@ -1523,20 +1535,33 @@ describe('dispatch', () => {
         'full_access',
         new ToolOutputGuard(),
         32000,
-        1024,
-        { cacheImage }
+        1024
       )
 
-      expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
       expect(state.blocks[0].tool_call?.imagePreviews).toEqual([
         {
-          id: 'mcp_image-1',
-          data: 'imgcache://cached.png',
+          id: 'metadata-only',
           mimeType: 'image/png',
           source: 'mcp_image'
         }
       ])
-      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks).toHaveLength(2)
+      expect(state.blocks[1]).toEqual(
+        expect.objectContaining({
+          type: 'image',
+          status: 'success',
+          image_data: {
+            data: 'imgcache://cached.png',
+            mimeType: 'image/png'
+          },
+          extra: expect.objectContaining({
+            toolCallId: 'tc1',
+            toolName: 'tool_image',
+            toolImagePreviewId: 'mcp_image-1',
+            toolImagePreviewSource: 'mcp_image'
+          })
+        })
+      )
     })
 
     it('promotes image_generate previews into assistant image blocks', async () => {
@@ -1601,12 +1626,19 @@ describe('dispatch', () => {
           image_data: {
             data: 'imgcache://generated.png',
             mimeType: 'image/png'
-          }
+          },
+          extra: expect.objectContaining({
+            toolCallId: 'tc1',
+            toolName: IMAGE_GENERATE_TOOL_NAME,
+            toolImagePreviewId: 'generated-image-1',
+            toolImagePreviewSource: 'tool_output',
+            toolImagePreviewTitle: 'Generated image 1'
+          })
         })
       )
     })
 
-    it('does not promote same-name MCP image_generate previews', async () => {
+    it('promotes same-name MCP image_generate previews into assistant image blocks', async () => {
       const tools = [makeTool(IMAGE_GENERATE_TOOL_NAME)]
       const toolPresenter = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
@@ -1652,21 +1684,30 @@ describe('dispatch', () => {
         1024
       )
 
-      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks).toHaveLength(2)
       expect(state.blocks[0]).toEqual(
         expect.objectContaining({
           type: 'tool_call',
           status: 'success'
         })
       )
-      expect(state.blocks[0].tool_call?.imagePreviews).toEqual([
-        {
-          id: 'mcp-generated-image-1',
-          data: 'imgcache://mcp-generated.png',
-          mimeType: 'image/png',
-          source: 'tool_output'
-        }
-      ])
+      expect(state.blocks[0].tool_call?.imagePreviews).toBeUndefined()
+      expect(state.blocks[1]).toEqual(
+        expect.objectContaining({
+          type: 'image',
+          status: 'success',
+          image_data: {
+            data: 'imgcache://mcp-generated.png',
+            mimeType: 'image/png'
+          },
+          extra: expect.objectContaining({
+            toolCallId: 'tc1',
+            toolName: IMAGE_GENERATE_TOOL_NAME,
+            toolImagePreviewId: 'mcp-generated-image-1',
+            toolImagePreviewSource: 'tool_output'
+          })
+        })
+      )
     })
 
     it('does not promote image_generate previews when the tool result is an error', async () => {

@@ -61,6 +61,7 @@ const MIME_EXTENSION: Record<string, string> = {
   'image/gif': '.gif',
   'image/bmp': '.bmp',
   'image/avif': '.avif',
+  'image/svg+xml': '.svg',
   'application/pdf': '.pdf',
   'text/plain': '.txt'
 }
@@ -72,7 +73,8 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
   '.webp': 'image/webp',
   '.gif': 'image/gif',
   '.bmp': 'image/bmp',
-  '.avif': 'image/avif'
+  '.avif': 'image/avif',
+  '.svg': 'image/svg+xml'
 }
 
 const IMAGE_DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s
@@ -196,10 +198,138 @@ const resolveGeneratedImageContent = async (
     }
   }
 
+  if (normalizedSource.startsWith('http://') || normalizedSource.startsWith('https://')) {
+    throw new Error('Remote image URLs must be cached before remote delivery.')
+  }
+
   return {
     data: decodeBase64Image(stripDataUrlPrefix(normalizedSource), 'base64'),
     mimeType: normalizeImageMimeType(fallbackMimeType) ?? 'image/png'
   }
+}
+
+type RemoteImageAssetCandidate = {
+  key: string
+  data: string
+  mimeType: string
+  filenameBase: string
+  logLabel: string
+}
+
+const createRemoteImageAssetCandidate = (params: {
+  messageId: string
+  blockIndex: number
+  data: string | undefined | null
+  mimeType: string | undefined | null
+  filenameBase: string
+  keySuffix: string
+  logLabel: string
+}): RemoteImageAssetCandidate | null => {
+  const data = params.data?.trim()
+  if (!data) {
+    return null
+  }
+
+  return {
+    key: `${params.messageId}:${params.blockIndex}:${params.keySuffix}`,
+    data,
+    mimeType: normalizeImageMimeType(params.mimeType) ?? 'image/png',
+    filenameBase: sanitizePathSegment(params.filenameBase, 'generated'),
+    logLabel: params.logLabel
+  }
+}
+
+const buildPromotedPreviewKey = (
+  toolCallId: string | undefined,
+  previewId: string | undefined
+): string | null => {
+  const normalizedPreviewId = previewId?.trim()
+  if (!normalizedPreviewId) {
+    return null
+  }
+  const normalizedToolCallId = toolCallId?.trim()
+  return normalizedToolCallId
+    ? `${normalizedToolCallId}:${normalizedPreviewId}`
+    : normalizedPreviewId
+}
+
+const collectRemoteImageAssetCandidates = (
+  messageId: string,
+  blocks: AssistantMessageBlock[]
+): RemoteImageAssetCandidate[] => {
+  const candidates: RemoteImageAssetCandidate[] = []
+  const promotedPreviewKeys = new Set(
+    blocks
+      .filter((candidateBlock) => candidateBlock.type === 'image')
+      .map((candidateBlock) =>
+        buildPromotedPreviewKey(
+          typeof candidateBlock.extra?.toolCallId === 'string'
+            ? candidateBlock.extra.toolCallId
+            : undefined,
+          typeof candidateBlock.extra?.toolImagePreviewId === 'string'
+            ? candidateBlock.extra.toolImagePreviewId
+            : undefined
+        )
+      )
+      .filter((key): key is string => typeof key === 'string' && key.length > 0)
+  )
+
+  for (const [blockIndex, block] of blocks.entries()) {
+    if (block.type === 'image' && block.status !== 'pending') {
+      const candidate = createRemoteImageAssetCandidate({
+        messageId,
+        blockIndex,
+        data: block.image_data?.data,
+        mimeType: block.image_data?.mimeType,
+        filenameBase:
+          typeof block.extra?.toolImagePreviewSource === 'string'
+            ? [
+                sanitizePathSegment(block.extra.toolImagePreviewSource, 'tool-result-image'),
+                blockIndex + 1
+              ].join('-')
+            : `generated-${blockIndex + 1}`,
+        keySuffix: 'image',
+        logLabel: 'generated image'
+      })
+      if (candidate) {
+        candidates.push(candidate)
+      }
+      continue
+    }
+
+    if (block.type !== 'tool_call' || (block.status !== 'success' && block.status !== 'error')) {
+      continue
+    }
+
+    const previews = block.tool_call?.imagePreviews ?? []
+    for (const [previewIndex, preview] of previews.entries()) {
+      const previewKey = buildPromotedPreviewKey(block.tool_call?.id, preview.id)
+      if (previewKey && promotedPreviewKeys.has(previewKey)) {
+        continue
+      }
+
+      const filenameSource = preview.source?.trim() || 'tool-result-image'
+      const filenameBase = [
+        sanitizePathSegment(filenameSource, 'tool-result-image'),
+        blockIndex + 1,
+        previewIndex + 1
+      ].join('-')
+      const candidate = createRemoteImageAssetCandidate({
+        messageId,
+        blockIndex,
+        data: preview.data,
+        mimeType: preview.mimeType,
+        filenameBase,
+        keySuffix: `toolResultImage:${previewIndex}`,
+        logLabel: 'tool result image'
+      })
+      if (candidate) {
+        candidates.push(candidate)
+      }
+    }
+  }
+
+  return candidates
 }
 
 const hasAttachmentDownloadSource = (attachment: RemoteInputAttachment): boolean =>
@@ -1038,11 +1168,9 @@ export class RemoteConversationRunner {
     messageId: string,
     blocks: AssistantMessageBlock[]
   ): Promise<RemoteGeneratedImageAsset[]> {
-    const imageBlocks = blocks
-      .map((block, index) => ({ block, index }))
-      .filter(({ block }) => block.type === 'image' && block.status !== 'pending')
+    const imageCandidates = collectRemoteImageAssetCandidates(messageId, blocks)
 
-    if (imageBlocks.length === 0) {
+    if (imageCandidates.length === 0) {
       return []
     }
 
@@ -1077,19 +1205,15 @@ export class RemoteConversationRunner {
     }
 
     const assets: RemoteGeneratedImageAsset[] = []
-    for (const { block, index } of imageBlocks) {
-      const data = block.image_data?.data?.trim()
-      if (!data) {
-        continue
-      }
-
+    for (const [candidateIndex, candidate] of imageCandidates.entries()) {
       try {
-        const imageContent = await resolveGeneratedImageContent(
-          data,
-          block.image_data?.mimeType?.trim() || 'image/png'
+        const imageContent = await resolveGeneratedImageContent(candidate.data, candidate.mimeType)
+        const filenameBase = sanitizePathSegment(
+          candidate.filenameBase,
+          `generated-${candidateIndex + 1}`
         )
         const extension = MIME_EXTENSION[imageContent.mimeType.toLowerCase()] || '.img'
-        const filename = `generated-${index + 1}${extension}`
+        const filename = `${filenameBase}${extension}`
         const filePath = path.join(assetDir, filename)
 
         try {
@@ -1099,17 +1223,18 @@ export class RemoteConversationRunner {
         }
 
         assets.push({
-          key: `${messageId}:${index}:image`,
+          key: candidate.key,
           path: filePath,
           mimeType: imageContent.mimeType,
           filename,
           sourceMessageId: messageId
         })
       } catch (error) {
-        console.warn('[RemoteConversationRunner] Failed to persist generated image:', {
+        console.warn('[RemoteConversationRunner] Failed to persist remote image asset:', {
           endpointKey,
           messageId,
-          index,
+          key: candidate.key,
+          type: candidate.logLabel,
           error
         })
       }
