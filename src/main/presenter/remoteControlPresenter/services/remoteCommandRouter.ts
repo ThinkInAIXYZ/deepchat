@@ -1,6 +1,8 @@
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import type {
   RemotePendingInteraction,
+  TelegramAgentMenuCallback,
+  TelegramAgentOption,
   TelegramCallbackAnswer,
   TelegramInboundCallbackQuery,
   TelegramInboundEvent,
@@ -12,13 +14,17 @@ import type {
   TelegramPollerStatusSnapshot
 } from '../types'
 import {
+  TELEGRAM_AGENT_MENU_TTL_MS,
   TELEGRAM_INTERACTION_CALLBACK_TTL_MS,
   TELEGRAM_MODEL_MENU_TTL_MS,
   TELEGRAM_REMOTE_COMMANDS,
+  buildAgentMenuCancelCallbackData,
+  buildAgentMenuChoiceCallbackData,
   buildModelMenuBackCallbackData,
   buildModelMenuCancelCallbackData,
   buildModelMenuChoiceCallbackData,
   buildModelMenuProviderCallbackData,
+  parseAgentMenuCallbackData,
   parseModelMenuCallbackData,
   parsePendingInteractionCallbackData
 } from '../types'
@@ -224,6 +230,35 @@ export class RemoteCommandRouter {
           }
         }
 
+        case 'agent': {
+          const session = await this.deps.runner.getCurrentSession(endpointKey)
+          if (!session) {
+            return {
+              replies: ['No bound session. Send a message, /new, or /use first.']
+            }
+          }
+
+          const agents = await this.deps.runner.listAvailableAgents()
+          if (agents.length === 0) {
+            return {
+              replies: ['No enabled agents are available.']
+            }
+          }
+
+          const token = this.deps.bindingStore.createAgentMenuState(endpointKey, session.id, agents)
+
+          return {
+            replies: [],
+            outboundActions: [
+              {
+                type: 'sendMessage',
+                text: this.formatAgentMenuText(session, agents),
+                replyMarkup: this.buildAgentMenuKeyboard(token, agents)
+              }
+            ]
+          }
+        }
+
         case 'status': {
           const runtime = this.deps.getPollerStatus()
           const status = await this.deps.runner.getStatus(endpointKey)
@@ -303,6 +338,11 @@ export class RemoteCommandRouter {
           showAlert: true
         }
       }
+    }
+
+    const agentCallback = parseAgentMenuCallbackData(event.data)
+    if (agentCallback) {
+      return await this.handleAgentMenuCallback(event, endpointKey, agentCallback)
     }
 
     const callback = parseModelMenuCallbackData(event.data)
@@ -528,6 +568,96 @@ export class RemoteCommandRouter {
     }
   }
 
+  private buildExpiredAgentMenuResult(messageId: number): RemoteCommandRouteResult {
+    return {
+      replies: [],
+      outboundActions: [
+        {
+          type: 'editMessageText',
+          messageId,
+          text: 'Agent menu expired. Run /agent again.',
+          replyMarkup: null
+        }
+      ],
+      callbackAnswer: {
+        text: 'Agent menu expired. Run /agent again.',
+        showAlert: true
+      }
+    }
+  }
+
+  private async handleAgentMenuCallback(
+    event: TelegramInboundCallbackQuery,
+    endpointKey: string,
+    callback: TelegramAgentMenuCallback
+  ): Promise<RemoteCommandRouteResult> {
+    const state = this.deps.bindingStore.getAgentMenuState(
+      callback.token,
+      TELEGRAM_AGENT_MENU_TTL_MS
+    )
+    const expiredResult = this.buildExpiredAgentMenuResult(event.messageId)
+    if (!state || state.endpointKey !== endpointKey) {
+      return expiredResult
+    }
+
+    const session = await this.deps.runner.getCurrentSession(endpointKey)
+    if (!session || session.id !== state.sessionId) {
+      this.deps.bindingStore.clearAgentMenuState(callback.token)
+      return expiredResult
+    }
+
+    if (callback.action === 'cancel') {
+      this.deps.bindingStore.clearAgentMenuState(callback.token)
+      return {
+        replies: [],
+        outboundActions: [
+          {
+            type: 'editMessageText',
+            messageId: event.messageId,
+            text: 'Agent selection cancelled.',
+            replyMarkup: null
+          }
+        ],
+        callbackAnswer: {
+          text: 'Cancelled.'
+        }
+      }
+    }
+
+    const agentOption = state.agents[callback.agentIndex]
+    if (!agentOption) {
+      return expiredResult
+    }
+
+    try {
+      const result = await this.deps.runner.setChannelDefaultAgent(endpointKey, agentOption.agentId)
+      this.deps.bindingStore.clearAgentMenuState(callback.token)
+
+      return {
+        replies: [],
+        outboundActions: [
+          {
+            type: 'editMessageText',
+            messageId: event.messageId,
+            text: this.formatAgentSwitchSuccessText(result.agent, result.session),
+            replyMarkup: null
+          }
+        ],
+        callbackAnswer: {
+          text: 'Agent switched.'
+        }
+      }
+    } catch (error) {
+      return {
+        replies: [],
+        callbackAnswer: {
+          text: error instanceof Error ? error.message : String(error),
+          showAlert: true
+        }
+      }
+    }
+  }
+
   private async buildExpiredPendingInteractionResult(
     messageId: number,
     endpointKey: string
@@ -609,6 +739,28 @@ export class RemoteCommandRouter {
           {
             text: 'Cancel',
             callback_data: buildModelMenuCancelCallbackData(token)
+          }
+        ]
+      ]
+    }
+  }
+
+  private buildAgentMenuKeyboard(
+    token: string,
+    agents: TelegramAgentOption[]
+  ): TelegramInlineKeyboardMarkup {
+    return {
+      inline_keyboard: [
+        ...agents.map((agent, index) => [
+          {
+            text: this.formatAgentButtonLabel(agent),
+            callback_data: buildAgentMenuChoiceCallbackData(token, index)
+          }
+        ]),
+        [
+          {
+            text: 'Cancel',
+            callback_data: buildAgentMenuCancelCallbackData(token)
           }
         ]
       ]
@@ -874,6 +1026,41 @@ export class RemoteCommandRouter {
       `Current: ${session.providerId || 'none'} / ${session.modelId || 'none'}`,
       `Provider: ${provider.providerName}`,
       'Choose a model:'
+    ].join('\n')
+  }
+
+  private formatAgentMenuText(
+    session: { title: string; id: string; agentId: string },
+    agents: TelegramAgentOption[]
+  ): string {
+    const current = agents.find((agent) => agent.agentId === session.agentId)
+    const currentLabel = current
+      ? `${current.agentName} [${current.agentId}]`
+      : session.agentId || 'none'
+    return [
+      `Session: ${this.formatSessionLabel(session)}`,
+      `Current agent: ${currentLabel}`,
+      'Choose an agent (switching starts a new session):'
+    ].join('\n')
+  }
+
+  private formatAgentButtonLabel(agent: TelegramAgentOption): string {
+    const typeLabel = agent.agentType === 'acp' ? 'ACP' : 'DeepChat'
+    return `${agent.agentName} · ${typeLabel}`
+  }
+
+  private formatAgentSwitchSuccessText(
+    agent: TelegramAgentOption,
+    session: { title: string; id: string; providerId: string; modelId: string }
+  ): string {
+    const typeLabel = agent.agentType === 'acp' ? 'ACP' : 'DeepChat'
+    const providerLine = session.providerId
+      ? `Provider / Model: ${session.providerId} / ${session.modelId || 'none'}`
+      : `Provider / Model: none`
+    return [
+      `Agent switched to ${agent.agentName} [${agent.agentId}] (${typeLabel}).`,
+      `Started a new session: ${this.formatSessionLabel(session)}`,
+      providerLine
     ].join('\n')
   }
 

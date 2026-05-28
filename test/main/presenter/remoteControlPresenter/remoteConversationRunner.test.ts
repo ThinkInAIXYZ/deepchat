@@ -1510,4 +1510,124 @@ describe('RemoteConversationRunner', () => {
       'ACP remote agent requires a channel default directory.'
     )
   })
+
+  it('lists enabled agents only', async () => {
+    const configPresenter = createConfigPresenter({
+      listAgents: vi.fn().mockResolvedValue([
+        { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true, source: 'builtin' },
+        { id: 'codex', name: 'Codex', type: 'acp', enabled: true, source: 'registry' },
+        { id: 'disabled', name: 'Disabled', type: 'deepchat', enabled: false }
+      ])
+    })
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: configPresenter as any,
+        agentSessionPresenter: {} as any,
+        agentRuntimePresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {} as any
+    )
+
+    const agents = await runner.listAvailableAgents()
+
+    expect(agents).toEqual([
+      { agentId: 'deepchat', agentName: 'DeepChat', agentType: 'deepchat', source: 'builtin' },
+      { agentId: 'codex', agentName: 'Codex', agentType: 'acp', source: 'registry' }
+    ])
+  })
+
+  it('switches the channel default agent and starts a new session', async () => {
+    const setChannelDefaultAgentId = vi.fn()
+    const createDetachedSession = vi
+      .fn()
+      .mockResolvedValue(createSession({ id: 'session-new', agentId: 'codex' }))
+    const configPresenter = createConfigPresenter({
+      listAgents: vi.fn().mockResolvedValue([
+        { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+        { id: 'codex', name: 'Codex', type: 'deepchat', enabled: true }
+      ])
+    })
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: configPresenter as any,
+        agentSessionPresenter: {
+          createDetachedSession
+        } as any,
+        agentRuntimePresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('codex')
+      },
+      {
+        setBinding: vi.fn(),
+        setChannelDefaultAgentId,
+        getTelegramDefaultWorkdir: vi.fn().mockReturnValue('')
+      } as any
+    )
+
+    const result = await runner.setChannelDefaultAgent('telegram:100:0', 'codex')
+
+    expect(setChannelDefaultAgentId).toHaveBeenCalledWith('telegram:100:0', 'codex')
+    expect(createDetachedSession).toHaveBeenCalled()
+    expect(result.session.agentId).toBe('codex')
+    expect(result.agent.agentId).toBe('codex')
+  })
+
+  it('rejects an unknown agent id', async () => {
+    const configPresenter = createConfigPresenter({
+      listAgents: vi
+        .fn()
+        .mockResolvedValue([{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }])
+    })
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: configPresenter as any,
+        agentSessionPresenter: {} as any,
+        agentRuntimePresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      { setChannelDefaultAgentId: vi.fn() } as any
+    )
+
+    await expect(runner.setChannelDefaultAgent('telegram:100:0', 'missing')).rejects.toThrow(
+      'Agent "missing" is not available'
+    )
+  })
+
+  it('rejects an ACP agent switch when the channel has no default workdir', async () => {
+    const configPresenter = createConfigPresenter({
+      listAgents: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'codex', name: 'Codex', type: 'acp', enabled: true, source: 'registry' }
+        ])
+    })
+    const setChannelDefaultAgentId = vi.fn()
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: configPresenter as any,
+        agentSessionPresenter: {
+          createDetachedSession: vi.fn()
+        } as any,
+        agentRuntimePresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {
+        setChannelDefaultAgentId,
+        getTelegramDefaultWorkdir: vi.fn().mockReturnValue('')
+      } as any
+    )
+
+    await expect(runner.setChannelDefaultAgent('telegram:100:0', 'codex')).rejects.toThrow(
+      /no default workdir/
+    )
+    expect(setChannelDefaultAgentId).not.toHaveBeenCalled()
+  })
 })

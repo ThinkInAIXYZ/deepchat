@@ -1,6 +1,7 @@
 import type { ToolInteractionResponse, SessionWithState } from '@shared/types/agent-interface'
 import type {
   RemotePendingInteraction,
+  TelegramAgentOption,
   TelegramModelProviderOption,
   WeixinIlinkInboundMessage,
   WeixinIlinkRuntimeStatusSnapshot
@@ -64,6 +65,10 @@ const COMMANDS: Array<{
   {
     command: 'model',
     description: 'View or switch the current model'
+  },
+  {
+    command: 'agent',
+    description: 'View or switch the current agent'
   },
   {
     command: 'status',
@@ -196,6 +201,8 @@ export class WeixinIlinkCommandRouter {
           }
         case 'model':
           return await this.handleModelCommand(message, endpointKey)
+        case 'agent':
+          return await this.handleAgentCommand(message, endpointKey)
         case 'status': {
           const runtime = this.deps.getRuntimeStatus()
           const status = await this.deps.runner.getStatus(endpointKey)
@@ -310,6 +317,45 @@ export class WeixinIlinkCommandRouter {
           `Session: ${this.formatSessionLabel(updatedSession)}`,
           `Provider: ${provider.providerName}`,
           `Model: ${model.modelName}`
+        ].join('\n')
+      ]
+    }
+  }
+
+  private async handleAgentCommand(
+    message: WeixinIlinkInboundMessage,
+    endpointKey: string
+  ): Promise<WeixinIlinkCommandRouteResult> {
+    const session = await this.deps.runner.getCurrentSession(endpointKey)
+    if (!session) {
+      return {
+        replies: ['No bound session. Send a message, /new, or /use first.']
+      }
+    }
+
+    const agents = await this.deps.runner.listAvailableAgents()
+    if (agents.length === 0) {
+      return {
+        replies: ['No enabled agents are available.']
+      }
+    }
+
+    const rawArgs = message.command?.args?.trim() ?? ''
+    if (!rawArgs) {
+      return {
+        replies: [this.formatAgentOverview(session, agents)]
+      }
+    }
+
+    const result = await this.deps.runner.setChannelDefaultAgent(endpointKey, rawArgs)
+    return {
+      replies: [
+        [
+          `Agent switched to ${result.agent.agentName} [${result.agent.agentId}] (${result.agent.agentType === 'acp' ? 'ACP' : 'DeepChat'}).`,
+          `Started a new session: ${this.formatSessionLabel(result.session)}`,
+          result.session.providerId
+            ? `Provider / Model: ${result.session.providerId} / ${result.session.modelId || 'none'}`
+            : 'Provider / Model: none'
         ].join('\n')
       ]
     }
@@ -484,6 +530,18 @@ export class WeixinIlinkCommandRouter {
         `${provider.providerId} (${provider.providerName})`,
         ...provider.models.map((model) => `  ${provider.providerId} ${model.modelId}`)
       ])
+    ].join('\n')
+  }
+
+  private formatAgentOverview(session: SessionWithState, agents: TelegramAgentOption[]): string {
+    return [
+      `Current agent: ${session.agentId || 'none'}`,
+      'Usage: /agent <id>',
+      'Available agents:',
+      ...agents.map(
+        (agent) =>
+          `- ${agent.agentName} [${agent.agentId}] (${agent.agentType === 'acp' ? 'ACP' : 'DeepChat'}${agent.source ? `, ${agent.source}` : ''})`
+      )
     ].join('\n')
   }
 }

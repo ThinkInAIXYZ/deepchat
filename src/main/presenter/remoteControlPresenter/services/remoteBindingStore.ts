@@ -1,6 +1,7 @@
 import type { IConfigPresenter, PairableRemoteChannel, RemoteChannel } from '@shared/presenter'
 import {
   REMOTE_CONTROL_SETTING_KEY,
+  TELEGRAM_AGENT_MENU_TTL_MS,
   TELEGRAM_INTERACTION_CALLBACK_TTL_MS,
   TELEGRAM_MODEL_MENU_TTL_MS,
   buildDiscordPairingSnapshot,
@@ -22,6 +23,8 @@ import {
   type RemoteEndpointBinding,
   type RemoteEndpointBindingMeta,
   type RemotePendingInteraction,
+  type TelegramAgentMenuState,
+  type TelegramAgentOption,
   type TelegramInboundEvent,
   type TelegramPendingInteractionState,
   type TelegramModelMenuState,
@@ -45,6 +48,7 @@ export class RemoteBindingStore {
   private readonly activeEvents = new Map<string, string>()
   private readonly sessionSnapshots = new Map<string, string[]>()
   private readonly modelMenuStates = new Map<string, TelegramModelMenuState>()
+  private readonly agentMenuStates = new Map<string, TelegramAgentMenuState>()
   private readonly pendingInteractionStates = new Map<string, TelegramPendingInteractionState>()
   private readonly remoteDeliveryStates = new Map<string, RemoteDeliveryState>()
 
@@ -226,6 +230,7 @@ export class RemoteBindingStore {
     }))
     this.activeEvents.delete(endpointKey)
     this.clearModelMenuStatesForEndpoint(endpointKey)
+    this.clearAgentMenuStatesForEndpoint(endpointKey)
     this.clearPendingInteractionStatesForEndpoint(endpointKey)
     this.clearRemoteDeliveryState(endpointKey)
   }
@@ -344,6 +349,7 @@ export class RemoteBindingStore {
 
     if (channel === undefined) {
       this.modelMenuStates.clear()
+      this.agentMenuStates.clear()
     }
 
     return entries.length
@@ -1015,6 +1021,64 @@ export class RemoteBindingStore {
     this.modelMenuStates.delete(token)
   }
 
+  createAgentMenuState(
+    endpointKey: string,
+    sessionId: string,
+    agents: TelegramAgentOption[]
+  ): string {
+    this.clearExpiredAgentMenuStates()
+    this.clearAgentMenuStatesForEndpoint(endpointKey)
+    const token = createTelegramCallbackToken()
+    this.agentMenuStates.set(token, {
+      endpointKey,
+      sessionId,
+      createdAt: Date.now(),
+      agents: agents.map((agent) => ({ ...agent }))
+    })
+    return token
+  }
+
+  getAgentMenuState(token: string, ttlMs: number): TelegramAgentMenuState | null {
+    this.clearExpiredAgentMenuStates()
+    const state = this.agentMenuStates.get(token)
+    if (!state) {
+      return null
+    }
+
+    if (Date.now() - state.createdAt > ttlMs) {
+      this.agentMenuStates.delete(token)
+      return null
+    }
+
+    return {
+      ...state,
+      agents: state.agents.map((agent) => ({ ...agent }))
+    }
+  }
+
+  clearAgentMenuState(token: string): void {
+    this.agentMenuStates.delete(token)
+  }
+
+  setChannelDefaultAgentId(endpointKey: string, agentId: string): void {
+    const channel = this.resolveChannelFromEndpointKey(endpointKey)
+    if (!channel) {
+      return
+    }
+
+    if (channel === 'telegram') {
+      this.updateTelegramConfig((config) => ({ ...config, defaultAgentId: agentId }))
+    } else if (channel === 'feishu') {
+      this.updateFeishuConfig((config) => ({ ...config, defaultAgentId: agentId }))
+    } else if (channel === 'qqbot') {
+      this.updateQQBotConfig((config) => ({ ...config, defaultAgentId: agentId }))
+    } else if (channel === 'discord') {
+      this.updateDiscordConfig((config) => ({ ...config, defaultAgentId: agentId }))
+    } else if (channel === 'weixin-ilink') {
+      this.updateWeixinIlinkConfig((config) => ({ ...config, defaultAgentId: agentId }))
+    }
+  }
+
   createPendingInteractionState(
     endpointKey: string,
     interaction: Pick<RemotePendingInteraction, 'messageId' | 'toolCallId'>
@@ -1146,6 +1210,7 @@ export class RemoteBindingStore {
     this.activeEvents.delete(endpointKey)
     this.sessionSnapshots.delete(endpointKey)
     this.clearModelMenuStatesForEndpoint(endpointKey)
+    this.clearAgentMenuStatesForEndpoint(endpointKey)
     this.clearPendingInteractionStatesForEndpoint(endpointKey)
     this.clearRemoteDeliveryState(endpointKey)
   }
@@ -1163,6 +1228,23 @@ export class RemoteBindingStore {
     for (const [token, state] of this.modelMenuStates.entries()) {
       if (state.endpointKey === endpointKey) {
         this.modelMenuStates.delete(token)
+      }
+    }
+  }
+
+  private clearExpiredAgentMenuStates(): void {
+    const now = Date.now()
+    for (const [token, state] of this.agentMenuStates.entries()) {
+      if (now - state.createdAt > TELEGRAM_AGENT_MENU_TTL_MS) {
+        this.agentMenuStates.delete(token)
+      }
+    }
+  }
+
+  private clearAgentMenuStatesForEndpoint(endpointKey: string): void {
+    for (const [token, state] of this.agentMenuStates.entries()) {
+      if (state.endpointKey === endpointKey) {
+        this.agentMenuStates.delete(token)
       }
     }
   }

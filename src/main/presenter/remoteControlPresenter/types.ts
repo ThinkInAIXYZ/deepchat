@@ -45,6 +45,7 @@ export const TELEGRAM_STREAM_START_TIMEOUT_MS = 8_000
 export const TELEGRAM_PRIVATE_THREAD_DEFAULT = 0
 export const TELEGRAM_RECENT_SESSION_LIMIT = 10
 export const TELEGRAM_MODEL_MENU_TTL_MS = 10 * 60 * 1000
+export const TELEGRAM_AGENT_MENU_TTL_MS = 10 * 60 * 1000
 export const TELEGRAM_INTERACTION_CALLBACK_TTL_MS = 10 * 60 * 1000
 export const TELEGRAM_REMOTE_DEFAULT_AGENT_ID = 'deepchat'
 export const FEISHU_REMOTE_DEFAULT_AGENT_ID = TELEGRAM_REMOTE_DEFAULT_AGENT_ID
@@ -96,6 +97,10 @@ export const TELEGRAM_REMOTE_COMMANDS = [
     description: 'Switch provider and model'
   },
   {
+    command: 'agent',
+    description: 'View or switch the current agent'
+  },
+  {
     command: 'status',
     description: 'Show runtime and session status'
   }
@@ -141,6 +146,10 @@ export const FEISHU_REMOTE_COMMANDS = [
   {
     command: 'model',
     description: 'View or switch the current model'
+  },
+  {
+    command: 'agent',
+    description: 'View or switch the current agent'
   },
   {
     command: 'status',
@@ -190,6 +199,10 @@ export const QQBOT_REMOTE_COMMANDS = [
     description: 'View or switch the current model'
   },
   {
+    command: 'agent',
+    description: 'View or switch the current agent'
+  },
+  {
     command: 'status',
     description: 'Show runtime and session status'
   }
@@ -235,6 +248,10 @@ export const DISCORD_REMOTE_COMMANDS = [
   {
     command: 'model',
     description: 'View or switch the current model'
+  },
+  {
+    command: 'agent',
+    description: 'View or switch the current agent'
   },
   {
     command: 'status',
@@ -609,6 +626,31 @@ export type TelegramModelMenuCallback =
       token: string
     }
 
+export interface TelegramAgentOption {
+  agentId: string
+  agentName: string
+  agentType: 'deepchat' | 'acp'
+  source?: 'builtin' | 'manual' | 'registry'
+}
+
+export interface TelegramAgentMenuState {
+  endpointKey: string
+  sessionId: string
+  createdAt: number
+  agents: TelegramAgentOption[]
+}
+
+export type TelegramAgentMenuCallback =
+  | {
+      action: 'choice'
+      token: string
+      agentIndex: number
+    }
+  | {
+      action: 'cancel'
+      token: string
+    }
+
 export type TelegramPendingInteractionCallback =
   | {
       action: 'allow' | 'deny' | 'other'
@@ -646,6 +688,7 @@ export type FeishuOutboundAction =
     }
 
 const TELEGRAM_MODEL_MENU_CALLBACK_PREFIX = 'model'
+const TELEGRAM_AGENT_MENU_CALLBACK_PREFIX = 'agent'
 const TELEGRAM_INTERACTION_CALLBACK_PREFIX = 'pending'
 const TELEGRAM_ENDPOINT_KEY_REGEX = /^telegram:(-?\d+):(-?\d+)$/
 const FEISHU_ENDPOINT_KEY_REGEX = /^feishu:([^:]+):([^:]+)$/
@@ -670,6 +713,41 @@ export const buildModelMenuBackCallbackData = (token: string): string =>
 
 export const buildModelMenuCancelCallbackData = (token: string): string =>
   `${TELEGRAM_MODEL_MENU_CALLBACK_PREFIX}:${token}:c`
+
+export const buildAgentMenuChoiceCallbackData = (token: string, agentIndex: number): string =>
+  `${TELEGRAM_AGENT_MENU_CALLBACK_PREFIX}:${token}:a:${agentIndex}`
+
+export const buildAgentMenuCancelCallbackData = (token: string): string =>
+  `${TELEGRAM_AGENT_MENU_CALLBACK_PREFIX}:${token}:c`
+
+export const parseAgentMenuCallbackData = (data: string): TelegramAgentMenuCallback | null => {
+  const parts = data.trim().split(':')
+  if (parts[0] !== TELEGRAM_AGENT_MENU_CALLBACK_PREFIX || !parts[1]) {
+    return null
+  }
+
+  const token = parts[1]
+  const action = parts[2]
+  if (action === 'a' && parts[3] !== undefined) {
+    const agentIndex = Number.parseInt(parts[3], 10)
+    if (Number.isInteger(agentIndex) && agentIndex >= 0) {
+      return {
+        action: 'choice',
+        token,
+        agentIndex
+      }
+    }
+  }
+
+  if (action === 'c') {
+    return {
+      action: 'cancel',
+      token
+    }
+  }
+
+  return null
+}
 
 export const parseModelMenuCallbackData = (data: string): TelegramModelMenuCallback | null => {
   const parts = data.trim().split(':')

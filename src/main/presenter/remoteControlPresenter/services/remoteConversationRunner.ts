@@ -28,8 +28,10 @@ import {
   type RemoteInputAttachment,
   type RemoteRenderableBlock,
   type RemotePendingInteraction,
+  type TelegramAgentOption,
   type TelegramModelProviderOption
 } from '../types'
+import { resolveAcpAgentAlias } from '../../configPresenter/acpRegistryConstants'
 import { safeParseAssistantBlocks } from '../telegram/telegramOutbound'
 import {
   REMOTE_NO_RESPONSE_TEXT,
@@ -585,6 +587,61 @@ export class RemoteConversationRunner {
     }
 
     return await this.deps.agentSessionPresenter.setSessionModel(session.id, providerId, modelId)
+  }
+
+  async listAvailableAgents(): Promise<TelegramAgentOption[]> {
+    const agents = await this.deps.configPresenter.listAgents()
+    return agents
+      .filter((agent) => agent.enabled !== false)
+      .map((agent) => ({
+        agentId: agent.id,
+        agentName: agent.name || agent.id,
+        agentType: agent.type,
+        source: agent.source
+      }))
+  }
+
+  async setChannelDefaultAgent(
+    endpointKey: string,
+    candidateId: string
+  ): Promise<{ session: SessionWithState; agent: TelegramAgentOption }> {
+    const trimmed = candidateId.trim()
+    if (!trimmed) {
+      throw new Error('Usage: /agent <id>')
+    }
+
+    const agents = await this.deps.configPresenter.listAgents()
+    const enabled = agents.filter((agent) => agent.enabled !== false)
+    const normalizedCandidate = resolveAcpAgentAlias(trimmed)
+    const matched =
+      enabled.find((agent) => agent.id === trimmed) ??
+      enabled.find((agent) => resolveAcpAgentAlias(agent.id) === normalizedCandidate)
+
+    if (!matched) {
+      throw new Error(`Agent "${trimmed}" is not available. Use /agent to view available agents.`)
+    }
+
+    if (matched.type === 'acp') {
+      const channelDefaultWorkdir = this.getChannelDefaultWorkdir(endpointKey)
+      if (!channelDefaultWorkdir) {
+        throw new Error(
+          'Cannot switch to ACP agent: this channel has no default workdir set. Configure the channel default workdir in DeepChat first.'
+        )
+      }
+    }
+
+    this.bindingStore.setChannelDefaultAgentId(endpointKey, matched.id)
+    const session = await this.createNewSession(endpointKey)
+
+    return {
+      session,
+      agent: {
+        agentId: matched.id,
+        agentName: matched.name || matched.id,
+        agentType: matched.type,
+        source: matched.source
+      }
+    }
   }
 
   async sendText(

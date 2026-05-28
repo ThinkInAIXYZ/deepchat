@@ -444,4 +444,107 @@ describe('FeishuCommandRouter', () => {
     })
     expect(result.replies).toEqual(['Answer received: 2 please'])
   })
+
+  it('lists agents for /agent without args', async () => {
+    const runner = createRunner({
+      getCurrentSession: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Remote',
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-5'
+      }),
+      listAvailableAgents: vi.fn().mockResolvedValue([
+        {
+          agentId: 'deepchat',
+          agentName: 'DeepChat',
+          agentType: 'deepchat',
+          source: 'builtin'
+        },
+        {
+          agentId: 'codex',
+          agentName: 'Codex',
+          agentType: 'acp',
+          source: 'registry'
+        }
+      ])
+    })
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({ ok: true, userOpenId: 'ou_123' }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi
+        .fn()
+        .mockReturnValue({ state: 'running', lastError: null, botUser: null })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/agent',
+        command: { name: 'agent', args: '' }
+      })
+    )
+
+    expect(result.replies[0]).toContain('Current agent: deepchat')
+    expect(result.replies[0]).toContain('Codex')
+    expect(result.replies[0]).toContain('Usage: /agent <id>')
+  })
+
+  it('switches the channel default agent for /agent <id>', async () => {
+    const setChannelDefaultAgent = vi.fn().mockResolvedValue({
+      session: {
+        id: 'session-2',
+        title: 'New Chat',
+        agentId: 'codex',
+        providerId: 'acp',
+        modelId: 'codex'
+      },
+      agent: {
+        agentId: 'codex',
+        agentName: 'Codex',
+        agentType: 'acp',
+        source: 'registry'
+      }
+    })
+    const runner = createRunner({
+      getCurrentSession: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Remote',
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-5'
+      }),
+      listAvailableAgents: vi
+        .fn()
+        .mockResolvedValue([
+          { agentId: 'codex', agentName: 'Codex', agentType: 'acp', source: 'registry' }
+        ]),
+      setChannelDefaultAgent
+    })
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({ ok: true, userOpenId: 'ou_123' }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi
+        .fn()
+        .mockReturnValue({ state: 'running', lastError: null, botUser: null })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/agent codex',
+        command: { name: 'agent', args: 'codex' }
+      })
+    )
+
+    expect(setChannelDefaultAgent).toHaveBeenCalledWith('feishu:oc_100:root', 'codex')
+    expect(result.replies[0]).toContain('Agent switched to Codex')
+    expect(result.replies[0]).toContain('Started a new session')
+  })
 })

@@ -3,6 +3,7 @@ import type {
   QQBotInboundMessage,
   QQBotRuntimeStatusSnapshot,
   RemotePendingInteraction,
+  TelegramAgentOption,
   TelegramModelProviderOption
 } from '../types'
 import { QQBOT_REMOTE_COMMANDS, buildQQBotBindingMeta, buildQQBotEndpointKey } from '../types'
@@ -165,6 +166,9 @@ export class QQBotCommandRouter {
         case 'model':
           return await this.handleModelCommand(message, endpointKey)
 
+        case 'agent':
+          return await this.handleAgentCommand(message, endpointKey)
+
         case 'status': {
           const runtime = this.deps.getRuntimeStatus()
           const status = await this.deps.runner.getStatus(endpointKey)
@@ -288,6 +292,45 @@ export class QQBotCommandRouter {
     }
   }
 
+  private async handleAgentCommand(
+    message: QQBotInboundMessage,
+    endpointKey: string
+  ): Promise<QQBotCommandRouteResult> {
+    const session = await this.deps.runner.getCurrentSession(endpointKey)
+    if (!session) {
+      return {
+        replies: ['No bound session. Send a message, /new, or /use first.']
+      }
+    }
+
+    const agents = await this.deps.runner.listAvailableAgents()
+    if (agents.length === 0) {
+      return {
+        replies: ['No enabled agents are available.']
+      }
+    }
+
+    const rawArgs = message.command?.args?.trim() ?? ''
+    if (!rawArgs) {
+      return {
+        replies: [this.formatAgentOverview(session, agents)]
+      }
+    }
+
+    const result = await this.deps.runner.setChannelDefaultAgent(endpointKey, rawArgs)
+    return {
+      replies: [
+        [
+          `Agent switched to ${result.agent.agentName} [${result.agent.agentId}] (${result.agent.agentType === 'acp' ? 'ACP' : 'DeepChat'}).`,
+          `Started a new session: ${this.formatSessionLabel(result.session)}`,
+          result.session.providerId
+            ? `Provider / Model: ${result.session.providerId} / ${result.session.modelId || 'none'}`
+            : 'Provider / Model: none'
+        ].join('\n')
+      ]
+    }
+  }
+
   private async handlePendingTextResponse(
     endpointKey: string,
     text: string,
@@ -404,6 +447,20 @@ export class QQBotCommandRouter {
           (model) => `- ${model.modelName} (${provider.providerId} ${model.modelId})`
         )
       ])
+    ].join('\n')
+  }
+
+  private formatAgentOverview(session: SessionWithState, agents: TelegramAgentOption[]): string {
+    return [
+      `Session: ${this.formatSessionLabel(session)}`,
+      `Current agent: ${session.agentId || 'none'}`,
+      'Usage: /agent <id>',
+      '',
+      'Available agents:',
+      ...agents.map(
+        (agent) =>
+          `- ${agent.agentName} [${agent.agentId}] (${agent.agentType === 'acp' ? 'ACP' : 'DeepChat'}${agent.source ? `, ${agent.source}` : ''})`
+      )
     ].join('\n')
   }
 
