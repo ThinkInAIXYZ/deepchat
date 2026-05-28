@@ -384,7 +384,7 @@ function scrollToBottom(force = false) {
     const nextScrollHeight = el.scrollHeight
 
     if (shouldForce || nextScrollHeight > lastObservedScrollHeight) {
-      el.scrollTop = nextScrollHeight
+      el.scrollTop = Math.max(nextScrollHeight - el.clientHeight, 0)
     }
 
     syncScrollPosition()

@@ -931,6 +931,50 @@ describe('ChatPage', () => {
     expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
   })
 
+  it('scrolls to bottom using max scrollTop during stream updates near bottom', async () => {
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0)
+      return 1
+    })
+    const cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+
+    try {
+      const { wrapper, messageStore } = await setup()
+      const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+
+      let scrollHeight = 1200
+      let scrollTop = 0
+      Object.defineProperty(chatPage, 'clientHeight', {
+        configurable: true,
+        get: () => 500
+      })
+      Object.defineProperty(chatPage, 'scrollHeight', {
+        configurable: true,
+        get: () => scrollHeight
+      })
+      Object.defineProperty(chatPage, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => {
+          scrollTop = value
+        }
+      })
+
+      scrollTop = 700
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+      await flushPromises()
+
+      scrollHeight = 1250
+      messageStore.streamRevision += 1
+      await flushPromises()
+
+      expect(scrollTop).toBe(750)
+    } finally {
+      rafSpy.mockRestore()
+      cancelRafSpy.mockRestore()
+    }
+  })
+
   it('opens the inline search with Ctrl+F and closes it with Escape', async () => {
     const { wrapper } = await setup()
 
