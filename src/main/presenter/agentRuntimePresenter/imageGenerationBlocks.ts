@@ -6,6 +6,7 @@ import {
 } from '@shared/agentImageGenerationTool'
 
 export function prepareToolImagePreviewPresentation(params: {
+  toolCallId?: string
   toolName: string
   toolSource?: 'mcp' | 'agent'
   serverName?: string
@@ -15,18 +16,12 @@ export function prepareToolImagePreviewPresentation(params: {
   toolBlockImagePreviews?: ToolCallImagePreview[]
   promotedBlocks: AssistantMessageBlock[]
 } {
-  const { toolName, toolSource, serverName, isError, imagePreviews } = params
+  const { toolCallId, toolName, toolSource, serverName, isError, imagePreviews } = params
   if (!imagePreviews) {
     return { promotedBlocks: [] }
   }
 
-  if (
-    toolName !== IMAGE_GENERATE_TOOL_NAME ||
-    toolSource !== 'agent' ||
-    serverName !== IMAGE_GENERATION_TOOL_SERVER_NAME ||
-    isError ||
-    imagePreviews.length === 0
-  ) {
+  if (isError || imagePreviews.length === 0) {
     return {
       toolBlockImagePreviews: imagePreviews,
       promotedBlocks: []
@@ -35,9 +30,12 @@ export function prepareToolImagePreviewPresentation(params: {
 
   const timestamp = Date.now()
   const promotedBlocks: AssistantMessageBlock[] = []
+  const remainingToolBlockImagePreviews: ToolCallImagePreview[] = []
+
   for (const preview of imagePreviews) {
     const { data, mimeType } = preview
     if (!data || !mimeType) {
+      remainingToolBlockImagePreviews.push(preview)
       continue
     }
 
@@ -49,7 +47,14 @@ export function prepareToolImagePreviewPresentation(params: {
       image_data: {
         data,
         mimeType
-      }
+      },
+      extra: {
+        ...(toolCallId ? { toolCallId } : {}),
+        toolName,
+        ...(preview.id ? { toolImagePreviewId: preview.id } : {}),
+        toolImagePreviewSource: preview.source,
+        ...(preview.title ? { toolImagePreviewTitle: preview.title } : {})
+      } as AssistantMessageBlock['extra']
     })
   }
 
@@ -60,8 +65,20 @@ export function prepareToolImagePreviewPresentation(params: {
     }
   }
 
+  if (
+    toolName === IMAGE_GENERATE_TOOL_NAME &&
+    toolSource === 'agent' &&
+    serverName === IMAGE_GENERATION_TOOL_SERVER_NAME
+  ) {
+    return {
+      toolBlockImagePreviews: remainingToolBlockImagePreviews,
+      promotedBlocks
+    }
+  }
+
   return {
-    toolBlockImagePreviews: [],
+    toolBlockImagePreviews:
+      remainingToolBlockImagePreviews.length > 0 ? remainingToolBlockImagePreviews : [],
     promotedBlocks
   }
 }

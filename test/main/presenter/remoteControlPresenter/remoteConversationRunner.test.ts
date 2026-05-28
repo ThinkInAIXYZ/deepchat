@@ -578,7 +578,10 @@ describe('RemoteConversationRunner', () => {
     const cachedImage = Buffer.from('cached generated image')
     const dataUrlImage = Buffer.from('data url generated image')
     const rawBase64Image = Buffer.from('raw base64 generated image')
+    const screenshotImage = Buffer.from('cached screenshot image')
+    const toolOutputImage = Buffer.from('tool output image')
     await fs.writeFile(path.join(cacheDir, 'generated.png'), cachedImage)
+    await fs.writeFile(path.join(cacheDir, 'screenshot.png'), screenshotImage)
     vi.mocked(app.getPath).mockImplementation((name: string) =>
       name === 'userData' ? userData : '/mock/path'
     )
@@ -614,6 +617,58 @@ describe('RemoteConversationRunner', () => {
           image_data: {
             data: rawBase64Image.toString('base64'),
             mimeType: 'image/webp'
+          }
+        },
+        {
+          type: 'tool_call',
+          content: '',
+          status: 'success',
+          timestamp: 4,
+          tool_call: {
+            id: 'tool-screenshot',
+            name: 'cdp_send',
+            params: JSON.stringify({ method: 'Page.captureScreenshot' }),
+            response: JSON.stringify({ data: 'omitted from text' }),
+            imagePreviews: [
+              {
+                id: 'screenshot-1',
+                data: 'imgcache://screenshot.png',
+                mimeType: 'image/png',
+                title: 'Page.captureScreenshot',
+                source: 'screenshot'
+              },
+              {
+                id: 'tool-output-1',
+                data: `data:image/png;base64,${toolOutputImage.toString('base64')}`,
+                mimeType: 'image/png',
+                source: 'tool_output'
+              },
+              {
+                id: 'metadata-only',
+                mimeType: 'image/png',
+                source: 'tool_output'
+              }
+            ]
+          },
+          extra: {
+            toolCallArgsComplete: true
+          }
+        },
+        {
+          type: 'image',
+          content: '',
+          status: 'success',
+          timestamp: 5,
+          image_data: {
+            data: 'imgcache://screenshot.png',
+            mimeType: 'image/png'
+          },
+          extra: {
+            toolCallId: 'tool-screenshot',
+            toolName: 'cdp_send',
+            toolImagePreviewId: 'screenshot-1',
+            toolImagePreviewSource: 'screenshot',
+            toolImagePreviewTitle: 'Page.captureScreenshot'
           }
         }
       ])
@@ -669,11 +724,23 @@ describe('RemoteConversationRunner', () => {
         key: 'assistant-images:2:image',
         mimeType: 'image/webp',
         filename: 'generated-3.webp'
+      }),
+      expect.objectContaining({
+        key: 'assistant-images:3:toolResultImage:1',
+        mimeType: 'image/png',
+        filename: 'tool_output-4-2.png'
+      }),
+      expect.objectContaining({
+        key: 'assistant-images:4:image',
+        mimeType: 'image/png',
+        filename: 'screenshot-5.png'
       })
     ])
     await expect(fs.readFile(snapshot.generatedImages![0].path)).resolves.toEqual(cachedImage)
     await expect(fs.readFile(snapshot.generatedImages![1].path)).resolves.toEqual(dataUrlImage)
     await expect(fs.readFile(snapshot.generatedImages![2].path)).resolves.toEqual(rawBase64Image)
+    await expect(fs.readFile(snapshot.generatedImages![3].path)).resolves.toEqual(toolOutputImage)
+    await expect(fs.readFile(snapshot.generatedImages![4].path)).resolves.toEqual(screenshotImage)
     expect(snapshot.finalText).toBe('')
   })
 

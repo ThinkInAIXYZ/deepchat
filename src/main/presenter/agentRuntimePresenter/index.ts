@@ -1265,6 +1265,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             return { resumed: false }
           }
           const imagePresentation = prepareToolImagePreviewPresentation({
+            toolCallId: toolCall.id,
             toolName: toolCall.name || '',
             toolSource: execution.toolSource,
             serverName: execution.serverName,
