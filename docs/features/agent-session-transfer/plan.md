@@ -1,0 +1,267 @@
+# Implementation Plan - Agent Session Transfer
+
+## Current Code Notes
+
+- `DeepChatAgentsSettings.vue` deletes custom DeepChat agents through
+  `configPresenter.deleteDeepChatAgent(form.id)` after `window.confirm`.
+- `AcpSettings.vue` deletes manual ACP agents through `configPresenter.removeManualAcpAgent(agent.id)`
+  after `window.confirm`.
+- `AgentRepository.deleteDeepChatAgent` currently reassigns all `new_sessions.agent_id` values from
+  the deleted custom DeepChat agent to built-in `deepchat`.
+- `AgentRepository.removeManualAcpAgent` deletes only the agent record.
+- `NewSessionsTable` already supports list/page filtering by `agentId` and has a batch
+  `reassignAgentId(fromAgentId, toAgentId)`, but it does not expose a precise single-session
+  ownership update or impact counts.
+- `AgentSessionPresenter` is the correct place to check runtime state, delete sessions with their
+  child subagents, emit session-list updates, and coordinate ACP workdir/session cleanup.
+- `AgentRuntimePresenter` caches session agent ids in memory, so ownership moves need a runtime hook,
+  not just a database update.
+
+## Architecture
+
+### Shared Contracts
+
+Add typed route contracts in `src/shared/contracts/routes/sessions.routes.ts`:
+
+- `sessions.getAgentTransferImpact`
+  - input: `{ agentId: string }`
+  - output: `{ impact: AgentTransferImpact }`
+- `sessions.moveAgentSessions`
+  - input: `{ fromAgentId: string; toAgentId: string; acpWorkdirBySessionId?: Record<string, string> }`
+  - output: `{ movedSessionIds: string[]; deletedDraftSessionIds: string[]; skipped: AgentTransferSkip[] }`
+- `sessions.deleteAgentSessions`
+  - input: `{ agentId: string }`
+  - output: `{ deletedSessionIds: string[] }`
+- `sessions.moveSessionToAgent`
+  - input: `{ sessionId: string; toAgentId: string; acpWorkdir?: string }`
+  - output: `{ session: SessionWithState }`
+
+Proposed shared shape:
+
+```ts
+type AgentTransferImpact = {
+  agentId: string
+  totalSessions: number
+  regularSessions: number
+  subagentSessions: number
+  emptyDrafts: number
+  movableSessions: number
+  blockedSessions: number
+  samples: Array<{
+    id: string
+    title: string
+    sessionKind: 'regular' | 'subagent'
+    isDraft: boolean
+    projectDir: string | null
+    status: 'idle' | 'generating' | 'error'
+    blockReason?: 'active' | 'pending-input' | 'missing-target-workdir'
+  }>
+}
+```
+
+Keep `config.listAgents` as the source for enabled target-agent options.
+
+### Presenter Responsibilities
+
+`AgentSessionPresenter`:
+
+- `getAgentTransferImpact(agentId)`
+  - List `new_sessions` with `{ agentId, includeSubagents: true }`.
+  - Treat drafts with no message ids as empty drafts.
+  - Use `getSessionState` and pending-input inspection to classify movable vs blocked.
+  - Return a small sample list for the dialog, not the full history.
+- `moveAgentSessions(fromAgentId, toAgentId, options)`
+  - Validate both agents exist and are not the same.
+  - Recompute impact server-side immediately before mutation.
+  - Refuse the entire operation when any non-empty related session is blocked.
+  - Delete empty drafts for the source agent.
+  - Move each non-empty related session through the same internal helper used by
+    `moveSessionToAgent`.
+- `moveSessionToAgent(sessionId, toAgentId, options)`
+  - Only allow regular sessions from the public chat-level route.
+  - Refuse active/generating sessions.
+  - Resolve target runtime defaults:
+    - DeepChat target: target agent config merged with built-in DeepChat defaults, then app default
+      model fallback.
+    - ACP target: provider `acp`, model id target agent id, permission `full_access`, no DeepChat
+      disabled-tool list.
+  - Update `new_sessions.agent_id` and any target-specific session fields in one logical operation.
+  - Update the DeepChat runtime's session-agent cache and provider/model/generation settings.
+  - Clear stale ACP binding for the previous ACP agent when moving away from ACP.
+  - For ACP targets, ensure/set workdir using the session project dir or the explicit `acpWorkdir`.
+  - Emit `SESSION_EVENTS.LIST_UPDATED` / typed `sessions.updated`.
+- `deleteAgentSessions(agentId)`
+  - Recompute impact.
+  - Refuse active sessions.
+  - Delete related sessions with existing `deleteSessionInternal`, which already handles child
+    sessions, message cleanup, permissions, skills, search documents, and ACP cleanup.
+
+`AgentRuntimePresenter`:
+
+- Add an optional implementation method such as `setSessionAgentContext(sessionId, context)` to
+  `IAgentImplementation`.
+- The DeepChat implementation updates `sessionAgentIds`, provider/model, generation settings,
+  disabled tool cache, project dir cache, and invalidates system prompt/tool profile caches without
+  deleting messages.
+- It must reject generating sessions.
+
+`NewSessionsTable` / `NewSessionManager`:
+
+- Add a precise `updateAgentId(sessionId, agentId)` helper.
+- Keep `reassignAgentId` as a low-level fallback only; the transfer path should move session by
+  session so runtime state and ACP cleanup stay correct.
+- Consider `countByAgent(agentId, includeSubagents)` for fast summary, but correctness can start with
+  `list({ agentId, includeSubagents: true })`.
+
+`AgentRepository` / `ConfigPresenter`:
+
+- Change custom DeepChat deletion so it no longer silently reassigns sessions to built-in DeepChat.
+  The UI should call the session move/delete route first, then delete the agent.
+- Manual ACP deletion can keep removing only the agent record, because the UI/session route will have
+  already moved or deleted related sessions.
+- Keep a defensive fallback in the delete methods: if sessions still exist for the source agent,
+  return `false` or throw a clear error instead of silently orphaning or reassigning them.
+
+### Renderer
+
+Create a reusable `AgentDeleteImpactDialog.vue` under settings components or a shared settings dialog
+folder. It should be used by:
+
+- `DeepChatAgentsSettings.vue`
+- `AcpSettings.vue` manual custom-agent section
+
+The dialog fetches:
+
+- impact via `SessionClient.getAgentTransferImpact(agentId)`
+- target options via `ConfigClient.listAgents()`, filtered to enabled agents except source
+
+It submits:
+
+- move path: `SessionClient.moveAgentSessions(...)`, then existing agent deletion
+- delete path: `SessionClient.deleteAgentSessions(agentId)`, then existing agent deletion
+
+Add chat-level move UI in `ChatTopBar.vue` or the existing status/agent menu area:
+
+- Show only for active regular sessions.
+- Disable while the session status is generating.
+- Use `SessionClient.moveSessionToAgent(sessionId, targetAgentId, acpWorkdir?)`.
+- Update `useSessionStore` with the returned session and let existing selected-agent sync run.
+
+## Event Flow
+
+Delete with move:
+
+```text
+Settings delete button
+  -> SessionClient.getAgentTransferImpact(agentId)
+  -> AgentDeleteImpactDialog opens
+  -> user chooses target agent
+  -> SessionClient.moveAgentSessions(fromAgentId, toAgentId)
+  -> AgentSessionPresenter moves sessions and emits sessions.updated
+  -> ConfigPresenter deletes source agent and emits config.agents.changed
+  -> settings reloads agents, session store refreshes affected sessions
+```
+
+Delete with related chats removed:
+
+```text
+Settings delete button
+  -> impact dialog
+  -> user chooses "Delete chats with this Agent"
+  -> SessionClient.deleteAgentSessions(agentId)
+  -> ConfigPresenter deletes source agent
+  -> session store receives deleted session ids / list update
+```
+
+Single session move:
+
+```text
+Chat agent menu
+  -> user selects target agent
+  -> SessionClient.moveSessionToAgent(sessionId, targetAgentId)
+  -> AgentSessionPresenter updates session ownership/runtime context
+  -> sessions.updated(reason: updated)
+  -> Session store upserts returned session and selected agent syncs to target
+```
+
+## Data Rules
+
+- Preserve:
+  - `new_sessions.id`, title, pin state, project dir, parent relation
+  - deepchat messages, assistant blocks, files, traces, tape entries
+  - search documents and usage stats
+  - session summary/compaction state where still meaningful
+- Reset or recompute:
+  - target agent id
+  - provider/model for future turns
+  - DeepChat generation defaults for target DeepChat agents
+  - disabled tools from the target DeepChat agent
+  - ACP external session id and bound process state
+- Delete:
+  - empty drafts during delete-agent flow
+  - related sessions only when the user explicitly picks the destructive option
+
+## ACP Workdir Handling
+
+- If moving to ACP and `session.projectDir` is non-empty, use it as the target ACP workdir.
+- If moving a single chat to ACP and there is no project dir, ask for/select a workdir in the dialog.
+- If batch-moving during agent deletion and some sessions lack project dirs, block with a clear list
+  and ask the user to either choose a shared workdir or delete those chats.
+- Do not reuse the previous ACP `session_id`; call the existing ACP preparation path so the next turn
+  starts a fresh target-agent ACP session.
+
+## Compatibility
+
+- Existing sessions assigned to removed manual ACP agents are not fixed automatically by this feature
+  unless the source agent still exists at deletion time. A later repair utility can scan orphaned
+  `new_sessions.agent_id` values.
+- Existing custom DeepChat deletion behavior changes from implicit fallback to explicit user choice.
+  This is intentional and should be called out in release notes.
+- No schema migration is required for the first increment if `new_sessions.agent_id` is updated via a
+  new helper.
+
+## Test Strategy
+
+Main tests:
+
+- `agentRepository.test.ts`
+  - Custom DeepChat delete refuses when sessions remain, or no longer silently reassigns.
+  - Manual ACP delete remains safe after sessions are moved/deleted.
+- `agentSessionPresenter.test.ts`
+  - Impact summary counts regular/subagent/draft/blocked sessions.
+  - Batch move DeepChat -> DeepChat applies target ownership and model defaults.
+  - Batch move ACP -> DeepChat clears ACP binding and keeps messages.
+  - Move DeepChat -> ACP requires workdir and sets provider/model to ACP target.
+  - Active/generating sessions block move and delete.
+  - `deleteAgentSessions` deletes related sessions through existing recursive cleanup.
+- `agentRuntimePresenter.test.ts`
+  - Session agent context update refreshes cached agent id and invalidates prompt/tool caches.
+  - Generating sessions reject context transfer.
+
+Renderer tests:
+
+- `DeepChatAgentsSettings.test.ts`
+  - Delete opens impact dialog.
+  - Move path calls session move before agent delete.
+  - Delete path calls session delete before agent delete.
+- `AcpSettings` test coverage for manual ACP delete impact dialog.
+- Chat component/store tests for single-session move and disabled active state.
+
+Quality gates after implementation:
+
+- `pnpm run format`
+- `pnpm run i18n`
+- `pnpm run lint`
+- Targeted Vitest suites for touched main and renderer modules
+
+## Risks
+
+- Runtime cache drift is the main risk. Mitigation: transfer through AgentSessionPresenter and add a
+  runtime-level context update method.
+- ACP sessions may have provider-specific expectations about session continuity. Mitigation: only move
+  idle sessions and start a fresh target ACP binding.
+- Batch deletion is destructive. Mitigation: in-app dialog, explicit destructive option, and tests that
+  verify move is the default/safe path.
+- Applying target DeepChat defaults can surprise users who expected current model settings to remain.
+  Mitigation: dialog copy states that future replies use the target agent; future enhancement can add
+  "keep current model/settings".
