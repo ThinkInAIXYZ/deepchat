@@ -931,6 +931,66 @@ describe('ChatPage', () => {
     expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
   })
 
+  it('scrolls to bottom using max scrollTop during stream updates near bottom', async () => {
+    let nextFrameId = 1
+    const rafCallbacks = new Map<number, FrameRequestCallback>()
+    const flushRaf = async () => {
+      const callbacks = Array.from(rafCallbacks.values())
+      rafCallbacks.clear()
+      callbacks.forEach((cb) => cb(0))
+      await flushPromises()
+    }
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      const frameId = nextFrameId
+      nextFrameId += 1
+      rafCallbacks.set(frameId, cb)
+      return frameId
+    })
+    const cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+      rafCallbacks.delete(frameId)
+    })
+
+    try {
+      const { wrapper, messageStore } = await setup()
+      const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+
+      let scrollHeight = 1200
+      let scrollTop = 0
+      Object.defineProperty(chatPage, 'clientHeight', {
+        configurable: true,
+        get: () => 500
+      })
+      Object.defineProperty(chatPage, 'scrollHeight', {
+        configurable: true,
+        get: () => scrollHeight
+      })
+      Object.defineProperty(chatPage, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => {
+          scrollTop = value
+        }
+      })
+
+      await flushRaf()
+
+      scrollTop = 700
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+      await flushPromises()
+      await flushRaf()
+
+      scrollHeight = 1250
+      messageStore.streamRevision += 1
+      await flushPromises()
+      await flushRaf()
+
+      expect(scrollTop).toBe(750)
+    } finally {
+      rafSpy.mockRestore()
+      cancelRafSpy.mockRestore()
+    }
+  })
+
   it('opens the inline search with Ctrl+F and closes it with Escape', async () => {
     const { wrapper } = await setup()
 
