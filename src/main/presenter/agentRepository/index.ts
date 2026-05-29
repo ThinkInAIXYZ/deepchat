@@ -192,7 +192,14 @@ export class AgentRepository {
       return false
     }
 
-    this.sqlitePresenter.newSessionsTable.reassignAgentId(agentId, BUILTIN_DEEPCHAT_AGENT_ID)
+    const relatedSessions = this.sqlitePresenter.newSessionsTable.list({
+      agentId,
+      includeSubagents: true
+    })
+    if (relatedSessions.length > 0) {
+      return false
+    }
+
     this.sqlitePresenter.agentsTable.delete(agentId)
     return true
   }
@@ -285,6 +292,13 @@ export class AgentRepository {
   removeManualAcpAgent(agentId: string): boolean {
     const row = this.sqlitePresenter.agentsTable.get(agentId)
     if (!row || row.agent_type !== 'acp' || row.source !== 'manual') {
+      return false
+    }
+    const relatedSessions = this.sqlitePresenter.newSessionsTable.list({
+      agentId,
+      includeSubagents: true
+    })
+    if (relatedSessions.length > 0) {
       return false
     }
     this.sqlitePresenter.agentsTable.delete(agentId)

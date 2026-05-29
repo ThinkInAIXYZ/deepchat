@@ -279,7 +279,12 @@
                     <Button size="sm" variant="ghost" @click="openManualDialog(agent)">
                       {{ t('common.edit') }}
                     </Button>
-                    <Button size="sm" variant="ghost" @click="confirmAndDeleteManualAgent(agent)">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="confirmAndDeleteManualAgent(agent)"
+                    >
                       {{ t('common.delete') }}
                     </Button>
                     <Button
@@ -570,15 +575,31 @@
       :agent-name="debugDialog.agentName"
       @update:open="(value) => (debugDialog.open = value)"
     />
+
+    <AgentTransferDialog
+      v-model:open="transferDialogOpen"
+      mode="delete-agent"
+      :source-agent-id="pendingDeleteAgent?.id ?? ''"
+      :source-agent-name="pendingDeleteAgent?.name ?? ''"
+      :agents="transferAgents"
+      :impact="transferImpact"
+      :loading="transferDialogLoading"
+      :busy="transferDialogBusy"
+      :error="transferDialogError"
+      @confirm-move="handleDeleteAgentWithMove"
+      @confirm-delete="handleDeleteAgentWithSessions"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
+import type { AgentTransferImpact } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
 import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSessionClient } from '@api/SessionClient'
 import { CONFIG_EVENTS } from '@/events'
 import { Icon } from '@iconify/vue'
 import {
@@ -615,6 +636,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import AcpDebugDialog from './AcpDebugDialog.vue'
+import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import AgentMcpSelector from '@/components/mcp-config/AgentMcpSelector.vue'
 import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
 
@@ -637,6 +659,15 @@ const registryAgents = ref<AcpRegistryAgent[]>([])
 const manualAgents = ref<AcpManualAgent[]>([])
 const envDrafts = reactive<Record<string, string>>({})
 const agentPending = reactive<Record<string, boolean>>({})
+const transferAgents = ref<
+  Array<{ id: string; name: string; type: 'deepchat' | 'acp'; enabled?: boolean }>
+>([])
+const transferDialogOpen = ref(false)
+const transferDialogLoading = ref(false)
+const transferDialogBusy = ref(false)
+const transferDialogError = ref<string | null>(null)
+const transferImpact = ref<AgentTransferImpact | null>(null)
+const pendingDeleteAgent = ref<{ id: string; name: string } | null>(null)
 
 const debugDialog = reactive({
   open: false,
@@ -1024,24 +1055,78 @@ const toggleManualAgent = async (agent: AcpManualAgent, enabled: boolean) => {
   }
 }
 
-const deleteManualAgent = async (agent: AcpManualAgent) => {
+const confirmAndDeleteManualAgent = async (agent: AcpManualAgent) => {
+  pendingDeleteAgent.value = { id: agent.id, name: agent.name }
+  transferDialogOpen.value = true
+  transferDialogLoading.value = true
+  transferDialogError.value = null
+  transferImpact.value = null
   try {
-    await configPresenter.removeManualAcpAgent(agent.id)
-    await loadAcpData()
+    const sessionClient = createSessionClient()
+    const [impact, agents] = await Promise.all([
+      sessionClient.getAgentTransferImpact(agent.id),
+      configPresenter.listAgents()
+    ])
+    transferImpact.value = impact
+    transferAgents.value = agents
+      .filter((item) => item.type === 'deepchat')
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        enabled: item.enabled
+      }))
   } catch (error) {
-    handleError(error)
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogLoading.value = false
   }
 }
 
-const confirmAndDeleteManualAgent = async (agent: AcpManualAgent) => {
-  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-    const confirmed = window.confirm(t('settings.acp.customDeleteConfirm', { name: agent.name }))
-    if (!confirmed) {
-      return
-    }
+const finishDeleteManualAgent = async (agentId: string) => {
+  const removed = await configPresenter.removeManualAcpAgent(agentId)
+  if (!removed) {
+    throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
   }
+  await loadAcpData()
+  transferDialogOpen.value = false
+  pendingDeleteAgent.value = null
+}
 
-  await deleteManualAgent(agent)
+const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => {
+  const agent = pendingDeleteAgent.value
+  if (!agent) return
+  setAgentPending(agent.id, true)
+  transferDialogBusy.value = true
+  transferDialogError.value = null
+  try {
+    const sessionClient = createSessionClient()
+    await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
+    await finishDeleteManualAgent(agent.id)
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogBusy.value = false
+    setAgentPending(agent.id, false)
+  }
+}
+
+const handleDeleteAgentWithSessions = async () => {
+  const agent = pendingDeleteAgent.value
+  if (!agent) return
+  setAgentPending(agent.id, true)
+  transferDialogBusy.value = true
+  transferDialogError.value = null
+  try {
+    const sessionClient = createSessionClient()
+    await sessionClient.deleteAgentSessions(agent.id)
+    await finishDeleteManualAgent(agent.id)
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogBusy.value = false
+    setAgentPending(agent.id, false)
+  }
 }
 
 const openRegistryDialog = () => {

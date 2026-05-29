@@ -13,29 +13,31 @@ that agent's chats. The current implementation is inconsistent:
   the session list.
 
 The feature should turn agent deletion from an opaque destructive action into an explicit choice:
-move/import related conversations to another agent, or delete those conversations together with the
-agent.
+move/import related conversations to another eligible DeepChat agent, or delete those conversations
+together with the agent.
 
 ## User Need
 
 Users need to understand and control what happens to chats owned by an agent before deleting that
-agent. They also need a normal chat-level way to move an idle conversation to another agent when the
-conversation history is useful but the next turns should use a different agent.
+agent. They also need a normal chat-level way to move an idle conversation to another DeepChat agent
+when the conversation history is useful but the next turns should use a different agent.
 
 ## Goals
 
 - Show a structured delete-agent dialog whenever a deletable DeepChat or manual ACP agent has related
   sessions.
 - Offer two clear outcomes in that dialog:
-  - Move related sessions to another enabled agent, then delete the source agent.
+  - Move related sessions to another enabled DeepChat agent, then delete the source agent.
   - Delete related sessions, then delete the source agent.
-- Allow regular idle sessions to move from one agent to another outside the delete flow.
+- Allow regular idle sessions to move from their current agent to a DeepChat agent outside the delete
+  flow.
 - Expose exactly two first-increment migration entry points:
   - One-shot migration while deleting an agent.
   - A chat detail action from the active conversation's top-right `...` menu.
-- Support DeepChat-to-DeepChat, DeepChat-to-ACP, ACP-to-DeepChat, and ACP-to-ACP moves for idle
-  sessions by preserving conversation history and reinitializing the target agent runtime for future
-  turns.
+- Support DeepChat-to-DeepChat and ACP-to-DeepChat moves for idle sessions by preserving
+  conversation history and reinitializing the target DeepChat agent runtime for future turns.
+- Prevent moves into ACP agents. DeepChat history must not be moved to ACP, and ACP-to-ACP moves are
+  blocked to avoid future ACP session binding conflicts.
 - Keep empty draft sessions from blocking deletion.
 
 ## Non-goals
@@ -48,13 +50,13 @@ conversation history is useful but the next turns should use a different agent.
   deleted agent.
 - No deep copy/duplicate UI in the first increment. The first shipped action is move/import, not
   "duplicate and keep the original under the old agent".
-- No attempt to preserve an ACP provider's external session id when moving to another agent. Target
-  ACP sessions start with a fresh ACP binding.
+- No moving any conversation history into ACP agents in the first increment. ACP sessions may only
+  move out to a DeepChat agent.
 
 ## Terminology
 
 - **Move/import**: keep the same DeepChat session id and stored messages, change the owning
-  `agent_id`, and make future turns use the target agent.
+  `agent_id`, and make future turns use the target DeepChat agent.
 - **Related sessions**: rows in `new_sessions` whose `agent_id` is the agent being deleted, including
   regular sessions, subagent sessions, and drafts.
 - **Importable sessions**: related sessions that are idle and can be safely re-bound to a target
@@ -66,12 +68,12 @@ conversation history is useful but the next turns should use a different agent.
 
 1. As a user deleting a custom DeepChat agent, I can see how many chats will be affected before I
    confirm deletion.
-2. As a user deleting a manual ACP agent, I can move that agent's finished chats to another agent so
-   they remain visible and usable.
+2. As a user deleting a manual ACP agent, I can move that agent's finished chats to a DeepChat agent
+   so they remain visible and usable.
 3. As a user who does not want to keep related chats, I can explicitly delete those chats together
    with the agent.
-4. As a user viewing an idle regular conversation, I can move it to a different agent from the chat
-   UI, then continue the conversation with the target agent.
+4. As a user viewing an idle regular conversation, I can move it to a different DeepChat agent from
+   the chat UI, then continue the conversation with the target agent.
 5. As a user with an active conversation, I am told to stop or wait before moving the conversation.
 
 ## Acceptance Criteria
@@ -80,16 +82,16 @@ conversation history is useful but the next turns should use a different agent.
    dialog rather than `window.confirm`.
 2. The delete dialog shows counts for regular sessions, subagent sessions, empty drafts, and sessions
    that cannot currently be moved because they are active.
-3. The primary safe action is "Move chats to..." and requires selecting an enabled target agent that
-   is not the source agent.
+3. The primary safe action is "Move chats to..." and requires selecting an enabled DeepChat target
+   agent that is not the source agent.
 4. The destructive action is "Delete chats and agent"; it clearly states that related chats will be
    removed.
 5. If the source agent has no non-empty related sessions, deletion can use a shorter in-app confirm
    that states there are no chats to move.
 6. Moving to a DeepChat agent applies the target agent's runtime defaults for future turns while
    preserving existing messages, attachments, search documents, tape entries, and title.
-7. Moving to an ACP agent sets future turns to provider `acp` and model id equal to the target agent
-   id. If no project/workdir is available, the UI asks for one or blocks the move with a clear error.
+7. Moving into ACP is not allowed. The UI must not list ACP agents as transfer targets, and the main
+   process must reject direct move requests whose target agent resolves to ACP.
 8. Active or generating sessions cannot move. The dialog lists the blocked count and disables the
    move/delete completion until those sessions are stopped or finish.
 9. After a successful delete-agent move, the source agent is removed and moved sessions appear under
@@ -102,8 +104,9 @@ conversation history is useful but the next turns should use a different agent.
     actions visible, and scroll only the detailed body content when the impact list or help text is
     long.
 13. All new user-facing text uses i18n keys.
-14. Tests cover impact summary, DeepChat deletion with move, manual ACP deletion with move, explicit
-    delete of related sessions, chat-level move, and active-session blocking.
+14. Tests cover impact summary, DeepChat deletion with move, manual ACP deletion with move to a
+    DeepChat target, explicit delete of related sessions, chat-level move, active-session blocking,
+    and rejection of ACP targets.
 
 ## UX States
 
@@ -125,7 +128,7 @@ conversation history is useful but the next turns should use a different agent.
 |                                                                |
 | What should happen to these chats?                             |
 |                                                                |
-| (o) Move chats to another Agent                                |
+| (o) Move chats to another DeepChat Agent                       |
 |     Target Agent                                               |
 |     [ DeepChat                                        v ]       |
 |                                                                |
@@ -208,10 +211,9 @@ Move dialog
 |   [ Code Reviewer                                  v ]      |
 |                                                            |
 | Existing messages and files stay in this conversation.      |
-| Future replies will use the target Agent.                  |
-|                                                            |
-| If the target is ACP and this chat has no project folder,   |
-| this area asks for a workdir. Long details scroll here.    |
+| Future replies will use the target DeepChat Agent.          |
+| ACP agents are not listed as targets. ACP chats can move    |
+| out to DeepChat, but chats cannot move into ACP.            |
 +------------------------------------------------------------+
 |                                      [ Cancel ] [ Move ]    |
 +------------------------------------------------------------+
@@ -225,7 +227,7 @@ Desktop / tablet
 | Fixed header: title, source agent/session                  |
 +------------------------------------------------------------+
 | Scroll body: impact, affected chat samples, target picker, |
-| explanatory copy, ACP workdir selector when needed         |
+| explanatory copy, target picker, affected chats            |
 +------------------------------------------------------------+
 | Fixed footer: cancel + primary/destructive action          |
 +------------------------------------------------------------+

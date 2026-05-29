@@ -40,5 +40,50 @@
       "functionCall": "توجه: فعال‌سازی فراخوانی تابع به طور خودکار قابلیت استدلال را غیرفعال می‌کند، که این الزام مدل‌های DeepSeek-V3.1 است."
     },
     "confirmEnable": "تأیید فعال‌سازی"
+  },
+  "agentTransfer": {
+    "deleteTitle": "Delete {name}?",
+    "deleteDescription": "Choose what should happen to conversations that currently belong to this agent.",
+    "moveTitle": "Move Conversation",
+    "moveDescription": "Move this completed conversation to another agent without changing its messages.",
+    "loading": "Checking related conversations...",
+    "processing": "Processing...",
+    "totalSessions": "Related",
+    "movableSessions": "Movable",
+    "emptyDrafts": "Empty drafts",
+    "blockedSessions": "Blocked",
+    "moveBeforeDeleteTitle": "Move conversations to another agent",
+    "moveBeforeDeleteDescription": "Completed conversations keep their messages and will use the target agent for future turns. Empty drafts will be removed.",
+    "deleteSessionsTitle": "Delete conversations with this agent",
+    "deleteSessionsDescription": "All related conversations and messages will be deleted with the agent.",
+    "targetAgent": "Target agent",
+    "selectTarget": "Select an agent",
+    "acpWorkdir": "ACP workdir",
+    "acpWorkdirPlaceholder": "Leave blank to keep each conversation project",
+    "acpWorkdirHint": "ACP agents require a workdir. If a conversation has no project, provide one here.",
+    "currentAgent": "Current agent: {name}",
+    "relatedSessions": "Related conversations",
+    "blockedWarning": "Some conversations are still running or have queued input. Finish them before moving or deleting this agent.",
+    "agentDeleteBlocked": "The agent still has related conversations. Move or delete them first.",
+    "deleteAgentAndSessions": "Delete Agent and Conversations",
+    "moveAndDeleteAgent": "Move and Delete Agent",
+    "moveConversation": "Move Conversation",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Running",
+      "pending-input": "Queued",
+      "missing-target-workdir": "Needs workdir",
+      "missing-session": "Missing",
+      "same-agent": "Same agent"
+    },
+    "sampleState": {
+      "ready": "Ready",
+      "draft": "Draft",
+      "subagent": "Subagent"
+    },
+    "deepChatTargetOnly": "Only DeepChat agents can be selected as transfer targets. ACP conversations can move to DeepChat, but not into ACP."
   }
 }

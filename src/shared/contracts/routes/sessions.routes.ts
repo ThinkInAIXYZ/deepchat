@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { SearchResult } from '@shared/types/core/search'
 import type {
   Agent,
+  AgentTransferImpact,
   MessageTraceRecord,
   PendingSessionInputRecord,
   SendMessageInput
@@ -29,6 +30,7 @@ const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
 const HistorySearchHitSchema = z.custom<HistorySearchHit>()
 const SearchResultSchema = z.custom<SearchResult>()
 const AgentSchema = z.custom<Agent>()
+const AgentTransferImpactSchema = z.custom<AgentTransferImpact>()
 
 const AcpSessionCommandSchema = z.object({
   name: z.string(),
@@ -411,6 +413,49 @@ export const sessionsDeleteRoute = defineRouteContract({
   }),
   output: z.object({
     deleted: z.literal(true)
+  })
+})
+
+export const sessionsGetAgentTransferImpactRoute = defineRouteContract({
+  name: 'sessions.getAgentTransferImpact',
+  input: z.object({
+    agentId: EntityIdSchema
+  }),
+  output: z.object({
+    impact: AgentTransferImpactSchema
+  })
+})
+
+export const sessionsMoveAgentSessionsRoute = defineRouteContract({
+  name: 'sessions.moveAgentSessions',
+  input: z.object({
+    fromAgentId: EntityIdSchema,
+    toAgentId: EntityIdSchema
+  }),
+  output: z.object({
+    movedSessionIds: z.array(EntityIdSchema),
+    deletedSessionIds: z.array(EntityIdSchema)
+  })
+})
+
+export const sessionsDeleteAgentSessionsRoute = defineRouteContract({
+  name: 'sessions.deleteAgentSessions',
+  input: z.object({
+    agentId: EntityIdSchema
+  }),
+  output: z.object({
+    deletedSessionIds: z.array(EntityIdSchema)
+  })
+})
+
+export const sessionsMoveToAgentRoute = defineRouteContract({
+  name: 'sessions.moveToAgent',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    toAgentId: EntityIdSchema
+  }),
+  output: z.object({
+    session: SessionWithStateSchema
   })
 })
 

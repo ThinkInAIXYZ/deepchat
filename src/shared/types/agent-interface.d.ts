@@ -94,19 +94,25 @@ export interface QueuePendingInputOptions {
   projectDir?: string | null
 }
 
+export interface SessionAgentContextUpdate {
+  agentId: string
+  providerId: string
+  modelId: string
+  projectDir?: string | null
+  permissionMode?: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+}
+
 export interface IAgentImplementation {
   /** Initialize a new session for this agent */
   initSession(
     sessionId: string,
-    config: {
-      agentId?: string
-      providerId: string
-      modelId: string
-      projectDir?: string | null
-      permissionMode?: PermissionMode
-      generationSettings?: Partial<SessionGenerationSettings>
-    }
+    config: Partial<SessionAgentContextUpdate> &
+      Pick<SessionAgentContextUpdate, 'providerId' | 'modelId'>
   ): Promise<void>
+
+  /** Update the persisted runtime context for a session without deleting its messages */
+  setSessionAgentContext?(sessionId: string, config: SessionAgentContextUpdate): Promise<void>
 
   /** Destroy a session and all its data */
   destroySession(sessionId: string): Promise<void>
@@ -716,6 +722,29 @@ export interface SessionWithState extends SessionRecord {
 }
 
 export interface ActiveSessionSummary extends SessionWithState {}
+
+export type AgentTransferBlockReason = 'active' | 'pending-input' | 'missing-session' | 'same-agent'
+
+export interface AgentTransferImpactSample {
+  id: string
+  title: string
+  sessionKind: SessionKind
+  isDraft: boolean
+  projectDir: string | null
+  status: SessionStatus
+  blockReason?: AgentTransferBlockReason
+}
+
+export interface AgentTransferImpact {
+  agentId: string
+  totalSessions: number
+  regularSessions: number
+  subagentSessions: number
+  emptyDrafts: number
+  movableSessions: number
+  blockedSessions: number
+  samples: AgentTransferImpactSample[]
+}
 
 export interface SessionPageCursor {
   updatedAt: number

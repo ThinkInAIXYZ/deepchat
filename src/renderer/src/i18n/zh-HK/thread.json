@@ -7,7 +7,8 @@
     "unpin": "取消置頂",
     "export": "導出",
     "exportText": "純文本",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "移动会话"
   },
   "toolbar": {
     "save": "保存",

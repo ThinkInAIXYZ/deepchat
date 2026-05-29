@@ -7,7 +7,8 @@
     "unpin": "برداشتن سنجاق",
     "export": "صادر کردن",
     "exportText": "متن ساده",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Move Conversation"
   },
   "toolbar": {
     "save": "ذخیره",

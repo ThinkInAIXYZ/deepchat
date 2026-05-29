@@ -7,7 +7,8 @@
     "unpin": "Détacher",
     "export": "Exporter",
     "exportText": "Texte brut",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Move Conversation"
   },
   "toolbar": {
     "save": "Enregistrer",

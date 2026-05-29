@@ -7,7 +7,8 @@
     "unpin": "Lösen",
     "export": "Exportieren",
     "exportText": "Nur Text",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Move Conversation"
   },
   "export": {
     "failed": "Export fehlgeschlagen",

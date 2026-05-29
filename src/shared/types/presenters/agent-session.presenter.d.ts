@@ -24,7 +24,8 @@ import type {
   AgentTapeAnchorsOptions,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
-  AgentTapeAnchorResult
+  AgentTapeAnchorResult,
+  AgentTransferImpact
 } from '../agent-interface'
 import type { AcpConfigState } from './llmprovider.presenter'
 import type { SearchResult } from './thread.presenter'
@@ -161,6 +162,13 @@ export interface IAgentSessionPresenter {
     format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
   ): Promise<{ filename: string; content: string }>
   deleteSession(sessionId: string): Promise<void>
+  getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact>
+  moveAgentSessions(
+    fromAgentId: string,
+    toAgentId: string
+  ): Promise<{ movedSessionIds: string[]; deletedSessionIds: string[] }>
+  deleteAgentSessions(agentId: string): Promise<string[]>
+  moveSessionToAgent(sessionId: string, toAgentId: string): Promise<SessionWithState>
   cancelGeneration(sessionId: string): Promise<void>
   respondToolInteraction(
     sessionId: string,

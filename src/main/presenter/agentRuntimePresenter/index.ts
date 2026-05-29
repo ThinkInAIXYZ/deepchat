@@ -20,6 +20,7 @@ import type {
   QueuePendingInputOptions,
   SendMessageInput,
   SessionCompactionState,
+  SessionAgentContextUpdate,
   SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult,
@@ -1420,6 +1421,54 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.buildPersistedGenerationSettingsReplacement(sanitized)
     )
     this.sessionGenerationSettings.set(sessionId, sanitized)
+    this.invalidateSystemPromptCache(sessionId)
+    this.invalidateToolProfileCache(sessionId)
+  }
+
+  async setSessionAgentContext(
+    sessionId: string,
+    config: SessionAgentContextUpdate
+  ): Promise<void> {
+    const nextProviderId = config.providerId?.trim()
+    const nextModelId = config.modelId?.trim()
+    const nextAgentId = config.agentId?.trim()
+    if (!nextAgentId || !nextProviderId || !nextModelId) {
+      throw new Error('Session agent context update requires agentId, providerId and modelId.')
+    }
+
+    const state = this.runtimeState.get(sessionId)
+    const dbSession = this.sessionStore.get(sessionId)
+    if (!state && !dbSession) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    if (state?.status === 'generating') {
+      throw new Error('Cannot move session while it is generating.')
+    }
+
+    const permissionMode: PermissionMode =
+      config.permissionMode === 'default' ? 'default' : 'full_access'
+    const sanitizedGenerationSettings = await this.sanitizeGenerationSettings(
+      nextProviderId,
+      nextModelId,
+      config.generationSettings ?? {}
+    )
+
+    this.runtimeState.set(sessionId, {
+      status: state?.status ?? 'idle',
+      providerId: nextProviderId,
+      modelId: nextModelId,
+      permissionMode
+    })
+    this.sessionStore.updateSessionModel(sessionId, nextProviderId, nextModelId)
+    this.sessionStore.updatePermissionMode(sessionId, permissionMode)
+    this.sessionStore.updateGenerationSettings(
+      sessionId,
+      this.buildPersistedGenerationSettingsReplacement(sanitizedGenerationSettings)
+    )
+    this.sessionAgentIds.set(sessionId, nextAgentId)
+    this.sessionProjectDirs.set(sessionId, this.normalizeProjectDir(config.projectDir))
+    this.sessionGenerationSettings.set(sessionId, sanitizedGenerationSettings)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
   }

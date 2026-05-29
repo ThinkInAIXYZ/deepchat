@@ -163,6 +163,10 @@
             <Icon :icon="isPinned ? 'lucide:pin-off' : 'lucide:pin'" class="mr-2 h-4 w-4" />
             <span>{{ isPinned ? t('thread.actions.unpin') : t('thread.actions.pin') }}</span>
           </DropdownMenuItem>
+          <DropdownMenuItem :disabled="!canMoveConversation" @select="openMoveDialog">
+            <Icon icon="lucide:move-right" class="mr-2 h-4 w-4" />
+            <span>{{ t('thread.actions.moveConversation') }}</span>
+          </DropdownMenuItem>
           <DropdownMenuItem @select="openClearDialog">
             <Icon icon="lucide:eraser" class="mr-2 h-4 w-4" />
             <span>{{ t('thread.actions.cleanMessages') }}</span>
@@ -208,6 +212,18 @@
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <AgentTransferDialog
+    v-model:open="moveDialogOpen"
+    mode="move-session"
+    :source-agent-id="currentSession?.agentId ?? ''"
+    :source-agent-name="currentAgentName"
+    :agents="transferAgents"
+    :session-title="currentTitle"
+    :busy="moveDialogBusy"
+    :error="moveDialogError"
+    @confirm-move="handleMoveConfirm"
+  />
 </template>
 
 <script setup lang="ts">
@@ -230,6 +246,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
+import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
+import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
@@ -249,6 +267,7 @@ const props = defineProps<{
 const attrs = useAttrs()
 const { t } = useI18n()
 const sessionStore = useSessionStore()
+const agentStore = useAgentStore()
 const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
 const { toast } = useToast()
@@ -256,6 +275,9 @@ const { toast } = useToast()
 const isRenaming = ref(false)
 const clearDialogOpen = ref(false)
 const deleteDialogOpen = ref(false)
+const moveDialogOpen = ref(false)
+const moveDialogBusy = ref(false)
+const moveDialogError = ref<string | null>(null)
 const renameValue = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
 
@@ -274,6 +296,28 @@ const showCollapsedNewChatSpacer = computed(
 const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))
 const isReadOnly = computed(() => props.isReadOnly === true)
+const currentAgent = computed(
+  () => agentStore.agents.find((agent) => agent.id === currentSession.value?.agentId) ?? null
+)
+const currentAgentName = computed(
+  () => currentAgent.value?.name ?? currentSession.value?.agentId ?? ''
+)
+const transferAgents = computed(() =>
+  agentStore.enabledAgents
+    .filter((agent) => agent.type === 'deepchat')
+    .map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      type: agent.type,
+      enabled: agent.enabled
+    }))
+)
+const canMoveConversation = computed(
+  () =>
+    !isReadOnly.value &&
+    currentSession.value?.sessionKind === 'regular' &&
+    currentSession.value?.status !== 'working'
+)
 const normalizedRenameValue = computed(() => renameValue.value.trim())
 const canSubmitRename = computed(
   () =>
@@ -334,6 +378,17 @@ const openDeleteDialog = () => {
     return
   }
   deleteDialogOpen.value = true
+}
+
+const openMoveDialog = async () => {
+  if (!canMoveConversation.value) {
+    return
+  }
+  moveDialogError.value = null
+  if (agentStore.agents.length === 0) {
+    await agentStore.fetchAgents()
+  }
+  moveDialogOpen.value = true
 }
 
 const handleTogglePin = async () => {
@@ -411,6 +466,22 @@ const handleDeleteConfirm = async () => {
   }
 
   deleteDialogOpen.value = false
+}
+
+const handleMoveConfirm = async (payload: { targetAgentId: string }) => {
+  if (!canMoveConversation.value) {
+    return
+  }
+  moveDialogBusy.value = true
+  moveDialogError.value = null
+  try {
+    await sessionStore.moveSessionToAgent(props.sessionId, payload.targetAgentId)
+    moveDialogOpen.value = false
+  } catch (error) {
+    moveDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    moveDialogBusy.value = false
+  }
 }
 
 const handleExport = async (format: 'markdown' | 'html' | 'txt' | 'nowledge-mem') => {

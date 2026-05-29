@@ -203,6 +203,16 @@ export class NewSessionManager {
     this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
   }
 
+  updateAgentId(id: string, agentId: string): void {
+    const current = this.sqlitePresenter.newSessionsTable.get(id)
+    if (!current || current.agent_id === agentId) {
+      return
+    }
+
+    this.sqlitePresenter.newSessionsTable.updateAgentId(id, agentId)
+    this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
+  }
+
   // Window binding management
   bindWindow(webContentsId: number, sessionId: string): void {
     this.windowBindings.set(webContentsId, sessionId)
