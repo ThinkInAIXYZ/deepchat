@@ -30,6 +30,9 @@ conversation history is useful but the next turns should use a different agent.
   - Move related sessions to another enabled agent, then delete the source agent.
   - Delete related sessions, then delete the source agent.
 - Allow regular idle sessions to move from one agent to another outside the delete flow.
+- Expose exactly two first-increment migration entry points:
+  - One-shot migration while deleting an agent.
+  - A chat detail action from the active conversation's top-right `...` menu.
 - Support DeepChat-to-DeepChat, DeepChat-to-ACP, ACP-to-DeepChat, and ACP-to-ACP moves for idle
   sessions by preserving conversation history and reinitializing the target agent runtime for future
   turns.
@@ -93,8 +96,13 @@ conversation history is useful but the next turns should use a different agent.
    the target agent in the session list without an app restart.
 10. After a successful chat-level move, the active session remains open, the selected agent syncs to
     the target agent, and the next user message uses the target agent.
-11. All new user-facing text uses i18n keys.
-12. Tests cover impact summary, DeepChat deletion with move, manual ACP deletion with move, explicit
+11. The chat-level move entry is in the active conversation top bar's right-side `...` menu, placed
+    between "Pin/Unpin" and "Clear messages".
+12. Transfer dialogs are responsive: they keep a viewport-aware maximum height, keep header/footer
+    actions visible, and scroll only the detailed body content when the impact list or help text is
+    long.
+13. All new user-facing text uses i18n keys.
+14. Tests cover impact summary, DeepChat deletion with move, manual ACP deletion with move, explicit
     delete of related sessions, chat-level move, and active-session blocking.
 
 ## UX States
@@ -102,34 +110,39 @@ conversation history is useful but the next turns should use a different agent.
 ### Delete Agent With Movable Chats
 
 ```text
-+------------------------------------------------------------+
-| Delete Agent                                               |
-|                                                            |
-| Agent: Code Reviewer                                       |
-|                                                            |
-| This agent has conversations attached to it. Choose how    |
-| DeepChat should handle them before the agent is deleted.   |
-|                                                            |
-| Impact                                                     |
-|   Regular chats        12                                  |
-|   Subagent chats        3                                  |
-|   Empty drafts          2                                  |
-|   Currently active      0                                  |
-|                                                            |
-| What should happen to these chats?                         |
-|                                                            |
-| (o) Move chats to another Agent                            |
-|     Target Agent                                           |
-|     [ DeepChat                                    v ]       |
-|                                                            |
-|     Future replies will use the target Agent. Existing     |
-|     messages and files stay in the same chats.             |
-|                                                            |
-| ( ) Delete chats with this Agent                           |
-|     Related chats and their local files will be removed.   |
-|                                                            |
-|                                  [ Cancel ] [ Move & Delete ] |
-+------------------------------------------------------------+
++----------------------------------------------------------------+
+| Delete Agent                                                   |
+| Agent: Code Reviewer                                           |
++----------------------------------------------------------------+
+| This agent has conversations attached to it. Choose how        |
+| DeepChat should handle them before the agent is deleted.       |
+|                                                                |
+| Impact                                                         |
+|   Regular chats        12                                      |
+|   Subagent chats        3                                      |
+|   Empty drafts          2                                      |
+|   Currently active      0                                      |
+|                                                                |
+| What should happen to these chats?                             |
+|                                                                |
+| (o) Move chats to another Agent                                |
+|     Target Agent                                               |
+|     [ DeepChat                                        v ]       |
+|                                                                |
+|     Future replies will use the target Agent. Existing         |
+|     messages and files stay in the same chats.                 |
+|                                                                |
+| ( ) Delete chats with this Agent                               |
+|     Related chats and their local files will be removed.       |
+|                                                                |
+| Recent affected chats                                          |
+|   - Automation setup                                           |
+|   - Code review workflow                                       |
+|   - Release checklist                                          |
+|   ... body scrolls when this area grows ...                    |
++----------------------------------------------------------------+
+|                                      [ Cancel ] [ Move & Delete ] |
++----------------------------------------------------------------+
 ```
 
 ### Delete Agent With Active Chats
@@ -170,23 +183,63 @@ conversation history is useful but the next turns should use a different agent.
 
 ```text
 Chat Top Bar
++----------------------------------------------------------------+
+| Project notes                                      [share] [...] |
++----------------------------------------------------------------+
+
+Top-right ... menu
++--------------------------------------+
+| Pin                                  |
+| Move conversation                    |
+| Clear messages                       |
+| ------------------------------------ |
+| Delete                               |
++--------------------------------------+
+
+Move dialog
 +------------------------------------------------------------+
-| Project notes                         [Agent: DeepChat v]   |
+| Move Conversation                                          |
+| Project notes                                              |
++------------------------------------------------------------+
+| Current Agent                                              |
+|   DeepChat                                                 |
+|                                                            |
+| Target Agent                                               |
+|   [ Code Reviewer                                  v ]      |
+|                                                            |
+| Existing messages and files stay in this conversation.      |
+| Future replies will use the target Agent.                  |
+|                                                            |
+| If the target is ACP and this chat has no project folder,   |
+| this area asks for a workdir. Long details scroll here.    |
++------------------------------------------------------------+
+|                                      [ Cancel ] [ Move ]    |
++------------------------------------------------------------+
+```
+
+### Responsive Dialog Rules
+
+```text
+Desktop / tablet
++------------------------------------------------------------+
+| Fixed header: title, source agent/session                  |
++------------------------------------------------------------+
+| Scroll body: impact, affected chat samples, target picker, |
+| explanatory copy, ACP workdir selector when needed         |
++------------------------------------------------------------+
+| Fixed footer: cancel + primary/destructive action          |
 +------------------------------------------------------------+
 
-Agent menu
-+-----------------------------------------------+
-| Move conversation to Agent                     |
-|                                               |
-| Current: DeepChat                              |
-| Target                                         |
-| [ Code Reviewer                         v ]    |
-|                                               |
-| Existing messages stay here. Future replies    |
-| will use Code Reviewer.                        |
-|                                               |
-|                         [ Cancel ] [ Move ]    |
-+-----------------------------------------------+
+Narrow mobile
++--------------------------------------+
+| Fixed header                         |
++--------------------------------------+
+| Single-column scroll body            |
+| Controls keep full width             |
++--------------------------------------+
+| Fixed footer                         |
+| [ Cancel ] [ Move ]                  |
++--------------------------------------+
 ```
 
 ## Constraints

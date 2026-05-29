@@ -16,6 +16,9 @@
   child subagents, emit session-list updates, and coordinate ACP workdir/session cleanup.
 - `AgentRuntimePresenter` caches session agent ids in memory, so ownership moves need a runtime hook,
   not just a database update.
+- `ChatTopBar.vue` already has a right-side `...` dropdown for writable sessions. Its current order
+  is pin/unpin, clear messages, separator, delete. The session move entry should be inserted between
+  pin/unpin and clear messages.
 
 ## Architecture
 
@@ -124,13 +127,28 @@ Keep `config.listAgents` as the source for enabled target-agent options.
 
 ### Renderer
 
-Create a reusable `AgentDeleteImpactDialog.vue` under settings components or a shared settings dialog
-folder. It should be used by:
+Create a reusable transfer dialog surface, likely `AgentTransferDialog.vue` plus a thin
+delete-agent wrapper. It should support both one-shot agent deletion migration and single-session
+movement.
+
+For delete-agent usage, mount it from:
 
 - `DeepChatAgentsSettings.vue`
 - `AcpSettings.vue` manual custom-agent section
 
-The dialog fetches:
+For chat-level usage, mount it from `ChatTopBar.vue` and open it from the right-side `...` menu item
+placed between pin/unpin and clear messages:
+
+```text
+DropdownMenuContent
+  Pin / Unpin
+  Move conversation
+  Clear messages
+  separator
+  Delete
+```
+
+The delete-agent dialog fetches:
 
 - impact via `SessionClient.getAgentTransferImpact(agentId)`
 - target options via `ConfigClient.listAgents()`, filtered to enabled agents except source
@@ -140,10 +158,27 @@ It submits:
 - move path: `SessionClient.moveAgentSessions(...)`, then existing agent deletion
 - delete path: `SessionClient.deleteAgentSessions(agentId)`, then existing agent deletion
 
-Add chat-level move UI in `ChatTopBar.vue` or the existing status/agent menu area:
+The chat-level dialog fetches the same target options and submits:
+
+- move path: `SessionClient.moveSessionToAgent(sessionId, targetAgentId, acpWorkdir?)`
+
+Dialog layout requirements:
+
+- Use a viewport-aware max height, for example
+  `max-h-[min(720px,calc(100vh-2rem))]` on desktop and `max-h-[calc(100vh-1rem)]` on narrow
+  screens.
+- Keep the header and footer outside the scrolling region so the title and actions remain visible.
+- Put impact summaries, affected chat samples, explanatory copy, target picker, and ACP workdir
+  controls in an internal `overflow-y-auto` body.
+- Prefer a single-column mobile layout; only use side-by-side summary/details areas on wider screens.
+- Ensure long agent names, session titles, and project paths truncate or wrap without widening the
+  dialog.
+- Use a loading state inside the body, not a full-window blocker.
+
+Chat-level move behavior:
 
 - Show only for active regular sessions.
-- Disable while the session status is generating.
+- Disable while the session status is generating or while a required ACP workdir is missing.
 - Use `SessionClient.moveSessionToAgent(sessionId, targetAgentId, acpWorkdir?)`.
 - Update `useSessionStore` with the returned session and let existing selected-agent sync run.
 
@@ -176,7 +211,7 @@ Settings delete button
 Single session move:
 
 ```text
-Chat agent menu
+ChatTopBar right-side ... menu
   -> user selects target agent
   -> SessionClient.moveSessionToAgent(sessionId, targetAgentId)
   -> AgentSessionPresenter updates session ownership/runtime context
@@ -245,7 +280,13 @@ Renderer tests:
   - Move path calls session move before agent delete.
   - Delete path calls session delete before agent delete.
 - `AcpSettings` test coverage for manual ACP delete impact dialog.
-- Chat component/store tests for single-session move and disabled active state.
+- `ChatTopBar` tests:
+  - `Move conversation` appears between pin/unpin and clear messages.
+  - Selecting it opens the transfer dialog.
+  - The entry is disabled or unavailable for read-only/subagent/active sessions.
+- Dialog responsiveness tests should assert the shell has a viewport max height and the detail body
+  owns the scroll region.
+- Store/client tests for single-session move and disabled active state.
 
 Quality gates after implementation:
 

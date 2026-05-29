@@ -13,11 +13,13 @@
       targets.
 - [ ] Agent deletion safety: remove silent DeepChat fallback reassignment and prevent deleting an
       agent while sessions still point at it.
-- [ ] Renderer dialog: build `AgentDeleteImpactDialog.vue` with move/delete states, target-agent
-      selection, blocked-session messaging, loading, and error states.
+- [ ] Renderer dialog: build a responsive transfer dialog with a viewport-aware max height, fixed
+      header/footer, internal scroll body, move/delete states, target-agent selection,
+      blocked-session messaging, loading, and error states.
 - [ ] Settings integration: replace `window.confirm` deletion in `DeepChatAgentsSettings.vue` and
       manual-agent deletion in `AcpSettings.vue`.
-- [ ] Chat-level move: add the regular idle conversation move action and store/client integration.
+- [ ] Chat-level move: add `Move conversation` to `ChatTopBar.vue`'s right-side `...` menu between
+      pin/unpin and clear messages, then wire it to the transfer dialog and store/client integration.
 - [ ] i18n: add English and Chinese strings first, then run the repository i18n workflow for other
       locales.
 - [ ] Tests: add main presenter/runtime/repository coverage and renderer dialog/store coverage.
