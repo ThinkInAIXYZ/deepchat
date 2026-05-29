@@ -932,11 +932,23 @@ describe('ChatPage', () => {
   })
 
   it('scrolls to bottom using max scrollTop during stream updates near bottom', async () => {
+    let nextFrameId = 1
+    const rafCallbacks = new Map<number, FrameRequestCallback>()
+    const flushRaf = async () => {
+      const callbacks = Array.from(rafCallbacks.values())
+      rafCallbacks.clear()
+      callbacks.forEach((cb) => cb(0))
+      await flushPromises()
+    }
     const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
-      cb(0)
-      return 1
+      const frameId = nextFrameId
+      nextFrameId += 1
+      rafCallbacks.set(frameId, cb)
+      return frameId
     })
-    const cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+    const cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+      rafCallbacks.delete(frameId)
+    })
 
     try {
       const { wrapper, messageStore } = await setup()
@@ -960,13 +972,17 @@ describe('ChatPage', () => {
         }
       })
 
+      await flushRaf()
+
       scrollTop = 700
       await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
       await flushPromises()
+      await flushRaf()
 
       scrollHeight = 1250
       messageStore.streamRevision += 1
       await flushPromises()
+      await flushRaf()
 
       expect(scrollTop).toBe(750)
     } finally {
