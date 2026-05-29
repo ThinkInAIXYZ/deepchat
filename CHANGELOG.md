@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.5-beta.6 (2026-05-29)
+- Added `/agent` commands across remote-control channels so remote conversations can switch agents more easily
+- Added tool result image previews and remote image delivery for richer agent output
+- Added skill draft confirmation cards with view, install, and discard actions, plus Top P generation controls
+- Improved ACP agent alias resolution and remote workdir error handling
+- Fixed agent exec utility host startup failures, prerelease upgrade channel handling, startup warning noise, and inline stream auto-follow jitter
+- 新增远程控制渠道的 `/agent` 命令，让远程会话更方便地切换 Agent
+- 新增工具结果图片预览与远程图片投递，完善 Agent 输出展示
+- 新增带查看、安装、丢弃操作的 Skill 草稿确认卡，并加入 Top P 生成设置
+- 优化 ACP Agent 别名解析和远程工作目录错误处理
+- 修复 Agent exec utility host 启动失败、预发布渠道升级、防降级、启动告警噪声和流式输出底部抖动问题
+
 ## v1.0.5-beta.5 (2026-05-27)
 - Added scheduled tasks for recurring agent work
 - Added high-priority language support and completed missing locale keys for broader localization coverage
