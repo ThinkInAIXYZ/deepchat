@@ -757,6 +757,23 @@ function resolveRuntimeTemperature(
   }
 }
 
+function supportsTopPControlRuntime(context: AiSdkRuntimeContext, modelId: string): boolean {
+  const capabilityProviderId = resolveCapabilityProviderId(context, modelId)
+  if (capabilityProviderId === 'anthropic') {
+    return supportsTemperatureControlRuntime(context, modelId)
+  }
+
+  return true
+}
+
+function resolveRuntimeTopP(
+  context: AiSdkRuntimeContext,
+  modelId: string,
+  modelConfig: ModelConfig
+): number | undefined {
+  return supportsTopPControlRuntime(context, modelId) ? modelConfig.topP : undefined
+}
+
 function normalizeOpenAICompatibleBaseUrl(baseUrl: string | undefined): string {
   const normalized = (baseUrl || 'https://api.openai.com/v1').trim().replace(/\/+$/, '')
   if (!normalized) {
@@ -1188,6 +1205,7 @@ export async function runAiSdkGenerateText(
     normalizedModelConfig,
     temperature
   )
+  const resolvedTopP = resolveRuntimeTopP(context, modelId, normalizedModelConfig)
   const timeout = resolveRequestTimeout(normalizedModelConfig)
   const requestBody = {
     model: runtime.providerContext.resolvedModelId ?? modelId,
@@ -1195,7 +1213,7 @@ export async function runAiSdkGenerateText(
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),
-    ...(normalizedModelConfig.topP !== undefined ? { topP: normalizedModelConfig.topP } : {})
+    ...(resolvedTopP !== undefined ? { topP: resolvedTopP } : {})
   }
 
   await context.emitRequestTrace?.(normalizedModelConfig, {
@@ -1212,7 +1230,7 @@ export async function runAiSdkGenerateText(
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),
-    ...(normalizedModelConfig.topP !== undefined ? { topP: normalizedModelConfig.topP } : {}),
+    ...(resolvedTopP !== undefined ? { topP: resolvedTopP } : {}),
     maxOutputTokens: maxTokens
   })
 
@@ -1392,13 +1410,14 @@ export async function* runAiSdkCoreStream(
     normalizedModelConfig,
     temperature
   )
+  const resolvedTopP = resolveRuntimeTopP(context, modelId, normalizedModelConfig)
   const requestBody = {
     model: runtime.providerContext.resolvedModelId ?? modelId,
     maxOutputTokens: maxTokens,
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),
-    ...(normalizedModelConfig.topP !== undefined ? { topP: normalizedModelConfig.topP } : {}),
+    ...(resolvedTopP !== undefined ? { topP: resolvedTopP } : {}),
     tools: tools.map((tool) => tool.function.name)
   }
 
@@ -1417,7 +1436,7 @@ export async function* runAiSdkCoreStream(
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),
-    ...(normalizedModelConfig.topP !== undefined ? { topP: normalizedModelConfig.topP } : {}),
+    ...(resolvedTopP !== undefined ? { topP: resolvedTopP } : {}),
     maxOutputTokens: maxTokens
   })
 

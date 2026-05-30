@@ -530,7 +530,44 @@ describe('ModelConfigDialog reasoning portraits', () => {
       }
     })
 
+    expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
+    expect((wrapper.vm as any).capabilitySupportsTemperature).toBe(false)
+    expect((wrapper.vm as any).showTopPControl).toBe(false)
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.topP.label')
+  })
+
+  it('hides sampling controls for new-api anthropic routes when temperature is disabled', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'claude-opus-4-8',
+      modelName: 'Claude Opus 4.8',
+      providerApiType: 'new-api',
+      temperatureCapability: false,
+      providerModels: [
+        {
+          id: 'claude-opus-4-8',
+          name: 'Claude Opus 4.8',
+          endpointType: 'anthropic',
+          supportedEndpointTypes: ['openai-response', 'anthropic'],
+          type: ModelType.Chat
+        }
+      ],
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
+    expect((wrapper.vm as any).capabilitySupportsTemperature).toBe(false)
+    expect((wrapper.vm as any).showTopPControl).toBe(false)
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.topP.label')
   })
 
   it('locks Moonshot Kimi temperatures and treats :thinking variants as indicator-only reasoning', async () => {

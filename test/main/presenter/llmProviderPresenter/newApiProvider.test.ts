@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
 import { ApiEndpointType, ModelType } from '../../../../src/shared/model'
 import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../../src/main/presenter/llmProviderPresenter/providerRegistry'
+import { modelCapabilities } from '../../../../src/main/presenter/configPresenter/modelCapabilities'
 
 const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
   mockRunAiSdkCoreStream: vi.fn()
@@ -123,6 +124,11 @@ describe('NewApiProvider capability routing', () => {
         yield { type: 'image_data', image_data: { data: 'generated-image', mimeType: 'image/png' } }
       }
     })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('maps openai-response delegates to openai capability semantics', () => {
@@ -256,6 +262,79 @@ describe('NewApiProvider capability routing', () => {
     expect(runtimeProvider.capabilityProviderId).toBe('anthropic')
     expect(routeDecision.supportsOfficialAnthropicReasoning).toBe(true)
     expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBe(true)
+  })
+
+  it('overlays provider DB capabilities while preserving new-api endpoint routing', async () => {
+    const capabilityModelSpy = vi.spyOn(modelCapabilities, 'getCapabilityModel').mockReturnValue({
+      id: 'anthropic/claude-opus-4.8',
+      modalities: {
+        input: ['text', 'image'],
+        output: ['text']
+      },
+      tool_call: true,
+      extra_capabilities: {
+        reasoning: {
+          supported: true,
+          default_enabled: false,
+          mode: 'effort',
+          effort: 'high'
+        }
+      }
+    } as any)
+    const supportsReasoningSpy = vi
+      .spyOn(modelCapabilities, 'supportsReasoning')
+      .mockReturnValue(true)
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'claude-opus-4-8',
+            name: 'Claude Opus 4.8',
+            owned_by: 'anthropic',
+            supported_endpoint_types: ['openai-response', 'anthropic'],
+            type: 'chat',
+            context_length: 200000,
+            max_output_tokens: 32000
+          }
+        ]
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const configPresenter = createConfigPresenter()
+    const provider = new AiSdkProvider(createProvider(), configPresenter)
+
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'claude-opus-4-8',
+        name: 'Claude Opus 4.8',
+        group: 'anthropic',
+        providerId: 'new-api',
+        supportedEndpointTypes: ['openai-response', 'anthropic'],
+        endpointType: 'anthropic',
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        contextLength: 200000,
+        maxTokens: 32000
+      })
+    ])
+    expect(capabilityModelSpy).toHaveBeenCalledWith('anthropic', 'claude-opus-4-8')
+    expect(supportsReasoningSpy).toHaveBeenCalledWith('anthropic', 'claude-opus-4-8')
+    expect(configPresenter.setModelConfig).toHaveBeenCalledWith(
+      'claude-opus-4-8',
+      'new-api',
+      expect.objectContaining({
+        endpointType: 'anthropic',
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      }),
+      { source: 'provider' }
+    )
   })
 
   it('keeps non-Claude models on the original supported endpoint order', () => {

@@ -1863,8 +1863,14 @@ const showTemperatureControl = computed(
     (capabilitySupportsTemperature.value !== false || isMoonshotKimiTemperatureLocked.value) &&
     Boolean(localSettings.value)
 )
+const supportsTopPControl = computed(
+  () => capabilityProviderId.value !== 'anthropic' || capabilitySupportsTemperature.value !== false
+)
 const showTopPControl = computed(
-  () => !showOpenAIMediaGenerationSettings.value && Boolean(localSettings.value)
+  () =>
+    !showOpenAIMediaGenerationSettings.value &&
+    supportsTopPControl.value &&
+    Boolean(localSettings.value)
 )
 
 const showVerbosity = computed(

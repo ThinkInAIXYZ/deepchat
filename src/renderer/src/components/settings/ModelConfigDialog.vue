@@ -158,7 +158,7 @@
             </p>
           </div>
 
-          <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-2">
+          <div v-if="showTopPControl" class="space-y-2">
             <Label for="topP">{{ t('settings.model.modelConfig.topP.label') }}</Label>
             <Input
               id="topP"
@@ -1332,7 +1332,7 @@ const validateForm = () => {
     }
   }
 
-  if (!showOpenAIMediaGenerationSettings.value) {
+  if (showTopPControl.value) {
     const parsedTopP = parseTopPDraft()
     config.value.topP = parsedTopP
     if (parsedTopP !== undefined) {
@@ -1342,6 +1342,8 @@ const validateForm = () => {
         errors.value.topP = t('settings.model.modelConfig.validation.topPRange')
       }
     }
+  } else {
+    config.value.topP = undefined
   }
 
   if (config.value.timeout !== undefined && config.value.timeout !== null) {
@@ -1382,6 +1384,7 @@ const handleSave = async () => {
     ...config.value,
     ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
     topP:
+      showTopPControl.value &&
       typeof parsedTopP === 'number' &&
       Number.isFinite(parsedTopP) &&
       parsedTopP >= 0.1 &&
@@ -1557,6 +1560,12 @@ const showTemperatureControl = computed(
   () =>
     (supportsTemperatureControl.value || isMoonshotKimiTemperatureLocked.value) &&
     !supportsReasoningEffort.value
+)
+const supportsTopPControl = computed(
+  () => capabilityProviderId.value !== 'anthropic' || capabilitySupportsTemperature.value !== false
+)
+const showTopPControl = computed(
+  () => !showOpenAIMediaGenerationSettings.value && supportsTopPControl.value
 )
 const reasoningToggleMode = computed(() => {
   if (moonshotKimiTemperaturePolicy.value?.isThinkingVariant) {

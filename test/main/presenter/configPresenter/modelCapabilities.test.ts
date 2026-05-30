@@ -112,6 +112,7 @@ describe('ModelCapabilities reasoning portraits', () => {
             { id: 'claude-sonnet-4-5', reasoning: { supported: true } },
             {
               id: 'claude-opus-4-7',
+              temperature: false,
               reasoning: { supported: true, default: false },
               extra_capabilities: {
                 reasoning: {
@@ -121,6 +122,16 @@ describe('ModelCapabilities reasoning portraits', () => {
                   effort: 'high',
                   effort_options: ['low', 'medium', 'high', 'xhigh', 'max'],
                   visibility: 'omitted'
+                }
+              }
+            },
+            {
+              id: 'claude-opus-4-8',
+              temperature: false,
+              reasoning: { supported: true, default: true },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true
                 }
               }
             }
@@ -271,14 +282,39 @@ describe('ModelCapabilities reasoning portraits', () => {
     expect(xhighPortrait?.effortOptions).toBeUndefined()
   })
 
-  it('disables temperature control for claude-opus-4-7 family fallback ids only', () => {
+  it('looks up provider DB capabilities with canonical model ids', () => {
+    const capabilities = new ModelCapabilities()
+
+    expect(capabilities.getCapabilityModel('anthropic', 'claude-opus-4-8')?.id).toBe(
+      'claude-opus-4-8'
+    )
+    expect(capabilities.getCapabilityModel('anthropic', 'anthropic/claude-opus-4.8')?.id).toBe(
+      'claude-opus-4-8'
+    )
+    expect(capabilities.getCapabilityModel('anthropic', 'anthropic.claude-opus-4.8')?.id).toBe(
+      'claude-opus-4-8'
+    )
+    expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic/claude-opus-4.8')).toBe(
+      false
+    )
+    expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic.claude-opus-4.8')).toBe(
+      false
+    )
+  })
+
+  it('reads temperature support from provider DB without model-id fallbacks', () => {
     const capabilities = new ModelCapabilities()
 
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-7')).toBe(false)
     expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic/claude-opus-4-7')).toBe(
       false
     )
+    expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-8')).toBe(false)
+    expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic/claude-opus-4.8')).toBe(
+      false
+    )
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-6')).toBe(true)
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-sonnet-4-5')).toBe(true)
+    expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-9')).toBe(true)
   })
 })

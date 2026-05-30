@@ -1587,7 +1587,50 @@ describe('ChatStatusBar model and session panels', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.topP')
     expect((wrapper.vm as any).localSettings.temperature).toBe(0.7)
+  })
+
+  it('hides sampling controls for new-api anthropic routes when temperature is disabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'new-api', modelId: 'claude-opus-4-8' },
+      defaultModel: { providerId: 'new-api', modelId: 'claude-opus-4-8' },
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          apiType: 'new-api',
+          models: [
+            {
+              id: 'claude-opus-4-8',
+              name: 'Claude Opus 4.8',
+              endpointType: 'anthropic',
+              supportedEndpointTypes: ['openai-response', 'anthropic']
+            }
+          ]
+        }
+      ],
+      modelConfig: {
+        endpointType: 'anthropic'
+      },
+      temperatureCapability: false,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-8')
+    await flushPromises()
+
+    expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.topP')
   })
 
   it('shows interleaved thinking as enabled when the provider portrait requires it', async () => {

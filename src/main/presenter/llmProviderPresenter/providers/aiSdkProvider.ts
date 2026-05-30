@@ -56,6 +56,7 @@ import {
 } from '../providerRegistry'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
+import { isImageInputSupported } from '@shared/types/model-db'
 
 const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
 const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
@@ -1761,6 +1762,30 @@ export class AiSdkProvider extends BaseLLMProvider {
                 },
                 rawModel.id
               )
+        const capabilityProviderId = resolveProviderCapabilityProviderId(
+          this.provider.id,
+          {
+            endpointType: defaultEndpointType,
+            supportedEndpointTypes,
+            type
+          },
+          rawModel.id
+        )
+        const capabilityModel = modelCapabilities.getCapabilityModel(
+          capabilityProviderId,
+          rawModel.id
+        )
+        const capabilityReasoning = modelCapabilities.supportsReasoning(
+          capabilityProviderId,
+          rawModel.id
+        )
+        const capabilityVision = capabilityModel
+          ? isImageInputSupported(capabilityModel)
+          : undefined
+        const capabilityFunctionCall =
+          typeof capabilityModel?.tool_call === 'boolean'
+            ? resolveModelFunctionCall(capabilityModel.tool_call)
+            : undefined
 
         return {
           id: rawModel.id,
@@ -1770,6 +1795,9 @@ export class AiSdkProvider extends BaseLLMProvider {
           isCustom: false,
           supportedEndpointTypes,
           endpointType: defaultEndpointType,
+          ...(capabilityVision !== undefined ? { vision: capabilityVision } : {}),
+          ...(capabilityFunctionCall !== undefined ? { functionCall: capabilityFunctionCall } : {}),
+          ...(capabilityModel || capabilityReasoning ? { reasoning: capabilityReasoning } : {}),
           ...(typeof rawModel.description === 'string'
             ? { description: rawModel.description }
             : {}),
@@ -1790,6 +1818,9 @@ export class AiSdkProvider extends BaseLLMProvider {
       this.updateProviderManagedModelConfig(model.id, {
         ...existingConfig,
         type: model.type ?? existingConfig.type,
+        vision: model.vision ?? existingConfig.vision,
+        functionCall: model.functionCall ?? existingConfig.functionCall,
+        reasoning: model.reasoning ?? existingConfig.reasoning,
         apiEndpoint:
           model.endpointType === 'image-generation'
             ? ApiEndpointType.Image
