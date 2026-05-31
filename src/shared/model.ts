@@ -35,7 +35,11 @@ export type NewApiRouteMeta = {
   supportedEndpointTypes?: NewApiEndpointType[]
   type?: ModelType
   providerApiType?: string
+  ownedBy?: string
+  capabilityProviderId?: string
 }
+
+type NewApiSpecialEndpointType = Extract<NewApiEndpointType, 'anthropic' | 'gemini'>
 
 export const isNewApiEndpointType = (value: unknown): value is NewApiEndpointType =>
   typeof value === 'string' && NEW_API_ENDPOINT_TYPES.includes(value as NewApiEndpointType)
@@ -46,6 +50,10 @@ function normalizeModelId(value: string | undefined): string {
 
 function normalizeProviderValue(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? ''
+}
+
+function normalizeRouteHintValue(value: string | undefined): string {
+  return normalizeProviderValue(value).replace(/[./_-]+/g, ' ')
 }
 
 function hasNewApiRouteHints(route: NewApiRouteMeta | null | undefined): boolean {
@@ -71,8 +79,56 @@ export function isClaudeFamilyModelId(modelId: string | undefined): boolean {
   return normalizeModelId(modelId).includes('claude')
 }
 
+export function isGeminiFamilyModelId(modelId: string | undefined): boolean {
+  return normalizeModelId(modelId).includes('gemini')
+}
+
 export function isDeepSeekSeriesModelId(modelId: string | undefined): boolean {
   return normalizeModelId(modelId).includes('deepseek')
+}
+
+function hasAnthropicRouteHint(
+  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityProviderId'> | null | undefined,
+  modelId?: string
+): boolean {
+  const ownedBy = normalizeRouteHintValue(route?.ownedBy)
+  const capabilityProviderId = normalizeRouteHintValue(route?.capabilityProviderId)
+  return (
+    isClaudeFamilyModelId(modelId) ||
+    ownedBy.includes('claude') ||
+    ownedBy.includes('anthropic') ||
+    capabilityProviderId.includes('anthropic')
+  )
+}
+
+function hasGeminiRouteHint(
+  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityProviderId'> | null | undefined,
+  modelId?: string
+): boolean {
+  const ownedBy = normalizeRouteHintValue(route?.ownedBy)
+  const capabilityProviderId = normalizeRouteHintValue(route?.capabilityProviderId)
+  return (
+    isGeminiFamilyModelId(modelId) ||
+    ownedBy.includes('gemini') ||
+    ownedBy.includes('google') ||
+    capabilityProviderId.includes('gemini') ||
+    capabilityProviderId.includes('google')
+  )
+}
+
+export function inferNewApiSpecialEndpointTypeFromRoute(
+  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityProviderId'> | null | undefined,
+  modelId?: string
+): NewApiSpecialEndpointType | undefined {
+  if (hasAnthropicRouteHint(route, modelId)) {
+    return 'anthropic'
+  }
+
+  if (hasGeminiRouteHint(route, modelId)) {
+    return 'gemini'
+  }
+
+  return undefined
 }
 
 export const resolveNewApiCapabilityProviderId = (
@@ -123,6 +179,7 @@ export const resolveNewApiEndpointTypeFromRoute = (
   }
 
   const supportedEndpointTypes = route?.supportedEndpointTypes?.filter(isNewApiEndpointType) ?? []
+  const specialEndpointType = inferNewApiSpecialEndpointTypeFromRoute(route, modelId)
   if (
     route?.type === ModelType.ImageGeneration &&
     supportedEndpointTypes.includes('image-generation')
@@ -141,6 +198,10 @@ export const resolveNewApiEndpointTypeFromRoute = (
     return 'anthropic'
   }
 
+  if (specialEndpointType && supportedEndpointTypes.includes(specialEndpointType)) {
+    return specialEndpointType
+  }
+
   if (supportedEndpointTypes.length > 0) {
     return supportedEndpointTypes[0]
   }
@@ -151,6 +212,10 @@ export const resolveNewApiEndpointTypeFromRoute = (
 
   if (route?.type === ModelType.VideoGeneration) {
     return 'video-generation'
+  }
+
+  if (specialEndpointType) {
+    return specialEndpointType
   }
 
   return 'openai'

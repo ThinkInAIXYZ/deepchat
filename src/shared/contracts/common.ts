@@ -202,7 +202,8 @@ export const ProviderModelSummarySchema = z.object({
   maxTokens: z.number().int().optional(),
   description: z.string().optional(),
   supportedEndpointTypes: z.array(z.enum(NEW_API_ENDPOINT_TYPES)).optional(),
-  endpointType: z.enum(NEW_API_ENDPOINT_TYPES).optional()
+  endpointType: z.enum(NEW_API_ENDPOINT_TYPES).optional(),
+  ownedBy: z.string().optional()
 })
 
 export const SessionWithStateSchema = z.object({

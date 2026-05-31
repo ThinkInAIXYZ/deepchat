@@ -267,7 +267,8 @@ export const useModelStore = defineStore('model', () => {
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
     type: resolveRendererModelType(model),
     supportedEndpointTypes: model.supportedEndpointTypes,
-    endpointType: model.endpointType
+    endpointType: model.endpointType,
+    ownedBy: model.ownedBy
   })
 
   const normalizeDerivedRendererModel = (
@@ -292,7 +293,8 @@ export const useModelStore = defineStore('model', () => {
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
     type: resolveRendererModelType(model),
     supportedEndpointTypes: model.supportedEndpointTypes,
-    endpointType: model.endpointType
+    endpointType: model.endpointType,
+    ownedBy: model.ownedBy
   })
 
   const createQueryHandle = <TData>(
@@ -397,7 +399,8 @@ export const useModelStore = defineStore('model', () => {
             ? (config.reasoning ?? normalized.reasoning ?? false)
             : normalized.reasoning,
           type: config.type ?? normalized.type ?? ModelType.Chat,
-          endpointType: config.endpointType ?? normalized.endpointType
+          endpointType: config.endpointType ?? normalized.endpointType,
+          ownedBy: config.ownedBy ?? normalized.ownedBy
         }
       }
     } catch (error) {
@@ -690,7 +693,8 @@ export const useModelStore = defineStore('model', () => {
             }),
             supportedEndpointTypes:
               model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
-            endpointType: model.endpointType ?? fallback?.endpointType
+            endpointType: model.endpointType ?? fallback?.endpointType,
+            ownedBy: model.ownedBy ?? fallback?.ownedBy
           }
         }
 
@@ -748,7 +752,8 @@ export const useModelStore = defineStore('model', () => {
               reasoning: meta.reasoning || false,
               type: (meta.type || ModelType.Chat) as ModelType,
               supportedEndpointTypes: meta.supportedEndpointTypes,
-              endpointType: meta.endpointType
+              endpointType: meta.endpointType,
+              ownedBy: meta.ownedBy
             }))
           }
         } catch (error) {

@@ -145,6 +145,7 @@ export class ProviderModelHelper {
           ? normalizedModel.reasoning
           : config.reasoning || false
       normalizedModel.endpointType = config.endpointType ?? normalizedModel.endpointType
+      normalizedModel.ownedBy = normalizedModel.ownedBy ?? config.ownedBy
       normalizedModel.type =
         resolveVideoGenerationCompatType({
           modelId: normalizedModel.id,
@@ -258,6 +259,7 @@ export class ProviderModelHelper {
       model.reasoning = model.reasoning !== undefined ? model.reasoning : false
       model.type = model.type || ModelType.Chat
       model.endpointType = config?.endpointType ?? model.endpointType
+      model.ownedBy = model.ownedBy ?? config?.ownedBy
       return model
     })
   }

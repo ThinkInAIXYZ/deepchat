@@ -29,6 +29,7 @@ export type RENDERER_MODEL_META = {
   description?: string
   supportedEndpointTypes?: NewApiEndpointType[]
   endpointType?: NewApiEndpointType
+  ownedBy?: string
 }
 
 export type MODEL_META = {
@@ -48,6 +49,7 @@ export type MODEL_META = {
   description?: string
   supportedEndpointTypes?: NewApiEndpointType[]
   endpointType?: NewApiEndpointType
+  ownedBy?: string
 }
 
 export type LLM_PROVIDER = {

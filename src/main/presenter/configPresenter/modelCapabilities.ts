@@ -30,9 +30,16 @@ type IndexedPortrait = {
 }
 
 type IndexedProviderModel = {
+  providerId: string
   modelId: string
   model: ProviderModel
   isUnprefixed: boolean
+}
+
+export type CapabilityModelMatch = {
+  providerId: string
+  modelId: string
+  model: ProviderModel
 }
 
 const OPENAI_REASONING_EFFORT_MODEL_FAMILIES = ['o1', 'o3', 'o4-mini', 'gpt-5']
@@ -339,6 +346,7 @@ export class ModelCapabilities {
         for (const lookupKey of getProviderCapabilityModelLookupKeys(model.id)) {
           const entries = lookupMap.get(lookupKey) ?? []
           entries.push({
+            providerId: pkey,
             modelId: mid,
             model,
             isUnprefixed: !mid.includes('/')
@@ -365,9 +373,9 @@ export class ModelCapabilities {
     }
   }
 
-  private selectIndexedProviderModel(
+  private selectIndexedProviderModelMatch(
     entries: IndexedProviderModel[] | undefined
-  ): ProviderModel | undefined {
+  ): CapabilityModelMatch | undefined {
     if (!entries || entries.length === 0) {
       return undefined
     }
@@ -382,20 +390,26 @@ export class ModelCapabilities {
       return left.modelId.localeCompare(right.modelId)
     })[0]
 
-    return selected?.model
+    return selected
+      ? {
+          providerId: selected.providerId,
+          modelId: selected.modelId,
+          model: selected.model
+        }
+      : undefined
   }
 
-  private getCanonicalProviderMatch(
+  private getCanonicalProviderModelMatch(
     providerId: string,
     modelId: string
-  ): ProviderModel | undefined {
+  ): CapabilityModelMatch | undefined {
     const lookupMap = this.modelLookupIndex.get(providerId)
     if (!lookupMap) {
       return undefined
     }
 
     for (const lookupKey of getProviderCapabilityModelLookupKeys(modelId)) {
-      const match = this.selectIndexedProviderModel(lookupMap.get(lookupKey))
+      const match = this.selectIndexedProviderModelMatch(lookupMap.get(lookupKey))
       if (match) {
         return match
       }
@@ -404,7 +418,10 @@ export class ModelCapabilities {
     return undefined
   }
 
-  private getProviderMatch(providerId: string, modelId: string): ProviderModel | undefined {
+  private getProviderModelMatch(
+    providerId: string,
+    modelId: string
+  ): CapabilityModelMatch | undefined {
     const mid = modelId?.toLowerCase()
     if (!mid || !providerId) {
       return undefined
@@ -415,13 +432,23 @@ export class ModelCapabilities {
       return undefined
     }
 
-    return (
-      this.index.get(resolvedProviderId)?.get(mid) ??
-      this.getCanonicalProviderMatch(resolvedProviderId, modelId)
-    )
+    const exactMatch = this.index.get(resolvedProviderId)?.get(mid)
+    if (exactMatch) {
+      return {
+        providerId: resolvedProviderId,
+        modelId: mid,
+        model: exactMatch
+      }
+    }
+
+    return this.getCanonicalProviderModelMatch(resolvedProviderId, modelId)
   }
 
-  private getModel(providerId: string, modelId: string): ProviderModel | undefined {
+  private getProviderMatch(providerId: string, modelId: string): ProviderModel | undefined {
+    return this.getProviderModelMatch(providerId, modelId)?.model
+  }
+
+  private getModelMatch(providerId: string, modelId: string): CapabilityModelMatch | undefined {
     const mid = modelId?.toLowerCase()
     if (!mid) return undefined
 
@@ -432,36 +459,50 @@ export class ModelCapabilities {
     if (pid) {
       const providerModels = this.index.get(pid)
       if (providerModels) {
-        const providerMatch =
-          providerModels.get(mid) ?? this.getCanonicalProviderMatch(pid, modelId)
+        const exactMatch = providerModels.get(mid)
+        const providerMatch = exactMatch
+          ? {
+              providerId: pid,
+              modelId: mid,
+              model: exactMatch
+            }
+          : this.getCanonicalProviderModelMatch(pid, modelId)
         if (providerMatch) {
           return providerMatch
         }
         return undefined
       }
 
-      return this.findModelAcrossProviders(mid)
+      return this.findModelAcrossProvidersMatch(mid)
     }
 
     if (!hasProviderId) {
       return undefined
     }
 
-    return this.findModelAcrossProviders(mid)
+    return this.findModelAcrossProvidersMatch(mid)
   }
 
-  private findModelAcrossProviders(modelId: string): ProviderModel | undefined {
-    for (const models of this.index.values()) {
+  private getModel(providerId: string, modelId: string): ProviderModel | undefined {
+    return this.getModelMatch(providerId, modelId)?.model
+  }
+
+  private findModelAcrossProvidersMatch(modelId: string): CapabilityModelMatch | undefined {
+    for (const [providerId, models] of this.index.entries()) {
       const fallbackModel = models.get(modelId)
       if (fallbackModel) {
-        return fallbackModel
+        return {
+          providerId,
+          modelId,
+          model: fallbackModel
+        }
       }
     }
     for (const lookupMap of this.modelLookupIndex.values()) {
       for (const lookupKey of getProviderCapabilityModelLookupKeys(modelId)) {
-        const fallbackModel = this.selectIndexedProviderModel(lookupMap.get(lookupKey))
-        if (fallbackModel) {
-          return fallbackModel
+        const fallbackMatch = this.selectIndexedProviderModelMatch(lookupMap.get(lookupKey))
+        if (fallbackMatch) {
+          return fallbackMatch
         }
       }
     }
@@ -551,6 +592,36 @@ export class ModelCapabilities {
 
   getCapabilityModel(providerId: string, modelId: string): ProviderModel | undefined {
     return this.getProviderMatch(providerId, modelId) ?? this.getModel(providerId, modelId)
+  }
+
+  getCapabilityModelMatch(providerId: string, modelId: string): CapabilityModelMatch | undefined {
+    return (
+      this.getProviderModelMatch(providerId, modelId) ?? this.getModelMatch(providerId, modelId)
+    )
+  }
+
+  findCapabilityModelMatch(
+    modelId: string,
+    preferredProviderIds: string[] = []
+  ): CapabilityModelMatch | undefined {
+    const resolvedPreferredProviderIds = Array.from(
+      new Set(
+        preferredProviderIds
+          .map((providerId) => this.resolveProviderId(providerId)?.toLowerCase())
+          .filter((providerId): providerId is string =>
+            Boolean(providerId && this.index.has(providerId))
+          )
+      )
+    )
+
+    for (const providerId of resolvedPreferredProviderIds) {
+      const match = this.getProviderModelMatch(providerId, modelId)
+      if (match) {
+        return match
+      }
+    }
+
+    return this.findModelAcrossProvidersMatch(normalizeModelId(modelId))
   }
 
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {

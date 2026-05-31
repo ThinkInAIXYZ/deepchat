@@ -500,7 +500,8 @@ export class ModelConfigHelper {
         enableSearch: false,
         forcedSearch: false,
         searchStrategy: 'turbo',
-        maxCompletionTokens: undefined
+        maxCompletionTokens: undefined,
+        ownedBy: undefined
       }
     }
 
@@ -525,6 +526,7 @@ export class ModelConfigHelper {
         endpointType: isNewApiEndpointType(storedConfig.endpointType)
           ? storedConfig.endpointType
           : finalConfig.endpointType,
+        ownedBy: storedConfig.ownedBy ?? finalConfig.ownedBy,
         enableSearch: storedConfig.enableSearch ?? finalConfig.enableSearch,
         forcedSearch: storedConfig.forcedSearch ?? finalConfig.forcedSearch,
         searchStrategy: storedConfig.searchStrategy ?? finalConfig.searchStrategy,
