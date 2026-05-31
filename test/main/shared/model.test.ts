@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   ModelType,
-  isClaudeOpus47FamilyModelId,
   resolveNewApiEndpointTypeFromRoute,
   resolveProviderCapabilityProviderId,
   shouldUseAnthropicClaudeRouteFromSupportedEndpoints
@@ -43,6 +42,72 @@ describe('new-api route helpers', () => {
         'claude-opus-4-7'
       )
     ).toBe('openai-response')
+  })
+
+  it('infers anthropic for Claude-owned models with empty supported endpoints', () => {
+    expect(
+      resolveNewApiEndpointTypeFromRoute(
+        {
+          supportedEndpointTypes: [],
+          ownedBy: 'claude',
+          type: ModelType.Chat
+        },
+        'claude-opus-4-8'
+      )
+    ).toBe('anthropic')
+  })
+
+  it('infers gemini for Google Gemini-owned models with empty supported endpoints', () => {
+    expect(
+      resolveNewApiEndpointTypeFromRoute(
+        {
+          supportedEndpointTypes: [],
+          ownedBy: 'google gemini',
+          type: ModelType.Chat
+        },
+        'gemini-3.5-flash'
+      )
+    ).toBe('gemini')
+  })
+
+  it('keeps explicit endpoint overrides ahead of owner fallback inference', () => {
+    expect(
+      resolveNewApiEndpointTypeFromRoute(
+        {
+          endpointType: 'openai',
+          supportedEndpointTypes: [],
+          ownedBy: 'google gemini',
+          type: ModelType.Chat
+        },
+        'gemini-3.5-flash'
+      )
+    ).toBe('openai')
+  })
+
+  it('does not override openai-only supported endpoints from owner hints', () => {
+    expect(
+      resolveNewApiEndpointTypeFromRoute(
+        {
+          supportedEndpointTypes: ['openai'],
+          ownedBy: 'claude',
+          type: ModelType.Chat
+        },
+        'claude-opus-4-8'
+      )
+    ).toBe('openai')
+  })
+
+  it('prefers gemini when supported endpoints include gemini and the model is Gemini family', () => {
+    expect(
+      resolveNewApiEndpointTypeFromRoute(
+        {
+          supportedEndpointTypes: ['openai', 'gemini'],
+          ownedBy: 'google gemini',
+          type: ModelType.Chat
+        },
+        'gemini-3.5-flash'
+      )
+    ).toBe('gemini')
   })
 
   it('only enables the Claude anthropic default route when supported endpoints include anthropic and a chat fallback', () => {
@@ -136,12 +201,5 @@ describe('new-api route helpers', () => {
     expect(
       resolveProviderCapabilityProviderId('openrouter', null, 'anthropic/claude-opus-4-7')
     ).toBe('openrouter')
-  })
-
-  it('recognizes claude-opus-4-7 family after stripping provider prefixes', () => {
-    expect(isClaudeOpus47FamilyModelId('claude-opus-4-7')).toBe(true)
-    expect(isClaudeOpus47FamilyModelId('anthropic/claude-opus-4-7')).toBe(true)
-    expect(isClaudeOpus47FamilyModelId('claude-opus-4-7-think')).toBe(true)
-    expect(isClaudeOpus47FamilyModelId('claude-opus-4-6')).toBe(false)
   })
 })

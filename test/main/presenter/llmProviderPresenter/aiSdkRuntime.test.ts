@@ -1022,6 +1022,54 @@ describe('AI SDK runtime', () => {
     }
   )
 
+  it('omits temperature and topP for new-api anthropic routes that disable sampling controls', async () => {
+    const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
+    const context = {
+      providerKind: 'anthropic',
+      provider: {
+        id: 'new-api',
+        apiType: 'anthropic',
+        capabilityProviderId: 'anthropic'
+      },
+      configPresenter: {
+        getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
+        supportsTemperatureControl: vi.fn().mockReturnValue(false)
+      },
+      defaultHeaders: {},
+      emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
+        tracePayloads.push(payload)
+      })
+    } as any
+
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      context,
+      [],
+      'claude-opus-4-8',
+      {
+        apiEndpoint: 'chat',
+        functionCall: false,
+        topP: 0.5
+      } as any,
+      0.5,
+      2048,
+      []
+    )) {
+      events.push(event)
+    }
+
+    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(context.configPresenter.supportsTemperatureControl).toHaveBeenCalledWith(
+      'anthropic',
+      'claude-opus-4-8'
+    )
+    expect(request).not.toHaveProperty('temperature')
+    expect(request).not.toHaveProperty('topP')
+    expect(tracePayloads[0]?.body).not.toHaveProperty('temperature')
+    expect(tracePayloads[0]?.body).not.toHaveProperty('topP')
+    expect(events).toEqual([])
+  })
+
   it('keeps temperature for opus 4.6 models that still support it', async () => {
     const tracePayloads: Array<{ body?: Record<string, unknown> }> = []
     const context = {

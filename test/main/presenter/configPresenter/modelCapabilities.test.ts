@@ -29,6 +29,34 @@ describe('ModelCapabilities reasoning portraits', () => {
             { id: 'o3', reasoning: { supported: true, default: true } }
           ]
         },
+        google: {
+          id: 'google',
+          models: [
+            {
+              id: 'gemini-3.5-flash',
+              reasoning: { supported: true, default: true }
+            }
+          ]
+        },
+        'alibaba-cn': {
+          id: 'alibaba-cn',
+          models: [
+            {
+              id: 'qwen3.7-max',
+              reasoning: { supported: true, default: true },
+              tool_call: true
+            }
+          ]
+        },
+        deepseek: {
+          id: 'deepseek',
+          models: [
+            {
+              id: 'deepseek-v4-pro',
+              reasoning: { supported: true, default: true }
+            }
+          ]
+        },
         openrouter: {
           id: 'openrouter',
           models: [
@@ -112,6 +140,7 @@ describe('ModelCapabilities reasoning portraits', () => {
             { id: 'claude-sonnet-4-5', reasoning: { supported: true } },
             {
               id: 'claude-opus-4-7',
+              temperature: false,
               reasoning: { supported: true, default: false },
               extra_capabilities: {
                 reasoning: {
@@ -121,6 +150,16 @@ describe('ModelCapabilities reasoning portraits', () => {
                   effort: 'high',
                   effort_options: ['low', 'medium', 'high', 'xhigh', 'max'],
                   visibility: 'omitted'
+                }
+              }
+            },
+            {
+              id: 'claude-opus-4-8',
+              temperature: false,
+              reasoning: { supported: true, default: true },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true
                 }
               }
             }
@@ -271,14 +310,77 @@ describe('ModelCapabilities reasoning portraits', () => {
     expect(xhighPortrait?.effortOptions).toBeUndefined()
   })
 
-  it('disables temperature control for claude-opus-4-7 family fallback ids only', () => {
+  it('looks up provider DB capabilities with canonical model ids', () => {
+    const capabilities = new ModelCapabilities()
+
+    expect(capabilities.getCapabilityModel('anthropic', 'claude-opus-4-8')?.id).toBe(
+      'claude-opus-4-8'
+    )
+    expect(capabilities.getCapabilityModel('anthropic', 'anthropic/claude-opus-4.8')?.id).toBe(
+      'claude-opus-4-8'
+    )
+    expect(capabilities.getCapabilityModel('anthropic', 'anthropic.claude-opus-4.8')?.id).toBe(
+      'claude-opus-4-8'
+    )
+    expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic/claude-opus-4.8')).toBe(
+      false
+    )
+    expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic.claude-opus-4.8')).toBe(
+      false
+    )
+  })
+
+  it('returns provider ids from canonical capability model matches', () => {
+    const capabilities = new ModelCapabilities()
+    const match = capabilities.getCapabilityModelMatch('anthropic', 'anthropic/claude-opus-4.8')
+
+    expect(match).toMatchObject({
+      providerId: 'anthropic',
+      modelId: 'claude-opus-4-8',
+      model: expect.objectContaining({
+        id: 'claude-opus-4-8'
+      })
+    })
+  })
+
+  it('finds best capability model matches across provider and model id variants', () => {
+    const capabilities = new ModelCapabilities()
+
+    expect(
+      capabilities.findCapabilityModelMatch('google/gemini-3.5-flash', ['gemini'])
+    ).toMatchObject({
+      providerId: 'google',
+      model: expect.objectContaining({
+        id: 'gemini-3.5-flash'
+      })
+    })
+    expect(capabilities.findCapabilityModelMatch('qwen3.7-max', ['alibaba-cn'])).toMatchObject({
+      providerId: 'alibaba-cn',
+      model: expect.objectContaining({
+        id: 'qwen3.7-max'
+      })
+    })
+    expect(capabilities.findCapabilityModelMatch('deepseek-v4-pro', ['deepseek'])).toMatchObject({
+      providerId: 'deepseek',
+      model: expect.objectContaining({
+        id: 'deepseek-v4-pro'
+      })
+    })
+  })
+
+  it('reads temperature support from provider DB without model-id fallbacks', () => {
     const capabilities = new ModelCapabilities()
 
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-7')).toBe(false)
     expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic/claude-opus-4-7')).toBe(
       false
     )
+    expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-8')).toBe(false)
+    expect(capabilities.supportsTemperatureControl('anthropic', 'anthropic/claude-opus-4.8')).toBe(
+      false
+    )
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-6')).toBe(true)
     expect(capabilities.supportsTemperatureControl('anthropic', 'claude-sonnet-4-5')).toBe(true)
+    expect(capabilities.supportsTemperatureControl('anthropic', 'claude-opus-4-9')).toBe(true)
   })
 })

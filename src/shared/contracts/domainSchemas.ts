@@ -250,6 +250,7 @@ export const ModelConfigSchema = z
     conversationId: z.string().optional(),
     apiEndpoint: z.nativeEnum(ApiEndpointType).optional(),
     endpointType: z.enum(NEW_API_ENDPOINT_TYPES).optional(),
+    ownedBy: z.string().optional(),
     enableSearch: z.boolean().optional(),
     forcedSearch: z.boolean().optional(),
     searchStrategy: z.enum(['turbo', 'balanced', 'precise']).optional(),

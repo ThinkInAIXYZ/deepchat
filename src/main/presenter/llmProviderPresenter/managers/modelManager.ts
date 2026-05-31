@@ -43,6 +43,7 @@ export class ModelManager {
         model.reasoning = config.reasoning
         model.type = config.type
         model.endpointType = config.endpointType ?? model.endpointType
+        model.ownedBy = config.ownedBy ?? model.ownedBy
       } else {
         model.vision = model.vision !== undefined ? model.vision : config.vision
         model.functionCall =
@@ -50,6 +51,7 @@ export class ModelManager {
         model.reasoning = model.reasoning !== undefined ? model.reasoning : config.reasoning
         model.type = model.type || config.type
         model.endpointType = model.endpointType ?? config.endpointType
+        model.ownedBy = model.ownedBy ?? config.ownedBy
       }
 
       return model

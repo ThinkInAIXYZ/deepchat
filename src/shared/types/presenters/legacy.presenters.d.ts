@@ -179,6 +179,7 @@ export interface ModelConfig {
   conversationId?: string
   apiEndpoint?: ApiEndpointType
   endpointType?: NewApiEndpointType
+  ownedBy?: string
   // Search-related parameters
   enableSearch?: boolean
   forcedSearch?: boolean
@@ -818,6 +819,7 @@ export type RENDERER_MODEL_META = {
   description?: string
   supportedEndpointTypes?: NewApiEndpointType[]
   endpointType?: NewApiEndpointType
+  ownedBy?: string
 }
 export type MODEL_META = {
   id: string
@@ -835,6 +837,7 @@ export type MODEL_META = {
   description?: string
   supportedEndpointTypes?: NewApiEndpointType[]
   endpointType?: NewApiEndpointType
+  ownedBy?: string
 }
 export type LLM_PROVIDER = {
   id: string

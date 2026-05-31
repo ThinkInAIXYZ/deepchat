@@ -985,13 +985,15 @@ export class ConfigPresenter implements IConfigPresenter {
     supportedEndpointTypes?: NewApiEndpointType[]
     type?: ModelType
     providerApiType?: string
+    ownedBy?: string
   } | null {
     const providerApiType = this.providerHelper?.getProviderById?.(providerId)?.apiType
     const modelConfig = this.getModelConfig(modelId, providerId)
     if (isNewApiEndpointType(modelConfig.endpointType)) {
       return {
         endpointType: modelConfig.endpointType,
-        providerApiType
+        providerApiType,
+        ownedBy: modelConfig.ownedBy
       }
     }
 
@@ -1006,7 +1008,8 @@ export class ConfigPresenter implements IConfigPresenter {
         endpointType: storedModel.endpointType,
         supportedEndpointTypes: storedModel.supportedEndpointTypes,
         type: storedModel.type,
-        providerApiType
+        providerApiType,
+        ownedBy: storedModel.ownedBy ?? modelConfig.ownedBy
       }
     }
 
@@ -1579,7 +1582,8 @@ export class ConfigPresenter implements IConfigPresenter {
           endpointType: model.endpointType,
           supportedEndpointTypes: model.supportedEndpointTypes,
           type: model.type,
-          providerApiType: this.providerHelper?.getProviderById?.(providerId)?.apiType
+          providerApiType: this.providerHelper?.getProviderById?.(providerId)?.apiType,
+          ownedBy: model.ownedBy
         },
         model.id
       )
