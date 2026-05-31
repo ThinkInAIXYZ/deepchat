@@ -8,7 +8,7 @@
     "export": "Exporter",
     "exportText": "Texte brut",
     "exportNowledgeMem": "Nowledge-mem",
-    "moveConversation": "Move Conversation"
+    "moveConversation": "Déplacer la conversation"
   },
   "toolbar": {
     "save": "Enregistrer",

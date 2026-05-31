@@ -1970,6 +1970,12 @@ describe('AgentSessionPresenter', () => {
       expect(impact.samples.map((sample) => sample.id)).toEqual(['s-ready'])
     })
 
+    it('rejects blank agent ids for destructive agent-session deletion', async () => {
+      await expect(presenter.deleteAgentSessions('   ')).rejects.toThrow('Agent id is required.')
+      expect(sqlitePresenter.newSessionsTable.list).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
+    })
+
     it('moves a completed conversation to the target agent context', async () => {
       const row = {
         id: 's1',
@@ -2173,6 +2179,46 @@ describe('AgentSessionPresenter', () => {
       )
       expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
+    })
+
+    it('rejects DeepChat targets whose default provider is ACP', async () => {
+      const row = {
+        id: 's-deepchat',
+        agent_id: 'deepchat-writer',
+        title: 'DeepChat session',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's-deepchat' ? row : undefined
+      )
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'deepchat-writer' || agentId === 'deepchat-acp-default') {
+          return 'deepchat'
+        }
+        return null
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: { providerId: 'acp', modelId: 'acp-coder' },
+        permissionMode: 'full_access',
+        disabledAgentTools: [],
+        subagentEnabled: false
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+
+      await expect(
+        presenter.moveSessionToAgent('s-deepchat', 'deepchat-acp-default')
+      ).rejects.toThrow('Conversation history cannot be moved to ACP agents.')
+      expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
     })
 
     it('rejects moving an ACP conversation to another ACP target', async () => {

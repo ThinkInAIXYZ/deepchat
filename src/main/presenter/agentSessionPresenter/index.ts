@@ -1876,8 +1876,13 @@ export class AgentSessionPresenter {
   }
 
   async getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact> {
+    const normalizedAgentId = agentId.trim()
+    if (!normalizedAgentId) {
+      throw new Error('Agent id is required.')
+    }
+
     const sessions = this.sessionManager.list({
-      agentId,
+      agentId: normalizedAgentId,
       includeSubagents: true
     })
     const samples: AgentTransferImpactSample[] = []
@@ -1910,7 +1915,7 @@ export class AgentSessionPresenter {
     }
 
     return {
-      agentId,
+      agentId: normalizedAgentId,
       totalSessions: sessions.length,
       regularSessions: sessions.filter((session) => session.sessionKind === 'regular').length,
       subagentSessions: sessions.filter((session) => session.sessionKind === 'subagent').length,
@@ -1993,8 +1998,13 @@ export class AgentSessionPresenter {
   }
 
   async deleteAgentSessions(agentId: string): Promise<string[]> {
+    const normalizedAgentId = agentId.trim()
+    if (!normalizedAgentId) {
+      throw new Error('Agent id is required.')
+    }
+
     const sessions = this.sessionManager.list({
-      agentId: agentId.trim(),
+      agentId: normalizedAgentId,
       includeSubagents: true
     })
     const deletedSessionIds: string[] = []
@@ -2797,6 +2807,9 @@ export class AgentSessionPresenter {
       config?.defaultModelPreset?.modelId?.trim() || defaultModel?.modelId?.trim() || ''
     if (!providerId || !modelId) {
       throw new Error('Target DeepChat agent does not have a default model.')
+    }
+    if (providerId.toLowerCase() === 'acp') {
+      throw new Error('Conversation history cannot be moved to ACP agents.')
     }
 
     return {

@@ -203,7 +203,7 @@ Settings delete button
   -> user chooses "Delete chats with this Agent"
   -> SessionClient.deleteAgentSessions(agentId)
   -> ConfigPresenter deletes source agent
-  -> session store receives deleted session ids / list update
+  -> session store receives deleted session IDs and list updates
 ```
 
 Single session move:

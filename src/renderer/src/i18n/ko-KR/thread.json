@@ -8,7 +8,7 @@
     "export": "내보내다",
     "exportText": "일반 텍스트",
     "exportNowledgeMem": "Nowledge-mem",
-    "moveConversation": "Move Conversation"
+    "moveConversation": "대화 이동"
   },
   "toolbar": {
     "save": "저장",

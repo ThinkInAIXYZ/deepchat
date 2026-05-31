@@ -8,7 +8,7 @@
     "export": "Exportar",
     "exportText": "Texto sin formato",
     "exportNowledgeMem": "Nowledge-mem",
-    "moveConversation": "Move Conversation"
+    "moveConversation": "Mover conversación"
   },
   "export": {
     "failed": "Exportación fallida",
