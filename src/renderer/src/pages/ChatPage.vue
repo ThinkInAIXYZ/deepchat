@@ -59,7 +59,7 @@
         class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
-          <div class="w-full">
+          <div class="relative w-full">
             <PendingInputLane
               :steer-items="pendingInputStore.steerItems"
               :queue-items="pendingInputStore.queueItems"
@@ -71,7 +71,9 @@
               @delete-queue="onPendingInputDelete"
               @resume-queue="onResumePendingQueue"
             />
-            <div class="relative">
+            <!-- Anchor the plan/question float to the outer .relative (which includes the queue lane)
+                 so bottom:calc(100%+0.75rem) lifts it above PendingInputLane instead of covering it. -->
+            <div>
               <div
                 v-if="latestPlanSnapshot || activePendingInteraction"
                 ref="planFloatLayer"
