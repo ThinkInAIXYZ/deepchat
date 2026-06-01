@@ -9,7 +9,16 @@
 - [x] Run `pnpm run i18n`.
 - [x] Run `pnpm run lint`.
 - [x] Run `pnpm run typecheck`.
-- [ ] Commit release metadata on `dev`.
-- [ ] Push `dev`.
-- [ ] Create and push `release/v1.0.5-beta.7`.
-- [ ] Create and push `v1.0.5-beta.7`.
+- [x] Commit initial release metadata on `dev`.
+- [x] Push initial release metadata to `dev`.
+- [x] Create and push initial `v1.0.5-beta.7`.
+- [x] Fast-forward initial `main` to `v1.0.5-beta.7`.
+- [x] Clean up initial `release/v1.0.5-beta.7`.
+- [x] Pull latest merged code after the initial tag.
+- [x] Update `v1.0.5-beta.7` notes for the latest merged commits.
+- [x] Run release checks after the latest notes update.
+- [ ] Commit latest release metadata on `dev`.
+- [ ] Push latest `dev`.
+- [ ] Fast-forward `main` to the latest release-ready commit.
+- [ ] Move local `v1.0.5-beta.7` to the latest release-ready commit.
+- [ ] Push the moved `v1.0.5-beta.7` tag only when ready to trigger release action.

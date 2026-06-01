@@ -6,6 +6,9 @@ DeepChat v1.0.5-beta.6 has been published. The `dev` branch now contains a small
 user-visible fixes and one agent session transfer feature that should be made available through the
 next beta release.
 
+An initial `v1.0.5-beta.7` tag was created on `894110a4a`, but new code was merged afterward. The
+beta should be retargeted to the latest release-ready commit before rerunning the release action.
+
 ## User Need
 
 Beta users need a new prerelease build that includes the latest agent transfer flow, workspace input
@@ -17,7 +20,8 @@ release.
 - Prepare release metadata for `v1.0.5-beta.7`.
 - Keep release notes concise and bilingual, with English bullets first and Chinese bullets second.
 - Cut a disposable `release/v1.0.5-beta.7` branch from the release-ready `dev` commit.
-- Publish the tag after the release branch is prepared and validated.
+- Retarget the beta to the latest release-ready commit without triggering a new release action until
+  the maintainer is ready.
 
 ## Non-goals
 
@@ -31,9 +35,10 @@ release.
 2. `CHANGELOG.md` contains a top entry for `v1.0.5-beta.7` dated `2026-06-01`.
 3. The changelog entry summarizes commits after `v1.0.5-beta.6`.
 4. Required release checks pass: `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.
-5. `release/v1.0.5-beta.7` is created from the release-ready commit and pushed to `origin`.
-6. `v1.0.5-beta.7` is created on the release commit and pushed to `origin` only if the tag does not
-   already exist locally or remotely.
+5. `main` is fast-forwarded to the latest release-ready commit.
+6. The local `v1.0.5-beta.7` tag points to that latest release-ready commit.
+7. The remote `v1.0.5-beta.7` tag is not replaced until the maintainer explicitly wants to trigger
+   the release action again.
 
 ## Constraints
 
@@ -41,6 +46,7 @@ release.
 - Keep `dev` as the integration branch.
 - Treat `release/v1.0.5-beta.7` as disposable and identical to a commit already on `dev`.
 - Do not replace or delete existing mismatched historical tags without maintainer approval.
+- Do not push the retargeted `v1.0.5-beta.7` tag while the release action should remain paused.
 
 ## Open Questions
 

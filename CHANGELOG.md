@@ -2,10 +2,12 @@
 
 ## v1.0.5-beta.7 (2026-06-01)
 - Added agent session transfer so chats can be preserved or moved when changing agent ownership
-- Improved NewAPI routing, AI SDK system prompt handling, and image-capable model switching
+- Added a richer workspace Git diff panel rendering experience
+- Improved NewAPI routing, AI SDK system prompt handling, image-capable model switching, and plan model styling
 - Fixed workspace file reference insertion, floating button position persistence, and collapsed sidebar agent expansion
 - 新增 Agent 会话转移能力，让切换 Agent 归属时可以保留或移动聊天
-- 优化 NewAPI 路由、AI SDK system prompt 处理和图片能力模型切回聊天的行为
+- 新增更完整的工作区 Git diff 面板渲染体验
+- 优化 NewAPI 路由、AI SDK system prompt 处理、图片能力模型切回聊天和计划模型样式
 - 修复工作区文件引用插入、浮动按钮位置持久化和折叠侧边栏 Agent 展开问题
 
 ## v1.0.5-beta.6 (2026-05-29)
