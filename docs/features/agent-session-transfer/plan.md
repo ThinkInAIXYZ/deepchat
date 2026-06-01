@@ -6,6 +6,8 @@
   `configPresenter.deleteDeepChatAgent(form.id)` after `window.confirm`.
 - `AcpSettings.vue` deletes manual ACP agents through `configPresenter.removeManualAcpAgent(agent.id)`
   after `window.confirm`.
+- `AcpSettings.vue` uninstalls registry ACP agents through
+  `configPresenter.uninstallAcpRegistryAgent(agent.id)` after a basic confirm dialog.
 - `AgentRepository.deleteDeepChatAgent` currently reassigns all `new_sessions.agent_id` values from
   the deleted custom DeepChat agent to built-in `deepchat`.
 - `AgentRepository.removeManualAcpAgent` deletes only the agent record.
@@ -80,6 +82,9 @@ Keep `config.listAgents` as the source for enabled target-agent options.
   - Delete empty drafts for the source agent.
   - Move each non-empty related session through the same internal helper used by
     `moveSessionToAgent`.
+  - If a later mutation fails after earlier sessions moved or drafts were deleted, throw an error
+    that includes partial-success counts so the UI can show a recoverable state instead of hiding the
+    mixed result.
 - `moveSessionToAgent(sessionId, toAgentId, options)`
   - Only allow regular sessions from the public chat-level route.
   - Refuse active/generating sessions.
@@ -89,7 +94,8 @@ Keep `config.listAgents` as the source for enabled target-agent options.
     - ACP target: rejected. Conversation history must not move into ACP agents.
   - Update `new_sessions.agent_id` and any target-specific session fields in one logical operation.
   - Update the DeepChat runtime's session-agent cache and provider/model/generation settings.
-  - Clear stale ACP binding for the previous ACP agent when moving away from ACP.
+  - Clear stale ACP binding for the previous ACP agent only after target context, `new_sessions`, and
+    related session metadata updates have succeeded.
   - Emit `SESSION_EVENTS.LIST_UPDATED` / typed `sessions.updated`.
 - `deleteAgentSessions(agentId)`
   - Recompute impact.
@@ -120,6 +126,7 @@ Keep `config.listAgents` as the source for enabled target-agent options.
   The UI should call the session move/delete route first, then delete the agent.
 - Manual ACP deletion can keep removing only the agent record, because the UI/session route will have
   already moved or deleted related sessions.
+- Registry ACP uninstall must use the same session transfer/delete flow as manual ACP deletion.
 - Keep a defensive fallback in the delete methods: if sessions still exist for the source agent,
   return `false` or throw a clear error instead of silently orphaning or reassigning them.
 
@@ -133,6 +140,7 @@ For delete-agent usage, mount it from:
 
 - `DeepChatAgentsSettings.vue`
 - `AcpSettings.vue` manual custom-agent section
+- `AcpSettings.vue` installed registry-agent section
 
 For chat-level usage, mount it from `ChatTopBar.vue` and open it from the right-side `...` menu item
 placed between pin/unpin and clear messages:
@@ -195,6 +203,9 @@ Settings delete button
   -> settings reloads agents, session store refreshes affected sessions
 ```
 
+Registry ACP uninstall with move follows the same flow, except the final step calls
+`ConfigPresenter.uninstallAcpRegistryAgent(agentId)` instead of deleting an agent row.
+
 Delete with related chats removed:
 
 ```text
@@ -240,8 +251,8 @@ ChatTopBar right-side ... menu
   DeepChat agent before the ACP agent is deleted.
 - ACP agents are never valid transfer targets. This blocks both DeepChat-to-ACP and ACP-to-ACP moves,
   reducing the risk of future conflicts with ACP's external session bindings.
-- When moving an ACP-backed chat to DeepChat, clear the stale ACP provider binding before applying
-  the target DeepChat runtime context.
+- When moving an ACP-backed chat to DeepChat, clear the stale ACP provider binding after applying the
+  target DeepChat runtime context and updating session ownership/metadata.
 - Because ACP is not a target, the first increment does not need a workdir picker in the transfer
   dialog.
 
@@ -262,10 +273,13 @@ Main tests:
 - `agentRepository.test.ts`
   - Custom DeepChat delete refuses when sessions remain, or no longer silently reassigns.
   - Manual ACP delete remains safe after sessions are moved/deleted.
+  - Registry ACP uninstall refuses to clear installation state while sessions remain.
 - `agentSessionPresenter.test.ts`
   - Impact summary counts regular/subagent/draft/blocked sessions.
   - Batch move DeepChat -> DeepChat applies target ownership and model defaults.
   - Batch move ACP -> DeepChat clears ACP binding and keeps messages.
+  - ACP binding cleanup happens after target context and session ownership updates.
+  - Batch move failures report partial move/delete counts.
   - Moving to an ACP target is rejected for both DeepChat and ACP sources.
   - Active/generating sessions block move and delete.
   - `deleteAgentSessions` deletes related sessions through existing recursive cleanup.

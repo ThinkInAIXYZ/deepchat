@@ -1964,21 +1964,52 @@ export class AgentSessionPresenter {
       transferSessionIds.push(session.id)
     }
 
-    for (const sessionId of transferSessionIds) {
-      if (deletedSessionIdSet.has(sessionId) || !this.sessionManager.get(sessionId)) {
-        continue
+    try {
+      for (const sessionId of transferSessionIds) {
+        if (deletedSessionIdSet.has(sessionId)) {
+          continue
+        }
+        if (!this.sessionManager.get(sessionId)) {
+          throw new Error(`Session ${sessionId} is no longer available.`)
+        }
+        await this.moveSessionToAgentInternal(sessionId, targetAgentId, true)
+        movedSessionIds.push(sessionId)
       }
-      await this.moveSessionToAgentInternal(sessionId, targetAgentId, true)
-      movedSessionIds.push(sessionId)
-    }
 
-    for (const sessionId of emptyDraftSessionIds) {
-      if (deletedSessionIdSet.has(sessionId) || !this.sessionManager.get(sessionId)) {
-        continue
+      for (const sessionId of emptyDraftSessionIds) {
+        if (deletedSessionIdSet.has(sessionId)) {
+          continue
+        }
+        if (!this.sessionManager.get(sessionId)) {
+          throw new Error(`Session ${sessionId} is no longer available.`)
+        }
+        const deleted = await this.deleteSessionInternal(sessionId)
+        deleted.forEach((deletedSessionId) => deletedSessionIdSet.add(deletedSessionId))
+        deletedSessionIds.push(...deleted)
       }
-      const deleted = await this.deleteSessionInternal(sessionId)
-      deleted.forEach((deletedSessionId) => deletedSessionIdSet.add(deletedSessionId))
-      deletedSessionIds.push(...deleted)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const partialCounts = [
+        movedSessionIds.length > 0 ? `${movedSessionIds.length} moved` : '',
+        deletedSessionIds.length > 0 ? `${deletedSessionIds.length} deleted` : ''
+      ].filter(Boolean)
+
+      if (partialCounts.length > 0) {
+        if (movedSessionIds.length > 0) {
+          this.emitSessionListUpdated({
+            sessionIds: movedSessionIds,
+            reason: 'updated'
+          })
+        }
+        if (deletedSessionIds.length > 0) {
+          this.emitSessionListUpdated({
+            sessionIds: deletedSessionIds,
+            reason: 'deleted'
+          })
+        }
+        throw new Error(`${message} Partial transfer completed: ${partialCounts.join(', ')}.`)
+      }
+      throw error
     }
 
     if (movedSessionIds.length > 0) {
@@ -2745,11 +2776,6 @@ export class AgentSessionPresenter {
       throw new Error(`Agent ${targetContext.agentId} does not support session transfer.`)
     }
 
-    if (previousAcpBacked) {
-      await (this.providerSessionPort?.clearAcpSession?.(sessionId) ??
-        this.llmProviderPresenter.clearAcpSession(sessionId))
-    }
-
     await agent.setSessionAgentContext(sessionId, {
       agentId: targetContext.agentId,
       providerId: targetContext.providerId,
@@ -2782,6 +2808,19 @@ export class AgentSessionPresenter {
     if (!sessionWithState) {
       throw new Error(`Failed to build session state after transfer: ${sessionId}`)
     }
+
+    if (previousAcpBacked) {
+      try {
+        await (this.providerSessionPort?.clearAcpSession?.(sessionId) ??
+          this.llmProviderPresenter.clearAcpSession(sessionId))
+      } catch (error) {
+        console.warn(
+          `[AgentSessionPresenter] Failed to clear stale ACP binding after transfer ${sessionId}:`,
+          error
+        )
+      }
+    }
+
     return sessionWithState
   }
 

@@ -2109,7 +2109,6 @@ describe('AgentSessionPresenter', () => {
 
       const updated = await presenter.moveSessionToAgent('s-acp', 'deepchat-coder')
 
-      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('s-acp')
       expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalledWith(
         's-acp',
         expect.objectContaining({
@@ -2120,8 +2119,160 @@ describe('AgentSessionPresenter', () => {
           permissionMode: 'full_access'
         })
       )
+      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('s-acp')
+      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeGreaterThan(
+        deepChatAgent.setSessionAgentContext.mock.invocationCallOrder[0]
+      )
+      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeGreaterThan(
+        sqlitePresenter.newSessionsTable.updateAgentId.mock.invocationCallOrder[0]
+      )
       expect(updated.agentId).toBe('deepchat-coder')
       expect(updated.providerId).toBe('openai')
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+    })
+
+    it('keeps the ACP binding when target ownership update fails', async () => {
+      const row = {
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP session',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's-acp' ? row : undefined
+      )
+      sqlitePresenter.newSessionsTable.updateAgentId.mockImplementation(() => {
+        throw new Error('ownership update failed')
+      })
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'acp-coder') {
+          return 'acp'
+        }
+        if (agentId === 'deepchat-coder') {
+          return 'deepchat'
+        }
+        return null
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        permissionMode: 'full_access',
+        disabledAgentTools: [],
+        subagentEnabled: true
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      await expect(presenter.moveSessionToAgent('s-acp', 'deepchat-coder')).rejects.toThrow(
+        'ownership update failed'
+      )
+
+      expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+    })
+
+    it('reports partial batch transfer failures after earlier sessions move', async () => {
+      const rows = new Map<string, any>([
+        [
+          's-ready-1',
+          {
+            id: 's-ready-1',
+            agent_id: 'deepchat-writer',
+            title: 'Ready 1',
+            project_dir: '/repo',
+            is_pinned: 0,
+            is_draft: 0,
+            session_kind: 'regular',
+            parent_session_id: null,
+            subagent_enabled: 1,
+            subagent_meta_json: null,
+            created_at: 1000,
+            updated_at: 1000
+          }
+        ],
+        [
+          's-ready-2',
+          {
+            id: 's-ready-2',
+            agent_id: 'deepchat-writer',
+            title: 'Ready 2',
+            project_dir: '/repo',
+            is_pinned: 0,
+            is_draft: 0,
+            session_kind: 'regular',
+            parent_session_id: null,
+            subagent_enabled: 1,
+            subagent_meta_json: null,
+            created_at: 1000,
+            updated_at: 1000
+          }
+        ]
+      ])
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => rows.get(id))
+      sqlitePresenter.newSessionsTable.list.mockImplementation((filters: any) => {
+        if (filters?.parentSessionId) {
+          return []
+        }
+        return Array.from(rows.values()).filter(
+          (row) => !filters?.agentId || row.agent_id === filters.agentId
+        )
+      })
+      sqlitePresenter.newSessionsTable.updateAgentId.mockImplementation(
+        (id: string, agentId: string) => {
+          if (id === 's-ready-2') {
+            throw new Error('ownership update failed')
+          }
+          const row = rows.get(id)
+          row.agent_id = agentId
+        }
+      )
+      sqlitePresenter.newSessionsTable.update.mockImplementation((id: string, fields: any) => {
+        const row = rows.get(id)
+        if (fields.project_dir !== undefined) {
+          row.project_dir = fields.project_dir
+        }
+        if (fields.subagent_enabled !== undefined) {
+          row.subagent_enabled = fields.subagent_enabled
+        }
+      })
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
+          return 'deepchat'
+        }
+        return null
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        permissionMode: 'full_access',
+        disabledAgentTools: [],
+        subagentEnabled: true
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+        permissionMode: 'full_access'
+      })
+
+      await expect(
+        presenter.moveAgentSessions('deepchat-writer', 'deepchat-coder')
+      ).rejects.toThrow('Partial transfer completed: 1 moved.')
+
+      expect(rows.get('s-ready-1').agent_id).toBe('deepchat-coder')
+      expect(rows.get('s-ready-2').agent_id).toBe('deepchat-writer')
       expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
     })
 

@@ -305,6 +305,15 @@ export class AgentRepository {
     return true
   }
 
+  hasAgentSessions(agentId: string): boolean {
+    return (
+      this.sqlitePresenter.newSessionsTable.list({
+        agentId,
+        includeSubagents: true
+      }).length > 0
+    )
+  }
+
   syncRegistryAgents(
     agents: AcpRegistryAgent[],
     legacyStateById?: Record<string, AcpAgentState>,
@@ -407,6 +416,9 @@ export class AgentRepository {
   clearRegistryAcpAgentInstallation(agentId: string, installState: AcpAgentInstallState): boolean {
     const row = this.sqlitePresenter.agentsTable.get(agentId)
     if (!row || row.agent_type !== 'acp' || row.source !== 'registry') {
+      return false
+    }
+    if (this.hasAgentSessions(agentId)) {
       return false
     }
 

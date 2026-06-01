@@ -18,6 +18,12 @@
       blocked-session messaging, loading, and error states.
 - [x] Settings integration: replace `window.confirm` deletion in `DeepChatAgentsSettings.vue` and
       manual-agent deletion in `AcpSettings.vue`.
+- [x] Review fix: route installed registry ACP uninstall through the transfer dialog and keep a
+      repository/config fallback that blocks uninstall while sessions remain.
+- [x] Review fix: clear source ACP provider bindings only after target DeepChat context and
+      `new_sessions` ownership updates succeed.
+- [x] Review fix: report partial batch move/delete results when a multi-session operation fails
+      after some mutations have already completed.
 - [x] Chat-level move: add `Move conversation` to `ChatTopBar.vue`'s right-side `...` menu between
       pin/unpin and clear messages, then wire it to the transfer dialog and store/client integration.
 - [x] i18n: add English and Chinese strings first, then run the repository i18n workflow for other
