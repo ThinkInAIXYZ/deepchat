@@ -94,6 +94,26 @@
           </TooltipContent>
         </Tooltip>
 
+        <!-- Theme toggle -->
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              data-testid="window-sidebar-theme-toggle"
+              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
+              @click="themeStore.cycleTheme()"
+            >
+              <span class="theme-icon-wrap">
+                <Transition name="theme-icon">
+                  <Icon :key="themeIcon" :icon="themeIcon" class="theme-icon text-foreground/90" />
+                </Transition>
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {{ t('chat.sidebar.themeToggle') }} · {{ themeModeLabel }}
+          </TooltipContent>
+        </Tooltip>
+
         <!-- Collapse toggle -->
         <Tooltip>
           <TooltipTrigger as-child>
@@ -391,6 +411,7 @@ import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
 import { useSidebarStore } from '@/stores/ui/sidebar'
+import { useThemeStore } from '@/stores/theme'
 
 type PinFeedbackMode = 'pinning' | 'unpinning'
 
@@ -419,6 +440,33 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
+const themeStore = useThemeStore()
+
+// line-md 过渡图标自带线条流动动画：切到该模式时，线条会绘制/morph 成对应形状
+const themeIcon = computed(() => {
+  switch (themeStore.themeMode) {
+    case 'light':
+      // 线条流动收拢成太阳（光线逐根画出）
+      return 'line-md:moon-to-sunny-outline-transition'
+    case 'dark':
+      // 太阳线条流动 morph 成月亮
+      return 'line-md:sunny-outline-to-moon-transition'
+    default:
+      // 显示器轮廓线条逐段绘制
+      return 'line-md:monitor'
+  }
+})
+
+const themeModeLabel = computed(() => {
+  switch (themeStore.themeMode) {
+    case 'light':
+      return t('chat.sidebar.themeLight')
+    case 'dark':
+      return t('chat.sidebar.themeDark')
+    default:
+      return t('chat.sidebar.themeSystem')
+  }
+})
 
 const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
   {
@@ -1179,9 +1227,54 @@ input {
   margin-left: var(--pin-text-shift) !important;
 }
 
+.theme-icon-wrap {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.theme-icon {
+  /* 两个图标堆叠在同一网格单元，自动居中且不占额外空间 */
+  grid-area: 1 / 1;
+  width: 1.15rem;
+  height: 1.15rem;
+  /* 提升到独立合成层，让过渡跑在 GPU 合成线程上，
+     避免被切换主题时的全局重绘阻塞而掉帧 */
+  will-change: transform, opacity;
+}
+
+/* 形态变化交给 line-md 的线条流动动画；这里再叠加一个缩放"弹出"增强存在感 */
+.theme-icon-enter-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-icon-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.theme-icon-enter-from {
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.theme-icon-leave-to {
+  opacity: 0;
+  transform: scale(0.7);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .window-sidebar-shell,
   .window-sidebar-session-column {
+    transition: none;
+  }
+
+  .theme-icon-enter-active,
+  .theme-icon-leave-active {
     transition: none;
   }
 }

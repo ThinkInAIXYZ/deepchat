@@ -346,6 +346,10 @@
     "allAgents": "All Agents",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
+    "themeToggle": "Toggle theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
     "remoteControlDisabled": "Disabled",
     "remoteControlStatus": {
       "disabled": "Remote control disabled",

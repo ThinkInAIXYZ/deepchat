@@ -5,6 +5,7 @@
 
 import type lucideIconsType from '@iconify-json/lucide/icons.json'
 import type vscodeIconsType from '@iconify-json/vscode-icons/icons.json'
+import type lineMdThemeIconsType from './icons/line-md-theme.json'
 
 interface IconLoadState {
   isLoading: boolean
@@ -38,12 +39,13 @@ export async function ensureIconsLoaded(): Promise<void> {
   state.loadPromise = (async () => {
     try {
       // 动态导入 icon 数据和 addCollection，延迟加载
-      const [{ addCollection }, lucideIcons, vscodeIcons] = await Promise.all([
+      const [{ addCollection }, lucideIcons, vscodeIcons, lineMdThemeIcons] = await Promise.all([
         import('@iconify/vue').then((m) => ({ addCollection: m.addCollection })),
         import('@iconify-json/lucide/icons.json').then((m) => m.default as typeof lucideIconsType),
         import('@iconify-json/vscode-icons/icons.json').then(
           (m) => m.default as typeof vscodeIconsType
-        )
+        ),
+        import('./icons/line-md-theme.json').then((m) => m.default as typeof lineMdThemeIconsType)
       ])
 
       // 检查 addCollection 是否存在（可能在测试中被mock）
@@ -51,6 +53,8 @@ export async function ensureIconsLoaded(): Promise<void> {
         // 添加到 Iconify 注册表
         addCollection(lucideIcons)
         addCollection(vscodeIcons)
+        // line-md 主题切换图标（自带线条流动过渡动画，离线可用）
+        addCollection(lineMdThemeIcons)
       }
 
       state.isLoaded = true

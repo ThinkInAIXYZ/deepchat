@@ -327,6 +327,10 @@
     "allAgents": "Semua Agent",
     "expandSidebar": "Luaskan bilah sisi",
     "collapseSidebar": "Ciutkan bilah sisi",
+    "themeToggle": "Ganti tema",
+    "themeLight": "Terang",
+    "themeDark": "Gelap",
+    "themeSystem": "Sistem",
     "remoteControlDisabled": "Tidak diaktifkan",
     "remoteControlStatus": {
       "disabled": "Kendali jarak jauh dinonaktifkan",

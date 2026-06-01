@@ -311,6 +311,10 @@
     "allAgents": "모든 에이전트",
     "expandSidebar": "사이드바 펼치기",
     "collapseSidebar": "사이드바 접기",
+    "themeToggle": "테마 전환",
+    "themeLight": "라이트",
+    "themeDark": "다크",
+    "themeSystem": "시스템",
     "remoteControlStatus": {
       "disabled": "원격 제어가 비활성화됨",
       "stopped": "원격 제어가 중지됨",

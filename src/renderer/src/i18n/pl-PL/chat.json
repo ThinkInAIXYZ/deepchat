@@ -327,6 +327,10 @@
     "allAgents": "Wszystkie Agents",
     "expandSidebar": "Rozwiń pasek boczny",
     "collapseSidebar": "Zwiń pasek boczny",
+    "themeToggle": "Przełącz motyw",
+    "themeLight": "Jasny",
+    "themeDark": "Ciemny",
+    "themeSystem": "System",
     "remoteControlDisabled": "Niepełnosprawny",
     "remoteControlStatus": {
       "disabled": "Zdalne sterowanie wyłączone",

@@ -839,6 +839,14 @@
     outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
   }
 
+  /* 主题切换瞬间临时关闭所有过渡，避免上百个元素同时触发颜色过渡导致的重绘卡顿 */
+  .dc-theme-switching,
+  .dc-theme-switching *,
+  .dc-theme-switching *::before,
+  .dc-theme-switching *::after {
+    transition: none !important;
+  }
+
   body {
     color: var(--foreground);
     font-weight: var(--text-weight);

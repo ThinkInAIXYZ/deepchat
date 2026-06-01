@@ -327,6 +327,10 @@
     "allAgents": "Alle Agents",
     "expandSidebar": "Seitenleiste ausklappen",
     "collapseSidebar": "Seitenleiste einklappen",
+    "themeToggle": "Thema wechseln",
+    "themeLight": "Hell",
+    "themeDark": "Dunkel",
+    "themeSystem": "System",
     "remoteControlDisabled": "Nicht aktiviert",
     "remoteControlStatus": {
       "disabled": "Fernsteuerung deaktiviert",

@@ -311,6 +311,10 @@
     "allAgents": "すべてのエージェント",
     "expandSidebar": "サイドバーを展開",
     "collapseSidebar": "サイドバーを折りたたむ",
+    "themeToggle": "テーマを切り替え",
+    "themeLight": "ライト",
+    "themeDark": "ダーク",
+    "themeSystem": "システム",
     "remoteControlStatus": {
       "disabled": "リモート操作は無効です",
       "stopped": "リモート操作は停止しました",

@@ -311,6 +311,10 @@
     "allAgents": "همه عامل‌ها",
     "expandSidebar": "گسترش نوار کناری",
     "collapseSidebar": "جمع کردن نوار کناری",
+    "themeToggle": "تغییر پوسته",
+    "themeLight": "روشن",
+    "themeDark": "تیره",
+    "themeSystem": "سیستم",
     "remoteControlStatus": {
       "disabled": "کنترل از راه دور غیرفعال است",
       "stopped": "کنترل از راه دور متوقف شده است",
