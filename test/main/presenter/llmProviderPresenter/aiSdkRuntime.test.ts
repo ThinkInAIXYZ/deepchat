@@ -54,6 +54,18 @@ import {
 import { modelCapabilities } from '@/presenter/configPresenter/modelCapabilities'
 
 describe('AI SDK runtime', () => {
+  const createTextRuntimeContext = (overrides: Record<string, unknown> = {}) =>
+    ({
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'openai',
+        apiType: 'openai-compatible'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      ...overrides
+    }) as any
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockCreateAiSdkProviderContext.mockReturnValue({
@@ -88,6 +100,129 @@ describe('AI SDK runtime', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('promotes leading system messages to the top-level system option for generateText', async () => {
+    await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [
+        { role: 'system', content: 'Be precise' },
+        { role: 'user', content: 'Hello' }
+      ],
+      'gpt-4',
+      {
+        apiEndpoint: 'chat'
+      } as any,
+      0.7,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).toMatchObject({
+      system: 'Be precise',
+      allowSystemInMessages: false,
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Hello' }]
+        }
+      ]
+    })
+  })
+
+  it('promotes multiple leading system messages in order for streamText', async () => {
+    const events = []
+    for await (const event of runAiSdkCoreStream(
+      createTextRuntimeContext(),
+      [
+        { role: 'system', content: 'First instruction' },
+        { role: 'system', content: 'Second instruction' },
+        { role: 'user', content: 'Go' }
+      ],
+      'gpt-4',
+      {
+        apiEndpoint: 'chat',
+        functionCall: false
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      events.push(event)
+    }
+
+    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).toMatchObject({
+      system: 'First instruction\n\nSecond instruction',
+      allowSystemInMessages: false,
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Go' }]
+        }
+      ]
+    })
+    expect(events).toEqual([])
+  })
+
+  it('drops blank leading system messages without sending an empty system option', async () => {
+    await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [
+        { role: 'system', content: '  \n\t  ' },
+        { role: 'user', content: 'Hello' }
+      ],
+      'gpt-4',
+      {
+        apiEndpoint: 'chat'
+      } as any,
+      0.7,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).not.toHaveProperty('system')
+    expect(request).toMatchObject({
+      allowSystemInMessages: false,
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Hello' }]
+        }
+      ]
+    })
+  })
+
+  it('leaves non-leading system messages in messages for fail-fast AI SDK validation', async () => {
+    await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [
+        { role: 'user', content: 'Hello' },
+        { role: 'system', content: 'Late instruction' }
+      ],
+      'gpt-4',
+      {
+        apiEndpoint: 'chat'
+      } as any,
+      0.7,
+      1024
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(request).toMatchObject({
+      allowSystemInMessages: false,
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Hello' }]
+        },
+        {
+          role: 'system',
+          content: 'Late instruction'
+        }
+      ]
+    })
+    expect(request).not.toHaveProperty('system')
   })
 
   it('builds image prompts from text-like content instead of object stringification', async () => {
