@@ -190,6 +190,7 @@
   },
   "workspace": {
     "collapse": "fechar",
+    "expand": "Expandir",
     "sections": {
       "files": "Arquivos",
       "git": "Git",

@@ -228,6 +228,7 @@
   "workspace": {
     "title": "Espacio de trabajo",
     "collapse": "Contraer",
+    "expand": "Expandir",
     "sections": {
       "files": "Archivos",
       "git": "Git",

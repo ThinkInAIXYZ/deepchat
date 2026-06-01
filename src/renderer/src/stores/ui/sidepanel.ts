@@ -56,6 +56,35 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     return clampWidth(Number(width.value))
   })
 
+  const NAV_MIN_WIDTH = 160
+  const NAV_MAX_WIDTH = 360
+  const NAV_DEFAULT_WIDTH = 200
+
+  const clampNavWidth = (nextWidth: number) => {
+    const widthValue = Number(nextWidth)
+    if (!Number.isFinite(widthValue)) {
+      return NAV_DEFAULT_WIDTH
+    }
+    return Math.min(NAV_MAX_WIDTH, Math.max(NAV_MIN_WIDTH, Math.round(widthValue)))
+  }
+
+  const navCollapsed = useStorage('workspace-nav-collapsed', false)
+  const navWidthStorage = useStorage('workspace-nav-width', NAV_DEFAULT_WIDTH)
+
+  const navWidth = computed(() => clampNavWidth(Number(navWidthStorage.value)))
+
+  const setNavWidth = (nextWidth: number) => {
+    navWidthStorage.value = clampNavWidth(nextWidth)
+  }
+
+  const setNavCollapsed = (collapsed: boolean) => {
+    navCollapsed.value = collapsed
+  }
+
+  const toggleNavCollapsed = () => {
+    navCollapsed.value = !navCollapsed.value
+  }
+
   if (typeof window !== 'undefined') {
     const handleResize = () => {
       viewportWidth.value = window.innerWidth
@@ -195,6 +224,11 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     open,
     activeTab,
     width: normalizedWidth,
+    navCollapsed,
+    navWidth,
+    setNavWidth,
+    setNavCollapsed,
+    toggleNavCollapsed,
     sessionStates,
     ensureSessionState,
     getSessionState,

@@ -190,6 +190,7 @@
   },
   "workspace": {
     "collapse": "לִסְגוֹר",
+    "expand": "הרחב",
     "sections": {
       "files": "קבצים",
       "git": "Git",

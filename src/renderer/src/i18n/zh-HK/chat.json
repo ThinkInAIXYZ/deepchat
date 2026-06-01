@@ -198,6 +198,7 @@
   },
   "workspace": {
     "collapse": "收起",
+    "expand": "展開",
     "sections": {
       "files": "文件",
       "git": "Git",

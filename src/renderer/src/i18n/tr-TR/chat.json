@@ -228,6 +228,7 @@
   "workspace": {
     "title": "Çalışma alanı",
     "collapse": "Yıkılmak",
+    "expand": "Genişlet",
     "sections": {
       "files": "Dosyalar",
       "git": "Git",

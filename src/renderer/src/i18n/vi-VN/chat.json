@@ -228,6 +228,7 @@
   "workspace": {
     "title": "Không gian làm việc",
     "collapse": "Thu gọn",
+    "expand": "Mở rộng",
     "sections": {
       "files": "Tập tin",
       "git": "Git",
