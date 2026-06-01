@@ -738,6 +738,10 @@ const handleNewChat = () => {
 }
 
 const handleAgentSelect = async (id: string | null) => {
+  if (collapsed.value) {
+    sidebarStore.setCollapsed(false)
+  }
+
   const requestSeq = ++agentSwitchSeq
 
   agentSwitchQueue = agentSwitchQueue

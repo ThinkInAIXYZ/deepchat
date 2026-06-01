@@ -19,6 +19,7 @@ type SetupOptions = {
     enabled: boolean
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
   }
+  collapsed?: boolean
 }
 
 const TEST_TIMEOUT_MS = 20000
@@ -99,7 +100,7 @@ const setup = async (options: SetupOptions = {}) => {
     isDark: false
   })
   const sidebarStore = reactive({
-    collapsed: false,
+    collapsed: options.collapsed ?? false,
     toggleSidebar: vi.fn(() => {
       sidebarStore.collapsed = !sidebarStore.collapsed
     }),
@@ -310,6 +311,36 @@ describe('WindowSideBar agent switch', () => {
       await (wrapper.vm as any).handleAgentSelect('acp-a')
 
       expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
+      expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
+      expect(operations).toEqual(['close', 'set:acp-a'])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'expands the collapsed sidebar before applying selected agent',
+    async () => {
+      const { wrapper, operations, agentStore, sidebarStore } = await setup({
+        collapsed: true,
+        activeSession: {
+          id: 'session-deepchat',
+          agentId: 'deepchat'
+        },
+        enabledAgents: [
+          { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+          { id: 'acp-a', name: 'ACP A', type: 'acp', enabled: true }
+        ]
+      })
+
+      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-12')
+
+      await wrapper
+        .get('[data-testid="sidebar-agent-button"][data-agent-id="acp-a"]')
+        .trigger('click')
+      await flushPromises()
+
+      expect(sidebarStore.setCollapsed).toHaveBeenCalledWith(false)
+      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-[288px]')
       expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
       expect(operations).toEqual(['close', 'set:acp-a'])
     },
