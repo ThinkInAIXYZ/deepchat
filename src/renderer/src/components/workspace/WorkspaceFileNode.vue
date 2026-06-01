@@ -54,6 +54,7 @@
         :depth="depth + 1"
         @toggle="$emit('toggle', $event)"
         @append-path="$emit('append-path', $event)"
+        @insert-path="$emit('insert-path', $event)"
       />
     </template>
   </div>
@@ -82,6 +83,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggle: [node: WorkspaceFileNode]
   'append-path': [filePath: string]
+  'insert-path': [filePath: string]
 }>()
 
 const { t } = useI18n()
@@ -126,6 +128,7 @@ const iconName = computed(() => {
 })
 
 const emitAppendPath = () => emit('append-path', props.node.path)
+const emitInsertPath = () => emit('insert-path', props.node.path)
 
 const handleClick = () => {
   if (props.node.isDirectory) {
@@ -157,7 +160,7 @@ const handleRevealInFolder = async () => {
 }
 
 const handleAppendFromMenu = () => {
-  emitAppendPath()
+  emitInsertPath()
 }
 
 const handleDragStart = (event: DragEvent) => {

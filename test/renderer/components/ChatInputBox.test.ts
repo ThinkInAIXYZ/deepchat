@@ -242,6 +242,14 @@ describe('ChatInputBox attachments', () => {
     expect(insertContentMock).toHaveBeenCalledWith('hello world')
   })
 
+  it('exposes insertWorkspaceReference and inserts a workspace reference into the editor', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ workspacePath: '/repo' })
+
+    expect((wrapper.vm as any).insertWorkspaceReference('/repo/src/App.vue')).toBe(true)
+    expect(insertContentMock).toHaveBeenCalledWith('@src/App.vue ')
+  })
+
   it('handles paste files via composable', async () => {
     const wrapper = await mountComponent()
     await wrapper.find('.chat-input-editor').trigger('paste')
