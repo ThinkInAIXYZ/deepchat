@@ -91,12 +91,23 @@ const syncAppearanceClasses = (themeName: string, fontSizeClass: string) => {
     return
   }
 
-  for (const target of [document.documentElement, document.body]) {
+  const root = document.documentElement
+  // 切换期间临时禁用过渡，让主题瞬时生效，避免大量元素同时跑颜色过渡造成的重绘卡顿
+  root.classList.add('dc-theme-switching')
+
+  for (const target of [root, document.body]) {
     target.classList.remove('light', 'dark', 'system')
     target.classList.add(themeName)
     target.classList.remove('text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl')
     target.classList.add(fontSizeClass)
   }
+
+  // 强制同步重算，使本次类切换在「过渡已禁用」的状态下完成
+  void root.offsetWidth
+  // 下一帧恢复过渡，不影响日常 hover 等交互动画
+  requestAnimationFrame(() => {
+    root.classList.remove('dc-theme-switching')
+  })
 }
 
 watch(
