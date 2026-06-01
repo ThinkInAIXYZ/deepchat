@@ -228,6 +228,7 @@
   "workspace": {
     "title": "ruang kerja",
     "collapse": "dekat",
+    "expand": "Kembangkan",
     "sections": {
       "files": "dokumen",
       "git": "Git",

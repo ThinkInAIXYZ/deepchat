@@ -247,6 +247,7 @@
   "workspace": {
     "title": "工作区",
     "collapse": "收起",
+    "expand": "展开",
     "sections": {
       "files": "文件",
       "git": "Git",

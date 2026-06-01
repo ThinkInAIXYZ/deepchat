@@ -1,133 +1,174 @@
 <template>
   <div class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-    <aside class="flex h-full min-h-0 w-[224px] shrink-0 flex-col border-r bg-muted/20">
-      <div class="flex-1 overflow-auto py-2">
-        <section>
-          <button
-            class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
-            type="button"
-            @click="sidepanelStore.toggleSection(props.sessionId, 'files')"
-          >
-            <Icon icon="lucide:folder-tree" class="h-3.5 w-3.5 text-muted-foreground" />
-            <span class="flex-1 truncate">{{ t('chat.workspace.sections.files') }}</span>
-            <Icon
-              :icon="sessionState.sections.files ? 'lucide:chevron-down' : 'lucide:chevron-right'"
-              class="h-3.5 w-3.5 text-muted-foreground"
-            />
-          </button>
-          <div v-if="sessionState.sections.files" class="pb-2">
-            <div
-              v-if="!props.workspacePath"
-              class="mx-2 rounded-lg border border-dashed border-muted-foreground/30 px-3 py-4 text-center"
-              :class="{ 'border-primary bg-primary/5': isDragging }"
-              @dragenter.prevent="isDragging = true"
-              @dragover.prevent="handleDragOver"
-              @dragleave="handleDragLeave"
-              @drop.prevent="handleDrop"
-            >
-              <Icon icon="lucide:folder-plus" class="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-              <p class="mb-2 text-xs font-medium text-foreground">
-                {{ t('chat.workspace.files.noWorkspace.title') }}
-              </p>
-              <p class="mb-3 text-[11px] text-muted-foreground">
-                {{ t('chat.workspace.files.noWorkspace.description') }}
-              </p>
-              <Button variant="outline" size="sm" class="h-7 text-xs" @click="selectFolder">
-                <Icon icon="lucide:folder-open" class="mr-1.5 h-3.5 w-3.5" />
-                {{ t('chat.workspace.files.noWorkspace.button') }}
-              </Button>
-            </div>
-            <div v-else-if="loadingFiles" class="px-3 py-2 text-[11px] text-muted-foreground/70">
-              {{ t('chat.workspace.files.loading') }}
-            </div>
-            <WorkspaceFileNode
-              v-for="node in fileTree"
-              :key="node.path"
-              :node="node"
-              :depth="0"
-              @toggle="toggleNode"
-              @append-path="handleFileSelect"
-              @insert-path="handleInsertFileReference"
-            />
-          </div>
-        </section>
-
-        <section v-if="gitState">
-          <button
-            class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
-            type="button"
-            @click="sidepanelStore.toggleSection(props.sessionId, 'git')"
-          >
-            <Icon icon="lucide:git-branch" class="h-3.5 w-3.5 text-muted-foreground" />
-            <span class="flex-1 truncate">{{ t('chat.workspace.sections.git') }}</span>
-            <span class="text-[11px] text-muted-foreground">{{ gitState.changes.length }}</span>
-            <Icon
-              :icon="sessionState.sections.git ? 'lucide:chevron-down' : 'lucide:chevron-right'"
-              class="h-3.5 w-3.5 text-muted-foreground"
-            />
-          </button>
-          <div v-if="sessionState.sections.git" class="pb-2">
+    <aside
+      class="workspace-nav relative flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r bg-muted/20"
+      :class="{ 'workspace-nav--resizing': isNavResizing }"
+      :style="navStyle"
+    >
+      <div class="flex h-full min-h-0 shrink-0 flex-col" :style="{ width: expandedNavWidth }">
+        <button
+          class="flex w-full shrink-0 items-center gap-2 px-3 py-2 text-muted-foreground transition-colors hover:text-foreground"
+          type="button"
+          :title="navCollapsed ? t('chat.workspace.expand') : t('chat.workspace.collapse')"
+          @click="sidepanelStore.toggleNavCollapsed()"
+        >
+          <Icon
+            :icon="navCollapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
+            class="h-3.5 w-3.5 shrink-0"
+          />
+        </button>
+        <div class="min-h-0 flex-1 overflow-auto pb-2">
+          <section>
             <button
-              v-for="change in gitState.changes"
-              :key="change.path"
-              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
-              :class="
-                sessionState.selectedDiffPath === change.path
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-              "
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
-              @click="handleDiffSelect(change.path)"
+              @click="handleSectionClick('files')"
             >
-              <span class="w-4 shrink-0 text-center font-mono text-[11px]">
-                {{ formatGitFlag(change) }}
-              </span>
-              <span class="min-w-0 flex-1 truncate">{{ change.relativePath }}</span>
+              <Icon icon="lucide:folder-tree" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span v-show="!navCollapsed" class="flex-1 truncate">{{
+                t('chat.workspace.sections.files')
+              }}</span>
+              <Icon
+                v-show="!navCollapsed"
+                :icon="sessionState.sections.files ? 'lucide:chevron-down' : 'lucide:chevron-right'"
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
             </button>
-            <div
-              v-if="gitState.changes.length === 0"
-              class="px-3 py-2 text-[11px] text-muted-foreground/70"
-            >
-              {{ t('chat.workspace.git.clean') }}
+            <div v-if="!navCollapsed && sessionState.sections.files" class="pb-2">
+              <div
+                v-if="!props.workspacePath"
+                class="mx-2 rounded-lg border border-dashed border-muted-foreground/30 px-3 py-4 text-center"
+                :class="{ 'border-primary bg-primary/5': isDragging }"
+                @dragenter.prevent="isDragging = true"
+                @dragover.prevent="handleDragOver"
+                @dragleave="handleDragLeave"
+                @drop.prevent="handleDrop"
+              >
+                <Icon
+                  icon="lucide:folder-plus"
+                  class="mx-auto mb-2 h-6 w-6 text-muted-foreground"
+                />
+                <p class="mb-2 text-xs font-medium text-foreground">
+                  {{ t('chat.workspace.files.noWorkspace.title') }}
+                </p>
+                <p class="mb-3 text-[11px] text-muted-foreground">
+                  {{ t('chat.workspace.files.noWorkspace.description') }}
+                </p>
+                <Button variant="outline" size="sm" class="h-7 text-xs" @click="selectFolder">
+                  <Icon icon="lucide:folder-open" class="mr-1.5 h-3.5 w-3.5" />
+                  {{ t('chat.workspace.files.noWorkspace.button') }}
+                </Button>
+              </div>
+              <div v-else-if="loadingFiles" class="px-3 py-2 text-[11px] text-muted-foreground/70">
+                {{ t('chat.workspace.files.loading') }}
+              </div>
+              <WorkspaceFileNode
+                v-for="node in fileTree"
+                :key="node.path"
+                :node="node"
+                :depth="0"
+                @toggle="toggleNode"
+                @append-path="handleFileSelect"
+                @insert-path="handleInsertFileReference"
+              />
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section v-if="artifactItems.length > 0">
-          <button
-            class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
-            type="button"
-            @click="sidepanelStore.toggleSection(props.sessionId, 'artifacts')"
-          >
-            <Icon icon="lucide:box" class="h-3.5 w-3.5 text-muted-foreground" />
-            <span class="flex-1 truncate">{{ t('chat.workspace.sections.artifacts') }}</span>
-            <span class="text-[11px] text-muted-foreground">{{ artifactItems.length }}</span>
-            <Icon
-              :icon="
-                sessionState.sections.artifacts ? 'lucide:chevron-down' : 'lucide:chevron-right'
-              "
-              class="h-3.5 w-3.5 text-muted-foreground"
-            />
-          </button>
-          <div v-if="sessionState.sections.artifacts" class="pb-2">
+          <section v-if="gitState">
             <button
-              v-for="item in artifactItems"
-              :key="item.key"
-              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
-              :class="
-                isArtifactSelected(item)
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-              "
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
-              @click="handleArtifactSelect(item)"
+              @click="handleSectionClick('git')"
             >
-              <Icon :icon="getArtifactIcon(item.type)" class="h-3.5 w-3.5 shrink-0" />
-              <span class="min-w-0 flex-1 truncate">{{ item.title || item.identifier }}</span>
+              <Icon icon="lucide:git-branch" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span v-show="!navCollapsed" class="flex-1 truncate">{{
+                t('chat.workspace.sections.git')
+              }}</span>
+              <span v-show="!navCollapsed" class="text-[11px] text-muted-foreground">{{
+                gitState.changes.length
+              }}</span>
+              <Icon
+                v-show="!navCollapsed"
+                :icon="sessionState.sections.git ? 'lucide:chevron-down' : 'lucide:chevron-right'"
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
             </button>
-          </div>
-        </section>
+            <div v-if="!navCollapsed && sessionState.sections.git" class="pb-2">
+              <button
+                v-for="change in gitState.changes"
+                :key="change.path"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
+                :class="
+                  sessionState.selectedDiffPath === change.path
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                "
+                type="button"
+                @click="handleDiffSelect(change.path)"
+              >
+                <span class="w-4 shrink-0 text-center font-mono text-[11px]">
+                  {{ formatGitFlag(change) }}
+                </span>
+                <span class="min-w-0 flex-1 truncate">{{ change.relativePath }}</span>
+              </button>
+              <div
+                v-if="gitState.changes.length === 0"
+                class="px-3 py-2 text-[11px] text-muted-foreground/70"
+              >
+                {{ t('chat.workspace.git.clean') }}
+              </div>
+            </div>
+          </section>
+
+          <section v-if="artifactItems.length > 0">
+            <button
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
+              type="button"
+              @click="handleSectionClick('artifacts')"
+            >
+              <Icon icon="lucide:box" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span v-show="!navCollapsed" class="flex-1 truncate">{{
+                t('chat.workspace.sections.artifacts')
+              }}</span>
+              <span v-show="!navCollapsed" class="text-[11px] text-muted-foreground">{{
+                artifactItems.length
+              }}</span>
+              <Icon
+                v-show="!navCollapsed"
+                :icon="
+                  sessionState.sections.artifacts ? 'lucide:chevron-down' : 'lucide:chevron-right'
+                "
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
+            </button>
+            <div v-if="!navCollapsed && sessionState.sections.artifacts" class="pb-2">
+              <button
+                v-for="item in artifactItems"
+                :key="item.key"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
+                :class="
+                  isArtifactSelected(item)
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                "
+                type="button"
+                @click="handleArtifactSelect(item)"
+              >
+                <Icon :icon="getArtifactIcon(item.type)" class="h-3.5 w-3.5 shrink-0" />
+                <span class="min-w-0 flex-1 truncate">{{ item.title || item.identifier }}</span>
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
+
+      <button
+        v-if="!navCollapsed"
+        data-testid="workspace-nav-resize-handle"
+        class="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize"
+        type="button"
+        @mousedown="startNavResize"
+      ></button>
     </aside>
 
     <WorkspaceViewer
@@ -144,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
@@ -159,7 +200,7 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useMessageStore } from '@/stores/ui/message'
 import { useSidepanelStore, type WorkspaceArtifactContext } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
-import type { WorkspaceGitFileChange } from '@shared/presenter'
+import type { WorkspaceGitFileChange, WorkspaceNavSection } from '@shared/presenter'
 
 const props = defineProps<{
   sessionId: string
@@ -303,6 +344,91 @@ watch(
   },
   { immediate: true }
 )
+
+// px-3 (12) + icon (14) + px-3 (12) so the leading icons sit centered in the collapsed rail
+const NAV_COLLAPSED_WIDTH = 38
+
+const navCollapsed = computed(() => sidepanelStore.navCollapsed)
+const isNavResizing = ref(false)
+
+const expandedNavWidth = computed(() => `${sidepanelStore.navWidth}px`)
+
+const navStyle = computed(() => ({
+  width: navCollapsed.value ? `${NAV_COLLAPSED_WIDTH}px` : expandedNavWidth.value
+}))
+
+const expandNavToSection = (section: WorkspaceNavSection) => {
+  sidepanelStore.setNavCollapsed(false)
+  const state = sidepanelStore.ensureSessionState(props.sessionId)
+  state.sections[section] = true
+}
+
+const handleSectionClick = (section: WorkspaceNavSection) => {
+  if (navCollapsed.value) {
+    expandNavToSection(section)
+    return
+  }
+  sidepanelStore.toggleSection(props.sessionId, section)
+}
+
+let navResizeCleanup: (() => void) | null = null
+let pendingNavWidth: number | null = null
+let navResizeFrame: number | null = null
+
+const applyPendingNavResize = () => {
+  navResizeFrame = null
+  if (pendingNavWidth === null) {
+    return
+  }
+  sidepanelStore.setNavWidth(pendingNavWidth)
+  pendingNavWidth = null
+}
+
+const stopNavResize = () => {
+  navResizeCleanup?.()
+  navResizeCleanup = null
+  if (navResizeFrame !== null) {
+    window.cancelAnimationFrame(navResizeFrame)
+    navResizeFrame = null
+  }
+  if (pendingNavWidth !== null) {
+    sidepanelStore.setNavWidth(pendingNavWidth)
+    pendingNavWidth = null
+  }
+}
+
+const startNavResize = (event: MouseEvent) => {
+  event.preventDefault()
+  stopNavResize()
+  isNavResizing.value = true
+
+  const startX = event.clientX
+  const startWidth = sidepanelStore.navWidth
+
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    pendingNavWidth = startWidth + (moveEvent.clientX - startX)
+    if (navResizeFrame === null) {
+      navResizeFrame = window.requestAnimationFrame(applyPendingNavResize)
+    }
+  }
+
+  const onMouseUp = () => {
+    isNavResizing.value = false
+    stopNavResize()
+  }
+
+  window.addEventListener('mousemove', onMouseMove, { passive: true })
+  window.addEventListener('mouseup', onMouseUp, { once: true })
+  navResizeCleanup = () => {
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+    isNavResizing.value = false
+  }
+}
+
+onBeforeUnmount(() => {
+  stopNavResize()
+})
 
 const handleFileSelect = (filePath: string) => {
   sidepanelStore.selectFile(props.sessionId, filePath, {
@@ -488,3 +614,22 @@ function getDroppedFilePath(file: File): string | null {
   return legacyPath || null
 }
 </script>
+
+<style scoped>
+.workspace-nav {
+  transition-duration: var(--dc-motion-default);
+  transition-property: width;
+  transition-timing-function: var(--dc-ease-out-express);
+  will-change: width;
+}
+
+.workspace-nav--resizing {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-nav {
+    transition: none;
+  }
+}
+</style>

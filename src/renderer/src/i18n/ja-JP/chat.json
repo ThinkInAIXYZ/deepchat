@@ -190,6 +190,7 @@
   },
   "workspace": {
     "collapse": "近い",
+    "expand": "展開",
     "sections": {
       "files": "ファイル",
       "git": "Git",

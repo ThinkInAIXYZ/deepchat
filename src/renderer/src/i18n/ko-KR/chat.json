@@ -190,6 +190,7 @@
   },
   "workspace": {
     "collapse": "닫다",
+    "expand": "펼치기",
     "sections": {
       "files": "파일",
       "git": "Git",

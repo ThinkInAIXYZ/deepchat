@@ -190,6 +190,7 @@
   },
   "workspace": {
     "collapse": "закрывать",
+    "expand": "Развернуть",
     "sections": {
       "files": "Файлы",
       "git": "Git",

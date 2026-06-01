@@ -190,6 +190,7 @@
   },
   "workspace": {
     "collapse": "بستن",
+    "expand": "گسترش",
     "sections": {
       "files": "فایل‌ها",
       "git": "Git",
