@@ -1,12 +1,13 @@
 import type { Agent, SessionWithState } from '@shared/types/agent-interface'
 import type {
+  FloatingWidgetDockSide,
   FloatingWidgetSessionAgent,
   FloatingWidgetSessionItem,
   FloatingWidgetSessionStatus,
   FloatingWidgetSnapshot
 } from '@shared/types/floating-widget'
 
-export type FloatingWidgetDockSide = 'left' | 'right'
+export type { FloatingWidgetDockSide }
 
 export interface WidgetRect {
   x: number

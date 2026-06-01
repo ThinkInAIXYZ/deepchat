@@ -9,17 +9,18 @@ import {
   type FloatingWidgetDockSide,
   type WidgetRect
 } from './layout'
-import windowStateManager from 'electron-window-state'
+import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 
 export class FloatingButtonWindow {
   private window: BrowserWindow | null = null
   private config: FloatingButtonConfig
   private state: FloatingButtonState
-  private windowState: ReturnType<typeof windowStateManager>
+  private persistedBounds: FloatingButtonBounds | null
   private dockSide: FloatingWidgetDockSide
 
-  constructor(config: FloatingButtonConfig) {
+  constructor(config: FloatingButtonConfig, persistedBounds: FloatingButtonBounds | null = null) {
     this.config = config
+    this.persistedBounds = persistedBounds
     this.state = {
       isVisible: false,
       bounds: {
@@ -29,12 +30,8 @@ export class FloatingButtonWindow {
         height: FLOATING_WIDGET_LAYOUT.collapsedIdle.height
       }
     }
-    this.dockSide = config.position.endsWith('left') ? 'left' : 'right'
-    this.windowState = windowStateManager({
-      file: 'floating-button-window-state.json',
-      defaultWidth: FLOATING_WIDGET_LAYOUT.collapsedIdle.width,
-      defaultHeight: FLOATING_WIDGET_LAYOUT.collapsedIdle.height
-    })
+    this.dockSide =
+      persistedBounds?.dockSide ?? (config.position.endsWith('left') ? 'left' : 'right')
   }
 
   public async create(): Promise<void> {
@@ -79,7 +76,6 @@ export class FloatingButtonWindow {
         }
       })
 
-      this.windowState.manage(this.window)
       this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
       this.window.setOpacity(1)
@@ -192,19 +188,38 @@ export class FloatingButtonWindow {
   }
 
   private resolveInitialBounds(): WidgetRect {
-    const defaultPosition = this.getDefaultPosition()
     const width = FLOATING_WIDGET_LAYOUT.collapsedIdle.width
     const height = FLOATING_WIDGET_LAYOUT.collapsedIdle.height
-    const initialX = typeof this.windowState.x === 'number' ? this.windowState.x : defaultPosition.x
-    const initialY = typeof this.windowState.y === 'number' ? this.windowState.y : defaultPosition.y
-    const targetDisplay = screen.getDisplayNearestPoint({ x: initialX, y: initialY })
-    const { workArea } = targetDisplay
-    const x = Math.max(workArea.x, Math.min(initialX, workArea.x + workArea.width - width))
-    const y = Math.max(workArea.y, Math.min(initialY, workArea.y + workArea.height - height))
+
+    // Restore the last persisted resting position when available.
+    if (this.persistedBounds) {
+      const { x: savedX, y: savedY, dockSide } = this.persistedBounds
+      const { workArea } = screen.getDisplayNearestPoint({ x: savedX, y: savedY })
+      // Re-dock horizontally so the widget stays edge-aligned across resolution changes,
+      // and clamp the saved vertical offset into the current work area.
+      const x = dockSide === 'left' ? workArea.x : workArea.x + workArea.width - width
+      const y = Math.max(workArea.y, Math.min(savedY, workArea.y + workArea.height - height))
+
+      return {
+        x: Math.round(x),
+        y: Math.round(y),
+        width,
+        height
+      }
+    }
+
+    // First run / no saved position: fall back to the configured default placement.
+    const defaultPosition = this.getDefaultPosition()
+    const { workArea } = screen.getDisplayNearestPoint(defaultPosition)
+    const x = Math.max(workArea.x, Math.min(defaultPosition.x, workArea.x + workArea.width - width))
+    const y = Math.max(
+      workArea.y,
+      Math.min(defaultPosition.y, workArea.y + workArea.height - height)
+    )
 
     return {
-      x,
-      y,
+      x: Math.round(x),
+      y: Math.round(y),
       width,
       height
     }

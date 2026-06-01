@@ -4,6 +4,7 @@ import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
+import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ImageGenerationOptions } from '../../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../../videoGenerationSettings'
@@ -583,6 +584,8 @@ export interface IConfigPresenter {
   // Floating button settings
   getFloatingButtonEnabled(): boolean
   setFloatingButtonEnabled(enabled: boolean): void
+  getFloatingButtonBounds(): FloatingButtonBounds | null
+  setFloatingButtonBounds(bounds: FloatingButtonBounds): void
   // Update channel settings
   getUpdateChannel(): string
   setUpdateChannel(channel: string): void
