@@ -224,11 +224,14 @@ vi.mock('@/components/workspace/WorkspaceFileNode.vue', () => ({
         required: true
       }
     },
-    emits: ['toggle', 'append-path'],
+    emits: ['toggle', 'append-path', 'insert-path'],
     template: `
       <div class="workspace-file-node-stub">
         <button class="node-toggle" type="button" @click="$emit('toggle', node)">
           {{ node.name }}
+        </button>
+        <button class="node-insert" type="button" @click="$emit('insert-path', node.path)">
+          Insert
         </button>
         <div v-if="node.children">
           <div v-for="child in node.children" :key="child.path" class="node-child">
@@ -343,6 +346,32 @@ describe('WorkspacePanel', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('chat.workspace.sections.subagents')
+
+    wrapper.unmount()
+  })
+
+  it('emits insertion requests separately from preview selection', async () => {
+    readDirectoryMock.mockResolvedValueOnce([
+      {
+        name: 'README.md',
+        path: 'C:/repo/README.md',
+        isDirectory: false
+      }
+    ])
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    await wrapper.find('.node-insert').trigger('click')
+
+    expect(wrapper.emitted('insert-file-reference')).toEqual([['C:/repo/README.md']])
+    expect(selectFileMock).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

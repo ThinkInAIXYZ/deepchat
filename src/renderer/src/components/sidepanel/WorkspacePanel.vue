@@ -47,6 +47,7 @@
               :depth="0"
               @toggle="toggleNode"
               @append-path="handleFileSelect"
+              @insert-path="handleInsertFileReference"
             />
           </div>
         </section>
@@ -169,6 +170,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:workspacePath': [path: string | null]
   'toggle-fullscreen': []
+  'insert-file-reference': [filePath: string]
 }>()
 
 type ArtifactItem = WorkspaceArtifactContext & {
@@ -307,6 +309,10 @@ const handleFileSelect = (filePath: string) => {
     open: false,
     viewMode: 'preview'
   })
+}
+
+const handleInsertFileReference = (filePath: string) => {
+  emit('insert-file-reference', filePath)
 }
 
 const handleDiffSelect = (filePath: string) => {

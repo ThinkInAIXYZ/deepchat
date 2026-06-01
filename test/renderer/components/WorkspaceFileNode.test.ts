@@ -25,14 +25,10 @@ vi.mock('@api/legacy/presenters', () => ({
 }))
 
 describe('WorkspaceFileNode drag support', () => {
-  it('writes workspace drag payload on dragstart', async () => {
-    const wrapper = mount(WorkspaceFileNode, {
+  const mountNode = (node = { name: 'App.vue', path: '/repo/src/App.vue', isDirectory: false }) =>
+    mount(WorkspaceFileNode, {
       props: {
-        node: {
-          name: 'App.vue',
-          path: '/repo/src/App.vue',
-          isDirectory: false
-        },
+        node,
         depth: 0
       },
       global: {
@@ -47,7 +43,8 @@ describe('WorkspaceFileNode drag support', () => {
             template: '<div><slot /></div>'
           }),
           ContextMenuItem: defineComponent({
-            template: '<button type="button"><slot /></button>'
+            emits: ['select'],
+            template: '<button type="button" @click="$emit(\'select\')"><slot /></button>'
           }),
           ContextMenuSeparator: defineComponent({
             template: '<div />'
@@ -55,6 +52,9 @@ describe('WorkspaceFileNode drag support', () => {
         }
       }
     })
+
+  it('writes workspace drag payload on dragstart', async () => {
+    const wrapper = mountNode()
 
     const dataTransfer = {
       setData: vi.fn(),
@@ -71,5 +71,18 @@ describe('WorkspaceFileNode drag support', () => {
       })
     )
     expect((dataTransfer as any).effectAllowed).toBe('copy')
+  })
+
+  it('emits insert-path from the context-menu insert action', async () => {
+    const wrapper = mountNode()
+    const insertAction = wrapper
+      .findAll('button[type="button"]')
+      .find((button) => button.text().includes('chat.workspace.files.contextMenu.insertPath'))
+
+    expect(insertAction).toBeTruthy()
+    await insertAction!.trigger('click')
+
+    expect(wrapper.emitted('insert-path')).toEqual([['/repo/src/App.vue']])
+    expect(wrapper.emitted('append-path')).toBeUndefined()
   })
 })

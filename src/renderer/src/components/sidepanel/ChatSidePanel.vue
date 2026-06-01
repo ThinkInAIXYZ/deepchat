@@ -70,6 +70,7 @@
         :workspace-path="props.workspacePath"
         :is-fullscreen="isWorkspaceFullscreenActive"
         @toggle-fullscreen="toggleWorkspaceFullscreen"
+        @insert-file-reference="handleWorkspaceInsertFileReference"
       />
       <BrowserPanel v-else :session-id="props.sessionId" />
     </aside>
@@ -84,6 +85,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
+import { WORKSPACE_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 
 const props = defineProps<{
@@ -197,6 +199,23 @@ const toggleWorkspaceFullscreen = () => {
     fullscreenMotionState.value = null
   }, FULLSCREEN_MOTION_MS)
   isWorkspaceFullscreen.value = !isWorkspaceFullscreen.value
+}
+
+const handleWorkspaceInsertFileReference = (filePath: string) => {
+  const sessionId = props.sessionId?.trim()
+  const targetPath = filePath.trim()
+  if (!sessionId || !targetPath) {
+    return
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, {
+      detail: {
+        sessionId,
+        filePath: targetPath
+      }
+    })
+  )
 }
 
 const startResize = (event: MouseEvent) => {

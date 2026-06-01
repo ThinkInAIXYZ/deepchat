@@ -202,6 +202,7 @@ import {
   type ChatSearchMatch
 } from '@/lib/chatSearch'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+import { WORKSPACE_EVENTS } from '@/events'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
@@ -904,6 +905,7 @@ const attachedFiles = ref<MessageFile[]>([])
 const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
+  insertWorkspaceReference?: (targetPath: string) => boolean
 } | null>(null)
 const isVoiceInputEnabled = ref(false)
 const isHandlingInteraction = ref(false)
@@ -1024,6 +1026,21 @@ const handleContextMenuAskAI = (event: Event) => {
     return
   }
   message.value = text
+}
+
+const handleWorkspaceInsertReferenceRequested = (event: Event) => {
+  if (isReadOnlySession.value) {
+    return
+  }
+
+  const detail = (event as CustomEvent<{ sessionId?: unknown; filePath?: unknown }>).detail
+  const sessionId = typeof detail?.sessionId === 'string' ? detail.sessionId.trim() : ''
+  const filePath = typeof detail?.filePath === 'string' ? detail.filePath.trim() : ''
+  if (sessionId !== props.sessionId || !filePath) {
+    return
+  }
+
+  chatInputRef.value?.insertWorkspaceReference?.(filePath)
 }
 
 type PendingInteractionView = {
@@ -1500,6 +1517,10 @@ async function onResumePendingQueue() {
 
 onMounted(() => {
   window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
+  window.addEventListener(
+    WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,
+    handleWorkspaceInsertReferenceRequested
+  )
   window.addEventListener('keydown', handleWindowKeydown)
   cancelPlanUpdatedListener = chatClient.onPlanUpdated((payload) => {
     if (payload.sessionId === props.sessionId) {
@@ -1523,6 +1544,10 @@ onUnmounted(() => {
   cancelSessionRestoreTask?.()
   cancelSessionRestoreTask = null
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
+  window.removeEventListener(
+    WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,
+    handleWorkspaceInsertReferenceRequested
+  )
   window.removeEventListener('keydown', handleWindowKeydown)
   clearChatSearchHighlights(messageSearchRoot.value)
   if (spotlightJumpTimer) {

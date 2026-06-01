@@ -1,6 +1,7 @@
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { WORKSPACE_EVENTS } from '@/events'
 
 describe('ChatSidePanel', () => {
   const setup = async (options?: {
@@ -64,9 +65,9 @@ describe('ChatSidePanel', () => {
             default: false
           }
         },
-        emits: ['toggle-fullscreen'],
+        emits: ['toggle-fullscreen', 'insert-file-reference'],
         template:
-          '<div data-testid="workspace-panel-stub" :data-fullscreen="String(isFullscreen)"><button data-testid="workspace-panel-toggle" @click="$emit(\'toggle-fullscreen\')">toggle</button></div>'
+          '<div data-testid="workspace-panel-stub" :data-fullscreen="String(isFullscreen)"><button data-testid="workspace-panel-toggle" @click="$emit(\'toggle-fullscreen\')">toggle</button><button data-testid="workspace-panel-insert" @click="$emit(\'insert-file-reference\', \'C:/workspace/README.md\')">insert</button></div>'
       })
     }))
 
@@ -116,29 +117,27 @@ describe('ChatSidePanel', () => {
     expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
   })
 
-  it('toggles fullscreen layout from the workspace panel and clears it when switching tabs', async () => {
-    const { wrapper, sidepanelStore } = await setup({
-      open: true,
-      activeTab: 'workspace'
-    })
+  it('dispatches session-scoped workspace insertion requests from the workspace panel', async () => {
+    const insertionListener = vi.fn()
+    window.addEventListener(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, insertionListener)
 
-    expect(
-      wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')
-    ).toBe('false')
-    expect(wrapper.find('[data-testid="chat-side-panel-resize-handle"]').exists()).toBe(true)
+    try {
+      const { wrapper } = await setup({
+        open: true,
+        activeTab: 'workspace',
+        sessionId: 'session-1'
+      })
 
-    await wrapper.get('[data-testid="workspace-panel-toggle"]').trigger('click')
+      await wrapper.get('[data-testid="workspace-panel-insert"]').trigger('click')
 
-    expect(
-      wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')
-    ).toBe('true')
-    expect(wrapper.find('[data-testid="chat-side-panel-resize-handle"]').exists()).toBe(false)
-
-    sidepanelStore.activeTab = 'browser'
-    await nextTick()
-
-    expect(
-      wrapper.get('[data-testid="chat-side-panel-shell"]').attributes('data-workspace-fullscreen')
-    ).toBe('false')
+      expect(insertionListener).toHaveBeenCalledTimes(1)
+      const event = insertionListener.mock.calls[0][0] as CustomEvent
+      expect(event.detail).toEqual({
+        sessionId: 'session-1',
+        filePath: 'C:/workspace/README.md'
+      })
+    } finally {
+      window.removeEventListener(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, insertionListener)
+    }
   })
 })

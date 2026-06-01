@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { WORKSPACE_EVENTS } from '@/events'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -182,6 +183,8 @@ const setup = async (options: SetupOptions = {}) => {
     })
   }
   const toast = vi.fn()
+  const chatInputInsertWorkspaceReference = vi.fn().mockReturnValue(true)
+  const chatInputTriggerAttach = vi.fn()
 
   const spotlightStore = reactive({
     pendingMessageJump: options.spotlightPendingJump ?? null,
@@ -315,6 +318,12 @@ const setup = async (options: SetupOptions = {}) => {
         }
       },
       emits: ['update:modelValue', 'update:files', 'command-submit', 'queue-submit', 'submit'],
+      setup(_, { expose }) {
+        expose({
+          triggerAttach: chatInputTriggerAttach,
+          insertWorkspaceReference: chatInputInsertWorkspaceReference
+        })
+      },
       template: '<div class="chat-input-box-stub"><slot name="toolbar" /></div>'
     })
   }))
@@ -427,6 +436,8 @@ const setup = async (options: SetupOptions = {}) => {
     pendingInputStore,
     agentPlanStore,
     spotlightStore,
+    chatInputInsertWorkspaceReference,
+    chatInputTriggerAttach,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
         const task = startupDeferredTasks.shift()
@@ -735,6 +746,34 @@ describe('ChatPage', () => {
     expect(chatRespondToolInteraction).toHaveBeenCalledTimes(1)
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
+  })
+
+  it('inserts workspace references into the active chat input for the matching session', async () => {
+    const { chatInputInsertWorkspaceReference } = await setup()
+
+    window.dispatchEvent(
+      new CustomEvent(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, {
+        detail: {
+          sessionId: 'other-session',
+          filePath: 'C:/repo/other.ts'
+        }
+      })
+    )
+    await flushPromises()
+
+    expect(chatInputInsertWorkspaceReference).not.toHaveBeenCalled()
+
+    window.dispatchEvent(
+      new CustomEvent(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, {
+        detail: {
+          sessionId: 's1',
+          filePath: 'C:/repo/README.md'
+        }
+      })
+    )
+    await flushPromises()
+
+    expect(chatInputInsertWorkspaceReference).toHaveBeenCalledWith('C:/repo/README.md')
   })
 
   it('routes tool interaction responses through ChatClient and refreshes messages', async () => {

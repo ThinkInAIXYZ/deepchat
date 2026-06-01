@@ -248,7 +248,8 @@ export const SYSTEM_EVENTS = {
 // Workspace events
 export const WORKSPACE_EVENTS = {
   INVALIDATED: 'workspace:files-changed', // Workspace invalidation event
-  FILES_CHANGED: 'workspace:files-changed' // Legacy alias
+  FILES_CHANGED: 'workspace:files-changed', // Legacy alias
+  INSERT_REFERENCE_REQUESTED: 'workspace:insert-reference-requested'
 }
 
 // ACP-specific workspace events

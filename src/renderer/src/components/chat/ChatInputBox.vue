@@ -446,6 +446,7 @@ function focusInput() {
 defineExpose({
   triggerAttach,
   insertRecognizedText,
+  insertWorkspaceReference,
   getPendingSkillsSnapshot,
   focusInput
 })
