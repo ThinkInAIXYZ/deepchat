@@ -5,6 +5,9 @@ import type {
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
+  AgentTransferBlockReason,
+  AgentTransferImpact,
+  AgentTransferImpactSample,
   ChatMessagePageResult,
   SessionListItem,
   SessionLightweightListResult,
@@ -90,6 +93,18 @@ type SearchableMessageRow = {
   role: 'user' | 'assistant'
   content: string
   updatedAt: number
+}
+
+type AgentTransferTargetContext = {
+  agentId: string
+  agentType: 'deepchat'
+  providerId: string
+  modelId: string
+  projectDir: string | null
+  permissionMode: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+  disabledAgentTools: string[]
+  subagentEnabled: boolean
 }
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
@@ -1860,6 +1875,207 @@ export class AgentSessionPresenter {
     })
   }
 
+  async getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact> {
+    const normalizedAgentId = agentId.trim()
+    if (!normalizedAgentId) {
+      throw new Error('Agent id is required.')
+    }
+
+    const sessions = this.sessionManager.list({
+      agentId: normalizedAgentId,
+      includeSubagents: true
+    })
+    const samples: AgentTransferImpactSample[] = []
+    let emptyDrafts = 0
+    let movableSessions = 0
+    let blockedSessions = 0
+
+    for (const session of sessions) {
+      const assessment = await this.assessTransferSession(session)
+      if (assessment.isEmptyDraft) {
+        emptyDrafts += 1
+      }
+      if (assessment.blockReason) {
+        blockedSessions += 1
+      } else if (!assessment.isEmptyDraft) {
+        movableSessions += 1
+      }
+
+      if (samples.length < 6 && (!assessment.isEmptyDraft || assessment.blockReason)) {
+        samples.push({
+          id: session.id,
+          title: session.title,
+          sessionKind: session.sessionKind,
+          isDraft: Boolean(session.isDraft),
+          projectDir: session.projectDir,
+          status: assessment.status,
+          blockReason: assessment.blockReason
+        })
+      }
+    }
+
+    return {
+      agentId: normalizedAgentId,
+      totalSessions: sessions.length,
+      regularSessions: sessions.filter((session) => session.sessionKind === 'regular').length,
+      subagentSessions: sessions.filter((session) => session.sessionKind === 'subagent').length,
+      emptyDrafts,
+      movableSessions,
+      blockedSessions,
+      samples
+    }
+  }
+
+  async moveAgentSessions(
+    fromAgentId: string,
+    toAgentId: string
+  ): Promise<{ movedSessionIds: string[]; deletedSessionIds: string[] }> {
+    const sourceAgentId = fromAgentId.trim()
+    const targetAgentId = toAgentId.trim()
+    if (!sourceAgentId || !targetAgentId) {
+      throw new Error('Source and target agent ids are required.')
+    }
+    if (sourceAgentId === targetAgentId) {
+      throw new Error('Source and target agents cannot be the same.')
+    }
+    await this.resolveTransferTargetContext(targetAgentId, null)
+
+    const sessions = this.sessionManager.list({
+      agentId: sourceAgentId,
+      includeSubagents: true
+    })
+    const transferSessionIds: string[] = []
+    const emptyDraftSessionIds: string[] = []
+    const movedSessionIds: string[] = []
+    const deletedSessionIds: string[] = []
+    const deletedSessionIdSet = new Set<string>()
+
+    for (const session of sessions) {
+      const assessment = await this.assessTransferSession(session)
+      if (assessment.blockReason) {
+        throw new Error(`Session ${session.id} cannot be moved: ${assessment.blockReason}`)
+      }
+      if (assessment.isEmptyDraft) {
+        emptyDraftSessionIds.push(session.id)
+        continue
+      }
+
+      await this.resolveTransferTargetContext(targetAgentId, session.projectDir)
+      transferSessionIds.push(session.id)
+    }
+
+    try {
+      for (const sessionId of transferSessionIds) {
+        if (deletedSessionIdSet.has(sessionId)) {
+          continue
+        }
+        if (!this.sessionManager.get(sessionId)) {
+          throw new Error(`Session ${sessionId} is no longer available.`)
+        }
+        await this.moveSessionToAgentInternal(sessionId, targetAgentId, true)
+        movedSessionIds.push(sessionId)
+      }
+
+      for (const sessionId of emptyDraftSessionIds) {
+        if (deletedSessionIdSet.has(sessionId)) {
+          continue
+        }
+        if (!this.sessionManager.get(sessionId)) {
+          throw new Error(`Session ${sessionId} is no longer available.`)
+        }
+        const deleted = await this.deleteSessionInternal(sessionId)
+        deleted.forEach((deletedSessionId) => deletedSessionIdSet.add(deletedSessionId))
+        deletedSessionIds.push(...deleted)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const partialCounts = [
+        movedSessionIds.length > 0 ? `${movedSessionIds.length} moved` : '',
+        deletedSessionIds.length > 0 ? `${deletedSessionIds.length} deleted` : ''
+      ].filter(Boolean)
+
+      if (partialCounts.length > 0) {
+        if (movedSessionIds.length > 0) {
+          this.emitSessionListUpdated({
+            sessionIds: movedSessionIds,
+            reason: 'updated'
+          })
+        }
+        if (deletedSessionIds.length > 0) {
+          this.emitSessionListUpdated({
+            sessionIds: deletedSessionIds,
+            reason: 'deleted'
+          })
+        }
+        throw new Error(`${message} Partial transfer completed: ${partialCounts.join(', ')}.`)
+      }
+      throw error
+    }
+
+    if (movedSessionIds.length > 0) {
+      this.emitSessionListUpdated({
+        sessionIds: movedSessionIds,
+        reason: 'updated'
+      })
+    }
+    if (deletedSessionIds.length > 0) {
+      this.emitSessionListUpdated({
+        sessionIds: deletedSessionIds,
+        reason: 'deleted'
+      })
+    }
+
+    return { movedSessionIds, deletedSessionIds }
+  }
+
+  async deleteAgentSessions(agentId: string): Promise<string[]> {
+    const normalizedAgentId = agentId.trim()
+    if (!normalizedAgentId) {
+      throw new Error('Agent id is required.')
+    }
+
+    const sessions = this.sessionManager.list({
+      agentId: normalizedAgentId,
+      includeSubagents: true
+    })
+    const deletedSessionIds: string[] = []
+    const deletedSessionIdSet = new Set<string>()
+
+    for (const session of sessions) {
+      const assessment = await this.assessTransferSession(session)
+      if (assessment.blockReason) {
+        throw new Error(`Session ${session.id} cannot be deleted: ${assessment.blockReason}`)
+      }
+    }
+
+    for (const session of sessions) {
+      if (deletedSessionIdSet.has(session.id) || !this.sessionManager.get(session.id)) {
+        continue
+      }
+      const deleted = await this.deleteSessionInternal(session.id)
+      deleted.forEach((sessionId) => deletedSessionIdSet.add(sessionId))
+      deletedSessionIds.push(...deleted)
+    }
+
+    if (deletedSessionIds.length > 0) {
+      this.emitSessionListUpdated({
+        sessionIds: deletedSessionIds,
+        reason: 'deleted'
+      })
+    }
+
+    return deletedSessionIds
+  }
+
+  async moveSessionToAgent(sessionId: string, toAgentId: string): Promise<SessionWithState> {
+    const updated = await this.moveSessionToAgentInternal(sessionId, toAgentId)
+    this.emitSessionListUpdated({
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
+    return updated
+  }
+
   async cancelGeneration(sessionId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) return
@@ -2069,7 +2285,11 @@ export class AgentSessionPresenter {
       sessionIds: [sessionId],
       reason: 'updated'
     })
-    return await this.tryBuildSessionWithState(updated)
+    const sessionWithState = await this.tryBuildSessionWithState(updated)
+    if (!sessionWithState) {
+      throw new Error(`Failed to build session state after project update: ${sessionId}`)
+    }
+    return sessionWithState
   }
 
   async getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
@@ -2481,6 +2701,174 @@ export class AgentSessionPresenter {
       generationSettings: input.generationSettings,
       disabledAgentTools: this.normalizeDisabledAgentTools(input.disabledAgentTools),
       activeSkills: this.normalizeActiveSkills(input.activeSkills)
+    }
+  }
+
+  private async assessTransferSession(session: SessionRecord): Promise<{
+    status: SessionWithState['status']
+    isEmptyDraft: boolean
+    blockReason?: AgentTransferBlockReason
+  }> {
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(session.id)
+    const status = state?.status ?? 'idle'
+    const hasMessages = await this.hasSessionMessages(agent, session.id)
+    const hasSubagentChildren =
+      session.sessionKind === 'regular' &&
+      this.sessionManager.list({ includeSubagents: true, parentSessionId: session.id }).length > 0
+    const isEmptyDraft = Boolean(session.isDraft) && !hasMessages && !hasSubagentChildren
+    let hasPendingInput = false
+
+    if (agent.listPendingInputs) {
+      try {
+        hasPendingInput = (await agent.listPendingInputs(session.id)).length > 0
+      } catch (error) {
+        console.warn(
+          `[AgentSessionPresenter] Failed to inspect pending input for session=${session.id}:`,
+          error
+        )
+        hasPendingInput = true
+      }
+    }
+
+    if (status === 'generating') {
+      return { status, isEmptyDraft, blockReason: 'active' }
+    }
+    if (hasPendingInput) {
+      return { status, isEmptyDraft, blockReason: 'pending-input' }
+    }
+
+    return { status, isEmptyDraft }
+  }
+
+  private async moveSessionToAgentInternal(
+    sessionId: string,
+    toAgentId: string,
+    allowSubagent: boolean = false
+  ): Promise<SessionWithState> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    if (!allowSubagent && session.sessionKind !== 'regular') {
+      throw new Error('Only regular conversations can be moved from the conversation menu.')
+    }
+
+    const targetAgentId = toAgentId.trim()
+    if (!targetAgentId) {
+      throw new Error('Target agent id is required.')
+    }
+    if (session.agentId === targetAgentId) {
+      throw new Error('Conversation is already assigned to the selected agent.')
+    }
+
+    const assessment = await this.assessTransferSession(session)
+    if (assessment.blockReason) {
+      throw new Error(`Session ${sessionId} cannot be moved: ${assessment.blockReason}`)
+    }
+
+    const previousAgentId = session.agentId
+    const targetContext = await this.resolveTransferTargetContext(targetAgentId, session.projectDir)
+    const previousAcpBacked = await this.isAcpBackedSession(sessionId, previousAgentId)
+    const agent = await this.resolveAgentImplementation(targetContext.agentId)
+
+    if (!agent.setSessionAgentContext) {
+      throw new Error(`Agent ${targetContext.agentId} does not support session transfer.`)
+    }
+
+    await agent.setSessionAgentContext(sessionId, {
+      agentId: targetContext.agentId,
+      providerId: targetContext.providerId,
+      modelId: targetContext.modelId,
+      projectDir: targetContext.projectDir,
+      permissionMode: targetContext.permissionMode,
+      generationSettings: targetContext.generationSettings
+    })
+
+    this.sessionManager.updateAgentId(sessionId, targetContext.agentId)
+    this.sessionManager.update(sessionId, {
+      projectDir: targetContext.projectDir,
+      subagentEnabled: session.sessionKind === 'regular' ? targetContext.subagentEnabled : false
+    })
+    this.sessionManager.updateDisabledAgentTools(sessionId, targetContext.disabledAgentTools)
+
+    await this.syncAcpSessionWorkdir(
+      targetContext.providerId,
+      sessionId,
+      targetContext.agentId,
+      targetContext.projectDir
+    )
+
+    const updated = this.sessionManager.get(sessionId)
+    if (!updated) {
+      throw new Error(`Session not found after transfer: ${sessionId}`)
+    }
+
+    const sessionWithState = await this.tryBuildSessionWithState(updated)
+    if (!sessionWithState) {
+      throw new Error(`Failed to build session state after transfer: ${sessionId}`)
+    }
+
+    if (previousAcpBacked) {
+      try {
+        await (this.providerSessionPort?.clearAcpSession?.(sessionId) ??
+          this.llmProviderPresenter.clearAcpSession(sessionId))
+      } catch (error) {
+        console.warn(
+          `[AgentSessionPresenter] Failed to clear stale ACP binding after transfer ${sessionId}:`,
+          error
+        )
+      }
+    }
+
+    return sessionWithState
+  }
+
+  private async resolveTransferTargetContext(
+    targetAgentId: string,
+    currentProjectDir: string | null
+  ): Promise<AgentTransferTargetContext> {
+    const resolvedAgentId = resolveAcpAgentAlias(targetAgentId.trim())
+    const agentType = await this.getAgentType(resolvedAgentId)
+    if (agentType === 'acp') {
+      throw new Error('Conversation history cannot be moved to ACP agents.')
+    }
+    if (agentType !== 'deepchat') {
+      throw new Error(`Target agent not found: ${targetAgentId}`)
+    }
+
+    const currentProject = currentProjectDir?.trim() || null
+    const config = await this.resolveDeepChatAgentConfigCompat(resolvedAgentId)
+    const defaultModel = this.configPresenter.getDefaultModel()
+    const providerId =
+      config?.defaultModelPreset?.providerId?.trim() || defaultModel?.providerId?.trim() || ''
+    const modelId =
+      config?.defaultModelPreset?.modelId?.trim() || defaultModel?.modelId?.trim() || ''
+    if (!providerId || !modelId) {
+      throw new Error('Target DeepChat agent does not have a default model.')
+    }
+    if (providerId.toLowerCase() === 'acp') {
+      throw new Error('Conversation history cannot be moved to ACP agents.')
+    }
+
+    return {
+      agentId: resolvedAgentId,
+      agentType,
+      providerId,
+      modelId,
+      projectDir:
+        currentProject ||
+        config?.defaultProjectPath?.trim() ||
+        this.getDefaultProjectPathCompat() ||
+        null,
+      permissionMode: config?.permissionMode === 'default' ? 'default' : 'full_access',
+      generationSettings: this.mergeDeepChatDefaultGenerationSettings(config),
+      disabledAgentTools: this.normalizeDisabledAgentTools(config?.disabledAgentTools),
+      subagentEnabled: this.resolveSessionSubagentEnabled(
+        agentType,
+        undefined,
+        config?.subagentEnabled
+      )
     }
   }
 

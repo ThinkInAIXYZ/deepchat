@@ -40,5 +40,50 @@
       "functionCall": "Hinweis: Das Aktivieren von Funktionsaufrufen deaktiviert automatisch Reasoning. Dies ist eine Einschränkung des DeepSeek-V3.1-Modells."
     },
     "confirmEnable": "Aktivieren bestätigen"
+  },
+  "agentTransfer": {
+    "deleteTitle": "{name} löschen?",
+    "deleteDescription": "Wähle aus, was mit Unterhaltungen passieren soll, die derzeit zu diesem Agent gehören.",
+    "moveTitle": "Unterhaltung verschieben",
+    "moveDescription": "Verschiebe diese abgeschlossene Unterhaltung zu einem anderen Agent, ohne ihre Nachrichten zu ändern.",
+    "loading": "Zugehörige Unterhaltungen werden geprüft...",
+    "processing": "Verarbeitung...",
+    "totalSessions": "Zugehörig",
+    "movableSessions": "Verschiebbar",
+    "emptyDrafts": "Leere Entwürfe",
+    "blockedSessions": "Blockiert",
+    "moveBeforeDeleteTitle": "Unterhaltungen zu einem anderen Agent verschieben",
+    "moveBeforeDeleteDescription": "Abgeschlossene Unterhaltungen behalten ihre Nachrichten und verwenden künftig den Ziel-Agent. Leere Entwürfe werden entfernt.",
+    "deleteSessionsTitle": "Unterhaltungen mit diesem Agent löschen",
+    "deleteSessionsDescription": "Alle zugehörigen Unterhaltungen und Nachrichten werden zusammen mit dem Agent gelöscht.",
+    "targetAgent": "Ziel-Agent",
+    "selectTarget": "Agent auswählen",
+    "acpWorkdir": "ACP-Arbeitsverzeichnis",
+    "acpWorkdirPlaceholder": "Leer lassen, um das Projekt jeder Unterhaltung beizubehalten",
+    "acpWorkdirHint": "ACP-Agents benötigen ein Arbeitsverzeichnis. Wenn eine Unterhaltung kein Projekt hat, gib hier eines an.",
+    "currentAgent": "Aktueller Agent: {name}",
+    "relatedSessions": "Zugehörige Unterhaltungen",
+    "blockedWarning": "Einige Unterhaltungen laufen noch oder haben Eingaben in der Warteschlange. Beende sie, bevor du diesen Agent verschiebst oder löschst.",
+    "agentDeleteBlocked": "Der Agent hat noch zugehörige Unterhaltungen. Verschiebe oder lösche sie zuerst.",
+    "deleteAgentAndSessions": "Agent und Unterhaltungen löschen",
+    "moveAndDeleteAgent": "Verschieben und Agent löschen",
+    "moveConversation": "Unterhaltung verschieben",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Läuft",
+      "pending-input": "In Warteschlange",
+      "missing-target-workdir": "Arbeitsverzeichnis erforderlich",
+      "missing-session": "Fehlt",
+      "same-agent": "Derselbe Agent"
+    },
+    "sampleState": {
+      "ready": "Bereit",
+      "draft": "Entwurf",
+      "subagent": "Unteragent"
+    },
+    "deepChatTargetOnly": "Nur DeepChat-Agents können als Verschiebeziele ausgewählt werden. ACP-Unterhaltungen können zu DeepChat verschoben werden, aber nicht in ACP."
   }
 }

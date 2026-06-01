@@ -613,6 +613,20 @@
         </div>
       </DialogContent>
     </Dialog>
+
+    <AgentTransferDialog
+      v-model:open="transferDialogOpen"
+      mode="delete-agent"
+      :source-agent-id="pendingDeleteAgent?.id ?? ''"
+      :source-agent-name="pendingDeleteAgent?.name ?? ''"
+      :agents="transferAgents"
+      :impact="transferImpact"
+      :loading="transferDialogLoading"
+      :busy="transferDialogBusy"
+      :error="transferDialogError"
+      @confirm-move="handleDeleteAgentWithMove"
+      @confirm-delete="handleDeleteAgentWithSessions"
+    />
   </div>
 </template>
 
@@ -634,16 +648,19 @@ import { Textarea } from '@shadcn/components/ui/textarea'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
+import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSessionClient } from '@api/SessionClient'
 import { useModelStore } from '@/stores/modelStore'
 import { ModelType } from '@shared/model'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   Agent,
   AgentAvatar as AgentAvatarValue,
+  AgentTransferImpact,
   DeepChatSubagentSlot,
   PermissionMode,
   Project
@@ -741,6 +758,12 @@ const imageGenerationOpen = ref(false)
 const systemPromptDialogOpen = ref(false)
 const loadingSystemPrompts = ref(false)
 const systemPromptTemplates = ref<SystemPrompt[]>([])
+const transferDialogOpen = ref(false)
+const transferDialogLoading = ref(false)
+const transferDialogBusy = ref(false)
+const transferDialogError = ref<string | null>(null)
+const transferImpact = ref<AgentTransferImpact | null>(null)
+const pendingDeleteAgent = ref<{ id: string; name: string } | null>(null)
 
 const form = reactive<FormState>({
   id: null,
@@ -938,6 +961,16 @@ const availableSubagentTargetAgents = computed(() =>
     }
     return left.name.localeCompare(right.name)
   })
+)
+const transferAgents = computed(() =>
+  allAgents.value
+    .filter((agent) => agent.type === 'deepchat')
+    .map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      type: agent.type,
+      enabled: agent.enabled
+    }))
 )
 const subagentTargetOptions = computed<SelectOption[]>(() => [
   {
@@ -1356,13 +1389,69 @@ const saveAgent = async () => {
 }
 const removeAgent = async () => {
   if (!form.id || form.protected) return
-  if (!window.confirm(t('settings.deepchatAgents.deleteConfirm', { name: form.name }))) return
-  deleting.value = true
+  pendingDeleteAgent.value = { id: form.id, name: form.name }
+  transferDialogOpen.value = true
+  transferDialogLoading.value = true
+  transferDialogError.value = null
+  transferImpact.value = null
   try {
-    await configPresenter.deleteDeepChatAgent(form.id)
-    await loadAgents('deepchat')
+    const sessionClient = createSessionClient()
+    const [impact, list] = await Promise.all([
+      sessionClient.getAgentTransferImpact(form.id),
+      configPresenter.listAgents()
+    ])
+    transferImpact.value = impact
+    allAgents.value = list
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogLoading.value = false
+  }
+}
+
+const finishDeleteAgent = async (agentId: string) => {
+  const removed = await configPresenter.deleteDeepChatAgent(agentId)
+  if (!removed) {
+    throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
+  }
+  await loadAgents('deepchat')
+  transferDialogOpen.value = false
+  pendingDeleteAgent.value = null
+}
+
+const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => {
+  const agent = pendingDeleteAgent.value
+  if (!agent) return
+  deleting.value = true
+  transferDialogBusy.value = true
+  transferDialogError.value = null
+  try {
+    const sessionClient = createSessionClient()
+    await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
+    await finishDeleteAgent(agent.id)
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
   } finally {
     deleting.value = false
+    transferDialogBusy.value = false
+  }
+}
+
+const handleDeleteAgentWithSessions = async () => {
+  const agent = pendingDeleteAgent.value
+  if (!agent) return
+  deleting.value = true
+  transferDialogBusy.value = true
+  transferDialogError.value = null
+  try {
+    const sessionClient = createSessionClient()
+    await sessionClient.deleteAgentSessions(agent.id)
+    await finishDeleteAgent(agent.id)
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    deleting.value = false
+    transferDialogBusy.value = false
   }
 }
 

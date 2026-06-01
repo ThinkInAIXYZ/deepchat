@@ -123,6 +123,7 @@ import {
   sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
+  sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
   sessionsDeletePendingInputRoute,
   sessionsDeleteRoute,
@@ -135,6 +136,7 @@ import {
   sessionsGetAcpSessionConfigOptionsRoute,
   sessionsGetActiveRoute,
   sessionsGetAgentsRoute,
+  sessionsGetAgentTransferImpactRoute,
   sessionsGetDisabledAgentToolsRoute,
   sessionsGetLightweightByIdsRoute,
   sessionsGetGenerationSettingsRoute,
@@ -145,7 +147,9 @@ import {
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
+  sessionsMoveAgentSessionsRoute,
   sessionsMoveQueuedInputRoute,
+  sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
   sessionsResumePendingQueueRoute,
@@ -1950,6 +1954,38 @@ export async function dispatchDeepchatRoute(
       const input = sessionsDeleteRoute.input.parse(rawInput)
       await runtime.agentSessionPresenter.deleteSession(input.sessionId)
       return sessionsDeleteRoute.output.parse({ deleted: true })
+    }
+
+    case sessionsGetAgentTransferImpactRoute.name: {
+      const input = sessionsGetAgentTransferImpactRoute.input.parse(rawInput)
+      const impact = await runtime.agentSessionPresenter.getAgentTransferImpact(input.agentId)
+      return sessionsGetAgentTransferImpactRoute.output.parse({ impact })
+    }
+
+    case sessionsMoveAgentSessionsRoute.name: {
+      const input = sessionsMoveAgentSessionsRoute.input.parse(rawInput)
+      const result = await runtime.agentSessionPresenter.moveAgentSessions(
+        input.fromAgentId,
+        input.toAgentId
+      )
+      return sessionsMoveAgentSessionsRoute.output.parse(result)
+    }
+
+    case sessionsDeleteAgentSessionsRoute.name: {
+      const input = sessionsDeleteAgentSessionsRoute.input.parse(rawInput)
+      const deletedSessionIds = await runtime.agentSessionPresenter.deleteAgentSessions(
+        input.agentId
+      )
+      return sessionsDeleteAgentSessionsRoute.output.parse({ deletedSessionIds })
+    }
+
+    case sessionsMoveToAgentRoute.name: {
+      const input = sessionsMoveToAgentRoute.input.parse(rawInput)
+      const session = await runtime.agentSessionPresenter.moveSessionToAgent(
+        input.sessionId,
+        input.toAgentId
+      )
+      return sessionsMoveToAgentRoute.output.parse({ session })
     }
 
     case sessionsGetAcpSessionCommandsRoute.name: {

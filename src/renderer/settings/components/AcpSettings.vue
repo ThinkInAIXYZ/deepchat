@@ -279,7 +279,12 @@
                     <Button size="sm" variant="ghost" @click="openManualDialog(agent)">
                       {{ t('common.edit') }}
                     </Button>
-                    <Button size="sm" variant="ghost" @click="confirmAndDeleteManualAgent(agent)">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="confirmAndDeleteManualAgent(agent)"
+                    >
                       {{ t('common.delete') }}
                     </Button>
                     <Button
@@ -530,45 +535,25 @@
       </DialogContent>
     </Dialog>
 
-    <AlertDialog
-      :open="uninstallDialog.open"
-      @update:open="(value) => handleRegistryUninstallDialogOpenChange(value)"
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {{
-              uninstallDialog.agent
-                ? t('settings.acp.registryUninstallConfirm', {
-                    name: uninstallDialog.agent.name
-                  })
-                : ''
-            }}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.acp.registryUninstallDescription') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel @click="cancelRegistryAgentUninstall">
-            {{ t('common.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAction
-            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            :disabled="!uninstallDialog.agent"
-            @click="confirmRegistryAgentUninstallAction"
-          >
-            {{ t('settings.acp.registryUninstallAction') }}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-
     <AcpDebugDialog
       :open="debugDialog.open"
       :agent-id="debugDialog.agentId"
       :agent-name="debugDialog.agentName"
       @update:open="(value) => (debugDialog.open = value)"
+    />
+
+    <AgentTransferDialog
+      v-model:open="transferDialogOpen"
+      mode="delete-agent"
+      :source-agent-id="pendingDeleteAgent?.id ?? ''"
+      :source-agent-name="pendingDeleteAgent?.name ?? ''"
+      :agents="transferAgents"
+      :impact="transferImpact"
+      :loading="transferDialogLoading"
+      :busy="transferDialogBusy"
+      :error="transferDialogError"
+      @confirm-move="handleDeleteAgentWithMove"
+      @confirm-delete="handleDeleteAgentWithSessions"
     />
   </div>
 </template>
@@ -576,9 +561,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
+import type { AgentTransferImpact } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
 import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSessionClient } from '@api/SessionClient'
 import { CONFIG_EVENTS } from '@/events'
 import { Icon } from '@iconify/vue'
 import {
@@ -597,16 +584,6 @@ import { Textarea } from '@shadcn/components/ui/textarea'
 import { Label } from '@shadcn/components/ui/label'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -615,6 +592,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import AcpDebugDialog from './AcpDebugDialog.vue'
+import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import AgentMcpSelector from '@/components/mcp-config/AgentMcpSelector.vue'
 import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
 
@@ -623,6 +601,11 @@ const { toast } = useToast()
 const configPresenter = useLegacyPresenter('configPresenter')
 
 type RegistryDialogFilter = 'all' | 'installed' | 'not_installed'
+type PendingDeleteAgent = {
+  id: string
+  name: string
+  source: 'manual' | 'registry'
+}
 
 const acpEnabled = ref(false)
 const toggling = ref(false)
@@ -637,6 +620,15 @@ const registryAgents = ref<AcpRegistryAgent[]>([])
 const manualAgents = ref<AcpManualAgent[]>([])
 const envDrafts = reactive<Record<string, string>>({})
 const agentPending = reactive<Record<string, boolean>>({})
+const transferAgents = ref<
+  Array<{ id: string; name: string; type: 'deepchat' | 'acp'; enabled?: boolean }>
+>([])
+const transferDialogOpen = ref(false)
+const transferDialogLoading = ref(false)
+const transferDialogBusy = ref(false)
+const transferDialogError = ref<string | null>(null)
+const transferImpact = ref<AgentTransferImpact | null>(null)
+const pendingDeleteAgent = ref<PendingDeleteAgent | null>(null)
 
 const debugDialog = reactive({
   open: false,
@@ -658,14 +650,6 @@ const registryDialog = reactive({
   open: false,
   search: '',
   filter: 'all' as RegistryDialogFilter
-})
-
-const uninstallDialog = reactive<{
-  open: boolean
-  agent: AcpRegistryAgent | null
-}>({
-  open: false,
-  agent: null
 })
 
 const parseEnvBlock = (value: string): Record<string, string> => {
@@ -922,44 +906,6 @@ const repairRegistryAgent = async (agent: AcpRegistryAgent) => {
   }
 }
 
-const uninstallRegistryAgent = async (agent: AcpRegistryAgent) => {
-  setAgentPending(agent.id, true)
-  try {
-    await configPresenter.uninstallAcpRegistryAgent(agent.id)
-    await loadAcpData()
-    toast({ title: t('settings.acp.deleteSuccess') })
-  } catch (error) {
-    handleError(error, undefined, t('settings.acp.registryUninstallFailed'))
-  } finally {
-    setAgentPending(agent.id, false)
-  }
-}
-
-const handleRegistryUninstallDialogOpenChange = (open: boolean) => {
-  uninstallDialog.open = open
-}
-
-const confirmRegistryAgentUninstall = (agent: AcpRegistryAgent) => {
-  uninstallDialog.agent = agent
-  uninstallDialog.open = true
-}
-
-const cancelRegistryAgentUninstall = () => {
-  uninstallDialog.open = false
-  uninstallDialog.agent = null
-}
-
-const confirmRegistryAgentUninstallAction = async () => {
-  const agent = uninstallDialog.agent
-  if (!agent) {
-    return
-  }
-
-  uninstallDialog.open = false
-  await uninstallRegistryAgent(agent)
-  uninstallDialog.agent = null
-}
-
 const openInspector = (agentId: string, agentName: string) => {
   debugDialog.agentId = agentId
   debugDialog.agentName = agentName
@@ -1024,24 +970,100 @@ const toggleManualAgent = async (agent: AcpManualAgent, enabled: boolean) => {
   }
 }
 
-const deleteManualAgent = async (agent: AcpManualAgent) => {
+const openAgentTransferDialog = async (agent: PendingDeleteAgent) => {
+  pendingDeleteAgent.value = agent
+  transferDialogOpen.value = true
+  transferDialogLoading.value = true
+  transferDialogError.value = null
+  transferImpact.value = null
   try {
-    await configPresenter.removeManualAcpAgent(agent.id)
-    await loadAcpData()
+    const sessionClient = createSessionClient()
+    const [impact, agents] = await Promise.all([
+      sessionClient.getAgentTransferImpact(agent.id),
+      configPresenter.listAgents()
+    ])
+    transferImpact.value = impact
+    transferAgents.value = agents
+      .filter((item) => item.type === 'deepchat')
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        enabled: item.enabled
+      }))
   } catch (error) {
-    handleError(error)
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogLoading.value = false
   }
 }
 
 const confirmAndDeleteManualAgent = async (agent: AcpManualAgent) => {
-  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-    const confirmed = window.confirm(t('settings.acp.customDeleteConfirm', { name: agent.name }))
-    if (!confirmed) {
-      return
+  await openAgentTransferDialog({
+    id: agent.id,
+    name: agent.name,
+    source: 'manual'
+  })
+}
+
+const confirmRegistryAgentUninstall = async (agent: AcpRegistryAgent) => {
+  await openAgentTransferDialog({
+    id: agent.id,
+    name: agent.name,
+    source: 'registry'
+  })
+}
+
+const finishDeleteAgent = async (agent: PendingDeleteAgent) => {
+  if (agent.source === 'registry') {
+    await configPresenter.uninstallAcpRegistryAgent(agent.id)
+    toast({ title: t('settings.acp.deleteSuccess') })
+  } else {
+    const removed = await configPresenter.removeManualAcpAgent(agent.id)
+    if (!removed) {
+      throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
     }
   }
 
-  await deleteManualAgent(agent)
+  await loadAcpData()
+  transferDialogOpen.value = false
+  pendingDeleteAgent.value = null
+}
+
+const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => {
+  const agent = pendingDeleteAgent.value
+  if (!agent) return
+  setAgentPending(agent.id, true)
+  transferDialogBusy.value = true
+  transferDialogError.value = null
+  try {
+    const sessionClient = createSessionClient()
+    await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
+    await finishDeleteAgent(agent)
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogBusy.value = false
+    setAgentPending(agent.id, false)
+  }
+}
+
+const handleDeleteAgentWithSessions = async () => {
+  const agent = pendingDeleteAgent.value
+  if (!agent) return
+  setAgentPending(agent.id, true)
+  transferDialogBusy.value = true
+  transferDialogError.value = null
+  try {
+    const sessionClient = createSessionClient()
+    await sessionClient.deleteAgentSessions(agent.id)
+    await finishDeleteAgent(agent)
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogBusy.value = false
+    setAgentPending(agent.id, false)
+  }
 }
 
 const openRegistryDialog = () => {

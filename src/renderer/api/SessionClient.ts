@@ -13,6 +13,7 @@ import {
   sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
+  sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
   sessionsDeletePendingInputRoute,
   sessionsDeleteRoute,
@@ -25,6 +26,7 @@ import {
   sessionsGetAcpSessionConfigOptionsRoute,
   sessionsGetActiveRoute,
   sessionsGetAgentsRoute,
+  sessionsGetAgentTransferImpactRoute,
   sessionsGetDisabledAgentToolsRoute,
   sessionsGetLightweightByIdsRoute,
   sessionsGetGenerationSettingsRoute,
@@ -35,7 +37,9 @@ import {
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
+  sessionsMoveAgentSessionsRoute,
   sessionsMoveQueuedInputRoute,
+  sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
   sessionsResumePendingQueueRoute,
@@ -274,6 +278,31 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     await bridge.invoke(sessionsDeleteRoute.name, { sessionId })
   }
 
+  async function getAgentTransferImpact(agentId: string) {
+    const result = await bridge.invoke(sessionsGetAgentTransferImpactRoute.name, { agentId })
+    return result.impact
+  }
+
+  async function moveAgentSessions(fromAgentId: string, toAgentId: string) {
+    return await bridge.invoke(sessionsMoveAgentSessionsRoute.name, {
+      fromAgentId,
+      toAgentId
+    })
+  }
+
+  async function deleteAgentSessions(agentId: string) {
+    const result = await bridge.invoke(sessionsDeleteAgentSessionsRoute.name, { agentId })
+    return result.deletedSessionIds
+  }
+
+  async function moveSessionToAgent(sessionId: string, toAgentId: string) {
+    const result = await bridge.invoke(sessionsMoveToAgentRoute.name, {
+      sessionId,
+      toAgentId
+    })
+    return result.session
+  }
+
   async function getAcpSessionCommands(sessionId: string) {
     const result = await bridge.invoke(sessionsGetAcpSessionCommandsRoute.name, { sessionId })
     return result.commands
@@ -466,6 +495,10 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     compactSession,
     exportSession,
     deleteSession,
+    getAgentTransferImpact,
+    moveAgentSessions,
+    deleteAgentSessions,
+    moveSessionToAgent,
     getAcpSessionCommands,
     getAcpSessionConfigOptions,
     setAcpSessionConfigOption,

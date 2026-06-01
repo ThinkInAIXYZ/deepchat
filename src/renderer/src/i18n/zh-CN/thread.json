@@ -5,6 +5,7 @@
     "cleanMessages": "清空消息",
     "pin": "置顶",
     "unpin": "取消置顶",
+    "moveConversation": "移动会话",
     "export": "导出",
     "exportText": "纯文本",
     "exportNowledgeMem": "Nowledge-mem"

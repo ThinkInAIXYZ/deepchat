@@ -7,7 +7,8 @@
     "unpin": "Sabitlemeyi kaldır",
     "export": "İhracat",
     "exportText": "Düz Metin",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Konuşmayı Taşı"
   },
   "export": {
     "failed": "Dışa aktarma başarısız oldu",

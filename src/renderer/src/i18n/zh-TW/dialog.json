@@ -40,5 +40,50 @@
       "functionCall": "注意：開啟函數調用將自動關閉推理能力，這是 DeepSeek-V3.1 模型的限制要求。"
     },
     "confirmEnable": "確認開啟"
+  },
+  "agentTransfer": {
+    "deleteTitle": "刪除 {name}？",
+    "deleteDescription": "請選擇目前歸屬這個 Agent 的會話要如何處理。",
+    "moveTitle": "移動會話",
+    "moveDescription": "將這個已完成會話移動到其他 Agent，訊息內容保持不變。",
+    "loading": "正在檢查相關會話...",
+    "processing": "處理中...",
+    "totalSessions": "相關會話",
+    "movableSessions": "可移動",
+    "emptyDrafts": "空白草稿",
+    "blockedSessions": "暫不可移動",
+    "moveBeforeDeleteTitle": "先把會話移動到其他 Agent",
+    "moveBeforeDeleteDescription": "已完成會話會保留訊息，後續對話使用目標 Agent。空白草稿會被移除。",
+    "deleteSessionsTitle": "連同這個 Agent 的會話一起刪除",
+    "deleteSessionsDescription": "所有相關會話和訊息都會隨 Agent 一起刪除。",
+    "targetAgent": "目標 Agent",
+    "selectTarget": "選擇一個 Agent",
+    "acpWorkdir": "ACP 工作目錄",
+    "acpWorkdirPlaceholder": "留空則保留每個會話目前專案",
+    "acpWorkdirHint": "ACP Agent 需要工作目錄。如果會話沒有專案，請在這裡填寫一個。",
+    "currentAgent": "目前 Agent：{name}",
+    "relatedSessions": "相關會話",
+    "blockedWarning": "部分會話仍在執行或有排隊輸入，請結束後再移動或刪除這個 Agent。",
+    "agentDeleteBlocked": "這個 Agent 仍有關聯會話，請先移動或刪除這些會話。",
+    "deleteAgentAndSessions": "刪除 Agent 和會話",
+    "moveAndDeleteAgent": "移動並刪除 Agent",
+    "moveConversation": "移動會話",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "執行中",
+      "pending-input": "有排隊",
+      "missing-target-workdir": "需工作目錄",
+      "missing-session": "已缺失",
+      "same-agent": "同一 Agent"
+    },
+    "sampleState": {
+      "ready": "可移動",
+      "draft": "草稿",
+      "subagent": "子會話"
+    },
+    "deepChatTargetOnly": "只能選擇 DeepChat Agent 作為遷移目標。ACP 會話可以遷移到 DeepChat，但不能遷移到 ACP。"
   }
 }

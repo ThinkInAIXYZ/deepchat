@@ -135,6 +135,9 @@ describe('AgentRepository', () => {
             row.state_json = input.stateJson
           }
         }
+      },
+      newSessionsTable: {
+        list: () => []
       }
     }
 
@@ -163,5 +166,56 @@ describe('AgentRepository', () => {
         error: null
       }
     })
+  })
+
+  it('refuses to clear registry ACP installation while sessions remain', () => {
+    const row = {
+      id: 'codex-acp',
+      agent_type: 'acp' as const,
+      source: 'registry' as const,
+      name: 'Codex CLI',
+      enabled: 1,
+      protected: 0,
+      description: null,
+      icon: null,
+      avatar_json: null,
+      config_json: '{}',
+      state_json: JSON.stringify({
+        installState: {
+          status: 'installed',
+          version: '0.10.0',
+          installDir: 'C:\\temp\\codex-acp'
+        }
+      }),
+      created_at: Date.now(),
+      updated_at: Date.now()
+    }
+    let updateCalled = false
+
+    const sqlitePresenter = {
+      agentsTable: {
+        get: (id: string) => (id === row.id ? row : undefined),
+        update: () => {
+          updateCalled = true
+        }
+      },
+      newSessionsTable: {
+        list: () => [{ id: 'session-1' }]
+      }
+    }
+
+    const repository = new AgentRepository(sqlitePresenter as never)
+    const updated = repository.clearRegistryAcpAgentInstallation('codex-acp', {
+      status: 'not_installed',
+      version: '0.10.0',
+      distributionType: 'binary',
+      installDir: null,
+      installedAt: null,
+      error: null
+    })
+
+    expect(updated).toBe(false)
+    expect(row.enabled).toBe(1)
+    expect(updateCalled).toBe(false)
   })
 })

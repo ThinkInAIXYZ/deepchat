@@ -40,5 +40,50 @@
       "functionCall": "Uwaga: włączenie wywoływania funkcji automatycznie wyłączy wnioskowanie, co jest wymogiem modeli DeepSeek-V3.1."
     },
     "confirmEnable": "Potwierdź opcję Włącz"
+  },
+  "agentTransfer": {
+    "deleteTitle": "Usunąć {name}?",
+    "deleteDescription": "Wybierz, co ma się stać z rozmowami, które obecnie należą do tego agenta.",
+    "moveTitle": "Przenieś rozmowę",
+    "moveDescription": "Przenieś tę zakończoną rozmowę do innego agenta bez zmieniania jej wiadomości.",
+    "loading": "Sprawdzanie powiązanych rozmów...",
+    "processing": "Przetwarzanie...",
+    "totalSessions": "Powiązane",
+    "movableSessions": "Można przenieść",
+    "emptyDrafts": "Puste wersje robocze",
+    "blockedSessions": "Zablokowane",
+    "moveBeforeDeleteTitle": "Przenieś rozmowy do innego agenta",
+    "moveBeforeDeleteDescription": "Zakończone rozmowy zachowają wiadomości i w przyszłości będą używać agenta docelowego. Puste wersje robocze zostaną usunięte.",
+    "deleteSessionsTitle": "Usuń rozmowy z tym agentem",
+    "deleteSessionsDescription": "Wszystkie powiązane rozmowy i wiadomości zostaną usunięte razem z agentem.",
+    "targetAgent": "Agent docelowy",
+    "selectTarget": "Wybierz agenta",
+    "acpWorkdir": "Katalog roboczy ACP",
+    "acpWorkdirPlaceholder": "Pozostaw puste, aby zachować projekt każdej rozmowy",
+    "acpWorkdirHint": "Agenci ACP wymagają katalogu roboczego. Jeśli rozmowa nie ma projektu, podaj go tutaj.",
+    "currentAgent": "Bieżący agent: {name}",
+    "relatedSessions": "Powiązane rozmowy",
+    "blockedWarning": "Niektóre rozmowy nadal działają lub mają dane wejściowe w kolejce. Zakończ je przed przeniesieniem lub usunięciem tego agenta.",
+    "agentDeleteBlocked": "Ten agent nadal ma powiązane rozmowy. Najpierw je przenieś lub usuń.",
+    "deleteAgentAndSessions": "Usuń agenta i rozmowy",
+    "moveAndDeleteAgent": "Przenieś i usuń agenta",
+    "moveConversation": "Przenieś rozmowę",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Działa",
+      "pending-input": "W kolejce",
+      "missing-target-workdir": "Wymaga katalogu roboczego",
+      "missing-session": "Brak",
+      "same-agent": "Ten sam agent"
+    },
+    "sampleState": {
+      "ready": "Gotowe",
+      "draft": "Wersja robocza",
+      "subagent": "Podagent"
+    },
+    "deepChatTargetOnly": "Jako cele przenoszenia można wybrać tylko agentów DeepChat. Rozmowy ACP można przenieść do DeepChat, ale nie do ACP."
   }
 }

@@ -767,6 +767,21 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  async function moveSessionToAgent(sessionId: string, toAgentId: string): Promise<void> {
+    error.value = null
+    try {
+      const updated = await sessionClient.moveSessionToAgent(sessionId, toAgentId)
+      upsertSessions([mapToUISession(updated)])
+      if (activeSessionId.value === sessionId) {
+        applyRestoredSession(updated)
+        syncSelectedAgentToSession(sessionId)
+      }
+    } catch (updateError) {
+      error.value = `Failed to move session: ${updateError}`
+      throw updateError
+    }
+  }
+
   async function renameSession(sessionId: string, title: string): Promise<void> {
     error.value = null
     try {
@@ -971,6 +986,7 @@ export const useSessionStore = defineStore('session', () => {
     deleteSession,
     setSessionSubagentEnabled,
     setSessionProjectDir,
+    moveSessionToAgent,
     toggleGroupMode,
     getPinnedSessions,
     getFilteredGroups

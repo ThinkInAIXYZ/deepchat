@@ -5,6 +5,7 @@
     "cleanMessages": "Clear Messages",
     "pin": "Pin",
     "unpin": "Unpin",
+    "moveConversation": "Move Conversation",
     "export": "Export",
     "exportText": "Plain Text",
     "exportNowledgeMem": "Nowledge-mem"

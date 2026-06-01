@@ -7,7 +7,8 @@
     "unpin": "Lepas sematan",
     "export": "Ekspor",
     "exportText": "teks biasa",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Pindahkan Percakapan"
   },
   "export": {
     "failed": "Ekspor gagal",

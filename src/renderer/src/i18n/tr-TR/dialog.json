@@ -40,5 +40,50 @@
       "functionCall": "Not: İşlev çağrısının etkinleştirilmesi, DeepSeek-V3.1 modellerinin bir gereği olan akıl yürütmeyi otomatik olarak devre dışı bırakacaktır."
     },
     "confirmEnable": "Etkinleştirmeyi Onayla"
+  },
+  "agentTransfer": {
+    "deleteTitle": "{name} silinsin mi?",
+    "deleteDescription": "Şu anda bu ajana ait konuşmalara ne yapılacağını seçin.",
+    "moveTitle": "Konuşmayı Taşı",
+    "moveDescription": "Bu tamamlanmış konuşmayı mesajlarını değiştirmeden başka bir ajana taşıyın.",
+    "loading": "İlgili konuşmalar kontrol ediliyor...",
+    "processing": "İşleniyor...",
+    "totalSessions": "İlgili",
+    "movableSessions": "Taşınabilir",
+    "emptyDrafts": "Boş taslaklar",
+    "blockedSessions": "Engelli",
+    "moveBeforeDeleteTitle": "Konuşmaları başka bir ajana taşı",
+    "moveBeforeDeleteDescription": "Tamamlanmış konuşmalar mesajlarını korur ve sonraki yanıtlar için hedef ajanı kullanır. Boş taslaklar kaldırılır.",
+    "deleteSessionsTitle": "Bu ajanla olan konuşmaları sil",
+    "deleteSessionsDescription": "Tüm ilgili konuşmalar ve mesajlar ajanla birlikte silinir.",
+    "targetAgent": "Hedef ajan",
+    "selectTarget": "Bir ajan seç",
+    "acpWorkdir": "ACP çalışma dizini",
+    "acpWorkdirPlaceholder": "Her konuşmanın projesini korumak için boş bırakın",
+    "acpWorkdirHint": "ACP ajanları bir çalışma dizini gerektirir. Bir konuşmanın projesi yoksa burada belirtin.",
+    "currentAgent": "Geçerli ajan: {name}",
+    "relatedSessions": "İlgili konuşmalar",
+    "blockedWarning": "Bazı konuşmalar hâlâ çalışıyor veya kuyrukta girdi var. Bu ajanı taşımadan veya silmeden önce bunları bitirin.",
+    "agentDeleteBlocked": "Ajanın hâlâ ilgili konuşmaları var. Önce bunları taşıyın veya silin.",
+    "deleteAgentAndSessions": "Ajanı ve Konuşmaları Sil",
+    "moveAndDeleteAgent": "Taşı ve Ajanı Sil",
+    "moveConversation": "Konuşmayı Taşı",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Çalışıyor",
+      "pending-input": "Kuyrukta",
+      "missing-target-workdir": "Çalışma dizini gerekiyor",
+      "missing-session": "Eksik",
+      "same-agent": "Aynı ajan"
+    },
+    "sampleState": {
+      "ready": "Hazır",
+      "draft": "Taslak",
+      "subagent": "Alt ajan"
+    },
+    "deepChatTargetOnly": "Taşıma hedefi olarak yalnızca DeepChat ajanları seçilebilir. ACP konuşmaları DeepChat’e taşınabilir, ancak ACP’ye taşınamaz."
   }
 }

@@ -84,6 +84,7 @@ function createMockDeepChatAgent() {
     }),
     getMessageIds: vi.fn().mockResolvedValue([]),
     getMessage: vi.fn().mockResolvedValue(null),
+    setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
     setSessionModel: vi.fn().mockResolvedValue(undefined),
     setSessionProjectDir: vi.fn().mockResolvedValue(undefined),
     getGenerationSettings: vi.fn().mockResolvedValue({
@@ -249,6 +250,7 @@ function createMockSqlitePresenter() {
       }),
       getDisabledAgentTools: vi.fn().mockReturnValue([]),
       updateDisabledAgentTools: vi.fn(),
+      updateAgentId: vi.fn(),
       update: vi.fn(),
       delete: vi.fn()
     },
@@ -1916,6 +1918,495 @@ describe('AgentSessionPresenter', () => {
         'ACP session model is locked.'
       )
       expect(deepChatAgent.setSessionModel).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('agent session transfer', () => {
+    it('reports movable sessions and empty drafts before deleting an agent', async () => {
+      const rows = [
+        {
+          id: 's-ready',
+          agent_id: 'deepchat-writer',
+          title: 'Ready',
+          project_dir: '/repo',
+          is_pinned: 0,
+          is_draft: 0,
+          session_kind: 'regular',
+          parent_session_id: null,
+          subagent_enabled: 0,
+          subagent_meta_json: null,
+          created_at: 1000,
+          updated_at: 1000
+        },
+        {
+          id: 's-draft',
+          agent_id: 'deepchat-writer',
+          title: 'Draft',
+          project_dir: null,
+          is_pinned: 0,
+          is_draft: 1,
+          session_kind: 'regular',
+          parent_session_id: null,
+          subagent_enabled: 0,
+          subagent_meta_json: null,
+          created_at: 1000,
+          updated_at: 1000
+        }
+      ]
+      sqlitePresenter.newSessionsTable.list.mockImplementation((filters: any) =>
+        filters?.parentSessionId ? [] : rows
+      )
+      configPresenter.getAgentType.mockResolvedValue('deepchat')
+      deepChatAgent.getMessageIds.mockImplementation(async (sessionId: string) =>
+        sessionId === 's-ready' ? ['m1'] : []
+      )
+
+      const impact = await presenter.getAgentTransferImpact('deepchat-writer')
+
+      expect(impact.totalSessions).toBe(2)
+      expect(impact.movableSessions).toBe(1)
+      expect(impact.emptyDrafts).toBe(1)
+      expect(impact.blockedSessions).toBe(0)
+      expect(impact.samples.map((sample) => sample.id)).toEqual(['s-ready'])
+    })
+
+    it('rejects blank agent ids for destructive agent-session deletion', async () => {
+      await expect(presenter.deleteAgentSessions('   ')).rejects.toThrow('Agent id is required.')
+      expect(sqlitePresenter.newSessionsTable.list).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
+    })
+
+    it('moves a completed conversation to the target agent context', async () => {
+      const row = {
+        id: 's1',
+        agent_id: 'deepchat-writer',
+        title: 'Test',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 1,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's1' ? row : undefined
+      )
+      sqlitePresenter.newSessionsTable.updateAgentId.mockImplementation(
+        (_: string, agentId: string) => {
+          row.agent_id = agentId
+        }
+      )
+      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
+        if (fields.project_dir !== undefined) {
+          row.project_dir = fields.project_dir
+        }
+        if (fields.subagent_enabled !== undefined) {
+          row.subagent_enabled = fields.subagent_enabled
+        }
+      })
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
+          return 'deepchat'
+        }
+        return null
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        permissionMode: 'default',
+        disabledAgentTools: ['agent_filesystem_read_file'],
+        subagentEnabled: false
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet',
+        permissionMode: 'default'
+      })
+
+      const updated = await presenter.moveSessionToAgent('s1', 'deepchat-coder')
+
+      expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          agentId: 'deepchat-coder',
+          providerId: 'anthropic',
+          modelId: 'claude-3-5-sonnet',
+          projectDir: '/repo',
+          permissionMode: 'default'
+        })
+      )
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).toHaveBeenCalledWith(
+        's1',
+        'deepchat-coder'
+      )
+      expect(sqlitePresenter.newSessionsTable.updateDisabledAgentTools).toHaveBeenCalledWith('s1', [
+        'agent_filesystem_read_file'
+      ])
+      expect(updated.agentId).toBe('deepchat-coder')
+      expect(updated.providerId).toBe('anthropic')
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+    })
+
+    it('moves an ACP conversation to a DeepChat agent and clears the ACP binding', async () => {
+      const row = {
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP session',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's-acp' ? row : undefined
+      )
+      sqlitePresenter.newSessionsTable.updateAgentId.mockImplementation(
+        (_: string, agentId: string) => {
+          row.agent_id = agentId
+        }
+      )
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'acp-coder') {
+          return 'acp'
+        }
+        if (agentId === 'deepchat-coder') {
+          return 'deepchat'
+        }
+        return null
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        permissionMode: 'full_access',
+        disabledAgentTools: [],
+        subagentEnabled: true
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.getSessionState.mockImplementation(async () => {
+        if (row.agent_id === 'deepchat-coder') {
+          return {
+            status: 'idle',
+            providerId: 'openai',
+            modelId: 'gpt-4.1',
+            permissionMode: 'full_access'
+          }
+        }
+        return {
+          status: 'idle',
+          providerId: 'acp',
+          modelId: 'acp-coder',
+          permissionMode: 'full_access'
+        }
+      })
+
+      const updated = await presenter.moveSessionToAgent('s-acp', 'deepchat-coder')
+
+      expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalledWith(
+        's-acp',
+        expect.objectContaining({
+          agentId: 'deepchat-coder',
+          providerId: 'openai',
+          modelId: 'gpt-4.1',
+          projectDir: '/repo',
+          permissionMode: 'full_access'
+        })
+      )
+      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('s-acp')
+      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeGreaterThan(
+        deepChatAgent.setSessionAgentContext.mock.invocationCallOrder[0]
+      )
+      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeGreaterThan(
+        sqlitePresenter.newSessionsTable.updateAgentId.mock.invocationCallOrder[0]
+      )
+      expect(updated.agentId).toBe('deepchat-coder')
+      expect(updated.providerId).toBe('openai')
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+    })
+
+    it('keeps the ACP binding when target ownership update fails', async () => {
+      const row = {
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP session',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's-acp' ? row : undefined
+      )
+      sqlitePresenter.newSessionsTable.updateAgentId.mockImplementation(() => {
+        throw new Error('ownership update failed')
+      })
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'acp-coder') {
+          return 'acp'
+        }
+        if (agentId === 'deepchat-coder') {
+          return 'deepchat'
+        }
+        return null
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        permissionMode: 'full_access',
+        disabledAgentTools: [],
+        subagentEnabled: true
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      await expect(presenter.moveSessionToAgent('s-acp', 'deepchat-coder')).rejects.toThrow(
+        'ownership update failed'
+      )
+
+      expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+    })
+
+    it('reports partial batch transfer failures after earlier sessions move', async () => {
+      const rows = new Map<string, any>([
+        [
+          's-ready-1',
+          {
+            id: 's-ready-1',
+            agent_id: 'deepchat-writer',
+            title: 'Ready 1',
+            project_dir: '/repo',
+            is_pinned: 0,
+            is_draft: 0,
+            session_kind: 'regular',
+            parent_session_id: null,
+            subagent_enabled: 1,
+            subagent_meta_json: null,
+            created_at: 1000,
+            updated_at: 1000
+          }
+        ],
+        [
+          's-ready-2',
+          {
+            id: 's-ready-2',
+            agent_id: 'deepchat-writer',
+            title: 'Ready 2',
+            project_dir: '/repo',
+            is_pinned: 0,
+            is_draft: 0,
+            session_kind: 'regular',
+            parent_session_id: null,
+            subagent_enabled: 1,
+            subagent_meta_json: null,
+            created_at: 1000,
+            updated_at: 1000
+          }
+        ]
+      ])
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => rows.get(id))
+      sqlitePresenter.newSessionsTable.list.mockImplementation((filters: any) => {
+        if (filters?.parentSessionId) {
+          return []
+        }
+        return Array.from(rows.values()).filter(
+          (row) => !filters?.agentId || row.agent_id === filters.agentId
+        )
+      })
+      sqlitePresenter.newSessionsTable.updateAgentId.mockImplementation(
+        (id: string, agentId: string) => {
+          if (id === 's-ready-2') {
+            throw new Error('ownership update failed')
+          }
+          const row = rows.get(id)
+          row.agent_id = agentId
+        }
+      )
+      sqlitePresenter.newSessionsTable.update.mockImplementation((id: string, fields: any) => {
+        const row = rows.get(id)
+        if (fields.project_dir !== undefined) {
+          row.project_dir = fields.project_dir
+        }
+        if (fields.subagent_enabled !== undefined) {
+          row.subagent_enabled = fields.subagent_enabled
+        }
+      })
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
+          return 'deepchat'
+        }
+        return null
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        permissionMode: 'full_access',
+        disabledAgentTools: [],
+        subagentEnabled: true
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+        permissionMode: 'full_access'
+      })
+
+      await expect(
+        presenter.moveAgentSessions('deepchat-writer', 'deepchat-coder')
+      ).rejects.toThrow('Partial transfer completed: 1 moved.')
+
+      expect(rows.get('s-ready-1').agent_id).toBe('deepchat-coder')
+      expect(rows.get('s-ready-2').agent_id).toBe('deepchat-writer')
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+    })
+
+    it('rejects moving a DeepChat conversation to an ACP target', async () => {
+      const row = {
+        id: 's-deepchat',
+        agent_id: 'deepchat-writer',
+        title: 'DeepChat session',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's-deepchat' ? row : undefined
+      )
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'deepchat-writer') {
+          return 'deepchat'
+        }
+        if (agentId === 'acp-coder') {
+          return 'acp'
+        }
+        return null
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+
+      await expect(presenter.moveSessionToAgent('s-deepchat', 'acp-coder')).rejects.toThrow(
+        'Conversation history cannot be moved to ACP agents.'
+      )
+      expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+    })
+
+    it('rejects ACP targets for batch agent transfers before mutating sessions', async () => {
+      sqlitePresenter.newSessionsTable.list.mockReturnValue([])
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'deepchat-writer') {
+          return 'deepchat'
+        }
+        if (agentId === 'acp-coder') {
+          return 'acp'
+        }
+        return null
+      })
+
+      await expect(presenter.moveAgentSessions('deepchat-writer', 'acp-coder')).rejects.toThrow(
+        'Conversation history cannot be moved to ACP agents.'
+      )
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
+    })
+
+    it('rejects DeepChat targets whose default provider is ACP', async () => {
+      const row = {
+        id: 's-deepchat',
+        agent_id: 'deepchat-writer',
+        title: 'DeepChat session',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's-deepchat' ? row : undefined
+      )
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
+        if (agentId === 'deepchat-writer' || agentId === 'deepchat-acp-default') {
+          return 'deepchat'
+        }
+        return null
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: { providerId: 'acp', modelId: 'acp-coder' },
+        permissionMode: 'full_access',
+        disabledAgentTools: [],
+        subagentEnabled: false
+      })
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+
+      await expect(
+        presenter.moveSessionToAgent('s-deepchat', 'deepchat-acp-default')
+      ).rejects.toThrow('Conversation history cannot be moved to ACP agents.')
+      expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+    })
+
+    it('rejects moving an ACP conversation to another ACP target', async () => {
+      const row = {
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP session',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's-acp' ? row : undefined
+      )
+      configPresenter.getAgentType.mockImplementation(async (agentId: string) =>
+        agentId === 'acp-coder' || agentId === 'acp-reviewer' ? 'acp' : null
+      )
+      deepChatAgent.getMessageIds.mockResolvedValue(['m1'])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      await expect(presenter.moveSessionToAgent('s-acp', 'acp-reviewer')).rejects.toThrow(
+        'Conversation history cannot be moved to ACP agents.'
+      )
+      expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
     })
   })
 

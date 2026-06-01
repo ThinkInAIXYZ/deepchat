@@ -40,5 +40,50 @@
       "functionCall": "注意：関数呼び出し機能を有効にすると推論機能が自動的に無効になります。これはDeepSeek-V3.1モデルの制限要件です。"
     },
     "confirmEnable": "有効化を確認"
+  },
+  "agentTransfer": {
+    "deleteTitle": "{name} を削除しますか？",
+    "deleteDescription": "現在このエージェントに属している会話をどう扱うか選択してください。",
+    "moveTitle": "会話を移動",
+    "moveDescription": "完了したこの会話を、メッセージを変更せずに別のエージェントへ移動します。",
+    "loading": "関連する会話を確認しています...",
+    "processing": "処理中...",
+    "totalSessions": "関連",
+    "movableSessions": "移動可能",
+    "emptyDrafts": "空の下書き",
+    "blockedSessions": "ブロック中",
+    "moveBeforeDeleteTitle": "会話を別のエージェントへ移動",
+    "moveBeforeDeleteDescription": "完了した会話はメッセージを保持し、以後の応答では移動先エージェントを使用します。空の下書きは削除されます。",
+    "deleteSessionsTitle": "このエージェントの会話を削除",
+    "deleteSessionsDescription": "関連するすべての会話とメッセージがエージェントと一緒に削除されます。",
+    "targetAgent": "移動先エージェント",
+    "selectTarget": "エージェントを選択",
+    "acpWorkdir": "ACP 作業ディレクトリ",
+    "acpWorkdirPlaceholder": "空欄のままにすると各会話のプロジェクトを保持します",
+    "acpWorkdirHint": "ACP エージェントには作業ディレクトリが必要です。会話にプロジェクトがない場合は、ここで指定してください。",
+    "currentAgent": "現在のエージェント: {name}",
+    "relatedSessions": "関連する会話",
+    "blockedWarning": "一部の会話はまだ実行中、または入力がキューにあります。このエージェントを移動または削除する前に完了してください。",
+    "agentDeleteBlocked": "このエージェントにはまだ関連する会話があります。先に移動または削除してください。",
+    "deleteAgentAndSessions": "エージェントと会話を削除",
+    "moveAndDeleteAgent": "移動してエージェントを削除",
+    "moveConversation": "会話を移動",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "実行中",
+      "pending-input": "キューあり",
+      "missing-target-workdir": "作業ディレクトリが必要",
+      "missing-session": "見つかりません",
+      "same-agent": "同じエージェント"
+    },
+    "sampleState": {
+      "ready": "準備完了",
+      "draft": "下書き",
+      "subagent": "サブエージェント"
+    },
+    "deepChatTargetOnly": "移動先として選択できるのは DeepChat エージェントのみです。ACP の会話は DeepChat へ移動できますが、ACP へは移動できません。"
   }
 }

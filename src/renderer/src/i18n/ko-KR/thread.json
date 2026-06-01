@@ -7,7 +7,8 @@
     "unpin": "고정 해제",
     "export": "내보내다",
     "exportText": "일반 텍스트",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "대화 이동"
   },
   "toolbar": {
     "save": "저장",

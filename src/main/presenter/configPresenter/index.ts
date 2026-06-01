@@ -2341,7 +2341,14 @@ export class ConfigPresenter implements IConfigPresenter {
   async uninstallAcpRegistryAgent(agentId: string): Promise<void> {
     const resolvedId = resolveAcpAgentAlias(agentId)
     const registryAgent = this.getRegistryAgentOrThrow(resolvedId)
-    const currentState = this.getAgentRepositoryOrThrow().getAgentInstallState(registryAgent.id)
+    const agentRepository = this.getAgentRepositoryOrThrow()
+    if (agentRepository.hasAgentSessions(registryAgent.id)) {
+      throw new Error(
+        'ACP registry agent still has related conversations. Move or delete them first.'
+      )
+    }
+
+    const currentState = agentRepository.getAgentInstallState(registryAgent.id)
 
     await this.acpLaunchSpecService.uninstallRegistryAgent(registryAgent, currentState)
 
@@ -2356,12 +2363,14 @@ export class ConfigPresenter implements IConfigPresenter {
       error: null
     }
 
-    const updated = this.getAgentRepositoryOrThrow().clearRegistryAcpAgentInstallation(
+    const updated = agentRepository.clearRegistryAcpAgentInstallation(
       registryAgent.id,
       uninstalledState
     )
     if (!updated) {
-      throw new Error(`ACP registry agent not found: ${registryAgent.id}`)
+      throw new Error(
+        `ACP registry agent not found or still has related conversations: ${registryAgent.id}`
+      )
     }
 
     this.handleAcpAgentsMutated([registryAgent.id])

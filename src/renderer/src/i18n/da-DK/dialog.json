@@ -40,5 +40,50 @@
     "description": "Indtast venligst det nye samtalenavn.",
     "title": "Omdøb sessionen"
   },
-  "cancel": "Ophæve"
+  "cancel": "Annuller",
+  "agentTransfer": {
+    "deleteTitle": "Slet {name}?",
+    "deleteDescription": "Vælg, hvad der skal ske med samtaler, der i øjeblikket tilhører denne agent.",
+    "moveTitle": "Flyt samtale",
+    "moveDescription": "Flyt denne afsluttede samtale til en anden agent uden at ændre dens beskeder.",
+    "loading": "Kontrollerer relaterede samtaler...",
+    "processing": "Behandler...",
+    "totalSessions": "Relaterede",
+    "movableSessions": "Kan flyttes",
+    "emptyDrafts": "Tomme kladder",
+    "blockedSessions": "Blokerede",
+    "moveBeforeDeleteTitle": "Flyt samtaler til en anden agent",
+    "moveBeforeDeleteDescription": "Afsluttede samtaler beholder deres beskeder og bruger målagenten til fremtidige svar. Tomme kladder fjernes.",
+    "deleteSessionsTitle": "Slet samtaler med denne agent",
+    "deleteSessionsDescription": "Alle relaterede samtaler og beskeder slettes sammen med agenten.",
+    "targetAgent": "Målagent",
+    "selectTarget": "Vælg en agent",
+    "acpWorkdir": "ACP-arbejdsmappe",
+    "acpWorkdirPlaceholder": "Lad stå tomt for at beholde hver samtales projekt",
+    "acpWorkdirHint": "ACP-agenter kræver en arbejdsmappe. Hvis en samtale ikke har et projekt, kan du angive en her.",
+    "currentAgent": "Nuværende agent: {name}",
+    "relatedSessions": "Relaterede samtaler",
+    "blockedWarning": "Nogle samtaler kører stadig eller har input i kø. Afslut dem, før du flytter eller sletter denne agent.",
+    "agentDeleteBlocked": "Agenten har stadig relaterede samtaler. Flyt eller slet dem først.",
+    "deleteAgentAndSessions": "Slet agent og samtaler",
+    "moveAndDeleteAgent": "Flyt og slet agent",
+    "moveConversation": "Flyt samtale",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Kører",
+      "pending-input": "I kø",
+      "missing-target-workdir": "Kræver arbejdsmappe",
+      "missing-session": "Mangler",
+      "same-agent": "Samme agent"
+    },
+    "sampleState": {
+      "ready": "Klar",
+      "draft": "Kladde",
+      "subagent": "Underagent"
+    },
+    "deepChatTargetOnly": "Kun DeepChat-agenter kan vælges som overførselsmål. ACP-samtaler kan flyttes til DeepChat, men ikke ind i ACP."
+  }
 }
