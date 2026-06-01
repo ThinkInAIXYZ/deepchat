@@ -327,6 +327,10 @@
     "allAgents": "Tất cả Agents",
     "expandSidebar": "Mở rộng thanh bên",
     "collapseSidebar": "Thu gọn thanh bên",
+    "themeToggle": "Đổi giao diện",
+    "themeLight": "Sáng",
+    "themeDark": "Tối",
+    "themeSystem": "Hệ thống",
     "remoteControlDisabled": "Đã tắt",
     "remoteControlStatus": {
       "disabled": "Điều khiển từ xa bị vô hiệu hóa",

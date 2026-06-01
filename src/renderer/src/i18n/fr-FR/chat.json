@@ -311,6 +311,10 @@
     "allAgents": "Tous les agents",
     "expandSidebar": "Développer la barre latérale",
     "collapseSidebar": "Réduire la barre latérale",
+    "themeToggle": "Changer de thème",
+    "themeLight": "Clair",
+    "themeDark": "Sombre",
+    "themeSystem": "Système",
     "remoteControlStatus": {
       "disabled": "Contrôle à distance désactivé",
       "stopped": "Contrôle à distance arrêté",

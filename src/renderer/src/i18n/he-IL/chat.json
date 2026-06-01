@@ -311,6 +311,10 @@
     "allAgents": "כל הסוכנים",
     "expandSidebar": "הרחב את הסרגל הצדדי",
     "collapseSidebar": "כווץ את הסרגל הצדדי",
+    "themeToggle": "החלפת ערכת נושא",
+    "themeLight": "בהיר",
+    "themeDark": "כהה",
+    "themeSystem": "מערכת",
     "remoteControlStatus": {
       "disabled": "בקרה מרחוק מושבתת",
       "stopped": "בקרה מרחוק נעצרה",

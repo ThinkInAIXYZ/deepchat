@@ -327,6 +327,10 @@
     "allAgents": "Hepsi Agent",
     "expandSidebar": "Kenar çubuğunu genişlet",
     "collapseSidebar": "Kenar çubuğunu daralt",
+    "themeToggle": "Temayı değiştir",
+    "themeLight": "Açık",
+    "themeDark": "Koyu",
+    "themeSystem": "Sistem",
     "remoteControlDisabled": "Engelli",
     "remoteControlStatus": {
       "disabled": "Uzaktan kumanda devre dışı",

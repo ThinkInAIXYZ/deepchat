@@ -311,6 +311,10 @@
     "allAgents": "所有 Agents",
     "expandSidebar": "展開側邊欄",
     "collapseSidebar": "收起側邊欄",
+    "themeToggle": "切換主題",
+    "themeLight": "淺色",
+    "themeDark": "深色",
+    "themeSystem": "跟隨系統",
     "remoteControlStatus": {
       "disabled": "遠程控制已停用",
       "stopped": "遠程控制已停止",

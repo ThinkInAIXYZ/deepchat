@@ -311,6 +311,10 @@
     "allAgents": "Все агенты",
     "expandSidebar": "Развернуть боковую панель",
     "collapseSidebar": "Свернуть боковую панель",
+    "themeToggle": "Сменить тему",
+    "themeLight": "Светлая",
+    "themeDark": "Тёмная",
+    "themeSystem": "Системная",
     "remoteControlStatus": {
       "disabled": "Удалённое управление отключено",
       "stopped": "Удалённое управление остановлено",

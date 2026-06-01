@@ -311,6 +311,10 @@
     "allAgents": "Todos os agentes",
     "expandSidebar": "Expandir barra lateral",
     "collapseSidebar": "Recolher barra lateral",
+    "themeToggle": "Alternar tema",
+    "themeLight": "Claro",
+    "themeDark": "Escuro",
+    "themeSystem": "Sistema",
     "remoteControlStatus": {
       "disabled": "Controle remoto desativado",
       "stopped": "Controle remoto parado",

@@ -311,6 +311,10 @@
     "allAgents": "Alle agenter",
     "expandSidebar": "Udvid sidepanelet",
     "collapseSidebar": "Skjul sidepanelet",
+    "themeToggle": "Skift tema",
+    "themeLight": "Lys",
+    "themeDark": "Mørk",
+    "themeSystem": "System",
     "remoteControlStatus": {
       "disabled": "Fjernstyring er deaktiveret",
       "stopped": "Fjernstyring er stoppet",

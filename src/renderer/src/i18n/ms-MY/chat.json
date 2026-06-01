@@ -327,6 +327,10 @@
     "allAgents": "Semua Agents",
     "expandSidebar": "Kembangkan bar sisi",
     "collapseSidebar": "Runtuhkan bar sisi",
+    "themeToggle": "Tukar tema",
+    "themeLight": "Cerah",
+    "themeDark": "Gelap",
+    "themeSystem": "Sistem",
     "remoteControlDisabled": "Tidak didayakan",
     "remoteControlStatus": {
       "disabled": "Alat kawalan jauh dilumpuhkan",
