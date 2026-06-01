@@ -6,6 +6,7 @@ import {
   getWidgetSizeForSnapshot,
   repositionWidgetForResize,
   snapWidgetBoundsToEdge,
+  type FloatingWidgetDockSide,
   type WidgetRect
 } from './layout'
 import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
@@ -197,7 +198,8 @@ export class FloatingButtonPresenter {
     this.registerIpcHandlers()
 
     if (!this.floatingWindow) {
-      this.floatingWindow = new FloatingButtonWindow(this.config)
+      const persistedBounds = this.configPresenter.getFloatingButtonBounds()
+      this.floatingWindow = new FloatingButtonWindow(this.config, persistedBounds)
       await this.floatingWindow.create()
     }
 
@@ -349,6 +351,7 @@ export class FloatingButtonPresenter {
       const snapped = snapWidgetBoundsToEdge(stableBounds, currentDisplay.workArea)
       this.floatingWindow.setDockSide(snapped.dockSide)
       this.floatingWindow.setBounds(snapped)
+      this.persistFloatingBounds(snapped)
       this.isDragging = false
       dragState = null
       this.floatingWindow.setOpacity(this.resolveWindowOpacity())
@@ -509,6 +512,18 @@ export class FloatingButtonPresenter {
 
     this.pendingLayoutSync = false
     this.applyWindowLayout()
+  }
+
+  private persistFloatingBounds(snapped: WidgetRect & { dockSide: FloatingWidgetDockSide }): void {
+    try {
+      this.configPresenter.setFloatingButtonBounds({
+        x: snapped.x,
+        y: snapped.y,
+        dockSide: snapped.dockSide
+      })
+    } catch (error) {
+      console.error('Failed to persist floating button bounds:', error)
+    }
   }
 
   private getSnapshotBounds(bounds: WidgetRect): WidgetRect {

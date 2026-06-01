@@ -193,7 +193,9 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     ({
       getFloatingButtonEnabled: vi.fn(() => true),
       getLanguage: vi.fn(() => 'zh-CN'),
-      getCurrentThemeIsDark: vi.fn(async () => false)
+      getCurrentThemeIsDark: vi.fn(async () => false),
+      getFloatingButtonBounds: vi.fn(() => null),
+      setFloatingButtonBounds: vi.fn()
     }) as any
 
   const emitEvent = async (channel: string, payload?: unknown) => {
@@ -273,6 +275,31 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       height: getCollapsedWidgetSize(0).height
     })
     expect(floatingWindowState.opacity).toBe(0.5)
+  })
+
+  it('restores the persisted resting position on initialization', async () => {
+    const configPresenter = createConfigPresenter()
+    floatingPresenter = new FloatingButtonPresenter(configPresenter)
+    await floatingPresenter.initialize()
+
+    expect(configPresenter.getFloatingButtonBounds).toHaveBeenCalled()
+  })
+
+  it('persists the docked resting position after a drag ends', async () => {
+    const configPresenter = createConfigPresenter()
+    floatingPresenter = new FloatingButtonPresenter(configPresenter)
+    await floatingPresenter.initialize()
+
+    await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_START, { x: 100, y: 100 })
+    await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_MOVE, { x: 220, y: 150 })
+    await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_END)
+
+    // Snapped/docked bounds (fully on-screen), not the peeked idle position.
+    expect(configPresenter.setFloatingButtonBounds).toHaveBeenCalledWith({
+      x: electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width,
+      y: 230,
+      dockSide: 'right'
+    })
   })
 
   it('loads all regular sessions without restricting the agent id', async () => {

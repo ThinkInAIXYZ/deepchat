@@ -85,6 +85,7 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
+import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
@@ -2120,6 +2121,25 @@ export class ConfigPresenter implements IConfigPresenter {
     } catch (error) {
       console.error('Failed to directly call floatingButtonPresenter:', error)
     }
+  }
+
+  // Get persisted floating button resting position (docked, fully on-screen)
+  getFloatingButtonBounds(): FloatingButtonBounds | null {
+    const value = this.getSetting<FloatingButtonBounds>('floatingButtonBounds')
+    if (
+      !value ||
+      typeof value.x !== 'number' ||
+      typeof value.y !== 'number' ||
+      (value.dockSide !== 'left' && value.dockSide !== 'right')
+    ) {
+      return null
+    }
+    return value
+  }
+
+  // Persist floating button resting position so it survives restarts
+  setFloatingButtonBounds(bounds: FloatingButtonBounds): void {
+    this.setSetting('floatingButtonBounds', bounds)
   }
 
   // ===================== MCP configuration related methods =====================
