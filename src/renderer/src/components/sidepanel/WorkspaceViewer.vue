@@ -79,37 +79,37 @@
 
       <div
         v-else-if="paneKind === 'git-diff'"
-        class="h-full overflow-auto bg-background px-4 py-3 font-mono text-xs leading-6"
+        class="h-full overflow-auto bg-background py-3 text-xs leading-6"
       >
         <template v-if="props.loadingGitDiff">
-          <div class="text-muted-foreground">{{ t('chat.workspace.files.loading') }}</div>
+          <div class="px-4 text-muted-foreground">{{ t('chat.workspace.files.loading') }}</div>
         </template>
         <template v-else-if="props.gitDiff">
           <section v-if="props.gitDiff.staged" class="mb-4">
             <h4
-              class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+              class="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
             >
               {{ t('chat.workspace.git.staged') }}
             </h4>
-            <pre class="whitespace-pre-wrap wrap-break-word">{{ props.gitDiff.staged }}</pre>
+            <WorkspaceDiffView :diff="props.gitDiff.staged" />
           </section>
           <section v-if="props.gitDiff.unstaged">
             <h4
-              class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+              class="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
             >
               {{ t('chat.workspace.git.unstaged') }}
             </h4>
-            <pre class="whitespace-pre-wrap wrap-break-word">{{ props.gitDiff.unstaged }}</pre>
+            <WorkspaceDiffView :diff="props.gitDiff.unstaged" />
           </section>
           <div
             v-if="!props.gitDiff.staged && !props.gitDiff.unstaged"
-            class="text-muted-foreground"
+            class="px-4 text-muted-foreground"
           >
             {{ t('chat.workspace.git.empty') }}
           </div>
         </template>
         <template v-else>
-          <div class="text-muted-foreground">{{ t('chat.workspace.git.empty') }}</div>
+          <div class="px-4 text-muted-foreground">{{ t('chat.workspace.git.empty') }}</div>
         </template>
       </div>
 
@@ -157,6 +157,7 @@ import { useWorkspaceViewerModel } from './composables/useWorkspaceViewerModel'
 import WorkspaceCodePane from './viewer/WorkspaceCodePane.vue'
 import WorkspacePreviewPane from './viewer/WorkspacePreviewPane.vue'
 import WorkspaceInfoPane from './viewer/WorkspaceInfoPane.vue'
+import WorkspaceDiffView from './viewer/WorkspaceDiffView.vue'
 
 const props = defineProps<{
   sessionId: string

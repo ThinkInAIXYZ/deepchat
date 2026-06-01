@@ -889,21 +889,77 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     const fileArgs = relativePath ? ['--', relativePath] : []
 
     try {
+      // `--find-renames` keeps renames as a single rename hunk instead of an
+      // unrelated delete + add pair.
       const [staged, unstaged] = await Promise.all([
-        this.runGitCommand(workspacePath, ['diff', '--cached', ...fileArgs]),
-        this.runGitCommand(workspacePath, ['diff', ...fileArgs])
+        this.runGitCommand(workspacePath, ['diff', '--cached', '--find-renames', ...fileArgs]),
+        this.runGitCommand(workspacePath, ['diff', '--find-renames', ...fileArgs])
       ])
+
+      let resolvedUnstaged = unstaged ?? ''
+
+      // Untracked (newly added) files produce no output from `git diff`, so the
+      // panel would show an empty diff. Synthesize an "added" diff against an
+      // empty tree so the new file's contents are visible. Only do this once we
+      // confirm the file is actually untracked, otherwise `--no-index` would
+      // wrongly render unchanged tracked files as fully added.
+      if (relativePath && !staged && !resolvedUnstaged) {
+        const untracked = await this.runGitCommand(workspacePath, [
+          'ls-files',
+          '--others',
+          '--exclude-standard',
+          '--',
+          relativePath
+        ])
+
+        if (untracked && untracked.trim()) {
+          resolvedUnstaged = await this.runGitDiffNoIndex(workspacePath, relativePath)
+        }
+      }
 
       return {
         workspacePath: repoRoot,
         filePath: filePath ? path.resolve(filePath) : null,
         relativePath,
         staged: staged ?? '',
-        unstaged: unstaged ?? ''
+        unstaged: resolvedUnstaged
       }
     } catch (error) {
       console.warn(`[Workspace] Failed to read git diff for ${workspacePath}`, error)
       return null
+    }
+  }
+
+  // `git diff --no-index` compares an arbitrary file against /dev/null to build
+  // a full "added" diff for untracked files. It intentionally exits with code 1
+  // when the inputs differ, which is the normal success case here, so tolerate
+  // that and return the captured stdout.
+  private async runGitDiffNoIndex(workspacePath: string, relativePath: string): Promise<string> {
+    try {
+      const result = await execFileAsync(
+        'git',
+        ['diff', '--no-index', '--', '/dev/null', relativePath],
+        {
+          cwd: workspacePath,
+          windowsHide: true,
+          maxBuffer: 8 * 1024 * 1024
+        }
+      )
+      return result.stdout.trimEnd()
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code?: number }).code === 1 &&
+        'stdout' in error &&
+        typeof (error as { stdout?: unknown }).stdout === 'string'
+      ) {
+        return (error as { stdout: string }).stdout.trimEnd()
+      }
+
+      console.warn(`[Workspace] Failed to build untracked diff for ${relativePath}`, error)
+      return ''
     }
   }
 
