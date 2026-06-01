@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.5-beta.7 (2026-06-01)
+- Added agent session transfer so chats can be preserved or moved when changing agent ownership
+- Improved NewAPI routing, AI SDK system prompt handling, and image-capable model switching
+- Fixed workspace file reference insertion, floating button position persistence, and collapsed sidebar agent expansion
+- 新增 Agent 会话转移能力，让切换 Agent 归属时可以保留或移动聊天
+- 优化 NewAPI 路由、AI SDK system prompt 处理和图片能力模型切回聊天的行为
+- 修复工作区文件引用插入、浮动按钮位置持久化和折叠侧边栏 Agent 展开问题
+
 ## v1.0.5-beta.6 (2026-05-29)
 - Added `/agent` commands across remote-control channels so remote conversations can switch agents more easily
 - Added tool result image previews and remote image delivery for richer agent output
