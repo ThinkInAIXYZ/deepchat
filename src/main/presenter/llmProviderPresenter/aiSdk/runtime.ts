@@ -1,5 +1,5 @@
 import { embedMany, generateId, generateImage, generateText, streamText } from 'ai'
-import type { JSONValue } from 'ai'
+import type { JSONValue, ModelMessage } from 'ai'
 import type {
   ChatMessage,
   IConfigPresenter,
@@ -53,6 +53,11 @@ type ImageGenerationProviderPayload = Record<string, JSONValue>
 type ImageGenerationRequestOptions = {
   size?: `${number}x${number}`
   providerOptions?: Record<string, ImageGenerationProviderPayload>
+}
+
+type AiSdkSystemPromptSplit = {
+  system?: string
+  messages: ModelMessage[]
 }
 
 type VideoGenerationRequestBody = {
@@ -1159,13 +1164,38 @@ async function buildPromptRuntime(
     tools,
     messages: mappedMessages
   })
+  const promptSplit = splitLeadingSystemMessagesForAiSdk(providerOptionResult.messages)
 
   return {
     providerContext,
-    messages: providerOptionResult.messages,
+    system: promptSplit.system,
+    messages: promptSplit.messages,
     providerOptions: providerOptionResult.providerOptions,
     tools: toolsMap,
     supportsNativeTools
+  }
+}
+
+function splitLeadingSystemMessagesForAiSdk(messages: ModelMessage[]): AiSdkSystemPromptSplit {
+  const systemContent: string[] = []
+  let firstConversationIndex = 0
+
+  while (firstConversationIndex < messages.length) {
+    const message = messages[firstConversationIndex]
+    if (message.role !== 'system') {
+      break
+    }
+
+    const content = typeof message.content === 'string' ? message.content.trim() : ''
+    if (content) {
+      systemContent.push(content)
+    }
+    firstConversationIndex += 1
+  }
+
+  return {
+    ...(systemContent.length > 0 ? { system: systemContent.join('\n\n') } : {}),
+    messages: messages.slice(firstConversationIndex)
   }
 }
 
@@ -1224,7 +1254,9 @@ export async function runAiSdkGenerateText(
 
   const result = await generateText({
     model: runtime.providerContext.model,
+    ...(runtime.system ? { system: runtime.system } : {}),
     messages: runtime.messages,
+    allowSystemInMessages: false,
     providerOptions: runtime.providerOptions as any,
     ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
     ...(shouldSendTemperature && resolvedTemperature !== undefined
@@ -1429,7 +1461,9 @@ export async function* runAiSdkCoreStream(
 
   const result = streamText({
     model: runtime.providerContext.model,
+    ...(runtime.system ? { system: runtime.system } : {}),
     messages: runtime.messages,
+    allowSystemInMessages: false,
     tools: runtime.tools,
     providerOptions: runtime.providerOptions as any,
     ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
