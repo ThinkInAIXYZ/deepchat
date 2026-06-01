@@ -177,10 +177,7 @@
           </div>
 
           <!-- 模型类型 -->
-          <div
-            v-if="!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls"
-            class="space-y-2"
-          >
+          <div class="space-y-2">
             <Label for="type">{{ t('settings.model.modelConfig.type.label') }}</Label>
             <Select v-model="config.type">
               <SelectTrigger>
