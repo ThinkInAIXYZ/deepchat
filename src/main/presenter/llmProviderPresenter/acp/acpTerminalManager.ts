@@ -75,19 +75,6 @@ export class AcpTerminalManager {
       }
     )
 
-    // Build command based on platform
-    const platform = process.platform
-    let shell: string
-    let shellArgs: string[]
-
-    if (platform === 'win32') {
-      shell = 'powershell.exe'
-      shellArgs = ['-NoLogo', '-Command', params.command, ...(params.args ?? [])]
-    } else {
-      shell = '/bin/bash'
-      shellArgs = ['-c', [params.command, ...(params.args ?? [])].join(' ')]
-    }
-
     // Build environment from env array
     const env: Record<string, string> = { ...process.env } as Record<string, string>
     if (params.env) {
@@ -96,7 +83,7 @@ export class AcpTerminalManager {
       }
     }
 
-    const ptyProcess = spawn(shell, shellArgs, {
+    const ptyProcess = spawn(params.command, params.args ?? [], {
       name: 'xterm-256color',
       cols: 120,
       rows: 30,
@@ -121,20 +108,10 @@ export class AcpTerminalManager {
     // Collect output
     ptyProcess.onData((data) => {
       if (state.released) return
-
-      const currentBytes = Buffer.byteLength(state.outputBuffer, 'utf-8')
-      const newBytes = Buffer.byteLength(data, 'utf-8')
-
-      if (currentBytes + newBytes <= state.maxOutputBytes) {
-        state.outputBuffer += data
-      } else {
-        // Truncate at UTF-8 boundary
-        const remaining = state.maxOutputBytes - currentBytes
-        if (remaining > 0) {
-          state.outputBuffer += this.truncateAtCharBoundary(data, remaining)
-        }
-        state.truncated = true
-      }
+      const nextBuffer = state.outputBuffer + data
+      state.outputBuffer = this.retainTailAtCharBoundary(nextBuffer, state.maxOutputBytes)
+      state.truncated =
+        state.truncated || Buffer.byteLength(nextBuffer, 'utf-8') > state.maxOutputBytes
     })
 
     // Handle exit
@@ -249,17 +226,17 @@ export class AcpTerminalManager {
     return state
   }
 
-  private truncateAtCharBoundary(str: string, maxBytes: number): string {
+  private retainTailAtCharBoundary(str: string, maxBytes: number): string {
+    if (maxBytes <= 0) return ''
+
     const buf = Buffer.from(str, 'utf-8')
     if (buf.length <= maxBytes) return str
 
-    // Find valid UTF-8 boundary by slicing and checking
-    let truncated = buf.subarray(0, maxBytes)
-    while (truncated.length > 0) {
-      try {
-        return truncated.toString('utf-8')
-      } catch {
-        truncated = truncated.subarray(0, truncated.length - 1)
+    for (let start = buf.length - maxBytes; start < buf.length; start += 1) {
+      const tail = buf.subarray(start)
+      const decoded = tail.toString('utf-8')
+      if (!decoded.startsWith('\uFFFD')) {
+        return decoded
       }
     }
     return ''

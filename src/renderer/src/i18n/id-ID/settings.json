@@ -1671,6 +1671,11 @@
       "customMethodRequired": "Silakan isi nama metode ekstensi",
       "requestFailed": "Permintaan gagal",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "initialize": "initialize",
         "newSession": "session/new",
         "loadSession": "session/load",

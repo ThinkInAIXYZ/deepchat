@@ -1550,6 +1550,11 @@
       "events": "Hændelser",
       "format": "Formater JSON",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "session/aflys",
         "extMethod": "ext/metode",
         "extNotification": "ext/meddelelse",

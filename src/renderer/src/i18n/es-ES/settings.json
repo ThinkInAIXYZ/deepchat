@@ -1671,6 +1671,11 @@
       "customMethodRequired": "Proporcionar un nombre de método para llamadas de extensión",
       "requestFailed": "Solicitud fallida",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "initialize": "inicializar",
         "newSession": "sesión/nuevo",
         "loadSession": "sesión/carga",

@@ -1643,6 +1643,11 @@
       "events": "События",
       "format": "Формат JSON",
       "methods": {
+        "authenticate": "Аутентификация",
+        "sessionClose": "Закрыть сеанс",
+        "sessionFork": "Создать ветку сеанса",
+        "sessionList": "Список сеансов",
+        "sessionResume": "Возобновить сеанс",
         "cancel": "сеанс/отмена",
         "extMethod": "расширение/метод",
         "extNotification": "расширение/уведомление",

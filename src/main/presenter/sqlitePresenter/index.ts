@@ -770,6 +770,14 @@ export class SQLitePresenter implements ISQLitePresenter {
     return row ? (row as AcpSessionEntity) : null
   }
 
+  public async getAcpSessionByAgentAndSessionId(
+    agentId: string,
+    sessionId: string
+  ): Promise<AcpSessionEntity | null> {
+    const row = await this.acpSessionsTable.getByAgentAndSessionId(agentId, sessionId)
+    return row ? (row as AcpSessionEntity) : null
+  }
+
   public async upsertAcpSession(
     conversationId: string,
     agentId: string,

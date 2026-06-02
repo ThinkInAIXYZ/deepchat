@@ -137,6 +137,62 @@ describe('AcpProcessManager config cache fallback', () => {
     expect(manager.getProcessModes('agent-2', '/tmp/missing')).toBeUndefined()
   })
 
+  it('falls back when a warmup workdir no longer exists', () => {
+    const manager = createManager()
+    const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+
+    try {
+      const resolved = (manager as any).resolveWorkdir('/tmp/missing-workspace')
+
+      expect(normalizePathValue(resolved)).toContain('/tmp/deepchat-acp/sessions')
+    } finally {
+      existsSpy.mockRestore()
+    }
+  })
+
+  it('buffers early session updates until a listener is registered', () => {
+    const manager = createManager()
+    const handler = vi.fn()
+    const notification = {
+      sessionId: 'session-early',
+      update: {
+        sessionUpdate: 'available_commands_update',
+        availableCommands: [{ name: 'plan', description: 'Plan work' }]
+      }
+    }
+
+    ;(manager as any).dispatchSessionUpdate(notification)
+    expect(handler).not.toHaveBeenCalled()
+
+    manager.registerSessionListener('agent-1', 'session-early', handler)
+    expect(handler).toHaveBeenCalledWith(notification)
+  })
+
+  it('drops expired buffered session updates before replaying them', () => {
+    vi.useFakeTimers()
+
+    try {
+      const manager = createManager()
+      const handler = vi.fn()
+      const notification = {
+        sessionId: 'session-expired',
+        update: {
+          sessionUpdate: 'available_commands_update',
+          availableCommands: [{ name: 'plan', description: 'Plan work' }]
+        }
+      }
+
+      vi.setSystemTime(0)
+      ;(manager as any).dispatchSessionUpdate(notification)
+      vi.setSystemTime(31_000)
+      manager.registerSessionListener('agent-1', 'session-expired', handler)
+
+      expect(handler).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('refreshes the agent cache when bound session config changes', () => {
     const manager = createManager()
     const handle = {
@@ -450,20 +506,20 @@ describe('AcpProcessManager config cache fallback', () => {
   })
 
   it('moves only the broken npx hash directory and retries once', async () => {
-    const npxRoot = '/tmp/deepchat-acp-npx/_npx'
+    const npxRoot = normalizePathValue('/tmp/deepchat-acp-npx/_npx')
     const badHashDir = `${npxRoot}/286fc3b7ffd18687`
     const otherHashDir = `${npxRoot}/keep-me`
-    const existingDirs = new Set([badHashDir, otherHashDir])
+    const existingDirs = new Set([path.normalize(badHashDir), path.normalize(otherHashDir)])
     const renameImpl = vi.fn((from: string, to: string) => {
-      existingDirs.delete(from)
-      existingDirs.add(to)
+      existingDirs.delete(path.normalize(from))
+      existingDirs.add(path.normalize(to))
     })
     const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation(renameImpl)
     const existsSpy = vi
       .spyOn(fs, 'existsSync')
-      .mockImplementation((input) => existingDirs.has(String(input)))
+      .mockImplementation((input) => existingDirs.has(path.normalize(String(input))))
     const statSpy = vi.spyOn(fs, 'statSync').mockImplementation((input) => {
-      if (existingDirs.has(String(input))) {
+      if (existingDirs.has(path.normalize(String(input)))) {
         return { isDirectory: () => true } as fs.Stats
       }
       const error = new Error('ENOENT') as NodeJS.ErrnoException
@@ -508,11 +564,11 @@ describe('AcpProcessManager config cache fallback', () => {
 
       expect(spawnOnceSpy).toHaveBeenCalledTimes(2)
       expect(renameImpl).toHaveBeenCalledWith(
-        badHashDir,
-        expect.stringMatching(/\/286fc3b7ffd18687\.bad-\d+$/)
+        path.normalize(badHashDir),
+        expect.stringMatching(/[\\/]286fc3b7ffd18687\.bad-\d+$/)
       )
-      expect(existingDirs.has(badHashDir)).toBe(false)
-      expect(existingDirs.has(otherHashDir)).toBe(true)
+      expect(existingDirs.has(path.normalize(badHashDir))).toBe(false)
+      expect(existingDirs.has(path.normalize(otherHashDir))).toBe(true)
     } finally {
       renameSpy.mockRestore()
       existsSpy.mockRestore()

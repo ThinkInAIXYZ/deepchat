@@ -831,7 +831,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
     const record = await this.acpSessionPersistence.getSessionData(conversationId, agentId)
     const path = this.acpSessionPersistence.resolveWorkdir(record?.workdir)
-    const isCustom = Boolean(record?.workdir && record.workdir.trim().length > 0)
+    const isCustom = this.acpSessionPersistence.isWorkdirUsable(record?.workdir)
     return { path, isCustom }
   }
 
@@ -846,7 +846,16 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return
     }
 
-    const trimmed = workdir?.trim() ? workdir : null
+    const requestedWorkdir = workdir?.trim() ? workdir.trim() : null
+    const trimmed =
+      requestedWorkdir && this.acpSessionPersistence.isWorkdirUsable(requestedWorkdir)
+        ? requestedWorkdir
+        : null
+    if (requestedWorkdir && !trimmed) {
+      console.warn(
+        `[ACP] Ignoring unavailable ACP workdir "${requestedWorkdir}" for conversation ${conversationId} (agent ${agentId}); using default workdir.`
+      )
+    }
     await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
   }
 

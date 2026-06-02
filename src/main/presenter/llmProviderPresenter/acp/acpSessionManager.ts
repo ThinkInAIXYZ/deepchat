@@ -33,6 +33,16 @@ interface SessionHooks {
   onPermission: PermissionResolver
 }
 
+type AcpConnectionWithUnstableSessionLifecycle = ClientSideConnectionType & {
+  unstable_resumeSession?: (
+    params: schema.ResumeSessionRequest
+  ) => Promise<schema.ResumeSessionResponse>
+  unstable_closeSession?: (
+    params: schema.CloseSessionRequest
+  ) => Promise<schema.CloseSessionResponse>
+  unstable_forkSession?: (params: schema.ForkSessionRequest) => Promise<schema.ForkSessionResponse>
+}
+
 const summarizeMcpServers = (mcpServers: schema.McpServer[]) =>
   mcpServers.map((server) => {
     const record = server as Record<string, unknown>
@@ -43,7 +53,7 @@ const summarizeMcpServers = (mcpServers: schema.McpServer[]) =>
   })
 
 const summarizeSessionResponse = (
-  response: schema.LoadSessionResponse | schema.NewSessionResponse
+  response: schema.LoadSessionResponse | schema.NewSessionResponse | schema.ResumeSessionResponse
 ) => ({
   sessionId: 'sessionId' in response ? response.sessionId : undefined,
   keys: Object.keys(response as Record<string, unknown>),
@@ -59,6 +69,8 @@ export interface AcpSessionRecord extends AgentSessionState {
   detachHandlers: Array<() => void>
   workdir: string
   configState?: AcpConfigState
+  promptCapabilities?: schema.PromptCapabilities
+  systemPromptSent?: boolean
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
   availableCommands?: Array<{
@@ -166,12 +178,6 @@ export class AcpSessionManager {
     })
 
     this.processManager.clearSession(session.sessionId)
-
-    try {
-      await session.connection.cancel({ sessionId: session.sessionId })
-    } catch (error) {
-      console.warn(`[ACP] Failed to cancel session ${session.sessionId}:`, error)
-    }
 
     try {
       await this.processManager.unbindProcess(session.agentId, conversationId)
@@ -303,7 +309,8 @@ export class AcpSessionManager {
       workdir,
       configState,
       availableModes,
-      currentModeId
+      currentModeId,
+      promptCapabilities: handle.promptCapabilities
     }
   }
 
@@ -334,6 +341,7 @@ export class AcpSessionManager {
   ): Promise<{
     sessionId: string
     configState: AcpConfigState
+    promptCapabilities?: schema.PromptCapabilities
     availableModes?: Array<{ id: string; name: string; description: string }>
     currentModeId?: string
     detachHandlers?: Array<() => void>
@@ -356,17 +364,95 @@ export class AcpSessionManager {
             currentModeId?: string
           }
         | undefined
-      let sessionResponse: schema.LoadSessionResponse | schema.NewSessionResponse | undefined
+      let sessionResponse:
+        | schema.LoadSessionResponse
+        | schema.NewSessionResponse
+        | schema.ResumeSessionResponse
+        | undefined
 
+      const connection = handle.connection as AcpConnectionWithUnstableSessionLifecycle
+      const canResumeSession = Boolean(
+        handle.supportsSessionResume && connection.unstable_resumeSession
+      )
       const canLoadSession = Boolean(handle.supportsLoadSession)
       console.info(`[ACP] Initializing ACP session for agent ${agent.id}:`, {
         conversationId,
         workdir,
+        canResumeSession,
         canLoadSession,
         persistedSessionId,
         mcpServerCount: mcpServers.length
       })
-      if (canLoadSession && persistedSessionId) {
+      if (canResumeSession && persistedSessionId) {
+        try {
+          const resumeRequestSummary = {
+            cwd: workdir,
+            sessionId: persistedSessionId,
+            mcpServerCount: mcpServers.length,
+            mcpServers: summarizeMcpServers(mcpServers)
+          }
+          console.info(
+            `[ACP] Resuming persisted ACP session ${persistedSessionId} for conversation ${conversationId}`,
+            resumeRequestSummary
+          )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'request',
+            action: 'session/resume',
+            sessionId: persistedSessionId,
+            payload: resumeRequestSummary
+          })
+          this.processManager.registerSessionWorkdir(persistedSessionId, workdir, conversationId)
+          detachHandlers = this.attachSessionHooks(agent.id, persistedSessionId, hooks)
+          const resumeResponse = await connection.unstable_resumeSession!({
+            cwd: workdir,
+            mcpServers,
+            sessionId: persistedSessionId
+          })
+          sessionId = persistedSessionId
+          sessionResponse = resumeResponse
+          responseModeState = resumeResponse.modes ?? undefined
+          const resumedConfigState = normalizeAcpConfigState({
+            configOptions: resumeResponse.configOptions,
+            models: resumeResponse.models,
+            modes: resumeResponse.modes
+          })
+          if (hasAcpConfigStateData(resumedConfigState)) {
+            configState = resumedConfigState
+          }
+          console.info(
+            `[ACP] Resumed persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
+          )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'response',
+            action: 'session/resume',
+            sessionId,
+            payload: summarizeSessionResponse(resumeResponse)
+          })
+        } catch (error) {
+          detachHandlers?.forEach((dispose) => {
+            try {
+              dispose()
+            } catch (disposeError) {
+              console.warn('[ACP] Failed to detach resumed session handler:', disposeError)
+            }
+          })
+          detachHandlers = undefined
+          this.processManager.clearSession(persistedSessionId)
+          console.warn(
+            `[ACP] Failed to resume persisted session ${persistedSessionId} for conversation ${conversationId}; trying load/new fallback.`,
+            error
+          )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'error',
+            action: 'session/resume',
+            sessionId: persistedSessionId,
+            message: error instanceof Error ? error.message : String(error),
+            payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+          })
+        }
+      }
+
+      if (!sessionId && canLoadSession && persistedSessionId) {
         try {
           const loadRequestSummary = {
             cwd: workdir,
@@ -529,7 +615,8 @@ export class AcpSessionManager {
         configState,
         availableModes,
         currentModeId,
-        detachHandlers
+        detachHandlers,
+        promptCapabilities: handle.promptCapabilities
       }
     } catch (error) {
       console.error(`[ACP] Failed to initialize session for agent ${agent.id}:`, error)

@@ -1643,6 +1643,11 @@
       "events": "이벤트",
       "format": "JSON 형식",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "session/cancel",
         "extMethod": "ext/method",
         "extNotification": "ext/notification",
