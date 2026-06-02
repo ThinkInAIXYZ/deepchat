@@ -110,7 +110,6 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
   providerId: toRef(props, 'providerId'),
 
   // Composables
-  isImageGenerationModel: modelTypeDetection.isImageGenerationModel,
   supportsTemperatureControl: capabilities.supportsTemperatureControl,
   showThinkingBudget: thinkingBudget.showThinkingBudget,
   thinkingBudgetError: thinkingBudget.validationError,

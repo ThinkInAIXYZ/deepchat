@@ -31,7 +31,6 @@ export interface UseChatConfigFieldsOptions {
   providerId: Ref<string | undefined>
 
   // Composables
-  isImageGenerationModel: ComputedRef<boolean>
   supportsTemperatureControl: Ref<boolean | null>
   showThinkingBudget: ComputedRef<boolean>
   thinkingBudgetError: ComputedRef<string>

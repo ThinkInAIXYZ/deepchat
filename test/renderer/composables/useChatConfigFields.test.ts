@@ -17,7 +17,6 @@ function createFields(supportsTemperatureControl: boolean | null) {
     reasoningEffort: ref(undefined),
     verbosity: ref(undefined),
     providerId: ref('openai'),
-    isImageGenerationModel: computed(() => false),
     supportsTemperatureControl: ref(supportsTemperatureControl),
     showThinkingBudget: computed(() => false),
     thinkingBudgetError: computed(() => ''),
