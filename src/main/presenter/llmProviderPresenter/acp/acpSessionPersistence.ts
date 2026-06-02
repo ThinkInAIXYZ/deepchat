@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import * as fs from 'fs'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type {
   CONVERSATION_SETTINGS,
@@ -32,6 +33,8 @@ export interface AcpRemoteSessionSyncResult {
 }
 
 export class AcpSessionPersistence {
+  private readonly remoteSessionSyncLocks = new Map<string, Promise<void>>()
+
   constructor(private readonly sqlitePresenter: ISQLitePresenter) {}
 
   async getSessionData(conversationId: string, agentId: string): Promise<AcpSessionEntity | null> {
@@ -123,45 +126,48 @@ export class AcpSessionPersistence {
         continue
       }
 
-      const sessionWorkdir = this.resolveRemoteSessionWorkdir(remoteSession, input.workdir)
-      const metadata = this.buildRemoteSessionMetadata(input.agentName, remoteSession, now)
-      const existing = await this.sqlitePresenter.getAcpSessionByAgentAndSessionId(
+      const item = await this.withRemoteSessionSyncLock(
         input.agentId,
-        remoteSession.sessionId
+        remoteSession.sessionId,
+        () => this.syncRemoteSession(input, remoteSession, now)
       )
 
-      if (existing) {
-        const existingSync = this.getRecord(existing.metadata?.acpSync)
-        await this.saveSessionData(
-          existing.conversationId,
-          input.agentId,
-          remoteSession.sessionId,
-          sessionWorkdir,
-          existing.status ?? 'idle',
-          {
-            ...existing.metadata,
-            ...metadata,
-            acpSync: {
-              ...existingSync,
-              lastSyncedAt: now,
-              source: 'session/list'
-            }
-          }
-        )
-        result.updated += 1
-        result.sessions.push({
-          sessionId: remoteSession.sessionId,
-          conversationId: existing.conversationId,
-          status: 'updated',
-          title: remoteSession.title
-        })
-        continue
-      }
+      result[item.status] += 1
+      result.sessions.push(item)
+    }
 
-      const conversationId = await this.sqlitePresenter.createConversation(
-        this.buildRemoteSessionTitle(input.agentName, remoteSession),
-        this.buildConversationSettings(input.providerId, input.agentId, sessionWorkdir)
+    return result
+  }
+
+  private async syncRemoteSession(
+    input: AcpRemoteSessionSyncInput,
+    remoteSession: schema.SessionInfo,
+    syncedAt: string
+  ): Promise<AcpRemoteSessionSyncItem> {
+    const sessionWorkdir = this.resolveRemoteSessionWorkdir(remoteSession, input.workdir)
+    const metadata = this.buildRemoteSessionMetadata(input.agentName, remoteSession, syncedAt)
+    const existing = await this.sqlitePresenter.getAcpSessionByAgentAndSessionId(
+      input.agentId,
+      remoteSession.sessionId
+    )
+
+    if (existing) {
+      return this.updateRemoteSessionLink(
+        input,
+        remoteSession,
+        existing,
+        sessionWorkdir,
+        metadata,
+        syncedAt
       )
+    }
+
+    const conversationId = await this.sqlitePresenter.createConversation(
+      this.buildRemoteSessionTitle(input.agentName, remoteSession),
+      this.buildConversationSettings(input.providerId, input.agentId, sessionWorkdir)
+    )
+
+    try {
       await this.saveSessionData(
         conversationId,
         input.agentId,
@@ -171,22 +177,112 @@ export class AcpSessionPersistence {
         {
           ...metadata,
           acpSync: {
-            importedAt: now,
-            lastSyncedAt: now,
+            importedAt: syncedAt,
+            lastSyncedAt: syncedAt,
             source: 'session/list'
           }
         }
       )
-      result.imported += 1
-      result.sessions.push({
-        sessionId: remoteSession.sessionId,
-        conversationId,
-        status: 'imported',
-        title: remoteSession.title
-      })
+    } catch (error) {
+      const concurrentExisting = await this.sqlitePresenter.getAcpSessionByAgentAndSessionId(
+        input.agentId,
+        remoteSession.sessionId
+      )
+      if (!concurrentExisting) {
+        throw error
+      }
+
+      await this.deleteConversationSilently(conversationId)
+      return this.updateRemoteSessionLink(
+        input,
+        remoteSession,
+        concurrentExisting,
+        sessionWorkdir,
+        metadata,
+        syncedAt
+      )
     }
 
-    return result
+    return {
+      sessionId: remoteSession.sessionId,
+      conversationId,
+      status: 'imported',
+      title: remoteSession.title
+    }
+  }
+
+  private async updateRemoteSessionLink(
+    input: AcpRemoteSessionSyncInput,
+    remoteSession: schema.SessionInfo,
+    existing: AcpSessionEntity,
+    syncedWorkdir: string,
+    metadata: Record<string, unknown>,
+    syncedAt: string
+  ): Promise<AcpRemoteSessionSyncItem> {
+    const existingSync = this.getRecord(existing.metadata?.acpSync)
+    const existingWorkdir = this.resolveExistingSessionWorkdir(existing.workdir, syncedWorkdir)
+    await this.saveSessionData(
+      existing.conversationId,
+      input.agentId,
+      remoteSession.sessionId,
+      existingWorkdir,
+      existing.status ?? 'idle',
+      {
+        ...existing.metadata,
+        ...metadata,
+        acpSync: {
+          ...existingSync,
+          lastSyncedAt: syncedAt,
+          source: 'session/list'
+        }
+      }
+    )
+
+    return {
+      sessionId: remoteSession.sessionId,
+      conversationId: existing.conversationId,
+      status: 'updated',
+      title: remoteSession.title
+    }
+  }
+
+  private async withRemoteSessionSyncLock<T>(
+    agentId: string,
+    sessionId: string,
+    task: () => Promise<T>
+  ): Promise<T> {
+    const key = `${agentId}::${sessionId}`
+    const previous = this.remoteSessionSyncLocks.get(key)
+    let release!: () => void
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const next = previous ? previous.catch(() => undefined).then(() => current) : current
+    this.remoteSessionSyncLocks.set(key, next)
+
+    if (previous) {
+      await previous.catch(() => undefined)
+    }
+
+    try {
+      return await task()
+    } finally {
+      release()
+      if (this.remoteSessionSyncLocks.get(key) === next) {
+        this.remoteSessionSyncLocks.delete(key)
+      }
+    }
+  }
+
+  private async deleteConversationSilently(conversationId: string): Promise<void> {
+    try {
+      await this.sqlitePresenter.deleteConversation(conversationId)
+    } catch (error) {
+      console.warn(
+        `[ACP] Failed to delete duplicate imported conversation ${conversationId}:`,
+        error
+      )
+    }
   }
 
   async deleteSession(conversationId: string, agentId: string): Promise<void> {
@@ -211,22 +307,56 @@ export class AcpSessionPersistence {
   }
 
   resolveWorkdir(workdir?: string | null): string {
-    if (workdir && workdir.trim().length > 0) {
-      return workdir
+    if (workdir && this.isWorkdirUsable(workdir)) {
+      return workdir.trim()
     }
     return this.getDefaultWorkdir()
   }
 
-  getDefaultWorkdir(): string {
+  isWorkdirUsable(workdir?: string | null): boolean {
+    const trimmed = workdir?.trim()
+    if (!trimmed) return false
+
     try {
-      return app.getPath('home')
+      return Boolean(fs.existsSync(trimmed) && fs.statSync(trimmed).isDirectory())
     } catch {
-      return process.env.HOME || process.cwd()
+      return false
     }
   }
 
+  getDefaultWorkdir(): string {
+    try {
+      const home = app.getPath('home')
+      if (this.isWorkdirUsable(home)) {
+        return home
+      }
+    } catch {
+      // fall through to process fallbacks
+    }
+
+    if (this.isWorkdirUsable(process.env.HOME)) {
+      return process.env.HOME as string
+    }
+
+    return process.cwd()
+  }
+
   private resolveRemoteSessionWorkdir(session: schema.SessionInfo, fallback: string): string {
-    return session.cwd?.trim() || fallback
+    if (this.isWorkdirUsable(session.cwd)) {
+      return session.cwd.trim()
+    }
+    return this.resolveWorkdir(fallback)
+  }
+
+  private resolveExistingSessionWorkdir(
+    existingWorkdir: string | null | undefined,
+    syncedWorkdir: string
+  ): string {
+    const trimmed = existingWorkdir?.trim()
+    if (trimmed && this.isWorkdirUsable(trimmed)) {
+      return trimmed
+    }
+    return syncedWorkdir
   }
 
   private buildConversationSettings(

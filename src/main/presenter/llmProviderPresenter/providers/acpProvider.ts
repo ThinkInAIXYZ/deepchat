@@ -462,7 +462,16 @@ export class AcpProvider extends BaseLLMProvider {
     agentId: string,
     workdir: string | null
   ): Promise<void> {
-    const trimmed = workdir?.trim() ? workdir : null
+    const requestedWorkdir = workdir?.trim() ? workdir.trim() : null
+    const trimmed =
+      requestedWorkdir && this.sessionPersistence.isWorkdirUsable(requestedWorkdir)
+        ? requestedWorkdir
+        : null
+    if (requestedWorkdir && !trimmed) {
+      console.warn(
+        `[ACP] Ignoring unavailable ACP workdir "${requestedWorkdir}" for conversation ${conversationId} (agent ${agentId}); using default workdir.`
+      )
+    }
     const existing = await this.sessionPersistence.getSessionData(conversationId, agentId)
     const previous = existing?.workdir ?? null
     await this.sessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
@@ -482,9 +491,16 @@ export class AcpProvider extends BaseLLMProvider {
     agentId: string,
     workdir: string
   ): Promise<void> {
-    const normalizedWorkdir = workdir?.trim()
-    if (!normalizedWorkdir) {
-      throw new Error('[ACP] Workdir is required to prepare ACP session.')
+    const requestedWorkdir = workdir?.trim()
+    const persistedWorkdir =
+      requestedWorkdir && this.sessionPersistence.isWorkdirUsable(requestedWorkdir)
+        ? requestedWorkdir
+        : null
+    const normalizedWorkdir = this.sessionPersistence.resolveWorkdir(persistedWorkdir)
+    if (requestedWorkdir && !persistedWorkdir) {
+      console.warn(
+        `[ACP] Prepare requested unavailable workdir "${requestedWorkdir}" for conversation ${conversationId}; using "${normalizedWorkdir}".`
+      )
     }
 
     const agent = await this.getAgentById(agentId)
@@ -492,7 +508,7 @@ export class AcpProvider extends BaseLLMProvider {
       throw new Error(`[ACP] ACP agent not found: ${agentId}`)
     }
 
-    await this.sessionPersistence.updateWorkdir(conversationId, agent.id, normalizedWorkdir)
+    await this.sessionPersistence.updateWorkdir(conversationId, agent.id, persistedWorkdir)
 
     const session = await this.sessionManager.getOrCreateSession(
       conversationId,
@@ -657,9 +673,24 @@ export class AcpProvider extends BaseLLMProvider {
       )
     }
 
-    const resolveWorkdir = (): string | undefined => {
+    const normalizeWorkdir = (workdir?: string | null): string => {
+      const trimmed = workdir?.trim()
+      if (this.sessionPersistence && typeof this.sessionPersistence.resolveWorkdir === 'function') {
+        return this.sessionPersistence.resolveWorkdir(trimmed)
+      }
+      return trimmed || process.cwd()
+    }
+
+    const resolveWorkdir = (): string => {
       const cwd = request.workdir ?? handle.workdir
-      return cwd?.trim() || undefined
+      return normalizeWorkdir(cwd)
+    }
+
+    const resolvePayloadWorkdir = (workdir: unknown): string | undefined => {
+      if (typeof workdir !== 'string' || !workdir.trim()) {
+        return undefined
+      }
+      return normalizeWorkdir(workdir)
     }
 
     const resolveMcpServers = async (): Promise<schema.McpServer[]> => {
@@ -708,13 +739,14 @@ export class AcpProvider extends BaseLLMProvider {
         }
         case 'newSession': {
           const basePayload: schema.NewSessionRequest = {
-            cwd: resolveWorkdir() ?? process.cwd(),
+            cwd: resolveWorkdir(),
             mcpServers: await resolveMcpServers()
           }
           const body = { ...basePayload }
           if (isPlainObject(request.payload)) {
-            if (typeof request.payload.cwd === 'string' && request.payload.cwd.trim()) {
-              body.cwd = request.payload.cwd
+            const payloadWorkdir = resolvePayloadWorkdir(request.payload.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
             }
             if (Array.isArray(request.payload.mcpServers)) {
               body.mcpServers = request.payload.mcpServers as schema.McpServer[]
@@ -747,13 +779,14 @@ export class AcpProvider extends BaseLLMProvider {
             throw new Error('Session ID is required for loadSession')
           }
           const body: schema.LoadSessionRequest = {
-            cwd: resolveWorkdir() ?? process.cwd(),
+            cwd: resolveWorkdir(),
             mcpServers: await resolveMcpServers(),
             sessionId: sessionToLoad
           }
           if (payloadOverrides) {
-            if (typeof payloadOverrides.cwd === 'string') {
-              body.cwd = payloadOverrides.cwd
+            const payloadWorkdir = resolvePayloadWorkdir(payloadOverrides.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
             }
             if (Array.isArray(payloadOverrides.mcpServers)) {
               body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]
@@ -789,11 +822,12 @@ export class AcpProvider extends BaseLLMProvider {
           }
           const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
           const body: schema.ListSessionsRequest = {
-            cwd: resolveWorkdir() ?? process.cwd()
+            cwd: resolveWorkdir()
           }
           if (payloadOverrides) {
-            if (typeof payloadOverrides.cwd === 'string') {
-              body.cwd = payloadOverrides.cwd
+            const payloadWorkdir = resolvePayloadWorkdir(payloadOverrides.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
             }
             if (typeof payloadOverrides.cursor === 'string') {
               body.cursor = payloadOverrides.cursor
@@ -827,7 +861,7 @@ export class AcpProvider extends BaseLLMProvider {
               agentId: agent.id,
               agentName: agent.name,
               providerId: this.provider.id,
-              workdir: body.cwd ?? resolveWorkdir() ?? process.cwd(),
+              workdir: body.cwd ?? resolveWorkdir(),
               sessions: allSessions
             })
             pushEvent({
@@ -854,13 +888,14 @@ export class AcpProvider extends BaseLLMProvider {
             throw new Error('sessionId is required for sessionResume')
           }
           const body: schema.ResumeSessionRequest = {
-            cwd: resolveWorkdir() ?? process.cwd(),
+            cwd: resolveWorkdir(),
             mcpServers: await resolveMcpServers(),
             sessionId: sessionToResume
           }
           if (payloadOverrides) {
-            if (typeof payloadOverrides.cwd === 'string') {
-              body.cwd = payloadOverrides.cwd
+            const payloadWorkdir = resolvePayloadWorkdir(payloadOverrides.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
             }
             if (Array.isArray(payloadOverrides.mcpServers)) {
               body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]
@@ -939,13 +974,14 @@ export class AcpProvider extends BaseLLMProvider {
             throw new Error('sessionId is required for sessionFork')
           }
           const body: schema.ForkSessionRequest = {
-            cwd: resolveWorkdir() ?? process.cwd(),
+            cwd: resolveWorkdir(),
             mcpServers: await resolveMcpServers(),
             sessionId: sessionToFork
           }
           if (payloadOverrides) {
-            if (typeof payloadOverrides.cwd === 'string') {
-              body.cwd = payloadOverrides.cwd
+            const payloadWorkdir = resolvePayloadWorkdir(payloadOverrides.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
             }
             if (Array.isArray(payloadOverrides.mcpServers)) {
               body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]

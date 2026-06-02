@@ -44,25 +44,71 @@ export class AcpSessionsTable extends BaseTable {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id TEXT NOT NULL,
         agent_id TEXT NOT NULL,
-        session_id TEXT UNIQUE,
+        session_id TEXT,
         workdir TEXT,
         status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle', 'active', 'error')),
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         metadata TEXT,
-        UNIQUE(conversation_id, agent_id)
+        UNIQUE(conversation_id, agent_id),
+        UNIQUE(agent_id, session_id)
       );
       CREATE INDEX IF NOT EXISTS idx_acp_sessions_session_id ON acp_sessions(session_id);
       CREATE INDEX IF NOT EXISTS idx_acp_sessions_agent ON acp_sessions(agent_id);
     `
   }
 
-  getMigrationSQL(_version: number): string | null {
+  getMigrationSQL(version: number): string | null {
+    if (version === 30) {
+      return `
+        DROP TABLE IF EXISTS acp_sessions_migrated;
+        CREATE TABLE acp_sessions_migrated (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          conversation_id TEXT NOT NULL,
+          agent_id TEXT NOT NULL,
+          session_id TEXT,
+          workdir TEXT,
+          status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle', 'active', 'error')),
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          metadata TEXT,
+          UNIQUE(conversation_id, agent_id),
+          UNIQUE(agent_id, session_id)
+        );
+        INSERT OR IGNORE INTO acp_sessions_migrated (
+          id,
+          conversation_id,
+          agent_id,
+          session_id,
+          workdir,
+          status,
+          created_at,
+          updated_at,
+          metadata
+        )
+        SELECT
+          id,
+          conversation_id,
+          agent_id,
+          session_id,
+          workdir,
+          status,
+          created_at,
+          updated_at,
+          metadata
+        FROM acp_sessions
+        ORDER BY updated_at DESC;
+        DROP TABLE acp_sessions;
+        ALTER TABLE acp_sessions_migrated RENAME TO acp_sessions;
+        CREATE INDEX IF NOT EXISTS idx_acp_sessions_session_id ON acp_sessions(session_id);
+        CREATE INDEX IF NOT EXISTS idx_acp_sessions_agent ON acp_sessions(agent_id);
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 0
+    return 30
   }
 
   async getByConversationAndAgent(

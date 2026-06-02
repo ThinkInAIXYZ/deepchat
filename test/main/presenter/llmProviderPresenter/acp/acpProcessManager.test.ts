@@ -137,6 +137,19 @@ describe('AcpProcessManager config cache fallback', () => {
     expect(manager.getProcessModes('agent-2', '/tmp/missing')).toBeUndefined()
   })
 
+  it('falls back when a warmup workdir no longer exists', () => {
+    const manager = createManager()
+    const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+
+    try {
+      const resolved = (manager as any).resolveWorkdir('/tmp/missing-workspace')
+
+      expect(normalizePathValue(resolved)).toContain('/tmp/deepchat-acp/sessions')
+    } finally {
+      existsSpy.mockRestore()
+    }
+  })
+
   it('buffers early session updates until a listener is registered', () => {
     const manager = createManager()
     const handler = vi.fn()

@@ -256,6 +256,64 @@ describe('AcpProvider runDebugAction error handling', () => {
     })
   })
 
+  it('normalizes debug session/list cwd before requesting remote sessions', async () => {
+    const sessions = [
+      {
+        sessionId: 'remote-1',
+        cwd: '/tmp/missing-workdir',
+        title: 'Remote Session'
+      }
+    ]
+    const listSessions = vi.fn().mockResolvedValue({ sessions, nextCursor: null })
+    const syncRemoteSessions = vi.fn().mockResolvedValue({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      sessions: [{ sessionId: 'remote-1', conversationId: 'conv-1', status: 'imported' }]
+    })
+    const resolveWorkdir = vi.fn().mockReturnValue('/tmp/fallback')
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/fallback',
+        supportsSessionList: true,
+        connection: {
+          listSessions
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionPersistence = {
+      resolveWorkdir,
+      syncRemoteSessions
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'sessionList',
+      payload: { cwd: '/tmp/missing-workdir', sync: true }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(resolveWorkdir).toHaveBeenCalledWith('/tmp/missing-workdir')
+    expect(listSessions).toHaveBeenCalledWith({
+      cwd: '/tmp/fallback',
+      cursor: undefined
+    })
+    expect(syncRemoteSessions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workdir: '/tmp/fallback',
+        sessions
+      })
+    )
+  })
+
   it('binds the forked debug session workdir and listeners', async () => {
     const unstableForkSession = vi.fn().mockResolvedValue({ sessionId: 'forked-session' })
     const registerSessionWorkdir = vi.fn()
@@ -402,6 +460,8 @@ describe('AcpProvider runDebugAction error handling', () => {
     const provider = Object.create(AcpProvider.prototype) as any
     provider.getAgentById = vi.fn().mockResolvedValue({ id: 'agent1', name: 'Agent 1' })
     provider.sessionPersistence = {
+      isWorkdirUsable: vi.fn().mockReturnValue(true),
+      resolveWorkdir: vi.fn((workdir) => workdir),
       updateWorkdir: vi.fn().mockResolvedValue(undefined)
     }
     provider.sessionManager = {
@@ -459,6 +519,35 @@ describe('AcpProvider runDebugAction error handling', () => {
         agentId: 'agent1',
         commands: [{ name: 'review', description: 'run review', input: null }]
       }
+    )
+  })
+
+  it('falls back when prepareSession receives an unavailable workdir', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.getAgentById = vi.fn().mockResolvedValue({ id: 'agent1', name: 'Agent 1' })
+    provider.sessionPersistence = {
+      isWorkdirUsable: vi.fn().mockReturnValue(false),
+      resolveWorkdir: vi.fn().mockReturnValue('/tmp/fallback'),
+      updateWorkdir: vi.fn().mockResolvedValue(undefined)
+    }
+    provider.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({
+        workdir: '/tmp/fallback',
+        currentModeId: undefined,
+        availableModes: undefined,
+        configState: null,
+        availableCommands: []
+      })
+    }
+
+    await provider.prepareSession('conv-2', 'agent1', '/tmp/missing-workspace')
+
+    expect(provider.sessionPersistence.updateWorkdir).toHaveBeenCalledWith('conv-2', 'agent1', null)
+    expect(provider.sessionManager.getOrCreateSession).toHaveBeenCalledWith(
+      'conv-2',
+      { id: 'agent1', name: 'Agent 1' },
+      expect.any(Object),
+      '/tmp/fallback'
     )
   })
 

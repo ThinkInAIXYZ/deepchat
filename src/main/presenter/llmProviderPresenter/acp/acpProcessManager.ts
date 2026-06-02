@@ -354,9 +354,21 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * Resolve workdir to an absolute path, using fallback if not provided.
    */
   private resolveWorkdir(workdir?: string): string {
-    if (workdir && workdir.trim()) {
-      return workdir.trim()
+    const trimmed = workdir?.trim()
+    if (!trimmed) {
+      return this.getFallbackWorkdir()
     }
+
+    try {
+      if (fs.existsSync(trimmed) && fs.statSync(trimmed).isDirectory()) {
+        return trimmed
+      }
+    } catch (error) {
+      console.warn(`[ACP] workdir "${trimmed}" is not accessible; using fallback workdir.`, error)
+      return this.getFallbackWorkdir()
+    }
+
+    console.warn(`[ACP] workdir "${trimmed}" does not exist; using fallback workdir.`)
     return this.getFallbackWorkdir()
   }
 
