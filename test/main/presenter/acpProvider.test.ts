@@ -332,6 +332,68 @@ describe('AcpProvider runDebugAction error handling', () => {
     )
   })
 
+  it('falls back when a cached debug handle workdir becomes unavailable', async () => {
+    const sessions = [
+      {
+        sessionId: 'remote-1',
+        cwd: '/tmp/stale-workdir',
+        title: 'Remote Session'
+      }
+    ]
+    const listSessions = vi.fn().mockResolvedValue({ sessions, nextCursor: null })
+    const syncRemoteSessions = vi.fn().mockResolvedValue({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      sessions: [{ sessionId: 'remote-1', conversationId: 'conv-1', status: 'imported' }]
+    })
+    const isWorkdirUsable = vi.fn((workdir: string) => workdir === '/tmp/default-workdir')
+    const resolveWorkdir = vi.fn().mockReturnValue('/tmp/default-workdir')
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/stale-workdir',
+        supportsSessionList: true,
+        connection: {
+          listSessions
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionPersistence = {
+      isWorkdirUsable,
+      resolveWorkdir,
+      syncRemoteSessions
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'sessionList',
+      workdir: '/tmp/stale-workdir',
+      payload: { sync: true }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(isWorkdirUsable).toHaveBeenCalledWith('/tmp/stale-workdir')
+    expect(resolveWorkdir).toHaveBeenCalledWith('/tmp/stale-workdir')
+    expect(listSessions).toHaveBeenCalledWith({
+      cwd: '/tmp/default-workdir',
+      cursor: undefined
+    })
+    expect(syncRemoteSessions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workdir: '/tmp/default-workdir',
+        sessions
+      })
+    )
+  })
+
   it('binds the forked debug session workdir and listeners', async () => {
     const unstableForkSession = vi.fn().mockResolvedValue({ sessionId: 'forked-session' })
     const registerSessionWorkdir = vi.fn()

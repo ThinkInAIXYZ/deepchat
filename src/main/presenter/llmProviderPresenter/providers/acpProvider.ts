@@ -691,7 +691,12 @@ export class AcpProvider extends BaseLLMProvider {
 
     const resolveHandleWorkdir = (): string => {
       const handleWorkdir = handle.workdir?.trim()
-      if (handleWorkdir) {
+      if (
+        handleWorkdir &&
+        (!this.sessionPersistence ||
+          typeof this.sessionPersistence.isWorkdirUsable !== 'function' ||
+          this.sessionPersistence.isWorkdirUsable(handleWorkdir))
+      ) {
         return handleWorkdir
       }
       const requestedWorkdir = request.workdir?.trim()
