@@ -410,6 +410,12 @@
     "reasoningCount": "{count} thought(s)",
     "toolCallCount": "{count} tool call(s)",
     "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "collapseLabel": "Collapse {title}",
+    "duration": {
+      "day": "d ",
+      "hour": "h ",
+      "minute": "m ",
+      "second": "s"
+    }
   }
 }

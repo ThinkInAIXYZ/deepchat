@@ -406,10 +406,16 @@
     }
   },
   "activityCollapse": {
-    "workedFor": "Worked for {duration}",
-    "reasoningCount": "{count} thought(s)",
-    "toolCallCount": "{count} tool call(s)",
-    "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "workedFor": "{duration} 作業しました",
+    "reasoningCount": "{count} 件の思考",
+    "toolCallCount": "{count} 件のツール呼び出し",
+    "expandLabel": "{title} を展開",
+    "collapseLabel": "{title} を折りたたむ",
+    "duration": {
+      "day": "日",
+      "hour": "時間",
+      "minute": "分",
+      "second": "秒"
+    }
   }
 }

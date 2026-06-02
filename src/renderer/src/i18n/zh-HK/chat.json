@@ -410,6 +410,12 @@
     "reasoningCount": "{count} 段思考",
     "toolCallCount": "{count} 次工具呼叫",
     "expandLabel": "展開 {title}",
-    "collapseLabel": "收起 {title}"
+    "collapseLabel": "收起 {title}",
+    "duration": {
+      "day": "天",
+      "hour": "小時",
+      "minute": "分鐘",
+      "second": "秒"
+    }
   }
 }

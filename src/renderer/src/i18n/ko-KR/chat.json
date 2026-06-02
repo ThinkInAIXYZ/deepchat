@@ -406,10 +406,16 @@
     }
   },
   "activityCollapse": {
-    "workedFor": "Worked for {duration}",
-    "reasoningCount": "{count} thought(s)",
-    "toolCallCount": "{count} tool call(s)",
-    "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "workedFor": "{duration} 동안 작업함",
+    "reasoningCount": "{count}개 사고",
+    "toolCallCount": "{count}개 도구 호출",
+    "expandLabel": "{title} 펼치기",
+    "collapseLabel": "{title} 접기",
+    "duration": {
+      "day": "일",
+      "hour": "시간",
+      "minute": "분",
+      "second": "초"
+    }
   }
 }

@@ -406,10 +406,16 @@
     }
   },
   "activityCollapse": {
-    "workedFor": "Worked for {duration}",
-    "reasoningCount": "{count} thought(s)",
-    "toolCallCount": "{count} tool call(s)",
-    "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "workedFor": "Arbejdet i {duration}",
+    "reasoningCount": "{count} tanke(r)",
+    "toolCallCount": "{count} værktøjskald",
+    "expandLabel": "Udvid {title}",
+    "collapseLabel": "Skjul {title}",
+    "duration": {
+      "day": "d ",
+      "hour": "t ",
+      "minute": "min ",
+      "second": "s"
+    }
   }
 }

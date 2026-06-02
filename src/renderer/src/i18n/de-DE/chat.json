@@ -406,10 +406,16 @@
     }
   },
   "activityCollapse": {
-    "workedFor": "Worked for {duration}",
-    "reasoningCount": "{count} thought(s)",
-    "toolCallCount": "{count} tool call(s)",
-    "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "workedFor": "Gearbeitet für {duration}",
+    "reasoningCount": "{count} Gedanke(n)",
+    "toolCallCount": "{count} Werkzeugaufruf(e)",
+    "expandLabel": "Erweitern {title}",
+    "collapseLabel": "Einklappen {title}",
+    "duration": {
+      "day": "T ",
+      "hour": "Std. ",
+      "minute": "Min. ",
+      "second": "Sek."
+    }
   }
 }

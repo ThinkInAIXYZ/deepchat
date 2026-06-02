@@ -65,15 +65,17 @@ const emit = defineEmits<{
   'toggle-collapse': [isCollapsed: boolean]
 }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const isExpanded = ref(false)
 
-const currentLocale = computed(() => {
-  const value = typeof locale === 'string' ? locale : locale.value
-  return value || 'en-US'
-})
+const durationLabels = computed(() => ({
+  day: t('chat.activityCollapse.duration.day'),
+  hour: t('chat.activityCollapse.duration.hour'),
+  minute: t('chat.activityCollapse.duration.minute'),
+  second: t('chat.activityCollapse.duration.second')
+}))
 
-const durationText = computed(() => formatActivityDuration(props.durationMs, currentLocale.value))
+const durationText = computed(() => formatActivityDuration(props.durationMs, durationLabels.value))
 
 const countSegments = computed(() => {
   const segments: string[] = []

@@ -9,9 +9,6 @@ import type {
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    locale: {
-      value: 'en-US'
-    },
     t: (key: string, params?: Record<string, unknown>) => {
       if (key === 'chat.activityCollapse.workedFor') {
         return `Worked for ${params?.duration}`
@@ -27,6 +24,18 @@ vi.mock('vue-i18n', () => ({
       }
       if (key === 'chat.activityCollapse.collapseLabel') {
         return `Collapse ${params?.title}`
+      }
+      if (key === 'chat.activityCollapse.duration.day') {
+        return 'd '
+      }
+      if (key === 'chat.activityCollapse.duration.hour') {
+        return 'h '
+      }
+      if (key === 'chat.activityCollapse.duration.minute') {
+        return 'm '
+      }
+      if (key === 'chat.activityCollapse.duration.second') {
+        return 's'
       }
       return key
     }

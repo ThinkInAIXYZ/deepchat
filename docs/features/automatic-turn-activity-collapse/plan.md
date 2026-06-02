@@ -211,10 +211,18 @@ Omit count segments when the count is `0`:
 
 ## Duration Formatting
 
-Add a local formatter in the grouping helper or a small companion file:
+Add a local formatter in the grouping helper or a small companion file. Keep the formatter pure and
+pass localized unit labels from `MessageBlockActivityGroup.vue`:
 
 ```typescript
-formatActivityDuration(durationMs: number, locale: string): string
+type ActivityDurationLabels = {
+  day: string
+  hour: string
+  minute: string
+  second: string
+}
+
+formatActivityDuration(durationMs: number, labels: ActivityDurationLabels): string
 ```
 
 Implementation detail:
@@ -222,8 +230,9 @@ Implementation detail:
 - Clamp non-finite values to `0`.
 - `totalSeconds = Math.max(0, Math.floor(durationMs / 1000))`.
 - Compute days/hours/minutes/seconds.
-- For Chinese, concatenate non-zero units and include seconds when all larger units are zero.
-- For English, use compact units: `d`, `h`, `m`, `s`.
+- Concatenate non-zero units and include seconds when all larger units are zero.
+- Use localized unit labels from `chat.activityCollapse.duration.*`.
+- Unit labels may include spacing when the locale needs spaces between duration segments.
 
 Avoid `Intl.DurationFormat` for now because support varies and would add fallback complexity.
 

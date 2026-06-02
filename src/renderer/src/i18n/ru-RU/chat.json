@@ -406,10 +406,16 @@
     }
   },
   "activityCollapse": {
-    "workedFor": "Worked for {duration}",
-    "reasoningCount": "{count} thought(s)",
-    "toolCallCount": "{count} tool call(s)",
-    "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "workedFor": "Работал(а) {duration}",
+    "reasoningCount": "{count} рассуждение(й)",
+    "toolCallCount": "{count} вызов(ов) инструмента",
+    "expandLabel": "Развернуть {title}",
+    "collapseLabel": "Свернуть {title}",
+    "duration": {
+      "day": "д ",
+      "hour": "ч ",
+      "minute": "мин ",
+      "second": "с"
+    }
   }
 }

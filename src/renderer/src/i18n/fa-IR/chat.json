@@ -406,10 +406,16 @@
     }
   },
   "activityCollapse": {
-    "workedFor": "Worked for {duration}",
-    "reasoningCount": "{count} thought(s)",
-    "toolCallCount": "{count} tool call(s)",
-    "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "workedFor": "به مدت {duration} کار کرده است",
+    "reasoningCount": "{count} مورد تفکر",
+    "toolCallCount": "{count} فراخوانی ابزار",
+    "expandLabel": "گسترش {title}",
+    "collapseLabel": "جمع کردن {title}",
+    "duration": {
+      "day": " روز ",
+      "hour": " ساعت ",
+      "minute": " دقیقه ",
+      "second": " ثانیه"
+    }
   }
 }

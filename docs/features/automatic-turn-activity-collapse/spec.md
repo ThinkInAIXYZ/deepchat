@@ -135,6 +135,7 @@ Formatting:
 - Omit leading zero units.
 - Always include seconds when duration is under one minute.
 - Maximum display granularity is days, hours, minutes, seconds.
+- Unit labels must come from i18n, not hardcoded locale checks.
 
 Examples:
 

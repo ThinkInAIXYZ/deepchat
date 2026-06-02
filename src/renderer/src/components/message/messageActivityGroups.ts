@@ -25,6 +25,13 @@ export type BuildAssistantRenderItemsOptions = {
   isInternalToolCall?: (block: DisplayAssistantMessageBlock) => boolean
 }
 
+export type ActivityDurationLabels = {
+  day: string
+  hour: string
+  minute: string
+  second: string
+}
+
 type BufferedActivityBlock = {
   block: DisplayAssistantMessageBlock
   index: number
@@ -154,7 +161,10 @@ export const buildAssistantRenderItems = ({
   return items
 }
 
-export const formatActivityDuration = (durationMs: number, locale: string): string => {
+export const formatActivityDuration = (
+  durationMs: number,
+  labels: ActivityDurationLabels
+): string => {
   const safeDurationMs = Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0
   let remainingSeconds = Math.floor(safeDurationMs / 1000)
   const days = Math.floor(remainingSeconds / 86_400)
@@ -164,24 +174,11 @@ export const formatActivityDuration = (durationMs: number, locale: string): stri
   const minutes = Math.floor(remainingSeconds / 60)
   const seconds = remainingSeconds % 60
 
-  const isChineseLocale =
-    locale.toLowerCase().startsWith('zh') || locale.toLowerCase().startsWith('yue')
-
-  if (isChineseLocale) {
-    const parts = [
-      days > 0 ? `${days}天` : '',
-      hours > 0 ? `${hours}小时` : '',
-      minutes > 0 ? `${minutes}分钟` : '',
-      seconds > 0 || (days === 0 && hours === 0 && minutes === 0) ? `${seconds}秒` : ''
-    ]
-    return parts.filter(Boolean).join('')
-  }
-
   const parts = [
-    days > 0 ? `${days}d` : '',
-    hours > 0 ? `${hours}h` : '',
-    minutes > 0 ? `${minutes}m` : '',
-    seconds > 0 || (days === 0 && hours === 0 && minutes === 0) ? `${seconds}s` : ''
+    days > 0 ? `${days}${labels.day}` : '',
+    hours > 0 ? `${hours}${labels.hour}` : '',
+    minutes > 0 ? `${minutes}${labels.minute}` : '',
+    seconds > 0 || (days === 0 && hours === 0 && minutes === 0) ? `${seconds}${labels.second}` : ''
   ]
-  return parts.filter(Boolean).join(' ')
+  return parts.filter(Boolean).join('').trimEnd()
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import {
+  type ActivityDurationLabels,
   buildAssistantRenderItems,
   formatActivityDuration
 } from '@/components/message/messageActivityGroups'
@@ -14,6 +15,20 @@ const createBlock = (
   timestamp: 1_000,
   ...overrides
 })
+
+const zhDurationLabels: ActivityDurationLabels = {
+  day: '天',
+  hour: '小时',
+  minute: '分钟',
+  second: '秒'
+}
+
+const enDurationLabels: ActivityDurationLabels = {
+  day: 'd ',
+  hour: 'h ',
+  minute: 'm ',
+  second: 's'
+}
 
 describe('messageActivityGroups', () => {
   it('groups consecutive completed reasoning and tool-call blocks', () => {
@@ -134,11 +149,11 @@ describe('messageActivityGroups', () => {
   })
 
   it('formats duration up to days, hours, minutes, and seconds', () => {
-    expect(formatActivityDuration(8_900, 'zh-CN')).toBe('8秒')
-    expect(formatActivityDuration(192_000, 'zh-CN')).toBe('3分钟12秒')
-    expect(formatActivityDuration(7_449_000, 'zh-CN')).toBe('2小时4分钟9秒')
-    expect(formatActivityDuration(97_802_000, 'zh-CN')).toBe('1天3小时10分钟2秒')
+    expect(formatActivityDuration(8_900, zhDurationLabels)).toBe('8秒')
+    expect(formatActivityDuration(192_000, zhDurationLabels)).toBe('3分钟12秒')
+    expect(formatActivityDuration(7_449_000, zhDurationLabels)).toBe('2小时4分钟9秒')
+    expect(formatActivityDuration(97_802_000, zhDurationLabels)).toBe('1天3小时10分钟2秒')
 
-    expect(formatActivityDuration(192_000, 'en-US')).toBe('3m 12s')
+    expect(formatActivityDuration(192_000, enDurationLabels)).toBe('3m 12s')
   })
 })

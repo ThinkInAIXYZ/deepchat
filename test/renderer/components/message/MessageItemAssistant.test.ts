@@ -290,4 +290,60 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
   })
+
+  it('does not group sent activity while the thread is still generating', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
+        isCapturingImage: false,
+        isInGeneratingThread: true
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+  })
+
+  it('does not group pending activity when the thread is idle', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [createThinkingBlock(), createToolCallBlock()]),
+        isCapturingImage: false,
+        isInGeneratingThread: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+  })
+
+  it('excludes internal tool calls from activity groups', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [
+          createThinkingBlock(),
+          createToolCallBlock({
+            extra: {
+              internalTool: true
+            },
+            tool_call: {
+              id: 'tc-plan',
+              name: 'update_plan'
+            }
+          })
+        ]),
+        isCapturingImage: false,
+        isInGeneratingThread: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="activity-group"]').attributes('data-block-count')).toBe('1')
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(false)
+  })
 })

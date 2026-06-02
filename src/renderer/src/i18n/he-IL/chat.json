@@ -406,10 +406,16 @@
     }
   },
   "activityCollapse": {
-    "workedFor": "Worked for {duration}",
-    "reasoningCount": "{count} thought(s)",
-    "toolCallCount": "{count} tool call(s)",
-    "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "workedFor": "עבד במשך {duration}",
+    "reasoningCount": "{count} מחשבות",
+    "toolCallCount": "{count} קריאות כלי",
+    "expandLabel": "הרחב את {title}",
+    "collapseLabel": "כווץ את {title}",
+    "duration": {
+      "day": " יום ",
+      "hour": " שעה ",
+      "minute": " דק׳ ",
+      "second": " שנ׳"
+    }
   }
 }

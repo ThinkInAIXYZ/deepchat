@@ -406,10 +406,16 @@
     }
   },
   "activityCollapse": {
-    "workedFor": "Worked for {duration}",
-    "reasoningCount": "{count} thought(s)",
-    "toolCallCount": "{count} tool call(s)",
-    "expandLabel": "Expand {title}",
-    "collapseLabel": "Collapse {title}"
+    "workedFor": "Hoạt động trong {duration}",
+    "reasoningCount": "{count} suy nghĩ",
+    "toolCallCount": "{count} lần gọi công cụ",
+    "expandLabel": "Mở rộng {title}",
+    "collapseLabel": "Thu gọn {title}",
+    "duration": {
+      "day": "ng ",
+      "hour": "g ",
+      "minute": "p ",
+      "second": "gi"
+    }
   }
 }
