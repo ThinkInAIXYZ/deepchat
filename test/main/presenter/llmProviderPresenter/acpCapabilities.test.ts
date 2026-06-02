@@ -48,6 +48,9 @@ describe('AcpCapabilities', () => {
       expect(buildClientCapabilities({ enableTerminalAuth: true }).auth).toEqual({
         terminal: true
       })
+      expect(
+        buildClientCapabilities({ enableTerminal: false, enableTerminalAuth: true }).auth
+      ).toBeUndefined()
     })
   })
 

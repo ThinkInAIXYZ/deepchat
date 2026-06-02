@@ -511,6 +511,9 @@ const parsePayload = () => {
   return JSON.parse(payloadText.value)
 }
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
 const handleSend = async () => {
   let parsedPayload: Record<string, unknown> | undefined
   try {
@@ -540,7 +543,16 @@ const handleSend = async () => {
     return
   }
 
-  const sessionId = requiresSession.value ? debugSessionId.value : undefined
+  const payloadSessionId =
+    isPlainObject(parsedPayload) &&
+    typeof parsedPayload.sessionId === 'string' &&
+    parsedPayload.sessionId.trim()
+      ? parsedPayload.sessionId.trim()
+      : undefined
+  const fallbackSessionId = requiresSession.value
+    ? debugSessionId.value.trim() || undefined
+    : undefined
+  const sessionId = payloadSessionId ?? fallbackSessionId
   const payloadToSend = applyWorkdirToPayload(parsedPayload)
 
   loading.value = true

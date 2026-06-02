@@ -95,8 +95,7 @@ export class AcpMessageFormatter {
       }
 
       if (type === 'image_url' || type === 'input_image') {
-        const imageUrl = part.image_url as { url?: string } | undefined
-        const url = imageUrl?.url
+        const url = this.extractImageUrl(part)
         if (!url) return
         const image = this.parseDataUrl(url)
         if (image) {
@@ -137,6 +136,15 @@ export class AcpMessageFormatter {
     })
 
     return normalized
+  }
+
+  private extractImageUrl(part: Record<string, unknown>): string | undefined {
+    const imageUrl = part.image_url as { url?: unknown } | undefined
+    const source = part.source as { data?: unknown; url?: unknown } | undefined
+    const candidates = [imageUrl?.url, source?.data, source?.url, part.data, part.url, part.uri]
+    return candidates.find((candidate): candidate is string => {
+      return typeof candidate === 'string' && candidate.trim().length > 0
+    })
   }
 
   private toContentBlock(

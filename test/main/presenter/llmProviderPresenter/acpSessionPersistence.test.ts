@@ -289,6 +289,114 @@ describe('AcpSessionPersistence remote session sync', () => {
     )
   })
 
+  it('cleans up the new conversation when remote session save cannot be recovered', async () => {
+    const workspaceDir = process.cwd()
+    const saveError = new Error('database unavailable')
+    const sqlitePresenter = {
+      getAcpSessionByAgentAndSessionId: vi.fn().mockResolvedValue(null),
+      createConversation: vi.fn(async () => 'conv-failed'),
+      deleteConversation: vi.fn().mockResolvedValue(undefined),
+      upsertAcpSession: vi.fn().mockRejectedValue(saveError)
+    } as unknown as ISQLitePresenter
+    const persistence = new AcpSessionPersistence(sqlitePresenter)
+
+    await expect(
+      persistence.syncRemoteSessions({
+        agentId: 'agent-1',
+        agentName: 'Agent One',
+        providerId: 'acp',
+        workdir: workspaceDir,
+        sessions: [
+          {
+            sessionId: 'remote-1',
+            cwd: workspaceDir,
+            title: 'Remote title'
+          }
+        ]
+      })
+    ).rejects.toThrow(saveError)
+
+    expect(sqlitePresenter.createConversation).toHaveBeenCalledWith(
+      'Remote title',
+      expect.any(Object)
+    )
+    expect(sqlitePresenter.deleteConversation).toHaveBeenCalledWith('conv-failed')
+  })
+
+  it('serializes concurrent metadata merges for the same local session', async () => {
+    let storedSession: AcpSessionEntity = {
+      id: 1,
+      conversationId: 'conv-1',
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      workdir: process.cwd(),
+      status: 'idle',
+      createdAt: 1,
+      updatedAt: 2,
+      metadata: {
+        base: true
+      }
+    }
+    let releaseFirstSave!: () => void
+    let markFirstSaveStarted!: () => void
+    const firstSaveGate = new Promise<void>((resolve) => {
+      releaseFirstSave = resolve
+    })
+    const firstSaveStarted = new Promise<void>((resolve) => {
+      markFirstSaveStarted = resolve
+    })
+    let saveCount = 0
+    const sqlitePresenter = {
+      getAcpSession: vi.fn(async () => ({
+        ...storedSession,
+        metadata: {
+          ...storedSession.metadata
+        }
+      })),
+      upsertAcpSession: vi.fn(
+        async (
+          conversationId: string,
+          agentId: string,
+          data: {
+            sessionId?: string | null
+            workdir?: string | null
+            status?: AcpSessionEntity['status']
+            metadata?: Record<string, unknown> | null
+          }
+        ) => {
+          saveCount += 1
+          if (saveCount === 1) {
+            markFirstSaveStarted()
+            await firstSaveGate
+          }
+          storedSession = {
+            ...storedSession,
+            conversationId,
+            agentId,
+            sessionId: data.sessionId ?? null,
+            workdir: data.workdir ?? null,
+            status: data.status ?? 'idle',
+            metadata: data.metadata ?? null
+          }
+        }
+      )
+    } as unknown as ISQLitePresenter
+    const persistence = new AcpSessionPersistence(sqlitePresenter)
+
+    const firstMerge = persistence.mergeMetadata('conv-1', 'agent-1', { first: true })
+    await firstSaveStarted
+    const secondMerge = persistence.mergeMetadata('conv-1', 'agent-1', { second: true })
+    releaseFirstSave()
+    await Promise.all([firstMerge, secondMerge])
+
+    expect(sqlitePresenter.getAcpSession).toHaveBeenCalledTimes(2)
+    expect(storedSession.metadata).toEqual({
+      base: true,
+      first: true,
+      second: true
+    })
+  })
+
   it('keeps remote cwd metadata while using a local fallback for missing imported workdirs', async () => {
     const fallbackDir = process.cwd()
     const remoteMissingDir = path.join(fallbackDir, 'remote-missing')

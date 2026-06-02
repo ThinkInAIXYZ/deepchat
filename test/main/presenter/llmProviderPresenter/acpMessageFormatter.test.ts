@@ -66,4 +66,40 @@ describe('AcpMessageFormatter', () => {
       }
     ])
   })
+
+  it('accepts input_image data from source and top-level fields', () => {
+    const formatter = new AcpMessageFormatter()
+    const messages = [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_image',
+            source: {
+              data: 'data:image/jpeg;base64,fromSource'
+            }
+          },
+          {
+            type: 'input_image',
+            data: 'data:image/png;base64,fromData'
+          }
+        ]
+      }
+    ] as ChatMessage[]
+
+    expect(formatter.format(messages, { promptCapabilities: { image: true } }).blocks).toEqual([
+      {
+        type: 'image',
+        data: 'fromSource',
+        mimeType: 'image/jpeg',
+        uri: 'data:image/jpeg;base64,fromSource'
+      },
+      {
+        type: 'image',
+        data: 'fromData',
+        mimeType: 'image/png',
+        uri: 'data:image/png;base64,fromData'
+      }
+    ])
+  })
 })

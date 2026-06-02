@@ -55,6 +55,10 @@ type EventQueue = {
   done: () => void
 }
 
+type RunPromptOptions = {
+  onPromptSucceeded?: () => void
+}
+
 type PermissionRequestContext = {
   agent: AcpAgentConfig
   conversationId: string
@@ -422,10 +426,14 @@ export class AcpProvider extends BaseLLMProvider {
             promptCapabilities: session.promptCapabilities,
             includeSystemPrompt: !session.systemPromptSent
           })
-          if (formattedPrompt.includedSystemPrompt) {
-            session.systemPromptSent = true
-          }
-          void this.runPrompt(session, formattedPrompt.blocks, queue, modelConfig)
+          const activeSession = session
+          void this.runPrompt(activeSession, formattedPrompt.blocks, queue, modelConfig, {
+            onPromptSucceeded: formattedPrompt.includedSystemPrompt
+              ? () => {
+                  activeSession.systemPromptSent = true
+                }
+              : undefined
+          })
         }
       }
     } catch (error) {
@@ -673,17 +681,39 @@ export class AcpProvider extends BaseLLMProvider {
       )
     }
 
+    const resolveHandleWorkdir = (): string => {
+      const handleWorkdir = handle.workdir?.trim()
+      if (handleWorkdir) {
+        return handleWorkdir
+      }
+      const requestedWorkdir = request.workdir?.trim()
+      if (this.sessionPersistence && typeof this.sessionPersistence.resolveWorkdir === 'function') {
+        return this.sessionPersistence.resolveWorkdir(requestedWorkdir)
+      }
+      return requestedWorkdir || process.cwd()
+    }
+
     const normalizeWorkdir = (workdir?: string | null): string => {
+      const fallback = resolveHandleWorkdir()
       const trimmed = workdir?.trim()
+      if (!trimmed) {
+        return fallback
+      }
+      if (
+        this.sessionPersistence &&
+        typeof this.sessionPersistence.isWorkdirUsable === 'function' &&
+        !this.sessionPersistence.isWorkdirUsable(trimmed)
+      ) {
+        return fallback
+      }
       if (this.sessionPersistence && typeof this.sessionPersistence.resolveWorkdir === 'function') {
         return this.sessionPersistence.resolveWorkdir(trimmed)
       }
-      return trimmed || process.cwd()
+      return trimmed
     }
 
     const resolveWorkdir = (): string => {
-      const cwd = request.workdir ?? handle.workdir
-      return normalizeWorkdir(cwd)
+      return resolveHandleWorkdir()
     }
 
     const resolvePayloadWorkdir = (workdir: unknown): string | undefined => {
@@ -1186,7 +1216,8 @@ export class AcpProvider extends BaseLLMProvider {
     session: AcpSessionRecord,
     prompt: schema.ContentBlock[],
     queue: EventQueue,
-    modelConfig: ModelConfig
+    modelConfig: ModelConfig,
+    options: RunPromptOptions = {}
   ): Promise<void> {
     const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
     let timeoutId: NodeJS.Timeout | null = null
@@ -1248,6 +1279,7 @@ export class AcpProvider extends BaseLLMProvider {
             })
           ])
         : promptRequest)
+      options.onPromptSucceeded?.()
       const responseSummary = {
         sessionId: session.sessionId,
         conversationId,

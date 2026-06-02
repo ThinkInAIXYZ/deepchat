@@ -1692,6 +1692,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const entry = this.sessionListeners.get(sessionId)
     if (!entry) return
 
+    this.pruneBufferedSessionUpdates()
     const buffered = this.bufferedSessionUpdates.get(sessionId)
     if (!buffered?.length) return
 

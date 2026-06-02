@@ -34,6 +34,7 @@ export interface AcpRemoteSessionSyncResult {
 
 export class AcpSessionPersistence {
   private readonly remoteSessionSyncLocks = new Map<string, Promise<void>>()
+  private readonly metadataMergeLocks = new Map<string, Promise<void>>()
 
   constructor(private readonly sqlitePresenter: ISQLitePresenter) {}
 
@@ -91,18 +92,20 @@ export class AcpSessionPersistence {
     agentId: string,
     metadata: Record<string, unknown>
   ): Promise<void> {
-    const existing = await this.getSessionData(conversationId, agentId)
-    await this.saveSessionData(
-      conversationId,
-      agentId,
-      existing?.sessionId ?? null,
-      existing?.workdir ?? null,
-      existing?.status ?? 'idle',
-      {
-        ...existing?.metadata,
-        ...metadata
-      }
-    )
+    await this.withKeyLock(this.metadataMergeLocks, `${conversationId}::${agentId}`, async () => {
+      const existing = await this.getSessionData(conversationId, agentId)
+      await this.saveSessionData(
+        conversationId,
+        agentId,
+        existing?.sessionId ?? null,
+        existing?.workdir ?? null,
+        existing?.status ?? 'idle',
+        {
+          ...existing?.metadata,
+          ...metadata
+        }
+      )
+    })
   }
 
   async syncRemoteSessions(input: AcpRemoteSessionSyncInput): Promise<AcpRemoteSessionSyncResult> {
@@ -189,6 +192,7 @@ export class AcpSessionPersistence {
         remoteSession.sessionId
       )
       if (!concurrentExisting) {
+        await this.deleteConversationSilently(conversationId)
         throw error
       }
 
@@ -251,14 +255,21 @@ export class AcpSessionPersistence {
     sessionId: string,
     task: () => Promise<T>
   ): Promise<T> {
-    const key = `${agentId}::${sessionId}`
-    const previous = this.remoteSessionSyncLocks.get(key)
+    return this.withKeyLock(this.remoteSessionSyncLocks, `${agentId}::${sessionId}`, task)
+  }
+
+  private async withKeyLock<T>(
+    locks: Map<string, Promise<void>>,
+    key: string,
+    task: () => Promise<T>
+  ): Promise<T> {
+    const previous = locks.get(key)
     let release!: () => void
     const current = new Promise<void>((resolve) => {
       release = resolve
     })
     const next = previous ? previous.catch(() => undefined).then(() => current) : current
-    this.remoteSessionSyncLocks.set(key, next)
+    locks.set(key, next)
 
     if (previous) {
       await previous.catch(() => undefined)
@@ -268,8 +279,8 @@ export class AcpSessionPersistence {
       return await task()
     } finally {
       release()
-      if (this.remoteSessionSyncLocks.get(key) === next) {
-        this.remoteSessionSyncLocks.delete(key)
+      if (locks.get(key) === next) {
+        locks.delete(key)
       }
     }
   }

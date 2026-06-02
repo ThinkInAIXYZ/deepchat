@@ -168,6 +168,31 @@ describe('AcpProcessManager config cache fallback', () => {
     expect(handler).toHaveBeenCalledWith(notification)
   })
 
+  it('drops expired buffered session updates before replaying them', () => {
+    vi.useFakeTimers()
+
+    try {
+      const manager = createManager()
+      const handler = vi.fn()
+      const notification = {
+        sessionId: 'session-expired',
+        update: {
+          sessionUpdate: 'available_commands_update',
+          availableCommands: [{ name: 'plan', description: 'Plan work' }]
+        }
+      }
+
+      vi.setSystemTime(0)
+      ;(manager as any).dispatchSessionUpdate(notification)
+      vi.setSystemTime(31_000)
+      manager.registerSessionListener('agent-1', 'session-expired', handler)
+
+      expect(handler).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('refreshes the agent cache when bound session config changes', () => {
     const manager = createManager()
     const handle = {

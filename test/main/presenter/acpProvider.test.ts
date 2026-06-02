@@ -271,7 +271,7 @@ describe('AcpProvider runDebugAction error handling', () => {
       skipped: 0,
       sessions: [{ sessionId: 'remote-1', conversationId: 'conv-1', status: 'imported' }]
     })
-    const resolveWorkdir = vi.fn().mockReturnValue('/tmp/fallback')
+    const isWorkdirUsable = vi.fn((workdir: string) => workdir === '/tmp/fallback')
     const provider = Object.create(AcpProvider.prototype) as any
     provider.provider = { id: 'acp', name: 'ACP' }
     provider.configPresenter = {
@@ -290,18 +290,19 @@ describe('AcpProvider runDebugAction error handling', () => {
       })
     }
     provider.sessionPersistence = {
-      resolveWorkdir,
+      isWorkdirUsable,
       syncRemoteSessions
     }
 
     const result = await provider.runDebugAction({
       agentId: 'agent1',
       action: 'sessionList',
+      workdir: '/tmp/missing-from-dialog',
       payload: { cwd: '/tmp/missing-workdir', sync: true }
     } as any)
 
     expect(result.status).toBe('ok')
-    expect(resolveWorkdir).toHaveBeenCalledWith('/tmp/missing-workdir')
+    expect(isWorkdirUsable).toHaveBeenCalledWith('/tmp/missing-workdir')
     expect(listSessions).toHaveBeenCalledWith({
       cwd: '/tmp/fallback',
       cursor: undefined
@@ -882,6 +883,117 @@ describe('AcpProvider runDebugAction error handling', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('marks the system prompt as sent only after the ACP prompt succeeds', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+    provider.promptController = {
+      begin: vi.fn().mockReturnValue({
+        id: 'turn-system',
+        sessionId: 'session-system',
+        conversationId: 'conv-system',
+        userMessageId: null,
+        startedAt: Date.now()
+      }),
+      complete: vi.fn().mockReturnValue({
+        id: 'turn-system',
+        completedAt: Date.now()
+      }),
+      fail: vi.fn()
+    }
+    provider.sessionPersistence = {
+      startTurn: vi.fn().mockResolvedValue(undefined),
+      finishTurn: vi.fn().mockResolvedValue(undefined)
+    }
+
+    let resolvePrompt!: (value: { stopReason: string }) => void
+    const prompt = vi.fn(
+      () =>
+        new Promise<{ stopReason: string }>((resolve) => {
+          resolvePrompt = resolve
+        })
+    )
+    const queue = {
+      push: vi.fn(),
+      done: vi.fn()
+    }
+    const onPromptSucceeded = vi.fn()
+
+    const runPrompt = provider['runPrompt'](
+      {
+        sessionId: 'session-system',
+        conversationId: 'conv-system',
+        connection: {
+          prompt
+        }
+      },
+      [{ type: 'text', text: 'System instructions:\nBe precise.' }],
+      queue,
+      {},
+      { onPromptSucceeded }
+    )
+
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledTimes(1))
+    expect(onPromptSucceeded).not.toHaveBeenCalled()
+
+    resolvePrompt({ stopReason: 'end_turn' })
+    await runPrompt
+
+    expect(onPromptSucceeded).toHaveBeenCalledTimes(1)
+    expect(queue.done).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not mark the system prompt when prompt dispatch fails first', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.emitRequestTrace = vi.fn().mockRejectedValue(new Error('trace failed'))
+    provider.promptController = {
+      begin: vi.fn().mockReturnValue({
+        id: 'turn-trace',
+        sessionId: 'session-trace',
+        conversationId: 'conv-trace',
+        userMessageId: null,
+        startedAt: Date.now()
+      }),
+      complete: vi.fn(),
+      fail: vi.fn().mockReturnValue({
+        id: 'turn-trace',
+        completedAt: Date.now()
+      })
+    }
+    provider.sessionPersistence = {
+      startTurn: vi.fn().mockResolvedValue(undefined),
+      finishTurn: vi.fn().mockResolvedValue(undefined)
+    }
+
+    const prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' })
+    const queue = {
+      push: vi.fn(),
+      done: vi.fn()
+    }
+    const onPromptSucceeded = vi.fn()
+
+    await provider['runPrompt'](
+      {
+        sessionId: 'session-trace',
+        conversationId: 'conv-trace',
+        connection: {
+          prompt
+        }
+      },
+      [{ type: 'text', text: 'System instructions:\nBe precise.' }],
+      queue,
+      {},
+      { onPromptSucceeded }
+    )
+
+    expect(prompt).not.toHaveBeenCalled()
+    expect(onPromptSucceeded).not.toHaveBeenCalled()
+    expect(queue.push).toHaveBeenCalledWith({
+      type: 'error',
+      error_message: 'ACP: trace failed'
+    })
+    expect(queue.done).toHaveBeenCalledTimes(1)
   })
 
   it('awaits turn start persistence before sending the ACP prompt', async () => {

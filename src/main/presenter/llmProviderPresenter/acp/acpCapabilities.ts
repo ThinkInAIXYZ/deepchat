@@ -71,7 +71,7 @@ export function buildClientCapabilities(
     caps.terminal = true
   }
 
-  if (options.enableTerminalAuth) {
+  if (options.enableTerminal !== false && options.enableTerminalAuth) {
     caps.auth = {
       terminal: true
     }
