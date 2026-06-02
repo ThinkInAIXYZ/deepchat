@@ -404,5 +404,18 @@
       "description": "现在已经准备好了，在这里发送第一条消息即可完成引导。",
       "caption": "聚光会一直停留在输入框，直到你真正发出第一条消息。"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "已经工作了 {duration}",
+    "reasoningCount": "{count} 段思考",
+    "toolCallCount": "{count} 次工具调用",
+    "expandLabel": "展开 {title}",
+    "collapseLabel": "收起 {title}",
+    "duration": {
+      "day": "天",
+      "hour": "小时",
+      "minute": "分钟",
+      "second": "秒"
+    }
   }
 }

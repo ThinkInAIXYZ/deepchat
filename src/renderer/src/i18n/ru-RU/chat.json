@@ -404,5 +404,18 @@
       "discarded": "Черновик навыка отброшен.",
       "failed": "Не удалось обработать черновик навыка: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Работал(а) {duration}",
+    "reasoningCount": "{count} рассуждение(й)",
+    "toolCallCount": "{count} вызов(ов) инструмента",
+    "expandLabel": "Развернуть {title}",
+    "collapseLabel": "Свернуть {title}",
+    "duration": {
+      "day": "д ",
+      "hour": "ч ",
+      "minute": "мин ",
+      "second": "с"
+    }
   }
 }

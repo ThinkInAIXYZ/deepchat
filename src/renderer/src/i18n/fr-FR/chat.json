@@ -404,5 +404,18 @@
       "discarded": "Brouillon de compétence ignoré.",
       "failed": "Impossible de traiter le brouillon de compétence : {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "A travaillé pendant {duration}",
+    "reasoningCount": "{count} réflexion(s)",
+    "toolCallCount": "{count} appel(s) d'outil",
+    "expandLabel": "Développer {title}",
+    "collapseLabel": "Réduire {title}",
+    "duration": {
+      "day": "j ",
+      "hour": "h ",
+      "minute": "min ",
+      "second": "s"
+    }
   }
 }

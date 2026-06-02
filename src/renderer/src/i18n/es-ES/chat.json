@@ -404,5 +404,18 @@
       "discarded": "Borrador de skill descartado.",
       "failed": "No se pudo gestionar el borrador de skill: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Trabajó durante {duration}",
+    "reasoningCount": "{count} pensamiento(s)",
+    "toolCallCount": "{count} llamada(s) a herramienta",
+    "expandLabel": "Expandir {title}",
+    "collapseLabel": "Contraer {title}",
+    "duration": {
+      "day": "d ",
+      "hour": "h ",
+      "minute": "min ",
+      "second": "s"
+    }
   }
 }

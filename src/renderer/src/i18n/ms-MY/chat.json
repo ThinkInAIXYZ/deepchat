@@ -404,5 +404,18 @@
       "discarded": "Draf skill telah dibuang.",
       "failed": "Gagal mengendalikan draf skill: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Bekerja selama {duration}",
+    "reasoningCount": "{count} pemikiran",
+    "toolCallCount": "{count} panggilan alat",
+    "expandLabel": "Kembangkan {title}",
+    "collapseLabel": "Runtuhkan {title}",
+    "duration": {
+      "day": "h ",
+      "hour": "j ",
+      "minute": "m ",
+      "second": "s"
+    }
   }
 }

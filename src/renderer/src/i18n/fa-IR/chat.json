@@ -404,5 +404,18 @@
       "discarded": "پیش‌نویس مهارت دور انداخته شد.",
       "failed": "رسیدگی به پیش‌نویس مهارت ناموفق بود: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "به مدت {duration} کار کرده است",
+    "reasoningCount": "{count} مورد تفکر",
+    "toolCallCount": "{count} فراخوانی ابزار",
+    "expandLabel": "گسترش {title}",
+    "collapseLabel": "جمع کردن {title}",
+    "duration": {
+      "day": " روز ",
+      "hour": " ساعت ",
+      "minute": " دقیقه ",
+      "second": " ثانیه"
+    }
   }
 }

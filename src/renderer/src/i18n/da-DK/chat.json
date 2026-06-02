@@ -404,5 +404,18 @@
       "discarded": "Skill-kladden er kasseret.",
       "failed": "Kunne ikke håndtere skill-kladden: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Arbejdet i {duration}",
+    "reasoningCount": "{count} tanke(r)",
+    "toolCallCount": "{count} værktøjskald",
+    "expandLabel": "Udvid {title}",
+    "collapseLabel": "Skjul {title}",
+    "duration": {
+      "day": "d ",
+      "hour": "t ",
+      "minute": "min ",
+      "second": "s"
+    }
   }
 }

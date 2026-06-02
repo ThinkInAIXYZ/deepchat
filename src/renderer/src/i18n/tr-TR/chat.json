@@ -404,5 +404,18 @@
       "discarded": "Skill taslağından vazgeçildi.",
       "failed": "Skill taslağı işlenemedi: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "{duration} boyunca çalıştı",
+    "reasoningCount": "{count} düşünce",
+    "toolCallCount": "{count} araç çağrısı",
+    "expandLabel": "{title} öğesini genişlet",
+    "collapseLabel": "{title} öğesini daralt",
+    "duration": {
+      "day": "g ",
+      "hour": "sa ",
+      "minute": "dk ",
+      "second": "sn"
+    }
   }
 }

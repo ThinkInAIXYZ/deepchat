@@ -404,5 +404,18 @@
       "discarded": "Bozza di skill scartata.",
       "failed": "Impossibile gestire la bozza di skill: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Ha lavorato per {duration}",
+    "reasoningCount": "{count} ragionamento/i",
+    "toolCallCount": "{count} chiamata/e strumento",
+    "expandLabel": "Espandi {title}",
+    "collapseLabel": "Comprimi {title}",
+    "duration": {
+      "day": "g ",
+      "hour": "h ",
+      "minute": "min ",
+      "second": "s"
+    }
   }
 }

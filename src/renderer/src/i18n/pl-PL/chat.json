@@ -404,5 +404,18 @@
       "discarded": "Odrzucono szkic umiejętności.",
       "failed": "Nie udało się obsłużyć szkicu umiejętności: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Pracowano przez {duration}",
+    "reasoningCount": "{count} rozumowanie(a)",
+    "toolCallCount": "{count} wywołanie(a) narzędzia",
+    "expandLabel": "Rozwiń {title}",
+    "collapseLabel": "Zwiń {title}",
+    "duration": {
+      "day": "d ",
+      "hour": "godz. ",
+      "minute": "min ",
+      "second": "s"
+    }
   }
 }

@@ -404,5 +404,18 @@
       "discarded": "טיוטת המיומנות נמחקה.",
       "failed": "הטיפול בטיוטת המיומנות נכשל: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "עבד במשך {duration}",
+    "reasoningCount": "{count} מחשבות",
+    "toolCallCount": "{count} קריאות כלי",
+    "expandLabel": "הרחב את {title}",
+    "collapseLabel": "כווץ את {title}",
+    "duration": {
+      "day": " יום ",
+      "hour": " שעה ",
+      "minute": " דק׳ ",
+      "second": " שנ׳"
+    }
   }
 }

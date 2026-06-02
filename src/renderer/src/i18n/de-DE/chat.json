@@ -404,5 +404,18 @@
       "discarded": "Skill-Entwurf verworfen.",
       "failed": "Skill-Entwurf konnte nicht verarbeitet werden: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Gearbeitet für {duration}",
+    "reasoningCount": "{count} Gedanke(n)",
+    "toolCallCount": "{count} Werkzeugaufruf(e)",
+    "expandLabel": "Erweitern {title}",
+    "collapseLabel": "Einklappen {title}",
+    "duration": {
+      "day": "T ",
+      "hour": "Std. ",
+      "minute": "Min. ",
+      "second": "Sek."
+    }
   }
 }
