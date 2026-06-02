@@ -1649,6 +1649,11 @@
       "customMethodRequired": "Podaj nazwę metody dla wywołań wewnętrznych",
       "requestFailed": "Żądanie nie powiodło się",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "initialize": "zainicjować",
         "newSession": "session/new",
         "loadSession": "session/load",

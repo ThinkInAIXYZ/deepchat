@@ -83,6 +83,21 @@ export class AcpSessionsTable extends BaseTable {
     return row ? this.mapRow(row) : null
   }
 
+  async getByAgentAndSessionId(agentId: string, sessionId: string): Promise<AcpSessionRow | null> {
+    const row = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM acp_sessions
+        WHERE agent_id = ? AND session_id = ?
+        LIMIT 1
+      `
+      )
+      .get(agentId, sessionId) as AcpSessionDbRow | undefined
+
+    return row ? this.mapRow(row) : null
+  }
+
   async upsert(conversationId: string, agentId: string, data: AcpSessionUpsertData): Promise<void> {
     const now = Date.now()
     const payload = {

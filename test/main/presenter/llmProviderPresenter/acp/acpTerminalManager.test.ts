@@ -15,14 +15,6 @@ vi.mock('electron', () => ({
 }))
 
 describe('AcpTerminalManager', () => {
-  const getShellExpectation = () =>
-    process.platform === 'win32'
-      ? expect.stringMatching(/powershell/i)
-      : expect.stringMatching(/bash/i)
-
-  const getArgsExpectation = (command: string) =>
-    process.platform === 'win32' ? ['-NoLogo', '-Command', command] : ['-c', command]
-
   const createPty = () => ({
     onData: vi.fn(),
     onExit: vi.fn(),
@@ -45,8 +37,8 @@ describe('AcpTerminalManager', () => {
     })
 
     expect(spawn).toHaveBeenCalledWith(
-      getShellExpectation(),
-      getArgsExpectation('pwd'),
+      'pwd',
+      [],
       expect.objectContaining({
         cwd: expect.stringContaining(path.normalize('/tmp/workspace'))
       })
@@ -65,11 +57,54 @@ describe('AcpTerminalManager', () => {
       recursive: true
     })
     expect(spawn).toHaveBeenCalledWith(
-      getShellExpectation(),
-      getArgsExpectation('pwd'),
+      'pwd',
+      [],
       expect.objectContaining({
         cwd: expect.stringContaining(path.normalize('/tmp/deepchat-acp/terminals'))
       })
     )
+  })
+
+  it('passes command arguments directly without shell concatenation', async () => {
+    const manager = new AcpTerminalManager()
+
+    await manager.createTerminal({
+      sessionId: 'session-1',
+      command: 'node',
+      args: ['-e', 'console.log("hello world")'],
+      cwd: '/tmp/workspace'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(
+      'node',
+      ['-e', 'console.log("hello world")'],
+      expect.objectContaining({
+        cwd: expect.stringContaining(path.normalize('/tmp/workspace'))
+      })
+    )
+  })
+
+  it('retains the latest terminal output when outputByteLimit is exceeded', async () => {
+    const pty = createPty()
+    vi.mocked(spawn).mockReturnValue(pty as never)
+    const manager = new AcpTerminalManager()
+
+    const response = await manager.createTerminal({
+      sessionId: 'session-1',
+      command: 'node',
+      outputByteLimit: 6,
+      cwd: '/tmp/workspace'
+    })
+    const onData = pty.onData.mock.calls[0][0] as (data: string) => void
+
+    onData('abcdef')
+    onData('ghij')
+
+    await expect(
+      manager.terminalOutput({ sessionId: 'session-1', terminalId: response.terminalId })
+    ).resolves.toMatchObject({
+      output: 'efghij',
+      truncated: true
+    })
   })
 })

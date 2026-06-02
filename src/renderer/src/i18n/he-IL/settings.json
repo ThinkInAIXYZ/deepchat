@@ -1617,6 +1617,11 @@
       "events": "מִקרֶה",
       "format": "פורמט JSON",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "הפעלה/ביטול",
         "extMethod": "הרחבה/שיטה",
         "extNotification": "שלוחה/הודעה",

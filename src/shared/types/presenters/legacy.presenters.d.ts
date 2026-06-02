@@ -456,6 +456,10 @@ export interface ISQLitePresenter {
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<SQLITE_MESSAGE | null>
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
   getAcpSession(conversationId: string, agentId: string): Promise<AcpSessionEntity | null>
+  getAcpSessionByAgentAndSessionId(
+    agentId: string,
+    sessionId: string
+  ): Promise<AcpSessionEntity | null>
   upsertAcpSession(
     conversationId: string,
     agentId: string,
@@ -916,8 +920,13 @@ export type StandaloneVideoGenerationResult = {
 
 export type AcpDebugActionType =
   | 'initialize'
+  | 'authenticate'
   | 'newSession'
   | 'loadSession'
+  | 'sessionList'
+  | 'sessionResume'
+  | 'sessionClose'
+  | 'sessionFork'
   | 'prompt'
   | 'cancel'
   | 'setSessionMode'

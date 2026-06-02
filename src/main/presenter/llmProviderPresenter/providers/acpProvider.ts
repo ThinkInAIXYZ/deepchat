@@ -1,4 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type {
   AcpConfigState,
@@ -97,6 +98,21 @@ type AcpConnectionWithModelSelection = {
     params: schema.SetSessionModelRequest
   ) => Promise<schema.SetSessionModelResponse>
 }
+
+type AcpConnectionWithDebugLifecycle = ClientSideConnectionType &
+  AcpConnectionWithModelSelection & {
+    authenticate?: (params: schema.AuthenticateRequest) => Promise<schema.AuthenticateResponse>
+    listSessions?: (params: schema.ListSessionsRequest) => Promise<schema.ListSessionsResponse>
+    unstable_resumeSession?: (
+      params: schema.ResumeSessionRequest
+    ) => Promise<schema.ResumeSessionResponse>
+    unstable_closeSession?: (
+      params: schema.CloseSessionRequest
+    ) => Promise<schema.CloseSessionResponse>
+    unstable_forkSession?: (
+      params: schema.ForkSessionRequest
+    ) => Promise<schema.ForkSessionResponse>
+  }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -402,8 +418,14 @@ export class AcpProvider extends BaseLLMProvider {
           )
           this.emitSessionCommandsReady(conversationKey, agent.id, session.availableCommands ?? [])
 
-          const promptBlocks = this.messageFormatter.format(messages, modelConfig)
-          void this.runPrompt(session, promptBlocks, queue, modelConfig)
+          const formattedPrompt = this.messageFormatter.format(messages, {
+            promptCapabilities: session.promptCapabilities,
+            includeSystemPrompt: !session.systemPromptSent
+          })
+          if (formattedPrompt.includedSystemPrompt) {
+            session.systemPromptSent = true
+          }
+          void this.runPrompt(session, formattedPrompt.blocks, queue, modelConfig)
         }
       }
     } catch (error) {
@@ -563,7 +585,7 @@ export class AcpProvider extends BaseLLMProvider {
       }
       throw error
     }
-    const connection = handle.connection
+    const connection = handle.connection as AcpConnectionWithDebugLifecycle
     const events: AcpDebugEventEntry[] =
       typeof this.processManager.getDebugEvents === 'function'
         ? [...this.processManager.getDebugEvents(agent.id)]
@@ -659,6 +681,31 @@ export class AcpProvider extends BaseLLMProvider {
           })
           break
         }
+        case 'authenticate': {
+          if (!connection.authenticate) {
+            throw new Error('authenticate is not supported by this SDK connection')
+          }
+          const methodId =
+            isPlainObject(request.payload) && typeof request.payload.methodId === 'string'
+              ? request.payload.methodId
+              : undefined
+          if (!methodId) {
+            throw new Error('methodId is required for authenticate')
+          }
+          const body: schema.AuthenticateRequest = { methodId }
+          if (isPlainObject(request.payload?._meta)) {
+            body._meta = request.payload._meta
+          }
+          pushEvent({ kind: 'request', action: 'authenticate', payload: body })
+          const response = await connection.authenticate(body)
+          pushEvent({
+            kind: 'response',
+            action: 'authenticate',
+            sessionId: activeSessionId,
+            payload: response ?? {}
+          })
+          break
+        }
         case 'newSession': {
           const basePayload: schema.NewSessionRequest = {
             cwd: resolveWorkdir() ?? process.cwd(),
@@ -728,6 +775,198 @@ export class AcpProvider extends BaseLLMProvider {
           pushEvent({
             kind: 'response',
             action: 'loadSession',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'sessionList': {
+          if (!connection.listSessions) {
+            throw new Error('session/list is not supported by this SDK connection')
+          }
+          if (!handle.supportsSessionList) {
+            throw new Error('Agent did not advertise sessionCapabilities.list')
+          }
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const body: schema.ListSessionsRequest = {
+            cwd: resolveWorkdir() ?? process.cwd()
+          }
+          if (payloadOverrides) {
+            if (typeof payloadOverrides.cwd === 'string') {
+              body.cwd = payloadOverrides.cwd
+            }
+            if (typeof payloadOverrides.cursor === 'string') {
+              body.cursor = payloadOverrides.cursor
+            }
+            if (isPlainObject(payloadOverrides._meta)) {
+              body._meta = payloadOverrides._meta
+            }
+          }
+          const shouldSyncRemoteSessions = Boolean(payloadOverrides?.sync)
+          const allSessions: schema.SessionInfo[] = []
+          let cursor: string | null | undefined = body.cursor
+          do {
+            const pageBody = { ...body, cursor }
+            pushEvent({ kind: 'request', action: 'session/list', payload: pageBody })
+            const response = await connection.listSessions(pageBody)
+            allSessions.push(...response.sessions)
+            cursor = response.nextCursor
+            pushEvent({
+              kind: 'response',
+              action: 'session/list',
+              payload: response
+            })
+          } while (cursor)
+          pushEvent({
+            kind: 'lifecycle',
+            action: 'session/list.complete',
+            payload: { count: allSessions.length }
+          })
+          if (shouldSyncRemoteSessions) {
+            const syncResult = await this.sessionPersistence.syncRemoteSessions({
+              agentId: agent.id,
+              agentName: agent.name,
+              providerId: this.provider.id,
+              workdir: body.cwd ?? resolveWorkdir() ?? process.cwd(),
+              sessions: allSessions
+            })
+            pushEvent({
+              kind: 'lifecycle',
+              action: 'session/list.sync',
+              payload: syncResult
+            })
+          }
+          break
+        }
+        case 'sessionResume': {
+          if (!connection.unstable_resumeSession) {
+            throw new Error('session/resume is not supported by this SDK connection')
+          }
+          if (!handle.supportsSessionResume) {
+            throw new Error('Agent did not advertise sessionCapabilities.resume')
+          }
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const sessionToResume =
+            payloadOverrides && typeof payloadOverrides.sessionId === 'string'
+              ? payloadOverrides.sessionId
+              : activeSessionId
+          if (!sessionToResume) {
+            throw new Error('sessionId is required for sessionResume')
+          }
+          const body: schema.ResumeSessionRequest = {
+            cwd: resolveWorkdir() ?? process.cwd(),
+            mcpServers: await resolveMcpServers(),
+            sessionId: sessionToResume
+          }
+          if (payloadOverrides) {
+            if (typeof payloadOverrides.cwd === 'string') {
+              body.cwd = payloadOverrides.cwd
+            }
+            if (Array.isArray(payloadOverrides.mcpServers)) {
+              body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]
+            }
+            if (isPlainObject(payloadOverrides._meta)) {
+              body._meta = payloadOverrides._meta
+            }
+          }
+          pushEvent({
+            kind: 'request',
+            action: 'session/resume',
+            sessionId: sessionToResume,
+            payload: body
+          })
+          this.processManager.registerSessionWorkdir(sessionToResume, body.cwd)
+          attachSession(sessionToResume)
+          const response = await connection.unstable_resumeSession(body)
+          activeSessionId = sessionToResume
+          pushEvent({
+            kind: 'response',
+            action: 'session/resume',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'sessionClose': {
+          if (!connection.unstable_closeSession) {
+            throw new Error('session/close is not supported by this SDK connection')
+          }
+          if (!handle.supportsSessionClose) {
+            throw new Error('Agent did not advertise sessionCapabilities.close')
+          }
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const sessionToClose =
+            payloadOverrides && typeof payloadOverrides.sessionId === 'string'
+              ? payloadOverrides.sessionId
+              : activeSessionId
+          if (!sessionToClose) {
+            throw new Error('sessionId is required for sessionClose')
+          }
+          const body: schema.CloseSessionRequest = { sessionId: sessionToClose }
+          if (payloadOverrides && isPlainObject(payloadOverrides._meta)) {
+            body._meta = payloadOverrides._meta
+          }
+          pushEvent({
+            kind: 'request',
+            action: 'session/close',
+            sessionId: sessionToClose,
+            payload: body
+          })
+          const response = await connection.unstable_closeSession(body)
+          this.processManager.clearSession(sessionToClose)
+          activeSessionId = undefined
+          pushEvent({
+            kind: 'response',
+            action: 'session/close',
+            sessionId: sessionToClose,
+            payload: response
+          })
+          break
+        }
+        case 'sessionFork': {
+          if (!connection.unstable_forkSession) {
+            throw new Error('session/fork is not supported by this SDK connection')
+          }
+          if (!handle.supportsSessionFork) {
+            throw new Error('Agent did not advertise sessionCapabilities.fork')
+          }
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const sessionToFork =
+            payloadOverrides && typeof payloadOverrides.sessionId === 'string'
+              ? payloadOverrides.sessionId
+              : activeSessionId
+          if (!sessionToFork) {
+            throw new Error('sessionId is required for sessionFork')
+          }
+          const body: schema.ForkSessionRequest = {
+            cwd: resolveWorkdir() ?? process.cwd(),
+            mcpServers: await resolveMcpServers(),
+            sessionId: sessionToFork
+          }
+          if (payloadOverrides) {
+            if (typeof payloadOverrides.cwd === 'string') {
+              body.cwd = payloadOverrides.cwd
+            }
+            if (Array.isArray(payloadOverrides.mcpServers)) {
+              body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]
+            }
+          }
+          if (payloadOverrides && isPlainObject(payloadOverrides._meta)) {
+            body._meta = payloadOverrides._meta
+          }
+          pushEvent({
+            kind: 'request',
+            action: 'session/fork',
+            sessionId: sessionToFork,
+            payload: body
+          })
+          const response = await connection.unstable_forkSession(body)
+          activeSessionId = response.sessionId
+          this.processManager.registerSessionWorkdir(activeSessionId, body.cwd)
+          attachSession(activeSessionId)
+          pushEvent({
+            kind: 'response',
+            action: 'session/fork',
             sessionId: activeSessionId,
             payload: response
           })
@@ -1103,6 +1342,28 @@ export class AcpProvider extends BaseLLMProvider {
         currentSession.workdir,
         mapped.configState
       )
+    }
+
+    if ((mapped.sessionInfo || mapped.usage) && currentSession) {
+      const metadata = {
+        ...currentSession.metadata,
+        ...(mapped.sessionInfo
+          ? {
+              acpSessionInfo: mapped.sessionInfo
+            }
+          : {}),
+        ...(mapped.usage
+          ? {
+              acpUsage: mapped.usage
+            }
+          : {})
+      }
+      currentSession.metadata = metadata
+      void this.sessionPersistence
+        .mergeMetadata(conversationId, agentId, metadata)
+        .catch((error) => {
+          console.warn('[ACP] Failed to persist ACP session update metadata:', error)
+        })
     }
   }
 

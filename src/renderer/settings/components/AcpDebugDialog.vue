@@ -253,12 +253,32 @@ const methodOptions = computed(() => [
     label: t('settings.acp.debug.methods.initialize')
   },
   {
+    value: 'authenticate' as const,
+    label: t('settings.acp.debug.methods.authenticate')
+  },
+  {
     value: 'newSession' as const,
     label: t('settings.acp.debug.methods.newSession')
   },
   {
     value: 'loadSession' as const,
     label: t('settings.acp.debug.methods.loadSession')
+  },
+  {
+    value: 'sessionList' as const,
+    label: t('settings.acp.debug.methods.sessionList')
+  },
+  {
+    value: 'sessionResume' as const,
+    label: t('settings.acp.debug.methods.sessionResume')
+  },
+  {
+    value: 'sessionClose' as const,
+    label: t('settings.acp.debug.methods.sessionClose')
+  },
+  {
+    value: 'sessionFork' as const,
+    label: t('settings.acp.debug.methods.sessionFork')
   },
   {
     value: 'prompt' as const,
@@ -287,9 +307,16 @@ const methodOptions = computed(() => [
 ])
 
 const requiresSession = computed(() =>
-  ['prompt', 'cancel', 'setSessionMode', 'setSessionModel', 'loadSession'].includes(
-    selectedMethod.value
-  )
+  [
+    'prompt',
+    'cancel',
+    'setSessionMode',
+    'setSessionModel',
+    'loadSession',
+    'sessionResume',
+    'sessionClose',
+    'sessionFork'
+  ].includes(selectedMethod.value)
 )
 
 const requiresCustomMethod = computed(() =>
@@ -334,6 +361,8 @@ const templateForMethod = (method: AcpDebugRequest['action']) => {
   switch (method) {
     case 'initialize':
       return {}
+    case 'authenticate':
+      return { methodId: '' }
     case 'newSession':
       return {
         ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
@@ -343,6 +372,27 @@ const templateForMethod = (method: AcpDebugRequest['action']) => {
       return {
         sessionId: debugSessionId.value,
         ...(workdirPath.value ? { cwd: workdirPath.value } : {})
+      }
+    case 'sessionList':
+      return {
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
+        sync: true
+      }
+    case 'sessionResume':
+      return {
+        sessionId: debugSessionId.value,
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
+        mcpServers: []
+      }
+    case 'sessionClose':
+      return {
+        sessionId: debugSessionId.value
+      }
+    case 'sessionFork':
+      return {
+        sessionId: debugSessionId.value,
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
+        mcpServers: []
       }
     case 'prompt':
       return {
@@ -373,7 +423,11 @@ const resetPayload = () => {
 const applyWorkdirToPayload = (
   payload: Record<string, unknown> | undefined
 ): Record<string, unknown> | undefined => {
-  if (!['newSession', 'loadSession'].includes(selectedMethod.value)) {
+  if (
+    !['newSession', 'loadSession', 'sessionList', 'sessionResume', 'sessionFork'].includes(
+      selectedMethod.value
+    )
+  ) {
     return payload
   }
   const base = payload ?? {}
@@ -384,7 +438,12 @@ const applyWorkdirToPayload = (
 }
 
 const syncWorkdirIntoPayload = () => {
-  if (!['newSession', 'loadSession'].includes(selectedMethod.value)) return
+  if (
+    !['newSession', 'loadSession', 'sessionList', 'sessionResume', 'sessionFork'].includes(
+      selectedMethod.value
+    )
+  )
+    return
   if (!payloadText.value.trim()) return
   try {
     const parsed = JSON.parse(payloadText.value) ?? {}

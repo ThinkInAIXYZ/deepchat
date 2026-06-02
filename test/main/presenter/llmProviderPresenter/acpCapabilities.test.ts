@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { buildClientCapabilities } from '@/presenter/llmProviderPresenter/acp'
+import {
+  buildCapabilitySnapshot,
+  buildClientCapabilities
+} from '@/presenter/llmProviderPresenter/acp'
 
 describe('AcpCapabilities', () => {
   describe('buildClientCapabilities', () => {
@@ -38,6 +41,52 @@ describe('AcpCapabilities', () => {
 
       expect(caps.fs).toBeUndefined()
       expect(caps.terminal).toBeUndefined()
+    })
+
+    it('advertises terminal auth only when enabled', () => {
+      expect(buildClientCapabilities().auth).toBeUndefined()
+      expect(buildClientCapabilities({ enableTerminalAuth: true }).auth).toEqual({
+        terminal: true
+      })
+    })
+  })
+
+  describe('buildCapabilitySnapshot', () => {
+    it('normalizes initialize capabilities into support flags', () => {
+      const snapshot = buildCapabilitySnapshot({
+        protocolVersion: 1,
+        agentInfo: { name: 'dimcode', version: '0.0.75' },
+        authMethods: [{ id: 'login', name: 'Login' }],
+        agentCapabilities: {
+          loadSession: true,
+          promptCapabilities: {
+            image: true,
+            audio: false,
+            embeddedContext: true
+          },
+          mcpCapabilities: {
+            http: true,
+            sse: false
+          },
+          sessionCapabilities: {
+            list: {},
+            resume: {},
+            close: {}
+          }
+        }
+      })
+
+      expect(snapshot.agentInfo?.name).toBe('dimcode')
+      expect(snapshot.authMethods).toHaveLength(1)
+      expect(snapshot.promptCapabilities?.image).toBe(true)
+      expect(snapshot.mcpCapabilities).toEqual({ http: true, sse: false })
+      expect(snapshot.supports).toEqual({
+        loadSession: true,
+        sessionList: true,
+        sessionResume: true,
+        sessionClose: true,
+        sessionFork: false
+      })
     })
   })
 })

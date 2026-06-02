@@ -1649,6 +1649,11 @@
       "customMethodRequired": "Cung cấp tên phương thức cho cuộc gọi mở rộng",
       "requestFailed": "Yêu cầu không thành công",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "initialize": "khởi tạo",
         "newSession": "session/new",
         "loadSession": "session/load",

@@ -27,7 +27,11 @@ import {
   setPathEntriesOnEnv
 } from '@/lib/agentRuntime/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { buildClientCapabilities } from './acpCapabilities'
+import {
+  buildCapabilitySnapshot,
+  buildClientCapabilities,
+  type AcpCapabilitySnapshot
+} from './acpCapabilities'
 import { AcpFsHandler } from './acpFsHandler'
 import { AcpTerminalManager } from './acpTerminalManager'
 import {
@@ -54,9 +58,17 @@ export interface AcpProcessHandle extends AgentProcessHandle {
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
   agentCapabilities?: schema.AgentCapabilities
+  agentInfo?: schema.Implementation | null
+  capabilitySnapshot?: AcpCapabilitySnapshot
+  sessionCapabilities?: schema.SessionCapabilities
+  promptCapabilities?: schema.PromptCapabilities
   authMethods?: schema.AuthMethod[]
   mcpCapabilities?: schema.McpCapabilities
   supportsLoadSession?: boolean
+  supportsSessionList?: boolean
+  supportsSessionResume?: boolean
+  supportsSessionClose?: boolean
+  supportsSessionFork?: boolean
   launchSignature: string
 }
 
@@ -105,6 +117,11 @@ interface PermissionResolverEntry {
   resolver: PermissionResolver
 }
 
+interface BufferedSessionUpdate {
+  notification: schema.SessionNotification
+  receivedAt: number
+}
+
 type JsonRpcId = string | number
 type JsonRpcMessageRecord = Record<string, unknown>
 type ProtocolDirection = 'in' | 'out'
@@ -128,12 +145,19 @@ interface ProtocolMessageSummary {
 const MAX_PROTOCOL_LOG_LINE_LENGTH = 4000
 const IMPORTANT_PROTOCOL_METHODS = new Set([
   'initialize',
+  'authenticate',
   'session/new',
   'session/load',
+  'session/list',
+  'session/resume',
+  'session/close',
+  'session/fork',
   'session/prompt',
-  'session/cancel',
-  'authenticate'
+  'session/cancel'
 ])
+
+const SESSION_UPDATE_BUFFER_TTL_MS = 30_000
+const MAX_BUFFERED_SESSION_UPDATES = 100
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -182,6 +206,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly boundHandles = new Map<string, AcpProcessHandle>()
   private readonly pendingHandles = new Map<string, Promise<AcpProcessHandle>>()
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
+  private readonly bufferedSessionUpdates = new Map<string, BufferedSessionUpdate[]>()
   private readonly permissionResolvers = new Map<string, PermissionResolverEntry>()
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly terminalManager = new AcpTerminalManager()
@@ -677,6 +702,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       this.sessionListeners.set(sessionId, { agentId, handlers: new Set([handler]) })
     }
 
+    this.flushBufferedSessionUpdates(sessionId)
+
     return () => {
       const existingEntry = this.sessionListeners.get(sessionId)
       if (!existingEntry) return
@@ -713,6 +740,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.sessionWorkdirs.delete(sessionId)
     this.sessionConversations.delete(sessionId)
     this.fsHandlers.delete(sessionId)
+    this.bufferedSessionUpdates.delete(sessionId)
     // Clean up terminals for this session
     void this.terminalManager.releaseSessionTerminals(sessionId)
   }
@@ -886,8 +914,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         configOptions?: schema.SessionConfigOption[] | null
         models?: schema.SessionModelState | null
         modes?: schema.SessionModeState | null
+        protocolVersion?: schema.ProtocolVersion
+        agentInfo?: schema.Implementation | null
         agentCapabilities?: {
           mcpCapabilities?: schema.McpCapabilities
+          promptCapabilities?: schema.PromptCapabilities
+          sessionCapabilities?: schema.SessionCapabilities
           loadSession?: boolean
         }
         authMethods?: schema.AuthMethod[]
@@ -898,17 +930,23 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         payload: initResult
       })
 
-      handleSeed.agentCapabilities = resultData.agentCapabilities
-      handleSeed.authMethods = resultData.authMethods
-      if (resultData.agentCapabilities?.mcpCapabilities) {
-        handleSeed.mcpCapabilities = resultData.agentCapabilities.mcpCapabilities
-        console.info('[ACP] MCP capabilities:', resultData.agentCapabilities.mcpCapabilities)
+      const capabilitySnapshot = buildCapabilitySnapshot(initResult)
+      handleSeed.capabilitySnapshot = capabilitySnapshot
+      handleSeed.agentInfo = capabilitySnapshot.agentInfo
+      handleSeed.agentCapabilities = capabilitySnapshot.agentCapabilities
+      handleSeed.sessionCapabilities = capabilitySnapshot.sessionCapabilities
+      handleSeed.promptCapabilities = capabilitySnapshot.promptCapabilities
+      handleSeed.authMethods = capabilitySnapshot.authMethods
+      handleSeed.supportsLoadSession = capabilitySnapshot.supports.loadSession
+      handleSeed.supportsSessionList = capabilitySnapshot.supports.sessionList
+      handleSeed.supportsSessionResume = capabilitySnapshot.supports.sessionResume
+      handleSeed.supportsSessionClose = capabilitySnapshot.supports.sessionClose
+      handleSeed.supportsSessionFork = capabilitySnapshot.supports.sessionFork
+      if (capabilitySnapshot.mcpCapabilities) {
+        handleSeed.mcpCapabilities = capabilitySnapshot.mcpCapabilities
+        console.info('[ACP] MCP capabilities:', capabilitySnapshot.mcpCapabilities)
       }
-      const loadSessionCapability = parseLoadSessionCapability(resultData)
-      if (loadSessionCapability !== undefined) {
-        handleSeed.supportsLoadSession = loadSessionCapability
-        console.info('[ACP] loadSession capability:', handleSeed.supportsLoadSession)
-      }
+      console.info('[ACP] Capability support:', capabilitySnapshot.supports)
 
       if (resultData.sessionId) {
         console.info(`[ACP] Session ID: ${resultData.sessionId}`)
@@ -976,10 +1014,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       configState: handleSeed.configState ?? createEmptyAcpConfigState('legacy'),
       availableModes: handleSeed.availableModes,
       currentModeId: handleSeed.currentModeId,
+      agentInfo: handleSeed.agentInfo,
+      capabilitySnapshot: handleSeed.capabilitySnapshot,
       agentCapabilities: handleSeed.agentCapabilities,
+      sessionCapabilities: handleSeed.sessionCapabilities,
+      promptCapabilities: handleSeed.promptCapabilities,
       authMethods: handleSeed.authMethods,
       mcpCapabilities: handleSeed.mcpCapabilities,
       supportsLoadSession: handleSeed.supportsLoadSession,
+      supportsSessionList: handleSeed.supportsSessionList,
+      supportsSessionResume: handleSeed.supportsSessionResume,
+      supportsSessionClose: handleSeed.supportsSessionClose,
+      supportsSessionFork: handleSeed.supportsSessionFork,
       launchSignature
     }
     readyHandle = handle
@@ -1586,9 +1632,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private dispatchSessionUpdate(notification: schema.SessionNotification): void {
     const entry = this.sessionListeners.get(notification.sessionId)
     if (!entry) {
-      console.warn(`[ACP] Received session update for unknown session "${notification.sessionId}"`)
+      this.bufferSessionUpdate(notification)
       return
     }
+    this.deliverSessionUpdate(entry, notification)
+  }
+
+  private deliverSessionUpdate(
+    entry: SessionListenerEntry,
+    notification: schema.SessionNotification
+  ): void {
     this.debugLog.append(entry.agentId, {
       kind: 'notification',
       action: 'session/update',
@@ -1603,6 +1656,55 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         console.warn(`[ACP] Session handler threw for session ${notification.sessionId}:`, error)
       }
     })
+  }
+
+  private bufferSessionUpdate(notification: schema.SessionNotification): void {
+    const now = Date.now()
+    this.pruneBufferedSessionUpdates(now)
+    const sessionId = notification.sessionId
+    const existing = this.bufferedSessionUpdates.get(sessionId) ?? []
+    const next = [
+      ...existing,
+      {
+        notification,
+        receivedAt: now
+      }
+    ].slice(-MAX_BUFFERED_SESSION_UPDATES)
+    this.bufferedSessionUpdates.set(sessionId, next)
+    console.warn(
+      `[ACP] Buffered session update for unbound session "${sessionId}" (${next.length} pending)`
+    )
+  }
+
+  private flushBufferedSessionUpdates(sessionId: string): void {
+    const entry = this.sessionListeners.get(sessionId)
+    if (!entry) return
+
+    const buffered = this.bufferedSessionUpdates.get(sessionId)
+    if (!buffered?.length) return
+
+    this.bufferedSessionUpdates.delete(sessionId)
+    this.debugLog.append(entry.agentId, {
+      kind: 'lifecycle',
+      action: 'session/update.buffer.flush',
+      sessionId,
+      payload: { count: buffered.length }
+    })
+    buffered.forEach(({ notification }) => this.deliverSessionUpdate(entry, notification))
+  }
+
+  private pruneBufferedSessionUpdates(now = Date.now()): void {
+    for (const [sessionId, updates] of this.bufferedSessionUpdates.entries()) {
+      const fresh = updates.filter(
+        (update) => now - update.receivedAt <= SESSION_UPDATE_BUFFER_TTL_MS
+      )
+      if (fresh.length === updates.length) continue
+      if (fresh.length) {
+        this.bufferedSessionUpdates.set(sessionId, fresh)
+      } else {
+        this.bufferedSessionUpdates.delete(sessionId)
+      }
+    }
   }
 
   private async dispatchPermissionRequest(

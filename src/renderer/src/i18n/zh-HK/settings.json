@@ -1643,6 +1643,11 @@
       "events": "事件",
       "format": "格式化 JSON",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "session/cancel",
         "extMethod": "ext/method",
         "extNotification": "ext/notification",

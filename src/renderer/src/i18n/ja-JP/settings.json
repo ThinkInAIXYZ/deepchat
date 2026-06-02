@@ -1643,6 +1643,11 @@
       "events": "イベント",
       "format": "JSON形式",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "セッション/キャンセル",
         "extMethod": "外部/メソッド",
         "extNotification": "内線/通知",

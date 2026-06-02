@@ -191,6 +191,126 @@ describe('AcpProvider runDebugAction error handling', () => {
     })
   })
 
+  it('syncs remote sessions when debug session/list requests sync', async () => {
+    const sessions = [
+      {
+        sessionId: 'remote-1',
+        cwd: '/tmp/debug-workdir',
+        title: 'Remote Session'
+      }
+    ]
+    const listSessions = vi.fn().mockResolvedValue({ sessions, nextCursor: null })
+    const syncRemoteSessions = vi.fn().mockResolvedValue({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      sessions: [{ sessionId: 'remote-1', conversationId: 'conv-1', status: 'imported' }]
+    })
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/debug-workdir',
+        supportsSessionList: true,
+        connection: {
+          listSessions
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionPersistence = {
+      syncRemoteSessions
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'sessionList',
+      payload: { cwd: '/tmp/debug-workdir', sync: true }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(listSessions).toHaveBeenCalledWith({
+      cwd: '/tmp/debug-workdir',
+      cursor: undefined
+    })
+    expect(syncRemoteSessions).toHaveBeenCalledWith({
+      agentId: 'agent1',
+      agentName: 'Agent 1',
+      providerId: 'acp',
+      workdir: '/tmp/debug-workdir',
+      sessions
+    })
+    expect(result.events.at(-1)).toMatchObject({
+      kind: 'lifecycle',
+      action: 'session/list.sync',
+      payload: {
+        imported: 1,
+        updated: 0,
+        skipped: 0
+      }
+    })
+  })
+
+  it('binds the forked debug session workdir and listeners', async () => {
+    const unstableForkSession = vi.fn().mockResolvedValue({ sessionId: 'forked-session' })
+    const registerSessionWorkdir = vi.fn()
+    const registerSessionListener = vi.fn().mockReturnValue(() => {})
+    const registerPermissionResolver = vi.fn().mockReturnValue(() => {})
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      registerSessionWorkdir,
+      registerSessionListener,
+      registerPermissionResolver,
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/debug-workdir',
+        supportsSessionFork: true,
+        connection: {
+          unstable_forkSession: unstableForkSession
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionManager = {
+      resolveMcpServersForAgent: vi.fn().mockResolvedValue([])
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'sessionFork',
+      sessionId: 'source-session',
+      payload: { cwd: '/tmp/debug-workdir', mcpServers: [] }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(result.sessionId).toBe('forked-session')
+    expect(unstableForkSession).toHaveBeenCalledWith({
+      cwd: '/tmp/debug-workdir',
+      mcpServers: [],
+      sessionId: 'source-session'
+    })
+    expect(registerSessionWorkdir).toHaveBeenCalledWith('forked-session', '/tmp/debug-workdir')
+    expect(registerSessionListener).toHaveBeenCalledWith(
+      'agent1',
+      'forked-session',
+      expect.any(Function)
+    )
+    expect(registerPermissionResolver).toHaveBeenCalledWith(
+      'agent1',
+      'forked-session',
+      expect.any(Function)
+    )
+  })
+
   it('uses real ACP MCP selections for debug sessions', async () => {
     const mcpServers = [{ name: 'fs', command: 'node', args: ['server.js'] }]
     const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
