@@ -110,8 +110,7 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
   providerId: toRef(props, 'providerId'),
 
   // Composables
-  isGPT5Model: modelTypeDetection.isGPT5Model,
-  isImageGenerationModel: modelTypeDetection.isImageGenerationModel,
+  supportsTemperatureControl: capabilities.supportsTemperatureControl,
   showThinkingBudget: thinkingBudget.showThinkingBudget,
   thinkingBudgetError: thinkingBudget.validationError,
   budgetRange: capabilities.budgetRange,

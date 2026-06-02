@@ -17,7 +17,6 @@ export interface UseModelTypeDetectionReturn {
   isImageGenerationModel: ComputedRef<boolean>
   isVideoGenerationModel: ComputedRef<boolean>
   isTtsModel: ComputedRef<boolean>
-  isGPT5Model: ComputedRef<boolean>
   isGeminiProvider: ComputedRef<boolean>
   modelReasoning: Ref<boolean>
 }
@@ -60,15 +59,6 @@ export function useModelTypeDetection(
   })
 
   /**
-   * Checks if current model is GPT-5 series
-   * GPT-5 models have special UI requirements (no temperature slider)
-   */
-  const isGPT5Model = computed(() => {
-    const id = modelId.value?.toLowerCase() || ''
-    return id.includes('gpt-5')
-  })
-
-  /**
    * Checks if current provider is Gemini
    * Gemini has special thinking budget rules (-1 for unlimited)
    */
@@ -106,7 +96,6 @@ export function useModelTypeDetection(
     isImageGenerationModel,
     isVideoGenerationModel,
     isTtsModel,
-    isGPT5Model,
     isGeminiProvider,
     modelReasoning
   }

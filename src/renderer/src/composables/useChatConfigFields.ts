@@ -31,8 +31,7 @@ export interface UseChatConfigFieldsOptions {
   providerId: Ref<string | undefined>
 
   // Composables
-  isGPT5Model: ComputedRef<boolean>
-  isImageGenerationModel: ComputedRef<boolean>
+  supportsTemperatureControl: Ref<boolean | null>
   showThinkingBudget: ComputedRef<boolean>
   thinkingBudgetError: ComputedRef<string>
   budgetRange: Ref<{ min?: number; max?: number; default?: number } | null>
@@ -62,8 +61,8 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
   const sliderFields = computed<SliderFieldConfig[]>(() => {
     const fields: SliderFieldConfig[] = []
 
-    // Temperature (hidden for GPT-5)
-    if (!options.isGPT5Model.value) {
+    // Temperature is hidden only when model capabilities explicitly disable it.
+    if (options.supportsTemperatureControl.value !== false) {
       fields.push({
         key: 'temperature',
         type: 'slider',
