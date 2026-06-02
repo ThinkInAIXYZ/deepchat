@@ -1,6 +1,6 @@
-import { ref, computed } from 'vue'
-import { describe, it, expect } from 'vitest'
-import { useThinkingBudget } from '@/composables/useThinkingBudget'
+import { ref } from 'vue'
+import { describe, it, expect, vi } from 'vitest'
+import { useThinkingBudget, type ThinkingBudgetRange } from '@/composables/useThinkingBudget'
 
 // mock i18n -> return the key so we can assert on it
 vi.mock('vue-i18n', () => ({
@@ -10,20 +10,18 @@ vi.mock('vue-i18n', () => ({
 describe('useThinkingBudget', () => {
   it('computes showThinkingBudget only when reasoning supported and range provided', () => {
     const thinkingBudget = ref<number | undefined>(undefined)
-    const budgetRange = ref<{ min?: number; max?: number; default?: number } | null>({
+    const budgetRange = ref<ThinkingBudgetRange | null>({
       min: 256,
       max: 4096
     })
     const modelReasoning = ref(true)
     const supportsReasoning = ref<boolean | null>(true)
-    const isGeminiProvider = computed(() => false)
 
     const api = useThinkingBudget({
       thinkingBudget,
       budgetRange,
       modelReasoning,
-      supportsReasoning,
-      isGeminiProvider
+      supportsReasoning
     })
     expect(api.showThinkingBudget.value).toBe(true)
 
@@ -33,24 +31,25 @@ describe('useThinkingBudget', () => {
     supportsReasoning.value = true
     budgetRange.value = null
     expect(api.showThinkingBudget.value).toBe(false)
+
+    budgetRange.value = { auto: -1 }
+    expect(api.showThinkingBudget.value).toBe(true)
   })
 
-  it('validates range and returns translation keys; allows -1 for Gemini', () => {
+  it('validates ranges and allows provider-db budget sentinels', () => {
     const thinkingBudget = ref<number | undefined>(128)
-    const budgetRange = ref<{ min?: number; max?: number; default?: number } | null>({
+    const budgetRange = ref<ThinkingBudgetRange | null>({
       min: 256,
       max: 1024
     })
     const modelReasoning = ref(true)
     const supportsReasoning = ref<boolean | null>(true)
-    const isGeminiProvider = computed(() => false)
 
     const api = useThinkingBudget({
       thinkingBudget,
       budgetRange,
       modelReasoning,
-      supportsReasoning,
-      isGeminiProvider
+      supportsReasoning
     })
     expect(api.validationError.value).toBe(
       'settings.model.modelConfig.thinkingBudget.validation.minValue'
@@ -64,14 +63,16 @@ describe('useThinkingBudget', () => {
     thinkingBudget.value = 512
     expect(api.validationError.value).toBe('')
 
-    // Gemini special case
-    const gemApi = useThinkingBudget({
-      thinkingBudget: ref(-1),
-      budgetRange,
-      modelReasoning,
-      supportsReasoning,
-      isGeminiProvider: computed(() => true)
-    })
-    expect(gemApi.validationError.value).toBe('')
+    thinkingBudget.value = -1
+    expect(api.validationError.value).toBe(
+      'settings.model.modelConfig.thinkingBudget.validation.minValue'
+    )
+
+    budgetRange.value = { min: 0, max: 24576, default: -1, auto: -1, off: 0, unit: 'tokens' }
+    expect(api.validationError.value).toBe('')
+
+    budgetRange.value = { min: 512, max: 24576, off: 0 }
+    thinkingBudget.value = 0
+    expect(api.validationError.value).toBe('')
   })
 })

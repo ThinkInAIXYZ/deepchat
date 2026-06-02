@@ -34,7 +34,6 @@ describe('useModelTypeDetection', () => {
 
     const api = useModelTypeDetection({ modelId, providerId, modelType })
     expect(api.isImageGenerationModel.value).toBe(true)
-    expect(api.isGeminiProvider.value).toBe(true)
 
     await Promise.resolve()
     expect(api.modelReasoning.value).toBe(true)

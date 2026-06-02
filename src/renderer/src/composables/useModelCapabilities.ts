@@ -2,15 +2,29 @@
 import { ref, watch, type Ref } from 'vue'
 
 import { createModelClient } from '@api/ModelClient'
+import type { ReasoningPortrait } from '@shared/types/model-db'
+import type { ThinkingBudgetRange } from './useThinkingBudget'
+
+const normalizeBudgetRange = (
+  budget: ReasoningPortrait['budget'] | ThinkingBudgetRange | null | undefined
+): ThinkingBudgetRange | null => {
+  if (!budget) return null
+
+  const range: ThinkingBudgetRange = {}
+  if (typeof budget.min === 'number') range.min = budget.min
+  if (typeof budget.max === 'number') range.max = budget.max
+  if (typeof budget.default === 'number') range.default = budget.default
+  if (typeof budget.auto === 'number') range.auto = budget.auto
+  if (typeof budget.off === 'number') range.off = budget.off
+  if (typeof budget.unit === 'string') range.unit = budget.unit
+
+  return Object.keys(range).length > 0 ? range : null
+}
 
 // === Interfaces ===
 export interface ModelCapabilities {
   supportsReasoning: boolean | null
-  budgetRange: {
-    min?: number
-    max?: number
-    default?: number
-  } | null
+  budgetRange: ThinkingBudgetRange | null
   supportsSearch: boolean | null
   searchDefaults: {
     default?: boolean
@@ -35,11 +49,7 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
 
   // === Local State ===
   const capabilitySupportsReasoning = ref<boolean | null>(null)
-  const capabilityBudgetRange = ref<{
-    min?: number
-    max?: number
-    default?: number
-  } | null>(null)
+  const capabilityBudgetRange = ref<ThinkingBudgetRange | null>(null)
   const capabilitySupportsSearch = ref<boolean | null>(null)
   const capabilitySupportsTemperatureControl = ref<boolean | null>(null)
   const capabilitySearchDefaults = ref<{
@@ -72,23 +82,25 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
 
     isLoading.value = true
     try {
-      const [sr, br, ss, sd, stc, tc] = await Promise.all([
-        modelClient.supportsReasoningCapability(currentProviderId, currentModelId),
-        modelClient.getThinkingBudgetRange(currentProviderId, currentModelId),
-        modelClient.supportsSearchCapability(currentProviderId, currentModelId),
-        modelClient.getSearchDefaults(currentProviderId, currentModelId),
-        modelClient.supportsTemperatureControl(currentProviderId, currentModelId),
-        modelClient.getTemperatureCapability(currentProviderId, currentModelId)
-      ])
+      const capabilities = await modelClient.getCapabilities(currentProviderId, currentModelId)
 
       if (currentRequestId !== requestId) return
 
-      capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null
-      capabilityBudgetRange.value = br || {}
-      capabilitySupportsSearch.value = typeof ss === 'boolean' ? ss : null
-      capabilitySearchDefaults.value = sd || {}
+      capabilitySupportsReasoning.value =
+        typeof capabilities.supportsReasoning === 'boolean' ? capabilities.supportsReasoning : null
+      capabilityBudgetRange.value =
+        normalizeBudgetRange(capabilities.reasoningPortrait?.budget) ??
+        normalizeBudgetRange(capabilities.thinkingBudgetRange) ??
+        {}
+      capabilitySupportsSearch.value =
+        typeof capabilities.supportsSearch === 'boolean' ? capabilities.supportsSearch : null
+      capabilitySearchDefaults.value = capabilities.searchDefaults || {}
       capabilitySupportsTemperatureControl.value =
-        typeof stc === 'boolean' ? stc : typeof tc === 'boolean' ? tc : null
+        typeof capabilities.supportsTemperatureControl === 'boolean'
+          ? capabilities.supportsTemperatureControl
+          : typeof capabilities.temperatureCapability === 'boolean'
+            ? capabilities.temperatureCapability
+            : null
     } catch (error) {
       if (currentRequestId !== requestId) return
 

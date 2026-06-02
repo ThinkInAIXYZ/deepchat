@@ -10,6 +10,7 @@ import type {
   SelectOption,
   FieldConfig
 } from '@/components/ChatConfig/types'
+import type { ThinkingBudgetRange } from '@/composables/useThinkingBudget'
 import {
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
   isReasoningEffort,
@@ -34,7 +35,7 @@ export interface UseChatConfigFieldsOptions {
   supportsTemperatureControl: Ref<boolean | null>
   showThinkingBudget: ComputedRef<boolean>
   thinkingBudgetError: ComputedRef<string>
-  budgetRange: Ref<{ min?: number; max?: number; default?: number } | null>
+  budgetRange: Ref<ThinkingBudgetRange | null>
 
   // Utils
   formatSize: (size: number) => string

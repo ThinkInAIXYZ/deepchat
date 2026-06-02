@@ -17,7 +17,6 @@ export interface UseModelTypeDetectionReturn {
   isImageGenerationModel: ComputedRef<boolean>
   isVideoGenerationModel: ComputedRef<boolean>
   isTtsModel: ComputedRef<boolean>
-  isGeminiProvider: ComputedRef<boolean>
   modelReasoning: Ref<boolean>
 }
 
@@ -58,12 +57,6 @@ export function useModelTypeDetection(
     return modelType.value === 'tts'
   })
 
-  /**
-   * Checks if current provider is Gemini
-   * Gemini has special thinking budget rules (-1 for unlimited)
-   */
-  const isGeminiProvider = computed(() => providerId.value?.toLowerCase() === 'gemini')
-
   // === Internal Methods ===
   const fetchModelReasoning = async () => {
     const currentRequestId = ++requestId
@@ -96,7 +89,6 @@ export function useModelTypeDetection(
     isImageGenerationModel,
     isVideoGenerationModel,
     isTtsModel,
-    isGeminiProvider,
     modelReasoning
   }
 }
