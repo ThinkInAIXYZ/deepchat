@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.5-beta.8 (2026-06-02)
+- Added a collapsible workspace file tree sidebar and an animated theme toggle in the app sidebar
+- Added automatic chat activity collapsing so completed reasoning and tool-call work stays easier to scan
+- Improved ACP v1 reliability with stronger capability handling, session persistence, terminal behavior, diagnostics, and protocol coverage
+- Fixed model capability handling for temperature controls and provider database budget sentinels
+- 新增可折叠的工作区文件树侧栏和应用侧栏动态主题切换按钮
+- 新增聊天活动自动折叠，让完成后的思考和工具调用内容更易扫读
+- 提升 ACP v1 可靠性，完善能力处理、会话持久化、终端行为、诊断和协议覆盖
+- 修复温度控制和 Provider 数据库预算特殊值的模型能力处理
+
 ## v1.0.5-beta.7 (2026-06-01)
 - Added agent session transfer so chats can be preserved or moved when changing agent ownership
 - Added a richer workspace Git diff panel rendering experience
