@@ -84,6 +84,26 @@ describe('useModelCapabilities', () => {
     expect(api.supportsTemperatureControl.value).toBe(true)
   })
 
+  it('keeps budget range null when capabilities have no budget metadata', async () => {
+    const providerId = ref<string | undefined>('openai')
+    const modelId = ref<string | undefined>('gpt-4o')
+    modelClient.getCapabilities.mockResolvedValue({
+      supportsAudioInput: false,
+      supportsReasoning: false,
+      reasoningPortrait: null,
+      thinkingBudgetRange: null,
+      supportsSearch: false,
+      searchDefaults: null,
+      supportsTemperatureControl: true,
+      temperatureCapability: true
+    })
+
+    const api = useModelCapabilities({ providerId, modelId })
+
+    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
+    expect(api.budgetRange.value).toBeNull()
+  })
+
   it('merges thinking budget range with reasoning portrait sentinels', async () => {
     const providerId = ref<string | undefined>('openrouter')
     const modelId = ref<string | undefined>('google/gemini-2.5-flash')

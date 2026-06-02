@@ -102,11 +102,10 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
 
       capabilitySupportsReasoning.value =
         typeof capabilities.supportsReasoning === 'boolean' ? capabilities.supportsReasoning : null
-      capabilityBudgetRange.value =
-        mergeBudgetRanges(
-          capabilities.thinkingBudgetRange,
-          capabilities.reasoningPortrait?.budget
-        ) ?? {}
+      capabilityBudgetRange.value = mergeBudgetRanges(
+        capabilities.thinkingBudgetRange,
+        capabilities.reasoningPortrait?.budget
+      )
       capabilitySupportsSearch.value =
         typeof capabilities.supportsSearch === 'boolean' ? capabilities.supportsSearch : null
       capabilitySearchDefaults.value = capabilities.searchDefaults || {}
