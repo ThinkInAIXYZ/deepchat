@@ -17,6 +17,7 @@ export interface ModelCapabilities {
     forced?: boolean
     strategy?: 'turbo' | 'max'
   } | null
+  supportsTemperatureControl: boolean | null
 }
 
 export interface UseModelCapabilitiesOptions {
@@ -40,6 +41,7 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     default?: number
   } | null>(null)
   const capabilitySupportsSearch = ref<boolean | null>(null)
+  const capabilitySupportsTemperatureControl = ref<boolean | null>(null)
   const capabilitySearchDefaults = ref<{
     default?: boolean
     forced?: boolean
@@ -53,6 +55,7 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
     capabilitySupportsSearch.value = null
+    capabilitySupportsTemperatureControl.value = null
     capabilitySearchDefaults.value = null
   }
 
@@ -69,11 +72,13 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
 
     isLoading.value = true
     try {
-      const [sr, br, ss, sd] = await Promise.all([
+      const [sr, br, ss, sd, stc, tc] = await Promise.all([
         modelClient.supportsReasoningCapability(currentProviderId, currentModelId),
         modelClient.getThinkingBudgetRange(currentProviderId, currentModelId),
         modelClient.supportsSearchCapability(currentProviderId, currentModelId),
-        modelClient.getSearchDefaults(currentProviderId, currentModelId)
+        modelClient.getSearchDefaults(currentProviderId, currentModelId),
+        modelClient.supportsTemperatureControl(currentProviderId, currentModelId),
+        modelClient.getTemperatureCapability(currentProviderId, currentModelId)
       ])
 
       if (currentRequestId !== requestId) return
@@ -82,6 +87,8 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
       capabilityBudgetRange.value = br || {}
       capabilitySupportsSearch.value = typeof ss === 'boolean' ? ss : null
       capabilitySearchDefaults.value = sd || {}
+      capabilitySupportsTemperatureControl.value =
+        typeof stc === 'boolean' ? stc : typeof tc === 'boolean' ? tc : null
     } catch (error) {
       if (currentRequestId !== requestId) return
 
@@ -104,6 +111,7 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     budgetRange: capabilityBudgetRange,
     supportsSearch: capabilitySupportsSearch,
     searchDefaults: capabilitySearchDefaults,
+    supportsTemperatureControl: capabilitySupportsTemperatureControl,
     isLoading,
     // Methods
     refresh: fetchCapabilities
