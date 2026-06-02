@@ -42,6 +42,7 @@ When preparing a release on `dev`:
 - Add a new `CHANGELOG.md` section at the top.
 - Summarize only user-visible or release-relevant changes since the previous tag.
 - Prefer deriving the notes from recent commits or the diff since the previous release tag.
+- Do not create SDD folders for pure release metadata, branch, tag, or release PR work.
 
 For `v1.0.1` and later, format changelog entries in this order:
 

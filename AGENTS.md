@@ -46,6 +46,9 @@
 
 Follow the SDD methodology before changing code, tests, configuration, documentation, build scripts, or project structure. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md).
 
+Pure release metadata work does not require SDD. Version bumps, `CHANGELOG.md` updates, release branch management, tags, and release PR preparation should follow [docs/release-flow.md](docs/release-flow.md) without creating
+`docs/features/*release*` folders.
+
 Create one kebab-case folder per goal and keep `spec.md`, `plan.md`, and `tasks.md` together:
 
 - `docs/features/<goal>/` for new features, user-visible capabilities, integrations, and tools.

@@ -14,6 +14,10 @@ Keep every active change in a lightweight SDD folder so reviewers can find the i
 - `docs/issues/<goal>/` - bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems
 - `docs/architecture/<goal>/` - refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design
 
+Pure release metadata work is exempt from SDD. Version bumps, `CHANGELOG.md` updates, release branch
+management, tags, and release PR preparation should follow `docs/release-flow.md` without creating a
+release-specific SDD folder.
+
 Each active goal folder contains:
 
 - `spec.md` - user stories, acceptance criteria, non-goals, constraints, open questions
