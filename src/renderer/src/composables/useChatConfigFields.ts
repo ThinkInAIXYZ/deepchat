@@ -10,12 +10,36 @@ import type {
   SelectOption,
   FieldConfig
 } from '@/components/ChatConfig/types'
+import type { ThinkingBudgetRange } from '@/composables/useThinkingBudget'
 import {
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
   isReasoningEffort,
   type ReasoningEffort,
   type Verbosity
 } from '@shared/types/model-db'
+
+const getThinkingBudgetInputBounds = (
+  budgetRange: ThinkingBudgetRange | null
+): { min?: number; max?: number } => {
+  const bounds: { min?: number; max?: number } = {
+    min: budgetRange?.min,
+    max: budgetRange?.max
+  }
+  const sentinels = [budgetRange?.auto, budgetRange?.off].filter(
+    (value): value is number => typeof value === 'number'
+  )
+
+  for (const sentinel of sentinels) {
+    if (typeof bounds.min === 'number' && sentinel < bounds.min) {
+      bounds.min = sentinel
+    }
+    if (typeof bounds.max === 'number' && sentinel > bounds.max) {
+      bounds.max = sentinel
+    }
+  }
+
+  return bounds
+}
 
 // === Interfaces ===
 export interface UseChatConfigFieldsOptions {
@@ -34,7 +58,7 @@ export interface UseChatConfigFieldsOptions {
   supportsTemperatureControl: Ref<boolean | null>
   showThinkingBudget: ComputedRef<boolean>
   thinkingBudgetError: ComputedRef<string>
-  budgetRange: Ref<{ min?: number; max?: number; default?: number } | null>
+  budgetRange: Ref<ThinkingBudgetRange | null>
 
   // Utils
   formatSize: (size: number) => string
@@ -119,6 +143,8 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
 
     // Thinking Budget
     if (options.showThinkingBudget.value) {
+      const thinkingBudgetInputBounds = getThinkingBudgetInputBounds(options.budgetRange.value)
+
       fields.push({
         key: 'thinkingBudget',
         type: 'input',
@@ -126,8 +152,8 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         label: t('settings.model.modelConfig.thinkingBudget.label'),
         description: t('settings.model.modelConfig.thinkingBudget.description'),
         inputType: 'number',
-        min: options.budgetRange.value?.min,
-        max: options.budgetRange.value?.max,
+        min: thinkingBudgetInputBounds.min,
+        max: thinkingBudgetInputBounds.max,
         step: 128,
         placeholder: t('settings.model.modelConfig.thinkingBudget.placeholder'),
         getValue: () => options.thinkingBudget.value,

@@ -78,8 +78,7 @@ const thinkingBudget = useThinkingBudget({
   thinkingBudget: toRef(props, 'thinkingBudget'),
   budgetRange: capabilities.budgetRange,
   modelReasoning: modelTypeDetection.modelReasoning,
-  supportsReasoning: capabilities.supportsReasoning,
-  isGeminiProvider: modelTypeDetection.isGeminiProvider
+  supportsReasoning: capabilities.supportsReasoning
 })
 
 // === Utility Functions ===

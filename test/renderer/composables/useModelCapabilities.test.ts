@@ -1,12 +1,7 @@
 import { ref } from 'vue'
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 const modelClient = vi.hoisted(() => ({
-  supportsReasoningCapability: vi.fn(),
-  getThinkingBudgetRange: vi.fn(),
-  supportsSearchCapability: vi.fn(),
-  getSearchDefaults: vi.fn(),
-  supportsTemperatureControl: vi.fn(),
-  getTemperatureCapability: vi.fn()
+  getCapabilities: vi.fn()
 }))
 
 vi.mock('@api/ModelClient', () => ({
@@ -32,22 +27,31 @@ describe('useModelCapabilities', () => {
   it('fetches capabilities and resets when ids missing', async () => {
     const providerId = ref<string | undefined>('openai')
     const modelId = ref<string | undefined>('gpt-4')
-    modelClient.supportsReasoningCapability.mockResolvedValue(true)
-    modelClient.getThinkingBudgetRange.mockResolvedValue({ min: 100, max: 200 })
-    modelClient.supportsSearchCapability.mockResolvedValue(true)
-    modelClient.getSearchDefaults.mockResolvedValue({
-      default: true,
-      forced: false,
-      strategy: 'turbo'
+    modelClient.getCapabilities.mockResolvedValue({
+      supportsAudioInput: false,
+      supportsReasoning: true,
+      reasoningPortrait: {
+        budget: { min: 100, max: 200, default: -1, auto: -1, off: 0, unit: 'tokens' }
+      },
+      thinkingBudgetRange: { min: 100, max: 200 },
+      supportsSearch: true,
+      searchDefaults: {
+        default: true,
+        forced: false,
+        strategy: 'turbo'
+      },
+      supportsTemperatureControl: false,
+      temperatureCapability: true
     })
-    modelClient.supportsTemperatureControl.mockResolvedValue(false)
-    modelClient.getTemperatureCapability.mockResolvedValue(true)
 
     const api = useModelCapabilities({ providerId, modelId })
     // initial immediate fetch occurs - wait for isLoading to become false
     await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
     expect(api.supportsReasoning.value).toBe(true)
     expect(api.budgetRange.value?.max).toBe(200)
+    expect(api.budgetRange.value?.auto).toBe(-1)
+    expect(api.budgetRange.value?.off).toBe(0)
+    expect(api.budgetRange.value?.unit).toBe('tokens')
     expect(api.supportsSearch.value).toBe(true)
     expect(api.searchDefaults.value?.strategy).toBe('turbo')
     expect(api.supportsTemperatureControl.value).toBe(false)
@@ -63,12 +67,16 @@ describe('useModelCapabilities', () => {
   it('falls back to temperatureCapability when supportsTemperatureControl is missing', async () => {
     const providerId = ref<string | undefined>('openai')
     const modelId = ref<string | undefined>('gpt-5-chat-latest')
-    modelClient.supportsReasoningCapability.mockResolvedValue(false)
-    modelClient.getThinkingBudgetRange.mockResolvedValue(null)
-    modelClient.supportsSearchCapability.mockResolvedValue(false)
-    modelClient.getSearchDefaults.mockResolvedValue(null)
-    modelClient.supportsTemperatureControl.mockResolvedValue(null)
-    modelClient.getTemperatureCapability.mockResolvedValue(true)
+    modelClient.getCapabilities.mockResolvedValue({
+      supportsAudioInput: false,
+      supportsReasoning: false,
+      reasoningPortrait: null,
+      thinkingBudgetRange: null,
+      supportsSearch: false,
+      searchDefaults: null,
+      supportsTemperatureControl: null,
+      temperatureCapability: true
+    })
 
     const api = useModelCapabilities({ providerId, modelId })
 
@@ -76,63 +84,103 @@ describe('useModelCapabilities', () => {
     expect(api.supportsTemperatureControl.value).toBe(true)
   })
 
+  it('keeps budget range null when capabilities have no budget metadata', async () => {
+    const providerId = ref<string | undefined>('openai')
+    const modelId = ref<string | undefined>('gpt-4o')
+    modelClient.getCapabilities.mockResolvedValue({
+      supportsAudioInput: false,
+      supportsReasoning: false,
+      reasoningPortrait: null,
+      thinkingBudgetRange: null,
+      supportsSearch: false,
+      searchDefaults: null,
+      supportsTemperatureControl: true,
+      temperatureCapability: true
+    })
+
+    const api = useModelCapabilities({ providerId, modelId })
+
+    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
+    expect(api.budgetRange.value).toBeNull()
+  })
+
+  it('merges thinking budget range with reasoning portrait sentinels', async () => {
+    const providerId = ref<string | undefined>('openrouter')
+    const modelId = ref<string | undefined>('google/gemini-2.5-flash')
+    modelClient.getCapabilities.mockResolvedValue({
+      supportsAudioInput: false,
+      supportsReasoning: true,
+      reasoningPortrait: {
+        budget: { auto: -1, off: 0, unit: 'tokens' }
+      },
+      thinkingBudgetRange: { min: 128, max: 24576, default: 1024 },
+      supportsSearch: false,
+      searchDefaults: null,
+      supportsTemperatureControl: true,
+      temperatureCapability: true
+    })
+
+    const api = useModelCapabilities({ providerId, modelId })
+
+    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
+    expect(api.budgetRange.value).toEqual({
+      min: 128,
+      max: 24576,
+      default: 1024,
+      auto: -1,
+      off: 0,
+      unit: 'tokens'
+    })
+  })
+
   it('ignores stale capability responses after model changes', async () => {
     const providerId = ref<string | undefined>('openai')
     const modelId = ref<string | undefined>('gpt-old')
     const oldResponse = {
-      supportsReasoning: deferred<boolean>(),
-      budgetRange: deferred<{ min: number; max: number }>(),
-      supportsSearch: deferred<boolean>(),
-      searchDefaults: deferred<{ strategy: 'turbo' | 'max' }>(),
-      supportsTemperatureControl: deferred<boolean>(),
-      temperatureCapability: deferred<boolean>()
+      capabilities: deferred<{
+        supportsAudioInput: boolean
+        supportsReasoning: boolean
+        reasoningPortrait: { budget: { min: number; max: number } } | null
+        thinkingBudgetRange: { min: number; max: number } | null
+        supportsSearch: boolean
+        searchDefaults: { strategy: 'turbo' | 'max' }
+        supportsTemperatureControl: boolean
+        temperatureCapability: boolean
+      }>()
     }
     const newResponse = {
-      supportsReasoning: deferred<boolean>(),
-      budgetRange: deferred<{ min: number; max: number }>(),
-      supportsSearch: deferred<boolean>(),
-      searchDefaults: deferred<{ strategy: 'turbo' | 'max' }>(),
-      supportsTemperatureControl: deferred<boolean>(),
-      temperatureCapability: deferred<boolean>()
+      capabilities: deferred<{
+        supportsAudioInput: boolean
+        supportsReasoning: boolean
+        reasoningPortrait: { budget: { min: number; max: number } } | null
+        thinkingBudgetRange: { min: number; max: number } | null
+        supportsSearch: boolean
+        searchDefaults: { strategy: 'turbo' | 'max' }
+        supportsTemperatureControl: boolean
+        temperatureCapability: boolean
+      }>()
     }
 
-    modelClient.supportsReasoningCapability.mockImplementation((_provider, model) =>
-      model === 'gpt-old'
-        ? oldResponse.supportsReasoning.promise
-        : newResponse.supportsReasoning.promise
-    )
-    modelClient.getThinkingBudgetRange.mockImplementation((_provider, model) =>
-      model === 'gpt-old' ? oldResponse.budgetRange.promise : newResponse.budgetRange.promise
-    )
-    modelClient.supportsSearchCapability.mockImplementation((_provider, model) =>
-      model === 'gpt-old' ? oldResponse.supportsSearch.promise : newResponse.supportsSearch.promise
-    )
-    modelClient.getSearchDefaults.mockImplementation((_provider, model) =>
-      model === 'gpt-old' ? oldResponse.searchDefaults.promise : newResponse.searchDefaults.promise
-    )
-    modelClient.supportsTemperatureControl.mockImplementation((_provider, model) =>
-      model === 'gpt-old'
-        ? oldResponse.supportsTemperatureControl.promise
-        : newResponse.supportsTemperatureControl.promise
-    )
-    modelClient.getTemperatureCapability.mockImplementation((_provider, model) =>
-      model === 'gpt-old'
-        ? oldResponse.temperatureCapability.promise
-        : newResponse.temperatureCapability.promise
+    modelClient.getCapabilities.mockImplementation((_provider, model) =>
+      model === 'gpt-old' ? oldResponse.capabilities.promise : newResponse.capabilities.promise
     )
 
     const api = useModelCapabilities({ providerId, modelId })
-    await vi.waitFor(() => expect(modelClient.supportsReasoningCapability).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1))
 
     modelId.value = 'gpt-new'
-    await vi.waitFor(() => expect(modelClient.supportsReasoningCapability).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2))
 
-    newResponse.supportsReasoning.resolve(false)
-    newResponse.budgetRange.resolve({ min: 10, max: 20 })
-    newResponse.supportsSearch.resolve(false)
-    newResponse.searchDefaults.resolve({ strategy: 'max' })
-    newResponse.supportsTemperatureControl.resolve(false)
-    newResponse.temperatureCapability.resolve(true)
+    newResponse.capabilities.resolve({
+      supportsAudioInput: false,
+      supportsReasoning: false,
+      reasoningPortrait: { budget: { min: 10, max: 20 } },
+      thinkingBudgetRange: null,
+      supportsSearch: false,
+      searchDefaults: { strategy: 'max' },
+      supportsTemperatureControl: false,
+      temperatureCapability: true
+    })
 
     await vi.waitFor(() => expect(api.budgetRange.value?.max).toBe(20))
     expect(api.supportsReasoning.value).toBe(false)
@@ -140,12 +188,16 @@ describe('useModelCapabilities', () => {
     expect(api.searchDefaults.value?.strategy).toBe('max')
     expect(api.supportsTemperatureControl.value).toBe(false)
 
-    oldResponse.supportsReasoning.resolve(true)
-    oldResponse.budgetRange.resolve({ min: 100, max: 200 })
-    oldResponse.supportsSearch.resolve(true)
-    oldResponse.searchDefaults.resolve({ strategy: 'turbo' })
-    oldResponse.supportsTemperatureControl.resolve(true)
-    oldResponse.temperatureCapability.resolve(true)
+    oldResponse.capabilities.resolve({
+      supportsAudioInput: false,
+      supportsReasoning: true,
+      reasoningPortrait: { budget: { min: 100, max: 200 } },
+      thinkingBudgetRange: null,
+      supportsSearch: true,
+      searchDefaults: { strategy: 'turbo' },
+      supportsTemperatureControl: true,
+      temperatureCapability: true
+    })
     await Promise.resolve()
 
     expect(api.budgetRange.value?.max).toBe(20)
