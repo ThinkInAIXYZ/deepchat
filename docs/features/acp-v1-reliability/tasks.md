@@ -82,6 +82,7 @@
 - [ ] Route only `session/request_permission` into DeepChat permission overlay.
 - [ ] Preserve tool terminal output, diff path/content, locations, raw input, and raw output in block metadata/debug.
 - [ ] Add permission resolver timeout with cancelled default outcome.
+- [ ] Clear stale ACP permission overlays after interrupted sessions instead of throwing on unknown request ids.
 - [ ] Add tests for approve, deny, cancel, timeout, missing resolver, and tool update rendering.
 
 ## 8. File System

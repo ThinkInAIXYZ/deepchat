@@ -5317,6 +5317,64 @@ describe('AgentRuntimePresenter', () => {
       expect(updatedBlocks[1].content).toBe('User denied the request.')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
     })
+
+    it('clears stale ACP permission modals when the provider request no longer exists', async () => {
+      await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
+      ;(agent as any).runtimeState.get('s1').status = 'generating'
+      llmProvider.resolveAgentPermission.mockRejectedValueOnce(
+        new Error('Unknown ACP permission request: acp-stale-req')
+      )
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'components.messageBlockPermissionRequest.description.command',
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              providerId: 'acp',
+              permissionRequestId: 'acp-stale-req',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'components.messageBlockPermissionRequest.description.command',
+                toolName: 'Terminal',
+                providerId: 'acp',
+                requestId: 'acp-stale-req',
+                command: 'dir'
+              })
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: true
+      })
+
+      expect(result).toEqual({ resumed: false })
+      expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-stale-req', true)
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[1].status).toBe('denied')
+      expect(updatedBlocks[1].content).toBe('User denied the request.')
+      expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m1', 'sent')
+      expect((agent as any).runtimeState.get('s1').status).toBe('idle')
+    })
   })
 
   describe('permission mode', () => {

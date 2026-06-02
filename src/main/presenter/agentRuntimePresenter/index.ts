@@ -4537,23 +4537,56 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     granted: boolean
   }): Promise<void> {
     const active = this.activeProviderPermissions.get(input.requestId)
+    let resolvedProviderRequest = false
 
     try {
       if (active) {
-        await active.resolve(input.granted)
+        try {
+          await active.resolve(input.granted)
+          return
+        } catch (error) {
+          if (!this.isUnknownAcpPermissionRequestError(error)) {
+            throw error
+          }
+          console.warn(
+            `[DeepChatAgent] Clearing stale ACP permission request ${input.requestId}:`,
+            error
+          )
+        }
       } else {
-        await this.llmProviderPresenter.resolveAgentPermission(input.requestId, input.granted)
-        this.updatePersistedProviderPermissionState(
-          input.messageId,
-          input.toolCallId,
-          input.requestId,
-          input.permissionType,
-          input.granted
-        )
+        try {
+          await this.llmProviderPresenter.resolveAgentPermission(input.requestId, input.granted)
+          resolvedProviderRequest = true
+        } catch (error) {
+          if (!this.isUnknownAcpPermissionRequestError(error)) {
+            throw error
+          }
+          console.warn(
+            `[DeepChatAgent] Clearing stale ACP permission request ${input.requestId}:`,
+            error
+          )
+        }
       }
+
+      this.updatePersistedProviderPermissionState(
+        input.messageId,
+        input.toolCallId,
+        input.requestId,
+        input.permissionType,
+        resolvedProviderRequest ? input.granted : false
+      )
+      this.messageStore.updateMessageStatus(input.messageId, 'sent')
+      this.setSessionStatus(input.sessionId, 'idle')
+      this.emitMessageRefresh(input.sessionId, input.messageId)
     } finally {
       this.activeProviderPermissions.delete(input.requestId)
     }
+  }
+
+  private isUnknownAcpPermissionRequestError(error: unknown): boolean {
+    const message =
+      error instanceof Error ? error.message : typeof error === 'string' ? error : undefined
+    return Boolean(message?.startsWith('Unknown ACP permission request:'))
   }
 
   private updatePersistedProviderPermissionState(
