@@ -404,5 +404,12 @@
       "discarded": "Odrzucono szkic umiejętności.",
       "failed": "Nie udało się obsłużyć szkicu umiejętności: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }

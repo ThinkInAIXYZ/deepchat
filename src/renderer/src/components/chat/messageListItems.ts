@@ -160,6 +160,7 @@ type DisplayMessageBase = {
   id: string
   role: 'user' | 'assistant'
   timestamp: number
+  updatedAt: number
   avatar: string
   name: string
   model_name: string

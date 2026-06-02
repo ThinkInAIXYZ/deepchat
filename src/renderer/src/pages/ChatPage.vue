@@ -556,6 +556,7 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
   const baseMessage = {
     id: record.id,
     timestamp: record.createdAt,
+    updatedAt: record.updatedAt,
     avatar: '',
     name: record.role === 'user' ? 'You' : 'Assistant',
     model_name: modelName,
@@ -604,11 +605,13 @@ function toStreamingMessage(
   messageId?: string | null
 ): DisplayMessage {
   const modelId = sessionStore.activeSession?.modelId ?? ''
+  const now = Date.now()
   return {
     id: messageId ? `__streaming__:${messageId}` : '__streaming__',
     content: blocks as DisplayAssistantMessageBlock[],
     role: 'assistant',
-    timestamp: Date.now(),
+    timestamp: now,
+    updatedAt: now,
     avatar: '',
     name: 'Assistant',
     model_name: resolveAssistantModelName(modelId),

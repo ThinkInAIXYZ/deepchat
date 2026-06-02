@@ -404,5 +404,12 @@
       "discarded": "טיוטת המיומנות נמחקה.",
       "failed": "הטיפול בטיוטת המיומנות נכשל: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }

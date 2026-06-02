@@ -37,59 +37,76 @@
             class="size-3 text-muted-foreground"
           />
           <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
-            <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
+            <template v-for="item in currentRenderItems" :key="item.key">
+              <MessageBlockActivityGroup
+                v-if="item.kind === 'activity-group'"
+                :blocks="item.blocks"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+                :usage="currentMessage.usage"
+                :duration-ms="item.durationMs"
+                :reasoning-count="item.reasoningCount"
+                :tool-call-count="item.toolCallCount"
+                @toggle-collapse="handleCollapseToggle"
+              />
               <MessageBlockContent
-                v-if="block.type === 'content'"
-                :block="block"
+                v-else-if="item.block.type === 'content'"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
                 :is-search-result="isSearchResult"
               />
               <MessageBlockThink
-                v-else-if="block.type === 'reasoning_content' && block.content"
-                :block="block"
-                :usage="message.usage"
+                v-else-if="
+                  (item.block.type === 'reasoning_content' ||
+                    item.block.type === 'artifact-thinking') &&
+                  item.block.content
+                "
+                :block="item.block"
+                :usage="currentMessage.usage"
                 @toggle-collapse="handleCollapseToggle"
               />
-              <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
+              <MessageBlockPlan v-else-if="item.block.type === 'plan'" :block="item.block" />
               <MessageBlockToolCall
-                v-else-if="block.type === 'tool_call' && !isInternalToolCall(block)"
-                :block="block"
+                v-else-if="item.block.type === 'tool_call' && !isInternalToolCall(item.block)"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
               <MessageBlockQuestionRequest
-                v-else-if="block.type === 'action' && block.action_type === 'question_request'"
-                :block="block"
+                v-else-if="
+                  item.block.type === 'action' && item.block.action_type === 'question_request'
+                "
+                :block="item.block"
               />
               <MessageBlockAction
-                v-else-if="block.type === 'action'"
+                v-else-if="item.block.type === 'action'"
                 :message-id="currentMessage.id"
                 :conversation-id="currentThreadId"
-                :block="block"
+                :block="item.block"
                 :is-read-only="isReadOnly"
                 @continue="handleBlockContinue"
                 @switch-provider="handleBlockSwitchProvider"
               />
               <MessageBlockAudio
-                v-else-if="isAudioBlock(block)"
-                :block="block"
+                v-else-if="isAudioBlock(item.block)"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
               <MessageBlockVideo
-                v-else-if="isVideoBlock(block)"
-                :block="block"
+                v-else-if="isVideoBlock(item.block)"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
               <MessageBlockImage
-                v-else-if="block.type === 'image'"
-                :block="block"
+                v-else-if="item.block.type === 'image'"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
-              <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
+              <MessageBlockError v-else-if="item.block.type === 'error'" :block="item.block" />
             </template>
           </div>
           <MessageToolbar
@@ -193,6 +210,8 @@ import MessageBlockImage from './MessageBlockImage.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockPlan from './MessageBlockPlan.vue'
+import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
+import { buildAssistantRenderItems } from './messageActivityGroups'
 
 import {
   Dialog,
@@ -362,6 +381,21 @@ const currentContent = computed(() => {
   const variant = allVariants.value[currentVariantIndex.value - 1]
   return (variant?.content || props.message.content) as DisplayAssistantMessageBlock[]
 })
+
+const shouldGroupActivity = computed(() => {
+  if (resolvedIsInGeneratingThread.value) return false
+  return currentMessage.value.status !== 'pending'
+})
+
+const currentRenderItems = computed(() =>
+  buildAssistantRenderItems({
+    blocks: currentContent.value,
+    messageId: currentMessage.value.id,
+    messageUpdatedAt: currentMessage.value.updatedAt,
+    shouldGroup: shouldGroupActivity.value,
+    isInternalToolCall
+  })
+)
 
 // 监听 allVariants 长度变化，用于新变体生成时的自动切换和持久化
 watch(

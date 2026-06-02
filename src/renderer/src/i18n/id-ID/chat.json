@@ -404,5 +404,12 @@
       "discarded": "Draf skill dibuang.",
       "failed": "Gagal menangani draf skill: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }

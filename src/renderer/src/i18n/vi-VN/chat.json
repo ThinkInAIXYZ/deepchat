@@ -404,5 +404,12 @@
       "discarded": "Đã loại bỏ bản nháp kỹ năng.",
       "failed": "Không thể xử lý bản nháp kỹ năng: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }

@@ -404,5 +404,12 @@
       "discarded": "Rascunho de skill descartado.",
       "failed": "Falha ao lidar com o rascunho de skill: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }

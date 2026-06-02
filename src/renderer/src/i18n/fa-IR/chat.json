@@ -404,5 +404,12 @@
       "discarded": "پیش‌نویس مهارت دور انداخته شد.",
       "failed": "رسیدگی به پیش‌نویس مهارت ناموفق بود: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }

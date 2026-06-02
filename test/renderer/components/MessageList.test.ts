@@ -89,6 +89,7 @@ function createMessage(id: string, role: 'user' | 'assistant', orderSeq: number)
           }
         : [],
     timestamp: orderSeq,
+    updatedAt: orderSeq,
     avatar: '',
     name: role === 'user' ? 'You' : 'Assistant',
     model_name: '',

@@ -404,5 +404,12 @@
       "discarded": "スキルドラフトを破棄しました。",
       "failed": "スキルドラフトの処理に失敗しました: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }

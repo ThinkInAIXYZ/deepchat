@@ -404,5 +404,12 @@
       "discarded": "스킬 초안을 버렸습니다.",
       "failed": "스킬 초안 처리에 실패했습니다: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }

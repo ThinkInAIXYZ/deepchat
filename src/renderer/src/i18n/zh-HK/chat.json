@@ -404,5 +404,12 @@
       "discarded": "已丟棄技能草稿。",
       "failed": "處理技能草稿失敗：{error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "已經工作了 {duration}",
+    "reasoningCount": "{count} 段思考",
+    "toolCallCount": "{count} 次工具呼叫",
+    "expandLabel": "展開 {title}",
+    "collapseLabel": "收起 {title}"
   }
 }

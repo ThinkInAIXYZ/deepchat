@@ -404,5 +404,12 @@
       "discarded": "Bozza di skill scartata.",
       "failed": "Impossibile gestire la bozza di skill: {error}"
     }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}"
   }
 }
