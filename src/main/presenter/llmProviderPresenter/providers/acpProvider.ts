@@ -549,6 +549,14 @@ export class AcpProvider extends BaseLLMProvider {
     const agent = await this.getAgentById(agentId)
     if (!agent) return
 
+    const requestedWorkdir = workdir?.trim()
+    if (requestedWorkdir && !this.sessionPersistence.isWorkdirUsable(requestedWorkdir)) {
+      console.info(
+        `[ACP] Skipping warmup for agent ${agentId}: selected workdir "${requestedWorkdir}" is unavailable.`
+      )
+      return
+    }
+
     try {
       await this.processManager.warmupProcess(agent, workdir)
     } catch (error) {

@@ -111,6 +111,7 @@
 - [ ] Keep `current_mode_update` synchronized with ChatStatusBar.
 - [ ] Keep `config_option_update` synchronized with config state.
 - [ ] Ensure `available_commands_update` populates slash suggestions after update buffer fix.
+- [ ] Skip ACP warmup when the selected workdir is unavailable, while preserving session-start fallback behavior.
 - [ ] Add tests for set mode, set model/config option, current mode update, config option update, and slash command availability.
 
 ## 11. Diagnostics UI

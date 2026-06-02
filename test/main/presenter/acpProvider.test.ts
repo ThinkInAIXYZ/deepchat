@@ -107,6 +107,23 @@ describe('AcpProvider runDebugAction error handling', () => {
     ).rejects.toThrow('boom')
   })
 
+  it('skips warmup when the selected workdir is unavailable', async () => {
+    const warmupProcess = vi.fn().mockResolvedValue(undefined)
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.getAgentById = vi.fn().mockResolvedValue(agent)
+    provider.sessionPersistence = {
+      isWorkdirUsable: vi.fn().mockReturnValue(false)
+    }
+    provider.processManager = {
+      warmupProcess
+    }
+
+    await provider.warmupProcess('agent1', '/tmp/missing-workdir')
+
+    expect(provider.sessionPersistence.isWorkdirUsable).toHaveBeenCalledWith('/tmp/missing-workdir')
+    expect(warmupProcess).not.toHaveBeenCalled()
+  })
+
   it('does not let undefined debug payload cwd overwrite the resolved workdir', async () => {
     const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
     const provider = Object.create(AcpProvider.prototype) as any
