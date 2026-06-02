@@ -202,6 +202,15 @@ type ActiveProviderPermission = {
   resolve: (granted: boolean) => Promise<void>
 }
 
+type ProviderPermissionInteractionInput = {
+  sessionId: string
+  messageId: string
+  toolCallId: string
+  requestId: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  granted: boolean
+}
+
 type PersistedSessionGenerationRow = {
   provider_id: string
   model_id: string
@@ -4528,58 +4537,55 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     })
   }
 
-  private async resolveProviderPermissionInteraction(input: {
-    sessionId: string
-    messageId: string
-    toolCallId: string
-    requestId: string
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    granted: boolean
-  }): Promise<void> {
+  private async resolveProviderPermissionInteraction(
+    input: ProviderPermissionInteractionInput
+  ): Promise<void> {
     const active = this.activeProviderPermissions.get(input.requestId)
-    let resolvedProviderRequest = false
+    let resolution: { status: 'resolved' } | { status: 'stale'; error: unknown }
 
     try {
-      if (active) {
-        try {
-          await active.resolve(input.granted)
-          return
-        } catch (error) {
-          if (!this.isUnknownAcpPermissionRequestError(error)) {
-            throw error
-          }
-          console.warn(
-            `[DeepChatAgent] Clearing stale ACP permission request ${input.requestId}:`,
-            error
-          )
-        }
-      } else {
-        try {
-          await this.llmProviderPresenter.resolveAgentPermission(input.requestId, input.granted)
-          resolvedProviderRequest = true
-        } catch (error) {
-          if (!this.isUnknownAcpPermissionRequestError(error)) {
-            throw error
-          }
-          console.warn(
-            `[DeepChatAgent] Clearing stale ACP permission request ${input.requestId}:`,
-            error
-          )
-        }
-      }
-
-      this.updatePersistedProviderPermissionState(
-        input.messageId,
-        input.toolCallId,
-        input.requestId,
-        input.permissionType,
-        resolvedProviderRequest ? input.granted : false
+      resolution = await this.resolveProviderPermissionSafely(
+        active
+          ? () => active.resolve(input.granted)
+          : () => this.llmProviderPresenter.resolveAgentPermission(input.requestId, input.granted)
       )
-      this.messageStore.updateMessageStatus(input.messageId, 'sent')
-      this.setSessionStatus(input.sessionId, 'idle')
-      this.emitMessageRefresh(input.sessionId, input.messageId)
     } finally {
       this.activeProviderPermissions.delete(input.requestId)
+    }
+
+    if (active && resolution.status === 'resolved') {
+      return
+    }
+
+    if (resolution.status === 'stale') {
+      console.warn(
+        `[DeepChatAgent] Clearing stale ACP permission request ${input.requestId}:`,
+        resolution.error
+      )
+    }
+
+    this.updatePersistedProviderPermissionState(
+      input.messageId,
+      input.toolCallId,
+      input.requestId,
+      input.permissionType,
+      resolution.status === 'resolved' ? input.granted : false,
+      resolution.status === 'stale' ? 'Permission request expired.' : undefined
+    )
+    this.finishProviderPermissionInteraction(input.sessionId, input.messageId)
+  }
+
+  private async resolveProviderPermissionSafely(
+    task: () => Promise<void>
+  ): Promise<{ status: 'resolved' } | { status: 'stale'; error: unknown }> {
+    try {
+      await task()
+      return { status: 'resolved' }
+    } catch (error) {
+      if (!this.isUnknownAcpPermissionRequestError(error)) {
+        throw error
+      }
+      return { status: 'stale', error }
     }
   }
 
@@ -4589,12 +4595,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return Boolean(message?.startsWith('Unknown ACP permission request:'))
   }
 
+  private finishProviderPermissionInteraction(sessionId: string, messageId: string): void {
+    this.messageStore.updateMessageStatus(messageId, 'sent')
+    this.setSessionStatus(sessionId, 'idle')
+    this.emitMessageRefresh(sessionId, messageId)
+  }
+
   private updatePersistedProviderPermissionState(
     messageId: string,
     toolCallId: string,
     requestId: string,
     permissionType: 'read' | 'write' | 'all' | 'command',
-    granted: boolean
+    granted: boolean,
+    deniedMessage = 'User denied the request.'
   ): void {
     const message = this.messageStore.getMessage(messageId)
     if (!message || message.role !== 'assistant') {
@@ -4615,6 +4628,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     this.markPermissionResolved(actionBlock, granted, permissionType)
+    if (!granted) {
+      actionBlock.content = deniedMessage
+    }
     this.messageStore.updateAssistantContent(messageId, blocks)
   }
 

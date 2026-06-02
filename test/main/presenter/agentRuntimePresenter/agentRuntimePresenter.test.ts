@@ -5370,7 +5370,7 @@ describe('AgentRuntimePresenter', () => {
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )
       expect(updatedBlocks[1].status).toBe('denied')
-      expect(updatedBlocks[1].content).toBe('User denied the request.')
+      expect(updatedBlocks[1].content).toBe('Permission request expired.')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
       expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m1', 'sent')
       expect((agent as any).runtimeState.get('s1').status).toBe('idle')
