@@ -21,6 +21,20 @@ const normalizeBudgetRange = (
   return Object.keys(range).length > 0 ? range : null
 }
 
+const mergeBudgetRanges = (
+  base: ReasoningPortrait['budget'] | ThinkingBudgetRange | null | undefined,
+  overlay: ReasoningPortrait['budget'] | ThinkingBudgetRange | null | undefined
+): ThinkingBudgetRange | null => {
+  const normalizedBase = normalizeBudgetRange(base) ?? {}
+  const normalizedOverlay = normalizeBudgetRange(overlay) ?? {}
+  const merged = {
+    ...normalizedBase,
+    ...normalizedOverlay
+  }
+
+  return Object.keys(merged).length > 0 ? merged : null
+}
+
 // === Interfaces ===
 export interface ModelCapabilities {
   supportsReasoning: boolean | null
@@ -89,9 +103,10 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
       capabilitySupportsReasoning.value =
         typeof capabilities.supportsReasoning === 'boolean' ? capabilities.supportsReasoning : null
       capabilityBudgetRange.value =
-        normalizeBudgetRange(capabilities.reasoningPortrait?.budget) ??
-        normalizeBudgetRange(capabilities.thinkingBudgetRange) ??
-        {}
+        mergeBudgetRanges(
+          capabilities.thinkingBudgetRange,
+          capabilities.reasoningPortrait?.budget
+        ) ?? {}
       capabilitySupportsSearch.value =
         typeof capabilities.supportsSearch === 'boolean' ? capabilities.supportsSearch : null
       capabilitySearchDefaults.value = capabilities.searchDefaults || {}

@@ -84,6 +84,35 @@ describe('useModelCapabilities', () => {
     expect(api.supportsTemperatureControl.value).toBe(true)
   })
 
+  it('merges thinking budget range with reasoning portrait sentinels', async () => {
+    const providerId = ref<string | undefined>('openrouter')
+    const modelId = ref<string | undefined>('google/gemini-2.5-flash')
+    modelClient.getCapabilities.mockResolvedValue({
+      supportsAudioInput: false,
+      supportsReasoning: true,
+      reasoningPortrait: {
+        budget: { auto: -1, off: 0, unit: 'tokens' }
+      },
+      thinkingBudgetRange: { min: 128, max: 24576, default: 1024 },
+      supportsSearch: false,
+      searchDefaults: null,
+      supportsTemperatureControl: true,
+      temperatureCapability: true
+    })
+
+    const api = useModelCapabilities({ providerId, modelId })
+
+    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
+    expect(api.budgetRange.value).toEqual({
+      min: 128,
+      max: 24576,
+      default: 1024,
+      auto: -1,
+      off: 0,
+      unit: 'tokens'
+    })
+  })
+
   it('ignores stale capability responses after model changes', async () => {
     const providerId = ref<string | undefined>('openai')
     const modelId = ref<string | undefined>('gpt-old')
