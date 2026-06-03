@@ -273,6 +273,16 @@ const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
 const SESSION_RESTORE_SCROLL_SETTLE_FRAMES = 8
 const SESSION_RESTORE_SCROLL_SETTLE_TIMEOUT = 600
+const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  ' ',
+  'Spacebar'
+])
 const PLAN_FLOAT_SAFE_GAP = 16
 const planFloatReservedHeight = ref(0)
 const displayMessageCache = new Map<
@@ -338,6 +348,31 @@ function cancelSessionRestoreScrollSettle() {
   cancelSessionRestoreScrollIntentListeners?.()
   cancelSessionRestoreScrollIntentListeners = null
   disconnectSessionRestoreResizeObserver()
+}
+
+function isSessionRestoreScrollSettleActive(): boolean {
+  return sessionRestoreScrollFrame !== null || sessionRestoreScrollTimer !== null
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  return Boolean(
+    target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
+  )
+}
+
+function isSessionRestoreKeyboardScrollIntent(event: KeyboardEvent): boolean {
+  return (
+    !event.defaultPrevented &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    SESSION_RESTORE_SCROLL_INTENT_KEYS.has(event.key) &&
+    !isEditableKeyboardTarget(event.target)
+  )
 }
 
 function syncPlanFloatReservedHeight() {
@@ -462,12 +497,23 @@ function settleSessionRestoreScrollToBottom(requestId: number, sessionId: string
     const cancelForUserScrollIntent = () => {
       cancelSessionRestoreScrollSettle()
     }
+    const cancelForKeyboardScrollIntent = (event: KeyboardEvent) => {
+      if (isSessionRestoreKeyboardScrollIntent(event)) {
+        cancelSessionRestoreScrollSettle()
+      }
+    }
 
     el.addEventListener('wheel', cancelForUserScrollIntent, { passive: true })
     el.addEventListener('touchstart', cancelForUserScrollIntent, { passive: true })
+    el.addEventListener('pointerdown', cancelForUserScrollIntent, { passive: true })
+    el.addEventListener('mousedown', cancelForUserScrollIntent, { passive: true })
+    window.addEventListener('keydown', cancelForKeyboardScrollIntent, { capture: true })
     cancelSessionRestoreScrollIntentListeners = () => {
       el.removeEventListener('wheel', cancelForUserScrollIntent)
       el.removeEventListener('touchstart', cancelForUserScrollIntent)
+      el.removeEventListener('pointerdown', cancelForUserScrollIntent)
+      el.removeEventListener('mousedown', cancelForUserScrollIntent)
+      window.removeEventListener('keydown', cancelForKeyboardScrollIntent, true)
     }
   }
 
@@ -517,8 +563,16 @@ function settleSessionRestoreScrollToBottom(requestId: number, sessionId: string
 }
 
 function onScroll() {
-  scheduleScrollMetricsRead()
   const el = scrollContainer.value
+  if (
+    el &&
+    isSessionRestoreScrollSettleActive() &&
+    el.scrollHeight - el.scrollTop - el.clientHeight > NEAR_BOTTOM_THRESHOLD
+  ) {
+    cancelSessionRestoreScrollSettle()
+  }
+
+  scheduleScrollMetricsRead()
   if (!el || el.scrollTop > TOP_HISTORY_THRESHOLD) {
     return
   }

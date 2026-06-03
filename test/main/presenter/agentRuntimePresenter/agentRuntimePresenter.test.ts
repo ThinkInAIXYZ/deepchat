@@ -3467,14 +3467,15 @@ describe('AgentRuntimePresenter', () => {
         }
       })
 
+      const drainSpy = vi.spyOn(agent as any, 'drainPendingQueueIfPossible')
       const drainPromise = (agent as any).drainPendingQueueIfPossible('s1', 'resume')
       await streamStarted
 
       await agent.cancelGeneration('s1')
       resolveStream()
       await drainPromise
-      await new Promise((resolve) => setTimeout(resolve, 10))
 
+      expect(drainSpy).toHaveBeenCalledTimes(1)
       expect(processStream).toHaveBeenCalledTimes(1)
       expect(await agent.listPendingInputs('s1')).toEqual([
         expect.objectContaining({
@@ -3489,10 +3490,10 @@ describe('AgentRuntimePresenter', () => {
         stopReason: 'complete'
       })
       await agent.resumePendingQueue('s1')
-      await new Promise((resolve) => setTimeout(resolve, 10))
-
-      expect(processStream).toHaveBeenCalledTimes(2)
-      expect(await agent.listPendingInputs('s1')).toEqual([])
+      await vi.waitFor(async () => {
+        expect(processStream).toHaveBeenCalledTimes(2)
+        expect(await agent.listPendingInputs('s1')).toEqual([])
+      })
     })
   })
 

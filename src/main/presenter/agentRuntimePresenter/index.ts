@@ -623,11 +623,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    this.userPausedPendingQueues.delete(sessionId)
     if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
       return
     }
 
-    this.userPausedPendingQueues.delete(sessionId)
     void this.drainPendingQueueIfPossible(sessionId, 'resume')
   }
 
