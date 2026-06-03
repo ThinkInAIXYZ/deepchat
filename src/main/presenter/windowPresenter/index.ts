@@ -35,6 +35,7 @@ import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat windo
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { StartupWorkloadCoordinator } from '../startupWorkloadCoordinator'
 import { openExternalUrl } from '@/lib/externalUrl'
+import { activateAppOnMac } from '@/lib/activateApp'
 
 type PendingSettingsMessage = {
   channel: string
@@ -357,6 +358,7 @@ export class WindowPresenter implements IWindowPresenter {
     targetWindow.show()
     if (shouldFocus) {
       targetWindow.focus() // Bring to foreground
+      activateAppOnMac()
     }
     // 触发恢复逻辑以确保活动标签页可见且位置正确
     this.handleWindowRestore(targetWindow.id).catch((error) => {
@@ -529,6 +531,7 @@ export class WindowPresenter implements IWindowPresenter {
     if (switchToTarget) {
       targetWindow.show()
       targetWindow.focus()
+      activateAppOnMac()
     }
 
     return true
@@ -699,6 +702,7 @@ export class WindowPresenter implements IWindowPresenter {
       if (!appWindow.isDestroyed()) {
         appWindow.show()
         appWindow.focus()
+        activateAppOnMac()
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
           windowId,
           isMainWindow: windowId === this.mainWindowId
@@ -1231,6 +1235,7 @@ export class WindowPresenter implements IWindowPresenter {
       console.log('Settings window already exists, showing and focusing.')
       this.settingsWindow.show()
       this.settingsWindow.focus()
+      activateAppOnMac()
       if (navigation) {
         if (this.settingsWindowReady) {
           this.sendToWindow(this.settingsWindow.id, SETTINGS_EVENTS.NAVIGATE, navigation)
@@ -1407,6 +1412,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     mainWindow.show()
     mainWindow.focus()
+    activateAppOnMac()
     return true
   }
 

@@ -27,6 +27,7 @@ import {
   type DatabaseUnlockRequestPayload,
   type DatabaseUnlockReason
 } from '@shared/contracts/databaseSecurity'
+import { activateAppOnMac } from '@/lib/activateApp'
 
 type SplashActivityStatus = 'running' | 'completed' | 'failed'
 
@@ -483,6 +484,7 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
     this.splashWindow.show()
     this.splashWindow.focus()
+    activateAppOnMac()
   }
 
   private markSplashLoaded(): void {
