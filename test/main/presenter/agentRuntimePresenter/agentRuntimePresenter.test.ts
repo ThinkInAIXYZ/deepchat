@@ -3444,6 +3444,56 @@ describe('AgentRuntimePresenter', () => {
       expect(processSpy).not.toHaveBeenCalled()
       expect(result).toBe(pendingRecord)
     })
+
+    it('pauses automatic queue draining when a queued turn is stopped', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'Queued retry')
+
+      let resolveStreamStarted: () => void = () => {}
+      const streamStarted = new Promise<void>((resolve) => {
+        resolveStreamStarted = resolve
+      })
+      let resolveStream: () => void = () => {}
+      const streamRelease = new Promise<void>((resolve) => {
+        resolveStream = resolve
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+        resolveStreamStarted()
+        await streamRelease
+        return {
+          status: 'aborted',
+          stopReason: 'user_stop',
+          errorMessage: 'common.error.userCanceledGeneration'
+        }
+      })
+
+      const drainPromise = (agent as any).drainPendingQueueIfPossible('s1', 'resume')
+      await streamStarted
+
+      await agent.cancelGeneration('s1')
+      resolveStream()
+      await drainPromise
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(await agent.listPendingInputs('s1')).toEqual([
+        expect.objectContaining({
+          mode: 'queue',
+          state: 'pending',
+          payload: { text: 'Queued retry', files: [] }
+        })
+      ])
+
+      ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        status: 'completed',
+        stopReason: 'complete'
+      })
+      await agent.resumePendingQueue('s1')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      expect(processStream).toHaveBeenCalledTimes(2)
+      expect(await agent.listPendingInputs('s1')).toEqual([])
+    })
   })
 
   describe('getMessages / getMessageIds / getMessage', () => {

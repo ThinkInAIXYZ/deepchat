@@ -44,7 +44,7 @@ const props = withDefaults(
     smoothStreaming?: boolean
   }>(),
   {
-    smoothStreaming: false
+    smoothStreaming: true
   }
 )
 const themeStore = useThemeStore()
