@@ -1,5 +1,6 @@
 // src\main\presenter\windowPresenter\index.ts
 import {
+  app,
   BrowserWindow,
   shell,
   nativeImage,
@@ -357,6 +358,11 @@ export class WindowPresenter implements IWindowPresenter {
     targetWindow.show()
     if (shouldFocus) {
       targetWindow.focus() // Bring to foreground
+      // macOS: transparent windows may not properly activate the app,
+      // causing the global menu bar to not update.
+      if (process.platform === 'darwin') {
+        app.focus()
+      }
     }
     // 触发恢复逻辑以确保活动标签页可见且位置正确
     this.handleWindowRestore(targetWindow.id).catch((error) => {
@@ -699,6 +705,12 @@ export class WindowPresenter implements IWindowPresenter {
       if (!appWindow.isDestroyed()) {
         appWindow.show()
         appWindow.focus()
+        // macOS: transparent windows may not properly activate the app,
+        // causing the global menu bar to not update. Explicitly call app.focus()
+        // to ensure macOS recognizes DeepChat as the active application.
+        if (process.platform === 'darwin') {
+          app.focus()
+        }
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
           windowId,
           isMainWindow: windowId === this.mainWindowId
