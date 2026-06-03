@@ -8,7 +8,7 @@
 @source '../**/*.{vue,ts,tsx,js,jsx}';
 @source '../../browser/**/*.{vue,ts,tsx,js,jsx}';
 @source '../../../shadcn/components/**/*.{vue,ts,tsx,js,jsx}';
-@source '../../../../node_modules/markstream-vue/dist/tailwind.ts';
+@source '../../../../node_modules/markstream-vue/dist/tailwind.js';
 
 @custom-variant dark (&:where(.dark &, [data-theme='dark'] &));
 

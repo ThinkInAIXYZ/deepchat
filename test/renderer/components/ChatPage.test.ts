@@ -450,6 +450,74 @@ const setup = async (options: SetupOptions = {}) => {
   }
 }
 
+type ChatPageSetupResult = Awaited<ReturnType<typeof setup>>
+
+async function expectSessionRestoreSettleStopsAfter(
+  triggerIntent: (context: {
+    wrapper: ChatPageSetupResult['wrapper']
+    chatPage: HTMLDivElement
+  }) => Promise<void> | void
+) {
+  let nextFrameId = 1
+  const rafCallbacks = new Map<number, FrameRequestCallback>()
+  const flushRaf = async () => {
+    const callbacks = Array.from(rafCallbacks.values())
+    rafCallbacks.clear()
+    callbacks.forEach((cb) => cb(0))
+    await flushPromises()
+  }
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    const frameId = nextFrameId
+    nextFrameId += 1
+    rafCallbacks.set(frameId, cb)
+    return frameId
+  })
+  const cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+    rafCallbacks.delete(frameId)
+  })
+
+  try {
+    const { wrapper, flushStartupDeferredTasks } = await setup({
+      deferStartupTasks: true
+    })
+    const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+
+    let scrollHeight = 1200
+    let scrollTop = 0
+    Object.defineProperty(chatPage, 'clientHeight', {
+      configurable: true,
+      get: () => 500
+    })
+    Object.defineProperty(chatPage, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight
+    })
+    Object.defineProperty(chatPage, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value
+      }
+    })
+
+    await flushStartupDeferredTasks()
+    await flushRaf()
+    expect(scrollTop).toBe(700)
+
+    scrollTop = 420
+    await triggerIntent({ wrapper, chatPage })
+    scrollHeight = 1350
+    await flushRaf()
+
+    expect(scrollTop).toBe(420)
+
+    wrapper.unmount()
+  } finally {
+    rafSpy.mockRestore()
+    cancelRafSpy.mockRestore()
+  }
+}
+
 describe('ChatPage', () => {
   it('renders the agent plan inside an absolute overlay layer above the composer', async () => {
     const { wrapper, agentPlanStore } = await setup()
@@ -906,6 +974,73 @@ describe('ChatPage', () => {
     })
   })
 
+  it('forces bottom scroll after sending a new message', async () => {
+    let nextFrameId = 1
+    const rafCallbacks = new Map<number, FrameRequestCallback>()
+    const flushRaf = async () => {
+      const callbacks = Array.from(rafCallbacks.values())
+      rafCallbacks.clear()
+      callbacks.forEach((cb) => cb(0))
+      await flushPromises()
+    }
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      const frameId = nextFrameId
+      nextFrameId += 1
+      rafCallbacks.set(frameId, cb)
+      return frameId
+    })
+    const cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+      rafCallbacks.delete(frameId)
+    })
+
+    try {
+      const { wrapper, chatClient } = await setup({
+        deferStartupTasks: true
+      })
+      const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+
+      let scrollTop = 120
+      Object.defineProperty(chatPage, 'clientHeight', {
+        configurable: true,
+        get: () => 500
+      })
+      Object.defineProperty(chatPage, 'scrollHeight', {
+        configurable: true,
+        get: () => 1200
+      })
+      Object.defineProperty(chatPage, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => {
+          scrollTop = value
+        }
+      })
+
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+      await flushPromises()
+      await flushRaf()
+
+      const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
+      await inputBox.vm.$emit('update:modelValue', 'send this')
+      await flushPromises()
+
+      inputBox.vm.$emit('submit')
+      await flushPromises()
+      await flushRaf()
+
+      expect(chatClient.sendMessage).toHaveBeenCalledWith('s1', {
+        text: 'send this',
+        files: []
+      })
+      expect(scrollTop).toBe(700)
+
+      wrapper.unmount()
+    } finally {
+      rafSpy.mockRestore()
+      cancelRafSpy.mockRestore()
+    }
+  })
+
   it('queues active draft on submit while generating', async () => {
     const { wrapper, pendingInputStore, chatClient } = await setup({
       isStreaming: true
@@ -1028,6 +1163,83 @@ describe('ChatPage', () => {
       rafSpy.mockRestore()
       cancelRafSpy.mockRestore()
     }
+  })
+
+  it('keeps scrolling to bottom while restored session layout settles', async () => {
+    let nextFrameId = 1
+    const rafCallbacks = new Map<number, FrameRequestCallback>()
+    const flushRaf = async () => {
+      const callbacks = Array.from(rafCallbacks.values())
+      rafCallbacks.clear()
+      callbacks.forEach((cb) => cb(0))
+      await flushPromises()
+    }
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      const frameId = nextFrameId
+      nextFrameId += 1
+      rafCallbacks.set(frameId, cb)
+      return frameId
+    })
+    const cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+      rafCallbacks.delete(frameId)
+    })
+
+    try {
+      const { wrapper, flushStartupDeferredTasks } = await setup({
+        deferStartupTasks: true
+      })
+      const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+
+      let scrollHeight = 1200
+      let scrollTop = 0
+      Object.defineProperty(chatPage, 'clientHeight', {
+        configurable: true,
+        get: () => 500
+      })
+      Object.defineProperty(chatPage, 'scrollHeight', {
+        configurable: true,
+        get: () => scrollHeight
+      })
+      Object.defineProperty(chatPage, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => {
+          scrollTop = value
+        }
+      })
+
+      await flushStartupDeferredTasks()
+      await flushRaf()
+      expect(scrollTop).toBe(700)
+
+      scrollHeight = 1350
+      await flushRaf()
+      expect(scrollTop).toBe(850)
+
+      wrapper.unmount()
+    } finally {
+      rafSpy.mockRestore()
+      cancelRafSpy.mockRestore()
+    }
+  })
+
+  it('stops session restore bottom settling after user scroll intent', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      await wrapper.get('[data-testid="chat-page"]').trigger('wheel')
+    })
+  })
+
+  it('stops session restore bottom settling after manual scroll events', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+    })
+  })
+
+  it('stops session restore bottom settling after keyboard scroll intent', async () => {
+    await expectSessionRestoreSettleStopsAfter(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp' }))
+      await flushPromises()
+    })
   })
 
   it('opens the inline search with Ctrl+F and closes it with Escape', async () => {

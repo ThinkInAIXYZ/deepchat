@@ -109,7 +109,21 @@ setCustomComponents(customId, {
 .think-prose {
   --ms-text-body: calc(0.75rem * var(--dc-font-scale));
   --ms-leading-body: calc(1rem * var(--dc-font-scale));
+  --ms-text-h1: var(--ms-text-body);
+  --ms-text-h2: var(--ms-text-body);
+  --ms-text-h3: var(--ms-text-body);
+  --ms-text-h4: var(--ms-text-body);
+  --ms-text-h5: var(--ms-text-body);
+  --ms-text-h6: var(--ms-text-body);
+  --ms-leading-h1: var(--ms-leading-body);
+  --ms-leading-h2: var(--ms-leading-body);
+  --ms-leading-h3: var(--ms-leading-body);
   --ms-font-sans: var(--dc-font-family);
+}
+
+.think-prose :deep(:where(h1, h2, h3, h4, h5, h6, .heading-node)) {
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .think-prose :where(p, ul, li) {

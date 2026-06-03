@@ -35,6 +35,7 @@
 - Conventional commits enforced by hook: `type(scope): subject` ≤ 50 chars; types: `feat|fix|docs|dx|style|refactor|perf|test|workflow|build|ci|chore|types|wip|release`.
 - Do not include AI co-authoring footers in commits.
 - PRs: clear description, link issues (`Closes #123`), screenshots/GIFs for UI, pass lint/typecheck/tests. Keep changes focused.
+- Default PR base is `dev`; use `gh pr create --base dev` for routine feature, bugfix, docs, test, and refactor branches. Target `main` only for `release/<version>` branches following `docs/release-flow.md`.
 - UI changes: include BEFORE/AFTER ASCII layout blocks to communicate structure.
 
 ## Architecture Notes & Security

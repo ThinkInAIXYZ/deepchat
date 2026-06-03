@@ -271,6 +271,18 @@ const TOP_HISTORY_THRESHOLD = 80
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
+const SESSION_RESTORE_SCROLL_SETTLE_FRAMES = 8
+const SESSION_RESTORE_SCROLL_SETTLE_TIMEOUT = 600
+const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  ' ',
+  'Spacebar'
+])
 const PLAN_FLOAT_SAFE_GAP = 16
 const planFloatReservedHeight = ref(0)
 const displayMessageCache = new Map<
@@ -297,13 +309,17 @@ const chatSearchBarRef = ref<{
 let spotlightJumpTimer: number | null = null
 let scrollReadFrame: number | null = null
 let scrollWriteFrame: number | null = null
+let sessionRestoreScrollFrame: number | null = null
+let sessionRestoreScrollTimer: number | null = null
 let chatSearchRefreshFrame: number | null = null
 let pendingForcedScroll = false
 let lastObservedScrollHeight = 0
 let cancelSessionRestoreTask: (() => void) | null = null
+let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
 let sessionRestoreRequestId = 0
 let planFloatResizeObserver: ResizeObserver | null = null
+let sessionRestoreResizeObserver: ResizeObserver | null = null
 
 const resolveChatInputBoxElement = () =>
   (chatInputHeroHostRef.value?.querySelector(
@@ -313,6 +329,50 @@ const resolveChatInputBoxElement = () =>
 function disconnectPlanFloatResizeObserver() {
   planFloatResizeObserver?.disconnect()
   planFloatResizeObserver = null
+}
+
+function disconnectSessionRestoreResizeObserver() {
+  sessionRestoreResizeObserver?.disconnect()
+  sessionRestoreResizeObserver = null
+}
+
+function cancelSessionRestoreScrollSettle() {
+  if (sessionRestoreScrollFrame !== null) {
+    window.cancelAnimationFrame(sessionRestoreScrollFrame)
+    sessionRestoreScrollFrame = null
+  }
+  if (sessionRestoreScrollTimer !== null) {
+    window.clearTimeout(sessionRestoreScrollTimer)
+    sessionRestoreScrollTimer = null
+  }
+  cancelSessionRestoreScrollIntentListeners?.()
+  cancelSessionRestoreScrollIntentListeners = null
+  disconnectSessionRestoreResizeObserver()
+}
+
+function isSessionRestoreScrollSettleActive(): boolean {
+  return sessionRestoreScrollFrame !== null || sessionRestoreScrollTimer !== null
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  return Boolean(
+    target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
+  )
+}
+
+function isSessionRestoreKeyboardScrollIntent(event: KeyboardEvent): boolean {
+  return (
+    !event.defaultPrevented &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    SESSION_RESTORE_SCROLL_INTENT_KEYS.has(event.key) &&
+    !isEditableKeyboardTarget(event.target)
+  )
 }
 
 function syncPlanFloatReservedHeight() {
@@ -394,9 +454,125 @@ function scrollToBottom(force = false) {
   })
 }
 
-function onScroll() {
-  scheduleScrollMetricsRead()
+function schedulePostSubmitScrollToBottom() {
+  void nextTick(() => {
+    scrollToBottom(true)
+  })
+}
+
+function canSettleSessionRestoreScroll(requestId: number, sessionId: string) {
+  return (
+    requestId === sessionRestoreRequestId &&
+    props.sessionId === sessionId &&
+    spotlightStore.pendingMessageJump?.sessionId !== sessionId
+  )
+}
+
+function applySessionRestoreBottomScroll(requestId: number, sessionId: string): boolean {
+  if (!canSettleSessionRestoreScroll(requestId, sessionId)) {
+    return false
+  }
+
   const el = scrollContainer.value
+  if (!el) {
+    return false
+  }
+
+  el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  syncScrollPosition()
+  return true
+}
+
+function settleSessionRestoreScrollToBottom(requestId: number, sessionId: string) {
+  cancelSessionRestoreScrollSettle()
+
+  if (!canSettleSessionRestoreScroll(requestId, sessionId)) {
+    return
+  }
+
+  const el = scrollContainer.value
+  let remainingFrames = SESSION_RESTORE_SCROLL_SETTLE_FRAMES
+
+  if (el) {
+    const cancelForUserScrollIntent = () => {
+      cancelSessionRestoreScrollSettle()
+    }
+    const cancelForKeyboardScrollIntent = (event: KeyboardEvent) => {
+      if (isSessionRestoreKeyboardScrollIntent(event)) {
+        cancelSessionRestoreScrollSettle()
+      }
+    }
+
+    el.addEventListener('wheel', cancelForUserScrollIntent, { passive: true })
+    el.addEventListener('touchstart', cancelForUserScrollIntent, { passive: true })
+    el.addEventListener('pointerdown', cancelForUserScrollIntent, { passive: true })
+    el.addEventListener('mousedown', cancelForUserScrollIntent, { passive: true })
+    window.addEventListener('keydown', cancelForKeyboardScrollIntent, { capture: true })
+    cancelSessionRestoreScrollIntentListeners = () => {
+      el.removeEventListener('wheel', cancelForUserScrollIntent)
+      el.removeEventListener('touchstart', cancelForUserScrollIntent)
+      el.removeEventListener('pointerdown', cancelForUserScrollIntent)
+      el.removeEventListener('mousedown', cancelForUserScrollIntent)
+      window.removeEventListener('keydown', cancelForKeyboardScrollIntent, true)
+    }
+  }
+
+  const scheduleNextFrame = () => {
+    if (remainingFrames <= 0 || sessionRestoreScrollFrame !== null) {
+      return
+    }
+
+    sessionRestoreScrollFrame = window.requestAnimationFrame(() => {
+      sessionRestoreScrollFrame = null
+
+      if (!applySessionRestoreBottomScroll(requestId, sessionId)) {
+        cancelSessionRestoreScrollSettle()
+        return
+      }
+
+      remainingFrames -= 1
+      scheduleNextFrame()
+    })
+  }
+
+  if (typeof ResizeObserver !== 'undefined') {
+    const observedTargets: Element[] = []
+    if (messageSearchRoot.value) {
+      observedTargets.push(messageSearchRoot.value)
+    }
+    if (chatInputHeroHostRef.value) {
+      observedTargets.push(chatInputHeroHostRef.value)
+    }
+
+    if (observedTargets.length > 0) {
+      sessionRestoreResizeObserver = new ResizeObserver(() => {
+        if (!applySessionRestoreBottomScroll(requestId, sessionId)) {
+          cancelSessionRestoreScrollSettle()
+        }
+      })
+
+      observedTargets.forEach((target) => sessionRestoreResizeObserver?.observe(target))
+    }
+  }
+
+  sessionRestoreScrollTimer = window.setTimeout(() => {
+    cancelSessionRestoreScrollSettle()
+  }, SESSION_RESTORE_SCROLL_SETTLE_TIMEOUT)
+
+  scheduleNextFrame()
+}
+
+function onScroll() {
+  const el = scrollContainer.value
+  if (
+    el &&
+    isSessionRestoreScrollSettleActive() &&
+    el.scrollHeight - el.scrollTop - el.clientHeight > NEAR_BOTTOM_THRESHOLD
+  ) {
+    cancelSessionRestoreScrollSettle()
+  }
+
+  scheduleScrollMetricsRead()
   if (!el || el.scrollTop > TOP_HISTORY_THRESHOLD) {
     return
   }
@@ -478,6 +654,7 @@ watch(
     sessionRestoreRequestId += 1
     cancelSessionRestoreTask?.()
     cancelSessionRestoreTask = null
+    cancelSessionRestoreScrollSettle()
     messageStore.clear()
     pendingInputStore.clear()
     if (id) {
@@ -502,10 +679,11 @@ watch(
         await nextTick()
         syncScrollPosition()
         if (spotlightStore.pendingMessageJump?.sessionId === id) {
+          cancelSessionRestoreScrollSettle()
           void focusPendingSpotlightMessageJump()
           return
         }
-        scrollToBottom(true)
+        settleSessionRestoreScrollToBottom(requestId, id)
       })
       return
     }
@@ -1279,6 +1457,7 @@ async function onSubmit() {
   }
   message.value = ''
   attachedFiles.value = []
+  schedulePostSubmitScrollToBottom()
 }
 
 async function onCommandSubmit(command: string) {
@@ -1300,6 +1479,7 @@ async function onCommandSubmit(command: string) {
     await chatClient.sendMessage(props.sessionId, { text, files })
   }
   attachedFiles.value = []
+  schedulePostSubmitScrollToBottom()
 }
 
 async function handleManualCompactionCommand(text: string): Promise<boolean> {
@@ -1543,6 +1723,7 @@ onMounted(() => {
 onUnmounted(() => {
   removeModelConfigChangedListener()
   disconnectPlanFloatResizeObserver()
+  cancelSessionRestoreScrollSettle()
   cancelPlanUpdatedListener?.()
   cancelPlanUpdatedListener = null
   voiceInput.cleanup()

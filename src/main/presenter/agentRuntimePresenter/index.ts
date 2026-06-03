@@ -298,6 +298,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
   private readonly drainingPendingQueues: Set<string> = new Set()
+  private readonly userPausedPendingQueues: Set<string> = new Set()
   private readonly activeProviderPermissions: Map<string, ActiveProviderPermission> = new Map()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
@@ -473,6 +474,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.toolProfileCache.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
     this.drainingPendingQueues.delete(sessionId)
+    this.userPausedPendingQueues.delete(sessionId)
     this.toolPresenter?.clearConversationToolMapping?.(sessionId)
   }
 
@@ -535,6 +537,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         ? this.resolveProjectDir(sessionId, options.projectDir)
         : this.resolveProjectDir(sessionId)
 
+    this.clearPendingQueuePauseIfEmpty(sessionId)
     const shouldClaimImmediately =
       ((options?.source ?? 'send') === 'send' && this.isAwaitingToolQuestionFollowUp(sessionId)) ||
       this.shouldStartQueuedInputImmediately(sessionId, state.status)
@@ -612,6 +615,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     await this.ensureSessionReadyForPendingInputMutation(sessionId)
     this.pendingInputCoordinator.deletePendingInput(sessionId, itemId)
+    this.clearPendingQueuePauseIfEmpty(sessionId)
   }
 
   async resumePendingQueue(sessionId: string): Promise<void> {
@@ -619,6 +623,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    this.userPausedPendingQueues.delete(sessionId)
     if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
       return
     }
@@ -795,6 +800,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       if (context?.pendingQueueItemId && pendingInputSource === 'send') {
         this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
+        this.clearPendingQueuePauseIfEmpty(sessionId)
         consumedPendingQueueItem = true
       }
 
@@ -832,6 +838,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           }
         } else {
           this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
+          this.clearPendingQueuePauseIfEmpty(sessionId)
           consumedPendingQueueItem = true
         }
       }
@@ -1541,6 +1548,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
+    if (this.shouldPausePendingQueueOnStop(sessionId)) {
+      this.userPausedPendingQueues.add(sessionId)
+    }
+
     const activeGeneration = this.activeGenerations.get(sessionId)
     if (activeGeneration) {
       activeGeneration.abortController.abort()
@@ -2660,6 +2671,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (this.drainingPendingQueues.has(sessionId)) {
       return false
     }
+    if (this.isPendingQueuePausedByUser(sessionId, reason)) {
+      return false
+    }
 
     const state = await this.getSessionState(sessionId)
     if (!state || !this.canDrainPendingQueueFromStatus(state.status, reason)) {
@@ -2705,7 +2719,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (
         this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
         (await this.getSessionState(sessionId))?.status === 'idle' &&
-        !this.hasPendingInteractions(sessionId)
+        !this.hasPendingInteractions(sessionId) &&
+        !this.isPendingQueuePausedByUser(sessionId, 'completed')
       ) {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
       }
@@ -2725,7 +2740,30 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (this.drainingPendingQueues.has(sessionId)) {
       return false
     }
+    if (this.userPausedPendingQueues.has(sessionId)) {
+      return false
+    }
     return !this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
+  }
+
+  private shouldPausePendingQueueOnStop(sessionId: string): boolean {
+    return (
+      this.drainingPendingQueues.has(sessionId) ||
+      this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
+    )
+  }
+
+  private isPendingQueuePausedByUser(
+    sessionId: string,
+    reason: 'enqueue' | 'resume' | 'completed'
+  ): boolean {
+    return reason !== 'resume' && this.userPausedPendingQueues.has(sessionId)
+  }
+
+  private clearPendingQueuePauseIfEmpty(sessionId: string): void {
+    if (!this.pendingInputCoordinator.hasPendingTurnInput(sessionId)) {
+      this.userPausedPendingQueues.delete(sessionId)
+    }
   }
 
   private canDrainPendingQueueFromStatus(
@@ -2760,9 +2798,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   ): void {
     if (pendingInputSource === 'steer') {
       this.pendingInputCoordinator.consumeSteerInput(sessionId, pendingInputId)
+      this.clearPendingQueuePauseIfEmpty(sessionId)
       return
     }
     this.pendingInputCoordinator.consumeQueuedInput(sessionId, pendingInputId)
+    this.clearPendingQueuePauseIfEmpty(sessionId)
   }
 
   private releaseClaimedPendingInput(
