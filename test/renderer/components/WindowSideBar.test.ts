@@ -40,7 +40,9 @@ const createDomRect = (left: number, top: number, width: number, height: number)
 
 const dispatchWindowKeydown = (
   key: string,
-  modifiers: Partial<Pick<KeyboardEventInit, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>> = {}
+  modifiers: Partial<
+    Pick<KeyboardEventInit, 'altKey' | 'ctrlKey' | 'metaKey' | 'repeat' | 'shiftKey'>
+  > = {}
 ) =>
   window.dispatchEvent(
     new KeyboardEvent('keydown', {
@@ -53,7 +55,9 @@ const dispatchWindowKeydown = (
 
 const dispatchWindowKeyup = (
   key: string,
-  modifiers: Partial<Pick<KeyboardEventInit, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>> = {}
+  modifiers: Partial<
+    Pick<KeyboardEventInit, 'altKey' | 'ctrlKey' | 'metaKey' | 'repeat' | 'shiftKey'>
+  > = {}
 ) =>
   window.dispatchEvent(
     new KeyboardEvent('keyup', {
@@ -64,7 +68,31 @@ const dispatchWindowKeyup = (
     })
   )
 
+const mountedWrappers: Array<{ unmount: () => void }> = []
+
+const trackMountedWrapper = <T extends { unmount: () => void }>(wrapper: T): T => {
+  let mounted = true
+  const originalUnmount = wrapper.unmount.bind(wrapper)
+
+  wrapper.unmount = () => {
+    if (!mounted) {
+      return
+    }
+
+    mounted = false
+    const wrapperIndex = mountedWrappers.indexOf(wrapper)
+    if (wrapperIndex !== -1) {
+      mountedWrappers.splice(wrapperIndex, 1)
+    }
+    originalUnmount()
+  }
+
+  mountedWrappers.push(wrapper)
+  return wrapper
+}
+
 afterEach(() => {
+  mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   vi.clearAllTimers()
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -297,32 +325,34 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const WindowSideBar = (await import('@/components/WindowSideBar.vue')).default
-  const wrapper = mount(WindowSideBar, {
-    global: {
-      stubs: {
-        TooltipProvider: passthrough,
-        Tooltip: passthrough,
-        TooltipContent: passthrough,
-        TooltipTrigger: passthrough,
-        ContextMenu: passthrough,
-        ContextMenuTrigger: passthrough,
-        ContextMenuContent: passthrough,
-        ContextMenuSeparator: passthrough,
-        ContextMenuItem: contextMenuItemStub,
-        Dialog: dialogStub,
-        DialogContent: passthrough,
-        DialogDescription: passthrough,
-        DialogFooter: passthrough,
-        DialogHeader: passthrough,
-        DialogTitle: passthrough,
-        Button: buttonStub,
-        Input: inputStub,
-        AgentAvatar: true,
-        Icon: true,
-        ModelIcon: true
+  const wrapper = trackMountedWrapper(
+    mount(WindowSideBar, {
+      global: {
+        stubs: {
+          TooltipProvider: passthrough,
+          Tooltip: passthrough,
+          TooltipContent: passthrough,
+          TooltipTrigger: passthrough,
+          ContextMenu: passthrough,
+          ContextMenuTrigger: passthrough,
+          ContextMenuContent: passthrough,
+          ContextMenuSeparator: passthrough,
+          ContextMenuItem: contextMenuItemStub,
+          Dialog: dialogStub,
+          DialogContent: passthrough,
+          DialogDescription: passthrough,
+          DialogFooter: passthrough,
+          DialogHeader: passthrough,
+          DialogTitle: passthrough,
+          Button: buttonStub,
+          Input: inputStub,
+          AgentAvatar: true,
+          Icon: true,
+          ModelIcon: true
+        }
       }
-    }
-  })
+    })
+  )
 
   await flushPromises()
 
@@ -619,6 +649,34 @@ describe('WindowSideBar agent switch', () => {
       await flushPromises()
 
       expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-2')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'ignores repeated sidebar number shortcut keydown events',
+    async () => {
+      const { sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('1', { metaKey: true, repeat: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
     },
     TEST_TIMEOUT_MS
   )

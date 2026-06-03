@@ -940,7 +940,7 @@ const isPlatformModifierOnlyKeydown = (event: KeyboardEvent) => {
 }
 
 const isSidebarShortcutDigitEvent = (event: KeyboardEvent) => {
-  if (!/^[0-9]$/.test(event.key) || shouldIgnoreSidebarShortcutEvent(event)) {
+  if (event.repeat || !/^[0-9]$/.test(event.key) || shouldIgnoreSidebarShortcutEvent(event)) {
     return false
   }
 

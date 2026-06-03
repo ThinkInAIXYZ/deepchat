@@ -166,5 +166,8 @@ describe('WindowSideBarSessionItem', () => {
       false
     )
     expect(normalWrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(true)
+    expect(
+      normalWrapper.find('.right-button').attributes('data-shortcut-badge-visible')
+    ).toBeUndefined()
   }, 10000)
 })
