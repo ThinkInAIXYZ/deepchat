@@ -304,6 +304,8 @@
                 :force-pin-docked="pinDockedSessionId === session.id"
                 :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
                 :search-query="sessionSearchQuery"
+                :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
                 @select="handleSessionClick"
                 @toggle-pin="handleTogglePin"
                 @delete="openDeleteDialog"
@@ -341,6 +343,8 @@
                 :force-pin-docked="pinDockedSessionId === session.id"
                 :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
                 :search-query="sessionSearchQuery"
+                :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
                 @select="handleSessionClick"
                 @toggle-pin="handleTogglePin"
                 @delete="openDeleteDialog"
@@ -398,6 +402,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { createSettingsClient } from '@api/SettingsClient'
 import { createRemoteControlRuntime } from '@api/RemoteControlRuntime'
+import { createDeviceClient } from '@api/DeviceClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
@@ -422,10 +427,13 @@ const PIN_FEEDBACK_DURATION_MS: Record<PinFeedbackMode, number> = {
 const PIN_FLIGHT_DURATION_MS = 460
 const PIN_TARGET_SETTLE_MAX_FRAMES = 10
 const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
+const SIDEBAR_SHORTCUT_BADGE_DELAY_MS = 500
+const SIDEBAR_SHORTCUT_MAX_ROWS = 10
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
 
 type SessionItemRegion = 'pinned' | 'grouped'
+type ShortcutPlatform = 'mac' | 'other'
 type SessionItemRect = {
   left: number
   top: number
@@ -435,6 +443,7 @@ type SessionItemRect = {
 
 const settingsClient = createSettingsClient()
 const remoteControlRuntime = createRemoteControlRuntime()
+const deviceClient = createDeviceClient()
 const { t } = useI18n()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
@@ -533,6 +542,12 @@ let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
 let pinFeedbackTimer: number | null = null
 let sessionListScrollFrame: number | null = null
+let shortcutBadgeTimer: number | null = null
+const shortcutPlatform = ref<ShortcutPlatform>(
+  navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
+)
+const shortcutModifierDown = ref(false)
+const showShortcutBadges = ref(false)
 const sidebarSelectedAgentId = computed(() => {
   const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
   if (sessionStore.hasActiveSession && activeSessionAgentId) {
@@ -675,6 +690,53 @@ const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKe
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
+
+const visibleShortcutSessions = computed<UISession[]>(() => {
+  if (collapsed.value) {
+    return []
+  }
+
+  const sessions: UISession[] = []
+
+  if (!isPinnedSectionCollapsed.value) {
+    sessions.push(...pinnedSessions.value)
+  }
+
+  for (const group of filteredGroups.value) {
+    if (!isGroupCollapsed(group)) {
+      sessions.push(...group.sessions)
+    }
+  }
+
+  return sessions
+    .filter((session) => session.id !== pinFlightSessionId.value)
+    .slice(0, SIDEBAR_SHORTCUT_MAX_ROWS)
+})
+
+const getShortcutDigitForIndex = (index: number) => (index === 9 ? '0' : String(index + 1))
+
+const getShortcutIndexForDigit = (digit: string) => (digit === '0' ? 9 : Number(digit) - 1)
+
+const getShortcutBadgeLabelForIndex = (index: number) => {
+  const digit = getShortcutDigitForIndex(index)
+  return shortcutPlatform.value === 'mac' ? `⌘${digit}` : `Alt+${digit}`
+}
+
+const shortcutBadgeLabelBySessionId = computed(() => {
+  const labels = new Map<string, string>()
+
+  visibleShortcutSessions.value.forEach((session, index) => {
+    labels.set(session.id, getShortcutBadgeLabelForIndex(index))
+  })
+
+  return labels
+})
+
+const getShortcutBadgeLabelForSession = (sessionId: string) =>
+  shortcutBadgeLabelBySessionId.value.get(sessionId) ?? null
+
+const hasShortcutBadgeForSession = (sessionId: string) =>
+  showShortcutBadges.value && shortcutBadgeLabelBySessionId.value.has(sessionId)
 
 const togglePinnedSection = () => {
   isPinnedSectionCollapsed.value = !isPinnedSectionCollapsed.value
@@ -828,6 +890,156 @@ const handleAgentSelect = async (id: string | null) => {
 const handleSessionClick = (session: { id: string }) => {
   void sessionStore.selectSession(session.id)
 }
+
+const loadShortcutPlatform = async () => {
+  try {
+    const deviceInfo = await deviceClient.getDeviceInfo()
+    shortcutPlatform.value = deviceInfo.platform === 'darwin' ? 'mac' : 'other'
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to resolve shortcut platform:', error)
+  }
+}
+
+const isEditableShortcutTarget = (target: EventTarget | null) => {
+  const element = target instanceof HTMLElement ? target : null
+  if (!element) {
+    return false
+  }
+
+  return Boolean(
+    element.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+  )
+}
+
+const hasKeyboardOwningOverlay = () =>
+  spotlightStore.open ||
+  deleteDialogOpen.value ||
+  document.querySelector('.chat-search-bar') !== null ||
+  document.querySelector('[role="dialog"][aria-modal="true"]') !== null
+
+const shouldIgnoreSidebarShortcutEvent = (event: KeyboardEvent) =>
+  collapsed.value || isEditableShortcutTarget(event.target) || hasKeyboardOwningOverlay()
+
+const getPlatformModifierKey = () => (shortcutPlatform.value === 'mac' ? 'Meta' : 'Alt')
+
+const isPlatformModifierPressed = (event: KeyboardEvent) =>
+  shortcutPlatform.value === 'mac' ? event.metaKey : event.altKey
+
+const isPlatformModifierOnlyKeydown = (event: KeyboardEvent) => {
+  if (event.repeat || shouldIgnoreSidebarShortcutEvent(event)) {
+    return false
+  }
+
+  if (shortcutPlatform.value === 'mac') {
+    return (
+      event.key === 'Meta' && event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
+    )
+  }
+
+  return event.key === 'Alt' && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey
+}
+
+const isSidebarShortcutDigitEvent = (event: KeyboardEvent) => {
+  if (event.repeat || !/^[0-9]$/.test(event.key) || shouldIgnoreSidebarShortcutEvent(event)) {
+    return false
+  }
+
+  if (shortcutPlatform.value === 'mac') {
+    return event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
+  }
+
+  return event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey
+}
+
+const clearShortcutBadgeTimer = () => {
+  if (shortcutBadgeTimer !== null) {
+    window.clearTimeout(shortcutBadgeTimer)
+    shortcutBadgeTimer = null
+  }
+}
+
+const hideShortcutBadges = () => {
+  clearShortcutBadgeTimer()
+  shortcutModifierDown.value = false
+  showShortcutBadges.value = false
+}
+
+const startShortcutBadgeTimer = () => {
+  if (shortcutBadgeTimer !== null || showShortcutBadges.value) {
+    return
+  }
+
+  shortcutModifierDown.value = true
+  shortcutBadgeTimer = window.setTimeout(() => {
+    shortcutBadgeTimer = null
+
+    if (
+      shortcutModifierDown.value &&
+      !collapsed.value &&
+      !hasKeyboardOwningOverlay() &&
+      visibleShortcutSessions.value.length > 0
+    ) {
+      showShortcutBadges.value = true
+    }
+  }, SIDEBAR_SHORTCUT_BADGE_DELAY_MS)
+}
+
+const selectShortcutSession = (digit: string) => {
+  const shortcutIndex = getShortcutIndexForDigit(digit)
+  const targetSession = visibleShortcutSessions.value[shortcutIndex]
+
+  if (targetSession) {
+    void sessionStore.selectSession(targetSession.id)
+  }
+}
+
+const handleWindowShortcutKeydown = (event: KeyboardEvent) => {
+  if (isPlatformModifierOnlyKeydown(event)) {
+    if (shortcutPlatform.value !== 'mac') {
+      event.preventDefault()
+    }
+    startShortcutBadgeTimer()
+    return
+  }
+
+  if (shortcutBadgeTimer !== null && event.key !== getPlatformModifierKey()) {
+    clearShortcutBadgeTimer()
+  }
+
+  if (!isSidebarShortcutDigitEvent(event)) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  selectShortcutSession(event.key)
+}
+
+const handleWindowShortcutKeyup = (event: KeyboardEvent) => {
+  const modifierKey = getPlatformModifierKey()
+  if (event.key === modifierKey || !isPlatformModifierPressed(event)) {
+    if (shortcutPlatform.value !== 'mac' && event.key === modifierKey) {
+      event.preventDefault()
+    }
+    hideShortcutBadges()
+  }
+}
+
+const handleWindowShortcutBlur = () => {
+  hideShortcutBadges()
+}
+
+const handleDocumentVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') {
+    hideShortcutBadges()
+  }
+}
+
+watch(collapsed, (isCollapsed) => {
+  if (isCollapsed) {
+    hideShortcutBadges()
+  }
+})
 
 const openDeleteDialog = (session: UISession) => {
   deleteTargetSession.value = session
@@ -1157,6 +1369,12 @@ const handleDeleteConfirm = async () => {
 }
 
 onMounted(() => {
+  void loadShortcutPlatform()
+  window.addEventListener('keydown', handleWindowShortcutKeydown)
+  window.addEventListener('keyup', handleWindowShortcutKeyup)
+  window.addEventListener('blur', handleWindowShortcutBlur)
+  document.addEventListener('visibilitychange', handleDocumentVisibilityChange)
+
   void refreshRemoteControlStatus()
   remoteControlStatusTimer = setInterval(() => {
     void refreshRemoteControlStatus()
@@ -1164,6 +1382,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleWindowShortcutKeydown)
+  window.removeEventListener('keyup', handleWindowShortcutKeyup)
+  window.removeEventListener('blur', handleWindowShortcutBlur)
+  document.removeEventListener('visibilitychange', handleDocumentVisibilityChange)
+
   if (remoteControlStatusTimer) {
     clearInterval(remoteControlStatusTimer)
     remoteControlStatusTimer = null
@@ -1177,6 +1400,7 @@ onUnmounted(() => {
   pinFlightSessionId.value = null
   pinDockedSessionId.value = null
   clearPinFeedback()
+  hideShortcutBadges()
 })
 </script>
 

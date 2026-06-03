@@ -2,6 +2,7 @@
   "actions": {
     "rename": "Namakan semula",
     "delete": "padam",
+    "switchWithShortcut": "Beralih ke sembang ini dengan {shortcut}",
     "cleanMessages": "Kosongkan mesej",
     "pin": "pin ke atas",
     "unpin": "Nyahsemat",

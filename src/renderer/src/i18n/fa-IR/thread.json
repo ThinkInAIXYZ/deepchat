@@ -2,6 +2,7 @@
   "actions": {
     "rename": "ویرایش نام",
     "delete": "پاک کردن",
+    "switchWithShortcut": "با {shortcut} به این گفتگو بروید",
     "cleanMessages": "پاک کردن پیام‌ها",
     "pin": "سنجاق کردن",
     "unpin": "برداشتن سنجاق",

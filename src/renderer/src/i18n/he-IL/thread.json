@@ -2,6 +2,7 @@
   "actions": {
     "rename": "שנה שם",
     "delete": "מחק",
+    "switchWithShortcut": "עבור לצ'אט הזה עם {shortcut}",
     "cleanMessages": "נקה הודעות",
     "pin": "נעץ",
     "unpin": "בטל נעיצה",

@@ -2,6 +2,7 @@
   "actions": {
     "rename": "이름 변경",
     "delete": "삭제",
+    "switchWithShortcut": "{shortcut}로 이 채팅으로 전환",
     "cleanMessages": "메시지 정리",
     "pin": "고정하기",
     "unpin": "고정 해제",

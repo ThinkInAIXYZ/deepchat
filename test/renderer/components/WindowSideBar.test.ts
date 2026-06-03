@@ -20,6 +20,7 @@ type SetupOptions = {
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
   }
   collapsed?: boolean
+  platform?: 'darwin' | 'win32' | 'linux'
 }
 
 const TEST_TIMEOUT_MS = 20000
@@ -37,7 +38,61 @@ const createDomRect = (left: number, top: number, width: number, height: number)
     toJSON: () => ({})
   }) as DOMRect
 
+const dispatchWindowKeydown = (
+  key: string,
+  modifiers: Partial<
+    Pick<KeyboardEventInit, 'altKey' | 'ctrlKey' | 'metaKey' | 'repeat' | 'shiftKey'>
+  > = {}
+) =>
+  window.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers
+    })
+  )
+
+const dispatchWindowKeyup = (
+  key: string,
+  modifiers: Partial<
+    Pick<KeyboardEventInit, 'altKey' | 'ctrlKey' | 'metaKey' | 'repeat' | 'shiftKey'>
+  > = {}
+) =>
+  window.dispatchEvent(
+    new KeyboardEvent('keyup', {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers
+    })
+  )
+
+const mountedWrappers: Array<{ unmount: () => void }> = []
+
+const trackMountedWrapper = <T extends { unmount: () => void }>(wrapper: T): T => {
+  let mounted = true
+  const originalUnmount = wrapper.unmount.bind(wrapper)
+
+  wrapper.unmount = () => {
+    if (!mounted) {
+      return
+    }
+
+    mounted = false
+    const wrapperIndex = mountedWrappers.indexOf(wrapper)
+    if (wrapperIndex !== -1) {
+      mountedWrappers.splice(wrapperIndex, 1)
+    }
+    originalUnmount()
+  }
+
+  mountedWrappers.push(wrapper)
+  return wrapper
+}
+
 afterEach(() => {
+  mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   vi.clearAllTimers()
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -119,6 +174,13 @@ const setup = async (options: SetupOptions = {}) => {
   })
   const settingsClient = {
     openSettings: vi.fn().mockResolvedValue({ windowId: 99 })
+  }
+  const deviceClient = {
+    getDeviceInfo: vi.fn().mockResolvedValue({
+      platform: options.platform ?? 'darwin',
+      osVersion: '',
+      osVersionMetadata: []
+    })
   }
   const remoteControlRuntime = {
     listRemoteChannels: vi.fn(async () => [
@@ -214,6 +276,9 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/SettingsClient', () => ({
     createSettingsClient: vi.fn(() => settingsClient)
   }))
+  vi.doMock('@api/DeviceClient', () => ({
+    createDeviceClient: vi.fn(() => deviceClient)
+  }))
   vi.doMock('@api/RemoteControlRuntime', () => ({
     createRemoteControlRuntime: vi.fn(() => remoteControlRuntime)
   }))
@@ -260,32 +325,34 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const WindowSideBar = (await import('@/components/WindowSideBar.vue')).default
-  const wrapper = mount(WindowSideBar, {
-    global: {
-      stubs: {
-        TooltipProvider: passthrough,
-        Tooltip: passthrough,
-        TooltipContent: passthrough,
-        TooltipTrigger: passthrough,
-        ContextMenu: passthrough,
-        ContextMenuTrigger: passthrough,
-        ContextMenuContent: passthrough,
-        ContextMenuSeparator: passthrough,
-        ContextMenuItem: contextMenuItemStub,
-        Dialog: dialogStub,
-        DialogContent: passthrough,
-        DialogDescription: passthrough,
-        DialogFooter: passthrough,
-        DialogHeader: passthrough,
-        DialogTitle: passthrough,
-        Button: buttonStub,
-        Input: inputStub,
-        AgentAvatar: true,
-        Icon: true,
-        ModelIcon: true
+  const wrapper = trackMountedWrapper(
+    mount(WindowSideBar, {
+      global: {
+        stubs: {
+          TooltipProvider: passthrough,
+          Tooltip: passthrough,
+          TooltipContent: passthrough,
+          TooltipTrigger: passthrough,
+          ContextMenu: passthrough,
+          ContextMenuTrigger: passthrough,
+          ContextMenuContent: passthrough,
+          ContextMenuSeparator: passthrough,
+          ContextMenuItem: contextMenuItemStub,
+          Dialog: dialogStub,
+          DialogContent: passthrough,
+          DialogDescription: passthrough,
+          DialogFooter: passthrough,
+          DialogHeader: passthrough,
+          DialogTitle: passthrough,
+          Button: buttonStub,
+          Input: inputStub,
+          AgentAvatar: true,
+          Icon: true,
+          ModelIcon: true
+        }
       }
-    }
-  })
+    })
+  )
 
   await flushPromises()
 
@@ -295,6 +362,7 @@ const setup = async (options: SetupOptions = {}) => {
     agentStore,
     sessionStore,
     settingsClient,
+    deviceClient,
     remoteControlRuntime,
     spotlightStore,
     pageRouterStore,
@@ -508,6 +576,409 @@ describe('WindowSideBar agent switch', () => {
 
       expect(wrapper.text()).toContain('Alpha Session')
       expect(wrapper.text()).not.toContain('Beta Session')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'selects visible sidebar sessions with macOS number shortcuts',
+    async () => {
+      const groupedSessions = Array.from({ length: 9 }, (_, index) => ({
+        id: `group-${index + 1}`,
+        title: `Group Session ${index + 1}`,
+        status: 'none'
+      }))
+      const { sessionStore } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: groupedSessions
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('2', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-1')
+
+      dispatchWindowKeydown('0', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-9')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'uses Alt as the sidebar number shortcut modifier on Windows and Linux',
+    async () => {
+      const { sessionStore } = await setup({
+        platform: 'win32',
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              },
+              {
+                id: 'group-2',
+                title: 'Group Session 2',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('2', { altKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-2')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'ignores repeated sidebar number shortcut keydown events',
+    async () => {
+      const { sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('1', { metaKey: true, repeat: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'excludes collapsed groups from sidebar shortcut mapping',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
+      await wrapper.vm.$nextTick()
+      sessionStore.selectSession.mockClear()
+
+      dispatchWindowKeydown('2', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('pinned-1')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'excludes collapsed pinned sessions from sidebar shortcut mapping',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
+      await wrapper.vm.$nextTick()
+      sessionStore.selectSession.mockClear()
+
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-1')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'disables sidebar number shortcuts while the sidebar is collapsed',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        collapsed: true,
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+
+      dispatchWindowKeydown('Meta', { metaKey: true })
+      vi.advanceTimersByTime(500)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'suppresses sidebar number shortcuts for editable targets',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+      const event = new KeyboardEvent('keydown', {
+        key: '1',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true
+      })
+
+      Object.defineProperty(event, 'target', {
+        value: wrapper.find('input').element
+      })
+
+      ;(wrapper.vm as any).handleWindowShortcutKeydown(event)
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'suppresses sidebar number shortcuts while keyboard-owning overlays are open',
+    async () => {
+      const { wrapper, sessionStore, spotlightStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      spotlightStore.open = true
+
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+
+      dispatchWindowKeydown('Meta', { metaKey: true })
+      vi.advanceTimersByTime(500)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'shows shortcut badges only after a modifier long press and hides them on release',
+    async () => {
+      const { wrapper } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              },
+              {
+                id: 'group-2',
+                title: 'Group Session 2',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('Meta', { metaKey: true })
+      vi.advanceTimersByTime(499)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+
+      vi.advanceTimersByTime(1)
+      await wrapper.vm.$nextTick()
+
+      const badges = wrapper.findAll('[data-testid="sidebar-session-shortcut-badge"]')
+      expect(badges.map((badge) => badge.text())).toEqual(['⌘1', '⌘2'])
+      expect(wrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(false)
+
+      dispatchWindowKeyup('Meta')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(true)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'does not show shortcut badges after a number shortcut cancels the pending hold',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('Meta', { metaKey: true })
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-1')
+
+      vi.advanceTimersByTime(500)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'removes sidebar shortcut listeners when the component unmounts',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      wrapper.unmount()
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
     },
     TEST_TIMEOUT_MS
   )

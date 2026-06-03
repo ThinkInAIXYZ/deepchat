@@ -2,6 +2,7 @@
   "actions": {
     "rename": "Omdøb",
     "delete": "Slet",
+    "switchWithShortcut": "Skift til denne chat med {shortcut}",
     "cleanMessages": "Ryd beskeder",
     "pin": "Fastgør",
     "unpin": "Frigør",

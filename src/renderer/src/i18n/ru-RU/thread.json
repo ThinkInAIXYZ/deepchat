@@ -2,6 +2,7 @@
   "actions": {
     "rename": "Переименовать",
     "delete": "Удалить",
+    "switchWithShortcut": "Переключиться на этот чат с помощью {shortcut}",
     "cleanMessages": "Очистить сообщения",
     "pin": "Закрепить",
     "unpin": "Открепить",

@@ -2,6 +2,7 @@
   "actions": {
     "rename": "重命名",
     "delete": "刪除",
+    "switchWithShortcut": "使用 {shortcut} 切換到此會話",
     "cleanMessages": "清空消息",
     "pin": "置頂",
     "unpin": "取消置頂",

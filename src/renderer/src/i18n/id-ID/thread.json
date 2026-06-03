@@ -2,6 +2,7 @@
   "actions": {
     "rename": "Ganti nama",
     "delete": "Hapus",
+    "switchWithShortcut": "Beralih ke obrolan ini dengan {shortcut}",
     "cleanMessages": "Hapus pesan",
     "pin": "sematkan ke atas",
     "unpin": "Lepas sematan",

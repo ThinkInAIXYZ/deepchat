@@ -2,6 +2,7 @@
   "actions": {
     "rename": "Đổi tên",
     "delete": "Xóa",
+    "switchWithShortcut": "Chuyển sang cuộc trò chuyện này bằng {shortcut}",
     "cleanMessages": "Xóa tin nhắn",
     "pin": "Ghim",
     "unpin": "Bỏ ghim",
