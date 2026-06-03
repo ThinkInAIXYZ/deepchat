@@ -2,6 +2,7 @@
   "actions": {
     "rename": "Renommer",
     "delete": "Supprimer",
+    "switchWithShortcut": "Passer à cette discussion avec {shortcut}",
     "cleanMessages": "Nettoyer les messages",
     "pin": "Épingler",
     "unpin": "Détacher",

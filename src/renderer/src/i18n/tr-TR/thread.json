@@ -2,6 +2,7 @@
   "actions": {
     "rename": "Yeniden isimlendirmek",
     "delete": "Silmek",
+    "switchWithShortcut": "{shortcut} ile bu sohbete geç",
     "cleanMessages": "Mesajları Temizle",
     "pin": "Sabitle",
     "unpin": "Sabitlemeyi kaldır",

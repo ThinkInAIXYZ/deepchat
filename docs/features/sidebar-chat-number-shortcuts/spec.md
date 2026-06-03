@@ -15,7 +15,7 @@ Add renderer-local number shortcuts for the current left sidebar chat list:
 - `1` maps to the first currently displayed chat row, `2` to the second, and so on.
 - `0` maps to the tenth currently displayed chat row.
 - The mapping is recalculated from the current renderer state every time the shortcut is pressed.
-- Holding the platform modifier for 2 seconds shows shortcut badges on the first ten displayed chat
+- Holding the platform modifier for 0.5 seconds shows shortcut badges on the first ten displayed chat
   rows, matching the provided screenshot style.
 
 ## Acceptance Criteria
@@ -34,7 +34,7 @@ Add renderer-local number shortcuts for the current left sidebar chat list:
 5. If the requested index has no current chat row, the shortcut is ignored without UI noise.
 6. The shortcut handler does not fire while typing in inputs, textareas, contenteditable editors, or
    active command/search overlays.
-7. Holding only the platform modifier for 2 seconds shows number badges for at most ten displayed
+7. Holding only the platform modifier for 0.5 seconds shows number badges for at most ten displayed
    chat rows. Releasing the modifier hides them immediately.
 8. While the badge overlay is visible, it occupies the same right-side area as the hover delete
    button so the delete button is visually covered and cannot be clicked.
@@ -67,7 +67,7 @@ Hover row before this feature:
 +------------------------------------------------+
 ```
 
-Modifier held for 2 seconds:
+Modifier held for 0.5 seconds:
 
 ```text
 +------------------------------------------------+
@@ -106,8 +106,8 @@ Collapsed and filtered rows do not receive numbers:
 - No stored preference, migration, menu item, global Electron accelerator, or main-process presenter
   change is needed for the first increment.
 - The implementation should stay inside existing sidebar boundaries and reuse the session store.
-- Badge visuals should follow the current sidebar item styling: compact pill, muted surface,
-  right-aligned, no layout jump.
+- Badge visuals should follow the current sidebar item styling: compact pill, right-aligned, no
+  layout jump, with the same default surface as the pin/delete action buttons.
 - Badge display state must be driven by the modifier long-press state, not by CSS `:hover`,
   `group-hover`, or row focus selectors.
 - Do not change session sorting, grouping, pagination, pinning, deletion, or agent filter behavior.

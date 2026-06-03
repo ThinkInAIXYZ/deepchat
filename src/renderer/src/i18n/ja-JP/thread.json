@@ -2,6 +2,7 @@
   "actions": {
     "rename": "名前を変更",
     "delete": "削除",
+    "switchWithShortcut": "{shortcut}でこのチャットに切り替え",
     "cleanMessages": "メッセージをクリア",
     "pin": "ピン留めする",
     "unpin": "ピン留めを外す",

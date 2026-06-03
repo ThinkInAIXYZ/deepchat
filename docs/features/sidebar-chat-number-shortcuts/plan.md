@@ -12,7 +12,7 @@
 - Detect platform with existing renderer device information, preferring `useDeviceVersion()` or the
   same `createDeviceClient().getDeviceInfo()` source used by existing components.
 - On macOS, handle `event.metaKey`; on Windows/Linux, handle `event.altKey`.
-- Start a 2 second timer when the platform modifier is pressed by itself.
+- Start a 0.5 second timer when the platform modifier is pressed by itself.
 - Show `showShortcutBadges` when the timer completes and the modifier is still down.
 - Clear the timer and hide badges on modifier release, blur, visibility change, unmount, or sidebar
   collapse.
@@ -59,7 +59,7 @@
   - missing index does nothing;
   - editable focused elements suppress switching.
 - Cover long-press behavior with fake timers:
-  - badges show after 2 seconds;
+  - badges show after 0.5 seconds;
   - badges hide on modifier release;
   - delete button is not rendered/clickable while the badge is visible.
 - Cover hover separation:
@@ -107,7 +107,7 @@ collapse state, and pin/unpin changes.
 ```text
 Window keydown
   -> detect platform modifier
-  -> if modifier-only, start 2s badge timer
+  -> if modifier-only, start 0.5s badge timer
   -> if modifier+digit, recompute visibleShortcutRows
   -> select target session through sessionStore.selectSession()
 
@@ -143,5 +143,5 @@ Window keyup / blur / visibility hidden / unmount
 - Targeted renderer tests for the sidebar shortcut behavior
 - Manual check on macOS and Windows/Linux-equivalent platform mocks:
   - press `Command+2` / `Alt+2`;
-  - hold modifier for 2 seconds;
+  - hold modifier for 0.5 seconds;
   - search/filter/collapse, then verify badge numbers recalculate.

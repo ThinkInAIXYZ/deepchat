@@ -24,6 +24,8 @@ const mountComponent = async (options?: {
   heroHidden?: boolean
   pinFeedbackMode?: 'pinning' | 'unpinning' | null
   searchQuery?: string
+  shortcutBadgeLabel?: string | null
+  shortcutBadgeVisible?: boolean
 }) => {
   vi.resetModules()
 
@@ -43,7 +45,9 @@ const mountComponent = async (options?: {
       region: options?.isPinned ? 'pinned' : 'grouped',
       heroHidden: options?.heroHidden ?? false,
       pinFeedbackMode: options?.pinFeedbackMode ?? null,
-      searchQuery: options?.searchQuery ?? ''
+      searchQuery: options?.searchQuery ?? '',
+      shortcutBadgeLabel: options?.shortcutBadgeLabel ?? null,
+      shortcutBadgeVisible: options?.shortcutBadgeVisible ?? false
     },
     global: {
       stubs: {
@@ -135,5 +139,32 @@ describe('WindowSideBarSessionItem', () => {
     const highlight = wrapper.find('.session-title__highlight')
     expect(highlight.exists()).toBe(true)
     expect(highlight.text()).toBe('Title')
+  }, 10000)
+
+  it('renders shortcut badges independently from the delete action', async () => {
+    const badgeWrapper = await mountComponent({
+      shortcutBadgeLabel: '⌘2',
+      shortcutBadgeVisible: true
+    })
+
+    const badge = badgeWrapper.find('[data-testid="sidebar-session-shortcut-badge"]')
+
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('⌘2')
+    expect(badge.attributes('aria-label')).toBe('thread.actions.switchWithShortcut')
+    expect(badgeWrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(false)
+    expect(badgeWrapper.find('.right-button').attributes('data-shortcut-badge-visible')).toBe(
+      'true'
+    )
+
+    const normalWrapper = await mountComponent({
+      shortcutBadgeLabel: '⌘2',
+      shortcutBadgeVisible: false
+    })
+
+    expect(normalWrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(
+      false
+    )
+    expect(normalWrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(true)
   }, 10000)
 })

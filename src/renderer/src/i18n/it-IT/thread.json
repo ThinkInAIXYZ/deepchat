@@ -2,6 +2,7 @@
   "actions": {
     "rename": "Rinomina",
     "delete": "Elimina",
+    "switchWithShortcut": "Passa a questa chat con {shortcut}",
     "cleanMessages": "Cancella messaggi",
     "pin": "Fissa",
     "unpin": "Rimuovi fissaggio",

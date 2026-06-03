@@ -25,6 +25,8 @@ const props = defineProps<{
   forcePinDocked?: boolean
   pinFeedbackMode?: PinFeedbackMode | null
   searchQuery?: string
+  shortcutBadgeLabel?: string | null
+  shortcutBadgeVisible?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -41,6 +43,15 @@ const pinActionLabel = computed(() =>
 )
 
 const deleteActionLabel = computed(() => t('thread.actions.delete'))
+
+const shortcutBadgeTitle = computed(() => {
+  const shortcut = props.shortcutBadgeLabel
+  if (!shortcut) {
+    return ''
+  }
+
+  return t('thread.actions.switchWithShortcut', { shortcut })
+})
 
 const isWorking = computed(() => session.value.status === 'working')
 
@@ -164,8 +175,21 @@ const titleSegments = computed(() => {
       </span>
     </div>
 
-    <span class="right-button flex items-center">
+    <span
+      class="right-button flex items-center"
+      :data-shortcut-badge-visible="shortcutBadgeVisible ? 'true' : undefined"
+    >
+      <span
+        v-if="shortcutBadgeVisible && shortcutBadgeLabel"
+        data-testid="sidebar-session-shortcut-badge"
+        class="shortcut-badge"
+        :title="shortcutBadgeTitle"
+        :aria-label="shortcutBadgeTitle"
+      >
+        {{ shortcutBadgeLabel }}
+      </span>
       <button
+        v-else
         type="button"
         class="session-action-button right-button__action flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/30"
         :title="deleteActionLabel"
@@ -487,6 +511,34 @@ const titleSegments = computed(() => {
   transition-delay: 0s;
 }
 
+.right-button[data-shortcut-badge-visible='true'] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, -50%, 0) scale(1);
+  transition-delay: 0s;
+}
+
+.shortcut-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.5rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--action-border);
+  border-radius: 999px;
+  background-color: var(--action-surface);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent),
+    var(--action-shadow);
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 @keyframes session-loading-sheen {
   from {
     -webkit-mask-position: -26% 0;
@@ -600,6 +652,7 @@ const titleSegments = computed(() => {
   .session-item::after,
   .session-content,
   .session-action-button,
+  .shortcut-badge,
   .pin-button::before,
   .pin-button__icon,
   .right-button {
