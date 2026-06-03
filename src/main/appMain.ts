@@ -13,14 +13,27 @@ import {
   storeStartupDeepLink
 } from './lib/startupDeepLink'
 import { isInsecureTlsAllowed } from './lib/insecureTls'
+import { activateAppOnMac, ensureRegularAppOnMac } from './lib/activateApp'
 
 let appStarted = false
+const APP_NAME = 'DeepChat'
 
 export function startApp(): void {
   if (appStarted) {
     return
   }
   appStarted = true
+
+  app.setName(APP_NAME)
+  if (process.platform === 'darwin') {
+    if (app.isReady()) {
+      ensureRegularAppOnMac()
+    } else {
+      app.once('ready', () => {
+        ensureRegularAppOnMac()
+      })
+    }
+  }
 
   registerWorkspacePreviewSchemes()
 
@@ -105,6 +118,7 @@ export function startApp(): void {
     }
     targetWindow.show()
     targetWindow.focus()
+    activateAppOnMac()
   }
 
   const routeIncomingDeeplink = (url: string, source: string) => {
@@ -157,6 +171,7 @@ export function startApp(): void {
 
   // Start the lifecycle management system instead of using app.whenReady()
   app.whenReady().then(async () => {
+    ensureRegularAppOnMac()
     // Set app user model id for windows
     electronApp.setAppUserModelId('com.wefonk.deepchat')
     try {

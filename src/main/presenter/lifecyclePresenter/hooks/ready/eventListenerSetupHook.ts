@@ -11,6 +11,7 @@ import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS, SETTINGS_EVENTS } f
 import { handleShowHiddenWindow } from '@/utils'
 import { presenter } from '@/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
+import { activateAppOnMac } from '@/lib/activateApp'
 
 export const eventListenerSetupHook: LifecycleHook = {
   name: 'event-listener-setup',
@@ -45,9 +46,7 @@ export const eventListenerSetupHook: LifecycleHook = {
         if (!targetWindow.isDestroyed()) {
           targetWindow.show()
           targetWindow.focus() // Ensure window gets focus
-          // macOS: transparent windows may not properly activate the app,
-          // causing the global menu bar to not update.
-          app.focus()
+          activateAppOnMac()
         } else {
           console.warn(
             'eventListenerSetupHook: App activated but target window is destroyed, creating new window.'
