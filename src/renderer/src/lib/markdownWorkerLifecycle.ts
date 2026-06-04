@@ -31,12 +31,37 @@ let initialized = false
 let cleanupRegistered = false
 
 /**
+ * Tear down any live workers and reset the markstream-vue bindings.
+ * Shared by the beforeunload handler and the test reset helper so both paths
+ * release the same resources instead of merely flipping module flags.
+ */
+function cleanupMarkdownWorkers(): void {
+  const workers = globalScope.__markdownWorkers
+  if (workers) {
+    workers.katex.terminate()
+    workers.mermaid.terminate()
+    globalScope.__markdownWorkers = undefined
+  }
+  clearKaTeXWorker()
+  clearMermaidWorker()
+  terminateWorker()
+  initialized = false
+}
+
+/**
  * Reset lifecycle state for testing.
+ *
+ * Actually terminates live workers and removes the registered beforeunload
+ * listener so subsequent tests start from a clean lifecycle instead of reusing
+ * leaked workers/listeners.
  * @internal
  */
 export function _resetForTesting(): void {
-  initialized = false
-  cleanupRegistered = false
+  cleanupMarkdownWorkers()
+  if (cleanupRegistered) {
+    window.removeEventListener('beforeunload', cleanupMarkdownWorkers)
+    cleanupRegistered = false
+  }
   KatexWorkerConstructor = null
   MermaidWorkerConstructor = null
 }
@@ -75,18 +100,7 @@ function registerCleanup(): void {
 
   cleanupRegistered = true
 
-  window.addEventListener('beforeunload', () => {
-    const workers = globalScope.__markdownWorkers
-    if (workers) {
-      workers.katex.terminate()
-      workers.mermaid.terminate()
-      globalScope.__markdownWorkers = undefined
-    }
-    clearKaTeXWorker()
-    clearMermaidWorker()
-    terminateWorker()
-    initialized = false
-  })
+  window.addEventListener('beforeunload', cleanupMarkdownWorkers)
 }
 
 /**

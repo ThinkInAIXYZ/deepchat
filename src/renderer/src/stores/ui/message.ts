@@ -107,6 +107,25 @@ export const useMessageStore = defineStore('message', () => {
     return nextEntry
   }
 
+  // Mutable payload fields a stable-status block can still change between
+  // re-parses (e.g. folded streaming updates to extra.subagentProgress or a
+  // tool_call response). Identity alone is not enough to safely reuse the old
+  // object; the payload must be unchanged too, otherwise the UI freezes.
+  function assistantBlockPayloadEqual(
+    previous: DisplayAssistantMessageBlock,
+    next: DisplayAssistantMessageBlock
+  ): boolean {
+    return (
+      previous.content === next.content &&
+      previous.action_type === next.action_type &&
+      JSON.stringify(previous.extra) === JSON.stringify(next.extra) &&
+      JSON.stringify(previous.tool_call) === JSON.stringify(next.tool_call) &&
+      JSON.stringify(previous.artifact) === JSON.stringify(next.artifact) &&
+      JSON.stringify(previous.image_data) === JSON.stringify(next.image_data) &&
+      JSON.stringify(previous.reasoning_time) === JSON.stringify(next.reasoning_time)
+    )
+  }
+
   function isReusableStableAssistantBlock(
     previous: DisplayAssistantMessageBlock | undefined,
     next: DisplayAssistantMessageBlock,
@@ -130,14 +149,16 @@ export const useMessageStore = defineStore('message', () => {
     }
 
     if (previous.id || next.id) {
-      return previous.id === next.id
+      if (previous.id !== next.id) return false
+      return assistantBlockPayloadEqual(previous, next)
     }
 
     if (previous.tool_call?.id || next.tool_call?.id) {
-      return previous.tool_call?.id === next.tool_call?.id
+      if (previous.tool_call?.id !== next.tool_call?.id) return false
+      return assistantBlockPayloadEqual(previous, next)
     }
 
-    return true
+    return assistantBlockPayloadEqual(previous, next)
   }
 
   function reuseStableAssistantBlocks(

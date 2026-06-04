@@ -95,10 +95,17 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const rowRef = ref<HTMLElement | null>(null)
 let resizeObserver: ResizeObserver | null = null
+let intersectionObserver: IntersectionObserver | null = null
 let measureFrame: number | null = null
 let lastMeasuredHeight = 0
+// Rows use `content-visibility: auto`, so an off-screen row reports the
+// `contain-intrinsic-size` placeholder (~300px) instead of its real height.
+// Gate measurement on the row having actually entered (or neared) the viewport
+// so we never commit a placeholder height that would skew jump/anchor restore.
+let hasBeenVisible = typeof IntersectionObserver === 'undefined'
 
 const emitMeasuredHeight = () => {
+  if (!hasBeenVisible) return
   if (measureFrame !== null) return
 
   measureFrame = window.requestAnimationFrame(() => {
@@ -113,8 +120,29 @@ const emitMeasuredHeight = () => {
 }
 
 onMounted(() => {
-  emitMeasuredHeight()
-  if (typeof ResizeObserver === 'undefined' || !rowRef.value) return
+  if (!rowRef.value) return
+
+  if (typeof IntersectionObserver !== 'undefined') {
+    // `rootMargin` lets near-viewport rows measure slightly early for smoother
+    // anchor restoration, while still excluding far-off-screen placeholder rows.
+    intersectionObserver = new IntersectionObserver(
+      (intersectionEntries) => {
+        if (!intersectionEntries.some((entry) => entry.isIntersecting)) return
+        hasBeenVisible = true
+        emitMeasuredHeight()
+        // Visibility only needs to be detected once; the ResizeObserver tracks
+        // every subsequent height change.
+        intersectionObserver?.disconnect()
+        intersectionObserver = null
+      },
+      { rootMargin: '200px 0px' }
+    )
+    intersectionObserver.observe(rowRef.value)
+  } else {
+    emitMeasuredHeight()
+  }
+
+  if (typeof ResizeObserver === 'undefined') return
   resizeObserver = new ResizeObserver(emitMeasuredHeight)
   resizeObserver.observe(rowRef.value)
 })
@@ -131,6 +159,8 @@ watch(
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
+  intersectionObserver?.disconnect()
+  intersectionObserver = null
   if (measureFrame !== null) {
     window.cancelAnimationFrame(measureFrame)
     measureFrame = null

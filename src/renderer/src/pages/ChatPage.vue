@@ -1035,12 +1035,19 @@ const messageWindow = useMessageWindow({
 })
 
 function onMessageMeasure(payload: { messageId: string; height: number }) {
+  // Snapshot the reading anchor from pre-change geometry: capturing after
+  // setMeasuredHeight resizes the row would compare against post-layout DOM and
+  // let anchored-reading/manual-jump drift when content above the viewport grows.
+  const isBottomFollowing =
+    scrollMode.value === 'initial-bottom' || scrollMode.value === 'auto-follow'
+  const preChangeAnchor = isBottomFollowing ? null : captureViewportAnchor()
+
   const delta = messageWindow.setMeasuredHeight(payload.messageId, payload.height)
   if (delta === 0) return
-  if (scrollMode.value === 'initial-bottom' || scrollMode.value === 'auto-follow') {
+  if (isBottomFollowing) {
     scrollToBottom(scrollMode.value === 'initial-bottom')
   } else {
-    scheduleViewportAnchorRestore(captureViewportAnchor())
+    scheduleViewportAnchorRestore(preChangeAnchor)
   }
 }
 

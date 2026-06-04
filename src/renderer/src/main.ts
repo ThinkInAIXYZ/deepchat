@@ -8,42 +8,15 @@ import { createI18n } from 'vue-i18n'
 import locales, { pluralRules } from './i18n'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import 'katex/dist/katex.min.css'
-import {
-  clearKaTeXWorker,
-  clearMermaidWorker,
-  setKaTeXWorker,
-  setMermaidWorker,
-  terminateWorker
-} from 'markstream-vue'
-import KatexWorker from 'markstream-vue/workers/katexRenderer.worker?worker&inline'
-import MermaidWorker from 'markstream-vue/workers/mermaidParser.worker?worker&inline'
+import { ensureMarkdownWorkers } from './lib/markdownWorkerLifecycle'
 import { preloadIcons } from './lib/iconLoader'
 
-const globalScope = globalThis as typeof globalThis & {
-  __markdownWorkers?: {
-    katex: Worker
-    mermaid: Worker
-  }
-}
-
-if (!globalScope.__markdownWorkers) {
-  const katex = new KatexWorker()
-  const mermaid = new MermaidWorker()
-  globalScope.__markdownWorkers = { katex, mermaid }
-  setKaTeXWorker(katex)
-  setMermaidWorker(mermaid)
-}
-
-window.addEventListener('beforeunload', () => {
-  const workers = globalScope.__markdownWorkers
-  if (workers) {
-    workers.katex.terminate()
-    workers.mermaid.terminate()
-    globalScope.__markdownWorkers = undefined
-  }
-  clearKaTeXWorker()
-  clearMermaidWorker()
-  terminateWorker()
+// Single owner of the KaTeX/Mermaid workers. ensureMarkdownWorkers is idempotent
+// and registers its own beforeunload cleanup, so the renderer never creates or
+// tears down these workers directly. markstream-vue degrades to raw text until
+// the workers finish loading, so awaiting here is unnecessary.
+ensureMarkdownWorkers().catch((error) => {
+  console.error('Failed to initialize markdown workers:', error)
 })
 
 const i18n = createI18n({

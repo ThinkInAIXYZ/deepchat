@@ -82,18 +82,25 @@ This model is used for:
 - Line-of-sight preservation (capture anchor before height changes, restore after)
 - Future minimap (consume `entries` for position mapping)
 
-## Streaming Isolation
+## Single-Track Streaming
 
-The trailing streaming message is rendered separately from historical messages:
-- `displayMessages`: persisted/historical messages (low-frequency updates)
-- `trailingStreamingMessage`: current streaming output (high-frequency updates)
-- Appended at the end via `allRenderedMessages` in MessageList
-- During streaming, the last row has `content-visibility: visible` forced
+Streaming output is folded into the persisted message record in place rather than
+rendered as a separate trailing row, so the generating message and the finished
+message share the same id and DOM node:
+
+- `displayMessages`: the single render track for both persisted and streaming messages
+- Live streaming blocks are merged into their message record via
+  `applyStreamingBlocksToMessage`, so updates mutate the existing record's content
+- During streaming, the last row has `content-visibility: visible` forced for smooth painting
+- A virtual streaming row is only appended when the record is not yet in the store
+  (`hasInlineStreamingTarget` guard), preventing the same content rendering twice
+  after a mid-stream `loadMessages`
 
 When streaming completes:
-1. `onStreamCompleted` fires → `clearStreamingState()` + `loadMessages()`
-2. The trailing message disappears, replaced by the persisted message
-3. Layout model updates via `setMeasuredHeight` from the new row's ResizeObserver
+1. `onStreamCompleted` swaps the record's content in place — no `clearStreamingState()` +
+   `loadMessages()` remount, so the DOM node stays stable (no completion flash / blank gap)
+2. Measurement updates (`setMeasuredHeight` / ResizeObserver) apply to the same stable
+   DOM node rather than a swapped row
 
 ## Scroll-to-Bottom
 

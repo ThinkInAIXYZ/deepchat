@@ -97,28 +97,39 @@ const getSearchResults = () => {
   return searchResultsPromise
 }
 
+// Shared revision guard so an older slow-path update can never land after a
+// newer fast-path update (or vice versa) when the routing condition flips,
+// which would repaint stale markdown and reintroduce the completion flash.
+let contentRevision = 0
+
 const updateContentFast = useDebounceFn(
-  (value: string) => {
-    debouncedContent.value = value
+  (revision: number, value: string) => {
+    if (revision === contentRevision) {
+      debouncedContent.value = value
+    }
   },
   32,
   { maxWait: 64 }
 )
 const updateContentSlow = useDebounceFn(
-  (value: string) => {
-    debouncedContent.value = value
+  (revision: number, value: string) => {
+    if (revision === contentRevision) {
+      debouncedContent.value = value
+    }
   },
   96,
   { maxWait: 180 }
 )
 
 const updateContent = (value: string) => {
+  const revision = ++contentRevision
+
   if (props.smoothStreaming && value.length > 12_000) {
-    updateContentSlow(value)
+    updateContentSlow(revision, value)
     return
   }
 
-  updateContentFast(value)
+  updateContentFast(revision, value)
 }
 
 watch(

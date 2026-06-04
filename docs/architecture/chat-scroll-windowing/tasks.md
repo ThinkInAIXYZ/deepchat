@@ -34,9 +34,11 @@
 
 ## Streaming Performance
 
-- [x] Separate trailing streaming message from historical messages.
+- [x] Single-track streaming: fold streaming blocks into the persisted message record
+      (same id/DOM node) instead of a separate trailing row, removing the completion flash.
 - [x] Remove rAF-batched windowing overhead that delayed streaming display.
-- [x] Keep MarkdownRenderer debounce for long streaming content (32ms fast / 96ms slow).
+- [x] Keep MarkdownRenderer debounce for long streaming content (32ms fast / 96ms slow),
+      guarded by a shared revision so a stale path can't replay older content.
 
 ## Jump and Anchor Compatibility
 

@@ -86,25 +86,27 @@ When message heights change because of streaming, Markdown hydration, artifact r
 
 ### 4. Virtual-list-like performance without full virtual opacity
 
-The implementation should avoid rendering all heavy message DOM for long conversations, but should retain full logical addressability.
+The implementation should avoid painting all heavy message DOM for long conversations, but should retain full logical addressability.
 
-Use a chat-specific windowed rendering model:
+Use a chat-specific windowed rendering model based on CSS `content-visibility`
+rather than spacer-based DOM windowing:
 
 ```text
 complete loaded message data
   -> stable layout model for every loaded message
-  -> render window for visible/near-visible messages
-  -> top spacer
-  -> real rendered message rows
-  -> bottom spacer
+  -> all rows kept mounted (no DOM add/remove on scroll)
+  -> each row uses `content-visibility: auto` + `contain-intrinsic-size`
+     so the browser skips painting off-screen rows
+  -> the generating row is forced `content-visibility: visible`
 ```
 
-Messages outside the render window should not require heavy DOM, but each loaded message should still have:
+Rows outside the viewport stay mounted but unpainted (the browser uses the
+intrinsic-size placeholder), while each loaded message still has:
 
 - stable `messageId`
 - ordering information
 - estimated height
-- measured height when available
+- measured height when available (committed only once the row has been painted)
 - logical top/bottom offsets
 
 ### 5. Future minimap compatibility
