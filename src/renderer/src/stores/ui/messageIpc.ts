@@ -12,7 +12,7 @@ interface BindMessageStoreIpcOptions {
   }) => void
   clearStreamingState: () => void
   loadMessages: (sessionId: string) => void | Promise<unknown>
-  applyStreamingBlocksToMessage: (
+  applyStreamingBlocksToMessage?: (
     messageId: string,
     sessionId: string,
     blocks: AssistantMessageBlock[]
@@ -23,6 +23,11 @@ interface BindMessageStoreIpcOptions {
 export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => void {
   const chatClient = createChatClient()
   const reloadPersistedMessages = (sessionId: string) => {
+    // Streaming blocks were folded into the message record in place during
+    // generation (applyStreamingBlocksToMessage), so the record already exists and
+    // stays mounted. Clearing the stream flag first just stops the high-frequency
+    // mutation; loadMessages then swaps the same id to its persisted copy. Same
+    // node throughout — no blank, no remount.
     options.clearStreamingState()
     void options.loadMessages(sessionId)
   }
@@ -53,7 +58,11 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
         blocks
       })
 
-      if (streamMessageId && !options.isEphemeralStreamMessageId(streamMessageId)) {
+      if (
+        streamMessageId &&
+        options.applyStreamingBlocksToMessage &&
+        !options.isEphemeralStreamMessageId(streamMessageId)
+      ) {
         options.applyStreamingBlocksToMessage(streamMessageId, payload.sessionId, blocks)
       }
     }),

@@ -6,8 +6,8 @@ import type {
   DisplayUserMessageContent
 } from '@/components/chat/messageListItems'
 import type {
-  ChatMessageRecord,
   AssistantMessageBlock,
+  ChatMessageRecord,
   MessageFile,
   MessagePageCursor,
   MessageMetadata,
@@ -28,6 +28,7 @@ type ParsedMessageCacheEntry = {
   content: string
   metadata: string
   assistantBlocks?: DisplayAssistantMessageBlock[]
+  prevAssistantBlocks?: DisplayAssistantMessageBlock[]
   userContent?: DisplayUserMessageContent
   parsedMetadata?: MessageMetadata
 }
@@ -51,6 +52,8 @@ export const useMessageStore = defineStore('message', () => {
   const hasMoreHistory = ref(false)
   const isLoadingHistory = ref(false)
   const parsedMessageCache = new Map<string, ParsedMessageCacheEntry>()
+  // Stream message ids currently being hydrated into the cache as a placeholder
+  // record (before the backend persists them). Prevents re-entrant duplicate inserts.
   const hydratingStreamMessageIds = new Set<string>()
   let latestLoadRequestId = 0
   let latestHistoryRequestId = 0
@@ -81,6 +84,7 @@ export const useMessageStore = defineStore('message', () => {
     if (cached) {
       if (cached.content !== record.content) {
         cached.content = record.content
+        cached.prevAssistantBlocks = cached.assistantBlocks
         delete cached.assistantBlocks
         delete cached.userContent
       }
@@ -103,6 +107,75 @@ export const useMessageStore = defineStore('message', () => {
     return nextEntry
   }
 
+  // Mutable payload fields a stable-status block can still change between
+  // re-parses (e.g. folded streaming updates to extra.subagentProgress or a
+  // tool_call response). Identity alone is not enough to safely reuse the old
+  // object; the payload must be unchanged too, otherwise the UI freezes.
+  function assistantBlockPayloadEqual(
+    previous: DisplayAssistantMessageBlock,
+    next: DisplayAssistantMessageBlock
+  ): boolean {
+    return (
+      previous.content === next.content &&
+      previous.action_type === next.action_type &&
+      JSON.stringify(previous.extra) === JSON.stringify(next.extra) &&
+      JSON.stringify(previous.tool_call) === JSON.stringify(next.tool_call) &&
+      JSON.stringify(previous.artifact) === JSON.stringify(next.artifact) &&
+      JSON.stringify(previous.image_data) === JSON.stringify(next.image_data) &&
+      JSON.stringify(previous.reasoning_time) === JSON.stringify(next.reasoning_time)
+    )
+  }
+
+  function isReusableStableAssistantBlock(
+    previous: DisplayAssistantMessageBlock | undefined,
+    next: DisplayAssistantMessageBlock,
+    index: number,
+    blocksLength: number
+  ): previous is DisplayAssistantMessageBlock {
+    if (!previous || index === blocksLength - 1) {
+      return false
+    }
+
+    if (
+      previous.status !== next.status ||
+      previous.status === 'pending' ||
+      previous.status === 'loading'
+    ) {
+      return false
+    }
+
+    if (previous.type !== next.type || previous.timestamp !== next.timestamp) {
+      return false
+    }
+
+    if (previous.id || next.id) {
+      if (previous.id !== next.id) return false
+      return assistantBlockPayloadEqual(previous, next)
+    }
+
+    if (previous.tool_call?.id || next.tool_call?.id) {
+      if (previous.tool_call?.id !== next.tool_call?.id) return false
+      return assistantBlockPayloadEqual(previous, next)
+    }
+
+    return assistantBlockPayloadEqual(previous, next)
+  }
+
+  function reuseStableAssistantBlocks(
+    blocks: DisplayAssistantMessageBlock[],
+    previousBlocks?: DisplayAssistantMessageBlock[]
+  ): DisplayAssistantMessageBlock[] {
+    if (!previousBlocks?.length || blocks.length === 0) {
+      return blocks
+    }
+
+    return blocks.map((block, index) =>
+      isReusableStableAssistantBlock(previousBlocks[index], block, index, blocks.length)
+        ? previousBlocks[index]
+        : block
+    )
+  }
+
   function getAssistantMessageBlocks(record: ChatMessageRecord): DisplayAssistantMessageBlock[] {
     const entry = getParsedEntry(record)
     if (entry.assistantBlocks) {
@@ -111,11 +184,13 @@ export const useMessageStore = defineStore('message', () => {
 
     try {
       const parsed = JSON.parse(record.content) as DisplayAssistantMessageBlock[]
-      entry.assistantBlocks = Array.isArray(parsed) ? parsed : []
+      const blocks = Array.isArray(parsed) ? parsed : []
+      entry.assistantBlocks = reuseStableAssistantBlocks(blocks, entry.prevAssistantBlocks)
     } catch {
       entry.assistantBlocks = []
     }
 
+    entry.prevAssistantBlocks = entry.assistantBlocks
     return entry.assistantBlocks
   }
 
@@ -186,7 +261,7 @@ export const useMessageStore = defineStore('message', () => {
     desiredCount: number,
     requestId: number
   ): Promise<Awaited<ReturnType<typeof sessionClient.restore>> | null> {
-    const initialLimit = Math.min(Math.max(desiredCount, 100), 500)
+    const initialLimit = Math.min(Math.max(desiredCount, 40), 500)
     const restored = await sessionClient.restore(sessionId, initialLimit)
     if (!isCurrentLoadRequest(requestId, sessionId)) {
       return null
@@ -238,9 +313,13 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
-  async function loadMessages(sessionId: string): Promise<SessionWithState | null> {
+  async function loadMessages(
+    sessionId: string,
+    desiredCountOverride?: number
+  ): Promise<SessionWithState | null> {
     const desiredCount =
-      currentSessionId.value === sessionId ? Math.max(messageIds.value.length, 100) : 100
+      desiredCountOverride ??
+      (currentSessionId.value === sessionId ? Math.max(messageIds.value.length, 100) : 100)
     const requestId = ++latestLoadRequestId
     latestHistoryRequestId += 1
     setCurrentSessionId(sessionId)
@@ -263,6 +342,7 @@ export const useMessageStore = defineStore('message', () => {
       }
 
       parsedMessageCache.clear()
+      hydratingStreamMessageIds.clear()
       messageCache.value = nextMessageCache
       messageIds.value = nextMessageIds
       nextCursor.value = restored.nextCursor
@@ -367,8 +447,8 @@ export const useMessageStore = defineStore('message', () => {
     hasMoreHistory.value = false
     isLoadingHistory.value = false
     parsedMessageCache.clear()
-    clearStreamingState()
     hydratingStreamMessageIds.clear()
+    clearStreamingState()
   }
 
   function clearStreamingState(): void {
@@ -379,6 +459,12 @@ export const useMessageStore = defineStore('message', () => {
     return EPHEMERAL_STREAM_MESSAGE_PREFIXES.some((prefix) => messageId.startsWith(prefix))
   }
 
+  /**
+   * Fold live streaming blocks into the persisted message record in place, so the
+   * generating message and the finished message are the SAME list item (same id,
+   * same DOM node). This removes the "streaming row vs persisted row" duality:
+   * stream-end just stops mutating the record, no node swap, no blank flash.
+   */
   function applyStreamingBlocksToMessage(
     messageId: string,
     conversationId: string,

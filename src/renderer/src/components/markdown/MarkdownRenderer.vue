@@ -97,13 +97,40 @@ const getSearchResults = () => {
   return searchResultsPromise
 }
 
-const updateContent = useDebounceFn(
-  (value: string) => {
-    debouncedContent.value = value
+// Shared revision guard so an older slow-path update can never land after a
+// newer fast-path update (or vice versa) when the routing condition flips,
+// which would repaint stale markdown and reintroduce the completion flash.
+let contentRevision = 0
+
+const updateContentFast = useDebounceFn(
+  (revision: number, value: string) => {
+    if (revision === contentRevision) {
+      debouncedContent.value = value
+    }
   },
   32,
   { maxWait: 64 }
 )
+const updateContentSlow = useDebounceFn(
+  (revision: number, value: string) => {
+    if (revision === contentRevision) {
+      debouncedContent.value = value
+    }
+  },
+  96,
+  { maxWait: 180 }
+)
+
+const updateContent = (value: string) => {
+  const revision = ++contentRevision
+
+  if (props.smoothStreaming && value.length > 12_000) {
+    updateContentSlow(revision, value)
+    return
+  }
+
+  updateContentFast(revision, value)
+}
 
 watch(
   () => props.content,
@@ -214,6 +241,8 @@ defineEmits(['copy'])
 @reference '../../assets/style.css';
 
 .prose {
+  contain: layout style paint;
+
   pre {
     margin-top: 0;
     margin-bottom: 0;
@@ -272,12 +301,13 @@ defineEmits(['copy'])
 
   .table-node-wrapper {
     @apply border border-border rounded-lg py-0 my-0 overflow-hidden shadow-sm;
+    contain: layout style paint;
   }
 
   table {
     @apply py-0 my-0;
-    /* @apply bg-card border block rounded-lg my-0 py-0 overflow-hidden; */
     border-collapse: collapse;
+    table-layout: auto;
   }
 
   thead,
