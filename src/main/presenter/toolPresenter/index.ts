@@ -699,6 +699,9 @@ export class ToolPresenter implements IToolPresenter {
         '- Use `cdp_send` for DOM inspection, scripted interaction, screenshots, and low-level CDP commands.'
       )
       lines.push('- Avoid using `cdp_send` `Page.navigate` for normal navigation unless needed.')
+      lines.push(
+        '- If `cdp_send` reports `yobrowser_unavailable`, call `get_browser_status`, then use `load_url` with the target URL when available.'
+      )
     }
 
     return lines.join('\n')

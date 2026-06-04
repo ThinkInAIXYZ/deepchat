@@ -31,6 +31,8 @@ import {
 import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
 import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
+import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
+import { isYoBrowserUnavailableError } from '../../browser/YoBrowserErrors'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -530,9 +532,34 @@ export class AgentToolManager {
 
     // Route to YoBrowser CDP tools
     if (AgentToolManager.YO_BROWSER_TOOL_NAME_SET.has(toolName)) {
-      const response = await this.getYoBrowserToolHandler().callTool(toolName, args, conversationId)
-      return {
-        content: response
+      try {
+        const response = await this.getYoBrowserToolHandler().callTool(
+          toolName,
+          args,
+          conversationId
+        )
+        return {
+          content: response
+        }
+      } catch (error) {
+        if (!isYoBrowserUnavailableError(error)) {
+          throw error
+        }
+
+        const payload = error.payload
+        const content = JSON.stringify(payload)
+        return {
+          content,
+          rawData: {
+            content,
+            isError: true,
+            toolResult: createAgentToolErrorResult(toolName, payload.error.message, {
+              code: payload.error.code,
+              recoverable: payload.error.recoverable,
+              data: payload
+            })
+          }
+        }
       }
     }
 

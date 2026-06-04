@@ -323,6 +323,9 @@ describe('ToolPresenter', () => {
     expect(withYoBrowser).toContain(
       'Avoid using `cdp_send` `Page.navigate` for normal navigation unless needed.'
     )
+    expect(withYoBrowser).toContain(
+      'If `cdp_send` reports `yobrowser_unavailable`, call `get_browser_status`, then use `load_url` with the target URL when available.'
+    )
   })
 
   it('includes question guidance only when deepchat_question is enabled', () => {
