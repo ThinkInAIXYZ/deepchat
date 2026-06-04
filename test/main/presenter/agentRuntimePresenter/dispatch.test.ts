@@ -1397,6 +1397,80 @@ describe('dispatch', () => {
       expect(block!.status).toBe('error')
     })
 
+    it('preserves recoverable YoBrowser unavailable errors as failed tool context', async () => {
+      const tools = [makeTool('cdp_send')]
+      const toolPresenter = createMockToolPresenter()
+      const payload = {
+        ok: false,
+        error: {
+          code: 'yobrowser_unavailable',
+          message: 'YoBrowser is not available for this session, so the CDP command was not run.',
+          recoverable: true,
+          sessionId: 's1',
+          method: 'Page.captureScreenshot',
+          browserStatus: {
+            initialized: false,
+            page: null,
+            canGoBack: false,
+            canGoForward: false,
+            visible: false,
+            loading: false
+          },
+          suggestedNextActions: [
+            'Call get_browser_status to inspect the current browser state.',
+            'Call load_url with the target URL to recreate or reopen the session browser.'
+          ]
+        }
+      }
+      const content = JSON.stringify(payload)
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content,
+        rawData: {
+          toolCallId: 'tc1',
+          content,
+          isError: true
+        }
+      })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'cdp_send',
+          params: '{"method":"Page.captureScreenshot"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'cdp_send', arguments: '{"method":"Page.captureScreenshot"}' }
+      ]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      const toolMsg = conversation.find((message: any) => message.role === 'tool')
+      expect(toolMsg.content).toContain('yobrowser_unavailable')
+
+      const block = state.blocks.find((b) => b.type === 'tool_call')
+      expect(block!.tool_call!.response).toContain('yobrowser_unavailable')
+      expect(block!.status).toBe('error')
+    })
+
     it('stops on abort', async () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })

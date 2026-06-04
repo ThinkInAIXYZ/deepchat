@@ -9,9 +9,24 @@ vi.mock('@shared/logger', () => ({
 }))
 
 describe('YoBrowserToolHandler', () => {
+  const readyStatus = {
+    initialized: true,
+    page: {
+      id: 'page-1',
+      url: 'https://example.com',
+      status: 'ready',
+      createdAt: 1,
+      updatedAt: 2
+    },
+    canGoBack: false,
+    canGoForward: false,
+    visible: true,
+    loading: false
+  }
+
   const createPresenter = () =>
     ({
-      getBrowserStatus: vi.fn().mockResolvedValue({ initialized: false }),
+      getBrowserStatus: vi.fn().mockResolvedValue(readyStatus),
       loadUrl: vi.fn().mockResolvedValue({ initialized: true }),
       getBrowserPage: vi.fn().mockResolvedValue({
         id: 'page-1',
@@ -74,13 +89,54 @@ describe('YoBrowserToolHandler', () => {
     )
   })
 
-  it('requires an initialized session browser before cdp_send', async () => {
+  it('returns a recoverable browser-unavailable error before cdp_send', async () => {
     const presenter = createPresenter()
-    presenter.getBrowserPage.mockResolvedValue(null)
+    presenter.getBrowserStatus.mockResolvedValue({
+      initialized: false,
+      page: null,
+      canGoBack: false,
+      canGoForward: false,
+      visible: false,
+      loading: false
+    })
     const handler = new YoBrowserToolHandler(presenter)
 
     await expect(
       handler.callTool('cdp_send', { method: 'Page.reload' }, 'session-a')
-    ).rejects.toThrow('Session browser for session-a is not initialized')
+    ).rejects.toMatchObject({
+      name: 'YoBrowserUnavailableError',
+      payload: {
+        ok: false,
+        error: expect.objectContaining({
+          code: 'yobrowser_unavailable',
+          recoverable: true,
+          sessionId: 'session-a',
+          method: 'Page.reload'
+        })
+      }
+    })
+    expect(presenter.sendCdpCommand).not.toHaveBeenCalled()
+  })
+
+  it('maps YoBrowserNotReadyError to the recoverable unavailable error', async () => {
+    const presenter = createPresenter()
+    const notReadyError = new Error('Browser page is not ready')
+    notReadyError.name = 'YoBrowserNotReadyError'
+    presenter.sendCdpCommand.mockRejectedValue(notReadyError)
+    const handler = new YoBrowserToolHandler(presenter)
+
+    await expect(
+      handler.callTool('cdp_send', { method: 'Page.captureScreenshot' }, 'session-a')
+    ).rejects.toMatchObject({
+      name: 'YoBrowserUnavailableError',
+      payload: {
+        error: expect.objectContaining({
+          code: 'yobrowser_unavailable',
+          method: 'Page.captureScreenshot',
+          browserStatus: readyStatus
+        })
+      },
+      originalError: notReadyError
+    })
   })
 })

@@ -1,6 +1,12 @@
 import logger from '@shared/logger'
 import { getYoBrowserToolDefinitions } from './YoBrowserToolDefinitions'
 import type { YoBrowserPresenter } from './YoBrowserPresenter'
+import { BrowserPageStatus, type YoBrowserStatus } from '@shared/types/browser'
+import {
+  YoBrowserUnavailableError,
+  buildYoBrowserUnavailablePayload,
+  isYoBrowserUnavailableError
+} from './YoBrowserErrors'
 
 export class YoBrowserToolHandler {
   private readonly presenter: YoBrowserPresenter
@@ -42,9 +48,15 @@ export class YoBrowserToolHandler {
             throw new Error('CDP method is required')
           }
 
-          const page = await this.presenter.getBrowserPage(sessionId)
-          if (!page) {
-            throw new Error(`Session browser for ${sessionId} is not initialized`)
+          const status = await this.presenter.getBrowserStatus(sessionId)
+          const page = status.page
+          if (
+            !status.initialized ||
+            !status.visible ||
+            !page ||
+            page.status === BrowserPageStatus.Closed
+          ) {
+            throw await this.createUnavailableError(sessionId, method, status)
           }
 
           try {
@@ -61,6 +73,7 @@ export class YoBrowserToolHandler {
                 url: page.url,
                 status: page.status
               })
+              throw await this.createUnavailableError(sessionId, method, status, error)
             }
             throw error
           }
@@ -69,9 +82,41 @@ export class YoBrowserToolHandler {
           throw new Error(`Unknown YoBrowser tool: ${toolName}`)
       }
     } catch (error) {
-      logger.error('[YoBrowserToolHandler] Tool execution failed', { toolName, error })
+      if (isYoBrowserUnavailableError(error)) {
+        logger.warn('[YoBrowserToolHandler] Tool execution failed:browser-unavailable', {
+          toolName,
+          error: error.payload.error
+        })
+      } else {
+        logger.error('[YoBrowserToolHandler] Tool execution failed', { toolName, error })
+      }
       throw error
     }
+  }
+
+  private async createUnavailableError(
+    sessionId: string,
+    method: string,
+    knownStatus?: YoBrowserStatus,
+    originalError?: unknown
+  ): Promise<YoBrowserUnavailableError> {
+    if (knownStatus) {
+      return new YoBrowserUnavailableError(
+        buildYoBrowserUnavailablePayload(sessionId, method, knownStatus),
+        originalError
+      )
+    }
+
+    return this.presenter
+      .getBrowserStatus(sessionId)
+      .catch(() => null)
+      .then(
+        (status) =>
+          new YoBrowserUnavailableError(
+            buildYoBrowserUnavailablePayload(sessionId, method, status),
+            originalError
+          )
+      )
   }
 
   private normalizeCdpParams(value: unknown): Record<string, unknown> {
