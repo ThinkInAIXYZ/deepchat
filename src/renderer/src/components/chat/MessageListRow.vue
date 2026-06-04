@@ -143,7 +143,8 @@ const getCompactionCopy = (status?: 'compacting' | 'compacted'): string =>
 const onRetry = (messageId: string) => emit('retry', messageId)
 const onDelete = (messageId: string) => emit('delete', messageId)
 const onFork = (messageId: string) => emit('fork', messageId)
-const onContinue = (conversationId: string, messageId: string) => emit('continue', conversationId, messageId)
+const onContinue = (conversationId: string, messageId: string) =>
+  emit('continue', conversationId, messageId)
 const onTrace = (messageId: string) => emit('trace', messageId)
 const onEditSave = (payload: { messageId: string; text: string }) => emit('editSave', payload)
 const onCopyImage = (
