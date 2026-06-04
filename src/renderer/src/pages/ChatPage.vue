@@ -5,7 +5,7 @@
       data-testid="chat-page"
       :data-generating="String(isGenerating)"
       class="message-list-container h-full w-full min-w-0 overflow-y-auto"
-      @scroll="onScroll"
+      @scroll.passive="onScroll"
     >
       <ChatTopBar
         class="chat-capture-hide"
@@ -36,6 +36,7 @@
           {{ t('common.loading') }}
         </div>
         <MessageList
+          ref="messageListRef"
           :messages="displayMessages"
           :conversation-id="props.sessionId"
           :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
@@ -49,7 +50,9 @@
           @continue="onMessageContinue"
           @trace="onMessageTrace"
           @edit-save="onMessageEditSave"
+          @measure="onMessageMeasure"
         />
+        <div ref="bottomScrollAnchor" class="h-px w-full" aria-hidden="true" />
       </div>
       <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
 
@@ -189,6 +192,7 @@ import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useToast } from '@/components/use-toast'
 import { createChatClient } from '../../api/ChatClient'
 import { createModelClient } from '@api/ModelClient'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
@@ -207,6 +211,7 @@ import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { WORKSPACE_EVENTS } from '@/events'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
+import { useMessageWindow } from '@/composables/message/useMessageWindow'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
 import type {
   ChatMessageRecord,
@@ -220,6 +225,7 @@ const props = defineProps<{
   sessionId: string
 }>()
 
+const uiSettingsStore = useUiSettingsStore()
 const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
@@ -239,6 +245,7 @@ const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || messageStore.isStreaming
 )
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
+const INITIAL_MESSAGE_RESTORE_COUNT = 40
 const isAcpWorkdirMissing = computed(() => {
   const activeSession = sessionStore.activeSession
   if (!activeSession || activeSession.providerId !== 'acp') {
@@ -262,10 +269,18 @@ const applyRestoredSessionSummary = (session: unknown) => {
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
+const bottomScrollAnchor = ref<HTMLDivElement | null>(null)
+const messageListRef = ref<{
+  scrollToBottom?: () => void
+  forceUpdate?: (clear?: boolean) => void
+} | null>(null)
 const planFloatLayer = ref<HTMLDivElement | null>(null)
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
+const shouldAutoFollow = ref(true)
+type ScrollMode = 'initial-bottom' | 'auto-follow' | 'anchored-reading' | 'manual-jump'
+const scrollMode = ref<ScrollMode>('initial-bottom')
 const NEAR_BOTTOM_THRESHOLD = 80 // px
 const TOP_HISTORY_THRESHOLD = 80
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
@@ -308,18 +323,23 @@ const chatSearchBarRef = ref<{
 } | null>(null)
 let spotlightJumpTimer: number | null = null
 let scrollReadFrame: number | null = null
-let scrollWriteFrame: number | null = null
+let pendingUserScrollMetrics = false
 let sessionRestoreScrollFrame: number | null = null
 let sessionRestoreScrollTimer: number | null = null
 let chatSearchRefreshFrame: number | null = null
-let pendingForcedScroll = false
-let lastObservedScrollHeight = 0
+let programmaticScrollUntil = 0
 let cancelSessionRestoreTask: (() => void) | null = null
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
 let sessionRestoreRequestId = 0
 let planFloatResizeObserver: ResizeObserver | null = null
 let sessionRestoreResizeObserver: ResizeObserver | null = null
+type ViewportAnchor = {
+  messageId: string
+  viewportOffset: number
+}
+let pendingAnchorRestore: ViewportAnchor | null = null
+let anchorRestoreFrame: number | null = null
 
 const resolveChatInputBoxElement = () =>
   (chatInputHeroHostRef.value?.querySelector(
@@ -408,49 +428,109 @@ function observePlanFloatLayer() {
   planFloatResizeObserver.observe(layer)
 }
 
-function syncScrollPosition() {
-  const el = scrollContainer.value
-  if (!el) return
-  lastObservedScrollHeight = el.scrollHeight
-  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-  isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
+function captureViewportAnchor(): ViewportAnchor | null {
+  const container = scrollContainer.value
+  const root = messageSearchRoot.value
+  if (!container || !root) return null
+
+  const containerRect = container.getBoundingClientRect()
+  const candidates = Array.from(root.querySelectorAll<HTMLElement>('[data-message-id]'))
+  let fallback: ViewportAnchor | null = null
+
+  for (const candidate of candidates) {
+    const rect = candidate.getBoundingClientRect()
+    const viewportOffset = rect.top - containerRect.top
+    if (!candidate.dataset.messageId) continue
+
+    if (!fallback && rect.bottom >= containerRect.top) {
+      fallback = {
+        messageId: candidate.dataset.messageId,
+        viewportOffset
+      }
+    }
+
+    if (rect.top >= containerRect.top) {
+      return {
+        messageId: candidate.dataset.messageId,
+        viewportOffset
+      }
+    }
+  }
+
+  return fallback
 }
 
-function scheduleScrollMetricsRead() {
-  if (scrollReadFrame !== null) {
+function scheduleViewportAnchorRestore(anchor: ViewportAnchor | null): void {
+  if (!anchor || isProgrammaticScrollActive()) {
     return
   }
 
-  scrollReadFrame = window.requestAnimationFrame(() => {
-    scrollReadFrame = null
-    syncScrollPosition()
+  pendingAnchorRestore = anchor
+  if (anchorRestoreFrame !== null) {
+    return
+  }
+
+  anchorRestoreFrame = window.requestAnimationFrame(() => {
+    anchorRestoreFrame = null
+    const currentAnchor = pendingAnchorRestore
+    pendingAnchorRestore = null
+    if (!currentAnchor) return
+
+    const container = scrollContainer.value
+    const root = messageSearchRoot.value
+    if (!container || !root) return
+
+    const target = root.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(currentAnchor.messageId)}"]`
+    )
+    if (!target) return
+
+    const containerRect = container.getBoundingClientRect()
+    const nextOffset = target.getBoundingClientRect().top - containerRect.top
+    const delta = nextOffset - currentAnchor.viewportOffset
+    if (Math.abs(delta) >= 1) {
+      container.scrollTop += delta
+    }
   })
 }
 
+function markProgrammaticScroll(durationMs = 300): void {
+  programmaticScrollUntil = Math.max(programmaticScrollUntil, Date.now() + durationMs)
+}
+
+function isProgrammaticScrollActive(): boolean {
+  return Date.now() < programmaticScrollUntil
+}
+
+function isAtBottom(): boolean {
+  const el = scrollContainer.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_THRESHOLD
+}
+
+function scrollDomToBottom(): void {
+  const el = scrollContainer.value
+  if (!el) return
+  // Use the container's max scrollTop rather than `bottomScrollAnchor.scrollIntoView`:
+  // the anchor sits before the sticky input area in flow, so scrollIntoView stops
+  // short by the input's height and never reaches the true bottom during generation.
+  el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+}
+
 function scrollToBottom(force = false) {
-  pendingForcedScroll = pendingForcedScroll || force
-  if (scrollWriteFrame !== null) {
+  if (force) {
+    markProgrammaticScroll(500)
+    scrollMode.value = 'initial-bottom'
+    shouldAutoFollow.value = true
+  } else if (!uiSettingsStore.autoScrollEnabled || !shouldAutoFollow.value) {
     return
   }
 
-  scrollWriteFrame = window.requestAnimationFrame(() => {
-    scrollWriteFrame = null
-
-    const el = scrollContainer.value
-    if (!el) {
-      pendingForcedScroll = false
-      return
+  void nextTick(() => {
+    scrollDomToBottom()
+    if (force) {
+      scheduleScrollMetricsRead()
     }
-
-    const shouldForce = pendingForcedScroll
-    pendingForcedScroll = false
-    const nextScrollHeight = el.scrollHeight
-
-    if (shouldForce || nextScrollHeight > lastObservedScrollHeight) {
-      el.scrollTop = Math.max(nextScrollHeight - el.clientHeight, 0)
-    }
-
-    syncScrollPosition()
   })
 }
 
@@ -479,7 +559,6 @@ function applySessionRestoreBottomScroll(requestId: number, sessionId: string): 
   }
 
   el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
-  syncScrollPosition()
   return true
 }
 
@@ -562,26 +641,62 @@ function settleSessionRestoreScrollToBottom(requestId: number, sessionId: string
   scheduleNextFrame()
 }
 
+function scheduleScrollMetricsRead(fromUserScroll = false) {
+  if (fromUserScroll) {
+    pendingUserScrollMetrics = true
+  }
+  if (scrollReadFrame !== null) return
+  scrollReadFrame = window.requestAnimationFrame(() => {
+    scrollReadFrame = null
+    const userInitiated = pendingUserScrollMetrics
+    pendingUserScrollMetrics = false
+    const el = scrollContainer.value
+    if (!el) return
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
+
+    if (isProgrammaticScrollActive()) {
+      // During a forced/programmatic scroll, only a genuine user gesture (wheel,
+      // drag) may break auto-follow. Content growth pushing us off-bottom must not.
+      if (userInitiated && !isNearBottom.value) {
+        programmaticScrollUntil = 0
+        scrollMode.value = 'anchored-reading'
+        shouldAutoFollow.value = false
+      }
+      return
+    }
+
+    // Only a real user scroll may flip between auto-follow and anchored-reading.
+    // Programmatic reads (streaming height growth, measure callbacks) keep the
+    // current mode so generation stays pinned to the bottom.
+    if (userInitiated && scrollMode.value !== 'manual-jump') {
+      shouldAutoFollow.value = isNearBottom.value
+      scrollMode.value =
+        uiSettingsStore.autoScrollEnabled && shouldAutoFollow.value
+          ? 'auto-follow'
+          : 'anchored-reading'
+    }
+  })
+}
+
 function onScroll() {
   const el = scrollContainer.value
-  if (
-    el &&
-    isSessionRestoreScrollSettleActive() &&
-    el.scrollHeight - el.scrollTop - el.clientHeight > NEAR_BOTTOM_THRESHOLD
-  ) {
-    cancelSessionRestoreScrollSettle()
-  }
+  if (!el) return
 
-  scheduleScrollMetricsRead()
-  if (!el || el.scrollTop > TOP_HISTORY_THRESHOLD) {
-    return
-  }
+  scheduleScrollMetricsRead(true)
 
-  void loadOlderMessagesAtTop()
+  if (el.scrollTop <= TOP_HISTORY_THRESHOLD) {
+    void loadOlderMessagesAtTop()
+  }
 }
 
 async function loadOlderMessagesAtTop(): Promise<void> {
-  if (messageStore.isLoadingHistory || !messageStore.hasMoreHistory) {
+  if (
+    messageStore.isLoadingHistory ||
+    !messageStore.hasMoreHistory ||
+    isProgrammaticScrollActive()
+  ) {
     return
   }
 
@@ -600,7 +715,6 @@ async function loadOlderMessagesAtTop(): Promise<void> {
   await nextTick()
   const nextScrollHeight = el.scrollHeight
   el.scrollTop = previousScrollTop + (nextScrollHeight - previousScrollHeight)
-  syncScrollPosition()
 }
 
 async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
@@ -611,9 +725,22 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 
   await nextTick()
 
-  const target = messageSearchRoot.value?.querySelector<HTMLElement>(
-    `[data-message-id="${pendingJump.messageId}"]`
+  let target = messageSearchRoot.value?.querySelector<HTMLElement>(
+    `[data-message-id="${CSS.escape(pendingJump.messageId)}"]`
   )
+
+  if (!target) {
+    const entry = messageWindow.getEntry(pendingJump.messageId)
+    const container = scrollContainer.value
+    if (entry && container) {
+      scrollMode.value = 'manual-jump'
+      container.scrollTop = Math.max(entry.top - Math.round(container.clientHeight / 3), 0)
+      await nextTick()
+      target = messageSearchRoot.value?.querySelector<HTMLElement>(
+        `[data-message-id="${CSS.escape(pendingJump.messageId)}"]`
+      )
+    }
+  }
 
   if (!target) {
     // Retry briefly while virtualized / async-rendered message content settles after session switch.
@@ -643,6 +770,8 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
   }, MESSAGE_HIGHLIGHT_DURATION)
 
   spotlightStore.clearPendingMessageJump()
+  scrollMode.value =
+    uiSettingsStore.autoScrollEnabled && isNearBottom.value ? 'auto-follow' : 'anchored-reading'
 }
 
 // Load messages when sessionId changes, then scroll to bottom
@@ -666,7 +795,7 @@ watch(
 
         console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
         const [restoredSession] = await Promise.all([
-          messageStore.loadMessages(id),
+          messageStore.loadMessages(id, INITIAL_MESSAGE_RESTORE_COUNT),
           pendingInputStore.loadPendingInputs(id)
         ])
 
@@ -677,7 +806,6 @@ watch(
         applyRestoredSessionSummary(restoredSession)
 
         await nextTick()
-        syncScrollPosition()
         if (spotlightStore.pendingMessageJump?.sessionId === id) {
           cancelSessionRestoreScrollSettle()
           void focusPendingSpotlightMessageJump()
@@ -785,7 +913,11 @@ function toStreamingMessage(
   const modelId = sessionStore.activeSession?.modelId ?? ''
   const now = Date.now()
   return {
-    id: messageId ? `__streaming__:${messageId}` : '__streaming__',
+    // Key the streaming row by the real message id when we have one, so that when
+    // the persisted copy arrives at stream end Vue patches the SAME node in place
+    // (markdown DOM reused) instead of unmount/remount — no completion flash.
+    // Falls back to a synthetic id only when the backend hasn't assigned one yet.
+    id: messageId ?? '__streaming__',
     content: blocks as DisplayAssistantMessageBlock[],
     role: 'assistant',
     timestamp: now,
@@ -881,8 +1013,11 @@ const displayMessages = computed(() => {
     }
   }
 
-  // Fallback to a virtual streaming message only when target assistant message
-  // is not yet available in messageStore.
+  // Single-track rendering: streaming blocks are folded into their message record
+  // in place (applyStreamingBlocksToMessage), so the generating message is already
+  // in `msgs` above as a normal item. Only when that record isn't in the store yet
+  // do we append a virtual streaming item as a fallback. Stream end then reuses the
+  // same id/node — no separate trailing row, no completion flash.
   if (
     messageStore.isStreaming &&
     messageStore.streamingBlocks.length > 0 &&
@@ -894,6 +1029,20 @@ const displayMessages = computed(() => {
 
   return msgs
 })
+
+const messageWindow = useMessageWindow({
+  messages: displayMessages
+})
+
+function onMessageMeasure(payload: { messageId: string; height: number }) {
+  const delta = messageWindow.setMeasuredHeight(payload.messageId, payload.height)
+  if (delta === 0) return
+  if (scrollMode.value === 'initial-bottom' || scrollMode.value === 'auto-follow') {
+    scrollToBottom(scrollMode.value === 'initial-bottom')
+  } else {
+    scheduleViewportAnchorRestore(captureViewportAnchor())
+  }
+}
 
 const traceMessageIds = computed(() =>
   messageStore.messages
@@ -932,8 +1081,13 @@ watch(
       return
     }
 
-    if (isNearBottom.value) {
-      scrollToBottom()
+    if (scrollMode.value === 'initial-bottom') {
+      scrollToBottom(true)
+      scrollMode.value = 'auto-follow'
+    } else if (scrollMode.value === 'auto-follow') {
+      scrollToBottom(false)
+    } else {
+      scheduleScrollMetricsRead()
     }
   },
   { flush: 'post' }
@@ -1712,7 +1866,12 @@ onMounted(() => {
       agentPlanStore.applySnapshot(payload)
     }
   })
-  syncScrollPosition()
+  // 初始化滚动状态
+  const el = scrollContainer.value
+  if (el) {
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
+  }
   observePlanFloatLayer()
   syncPlanFloatReservedHeight()
   void nextTick(async () => {
@@ -1740,13 +1899,13 @@ onUnmounted(() => {
     window.clearTimeout(spotlightJumpTimer)
     spotlightJumpTimer = null
   }
+  if (anchorRestoreFrame !== null) {
+    window.cancelAnimationFrame(anchorRestoreFrame)
+    anchorRestoreFrame = null
+  }
   if (scrollReadFrame !== null) {
     window.cancelAnimationFrame(scrollReadFrame)
     scrollReadFrame = null
-  }
-  if (scrollWriteFrame !== null) {
-    window.cancelAnimationFrame(scrollWriteFrame)
-    scrollWriteFrame = null
   }
   cancelScheduledChatSearchRefresh()
   pendingInputStore.clear()
@@ -1756,6 +1915,14 @@ onUnmounted(() => {
 <style>
 .message-list-container {
   scrollbar-gutter: stable both-edges;
+  will-change: scroll-position;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
+}
+
+/* 流式生成时，最后一行始终渲染以保证流式流畅 */
+[data-generating='true'] .message-list-row:last-child {
+  content-visibility: visible;
 }
 
 .agent-question-panel {

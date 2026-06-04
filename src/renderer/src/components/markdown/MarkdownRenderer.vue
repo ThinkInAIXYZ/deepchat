@@ -97,13 +97,29 @@ const getSearchResults = () => {
   return searchResultsPromise
 }
 
-const updateContent = useDebounceFn(
+const updateContentFast = useDebounceFn(
   (value: string) => {
     debouncedContent.value = value
   },
   32,
   { maxWait: 64 }
 )
+const updateContentSlow = useDebounceFn(
+  (value: string) => {
+    debouncedContent.value = value
+  },
+  96,
+  { maxWait: 180 }
+)
+
+const updateContent = (value: string) => {
+  if (props.smoothStreaming && value.length > 12_000) {
+    updateContentSlow(value)
+    return
+  }
+
+  updateContentFast(value)
+}
 
 watch(
   () => props.content,
@@ -214,6 +230,8 @@ defineEmits(['copy'])
 @reference '../../assets/style.css';
 
 .prose {
+  contain: layout style paint;
+
   pre {
     margin-top: 0;
     margin-bottom: 0;
@@ -272,12 +290,13 @@ defineEmits(['copy'])
 
   .table-node-wrapper {
     @apply border border-border rounded-lg py-0 my-0 overflow-hidden shadow-sm;
+    contain: layout style paint;
   }
 
   table {
     @apply py-0 my-0;
-    /* @apply bg-card border block rounded-lg my-0 py-0 overflow-hidden; */
     border-collapse: collapse;
+    table-layout: auto;
   }
 
   thead,
