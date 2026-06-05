@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "יובאו בהצלחה {count} שיחות."
+    "importComplete": "יובאו בהצלחה {count} שיחות.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "הסנכרון אינו מופעל",
@@ -15,6 +18,12 @@
     "importProcess": "אירעה שגיאה במהלך תהליך הייבוא",
     "unknown": "שגיאה לא ידועה",
     "encryptedBackupPasswordMissing": "הגיבוי הזה מוצפן, אך מפתח מסד הנתונים המקומי אינו זמין. פתח תחילה את מסד הנתונים המוצפן ולאחר מכן יבא שוב.",
-    "overwriteEncryptionMismatch": "ייבוא בדריסת נתונים דורש שלגיבוי ולמסד הנתונים הנוכחי יהיה אותו מצב הצפנה."
+    "overwriteEncryptionMismatch": "ייבוא בדריסת נתונים דורש שלגיבוי ולמסד הנתונים הנוכחי יהיה אותו מצב הצפנה.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }

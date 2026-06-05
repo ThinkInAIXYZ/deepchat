@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "{count}件の会話をインポートしました。"
+    "importComplete": "{count}件の会話をインポートしました。",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "同期機能が有効になっていません",
@@ -15,6 +18,12 @@
     "importProcess": "インポートプロセスでエラーが発生しました",
     "unknown": "不明なエラー",
     "encryptedBackupPasswordMissing": "このバックアップは暗号化されていますが、ローカルデータベースキーを利用できません。先に暗号化データベースのロックを解除してから、もう一度インポートしてください。",
-    "overwriteEncryptionMismatch": "上書きインポートでは、バックアップと現在のデータベースの暗号化状態が同じである必要があります。"
+    "overwriteEncryptionMismatch": "上書きインポートでは、バックアップと現在のデータベースの暗号化状態が同じである必要があります。",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }

@@ -6,7 +6,7 @@ import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import type { EntryKey, UseQueryReturn } from '@pinia/colada'
-import type { SyncBackupInfo } from '@shared/presenter'
+import type { SyncBackupInfo, CloudSyncConfigView, CloudSyncConfigInput } from '@shared/presenter'
 
 export const useSyncStore = defineStore('sync', () => {
   const syncEnabled = ref(false)
@@ -21,6 +21,10 @@ export const useSyncStore = defineStore('sync', () => {
     sourceDbType?: 'agent' | 'chat'
     importedSessions?: number
   } | null>(null)
+
+  // Cloud sync (S3-compatible) state
+  const cloudConfig = ref<CloudSyncConfigView | null>(null)
+  const isCloudBusy = ref(false)
 
   const configClient = createConfigClient()
   const syncClient = createSyncClient()
@@ -115,6 +119,60 @@ export const useSyncStore = defineStore('sync', () => {
     }
   }
 
+  const loadCloudConfig = async () => {
+    try {
+      cloudConfig.value = await syncClient.getCloudConfig()
+    } catch (error) {
+      console.error('load cloud config failed:', error)
+    }
+    return cloudConfig.value
+  }
+
+  const saveCloudConfig = async (config: CloudSyncConfigInput) => {
+    if (isCloudBusy.value) return cloudConfig.value
+    isCloudBusy.value = true
+    try {
+      cloudConfig.value = await syncClient.setCloudConfig(config)
+      return cloudConfig.value
+    } finally {
+      isCloudBusy.value = false
+    }
+  }
+
+  const testCloud = async () => {
+    isCloudBusy.value = true
+    try {
+      return await syncClient.testCloudConnection()
+    } finally {
+      isCloudBusy.value = false
+    }
+  }
+
+  const uploadToCloud = async () => {
+    if (isCloudBusy.value) return null
+    isCloudBusy.value = true
+    try {
+      return await syncClient.uploadToCloud()
+    } finally {
+      isCloudBusy.value = false
+    }
+  }
+
+  const pullFromCloud = async (mode: 'increment' | 'overwrite' = 'increment') => {
+    if (isCloudBusy.value) return null
+    isCloudBusy.value = true
+    try {
+      const result = await syncClient.pullFromCloud(mode)
+      if (result && !result.success) {
+        importResult.value = result
+      }
+      return result
+    } finally {
+      isCloudBusy.value = false
+      await refreshBackups()
+    }
+  }
+
   const initialize = async () => {
     syncEnabled.value = await configClient.getSyncEnabled()
     syncFolderPath.value = await configClient.getSyncFolderPath()
@@ -124,6 +182,7 @@ export const useSyncStore = defineStore('sync', () => {
     isBackingUp.value = status.isBackingUp
 
     await refreshBackups()
+    await loadCloudConfig()
     setupSyncEventListeners()
     setupSyncSettingsListener()
   }
@@ -217,6 +276,8 @@ export const useSyncStore = defineStore('sync', () => {
     isImporting,
     importResult,
     backups,
+    cloudConfig,
+    isCloudBusy,
 
     initialize,
     setSyncEnabled,
@@ -227,6 +288,11 @@ export const useSyncStore = defineStore('sync', () => {
     importData,
     restartApp,
     clearImportResult,
-    refreshBackups
+    refreshBackups,
+    loadCloudConfig,
+    saveCloudConfig,
+    testCloud,
+    uploadToCloud,
+    pullFromCloud
   }
 })

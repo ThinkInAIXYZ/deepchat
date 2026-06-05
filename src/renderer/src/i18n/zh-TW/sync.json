@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "成功匯入 {count} 個對話"
+    "importComplete": "成功匯入 {count} 個對話",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "同步功能未啟用",
@@ -15,6 +18,12 @@
     "importProcess": "匯入過程發生錯誤",
     "unknown": "未知錯誤",
     "encryptedBackupPasswordMissing": "此備份已加密，但本機資料庫金鑰不可用。請先解鎖加密資料庫，然後重新匯入。",
-    "overwriteEncryptionMismatch": "覆蓋匯入要求備份和目前資料庫處於相同的加密狀態。"
+    "overwriteEncryptionMismatch": "覆蓋匯入要求備份和目前資料庫處於相同的加密狀態。",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }

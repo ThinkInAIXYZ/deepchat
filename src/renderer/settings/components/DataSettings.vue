@@ -164,6 +164,126 @@
               </DialogContent>
             </Dialog>
           </div>
+
+          <div class="flex flex-col gap-3 border-t border-border pt-4" :dir="languageStore.dir">
+            <div class="flex flex-col gap-1">
+              <span class="flex flex-row items-center gap-2">
+                <Icon icon="lucide:cloud" class="h-4 w-4 text-muted-foreground" />
+                <span class="text-sm font-medium">{{ t('settings.data.cloudSync.title') }}</span>
+              </span>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.data.cloudSync.description') }}
+              </p>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="flex flex-col gap-1.5 sm:col-span-2">
+                <Label class="text-xs">{{ t('settings.data.cloudSync.endpoint') }}</Label>
+                <Input
+                  v-model="cloudForm.endpoint"
+                  class="h-8!"
+                  placeholder="https://<account>.r2.cloudflarestorage.com"
+                />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label class="text-xs">{{ t('settings.data.cloudSync.bucket') }}</Label>
+                <Input v-model="cloudForm.bucket" class="h-8!" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label class="text-xs">{{ t('settings.data.cloudSync.region') }}</Label>
+                <Input v-model="cloudForm.region" class="h-8!" placeholder="auto" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label class="text-xs">{{ t('settings.data.cloudSync.accessKeyId') }}</Label>
+                <Input v-model="cloudForm.accessKeyId" class="h-8!" autocomplete="off" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label class="text-xs">{{ t('settings.data.cloudSync.secretAccessKey') }}</Label>
+                <Input
+                  v-model="cloudForm.secretAccessKey"
+                  type="password"
+                  class="h-8!"
+                  autocomplete="off"
+                  :placeholder="
+                    cloudConfig?.hasSecret ? t('settings.data.cloudSync.secretConfigured') : ''
+                  "
+                />
+              </div>
+              <div class="flex flex-col gap-1.5 sm:col-span-2">
+                <Label class="text-xs">{{ t('settings.data.cloudSync.prefix') }}</Label>
+                <Input v-model="cloudForm.prefix" class="h-8!" placeholder="deepchat-backups" />
+              </div>
+            </div>
+
+            <p
+              v-if="cloudConfig && !cloudConfig.safeStorageAvailable"
+              class="text-xs text-amber-600 dark:text-amber-400"
+            >
+              {{ t('settings.data.cloudSync.safeStorageUnavailable') }}
+            </p>
+
+            <div class="flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="default"
+                class="w-full sm:w-auto"
+                :disabled="isCloudBusy"
+                @click="handleSaveCloud"
+              >
+                <Icon icon="lucide:check" class="h-4 w-4" />
+                <span class="text-sm font-medium">{{ t('settings.data.cloudSync.save') }}</span>
+              </Button>
+              <Button
+                variant="outline"
+                class="w-full sm:w-auto"
+                :disabled="isCloudBusy"
+                @click="handleTestCloud"
+              >
+                <Icon
+                  :icon="isCloudBusy ? 'lucide:loader-2' : 'lucide:plug-zap'"
+                  class="h-4 w-4 text-muted-foreground"
+                  :class="isCloudBusy ? 'animate-spin' : ''"
+                />
+                <span class="text-sm font-medium">{{ t('settings.data.cloudSync.test') }}</span>
+              </Button>
+            </div>
+
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                variant="outline"
+                class="w-full sm:w-auto"
+                :disabled="isCloudBusy"
+                @click="handleUploadToCloud"
+              >
+                <Icon icon="lucide:cloud-upload" class="h-4 w-4 text-muted-foreground" />
+                <span class="text-sm font-medium">{{ t('settings.data.cloudSync.upload') }}</span>
+              </Button>
+              <Button
+                variant="outline"
+                class="w-full sm:w-auto"
+                :disabled="isCloudBusy"
+                @click="handlePullFromCloud"
+              >
+                <Icon icon="lucide:cloud-download" class="h-4 w-4 text-muted-foreground" />
+                <span class="text-sm font-medium">{{ t('settings.data.cloudSync.pull') }}</span>
+              </Button>
+              <div class="flex items-center gap-3">
+                <RadioGroup v-model="cloudPullMode" class="flex flex-row gap-3">
+                  <div class="flex items-center space-x-2">
+                    <RadioGroupItem value="increment" id="cloud-increment" />
+                    <Label for="cloud-increment" class="text-xs">{{
+                      t('settings.data.incrementImport')
+                    }}</Label>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <RadioGroupItem value="overwrite" id="cloud-overwrite" />
+                    <Label for="cloud-overwrite" class="text-xs">{{
+                      t('settings.data.overwriteImport')
+                    }}</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -779,7 +899,9 @@ const databaseSecurityClient = createDatabaseSecurityClient()
 const {
   backups: backupsRef,
   isBackingUp: isBackingUpRef,
-  isImporting: isImportingRef
+  isImporting: isImportingRef,
+  cloudConfig,
+  isCloudBusy
 } = storeToRefs(syncStore)
 const { toast } = useToast()
 
@@ -983,6 +1105,94 @@ const syncFolderPath = computed({
 
 const handleSyncEnabledChange = (value: boolean) => {
   syncEnabled.value = value
+}
+
+// === Cloud sync (S3-compatible) ===
+const cloudPullMode = ref<'increment' | 'overwrite'>('increment')
+const cloudForm = ref({
+  endpoint: '',
+  bucket: '',
+  region: 'auto',
+  prefix: 'deepchat-backups',
+  accessKeyId: '',
+  secretAccessKey: ''
+})
+
+watch(
+  cloudConfig,
+  (config) => {
+    if (!config) {
+      return
+    }
+    cloudForm.value.endpoint = config.endpoint
+    cloudForm.value.bucket = config.bucket
+    cloudForm.value.region = config.region || 'auto'
+    cloudForm.value.prefix = config.prefix || 'deepchat-backups'
+    cloudForm.value.accessKeyId = config.accessKeyId
+    // never prefill the secret; empty means "keep existing"
+    cloudForm.value.secretAccessKey = ''
+  },
+  { immediate: true }
+)
+
+const handleSaveCloud = async () => {
+  await syncStore.saveCloudConfig({
+    endpoint: cloudForm.value.endpoint.trim(),
+    bucket: cloudForm.value.bucket.trim(),
+    region: cloudForm.value.region.trim() || 'auto',
+    prefix: cloudForm.value.prefix.trim(),
+    accessKeyId: cloudForm.value.accessKeyId.trim(),
+    // omit when empty so the existing secret is preserved
+    secretAccessKey: cloudForm.value.secretAccessKey || undefined
+  })
+  cloudForm.value.secretAccessKey = ''
+  toast({
+    title: t('settings.data.cloudSync.savedTitle'),
+    duration: 3000
+  })
+}
+
+const handleTestCloud = async () => {
+  const result = await syncStore.testCloud()
+  toast({
+    title: result.success
+      ? t('settings.data.cloudSync.testSuccessTitle')
+      : t('settings.data.cloudSync.testFailedTitle'),
+    description: result.success ? undefined : t(result.message),
+    variant: result.success ? 'default' : 'destructive',
+    duration: 4000
+  })
+}
+
+const handleUploadToCloud = async () => {
+  const result = await syncStore.uploadToCloud()
+  if (!result) {
+    return
+  }
+  toast({
+    title: result.success
+      ? t('settings.data.cloudSync.uploadSuccessTitle')
+      : t('settings.data.cloudSync.uploadFailedTitle'),
+    description: result.success ? undefined : t(result.message),
+    variant: result.success ? 'default' : 'destructive',
+    duration: 4000
+  })
+}
+
+const handlePullFromCloud = async () => {
+  const result = await syncStore.pullFromCloud(cloudPullMode.value)
+  if (!result) {
+    return
+  }
+  if (result.success) {
+    toast({
+      title: t('settings.data.cloudSync.pullSuccessTitle'),
+      description: t('settings.provider.toast.importSuccessMessage', {
+        count: result.count ?? 0
+      }),
+      duration: 4000
+    })
+  }
 }
 
 const clearDatabasePasswordFields = () => {

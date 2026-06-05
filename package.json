@@ -84,6 +84,7 @@
     "@ai-sdk/openai-compatible": "^2.0.48",
     "@ai-sdk/provider": "^3.0.10",
     "@aws-sdk/client-bedrock": "^3.1057.0",
+    "@aws-sdk/client-s3": "^3.1062.0",
     "@duckdb/node-api": "1.5.3-r.1",
     "@e2b/code-interpreter": "^1.5.1",
     "@electron-toolkit/preload": "^3.0.2",

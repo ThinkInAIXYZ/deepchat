@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "Успешно импортировано {count} диалогов."
+    "importComplete": "Успешно импортировано {count} диалогов.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "Функция синхронизации не включена",
@@ -15,6 +18,12 @@
     "importProcess": "Ошибка в процессе импорта",
     "unknown": "Неизвестная ошибка",
     "encryptedBackupPasswordMissing": "Эта резервная копия зашифрована, но ключ локальной базы данных недоступен. Сначала разблокируйте зашифрованную базу, затем импортируйте снова.",
-    "overwriteEncryptionMismatch": "Для импорта с заменой резервная копия и текущая база должны иметь одинаковое состояние шифрования."
+    "overwriteEncryptionMismatch": "Для импорта с заменой резервная копия и текущая база должны иметь одинаковое состояние шифрования.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }

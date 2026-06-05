@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "Import af {count} samtale(r) lykkedes."
+    "importComplete": "Import af {count} samtale(r) lykkedes.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "Synkronisering er ikke aktiveret",
@@ -15,6 +18,12 @@
     "importProcess": "Der opstod en fejl under importen",
     "unknown": "Ukendt fejl",
     "encryptedBackupPasswordMissing": "Denne backup er krypteret, men den lokale databasenøgle er ikke tilgængelig. Lås først den krypterede database op, og importér derefter igen.",
-    "overwriteEncryptionMismatch": "Overskrivningsimport kræver, at backup og aktuel database har samme krypteringstilstand."
+    "overwriteEncryptionMismatch": "Overskrivningsimport kræver, at backup og aktuel database har samme krypteringstilstand.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }

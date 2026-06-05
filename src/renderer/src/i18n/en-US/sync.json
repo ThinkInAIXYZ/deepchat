@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "Successfully imported {count} conversation(s)."
+    "importComplete": "Successfully imported {count} conversation(s).",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "Sync is not enabled",
@@ -15,6 +18,12 @@
     "importProcess": "An error occurred during the import process",
     "unknown": "Unknown error",
     "encryptedBackupPasswordMissing": "This backup is encrypted, but the local database key is not available. Unlock the encrypted database first, then import again.",
-    "overwriteEncryptionMismatch": "Overwrite import requires the backup and current database to use the same encryption state."
+    "overwriteEncryptionMismatch": "Overwrite import requires the backup and current database to use the same encryption state.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }

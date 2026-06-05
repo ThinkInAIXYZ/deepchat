@@ -13,8 +13,14 @@ import {
   syncImportRoute,
   syncListBackupsRoute,
   syncOpenFolderRoute,
-  syncStartBackupRoute
+  syncStartBackupRoute,
+  syncGetCloudConfigRoute,
+  syncSetCloudConfigRoute,
+  syncTestCloudRoute,
+  syncUploadToCloudRoute,
+  syncPullFromCloudRoute
 } from '@shared/contracts/routes'
+import type { CloudSyncConfigInput } from '@shared/presenter'
 import { getDeepchatBridge } from './core'
 
 export function createSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {
@@ -43,6 +49,31 @@ export function createSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {
 
   async function openSyncFolder() {
     await bridge.invoke(syncOpenFolderRoute.name, {})
+  }
+
+  async function getCloudConfig() {
+    const result = await bridge.invoke(syncGetCloudConfigRoute.name, {})
+    return result.config
+  }
+
+  async function setCloudConfig(config: CloudSyncConfigInput) {
+    const result = await bridge.invoke(syncSetCloudConfigRoute.name, { config })
+    return result.config
+  }
+
+  async function testCloudConnection() {
+    const result = await bridge.invoke(syncTestCloudRoute.name, {})
+    return result.result
+  }
+
+  async function uploadToCloud() {
+    const result = await bridge.invoke(syncUploadToCloudRoute.name, {})
+    return result.result
+  }
+
+  async function pullFromCloud(mode?: 'increment' | 'overwrite') {
+    const result = await bridge.invoke(syncPullFromCloudRoute.name, { mode })
+    return result.result
   }
 
   function onBackupStarted(listener: (payload: { version: number }) => void) {
@@ -88,6 +119,11 @@ export function createSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     startBackup,
     importFromSync,
     openSyncFolder,
+    getCloudConfig,
+    setCloudConfig,
+    testCloudConnection,
+    uploadToCloud,
+    pullFromCloud,
     onBackupStarted,
     onBackupCompleted,
     onBackupError,

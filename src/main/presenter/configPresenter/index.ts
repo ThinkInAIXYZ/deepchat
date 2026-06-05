@@ -19,6 +19,11 @@ import {
   AcpResolvedLaunchSpec,
   ProviderDbRefreshResult
 } from '@shared/presenter'
+import type {
+  CloudSyncConfigView,
+  CloudSyncConfigInput,
+  ResolvedCloudSyncConfig
+} from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
 import {
@@ -38,7 +43,7 @@ import {
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
-import { app, nativeTheme, shell } from 'electron'
+import { app, nativeTheme, shell, safeStorage } from 'electron'
 import fs from 'fs'
 import {
   CONFIG_EVENTS,
@@ -1873,6 +1878,109 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set last sync time
   setLastSyncTime(time: number): void {
     this.setSetting('lastSyncTime', time)
+  }
+
+  // === Cloud sync (S3-compatible) settings ===
+  // Non-sensitive fields live in app-settings; the secret is encrypted via safeStorage.
+  private readonly CLOUD_SYNC_BASE_KEY = 'cloudSyncConfig'
+  private readonly CLOUD_SYNC_SECRET_KEY = 'cloudSyncSecret'
+
+  isCloudSafeStorageAvailable(): boolean {
+    try {
+      return safeStorage.isEncryptionAvailable()
+    } catch {
+      return false
+    }
+  }
+
+  private getCloudSyncBase(): {
+    enabled: boolean
+    endpoint: string
+    bucket: string
+    region: string
+    prefix: string
+    accessKeyId: string
+  } {
+    const stored = this.getSetting<{
+      enabled?: boolean
+      endpoint?: string
+      bucket?: string
+      region?: string
+      prefix?: string
+      accessKeyId?: string
+    }>(this.CLOUD_SYNC_BASE_KEY)
+    return {
+      enabled: stored?.enabled ?? false,
+      endpoint: stored?.endpoint ?? '',
+      bucket: stored?.bucket ?? '',
+      region: stored?.region ?? 'auto',
+      prefix: stored?.prefix ?? 'deepchat-backups',
+      accessKeyId: stored?.accessKeyId ?? ''
+    }
+  }
+
+  private getCloudSyncSecret(): string {
+    const wrapped = this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)
+    if (!wrapped) {
+      return ''
+    }
+    try {
+      return safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
+    } catch (error) {
+      console.error('[Config] Failed to decrypt cloud sync secret:', error)
+      return ''
+    }
+  }
+
+  getCloudSyncConfig(): CloudSyncConfigView {
+    const base = this.getCloudSyncBase()
+    return {
+      ...base,
+      hasSecret: Boolean(this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)),
+      safeStorageAvailable: this.isCloudSafeStorageAvailable()
+    }
+  }
+
+  setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView {
+    const current = this.getCloudSyncBase()
+    const next = {
+      enabled: config.enabled ?? current.enabled,
+      endpoint: config.endpoint ?? current.endpoint,
+      bucket: config.bucket ?? current.bucket,
+      region: config.region ?? current.region,
+      prefix: config.prefix ?? current.prefix,
+      accessKeyId: config.accessKeyId ?? current.accessKeyId
+    }
+    this.setSetting(this.CLOUD_SYNC_BASE_KEY, next)
+
+    // Only update the secret when a non-empty value is provided; empty/undefined keeps the existing one.
+    if (typeof config.secretAccessKey === 'string' && config.secretAccessKey.length > 0) {
+      if (!this.isCloudSafeStorageAvailable()) {
+        throw new Error('sync.error.safeStorageUnavailable')
+      }
+      const wrapped = Buffer.from(safeStorage.encryptString(config.secretAccessKey)).toString(
+        'base64'
+      )
+      this.setSetting(this.CLOUD_SYNC_SECRET_KEY, wrapped)
+    }
+
+    return this.getCloudSyncConfig()
+  }
+
+  getResolvedCloudSyncConfig(): ResolvedCloudSyncConfig | null {
+    const base = this.getCloudSyncBase()
+    const secretAccessKey = this.getCloudSyncSecret()
+    if (!base.endpoint || !base.bucket || !base.accessKeyId || !secretAccessKey) {
+      return null
+    }
+    return {
+      endpoint: base.endpoint,
+      bucket: base.bucket,
+      region: base.region,
+      prefix: base.prefix,
+      accessKeyId: base.accessKeyId,
+      secretAccessKey
+    }
   }
 
   // Skills settings

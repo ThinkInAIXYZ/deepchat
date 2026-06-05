@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "{count} conversation(s) importée(s) avec succès."
+    "importComplete": "{count} conversation(s) importée(s) avec succès.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "La fonction de synchronisation n'est pas activée",
@@ -15,6 +18,12 @@
     "importProcess": "Erreur dans le processus d'importation",
     "unknown": "Erreur inconnue",
     "encryptedBackupPasswordMissing": "Cette sauvegarde est chiffrée, mais la clé de la base locale n’est pas disponible. Déverrouillez d’abord la base chiffrée, puis relancez l’importation.",
-    "overwriteEncryptionMismatch": "L’importation avec remplacement exige que la sauvegarde et la base actuelle aient le même état de chiffrement."
+    "overwriteEncryptionMismatch": "L’importation avec remplacement exige que la sauvegarde et la base actuelle aient le même état de chiffrement.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }
