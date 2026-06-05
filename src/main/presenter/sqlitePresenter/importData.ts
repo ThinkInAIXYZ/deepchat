@@ -74,9 +74,25 @@ export class DataImporter {
   }
 
   private getTablesInOrder(): string[] {
-    const tables = this.sourceDb
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-      .all() as { name: string }[]
+    const allTables = this.sourceDb
+      .prepare(
+        "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+      )
+      .all() as { name: string; sql: string | null }[]
+
+    // Virtual tables (e.g. FTS5) and their shadow tables cannot be written by a plain column-copy
+    // INSERT — SQLite raises "table X may not be modified". Note FTS5 shadow tables
+    // (<vtab>_data/_idx/_docsize/_config/_content) DO carry a real CREATE TABLE sql in
+    // sqlite_master, so they must be excluded by name prefix, not by inspecting their sql.
+    // For external-content FTS the index is rebuilt by triggers when the content table is imported.
+    const virtualTableNames = allTables
+      .filter((table) => typeof table.sql === 'string' && /^CREATE VIRTUAL TABLE/i.test(table.sql))
+      .map((table) => table.name)
+
+    const isVirtualOrShadow = (name: string): boolean =>
+      virtualTableNames.some((vtab) => name === vtab || name.startsWith(`${vtab}_`))
+
+    const tables = allTables.filter((table) => !isVirtualOrShadow(table.name))
 
     const preferredOrder = ['conversations', 'messages', 'attachments', 'message_attachments']
     const preferredSet = new Set(preferredOrder)
