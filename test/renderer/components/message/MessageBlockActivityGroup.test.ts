@@ -123,7 +123,17 @@ describe('MessageBlockActivityGroup', () => {
     expect(wrapper.get('[data-testid="activity-group-toggle"]').attributes('aria-expanded')).toBe(
       'false'
     )
-    expect(wrapper.get('[data-testid="activity-group-body"]').isVisible()).toBe(false)
+    expect(wrapper.get('[data-testid="activity-group-body-shell"]').attributes('aria-hidden')).toBe(
+      'true'
+    )
+    expect(
+      wrapper.get('[data-testid="activity-group-body-shell"]').attributes('inert')
+    ).toBeDefined()
+    expect(wrapper.get('[data-testid="activity-group-body-shell"]').classes()).toContain(
+      'grid-rows-[0fr]'
+    )
+    expect(wrapper.find('[data-testid="think-block"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="tool-block"]').exists()).toBe(true)
   })
 
   it('toggles expanded state and shows the original activity blocks', async () => {
@@ -134,7 +144,15 @@ describe('MessageBlockActivityGroup', () => {
     expect(wrapper.get('[data-testid="activity-group-toggle"]').attributes('aria-expanded')).toBe(
       'true'
     )
-    expect(wrapper.get('[data-testid="activity-group-body"]').isVisible()).toBe(true)
+    expect(wrapper.get('[data-testid="activity-group-body-shell"]').attributes('aria-hidden')).toBe(
+      'false'
+    )
+    expect(
+      wrapper.get('[data-testid="activity-group-body-shell"]').attributes('inert')
+    ).toBeUndefined()
+    expect(wrapper.get('[data-testid="activity-group-body-shell"]').classes()).toContain(
+      'grid-rows-[1fr]'
+    )
     expect(wrapper.find('[data-testid="think-block"]').text()).toBe('thinking')
     expect(wrapper.find('[data-testid="tool-block"]').text()).toBe('shell_command')
 
@@ -143,6 +161,12 @@ describe('MessageBlockActivityGroup', () => {
     expect(wrapper.get('[data-testid="activity-group-toggle"]').attributes('aria-expanded')).toBe(
       'false'
     )
+    expect(wrapper.get('[data-testid="activity-group-body-shell"]').attributes('aria-hidden')).toBe(
+      'true'
+    )
+    expect(
+      wrapper.get('[data-testid="activity-group-body-shell"]').attributes('inert')
+    ).toBeDefined()
   })
 
   it('does not persist expanded state across remounts', async () => {

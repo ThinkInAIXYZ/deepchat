@@ -1,40 +1,56 @@
 <template>
-  <div class="flex flex-col w-full gap-1.5" data-testid="activity-group">
+  <div class="flex flex-col w-full" data-testid="activity-group">
     <button
       type="button"
       data-testid="activity-group-toggle"
-      class="inline-flex max-w-full min-w-0 items-center gap-[10px] self-start text-xs leading-4 text-[rgba(37,37,37,0.5)] dark:text-white/50 select-none rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      class="inline-flex max-w-full min-w-0 items-center gap-1 self-start text-xs leading-4 text-[rgba(37,37,37,0.5)] dark:text-white/50 select-none rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       :aria-expanded="isExpanded"
       :aria-label="toggleLabel"
       @click="toggleExpanded"
     >
       <Icon
-        :icon="isExpanded ? 'lucide:chevron-down' : 'lucide:chevron-right'"
-        class="w-[14px] h-[14px] shrink-0 text-[rgba(37,37,37,0.5)] dark:text-white/50"
+        icon="lucide:chevron-right"
+        class="w-[14px] h-[14px] shrink-0 text-[rgba(37,37,37,0.5)] dark:text-white/50 transition-transform duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] motion-reduce:transition-none"
+        :class="isExpanded ? 'rotate-90' : 'rotate-0'"
       />
       <span class="min-w-0 truncate">
         {{ titleText }}
       </span>
     </button>
 
-    <div v-show="isExpanded" class="flex flex-col w-full gap-1.5" data-testid="activity-group-body">
-      <template v-for="(block, index) in blocks" :key="buildActivityBlockKey(block, index)">
-        <MessageBlockThink
-          v-if="
-            (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            block.content
-          "
-          :block="block"
-          :usage="usage"
-          @toggle-collapse="handleChildCollapseToggle"
-        />
-        <MessageBlockToolCall
-          v-else-if="block.type === 'tool_call'"
-          :block="block"
-          :message-id="messageId"
-          :thread-id="threadId"
-        />
-      </template>
+    <div
+      class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
+      :class="
+        isExpanded
+          ? 'mt-1.5 grid-rows-[1fr] opacity-100'
+          : 'mt-0 grid-rows-[0fr] opacity-0 pointer-events-none'
+      "
+      :aria-hidden="!isExpanded"
+      :inert="isExpanded ? undefined : true"
+      data-testid="activity-group-body-shell"
+    >
+      <div
+        class="min-h-0 flex flex-col w-full gap-1.5 overflow-hidden"
+        data-testid="activity-group-body"
+      >
+        <template v-for="(block, index) in blocks" :key="buildActivityBlockKey(block, index)">
+          <MessageBlockThink
+            v-if="
+              (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
+              block.content
+            "
+            :block="block"
+            :usage="usage"
+            @toggle-collapse="handleChildCollapseToggle"
+          />
+          <MessageBlockToolCall
+            v-else-if="block.type === 'tool_call'"
+            :block="block"
+            :message-id="messageId"
+            :thread-id="threadId"
+          />
+        </template>
+      </div>
     </div>
   </div>
 </template>
