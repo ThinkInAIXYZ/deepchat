@@ -79,6 +79,90 @@ describe('messageActivityGroups', () => {
     expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
   })
 
+  it('ignores empty reasoning signature blocks when merging continuous activity', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [
+        createBlock('reasoning_content', {
+          content: 'The user wants to see files.',
+          timestamp: 1_000
+        }),
+        createBlock('reasoning_content', {
+          content: '',
+          timestamp: 1_100,
+          extra: {
+            providerOptionsJson: '{"anthropic":{"signature":"sig-1"}}'
+          }
+        }),
+        createBlock('tool_call', {
+          timestamp: 2_000,
+          tool_call: {
+            id: 'tc1',
+            name: 'exec'
+          }
+        }),
+        createBlock('reasoning_content', {
+          content: 'The working directory does not exist.',
+          timestamp: 3_000
+        }),
+        createBlock('reasoning_content', {
+          content: '',
+          timestamp: 3_100,
+          extra: {
+            providerOptionsJson: '{"anthropic":{"signature":"sig-2"}}'
+          }
+        }),
+        createBlock('tool_call', {
+          timestamp: 4_000,
+          tool_call: {
+            id: 'tc2',
+            name: 'exec'
+          }
+        }),
+        createBlock('reasoning_content', {
+          content: 'I should ask the user to confirm the workspace.',
+          timestamp: 5_000
+        }),
+        createBlock('reasoning_content', {
+          content: '',
+          timestamp: 5_100,
+          extra: {
+            providerOptionsJson: '{"anthropic":{"signature":"sig-3"}}'
+          }
+        }),
+        createBlock('content', {
+          content: 'Please confirm the folder.',
+          timestamp: 6_000
+        })
+      ]
+    })
+
+    expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block'])
+
+    const groups = items.filter((item) => item.kind === 'activity-group')
+    expect(groups).toHaveLength(1)
+    expect(groups.map((item) => item.blocks.map((block) => block.type))).toEqual([
+      ['reasoning_content', 'tool_call', 'reasoning_content', 'tool_call', 'reasoning_content']
+    ])
+    expect(
+      groups.map((item) => item.blocks.map((block) => block.tool_call?.id ?? block.content))
+    ).toEqual([
+      [
+        'The user wants to see files.',
+        'tc1',
+        'The working directory does not exist.',
+        'tc2',
+        'I should ask the user to confirm the workspace.'
+      ]
+    ])
+    expect(groups[0]).toMatchObject({
+      reasoningCount: 3,
+      toolCallCount: 2
+    })
+  })
+
   it('does not group when the turn is not settled', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',

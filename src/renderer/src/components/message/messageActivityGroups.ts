@@ -53,6 +53,10 @@ const isReasoningActivityBlock = (block: DisplayAssistantMessageBlock): boolean 
   typeof block.content === 'string' &&
   block.content.trim().length > 0
 
+const isEmptyReasoningBlock = (block: DisplayAssistantMessageBlock): boolean =>
+  (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
+  (typeof block.content !== 'string' || block.content.trim().length === 0)
+
 export const isCompletedActivityBlock = (block: DisplayAssistantMessageBlock): boolean => {
   if (!ACTIVITY_BLOCK_TYPES.has(block.type)) {
     return false
@@ -141,6 +145,10 @@ export const buildAssistantRenderItems = ({
 
   blocks.forEach((block, index) => {
     if (block.type === 'tool_call' && isInternalToolCall?.(block)) {
+      return
+    }
+
+    if (shouldGroup && isEmptyReasoningBlock(block)) {
       return
     }
 
