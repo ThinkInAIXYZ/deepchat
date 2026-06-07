@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "成功导入 {count} 个对话"
+    "importComplete": "成功导入 {count} 个对话",
+    "cloudConnected": "云端连接成功",
+    "cloudUploaded": "已上传到云端",
+    "cloudPulled": "已从云端拉取最新备份"
   },
   "error": {
     "notEnabled": "同步功能未启用",
@@ -15,6 +18,12 @@
     "importProcess": "导入过程出错",
     "unknown": "未知错误",
     "encryptedBackupPasswordMissing": "该备份已加密，但本地数据库密钥不可用。请先解锁加密数据库，再重新导入。",
-    "overwriteEncryptionMismatch": "覆盖导入要求备份和当前数据库处于相同的加密状态。"
+    "overwriteEncryptionMismatch": "覆盖导入要求备份和当前数据库处于相同的加密状态。",
+    "cloudNotConfigured": "尚未配置云端,请先填写并保存云端连接信息",
+    "cloudNoBackup": "云端没有可用的备份文件",
+    "cloudDownloadFailed": "从云端下载备份失败",
+    "cloudOperationFailed": "云端操作失败",
+    "noLocalBackup": "本地没有可上传的备份,请先执行一次备份",
+    "safeStorageUnavailable": "系统密钥链不可用,无法安全保存密钥"
   }
 }

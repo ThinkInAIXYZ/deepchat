@@ -7,8 +7,10 @@ import {
   ISyncPresenter,
   IConfigPresenter,
   ISQLitePresenter,
-  SyncBackupInfo
+  SyncBackupInfo,
+  CloudSyncResult
 } from '@shared/presenter'
+import { CloudStorageService } from './cloudStorageService'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SYNC_EVENTS } from '@/events'
 import { DataImporter } from '../sqlitePresenter/importData'
@@ -43,6 +45,10 @@ const MIGRATED_APP_SETTINGS_KEYS = new Set([
   'customPrompts',
   'systemPrompts'
 ])
+// Cloud sync credentials are machine-local (secret encrypted via safeStorage). They must never
+// travel inside a backup: the secret can't be decrypted on another machine, and importing a
+// foreign machine's cloud config would clobber the local one. Stripped on backup, preserved on import.
+const CLOUD_SYNC_APP_SETTINGS_KEYS = ['cloudSyncConfig', 'cloudSyncSecret'] as const
 const KNOWN_IMPORT_ERRORS = new Set([
   'sync.error.noValidBackup',
   'sync.error.unsupportedBackupVersion',
@@ -112,6 +118,88 @@ export class SyncPresenter implements ISyncPresenter {
   public async getBackupStatus(): Promise<{ isBackingUp: boolean; lastBackupTime: number }> {
     const lastBackupTime = this.configPresenter.getLastSyncTime()
     return { isBackingUp: this.isBackingUp, lastBackupTime }
+  }
+
+  // === Cloud sync (S3-compatible) ===
+
+  private buildCloudService(): CloudStorageService {
+    const resolved = this.configPresenter.getResolvedCloudSyncConfig()
+    if (!resolved) {
+      throw new Error('sync.error.cloudNotConfigured')
+    }
+    return new CloudStorageService(resolved)
+  }
+
+  private normalizeCloudError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.startsWith('sync.error.')) {
+      return message
+    }
+    return message || 'sync.error.cloudOperationFailed'
+  }
+
+  public async testCloudConnection(): Promise<CloudSyncResult> {
+    try {
+      const service = this.buildCloudService()
+      await service.testConnection()
+      return { success: true, message: 'sync.success.cloudConnected' }
+    } catch (error) {
+      console.error('Cloud connection test failed:', error)
+      return { success: false, message: this.normalizeCloudError(error) }
+    }
+  }
+
+  public async uploadLatestBackupToCloud(): Promise<CloudSyncResult> {
+    try {
+      const service = this.buildCloudService()
+      const backups = (await this.listBackups()).filter(({ fileName }) =>
+        BACKUP_FILE_NAME_REGEX.test(fileName)
+      )
+      if (backups.length === 0) {
+        return { success: false, message: 'sync.error.noLocalBackup' }
+      }
+      const { path: syncFolderPath } = await this.checkSyncFolder()
+      const backupsDir = this.getBackupsDirectory(syncFolderPath)
+
+      for (const backup of backups) {
+        const localPath = path.join(backupsDir, backup.fileName)
+        if (!fs.existsSync(localPath)) {
+          continue
+        }
+        try {
+          this.validateBackupArchive(localPath)
+        } catch (error) {
+          console.warn('Skipping invalid local backup during cloud upload:', backup.fileName, error)
+          continue
+        }
+        await service.uploadBackup(localPath, backup.fileName)
+        return { success: true, message: 'sync.success.cloudUploaded', fileName: backup.fileName }
+      }
+
+      return { success: false, message: 'sync.error.noLocalBackup' }
+    } catch (error) {
+      console.error('Cloud upload failed:', error)
+      return { success: false, message: this.normalizeCloudError(error) }
+    }
+  }
+
+  public async pullLatestBackupFromCloud(
+    importMode: ImportMode = ImportMode.INCREMENT
+  ): Promise<CloudSyncResult> {
+    try {
+      const service = this.buildCloudService()
+      const { path: syncFolderPath } = await this.checkSyncFolder()
+      const backupsDir = this.getBackupsDirectory(syncFolderPath)
+      const fileName = await service.downloadLatest(backupsDir)
+      if (!fileName) {
+        return { success: false, message: 'sync.error.cloudNoBackup' }
+      }
+      const result = await this.importFromSync(fileName, importMode)
+      return { ...result, fileName }
+    } catch (error) {
+      console.error('Cloud pull failed:', error)
+      return { success: false, message: this.normalizeCloudError(error) }
+    }
   }
 
   public async listBackups(): Promise<SyncBackupInfo[]> {
@@ -661,6 +749,9 @@ export class SyncPresenter implements ISyncPresenter {
         if (MIGRATED_APP_SETTINGS_KEYS.has(key)) {
           return false
         }
+        if ((CLOUD_SYNC_APP_SETTINGS_KEYS as readonly string[]).includes(key)) {
+          return false
+        }
         if (key.startsWith('model_status_') || key.startsWith('custom_models_')) {
           return false
         }
@@ -781,6 +872,46 @@ export class SyncPresenter implements ISyncPresenter {
     }
   }
 
+  private validateBackupArchive(backupZipPath: string): void {
+    const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-validate-${Date.now()}`)
+    fs.mkdirSync(extractionDir, { recursive: true })
+
+    try {
+      this.extractBackupArchive(backupZipPath, extractionDir)
+      const configImportService = this.createConfigImportService()
+      const manifest = configImportService.readManifest(extractionDir)
+      const backupVersion = this.resolveBackupVersion(manifest)
+      const usesSqliteConfigStorage = backupVersion >= 2 && manifest?.configStorage === 'sqlite'
+      const backupDbSource = this.resolveBackupDbSource(extractionDir)
+      const backupAppSettingsPath = path.join(extractionDir, ZIP_PATHS.appSettings)
+
+      if (!backupDbSource || !fs.existsSync(backupAppSettingsPath)) {
+        throw new Error('sync.error.noValidBackup')
+      }
+      if (usesSqliteConfigStorage && backupDbSource.type !== 'agent') {
+        throw new Error('sync.error.noValidBackup')
+      }
+    } finally {
+      this.removeDirectory(extractionDir)
+    }
+  }
+
+  private readSettingsFile(filePath: string): Record<string, unknown> | null {
+    if (!fs.existsSync(filePath)) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('sync.error.importFailed')
+      }
+      return parsed as Record<string, unknown>
+    } catch (error) {
+      console.error('Failed to read settings file for cloud config preservation:', error)
+      throw new Error('sync.error.importFailed')
+    }
+  }
+
   private mergeAppSettingsPreservingSync(backupPath: string, targetPath: string): void {
     if (!fs.existsSync(backupPath)) {
       return
@@ -810,6 +941,15 @@ export class SyncPresenter implements ISyncPresenter {
     preservedSettings.syncEnabled = this.configPresenter.getSyncEnabled()
     preservedSettings.syncFolderPath = this.configPresenter.getSyncFolderPath()
     preservedSettings.lastSyncTime = this.configPresenter.getLastSyncTime()
+
+    // Keep the local machine's cloud credentials — a backup never carries them (see
+    // CLOUD_SYNC_APP_SETTINGS_KEYS), so read them back from the current target file before overwrite.
+    const localSettings = this.readSettingsFile(targetPath)
+    for (const key of CLOUD_SYNC_APP_SETTINGS_KEYS) {
+      if (localSettings && key in localSettings) {
+        preservedSettings[key] = localSettings[key]
+      }
+    }
 
     const sanitizedBackupSettings = this.removeMigratedAppSettings(backupSettings)
     const mergedSettings = {

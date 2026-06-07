@@ -191,6 +191,11 @@ import {
   syncListBackupsRoute,
   syncOpenFolderRoute,
   syncStartBackupRoute,
+  syncGetCloudConfigRoute,
+  syncSetCloudConfigRoute,
+  syncTestCloudRoute,
+  syncUploadToCloudRoute,
+  syncPullFromCloudRoute,
   systemOpenSettingsRoute,
   tabCaptureCurrentAreaRoute,
   tabNotifyRendererActivatedRoute,
@@ -2533,6 +2538,64 @@ export async function dispatchDeepchatRoute(
       syncOpenFolderRoute.input.parse(rawInput)
       await runtime.syncPresenter.openSyncFolder()
       return syncOpenFolderRoute.output.parse({ opened: true })
+    }
+
+    case syncGetCloudConfigRoute.name: {
+      syncGetCloudConfigRoute.input.parse(rawInput)
+      const config = runtime.configPresenter.getCloudSyncConfig()
+      return syncGetCloudConfigRoute.output.parse({ config })
+    }
+
+    case syncSetCloudConfigRoute.name: {
+      const input = syncSetCloudConfigRoute.input.parse(rawInput)
+      const config = runtime.configPresenter.setCloudSyncConfig(input.config)
+      return syncSetCloudConfigRoute.output.parse({ config })
+    }
+
+    case syncTestCloudRoute.name: {
+      syncTestCloudRoute.input.parse(rawInput)
+      const result = await runtime.syncPresenter.testCloudConnection()
+      return syncTestCloudRoute.output.parse({ result })
+    }
+
+    case syncUploadToCloudRoute.name: {
+      syncUploadToCloudRoute.input.parse(rawInput)
+      const result = await runtime.syncPresenter.uploadLatestBackupToCloud()
+      if (result?.success) {
+        recordSettingsActivity(runtime, {
+          category: 'data',
+          action: 'backup_created',
+          targetType: 'backup',
+          targetId: result.fileName ?? 'cloud',
+          targetLabel: result.fileName ?? 'cloud',
+          routeName: 'settings-database',
+          summaryKey: 'settings.controlCenter.activity.backupCreated',
+          summaryParams: {
+            name: result.fileName ?? ''
+          }
+        })
+      }
+      return syncUploadToCloudRoute.output.parse({ result })
+    }
+
+    case syncPullFromCloudRoute.name: {
+      const input = syncPullFromCloudRoute.input.parse(rawInput)
+      const result = await runtime.syncPresenter.pullLatestBackupFromCloud(input.mode)
+      if (result?.success) {
+        recordSettingsActivity(runtime, {
+          category: 'data',
+          action: 'imported',
+          targetType: 'backup',
+          targetId: result.fileName ?? 'cloud',
+          targetLabel: result.fileName ?? 'cloud',
+          routeName: 'settings-database',
+          summaryKey: 'settings.controlCenter.activity.backupImported',
+          summaryParams: {
+            name: result.fileName ?? ''
+          }
+        })
+      }
+      return syncPullFromCloudRoute.output.parse({ result })
     }
 
     case upgradeGetStatusRoute.name: {

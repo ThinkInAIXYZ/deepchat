@@ -264,7 +264,12 @@ import {
   syncImportRoute,
   syncListBackupsRoute,
   syncOpenFolderRoute,
-  syncStartBackupRoute
+  syncStartBackupRoute,
+  syncGetCloudConfigRoute,
+  syncSetCloudConfigRoute,
+  syncTestCloudRoute,
+  syncUploadToCloudRoute,
+  syncPullFromCloudRoute
 } from './routes/sync.routes'
 import { systemOpenSettingsRoute } from './routes/system.routes'
 import { toolsListDefinitionsRoute } from './routes/tools.routes'
@@ -586,6 +591,11 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [syncStartBackupRoute.name]: syncStartBackupRoute,
   [syncImportRoute.name]: syncImportRoute,
   [syncOpenFolderRoute.name]: syncOpenFolderRoute,
+  [syncGetCloudConfigRoute.name]: syncGetCloudConfigRoute,
+  [syncSetCloudConfigRoute.name]: syncSetCloudConfigRoute,
+  [syncTestCloudRoute.name]: syncTestCloudRoute,
+  [syncUploadToCloudRoute.name]: syncUploadToCloudRoute,
+  [syncPullFromCloudRoute.name]: syncPullFromCloudRoute,
   [upgradeGetStatusRoute.name]: upgradeGetStatusRoute,
   [upgradeCheckRoute.name]: upgradeCheckRoute,
   [upgradeOpenDownloadRoute.name]: upgradeOpenDownloadRoute,

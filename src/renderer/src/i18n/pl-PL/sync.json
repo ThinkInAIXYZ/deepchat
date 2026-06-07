@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "Pomyślnie zaimportowano konwersacje {count}."
+    "importComplete": "Pomyślnie zaimportowano konwersacje {count}.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "Synchronizacja nie jest włączona",
@@ -15,6 +18,12 @@
     "importProcess": "Wystąpił błąd podczas procesu importowania",
     "unknown": "Nieznany błąd",
     "encryptedBackupPasswordMissing": "Ta kopia zapasowa jest zaszyfrowana, ale klucz lokalnej bazy danych nie jest dostępny. Najpierw odblokuj zaszyfrowaną bazę danych, a następnie zaimportuj ją ponownie.",
-    "overwriteEncryptionMismatch": "Import nadpisujący wymaga, aby kopia zapasowa i bieżąca baza danych korzystały z tego samego stanu szyfrowania."
+    "overwriteEncryptionMismatch": "Import nadpisujący wymaga, aby kopia zapasowa i bieżąca baza danych korzystały z tego samego stanu szyfrowania.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }

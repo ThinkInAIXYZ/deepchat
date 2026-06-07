@@ -385,6 +385,28 @@
       "disableDialogDescription": "현재 암호화된 데이터베이스를 로컬 평문 데이터베이스로 되돌립니다.",
       "cancelButton": "취소",
       "unknown": "알 수 없음"
+    },
+    "cloudSync": {
+      "title": "Cloud Sync (S3-compatible)",
+      "description": "Upload backups to S3-compatible storage such as Cloudflare R2, and pull the latest backup on another device.",
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "region": "Region",
+      "prefix": "Path Prefix",
+      "accessKeyId": "Access Key ID",
+      "secretAccessKey": "Secret Access Key",
+      "secretConfigured": "Configured (leave blank to keep)",
+      "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key.",
+      "save": "Save",
+      "test": "Test Connection",
+      "upload": "Upload to Cloud",
+      "pull": "Pull Latest from Cloud",
+      "savedTitle": "Cloud config saved",
+      "testSuccessTitle": "Connection succeeded",
+      "testFailedTitle": "Connection failed",
+      "uploadSuccessTitle": "Upload succeeded",
+      "uploadFailedTitle": "Upload failed",
+      "pullSuccessTitle": "Pull succeeded"
     }
   },
   "dashboard": {

@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "יובאו בהצלחה {count} שיחות."
+    "importComplete": "יובאו בהצלחה {count} שיחות.",
+    "cloudConnected": "החיבור לענן הצליח",
+    "cloudUploaded": "הועלה לענן",
+    "cloudPulled": "הגיבוי האחרון נמשך מהענן"
   },
   "error": {
     "notEnabled": "הסנכרון אינו מופעל",
@@ -15,6 +18,12 @@
     "importProcess": "אירעה שגיאה במהלך תהליך הייבוא",
     "unknown": "שגיאה לא ידועה",
     "encryptedBackupPasswordMissing": "הגיבוי הזה מוצפן, אך מפתח מסד הנתונים המקומי אינו זמין. פתח תחילה את מסד הנתונים המוצפן ולאחר מכן יבא שוב.",
-    "overwriteEncryptionMismatch": "ייבוא בדריסת נתונים דורש שלגיבוי ולמסד הנתונים הנוכחי יהיה אותו מצב הצפנה."
+    "overwriteEncryptionMismatch": "ייבוא בדריסת נתונים דורש שלגיבוי ולמסד הנתונים הנוכחי יהיה אותו מצב הצפנה.",
+    "cloudNotConfigured": "הענן אינו מוגדר. מלא ושמור תחילה את חיבור הענן.",
+    "cloudNoBackup": "אין גיבוי זמין בדלי הענן",
+    "cloudDownloadFailed": "נכשל בהורדת הגיבוי מהענן",
+    "cloudOperationFailed": "פעולת הענן נכשלה",
+    "noLocalBackup": "אין גיבוי מקומי להעלאה. הפעל גיבוי תחילה.",
+    "safeStorageUnavailable": "מחזיק המפתחות של המערכת אינו זמין; לא ניתן לאחסן את המפתח הסודי באופן מאובטח"
   }
 }

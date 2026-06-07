@@ -652,6 +652,11 @@ export interface IConfigPresenter {
   setSyncFolderPath(folderPath: string): void
   getLastSyncTime(): number
   setLastSyncTime(time: number): void
+  // Cloud sync (S3-compatible) settings
+  getCloudSyncConfig(): CloudSyncConfigView
+  setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView
+  getResolvedCloudSyncConfig(): ResolvedCloudSyncConfig | null
+  isCloudSafeStorageAvailable(): boolean
   // Hooks & notifications settings
   getHooksNotificationsConfig(): HooksNotificationsSettings
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings
@@ -2027,9 +2032,54 @@ export interface ISyncPresenter {
   checkSyncFolder(): Promise<{ exists: boolean; path: string }>
   openSyncFolder(): Promise<void>
 
+  // Cloud sync (S3-compatible) operations
+  testCloudConnection(config?: CloudSyncConfigInput): Promise<CloudSyncResult>
+  uploadLatestBackupToCloud(): Promise<CloudSyncResult>
+  pullLatestBackupFromCloud(importMode?: ImportMode): Promise<CloudSyncResult>
+
   // Initialization and destruction
   init(): void
   destroy(): void
+}
+
+/** Non-sensitive cloud sync config persisted in app settings (secret stored separately). */
+export interface CloudSyncConfigBase {
+  enabled: boolean
+  endpoint: string
+  bucket: string
+  region: string
+  prefix: string
+  accessKeyId: string
+}
+
+/** Config view sent to the renderer — never includes the secret in plaintext. */
+export interface CloudSyncConfigView extends CloudSyncConfigBase {
+  hasSecret: boolean
+  safeStorageAvailable: boolean
+}
+
+/** Config written from the renderer. `secretAccessKey` omitted = keep existing secret. */
+export interface CloudSyncConfigInput extends Partial<CloudSyncConfigBase> {
+  secretAccessKey?: string
+}
+
+/** Fully resolved runtime config; `enabled` is UI-only and omitted from S3 operations. */
+export interface ResolvedCloudSyncConfig {
+  endpoint: string
+  bucket: string
+  region: string
+  prefix: string
+  accessKeyId: string
+  secretAccessKey: string
+}
+
+export interface CloudSyncResult {
+  success: boolean
+  message: string
+  fileName?: string
+  count?: number
+  sourceDbType?: 'agent' | 'chat'
+  importedSessions?: number
 }
 
 export interface SyncBackupInfo {

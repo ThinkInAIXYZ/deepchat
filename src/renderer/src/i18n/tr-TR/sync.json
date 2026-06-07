@@ -1,6 +1,9 @@
 {
   "success": {
-    "importComplete": "{count} konuşma(lar)ı başarıyla içe aktarıldı."
+    "importComplete": "{count} konuşma(lar)ı başarıyla içe aktarıldı.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "Senkronizasyon etkin değil",
@@ -15,6 +18,12 @@
     "importProcess": "İçe aktarma işlemi sırasında bir hata oluştu",
     "unknown": "Bilinmeyen hata",
     "encryptedBackupPasswordMissing": "Bu yedekleme şifrelenmiştir ancak yerel veritabanı anahtarı mevcut değildir. Önce şifrelenmiş veritabanının kilidini açın, ardından tekrar içe aktarın.",
-    "overwriteEncryptionMismatch": "Üzerine yazma içe aktarma, yedek ve geçerli veritabanının aynı şifreleme durumunu kullanmasını gerektirir."
+    "overwriteEncryptionMismatch": "Üzerine yazma içe aktarma, yedek ve geçerli veritabanının aynı şifreleme durumunu kullanmasını gerektirir.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
   }
 }

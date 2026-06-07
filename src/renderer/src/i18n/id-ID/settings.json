@@ -448,6 +448,28 @@
         "mistral": "Mistral AI"
       },
       "applyFailed": "Impor gagal: {message}"
+    },
+    "cloudSync": {
+      "title": "Sinkronisasi Cloud (kompatibel S3)",
+      "description": "Unggah cadangan ke penyimpanan yang kompatibel dengan S3 seperti Cloudflare R2, lalu tarik cadangan terbaru di perangkat lain.",
+      "endpoint": "Titik Akhir",
+      "bucket": "Bucket",
+      "region": "Wilayah",
+      "prefix": "Prefiks Jalur",
+      "accessKeyId": "ID Kunci Akses",
+      "secretAccessKey": "Kunci Akses Rahasia",
+      "secretConfigured": "Terkonfigurasi (biarkan kosong untuk mempertahankan)",
+      "safeStorageUnavailable": "Keychain sistem tidak tersedia; kunci rahasia tidak dapat disimpan dengan aman.",
+      "save": "Simpan",
+      "test": "Uji Koneksi",
+      "upload": "Unggah ke Cloud",
+      "pull": "Tarik Terbaru dari Cloud",
+      "savedTitle": "Konfigurasi cloud disimpan",
+      "testSuccessTitle": "Koneksi berhasil",
+      "testFailedTitle": "Koneksi gagal",
+      "uploadSuccessTitle": "Unggah berhasil",
+      "uploadFailedTitle": "Unggah gagal",
+      "pullSuccessTitle": "Tarik berhasil"
     }
   },
   "dashboard": {

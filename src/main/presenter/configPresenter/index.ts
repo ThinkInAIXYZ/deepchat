@@ -19,6 +19,11 @@ import {
   AcpResolvedLaunchSpec,
   ProviderDbRefreshResult
 } from '@shared/presenter'
+import type {
+  CloudSyncConfigView,
+  CloudSyncConfigInput,
+  ResolvedCloudSyncConfig
+} from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
 import {
@@ -38,7 +43,7 @@ import {
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
-import { app, nativeTheme, shell } from 'electron'
+import { app, nativeTheme, shell, safeStorage } from 'electron'
 import fs from 'fs'
 import {
   CONFIG_EVENTS,
@@ -1873,6 +1878,141 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set last sync time
   setLastSyncTime(time: number): void {
     this.setSetting('lastSyncTime', time)
+  }
+
+  // === Cloud sync (S3-compatible) settings ===
+  // Non-sensitive fields live in app-settings; the secret is encrypted via safeStorage.
+  private readonly CLOUD_SYNC_BASE_KEY = 'cloudSyncConfig'
+  private readonly CLOUD_SYNC_SECRET_KEY = 'cloudSyncSecret'
+
+  isCloudSafeStorageAvailable(): boolean {
+    try {
+      return safeStorage.isEncryptionAvailable()
+    } catch {
+      return false
+    }
+  }
+
+  private getCloudSyncBase(): {
+    enabled: boolean
+    endpoint: string
+    bucket: string
+    region: string
+    prefix: string
+    accessKeyId: string
+  } {
+    const stored = this.getSetting<{
+      enabled?: boolean
+      endpoint?: string
+      bucket?: string
+      region?: string
+      prefix?: string
+      accessKeyId?: string
+    }>(this.CLOUD_SYNC_BASE_KEY)
+    return {
+      enabled: stored?.enabled ?? false,
+      endpoint: stored?.endpoint ?? '',
+      bucket: stored?.bucket ?? '',
+      region: stored?.region ?? 'auto',
+      prefix: stored?.prefix ?? 'deepchat-backups',
+      accessKeyId: stored?.accessKeyId ?? ''
+    }
+  }
+
+  private getCloudSyncSecret(): string {
+    const wrapped = this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)
+    if (!wrapped) {
+      return ''
+    }
+    try {
+      return safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
+    } catch (error) {
+      console.error('[Config] Failed to decrypt cloud sync secret:', error)
+      return ''
+    }
+  }
+
+  getCloudSyncConfig(): CloudSyncConfigView {
+    const base = this.getCloudSyncBase()
+    return {
+      ...base,
+      hasSecret: Boolean(this.getCloudSyncSecret()),
+      safeStorageAvailable: this.isCloudSafeStorageAvailable()
+    }
+  }
+
+  private setCloudSyncSetting<T>(key: string, value: T): void {
+    this.getSettingsStoreForKey(key).set(key, value)
+    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
+  }
+
+  private deleteCloudSyncSetting(key: string): void {
+    this.getSettingsStoreForKey(key).delete(key)
+    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
+  }
+
+  setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView {
+    const current = this.getCloudSyncBase()
+    const next = {
+      enabled: config.enabled ?? current.enabled,
+      endpoint: config.endpoint ?? current.endpoint,
+      bucket: config.bucket ?? current.bucket,
+      region: config.region ?? current.region,
+      prefix: config.prefix ?? current.prefix,
+      accessKeyId: config.accessKeyId ?? current.accessKeyId
+    }
+
+    // Only update the secret when a non-empty value is provided; empty/undefined keeps the existing one.
+    const currentWrappedSecret = this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)
+    let nextWrappedSecret: string | undefined
+    if (typeof config.secretAccessKey === 'string' && config.secretAccessKey.length > 0) {
+      if (!this.isCloudSafeStorageAvailable()) {
+        throw new Error('sync.error.safeStorageUnavailable')
+      }
+      nextWrappedSecret = Buffer.from(safeStorage.encryptString(config.secretAccessKey)).toString(
+        'base64'
+      )
+    }
+
+    let secretWritten = false
+    try {
+      if (nextWrappedSecret !== undefined) {
+        this.setCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY, nextWrappedSecret)
+        secretWritten = true
+      }
+      this.setCloudSyncSetting(this.CLOUD_SYNC_BASE_KEY, next)
+    } catch (error) {
+      if (secretWritten) {
+        try {
+          if (currentWrappedSecret) {
+            this.setCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY, currentWrappedSecret)
+          } else {
+            this.deleteCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY)
+          }
+        } catch (rollbackError) {
+          console.error('[Config] Failed to rollback cloud sync secret:', rollbackError)
+        }
+      }
+      throw error
+    }
+
+    return this.getCloudSyncConfig()
+  }
+
+  getResolvedCloudSyncConfig(): ResolvedCloudSyncConfig | null {
+    const base = this.getCloudSyncBase()
+    const secretAccessKey = this.getCloudSyncSecret()
+    if (!base.endpoint || !base.bucket || !base.accessKeyId || !secretAccessKey) {
+      return null
+    }
+    return {
+      endpoint: base.endpoint,
+      bucket: base.bucket,
+      region: base.region,
+      prefix: base.prefix,
+      accessKeyId: base.accessKeyId,
+      secretAccessKey
+    }
   }
 
   // Skills settings
