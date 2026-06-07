@@ -2063,7 +2063,7 @@ export interface CloudSyncConfigInput extends Partial<CloudSyncConfigBase> {
   secretAccessKey?: string
 }
 
-/** Fully resolved config (with decrypted secret) used inside the main process only. */
+/** Fully resolved runtime config; `enabled` is UI-only and omitted from S3 operations. */
 export interface ResolvedCloudSyncConfig {
   endpoint: string
   bucket: string

@@ -10,6 +10,17 @@ const configImportMocks = vi.hoisted(() => ({
   readManifest: vi.fn()
 }))
 
+const cloudStorageMocks = vi.hoisted(() => ({
+  testConnection: vi.fn(),
+  uploadBackup: vi.fn(),
+  listRemoteBackups: vi.fn(),
+  downloadLatest: vi.fn()
+}))
+
+const mainPresenterMocks = vi.hoisted(() => ({
+  broadcastConversationThreadListUpdate: vi.fn()
+}))
+
 vi.mock('better-sqlite3-multiple-ciphers', async () => {
   const fs = await vi.importActual<typeof import('fs')>('fs')
   const path = await vi.importActual<typeof import('path')>('path')
@@ -274,6 +285,14 @@ vi.mock('../../../src/main/presenter/syncPresenter/configImportService', async (
   }
 })
 
+vi.mock('../../../src/main/presenter/syncPresenter/cloudStorageService', () => ({
+  CloudStorageService: vi.fn(() => cloudStorageMocks)
+}))
+
+vi.mock('../../../src/main/presenter/index', () => ({
+  presenter: mainPresenterMocks
+}))
+
 const realFs = await vi.importActual<typeof import('fs')>('fs')
 Object.assign(fsMock, realFs)
 ;(fsMock as any).promises = realFs.promises
@@ -308,6 +327,11 @@ describe('SyncPresenter backup import', () => {
     configImportMocks.importLegacyConfig.mockClear()
     configImportMocks.ensureConfigMigrationMarker.mockClear()
     configImportMocks.readManifest.mockClear()
+    cloudStorageMocks.testConnection.mockReset()
+    cloudStorageMocks.uploadBackup.mockReset()
+    cloudStorageMocks.listRemoteBackups.mockReset()
+    cloudStorageMocks.downloadLatest.mockReset()
+    mainPresenterMocks.broadcastConversationThreadListUpdate.mockReset()
 
     userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-user-'))
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-temp-'))
@@ -347,7 +371,15 @@ describe('SyncPresenter backup import', () => {
       getSyncFolderPath: vi.fn(() => syncDir),
       getSyncEnabled: vi.fn(() => true),
       getLastSyncTime: vi.fn(() => 0),
-      setLastSyncTime: vi.fn()
+      setLastSyncTime: vi.fn(),
+      getResolvedCloudSyncConfig: vi.fn(() => ({
+        endpoint: 'https://r2.example.com',
+        bucket: 'deepchat',
+        region: 'auto',
+        prefix: 'deepchat-backups',
+        accessKeyId: 'access-key',
+        secretAccessKey: 'secret-key'
+      }))
     }
 
     presenter = new SyncPresenter(configPresenter, sqlitePresenter)
@@ -531,6 +563,32 @@ describe('SyncPresenter backup import', () => {
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
   })
 
+  it('skips invalid backup-looking zip files during cloud upload', async () => {
+    const validTimestamp = 1000
+    const invalidTimestamp = 2000
+    const validBackupFile = createBackupArchive(syncDir, validTimestamp, {
+      conversations: [{ id: 'conv-1', title: 'Valid backup' }],
+      appSettings: { theme: 'dark' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+    fs.writeFileSync(path.join(syncDir, `backup-${invalidTimestamp}.zip`), 'not a zip')
+    cloudStorageMocks.uploadBackup.mockResolvedValue(undefined)
+
+    const result = await presenter.uploadLatestBackupToCloud()
+
+    expect(result).toEqual({
+      success: true,
+      message: 'sync.success.cloudUploaded',
+      fileName: validBackupFile
+    })
+    expect(cloudStorageMocks.uploadBackup).toHaveBeenCalledWith(
+      path.join(syncDir, validBackupFile),
+      validBackupFile
+    )
+  })
+
   it('imports v2 sqlite config rows incrementally without overwriting local rows', async () => {
     createLocalState(userDataDir, {
       conversations: [{ id: 'conv-1', title: 'Local conversation' }],
@@ -592,6 +650,41 @@ describe('SyncPresenter backup import', () => {
       { name: 'local-server', config_json: '{"enabled":true}' },
       { name: 'imported-server', config_json: '{"enabled":true}' }
     ])
+  })
+
+  it('rolls back import when local settings cannot be preserved', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: {
+        theme: 'light',
+        cloudSyncConfig: { endpoint: 'https://r2.example.com' },
+        cloudSyncSecret: 'wrapped-secret'
+      },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+    const appSettingsPath = path.join(userDataDir, 'app-settings.json')
+    fs.writeFileSync(appSettingsPath, '{not-json', 'utf-8')
+
+    const backupFile = createBackupArchive(syncDir, Date.now(), {
+      conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+      appSettings: { theme: 'dark' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('sync.error.importFailed')
+    expect(fs.readFileSync(appSettingsPath, 'utf-8')).toBe('{not-json')
+
+    const db = new Database(path.join(userDataDir, 'app_db', 'agent.db'))
+    const rows = db.prepare('SELECT id, title FROM conversations ORDER BY id').all()
+    db.close()
+    expect(rows).toEqual([{ id: 'conv-1', title: 'Local conversation' }])
   })
 
   it('rejects v2 sqlite backups without agent.db before touching local data', async () => {

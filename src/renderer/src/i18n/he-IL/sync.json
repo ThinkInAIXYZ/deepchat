@@ -1,9 +1,9 @@
 {
   "success": {
     "importComplete": "יובאו בהצלחה {count} שיחות.",
-    "cloudConnected": "Cloud connection succeeded",
-    "cloudUploaded": "Uploaded to cloud",
-    "cloudPulled": "Pulled the latest backup from cloud"
+    "cloudConnected": "החיבור לענן הצליח",
+    "cloudUploaded": "הועלה לענן",
+    "cloudPulled": "הגיבוי האחרון נמשך מהענן"
   },
   "error": {
     "notEnabled": "הסנכרון אינו מופעל",
@@ -19,11 +19,11 @@
     "unknown": "שגיאה לא ידועה",
     "encryptedBackupPasswordMissing": "הגיבוי הזה מוצפן, אך מפתח מסד הנתונים המקומי אינו זמין. פתח תחילה את מסד הנתונים המוצפן ולאחר מכן יבא שוב.",
     "overwriteEncryptionMismatch": "ייבוא בדריסת נתונים דורש שלגיבוי ולמסד הנתונים הנוכחי יהיה אותו מצב הצפנה.",
-    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
-    "cloudNoBackup": "No backup available in the cloud bucket",
-    "cloudDownloadFailed": "Failed to download backup from cloud",
-    "cloudOperationFailed": "Cloud operation failed",
-    "noLocalBackup": "No local backup to upload. Run a backup first.",
-    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
+    "cloudNotConfigured": "הענן אינו מוגדר. מלא ושמור תחילה את חיבור הענן.",
+    "cloudNoBackup": "אין גיבוי זמין בדלי הענן",
+    "cloudDownloadFailed": "נכשל בהורדת הגיבוי מהענן",
+    "cloudOperationFailed": "פעולת הענן נכשלה",
+    "noLocalBackup": "אין גיבוי מקומי להעלאה. הפעל גיבוי תחילה.",
+    "safeStorageUnavailable": "מחזיק המפתחות של המערכת אינו זמין; לא ניתן לאחסן את המפתח הסודי באופן מאובטח"
   }
 }

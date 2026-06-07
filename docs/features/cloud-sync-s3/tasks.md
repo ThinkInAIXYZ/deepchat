@@ -10,6 +10,12 @@
 - [x] `SyncClient.ts` + `stores/sync.ts` 加云方法/状态
 - [x] `DataSettings.vue` 云同步 UI（表单 + 保存/测试/上传/拉取）
 - [x] i18n：zh-CN / en-US 增云键，其余语言英文兜底，`pnpm run i18n` 校验通过
+- [x] PR review：云配置写入失败可感知并回滚 secret
+- [x] PR review：云上传/下载改为流式 IO
+- [x] PR review：上传前校验备份包结构，跳过伪造 zip
+- [x] PR review：导入时本地 settings 读取失败则回滚
+- [x] PR review：云操作 busy guard 补齐
+- [x] PR review：he-IL / id-ID 云同步文案本地化
 - [x] 收尾：`pnpm run typecheck` / `format` / `lint` 全绿
 
 ## 待人工验证（需真实 R2 凭证）

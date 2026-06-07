@@ -140,6 +140,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const testCloud = async () => {
+    if (isCloudBusy.value) return null
     isCloudBusy.value = true
     try {
       return await syncClient.testCloudConnection()

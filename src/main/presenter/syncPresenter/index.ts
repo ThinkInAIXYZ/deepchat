@@ -152,18 +152,31 @@ export class SyncPresenter implements ISyncPresenter {
   public async uploadLatestBackupToCloud(): Promise<CloudSyncResult> {
     try {
       const service = this.buildCloudService()
-      const backups = await this.listBackups()
+      const backups = (await this.listBackups()).filter(({ fileName }) =>
+        BACKUP_FILE_NAME_REGEX.test(fileName)
+      )
       if (backups.length === 0) {
         return { success: false, message: 'sync.error.noLocalBackup' }
       }
-      const latest = backups[0]
       const { path: syncFolderPath } = await this.checkSyncFolder()
-      const localPath = path.join(this.getBackupsDirectory(syncFolderPath), latest.fileName)
-      if (!fs.existsSync(localPath)) {
-        return { success: false, message: 'sync.error.noLocalBackup' }
+      const backupsDir = this.getBackupsDirectory(syncFolderPath)
+
+      for (const backup of backups) {
+        const localPath = path.join(backupsDir, backup.fileName)
+        if (!fs.existsSync(localPath)) {
+          continue
+        }
+        try {
+          this.validateBackupArchive(localPath)
+        } catch (error) {
+          console.warn('Skipping invalid local backup during cloud upload:', backup.fileName, error)
+          continue
+        }
+        await service.uploadBackup(localPath, backup.fileName)
+        return { success: true, message: 'sync.success.cloudUploaded', fileName: backup.fileName }
       }
-      await service.uploadBackup(localPath, latest.fileName)
-      return { success: true, message: 'sync.success.cloudUploaded', fileName: latest.fileName }
+
+      return { success: false, message: 'sync.error.noLocalBackup' }
     } catch (error) {
       console.error('Cloud upload failed:', error)
       return { success: false, message: this.normalizeCloudError(error) }
@@ -859,16 +872,43 @@ export class SyncPresenter implements ISyncPresenter {
     }
   }
 
+  private validateBackupArchive(backupZipPath: string): void {
+    const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-validate-${Date.now()}`)
+    fs.mkdirSync(extractionDir, { recursive: true })
+
+    try {
+      this.extractBackupArchive(backupZipPath, extractionDir)
+      const configImportService = this.createConfigImportService()
+      const manifest = configImportService.readManifest(extractionDir)
+      const backupVersion = this.resolveBackupVersion(manifest)
+      const usesSqliteConfigStorage = backupVersion >= 2 && manifest?.configStorage === 'sqlite'
+      const backupDbSource = this.resolveBackupDbSource(extractionDir)
+      const backupAppSettingsPath = path.join(extractionDir, ZIP_PATHS.appSettings)
+
+      if (!backupDbSource || !fs.existsSync(backupAppSettingsPath)) {
+        throw new Error('sync.error.noValidBackup')
+      }
+      if (usesSqliteConfigStorage && backupDbSource.type !== 'agent') {
+        throw new Error('sync.error.noValidBackup')
+      }
+    } finally {
+      this.removeDirectory(extractionDir)
+    }
+  }
+
   private readSettingsFile(filePath: string): Record<string, unknown> | null {
     if (!fs.existsSync(filePath)) {
       return null
     }
     try {
       const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
-      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('sync.error.importFailed')
+      }
+      return parsed as Record<string, unknown>
     } catch (error) {
-      console.warn('Failed to read settings file for cloud config preservation:', error)
-      return null
+      console.error('Failed to read settings file for cloud config preservation:', error)
+      throw new Error('sync.error.importFailed')
     }
   }
 

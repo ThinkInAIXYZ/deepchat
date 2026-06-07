@@ -1936,9 +1936,19 @@ export class ConfigPresenter implements IConfigPresenter {
     const base = this.getCloudSyncBase()
     return {
       ...base,
-      hasSecret: Boolean(this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)),
+      hasSecret: Boolean(this.getCloudSyncSecret()),
       safeStorageAvailable: this.isCloudSafeStorageAvailable()
     }
+  }
+
+  private setCloudSyncSetting<T>(key: string, value: T): void {
+    this.getSettingsStoreForKey(key).set(key, value)
+    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
+  }
+
+  private deleteCloudSyncSetting(key: string): void {
+    this.getSettingsStoreForKey(key).delete(key)
+    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
   }
 
   setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView {
@@ -1951,17 +1961,39 @@ export class ConfigPresenter implements IConfigPresenter {
       prefix: config.prefix ?? current.prefix,
       accessKeyId: config.accessKeyId ?? current.accessKeyId
     }
-    this.setSetting(this.CLOUD_SYNC_BASE_KEY, next)
 
     // Only update the secret when a non-empty value is provided; empty/undefined keeps the existing one.
+    const currentWrappedSecret = this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)
+    let nextWrappedSecret: string | undefined
     if (typeof config.secretAccessKey === 'string' && config.secretAccessKey.length > 0) {
       if (!this.isCloudSafeStorageAvailable()) {
         throw new Error('sync.error.safeStorageUnavailable')
       }
-      const wrapped = Buffer.from(safeStorage.encryptString(config.secretAccessKey)).toString(
+      nextWrappedSecret = Buffer.from(safeStorage.encryptString(config.secretAccessKey)).toString(
         'base64'
       )
-      this.setSetting(this.CLOUD_SYNC_SECRET_KEY, wrapped)
+    }
+
+    let secretWritten = false
+    try {
+      if (nextWrappedSecret !== undefined) {
+        this.setCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY, nextWrappedSecret)
+        secretWritten = true
+      }
+      this.setCloudSyncSetting(this.CLOUD_SYNC_BASE_KEY, next)
+    } catch (error) {
+      if (secretWritten) {
+        try {
+          if (currentWrappedSecret) {
+            this.setCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY, currentWrappedSecret)
+          } else {
+            this.deleteCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY)
+          }
+        } catch (rollbackError) {
+          console.error('[Config] Failed to rollback cloud sync secret:', rollbackError)
+        }
+      }
+      throw error
     }
 
     return this.getCloudSyncConfig()

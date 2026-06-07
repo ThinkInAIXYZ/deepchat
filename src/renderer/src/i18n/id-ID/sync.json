@@ -1,9 +1,9 @@
 {
   "success": {
     "importComplete": "Berhasil mengimpor percakapan {count}",
-    "cloudConnected": "Cloud connection succeeded",
-    "cloudUploaded": "Uploaded to cloud",
-    "cloudPulled": "Pulled the latest backup from cloud"
+    "cloudConnected": "Koneksi cloud berhasil",
+    "cloudUploaded": "Diunggah ke cloud",
+    "cloudPulled": "Cadangan terbaru ditarik dari cloud"
   },
   "error": {
     "notEnabled": "Sinkronisasi tidak diaktifkan",
@@ -19,11 +19,11 @@
     "unknown": "kesalahan yang tidak diketahui",
     "encryptedBackupPasswordMissing": "Cadangan dienkripsi, namun kunci database lokal tidak tersedia. Harap buka kunci basis data terenkripsi terlebih dahulu lalu impor lagi.",
     "overwriteEncryptionMismatch": "Impor penimpaan mengharuskan database cadangan dan database saat ini berada dalam status enkripsi yang sama.",
-    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
-    "cloudNoBackup": "No backup available in the cloud bucket",
-    "cloudDownloadFailed": "Failed to download backup from cloud",
-    "cloudOperationFailed": "Cloud operation failed",
-    "noLocalBackup": "No local backup to upload. Run a backup first.",
-    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
+    "cloudNotConfigured": "Cloud belum dikonfigurasi. Isi dan simpan koneksi cloud terlebih dahulu.",
+    "cloudNoBackup": "Tidak ada cadangan yang tersedia di bucket cloud",
+    "cloudDownloadFailed": "Gagal mengunduh cadangan dari cloud",
+    "cloudOperationFailed": "Operasi cloud gagal",
+    "noLocalBackup": "Tidak ada cadangan lokal untuk diunggah. Jalankan pencadangan terlebih dahulu.",
+    "safeStorageUnavailable": "Keychain sistem tidak tersedia; kunci rahasia tidak dapat disimpan dengan aman"
   }
 }

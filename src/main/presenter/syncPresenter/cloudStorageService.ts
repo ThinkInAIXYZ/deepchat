@@ -1,5 +1,7 @@
 import fs from 'fs'
 import path from 'path'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
 import {
   S3Client,
   PutObjectCommand,
@@ -68,7 +70,7 @@ export class CloudStorageService {
 
   /** Upload a single local backup zip under the configured prefix. */
   public async uploadBackup(localZipPath: string, fileName: string): Promise<void> {
-    const body = fs.readFileSync(localZipPath)
+    const body = fs.createReadStream(localZipPath)
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -77,6 +79,25 @@ export class CloudStorageService {
         ContentType: 'application/zip'
       })
     )
+  }
+
+  private toReadableStream(body: unknown): NodeJS.ReadableStream {
+    if (body instanceof Readable) {
+      return body
+    }
+
+    if (body && typeof (body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] === 'function') {
+      return Readable.from(body as AsyncIterable<Uint8Array>)
+    }
+
+    const withWebStream = body as { transformToWebStream?: () => unknown }
+    if (typeof withWebStream?.transformToWebStream === 'function') {
+      return Readable.fromWeb(
+        withWebStream.transformToWebStream() as Parameters<typeof Readable.fromWeb>[0]
+      )
+    }
+
+    throw new Error('sync.error.cloudDownloadFailed')
   }
 
   /** List remote `backup-*.zip` objects, newest first. */
@@ -141,10 +162,9 @@ export class CloudStorageService {
       throw new Error('sync.error.cloudDownloadFailed')
     }
 
-    const bytes = await response.Body.transformToByteArray()
     fs.mkdirSync(targetDir, { recursive: true })
     const targetPath = path.join(targetDir, latest.fileName)
-    fs.writeFileSync(targetPath, Buffer.from(bytes))
+    await pipeline(this.toReadableStream(response.Body), fs.createWriteStream(targetPath))
     return latest.fileName
   }
 }

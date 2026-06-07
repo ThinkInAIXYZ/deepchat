@@ -3,7 +3,7 @@
 ## 架构总览
 云能力作为现有备份链路的**叠加层**，不重写本地备份/导入：
 
-```
+```text
 DataSettings.vue ─► sync store ─► SyncClient ─► [route] ─► SyncPresenter ─► CloudStorageService
   保存/测试/上传/拉取                                          │                      │
                                                        ConfigPresenter          R2 / S3 桶
@@ -41,4 +41,7 @@ DataSettings.vue ─► sync store ─► SyncClient ─► [route] ─► SyncP
 ## 边界与决策
 - R2 必须 path-style + `region: 'auto'`。
 - secret 留空 = 不修改既有值；非空才重新加密写入。
+- 配置保存先完成 secret 加密，再写入本地设置；如果第二步失败，回滚已写入的 secret，避免
+  access key 与旧 secret 错配。
+- 云上传只接受结构可导入的 `backup-\d+\.zip`，避免用户放入任意 zip 后被同步到云端。
 - 活动记录复用既有 `backup_created` / `imported` action，不扩 schema（最小改动）。

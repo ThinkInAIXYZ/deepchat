@@ -1154,6 +1154,9 @@ const handleSaveCloud = async () => {
 
 const handleTestCloud = async () => {
   const result = await syncStore.testCloud()
+  if (!result) {
+    return
+  }
   toast({
     title: result.success
       ? t('settings.data.cloudSync.testSuccessTitle')

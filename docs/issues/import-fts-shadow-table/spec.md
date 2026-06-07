@@ -3,7 +3,7 @@
 ## 现象
 增量(increment)导入备份时抛错并回滚：
 
-```
+```text
 Failed to import database: Failed to import table deepchat_search_documents_fts_config:
 table deepchat_search_documents_fts_config may not be modified
 ```
