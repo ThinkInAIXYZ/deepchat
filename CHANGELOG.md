@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.6-beta.1 (2026-06-08)
+- Added S3-compatible cloud backup sync for more flexible cross-device data backup
+- Improved Dify knowledge import compatibility with the latest `retrieval_model` schema
+- Refreshed bundled provider and ACP registry data for current model and agent availability
+- 新增 S3 兼容云备份同步，让跨设备数据备份更灵活
+- 优化 Dify 知识库导入兼容性，适配最新 `retrieval_model` schema
+- 刷新内置 Provider 与 ACP registry 数据，更新模型和 Agent 可用性
+
 ## v1.0.5 (2026-06-05)
 - Added scheduled tasks, agent progress todos, session transfer, session tape memory, and remote `/agent` commands for more persistent agent workflows
 - Added OpenAI-compatible video generation, tool result image previews, remote image delivery, and richer TTS model routing controls
