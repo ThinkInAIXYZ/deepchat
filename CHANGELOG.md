@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.6-beta.2 (2026-06-08)
+- Fixed release CI tooltip module resolution so macOS release builds can complete reliably
+- 修复发布 CI 中 tooltip 模块解析问题，让 macOS 发布构建可稳定完成
+
 ## v1.0.6-beta.1 (2026-06-08)
 - Added S3-compatible cloud backup sync for more flexible cross-device data backup
 - Improved Dify knowledge import compatibility with the latest `retrieval_model` schema
