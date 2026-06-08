@@ -299,8 +299,8 @@ watch(
 )
 
 const handleAuthModeChange = async (value: unknown) => {
-  if (!value || typeof value !== 'string') return
-  authMode.value = value as 'accessKeys' | 'profile'
+  if (value !== 'accessKeys' && value !== 'profile') return
+  authMode.value = value
   const result = await providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
     credential: buildCredential()
   })

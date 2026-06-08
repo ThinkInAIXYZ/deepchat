@@ -1745,12 +1745,12 @@ export class AiSdkProvider extends BaseLLMProvider {
   private async fetchBedrockModels(): Promise<MODEL_META[]> {
     const provider = this.provider as AWS_BEDROCK_PROVIDER
     const credential = provider.credential
-    const region = credential?.region || process.env.BEDROCK_REGION
+    const region = credential?.region || process.env.AWS_REGION
     const useProfile = credential?.authMode === 'profile' && credential?.profile
 
     if (!useProfile) {
-      const accessKeyId = credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
-      const secretAccessKey = credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
+      const accessKeyId = credential?.accessKeyId || process.env.AWS_ACCESS_KEY_ID
+      const secretAccessKey = credential?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY
       if (!accessKeyId || !secretAccessKey || !region) {
         return this.mapConfigDbModels(this.definition.providerDbSourceId).filter((model) =>
           model.id.startsWith('anthropic.')
@@ -1770,8 +1770,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         clientConfig.credentials = fromNodeProviderChain({ profile: credential.profile })
       } else {
         clientConfig.credentials = {
-          accessKeyId: credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID,
-          secretAccessKey: credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
+          accessKeyId: credential?.accessKeyId || process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: credential?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY
         }
       }
       const client = new BedrockClient(clientConfig as any)
@@ -2222,14 +2222,14 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'bedrock': {
         const provider = this.provider as AWS_BEDROCK_PROVIDER
         const credential = provider.credential
-        const region = credential?.region || process.env.BEDROCK_REGION
+        const region = credential?.region || process.env.AWS_REGION
 
         if (credential?.authMode === 'profile') {
           return credential.profile && region ? null : 'Missing AWS profile name or region'
         }
 
-        const accessKeyId = credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
-        const secretAccessKey = credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
+        const accessKeyId = credential?.accessKeyId || process.env.AWS_ACCESS_KEY_ID
+        const secretAccessKey = credential?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY
         return accessKeyId && secretAccessKey && region ? null : 'Missing AWS Bedrock credentials'
       }
       case 'none':
