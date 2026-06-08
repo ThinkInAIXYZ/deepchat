@@ -216,24 +216,31 @@ export class DifyKnowledgeServer {
 
     try {
       const url = `${config.endpoint.replace(/\/$/, '')}/datasets/${config.datasetId}/retrieve`
+
+      // Dify 新版 API 把检索配置统一收进了 retrieval_model 对象，且要求：
+      // 1. search_method 为必填项（缺失会导致参数校验失败）；
+      // 2. reranking_enable / score_threshold_enabled 必须是布尔值，旧版传 null 已不再被接受。
+      // 这里默认走 semantic_search 且关闭 rerank —— 不依赖数据集是否配置了 Rerank 模型，
+      // 对任意数据集都可用；阈值过滤维持原有「不过滤」行为，保证检索结果集与改动前一致。
+      const retrievalModel = {
+        search_method: 'semantic_search',
+        reranking_enable: false,
+        top_k: topK,
+        score_threshold_enabled: false,
+        score_threshold: null
+      }
+
       console.log('performDifyKnowledgeSearch request', url, {
         query,
-        retrieval_model: {
-          top_k: topK,
-          score_threshold: scoreThreshold
-        }
+        score_threshold: scoreThreshold,
+        retrieval_model: retrievalModel
       })
 
       const response = await axios.post<DifySearchResponse>(
         url,
         {
           query,
-          retrieval_model: {
-            top_k: topK,
-            score_threshold: scoreThreshold,
-            reranking_enable: null, // 下面这两个字段即使为空也必须要有，否则接口无法请求
-            score_threshold_enabled: null
-          }
+          retrieval_model: retrievalModel
         },
         {
           headers: {
