@@ -132,15 +132,11 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       runtimeKind: 'aws-bedrock',
       behaviorPreset: 'anthropic',
       modelSource: 'bedrock',
-      checkStrategy: 'generate-text',
+      checkStrategy: 'fetch-models',
       credentialStrategy: 'bedrock',
       keyStatusStrategy: 'none',
       routeStrategy: 'none',
       embeddingStrategy: 'none',
-      checkModelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-      checkPrompt: 'Hi',
-      checkTemperature: 0.2,
-      checkMaxTokens: 16,
       providerDbSourceId: 'amazon-bedrock'
     })
   ],
