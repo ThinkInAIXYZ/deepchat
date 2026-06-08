@@ -133,9 +133,11 @@ export interface KeyStatus {
 }
 
 export interface AwsBedrockCredential {
+  authMode?: 'accessKeys' | 'profile'
   accessKeyId: string
   secretAccessKey: string
   region?: string
+  profile?: string
 }
 
 export type AWS_BEDROCK_PROVIDER = LLM_PROVIDER & {

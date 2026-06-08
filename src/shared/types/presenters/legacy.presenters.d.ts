@@ -1195,9 +1195,11 @@ export type VERTEX_PROVIDER = LLM_PROVIDER & {
 }
 
 export interface AwsBedrockCredential {
+  authMode?: 'accessKeys' | 'profile'
   accessKeyId: string
   secretAccessKey: string
   region?: string
+  profile?: string
 }
 
 export interface ILlmProviderPresenter {

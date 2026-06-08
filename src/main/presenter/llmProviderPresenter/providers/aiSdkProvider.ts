@@ -2208,10 +2208,15 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
       case 'bedrock': {
         const provider = this.provider as AWS_BEDROCK_PROVIDER
-        const accessKeyId = provider.credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
-        const secretAccessKey =
-          provider.credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
-        const region = provider.credential?.region || process.env.BEDROCK_REGION
+        const credential = provider.credential
+        const region = credential?.region || process.env.BEDROCK_REGION
+
+        if (credential?.authMode === 'profile') {
+          return credential.profile && region ? null : 'Missing AWS profile name or region'
+        }
+
+        const accessKeyId = credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
+        const secretAccessKey = credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
         return accessKeyId && secretAccessKey && region ? null : 'Missing AWS Bedrock credentials'
       }
       case 'none':

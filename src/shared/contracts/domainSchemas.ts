@@ -100,9 +100,11 @@ export const LlmProviderSchema = z
       .optional(),
     credential: z
       .object({
+        authMode: z.enum(['accessKeys', 'profile']).optional(),
         accessKeyId: z.string(),
         secretAccessKey: z.string(),
-        region: z.string().optional()
+        region: z.string().optional(),
+        profile: z.string().optional()
       })
       .optional(),
     projectId: z.string().optional(),
