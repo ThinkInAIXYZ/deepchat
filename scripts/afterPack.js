@@ -87,7 +87,9 @@ async function copyFffNativePackages(context) {
   const fffNodeDir = path.join(nodeModulesDir, '@ff-labs', 'fff-node')
 
   if (!(await pathExists(fffNodeDir))) {
-    return
+    throw new Error(
+      `Missing unpacked @ff-labs/fff-node at ${fffNodeDir}. Check electron-builder asarUnpack configuration.`
+    )
   }
 
   const projectDir = packager?.projectDir ?? process.cwd()

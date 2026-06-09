@@ -110,4 +110,33 @@ describe('afterPack', () => {
       )
     ).resolves.toBe('native')
   })
+
+  it('fails fast when FFF node output is missing for supported packages', async () => {
+    const afterPack = await loadAfterPack()
+    const expectedFffNodeDir = path.join(
+      tmpDir,
+      'DeepChat.app',
+      'Contents',
+      'Resources',
+      'app.asar.unpacked',
+      'node_modules',
+      '@ff-labs',
+      'fff-node'
+    )
+
+    await expect(
+      afterPack({
+        targets: [],
+        appOutDir: tmpDir,
+        electronPlatformName: 'darwin',
+        arch: 3,
+        packager: {
+          projectDir: path.join(tmpDir, 'project'),
+          appInfo: {
+            productFilename: 'DeepChat'
+          }
+        }
+      })
+    ).rejects.toThrow(`Missing unpacked @ff-labs/fff-node at ${expectedFffNodeDir}`)
+  })
 })
