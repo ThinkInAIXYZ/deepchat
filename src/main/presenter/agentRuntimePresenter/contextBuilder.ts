@@ -882,7 +882,10 @@ function selectTurnHistory(
   }
 
   const flattened = flattenTurns(remainingTurns)
-  if (estimateMessagesTokens(flattened) <= availableTokens) {
+  if (
+    estimateMessagesTokens(flattened) <= availableTokens ||
+    remainingTurns.length <= protectedCount
+  ) {
     return flattened
   }
 

@@ -1029,6 +1029,72 @@ describe('buildResumeContext', () => {
     ])
   })
 
+  it('keeps an oversized protected ask-user resume turn when a small positive budget remains', () => {
+    const oversizedAnswer = `selected option\n${'A'.repeat(400)}`
+    const messages = [
+      makeUserRecord(1, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 2,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          { type: 'content', content: 'Need a choice.', status: 'success', timestamp: Date.now() },
+          {
+            type: 'tool_call',
+            status: 'success',
+            timestamp: Date.now(),
+            tool_call: {
+              id: 'tc-question',
+              name: 'deepchat_question',
+              params: '{"question":"Pick one"}',
+              response: oversizedAnswer
+            }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'success',
+            timestamp: Date.now(),
+            content: '',
+            tool_call: {
+              id: 'tc-question',
+              name: 'deepchat_question',
+              params: '{"question":"Pick one"}'
+            },
+            extra: { needsUserAction: false, answerText: 'selected option' }
+          }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildResumeContext('s1', 'resume-target', 'Sys', 20, 10, store, false, {
+      fallbackProtectedTurnCount: 1
+    })
+
+    expect(result).toEqual([
+      { role: 'system', content: 'Sys' },
+      { role: 'user', content: 'recent user' },
+      {
+        role: 'assistant',
+        content: 'Need a choice.',
+        tool_calls: [
+          {
+            id: 'tc-question',
+            type: 'function',
+            function: { name: 'deepchat_question', arguments: '{"question":"Pick one"}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-question', content: oversizedAnswer }
+    ])
+  })
+
   it('preserves reasoning_content for pending resume targets with resolved tool calls', () => {
     const messages = [
       makeUserRecord(1, 'recent user'),
