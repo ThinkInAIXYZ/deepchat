@@ -1,0 +1,135 @@
+# Agent FFF Node API Search Plan
+
+## Architecture
+
+```mermaid
+flowchart TD
+  M["Agent model"] --> T["DeepChat tool layer"]
+  T --> FF["fff_find_files"]
+  T --> FG["fff_grep"]
+  FF --> S["FffSearchService"]
+  FG --> S
+  W["Workspace file picker"] --> G["FffSearchService.globFiles"]
+  S --> N["@ff-labs/fff-node FileFinder"]
+```
+
+The model never receives FFF binding details and never receives shell-search guidance.
+DeepChat-owned code no longer spawns or injects bundled ripgrep.
+
+## Implementation Steps
+
+1. Add FFF Node dependency.
+   - Add `@ff-labs/fff-node`.
+   - Keep the import isolated behind `FffSearchService` so native load errors become typed
+     `FffSearchUnavailableError` failures.
+
+2. Build `FffSearchService`.
+   - Cache one `FileFinder` per workspace root.
+   - Wait for the initial scan before serving requests.
+   - Support `AbortSignal` during scan waits and before each search call.
+   - Implement:
+     - `findFiles(query, options)` with `fileSearch`
+     - `grep(query, options)` with `grep`
+     - `globFiles(pattern, options)` with `glob`
+   - Normalize output to JSON-safe `{ path, score }` and
+     `{ path, lineNumber, snippet, score }`.
+
+3. Add agent tool handler.
+   - Validate arguments with zod.
+   - Enforce path scope permissions with `AgentFileSystemHandler`.
+   - Return JSON arrays and `source: "fff"` metadata.
+   - Do not catch FFF unavailable errors for fallback.
+
+4. Integrate with `AgentToolManager`.
+   - Register schemas and tool definitions for `fff_find_files` and `fff_grep`.
+   - Route tool calls through `AgentFffSearchHandler`.
+   - Map legacy skill/search names to the FFF tools.
+   - Update read-permission target collection for `pathScope`.
+
+5. Update prompts.
+   - Search order: `fff_find_files -> fff_grep -> read`.
+   - Forbid shell search commands and command generation for code search.
+   - Remove positive recommendations for `rg`, `grep`, `find`, `fd`, and `ls` as search tools.
+
+6. Remove ripgrep fallback and runtime injection.
+   - Delete `FffRipgrepFallback`.
+   - Delete legacy `runRipgrepSearch`.
+   - Remove ripgrep path discovery from `RuntimeHelper`.
+   - Remove ripgrep from bundled PATH construction.
+   - Remove `rg` command replacement from `replaceWithRuntimeCommand`.
+   - Remove `tiny-runtime-injector --type ripgrep` from all runtime install scripts.
+
+7. Move workspace file picker search to FFF.
+   - Replace `RipgrepSearcher.files()` with `FffSearchService.globFiles()`.
+   - Keep default directory exclusions in TypeScript.
+   - Delete `ripgrepSearcher.ts`.
+
+## Prompt Template
+
+```text
+Use structured file search tools for codebase navigation.
+
+Search order:
+1. Call fff_find_files when you need candidate file paths.
+2. Call fff_grep when you need content matches, optionally scoped to candidate paths.
+3. Call read only after search has identified files worth opening.
+
+Do not call shell commands for search. Do not generate rg, grep, find, fd, or ls commands, and do not use exec for code search.
+Return and consume search results as JSON objects with path, lineNumber, snippet, and score fields.
+```
+
+## Testing Plan
+
+- Unit test `FffSearchService`:
+  - file search mapping
+  - grep mapping and context snippets
+  - glob mapping
+  - initial scan timeout
+  - abort during initial scan
+- Unit test `AgentFffSearchHandler`:
+  - JSON output shape
+  - unavailable FFF error without fallback
+  - path scope permission rejection
+  - argument validation
+- Unit test `AgentToolManager`:
+  - tool definitions expose both FFF tools
+  - `fff_find_files` and `fff_grep` return visible JSON and raw metadata
+- Unit test prompt/mapping:
+  - prompt includes FFF search guidance
+  - prompt does not recommend shell search
+  - legacy aliases resolve to FFF tools
+- Unit test workspace search:
+  - uses FFF glob search
+  - preserves default excludes
+- Runtime helper tests:
+  - bundled runtime PATH no longer includes ripgrep
+  - `rg` is not mapped to a bundled runtime command
+
+## Validation Commands
+
+```bash
+pnpm run format
+pnpm run i18n
+pnpm run lint
+pnpm run typecheck
+pnpm exec vitest run --project main \
+  test/main/lib/agentRuntime/fffSearchService.test.ts \
+  test/main/lib/runtimeHelper.test.ts \
+  test/main/presenter/workspacePresenter/fileSearcher.test.ts \
+  test/main/presenter/toolPresenter/agentTools/agentFffSearchHandler.test.ts \
+  test/main/presenter/toolPresenter/agentTools/agentToolManagerFffSearch.test.ts \
+  test/main/presenter/toolPresenter/toolPresenter.test.ts \
+  test/main/presenter/skillPresenter/toolNameMapping.test.ts
+```
+
+Full `pnpm test` should be run when possible, but this branch may inherit unrelated existing test
+failures from the repository.
+
+## Risk Notes
+
+- FFF native loading can fail on unsupported or improperly signed platforms. This is surfaced as a
+  tool error instead of falling back to shell search.
+- FFF warm repeated searches should outperform repeated process-based search. Cold startup can
+  include indexing cost.
+- Removing bundled ripgrep install means any user shell command named `rg` will use the user's own
+  PATH, not a DeepChat-provided binary.

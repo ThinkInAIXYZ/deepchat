@@ -74,8 +74,8 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(['/workspace'])
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'rg -n "todo" src',
-      command: 'rtk run -- rg -n "todo" src',
+      originalCommand: 'node scripts/check.js',
+      command: 'rtk run -- node scripts/check.js',
       env: { PATH: '/bin' },
       rewritten: true,
       rtkApplied: true,
@@ -93,8 +93,8 @@ describe('AgentBashHandler', () => {
       })
 
     const result = await handler.executeCommand({
-      command: 'rg -n "todo" src',
-      description: 'Search todo lines'
+      command: 'node scripts/check.js',
+      description: 'Run project check'
     })
 
     expect(runShellProcess).toHaveBeenCalledTimes(1)

@@ -1,0 +1,68 @@
+# Agent FFF Node API Search Tasks
+
+## Spec And Design
+
+- [x] Create SDD folder under `docs/architecture/agent-fff-node-api-search/`.
+- [x] Define FFF-only search behavior and JSON result shape.
+- [x] Document `fff_find_files` and `fff_grep` tool schemas.
+- [x] Document search order: `fff_find_files -> fff_grep -> read`.
+- [x] Revise design to remove ripgrep fallback and bundled ripgrep injection.
+
+## FFF Service
+
+- [x] Add `@ff-labs/fff-node` dependency.
+- [x] Implement `FffSearchService.findFiles()`.
+- [x] Implement `FffSearchService.grep()`.
+- [x] Implement `FffSearchService.globFiles()` for workspace file picker search.
+- [x] Cache `FileFinder` instances by workspace root.
+- [x] Support abort during initial scan wait and search calls.
+- [x] Return stable JSON-safe fields: `path`, `lineNumber`, `snippet`, `score`.
+
+## Agent Tool Integration
+
+- [x] Add `AgentFffSearchHandler`.
+- [x] Validate tool arguments with zod.
+- [x] Enforce path-scope read permissions.
+- [x] Register `fff_find_files` and `fff_grep` in `AgentToolManager`.
+- [x] Return visible JSON content plus raw `source: "fff"` metadata.
+- [x] Map legacy skill/search names to FFF tool names.
+
+## Prompt Updates
+
+- [x] Add FFF search guidance to agent filesystem prompt.
+- [x] Remove positive `rg`, `grep`, `find`, `fd`, and `ls` search recommendations.
+- [x] Tell the model not to use shell commands for code search.
+- [x] Update default system prompt search guidance.
+
+## Ripgrep Removal
+
+- [x] Delete `FffRipgrepFallback`.
+- [x] Delete `runRipgrepSearch` from the legacy filesystem handler.
+- [x] Remove ripgrep discovery from `RuntimeHelper`.
+- [x] Remove ripgrep from bundled runtime PATH injection.
+- [x] Remove `rg` replacement from `replaceWithRuntimeCommand`.
+- [x] Remove `tiny-runtime-injector --type ripgrep` from runtime install scripts.
+- [x] Delete workspace `ripgrepSearcher.ts`.
+- [x] Replace workspace file search with FFF glob search.
+
+## Tests
+
+- [x] Add FFF service unit tests for file, grep, glob, timeout, and abort behavior.
+- [x] Add FFF handler tests for JSON output, unavailable error, validation, and permissions.
+- [x] Add tool manager tests for `fff_find_files` and `fff_grep`.
+- [x] Add prompt/tool-name mapping tests.
+- [x] Add workspace file search test for FFF glob and default excludes.
+- [x] Update runtime helper tests after ripgrep removal.
+
+## Validation
+
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run `pnpm run typecheck`.
+- [x] Run focused main tests listed in `plan.md`.
+- [x] Run or document full `pnpm test` status: full suite currently fails with existing
+  unrelated failures outside this FFF change.
+- [x] Start a separate review agent.
+- [x] Fix review findings.
+- [ ] Commit, push, and create MR against `dev`.

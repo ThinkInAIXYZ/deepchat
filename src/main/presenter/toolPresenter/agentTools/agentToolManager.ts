@@ -12,6 +12,14 @@ import type { SkillManageResult } from '@shared/types/skill'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
+import {
+  AgentFffSearchHandler,
+  FFF_FIND_FILES_TOOL_NAME,
+  FFF_GREP_TOOL_NAME,
+  FffFindFilesArgsSchema,
+  FffGrepArgsSchema
+} from './agentFffSearchHandler'
+import { FffSearchService, type FffSearchMetadata } from '@/lib/agentRuntime/fffSearchService'
 import { SkillTools } from '../../skillPresenter/skillTools'
 import { SkillExecutionService } from '../../skillPresenter/skillExecutionService'
 import { questionToolSchema, QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
@@ -53,6 +61,7 @@ export interface AgentToolCallResult {
     rtkApplied?: boolean
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
+    fffSearch?: FffSearchMetadata
     imagePreviews?: ToolCallImagePreview[]
     requiresPermission?: boolean
     permissionRequest?: {
@@ -128,6 +137,7 @@ export class AgentToolManager {
   private imageGenerationTool: AgentImageGenerationTool | null = null
   private planTool: AgentPlanTool | null = null
   private tapeToolHandler: AgentTapeToolHandler | null = null
+  private readonly fffSearchService = new FffSearchService()
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
   private readonly fileSystemSchemas = {
@@ -167,6 +177,8 @@ export class AgentToolManager {
       replaceAll: z.boolean().default(true),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
+    [FFF_FIND_FILES_TOOL_NAME]: FffFindFilesArgsSchema,
+    [FFF_GREP_TOOL_NAME]: FffGrepArgsSchema,
     exec: z.object({
       command: z.string().min(1).describe('The shell command to execute'),
       timeoutMs: z
@@ -646,6 +658,42 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
+          name: FFF_FIND_FILES_TOOL_NAME,
+          description:
+            'Search file paths using DeepChat FFF. Use this before content search. Returns JSON Array<{path, score}>.',
+          parameters: zodToJsonSchema(schemas[FFF_FIND_FILES_TOOL_NAME]) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '🔎',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: FFF_GREP_TOOL_NAME,
+          description:
+            'Search file contents using DeepChat FFF. Prefer passing pathScope from fff_find_files. Returns JSON Array<{path, lineNumber, snippet, score}>.',
+          parameters: zodToJsonSchema(schemas[FFF_GREP_TOOL_NAME]) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '🔎',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
           name: 'exec',
           description:
             'Execute a shell command in the current working directory or an explicit cwd. External cwd paths are allowed in Full Access mode; default mode asks for approval. Use background: true when you know the command should detach immediately. Otherwise foreground exec waits briefly, and long-running commands may auto-background and return a session ID for use with the process tool.',
@@ -707,7 +755,15 @@ export class AgentToolManager {
   }
 
   private isFileSystemTool(toolName: string): boolean {
-    const filesystemTools = ['read', 'write', 'edit', 'exec', 'process']
+    const filesystemTools = [
+      'read',
+      'write',
+      'edit',
+      FFF_FIND_FILES_TOOL_NAME,
+      FFF_GREP_TOOL_NAME,
+      'exec',
+      'process'
+    ]
     return filesystemTools.includes(toolName)
   }
 
@@ -1044,6 +1100,62 @@ export class AgentToolManager {
               },
               baseDirectory
             )
+          }
+        }
+        case FFF_FIND_FILES_TOOL_NAME: {
+          await this.assertFileAccessPermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId,
+            'read',
+            allowExternalFileAccess
+          )
+          const fffHandler = new AgentFffSearchHandler({
+            workspaceRoot,
+            allowedDirectories,
+            baseDirectory,
+            conversationId,
+            allowExternalFileAccess,
+            signal: options?.signal,
+            service: this.fffSearchService
+          })
+          const result = await fffHandler.findFiles(parsedArgs)
+          return {
+            content: result.content,
+            rawData: {
+              content: result.content,
+              fffSearch: result.metadata
+            }
+          }
+        }
+        case FFF_GREP_TOOL_NAME: {
+          await this.assertFileAccessPermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId,
+            'read',
+            allowExternalFileAccess
+          )
+          const fffHandler = new AgentFffSearchHandler({
+            workspaceRoot,
+            allowedDirectories,
+            baseDirectory,
+            conversationId,
+            allowExternalFileAccess,
+            signal: options?.signal,
+            service: this.fffSearchService
+          })
+          const result = await fffHandler.grep(parsedArgs)
+          return {
+            content: result.content,
+            rawData: {
+              content: result.content,
+              fffSearch: result.metadata
+            }
           }
         }
         default:
@@ -1576,9 +1688,32 @@ export class AgentToolManager {
         const pathArg = args.path
         return typeof pathArg === 'string' && pathArg.trim().length > 0 ? [pathArg] : []
       }
+      case FFF_FIND_FILES_TOOL_NAME: {
+        const options = args.options
+        if (!options || typeof options !== 'object' || Array.isArray(options)) {
+          return []
+        }
+        return this.collectPathScopeReadTargets((options as Record<string, unknown>).pathScope)
+      }
+      case FFF_GREP_TOOL_NAME:
+        return this.collectPathScopeReadTargets(args.pathScope)
       default:
         return []
     }
+  }
+
+  private collectPathScopeReadTargets(pathScope: unknown): string[] {
+    if (!Array.isArray(pathScope)) {
+      return []
+    }
+
+    return pathScope.filter(
+      (scope): scope is string =>
+        typeof scope === 'string' &&
+        scope.trim().length > 0 &&
+        !/[*?[{]/.test(scope) &&
+        !scope.includes('..')
+    )
   }
 
   private getDefaultAgentWorkspacePath(): string {
@@ -1795,7 +1930,7 @@ export class AgentToolManager {
     conversationId?: string
   } | null> {
     const writeTools = ['write', 'edit']
-    const readTools = ['read']
+    const readTools = ['read', FFF_FIND_FILES_TOOL_NAME, FFF_GREP_TOOL_NAME]
     const allowExternalFileAccess = options.allowExternalFileAccess === true
 
     if (this.isFileSystemTool(toolName)) {

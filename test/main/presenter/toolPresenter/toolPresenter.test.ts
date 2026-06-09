@@ -264,6 +264,8 @@ describe('ToolPresenter', () => {
     )
     expect(defs.some((tool) => tool.function.name === 'read')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'exec')).toBe(false)
+    expect(defs.some((tool) => tool.function.name === 'fff_find_files')).toBe(true)
+    expect(defs.some((tool) => tool.function.name === 'fff_grep')).toBe(true)
     expect(defs.some((tool) => tool.function.name === 'find')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'grep')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
@@ -559,6 +561,14 @@ describe('ToolPresenter', () => {
           source: 'agent'
         },
         {
+          ...buildToolDefinition('fff_find_files', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('fff_grep', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
           ...buildToolDefinition('exec', 'agent-filesystem'),
           source: 'agent'
         },
@@ -569,13 +579,15 @@ describe('ToolPresenter', () => {
       ]
     })
     expect(promptWithoutFocusedTools).toContain(
-      'Use canonical Agent tool names only: read, write, edit, exec, process.'
+      'Use canonical Agent tool names only: read, write, edit, fff_find_files, fff_grep, exec, process.'
     )
     expect(promptWithoutFocusedTools).toContain(
-      'Prefer shell-native discovery and search inside `exec`, such as `rg -n`, `rg --files`, `git status`, and project verification commands.'
+      'Use `fff_find_files` for file discovery and `fff_grep` for content search; both return structured JSON.'
     )
     expect(promptWithoutFocusedTools).toContain(
-      'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'
+      'Recommended file task flow: `fff_find_files` / `fff_grep` -> `read` -> `edit`/`write`.'
     )
+    expect(promptWithoutFocusedTools).not.toContain('rg -n')
+    expect(promptWithoutFocusedTools).not.toContain('rg --files')
   })
 })
