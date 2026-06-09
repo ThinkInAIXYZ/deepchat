@@ -12,6 +12,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'
 import { proxyConfig } from '../../proxyConfig'
 import { createReasoningMiddleware } from './middlewares/reasoningMiddleware'
@@ -640,16 +641,26 @@ export function createAiSdkProviderContext(
 
     case 'aws-bedrock': {
       const bedrockProvider = params.provider as AWS_BEDROCK_PROVIDER
-      const provider = createAmazonBedrock({
+      const credential = bedrockProvider.credential
+      const useProfileAuth = credential?.authMode === 'profile' && credential?.profile
+
+      const bedrockOptions: Record<string, unknown> = {
         apiKey: bedrockProvider.apiKey || undefined,
         baseURL: bedrockProvider.baseUrl || undefined,
-        region: bedrockProvider.credential?.region || process.env.AWS_REGION || 'us-east-1',
-        accessKeyId: bedrockProvider.credential?.accessKeyId || process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey:
-          bedrockProvider.credential?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY,
+        region: credential?.region || process.env.AWS_REGION || 'us-east-1',
         headers: params.defaultHeaders,
         fetch
-      })
+      }
+
+      if (useProfileAuth) {
+        bedrockOptions.credentialProvider = fromNodeProviderChain({ profile: credential.profile })
+      } else {
+        bedrockOptions.accessKeyId = credential?.accessKeyId || process.env.AWS_ACCESS_KEY_ID
+        bedrockOptions.secretAccessKey =
+          credential?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY
+      }
+
+      const provider = createAmazonBedrock(bedrockOptions as any)
 
       return {
         providerOptionsKey: 'bedrock',

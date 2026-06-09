@@ -34,6 +34,7 @@ import {
   VERTEX_PROVIDER
 } from '@shared/presenter'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import {
@@ -1743,25 +1744,37 @@ export class AiSdkProvider extends BaseLLMProvider {
 
   private async fetchBedrockModels(): Promise<MODEL_META[]> {
     const provider = this.provider as AWS_BEDROCK_PROVIDER
-    const accessKeyId = provider.credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
-    const secretAccessKey =
-      provider.credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
-    const region = provider.credential?.region || process.env.BEDROCK_REGION
+    const credential = provider.credential
+    const region = credential?.region || process.env.AWS_REGION
+    const useProfile = credential?.authMode === 'profile' && credential?.profile
 
-    if (!accessKeyId || !secretAccessKey || !region) {
+    if (!useProfile) {
+      const accessKeyId = credential?.accessKeyId || process.env.AWS_ACCESS_KEY_ID
+      const secretAccessKey = credential?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY
+      if (!accessKeyId || !secretAccessKey || !region) {
+        return this.mapConfigDbModels(this.definition.providerDbSourceId).filter((model) =>
+          model.id.startsWith('anthropic.')
+        )
+      }
+    }
+
+    if (!region) {
       return this.mapConfigDbModels(this.definition.providerDbSourceId).filter((model) =>
         model.id.startsWith('anthropic.')
       )
     }
 
     try {
-      const client = new BedrockClient({
-        credentials: {
-          accessKeyId,
-          secretAccessKey
-        },
-        region
-      })
+      const clientConfig: Record<string, unknown> = { region }
+      if (useProfile) {
+        clientConfig.credentials = fromNodeProviderChain({ profile: credential.profile })
+      } else {
+        clientConfig.credentials = {
+          accessKeyId: credential?.accessKeyId || process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: credential?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY
+        }
+      }
+      const client = new BedrockClient(clientConfig as any)
       const response = await client.send(new ListFoundationModelsCommand({}))
       return (
         response.modelSummaries
@@ -2208,10 +2221,15 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
       case 'bedrock': {
         const provider = this.provider as AWS_BEDROCK_PROVIDER
-        const accessKeyId = provider.credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
-        const secretAccessKey =
-          provider.credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
-        const region = provider.credential?.region || process.env.BEDROCK_REGION
+        const credential = provider.credential
+        const region = credential?.region || process.env.AWS_REGION
+
+        if (credential?.authMode === 'profile') {
+          return credential.profile && region ? null : 'Missing AWS profile name or region'
+        }
+
+        const accessKeyId = credential?.accessKeyId || process.env.AWS_ACCESS_KEY_ID
+        const secretAccessKey = credential?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY
         return accessKeyId && secretAccessKey && region ? null : 'Missing AWS Bedrock credentials'
       }
       case 'none':
