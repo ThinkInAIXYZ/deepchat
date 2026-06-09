@@ -109,8 +109,10 @@ type AgentTransferTargetContext = {
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
+const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
 
-const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
+const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'ls'])
+const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
 const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
   yo_browser_cdp_send: 'cdp_send',
   yo_browser_window_open: 'load_url',
@@ -259,6 +261,7 @@ export class AgentSessionPresenter {
   private sessionUiPort?: SessionUiPort
   private usageStatsBackfillPromise: Promise<void> | null = null
   private mainlineNormalizationPromise: Promise<void> | null = null
+  private disabledSearchToolCleanupPromise: Promise<void> | null = null
   private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
 
   constructor(
@@ -1580,6 +1583,30 @@ export class AgentSessionPresenter {
     })
 
     return await this.mainlineNormalizationPromise
+  }
+
+  async startDisabledSearchToolCleanupBackfill(): Promise<void> {
+    const current =
+      this.sqlitePresenter.configTables.getAgentSetting<{
+        status?: 'running' | 'completed' | 'failed'
+        updatedAt?: number
+      }>(DISABLED_SEARCH_TOOL_CLEANUP_KEY) ?? null
+
+    if (current?.status === 'completed') {
+      return
+    }
+
+    if (this.disabledSearchToolCleanupPromise) {
+      return await this.disabledSearchToolCleanupPromise
+    }
+
+    this.disabledSearchToolCleanupPromise = this.runDisabledSearchToolCleanupBackfill().finally(
+      () => {
+        this.disabledSearchToolCleanupPromise = null
+      }
+    )
+
+    return await this.disabledSearchToolCleanupPromise
   }
 
   async startRtkHealthCheck(): Promise<void> {
@@ -3371,6 +3398,99 @@ export class AgentSessionPresenter {
     }
   }
 
+  private async runDisabledSearchToolCleanupBackfill(): Promise<void> {
+    const startedAt = Date.now()
+    this.sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
+      status: 'running',
+      startedAt,
+      finishedAt: null,
+      updatedAt: startedAt
+    })
+
+    try {
+      const db = this.sqlitePresenter.getDatabase()
+      const sessionRows = db.prepare('SELECT id FROM new_sessions ORDER BY updated_at ASC').all() as
+        | Array<{
+            id: string
+          }>
+        | undefined
+
+      let processedCount = 0
+      let updatedCount = 0
+      for (const sessionRow of sessionRows ?? []) {
+        const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
+          sessionRow.id
+        )
+        const normalized = this.normalizeDisabledAgentTools(disabledAgentTools, {
+          dropLegacySearchTools: true
+        })
+
+        if (!this.areStringArraysEqual(disabledAgentTools, normalized)) {
+          this.sessionManager.updateDisabledAgentTools(sessionRow.id, normalized)
+          updatedCount += 1
+        }
+
+        processedCount += 1
+        if (processedCount % 200 === 0) {
+          await this.yieldToEventLoop()
+        }
+      }
+
+      const configUpdatedCount = await this.cleanupDeepChatAgentConfigDisabledTools()
+
+      this.sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
+        status: 'completed',
+        startedAt,
+        finishedAt: Date.now(),
+        updatedAt: Date.now(),
+        processedCount,
+        updatedCount,
+        configUpdatedCount
+      })
+    } catch (error) {
+      this.sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
+        status: 'failed',
+        startedAt,
+        finishedAt: Date.now(),
+        updatedAt: Date.now(),
+        error: error instanceof Error ? error.message : String(error)
+      })
+      throw error
+    }
+  }
+
+  private async cleanupDeepChatAgentConfigDisabledTools(): Promise<number> {
+    const agents = await this.configPresenter.listAgents()
+    let updatedCount = 0
+
+    for (const agent of agents) {
+      if (agent.type !== 'deepchat') {
+        continue
+      }
+
+      const config = await this.configPresenter.getDeepChatAgentConfig(agent.id)
+      if (!config?.disabledAgentTools) {
+        continue
+      }
+
+      const normalized = this.normalizeDisabledAgentTools(config.disabledAgentTools, {
+        dropLegacySearchTools: true
+      })
+      if (this.areStringArraysEqual(config.disabledAgentTools, normalized)) {
+        continue
+      }
+
+      await this.configPresenter.updateDeepChatAgent(agent.id, {
+        config: {
+          disabledAgentTools: normalized
+        }
+      })
+      updatedCount += 1
+    }
+
+    return updatedCount
+  }
+
   private backfillNormalizedMessageRow(row: DeepChatMessageRow): void {
     if (row.role === 'user') {
       const content = this.parseBackfillUserMessageContent(row.content)
@@ -3753,10 +3873,19 @@ export class AgentSessionPresenter {
     return { text, files }
   }
 
-  private normalizeDisabledAgentTools(disabledAgentTools?: string[]): string[] {
+  private normalizeDisabledAgentTools(
+    disabledAgentTools?: string[],
+    options?: {
+      dropLegacySearchTools?: boolean
+    }
+  ): string[] {
     if (!Array.isArray(disabledAgentTools)) {
       return []
     }
+
+    const retiredTools = options?.dropLegacySearchTools
+      ? LEGACY_PERSISTED_DISABLED_AGENT_TOOLS
+      : RETIRED_DEFAULT_AGENT_TOOLS
 
     return Array.from(
       new Set(
@@ -3764,9 +3893,16 @@ export class AgentSessionPresenter {
           .filter((item): item is string => typeof item === 'string')
           .map((item) => item.trim())
           .map((item) => LEGACY_AGENT_TOOL_NAME_MAP[item] ?? item)
-          .filter((item) => Boolean(item) && !RETIRED_DEFAULT_AGENT_TOOLS.has(item))
+          .filter((item) => Boolean(item) && !retiredTools.has(item))
       )
     ).sort((left, right) => left.localeCompare(right))
+  }
+
+  private areStringArraysEqual(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) {
+      return false
+    }
+    return left.every((item, index) => item === right[index])
   }
 
   private normalizeActiveSkills(activeSkills?: string[]): string[] {

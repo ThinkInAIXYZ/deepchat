@@ -4,8 +4,8 @@
 
 - [x] Create SDD folder under `docs/architecture/agent-fff-node-api-search/`.
 - [x] Define FFF-only search behavior and JSON result shape.
-- [x] Document `fff_find_files` and `fff_grep` tool schemas.
-- [x] Document search order: `fff_find_files -> fff_grep -> read`.
+- [x] Document `glob` and `grep` tool schemas.
+- [x] Document search order: `glob -> grep -> read`.
 - [x] Revise design to remove ripgrep fallback and bundled ripgrep injection.
 
 ## FFF Service
@@ -23,14 +23,15 @@
 - [x] Add `AgentFffSearchHandler`.
 - [x] Validate tool arguments with zod.
 - [x] Enforce path-scope read permissions.
-- [x] Register `fff_find_files` and `fff_grep` in `AgentToolManager`.
+- [x] Register `glob` and `grep` in `AgentToolManager`.
 - [x] Return visible JSON content plus raw `source: "fff"` metadata.
 - [x] Map legacy skill/search names to FFF tool names.
+- [x] Clean legacy persisted disabled-tool `grep` values without blocking new `grep` updates.
 
 ## Prompt Updates
 
 - [x] Add FFF search guidance to agent filesystem prompt.
-- [x] Remove positive `rg`, `grep`, `find`, `fd`, and `ls` search recommendations.
+- [x] Remove positive `rg`, shell `grep`, `find`, `fd`, and `ls` search recommendations.
 - [x] Tell the model not to use shell commands for code search.
 - [x] Update default system prompt search guidance.
 
@@ -49,7 +50,7 @@
 
 - [x] Add FFF service unit tests for file, grep, glob, timeout, and abort behavior.
 - [x] Add FFF handler tests for JSON output, unavailable error, validation, and permissions.
-- [x] Add tool manager tests for `fff_find_files` and `fff_grep`.
+- [x] Add tool manager tests for `glob` and `grep`.
 - [x] Add prompt/tool-name mapping tests.
 - [x] Add workspace file search test for FFF glob and default excludes.
 - [x] Update runtime helper tests after ripgrep removal.

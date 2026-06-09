@@ -2,8 +2,8 @@ const CANONICAL_TOOL_NAMES = new Set([
   'read',
   'write',
   'edit',
-  'fff_find_files',
-  'fff_grep',
+  'glob',
+  'grep',
   'ls',
   'exec',
   'process'
@@ -14,25 +14,23 @@ const TOOL_NAME_MAPPING: Record<string, string> = {
   read: 'read',
   write: 'write',
   edit: 'edit',
-  find: 'fff_find_files',
-  grep: 'fff_grep',
-  fff_find_files: 'fff_find_files',
-  fff_grep: 'fff_grep',
+  find: 'glob',
+  glob: 'glob',
+  grep: 'grep',
   ls: 'ls',
   exec: 'exec',
   process: 'process',
 
   // Claude Code common names
   multiedit: 'edit',
-  glob: 'fff_find_files',
   bash: 'exec',
 
   // Legacy DeepChat names
   read_file: 'read',
   write_file: 'write',
   list_directory: 'ls',
-  glob_search: 'fff_find_files',
-  grep_search: 'fff_grep',
+  glob_search: 'glob',
+  grep_search: 'grep',
   edit_file: 'edit',
   execute_command: 'exec'
 }

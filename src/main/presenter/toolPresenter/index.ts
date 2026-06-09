@@ -92,15 +92,7 @@ interface ToolPresenterOptions {
   agentToolRuntime: AgentToolRuntimePort
 }
 
-const FILESYSTEM_TOOL_ORDER = [
-  'read',
-  'write',
-  'edit',
-  'fff_find_files',
-  'fff_grep',
-  'exec',
-  'process'
-]
+const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
@@ -535,15 +527,15 @@ export class ToolPresenter implements IToolPresenter {
         'Use `background: true` when you know a command should detach immediately; otherwise a foreground `exec` may yield a running `sessionId` after `yieldMs`.'
       )
     }
-    if (toolNames.has('fff_find_files') || toolNames.has('fff_grep')) {
+    if (toolNames.has('glob') || toolNames.has('grep')) {
       lines.push(
-        'Use `fff_find_files` for file discovery and `fff_grep` for content search; both return structured JSON.'
+        'Use `glob` for file discovery and `grep` for content search; both return structured JSON.'
       )
       lines.push(
-        'Search order: `fff_find_files(query)` -> choose relevant `pathScope` -> `fff_grep(query, pathScope, contextLines)` -> `read` concrete files.'
+        'Search order: `glob(query)` -> choose relevant `pathScope` -> `grep(query, pathScope, contextLines)` -> `read` concrete files.'
       )
       lines.push(
-        'Do not call shell commands for search, do not generate `rg`, `grep`, `find`, `fd`, or `ls` search commands, and do not use `exec` for code search.'
+        'Do not call shell commands for search, do not generate shell search commands (`rg`, shell `grep`, `find`, `fd`, or `ls`), and do not use `exec` for code search.'
       )
     }
     if (toolNames.has('read')) {
@@ -552,14 +544,12 @@ export class ToolPresenter implements IToolPresenter {
       )
     }
     if (
-      toolNames.has('fff_find_files') &&
-      toolNames.has('fff_grep') &&
+      toolNames.has('glob') &&
+      toolNames.has('grep') &&
       toolNames.has('read') &&
       toolNames.has('edit')
     ) {
-      lines.push(
-        'Recommended file task flow: `fff_find_files` / `fff_grep` -> `read` -> `edit`/`write`.'
-      )
+      lines.push('Recommended file task flow: `glob` / `grep` -> `read` -> `edit`/`write`.')
     }
     if (toolNames.has('process')) {
       lines.push(

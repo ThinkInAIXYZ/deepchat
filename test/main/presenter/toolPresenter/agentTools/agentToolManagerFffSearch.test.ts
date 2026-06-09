@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
 import {
-  FFF_FIND_FILES_TOOL_NAME,
-  FFF_GREP_TOOL_NAME
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME
 } from '@/presenter/toolPresenter/agentTools/agentFffSearchHandler'
 
 const fffMock = vi.hoisted(() => ({
@@ -131,7 +131,7 @@ describe('AgentToolManager FFF search tools', () => {
     fffMock.create.mockReset().mockReturnValue({ ok: true, value: fffMock.finder })
   })
 
-  it('exposes and executes fff_find_files through the agent filesystem path', async () => {
+  it('exposes and executes glob through the agent filesystem path', async () => {
     const manager = new AgentToolManager({
       agentWorkspacePath: '/workspace',
       configPresenter: {
@@ -147,10 +147,10 @@ describe('AgentToolManager FFF search tools', () => {
       agentWorkspacePath: '/workspace'
     })
     expect(defs.map((def) => def.function.name)).toEqual(
-      expect.arrayContaining([FFF_FIND_FILES_TOOL_NAME, FFF_GREP_TOOL_NAME])
+      expect.arrayContaining([GLOB_TOOL_NAME, GREP_TOOL_NAME])
     )
 
-    const result = (await manager.callTool(FFF_FIND_FILES_TOOL_NAME, {
+    const result = (await manager.callTool(GLOB_TOOL_NAME, {
       query: 'example',
       options: { maxResults: 5 }
     })) as { content: string; rawData?: { fffSearch?: { source: string } } }
@@ -159,7 +159,7 @@ describe('AgentToolManager FFF search tools', () => {
     expect(result.rawData?.fffSearch?.source).toBe('fff')
   })
 
-  it('executes fff_grep through the agent filesystem path', async () => {
+  it('executes grep through the agent filesystem path', async () => {
     const manager = new AgentToolManager({
       agentWorkspacePath: '/workspace',
       configPresenter: {
@@ -169,7 +169,7 @@ describe('AgentToolManager FFF search tools', () => {
       runtimePort: buildRuntimePort()
     })
 
-    const result = (await manager.callTool(FFF_GREP_TOOL_NAME, {
+    const result = (await manager.callTool(GREP_TOOL_NAME, {
       query: 'needle',
       pathScope: ['src/main'],
       contextLines: 0,
@@ -187,7 +187,7 @@ describe('AgentToolManager FFF search tools', () => {
     expect(result.rawData?.fffSearch?.source).toBe('fff')
   })
 
-  it('pre-checks read permission for fff_grep path scopes', async () => {
+  it('pre-checks read permission for grep path scopes', async () => {
     const manager = new AgentToolManager({
       agentWorkspacePath: '/workspace',
       configPresenter: {
@@ -198,7 +198,7 @@ describe('AgentToolManager FFF search tools', () => {
     })
 
     const permission = await manager.preCheckToolPermission(
-      FFF_GREP_TOOL_NAME,
+      GREP_TOOL_NAME,
       {
         query: 'needle',
         pathScope: ['/outside/example.ts']

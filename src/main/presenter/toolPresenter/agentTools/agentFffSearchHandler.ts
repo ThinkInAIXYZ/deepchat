@@ -11,11 +11,11 @@ import {
   type FffSearchMetadata
 } from '@/lib/agentRuntime/fffSearchService'
 
-export const FFF_FIND_FILES_TOOL_NAME = 'fff_find_files'
-export const FFF_GREP_TOOL_NAME = 'fff_grep'
+export const GLOB_TOOL_NAME = 'glob'
+export const GREP_TOOL_NAME = 'grep'
 
-export const FffFindFilesArgsSchema = z.object({
-  query: z.string().min(1).describe('File-name or path query to search with FFF'),
+export const FffGlobArgsSchema = z.object({
+  query: z.string().min(1).describe('File-name or path query to search'),
   options: z
     .object({
       pathScope: z.array(z.string()).optional(),
@@ -32,7 +32,7 @@ export const FffGrepArgsSchema = z.object({
   maxResults: z.number().int().min(1).max(200).optional()
 })
 
-type FffFindFilesArgs = z.infer<typeof FffFindFilesArgsSchema>
+type FffGlobArgs = z.infer<typeof FffGlobArgsSchema>
 type FffGrepArgs = z.infer<typeof FffGrepArgsSchema>
 
 type AgentFffSearchHandlerOptions = {
@@ -76,10 +76,10 @@ export class AgentFffSearchHandler {
     })
   }
 
-  async findFiles(args: unknown): Promise<AgentFffSearchToolResult> {
-    const parsed = FffFindFilesArgsSchema.safeParse(args)
+  async glob(args: unknown): Promise<AgentFffSearchToolResult> {
+    const parsed = FffGlobArgsSchema.safeParse(args)
     if (!parsed.success) {
-      throw new Error(`Invalid arguments for ${FFF_FIND_FILES_TOOL_NAME}: ${parsed.error.message}`)
+      throw new Error(`Invalid arguments for ${GLOB_TOOL_NAME}: ${parsed.error.message}`)
     }
 
     const options = this.buildFindOptions(parsed.data)
@@ -89,14 +89,14 @@ export class AgentFffSearchHandler {
   async grep(args: unknown): Promise<AgentFffSearchToolResult> {
     const parsed = FffGrepArgsSchema.safeParse(args)
     if (!parsed.success) {
-      throw new Error(`Invalid arguments for ${FFF_GREP_TOOL_NAME}: ${parsed.error.message}`)
+      throw new Error(`Invalid arguments for ${GREP_TOOL_NAME}: ${parsed.error.message}`)
     }
 
     const options = this.buildGrepOptions(parsed.data)
     return await this.runFff(() => this.service.grep(parsed.data.query, options))
   }
 
-  private buildFindOptions(args: FffFindFilesArgs): FffFindFilesOptions {
+  private buildFindOptions(args: FffGlobArgs): FffFindFilesOptions {
     return {
       workspaceRoot: this.workspaceRoot,
       pathScope: this.normalizePathScope(args.options?.pathScope),
@@ -132,7 +132,7 @@ export class AgentFffSearchHandler {
   private normalizeSingleScope(scope: string): string {
     if (hasGlob(scope)) {
       if (path.isAbsolute(scope) || scope.includes('..')) {
-        throw new Error(`Invalid FFF path scope: ${scope}`)
+        throw new Error(`Invalid search path scope: ${scope}`)
       }
       return toPosixPath(scope.replace(/^\.\//, ''))
     }

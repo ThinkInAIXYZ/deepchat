@@ -14,9 +14,9 @@ import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import {
   AgentFffSearchHandler,
-  FFF_FIND_FILES_TOOL_NAME,
-  FFF_GREP_TOOL_NAME,
-  FffFindFilesArgsSchema,
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME,
+  FffGlobArgsSchema,
   FffGrepArgsSchema
 } from './agentFffSearchHandler'
 import { FffSearchService, type FffSearchMetadata } from '@/lib/agentRuntime/fffSearchService'
@@ -177,8 +177,8 @@ export class AgentToolManager {
       replaceAll: z.boolean().default(true),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
-    [FFF_FIND_FILES_TOOL_NAME]: FffFindFilesArgsSchema,
-    [FFF_GREP_TOOL_NAME]: FffGrepArgsSchema,
+    [GLOB_TOOL_NAME]: FffGlobArgsSchema,
+    [GREP_TOOL_NAME]: FffGrepArgsSchema,
     exec: z.object({
       command: z.string().min(1).describe('The shell command to execute'),
       timeoutMs: z
@@ -658,10 +658,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: FFF_FIND_FILES_TOOL_NAME,
+          name: GLOB_TOOL_NAME,
           description:
-            'Search file paths using DeepChat FFF. Use this before content search. Returns JSON Array<{path, score}>.',
-          parameters: zodToJsonSchema(schemas[FFF_FIND_FILES_TOOL_NAME]) as {
+            'Search file paths in the workspace. Use this before content search. Returns JSON Array<{path, score}>.',
+          parameters: zodToJsonSchema(schemas[GLOB_TOOL_NAME]) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -676,10 +676,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: FFF_GREP_TOOL_NAME,
+          name: GREP_TOOL_NAME,
           description:
-            'Search file contents using DeepChat FFF. Prefer passing pathScope from fff_find_files. Returns JSON Array<{path, lineNumber, snippet, score}>.',
-          parameters: zodToJsonSchema(schemas[FFF_GREP_TOOL_NAME]) as {
+            'Search file contents in the workspace. Prefer passing pathScope from glob. Returns JSON Array<{path, lineNumber, snippet, score}>.',
+          parameters: zodToJsonSchema(schemas[GREP_TOOL_NAME]) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -759,8 +759,8 @@ export class AgentToolManager {
       'read',
       'write',
       'edit',
-      FFF_FIND_FILES_TOOL_NAME,
-      FFF_GREP_TOOL_NAME,
+      GLOB_TOOL_NAME,
+      GREP_TOOL_NAME,
       'exec',
       'process'
     ]
@@ -1102,7 +1102,7 @@ export class AgentToolManager {
             )
           }
         }
-        case FFF_FIND_FILES_TOOL_NAME: {
+        case GLOB_TOOL_NAME: {
           await this.assertFileAccessPermission(
             toolName,
             parsedArgs,
@@ -1121,7 +1121,7 @@ export class AgentToolManager {
             signal: options?.signal,
             service: this.fffSearchService
           })
-          const result = await fffHandler.findFiles(parsedArgs)
+          const result = await fffHandler.glob(parsedArgs)
           return {
             content: result.content,
             rawData: {
@@ -1130,7 +1130,7 @@ export class AgentToolManager {
             }
           }
         }
-        case FFF_GREP_TOOL_NAME: {
+        case GREP_TOOL_NAME: {
           await this.assertFileAccessPermission(
             toolName,
             parsedArgs,
@@ -1684,18 +1684,14 @@ export class AgentToolManager {
         const pathArg = args.path
         return typeof pathArg === 'string' && pathArg.trim().length > 0 ? [pathArg] : []
       }
-      case 'grep': {
-        const pathArg = args.path
-        return typeof pathArg === 'string' && pathArg.trim().length > 0 ? [pathArg] : []
-      }
-      case FFF_FIND_FILES_TOOL_NAME: {
+      case GLOB_TOOL_NAME: {
         const options = args.options
         if (!options || typeof options !== 'object' || Array.isArray(options)) {
           return []
         }
         return this.collectPathScopeReadTargets((options as Record<string, unknown>).pathScope)
       }
-      case FFF_GREP_TOOL_NAME:
+      case GREP_TOOL_NAME:
         return this.collectPathScopeReadTargets(args.pathScope)
       default:
         return []
@@ -1930,7 +1926,7 @@ export class AgentToolManager {
     conversationId?: string
   } | null> {
     const writeTools = ['write', 'edit']
-    const readTools = ['read', FFF_FIND_FILES_TOOL_NAME, FFF_GREP_TOOL_NAME]
+    const readTools = ['read', GLOB_TOOL_NAME, GREP_TOOL_NAME]
     const allowExternalFileAccess = options.allowExternalFileAccess === true
 
     if (this.isFileSystemTool(toolName)) {

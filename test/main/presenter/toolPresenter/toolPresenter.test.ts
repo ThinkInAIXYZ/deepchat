@@ -264,10 +264,9 @@ describe('ToolPresenter', () => {
     )
     expect(defs.some((tool) => tool.function.name === 'read')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'exec')).toBe(false)
-    expect(defs.some((tool) => tool.function.name === 'fff_find_files')).toBe(true)
-    expect(defs.some((tool) => tool.function.name === 'fff_grep')).toBe(true)
+    expect(defs.some((tool) => tool.function.name === 'glob')).toBe(true)
+    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(true)
     expect(defs.some((tool) => tool.function.name === 'find')).toBe(false)
-    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
   })
 
@@ -561,11 +560,11 @@ describe('ToolPresenter', () => {
           source: 'agent'
         },
         {
-          ...buildToolDefinition('fff_find_files', 'agent-filesystem'),
+          ...buildToolDefinition('glob', 'agent-filesystem'),
           source: 'agent'
         },
         {
-          ...buildToolDefinition('fff_grep', 'agent-filesystem'),
+          ...buildToolDefinition('grep', 'agent-filesystem'),
           source: 'agent'
         },
         {
@@ -579,13 +578,13 @@ describe('ToolPresenter', () => {
       ]
     })
     expect(promptWithoutFocusedTools).toContain(
-      'Use canonical Agent tool names only: read, write, edit, fff_find_files, fff_grep, exec, process.'
+      'Use canonical Agent tool names only: read, write, edit, glob, grep, exec, process.'
     )
     expect(promptWithoutFocusedTools).toContain(
-      'Use `fff_find_files` for file discovery and `fff_grep` for content search; both return structured JSON.'
+      'Use `glob` for file discovery and `grep` for content search; both return structured JSON.'
     )
     expect(promptWithoutFocusedTools).toContain(
-      'Recommended file task flow: `fff_find_files` / `fff_grep` -> `read` -> `edit`/`write`.'
+      'Recommended file task flow: `glob` / `grep` -> `read` -> `edit`/`write`.'
     )
     expect(promptWithoutFocusedTools).not.toContain('rg -n')
     expect(promptWithoutFocusedTools).not.toContain('rg --files')

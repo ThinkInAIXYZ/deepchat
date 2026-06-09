@@ -13,9 +13,9 @@ install bundled ripgrep, and must not inject bundled ripgrep into command execut
   - `grep(query: string, pathScope?: string[], contextLines?: number)` returns
     `Array<{ path, lineNumber, snippet, score }>`
 - Expose model tools:
-  - `fff_find_files`
-  - `fff_grep`
-- Update prompts so agent search order is `fff_find_files -> fff_grep -> read`.
+  - `glob`
+  - `grep`
+- Update prompts so agent search order is `glob -> grep -> read`.
 - Remove model-facing and runtime-owned ripgrep search paths:
   - no `rg` fallback adapter
   - no `RuntimeHelper` ripgrep discovery
@@ -37,7 +37,7 @@ install bundled ripgrep, and must not inject bundled ripgrep into command execut
 
 ## Tool Schema
 
-### `fff_find_files`
+### `glob`
 
 Input:
 
@@ -63,7 +63,7 @@ Output:
 ]
 ```
 
-### `fff_grep`
+### `grep`
 
 Input:
 
@@ -102,15 +102,17 @@ Output:
 
 ## Prompt Requirements
 
-- Prompts must tell the model to search with `fff_find_files` first, then `fff_grep`, then `read`.
+- Prompts must tell the model to search with `glob` first, then `grep`, then `read`.
 - Prompts must forbid shell search commands for code/file search.
-- Prompts must not recommend `rg`, `grep`, `find`, `fd`, or `ls` for search workflows.
+- Prompts must not recommend `rg`, shell `grep`, `find`, `fd`, or `ls` for search workflows.
 
 ## Acceptance Criteria
 
-- Agent tool definitions include `fff_find_files` and `fff_grep`.
+- Agent tool definitions include `glob` and `grep`.
 - Agent search tool outputs are parseable JSON arrays with stable fields.
 - Legacy skill/tool name mapping routes previous file-search aliases to FFF tools.
+- Legacy persisted disabled-tool entries for retired default search tools are cleaned so old
+  `grep` settings do not hide the new FFF-backed `grep` tool.
 - `RuntimeHelper` no longer discovers ripgrep, prepends ripgrep to PATH, or maps `rg`.
 - Runtime installer scripts no longer download bundled ripgrep.
 - Workspace file search uses FFF glob search instead of `RipgrepSearcher`.

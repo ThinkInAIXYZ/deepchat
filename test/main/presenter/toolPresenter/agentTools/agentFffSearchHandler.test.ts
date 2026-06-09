@@ -4,7 +4,7 @@ import os from 'os'
 import path from 'path'
 import {
   AgentFffSearchHandler,
-  FFF_FIND_FILES_TOOL_NAME
+  GLOB_TOOL_NAME
 } from '@/presenter/toolPresenter/agentTools/agentFffSearchHandler'
 import { FffSearchUnavailableError } from '@/lib/agentRuntime/fffSearchService'
 
@@ -24,7 +24,7 @@ vi.mock('fs', async (importOriginal) => {
 })
 
 describe('AgentFffSearchHandler', () => {
-  it('returns structured JSON and FFF metadata for findFiles', async () => {
+  it('returns structured JSON and FFF metadata for glob', async () => {
     const service = {
       findFiles: vi.fn().mockResolvedValue([{ path: 'src/main/example.ts', score: 10 }])
     }
@@ -34,7 +34,7 @@ describe('AgentFffSearchHandler', () => {
       service: service as any
     })
 
-    const result = await handler.findFiles({ query: 'example' })
+    const result = await handler.glob({ query: 'example' })
 
     expect(JSON.parse(result.content)).toEqual([{ path: 'src/main/example.ts', score: 10 }])
     expect(result.metadata.source).toBe('fff')
@@ -50,7 +50,7 @@ describe('AgentFffSearchHandler', () => {
       service: service as any
     })
 
-    await expect(handler.findFiles({ query: 'fallback' })).rejects.toThrow('native unavailable')
+    await expect(handler.glob({ query: 'fallback' })).rejects.toThrow('native unavailable')
   })
 
   it('rejects path scopes outside the workspace before search execution', async () => {
@@ -121,8 +121,6 @@ describe('AgentFffSearchHandler', () => {
       service: {} as any
     })
 
-    await expect(handler.findFiles({})).rejects.toThrow(
-      `Invalid arguments for ${FFF_FIND_FILES_TOOL_NAME}`
-    )
+    await expect(handler.glob({})).rejects.toThrow(`Invalid arguments for ${GLOB_TOOL_NAME}`)
   })
 })

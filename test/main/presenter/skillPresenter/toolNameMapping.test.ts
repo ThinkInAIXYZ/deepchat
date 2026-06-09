@@ -9,7 +9,7 @@ describe('toolNameMapping', () => {
     expect(normalizeSkillToolName('Read')).toEqual({ canonical: 'read', mapped: true })
     expect(normalizeSkillToolName('MultiEdit')).toEqual({ canonical: 'edit', mapped: true })
     expect(normalizeSkillToolName('Glob')).toEqual({
-      canonical: 'fff_find_files',
+      canonical: 'glob',
       mapped: true
     })
     expect(normalizeSkillToolName('Bash')).toEqual({ canonical: 'exec', mapped: true })
@@ -23,7 +23,7 @@ describe('toolNameMapping', () => {
       mapped: true
     })
     expect(normalizeSkillToolName('grep_search')).toEqual({
-      canonical: 'fff_grep',
+      canonical: 'grep',
       mapped: true
     })
   })

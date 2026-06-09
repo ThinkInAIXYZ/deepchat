@@ -5,8 +5,8 @@
 ```mermaid
 flowchart TD
   M["Agent model"] --> T["DeepChat tool layer"]
-  T --> FF["fff_find_files"]
-  T --> FG["fff_grep"]
+  T --> FF["glob"]
+  T --> FG["grep"]
   FF --> S["FffSearchService"]
   FG --> S
   W["Workspace file picker"] --> G["FffSearchService.globFiles"]
@@ -41,15 +41,17 @@ DeepChat-owned code no longer spawns or injects bundled ripgrep.
    - Do not catch FFF unavailable errors for fallback.
 
 4. Integrate with `AgentToolManager`.
-   - Register schemas and tool definitions for `fff_find_files` and `fff_grep`.
+   - Register schemas and tool definitions for `glob` and `grep`.
    - Route tool calls through `AgentFffSearchHandler`.
    - Map legacy skill/search names to the FFF tools.
    - Update read-permission target collection for `pathScope`.
+   - Clean legacy persisted disabled-tool `grep` values so old settings do not disable the new
+     FFF-backed `grep` tool.
 
 5. Update prompts.
-   - Search order: `fff_find_files -> fff_grep -> read`.
+   - Search order: `glob -> grep -> read`.
    - Forbid shell search commands and command generation for code search.
-   - Remove positive recommendations for `rg`, `grep`, `find`, `fd`, and `ls` as search tools.
+   - Remove positive recommendations for `rg`, shell `grep`, `find`, `fd`, and `ls` as search tools.
 
 6. Remove ripgrep fallback and runtime injection.
    - Delete `FffRipgrepFallback`.
@@ -79,11 +81,11 @@ DeepChat-owned code no longer spawns or injects bundled ripgrep.
 Use structured file search tools for codebase navigation.
 
 Search order:
-1. Call fff_find_files when you need candidate file paths.
-2. Call fff_grep when you need content matches, optionally scoped to candidate paths.
+1. Call glob when you need candidate file paths.
+2. Call grep when you need content matches, optionally scoped to candidate paths.
 3. Call read only after search has identified files worth opening.
 
-Do not call shell commands for search. Do not generate rg, grep, find, fd, or ls commands, and do not use exec for code search.
+Do not call shell commands for search. Do not generate rg, shell grep, find, fd, or ls commands, and do not use exec for code search.
 Return and consume search results as JSON objects with path, lineNumber, snippet, and score fields.
 ```
 
@@ -101,8 +103,8 @@ Return and consume search results as JSON objects with path, lineNumber, snippet
   - path scope permission rejection
   - argument validation
 - Unit test `AgentToolManager`:
-  - tool definitions expose both FFF tools
-  - `fff_find_files` and `fff_grep` return visible JSON and raw metadata
+  - tool definitions expose both FFF-backed search tools
+  - `glob` and `grep` return visible JSON and raw metadata
 - Unit test prompt/mapping:
   - prompt includes FFF search guidance
   - prompt does not recommend shell search
