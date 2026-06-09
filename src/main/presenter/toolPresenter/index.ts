@@ -527,13 +527,23 @@ export class ToolPresenter implements IToolPresenter {
         'Use `background: true` when you know a command should detach immediately; otherwise a foreground `exec` may yield a running `sessionId` after `yieldMs`.'
       )
     }
-    if (toolNames.has('glob') || toolNames.has('grep')) {
-      lines.push(
-        'Use `glob` for file discovery and `grep` for content search; both return structured JSON.'
-      )
-      lines.push(
-        'Search order: `glob(query)` -> choose relevant `pathScope` -> `grep(query, pathScope, contextLines)` -> `read` concrete files.'
-      )
+    const hasGlob = toolNames.has('glob')
+    const hasGrep = toolNames.has('grep')
+    if (hasGlob || hasGrep) {
+      if (hasGlob && hasGrep) {
+        lines.push(
+          'Use `glob` for file discovery and `grep` for content search; both return structured JSON.'
+        )
+        lines.push(
+          'Search order: `glob(query)` -> choose relevant `pathScope` -> `grep(query, pathScope, contextLines)` -> `read` concrete files.'
+        )
+      } else if (hasGlob) {
+        lines.push('Use `glob` for file discovery; it returns structured JSON.')
+      } else {
+        lines.push(
+          'Use `grep` for content search; it returns structured JSON and supports `mode: "regex"` for regular expressions.'
+        )
+      }
       lines.push(
         'Do not call shell commands for search, do not generate shell search commands (`rg`, shell `grep`, `find`, `fd`, or `ls`), and do not use `exec` for code search.'
       )

@@ -1,5 +1,6 @@
 import path from 'path'
-import type { FileFinderApi, FileItem, GrepMatch, Result, Score } from '@ff-labs/fff-node'
+import { readFile } from 'fs/promises'
+import type { FileFinderApi, FileItem, GrepMatch, GrepMode, Result, Score } from '@ff-labs/fff-node'
 
 export type FffFileSearchHit = {
   path: string
@@ -34,6 +35,7 @@ export type FffGrepOptions = {
   pathScope?: string[]
   contextLines?: number
   maxResults?: number
+  mode?: GrepMode
   signal?: AbortSignal
 }
 
@@ -77,6 +79,7 @@ const MAX_GLOB_LIMIT = 1000
 const MAX_CONTEXT_LINES = 5
 const GLOB_PATTERN = /[*?[{]/
 const WHITESPACE_PATTERN = /\s/
+const REGEX_INTENT_PATTERN = /(^|[^\\])(?:\||\(\?|\[[^\]]+\]|\.\*|\.\+|\\[bBdDsSwW]|\^|\$)/
 
 const clampInt = (value: number | undefined, fallback: number, max: number): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -99,6 +102,13 @@ const normalizeRoot = (workspaceRoot: string): string => path.resolve(workspaceR
 const normalizeQuery = (query: string): string => query.trim()
 
 const hasWhitespace = (value: string): boolean => WHITESPACE_PATTERN.test(value)
+
+const resolveGrepMode = (query: string, mode?: GrepMode): GrepMode => {
+  if (mode) {
+    return mode
+  }
+  return REGEX_INTENT_PATTERN.test(query) ? 'regex' : 'plain'
+}
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -180,7 +190,7 @@ function buildFffQueries(
 function buildSnippet(match: GrepMatch): string {
   return [...(match.contextBefore ?? []), match.lineContent, ...(match.contextAfter ?? [])]
     .join('\n')
-    .trim()
+    .trimEnd()
 }
 
 function scoreGrepMatch(match: GrepMatch, index: number): number {
@@ -194,6 +204,53 @@ function mapFileHit(root: string, item: FileItem, score: Score | undefined): Fff
     path: toPosixPath(item.relativePath || path.relative(root, item.fileName)),
     score: score?.total ?? item.totalFrecencyScore ?? 0
   }
+}
+
+async function readRelativeFileLines(
+  root: string,
+  relativePath: string,
+  cache: Map<string, Promise<string[] | null>>
+): Promise<string[] | null> {
+  const normalizedRelativePath = toPosixPath(relativePath)
+  const existing = cache.get(normalizedRelativePath)
+  if (existing) {
+    return await existing
+  }
+
+  const promise = (async () => {
+    const resolvedPath = path.resolve(root, normalizedRelativePath)
+    const relativeToRoot = path.relative(root, resolvedPath)
+    if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
+      return null
+    }
+
+    try {
+      const content = await readFile(resolvedPath, 'utf8')
+      return content.split(/\r\n|\n|\r/)
+    } catch {
+      return null
+    }
+  })()
+
+  cache.set(normalizedRelativePath, promise)
+  return await promise
+}
+
+async function buildFullSnippet(
+  root: string,
+  match: GrepMatch,
+  contextLines: number,
+  cache: Map<string, Promise<string[] | null>>
+): Promise<string> {
+  const lines = await readRelativeFileLines(root, match.relativePath, cache)
+  if (!lines || match.lineNumber < 1 || match.lineNumber > lines.length) {
+    return buildSnippet(match)
+  }
+
+  const startIndex = Math.max(0, match.lineNumber - 1 - contextLines)
+  const endIndex = Math.min(lines.length, match.lineNumber + contextLines)
+  const snippet = lines.slice(startIndex, endIndex).join('\n').trimEnd()
+  return snippet || buildSnippet(match)
 }
 
 export class FffSearchService {
@@ -267,14 +324,16 @@ export class FffSearchService {
     const root = normalizeRoot(options.workspaceRoot)
     const pageSize = clampInt(options.maxResults, DEFAULT_GREP_LIMIT, MAX_GREP_LIMIT)
     const contextLines = clampContextLines(options.contextLines)
+    const mode = resolveGrepMode(query, options.mode)
     const handle = await this.getFinder(root, options.signal)
     const queries = buildFffQueries(query, options.pathScope, root)
     const hits = new Map<string, FffGrepHit>()
+    const fileLineCache = new Map<string, Promise<string[] | null>>()
 
     for (const scopedQuery of queries) {
       throwIfAborted(options.signal)
       const result = handle.finder.grep(scopedQuery, {
-        mode: 'plain',
+        mode,
         smartCase: true,
         beforeContext: contextLines,
         afterContext: contextLines,
@@ -285,14 +344,19 @@ export class FffSearchService {
         throw new FffSearchUnavailableError(result.error)
       }
 
-      result.value.items.forEach((match, index) => {
-        const pathLabel = toPosixPath(match.relativePath)
-        const hit: FffGrepHit = {
-          path: pathLabel,
-          lineNumber: match.lineNumber,
-          snippet: buildSnippet(match),
-          score: scoreGrepMatch(match, index)
-        }
+      const mappedHits = await Promise.all(
+        result.value.items.map(async (match, index) => {
+          const pathLabel = toPosixPath(match.relativePath)
+          return {
+            path: pathLabel,
+            lineNumber: match.lineNumber,
+            snippet: await buildFullSnippet(root, match, contextLines, fileLineCache),
+            score: scoreGrepMatch(match, index)
+          } satisfies FffGrepHit
+        })
+      )
+
+      mappedHits.forEach((hit) => {
         const key = `${hit.path}:${hit.lineNumber}:${hit.snippet}`
         const existing = hits.get(key)
         if (!existing || hit.score > existing.score) {

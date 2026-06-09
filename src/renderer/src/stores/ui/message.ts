@@ -79,11 +79,17 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   function upsertMessageRecord(record: ChatMessageRecord): void {
+    const cachedRecord = messageCache.value.get(record.id)
+    const hasMessageId = messageIds.value.includes(record.id)
+    const shouldSort = !hasMessageId || cachedRecord?.orderSeq !== record.orderSeq
+
     messageCache.value.set(record.id, record)
-    if (!messageIds.value.includes(record.id)) {
+    if (!hasMessageId) {
       messageIds.value.push(record.id)
     }
-    sortMessageIdsByOrderSeq()
+    if (shouldSort) {
+      sortMessageIdsByOrderSeq()
+    }
   }
 
   function getParsedEntry(record: ChatMessageRecord) {

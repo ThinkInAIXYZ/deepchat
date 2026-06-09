@@ -678,7 +678,7 @@ export class AgentToolManager {
         function: {
           name: GREP_TOOL_NAME,
           description:
-            'Search file contents in the workspace. Prefer passing pathScope from glob. Returns JSON Array<{path, lineNumber, snippet, score}>.',
+            'Search file contents in the workspace. Prefer passing pathScope from glob. Use mode=regex for regular expressions. Returns JSON Array<{path, lineNumber, snippet, score}>.',
           parameters: zodToJsonSchema(schemas[GREP_TOOL_NAME]) as {
             type: string
             properties: Record<string, unknown>

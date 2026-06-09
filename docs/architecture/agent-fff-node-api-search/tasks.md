@@ -13,6 +13,7 @@
 - [x] Add `@ff-labs/fff-node` dependency.
 - [x] Implement `FffSearchService.findFiles()`.
 - [x] Implement `FffSearchService.grep()`.
+- [x] Support regex-like `grep` queries and hydrate full snippets from disk.
 - [x] Implement `FffSearchService.globFiles()` for workspace file picker search.
 - [x] Cache `FileFinder` instances by workspace root.
 - [x] Support abort during initial scan wait and search calls.

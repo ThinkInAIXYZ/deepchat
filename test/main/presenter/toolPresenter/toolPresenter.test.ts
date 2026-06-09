@@ -584,9 +584,26 @@ describe('ToolPresenter', () => {
       'Use `glob` for file discovery and `grep` for content search; both return structured JSON.'
     )
     expect(promptWithoutFocusedTools).toContain(
+      'Search order: `glob(query)` -> choose relevant `pathScope` -> `grep(query, pathScope, contextLines)` -> `read` concrete files.'
+    )
+    expect(promptWithoutFocusedTools).toContain(
       'Recommended file task flow: `glob` / `grep` -> `read` -> `edit`/`write`.'
     )
     expect(promptWithoutFocusedTools).not.toContain('rg -n')
     expect(promptWithoutFocusedTools).not.toContain('rg --files')
+
+    const grepOnlyPrompt = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('grep', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    expect(grepOnlyPrompt).toContain(
+      'Use `grep` for content search; it returns structured JSON and supports `mode: "regex"` for regular expressions.'
+    )
+    expect(grepOnlyPrompt).not.toContain('Search order: `glob(query)`')
   })
 })

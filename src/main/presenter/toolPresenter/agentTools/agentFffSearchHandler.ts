@@ -29,7 +29,8 @@ export const FffGrepArgsSchema = z.object({
   query: z.string().min(1).describe('Content query, identifier, or phrase to search for'),
   pathScope: z.array(z.string()).optional(),
   contextLines: z.number().int().min(0).max(5).default(0),
-  maxResults: z.number().int().min(1).max(200).optional()
+  maxResults: z.number().int().min(1).max(200).optional(),
+  mode: z.enum(['plain', 'regex', 'fuzzy']).optional()
 })
 
 type FffGlobArgs = z.infer<typeof FffGlobArgsSchema>
@@ -112,6 +113,7 @@ export class AgentFffSearchHandler {
       pathScope: this.normalizePathScope(args.pathScope),
       contextLines: args.contextLines,
       maxResults: args.maxResults,
+      mode: args.mode,
       signal: this.signal
     }
   }

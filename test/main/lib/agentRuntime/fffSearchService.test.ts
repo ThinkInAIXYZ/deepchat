@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import fs from 'fs/promises'
+import os from 'os'
+import path from 'path'
 import { FffSearchService, FffSearchUnavailableError } from '@/lib/agentRuntime/fffSearchService'
 
 function createMockModule(overrides: Record<string, unknown> = {}) {
@@ -134,6 +137,87 @@ describe('FffSearchService', () => {
         pageSize: 5
       })
     )
+  })
+
+  it('uses regex mode automatically for regex-like grep queries', async () => {
+    const mock = createMockModule()
+    const service = new FffSearchService({
+      moduleLoader: vi.fn().mockResolvedValue({ FileFinder: mock.FileFinder } as any)
+    })
+
+    await service.grep('agent_fff_search|agentFffSearch', {
+      workspaceRoot: '/workspace',
+      maxResults: 5
+    })
+
+    expect(mock.finder.grep).toHaveBeenCalledWith(
+      'agent_fff_search|agentFffSearch',
+      expect.objectContaining({
+        mode: 'regex',
+        pageSize: 5
+      })
+    )
+  })
+
+  it('hydrates grep snippets from disk when FFF line content is truncated', async () => {
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'fff-grep-snippet-'))
+    await fs.mkdir(path.join(workspaceRoot, 'src/main'), { recursive: true })
+    await fs.writeFile(
+      path.join(workspaceRoot, 'src/main/example.ts'),
+      ['const before = true', '  const needle = "full line from disk"', 'const after = true'].join(
+        '\n'
+      ),
+      'utf-8'
+    )
+    const mock = createMockModule({
+      grep: vi.fn().mockReturnValue({
+        ok: true,
+        value: {
+          items: [
+            {
+              relativePath: 'src/main/example.ts',
+              fileName: 'example.ts',
+              gitStatus: 'clean',
+              size: 10,
+              modified: 1,
+              isBinary: false,
+              totalFrecencyScore: 7,
+              accessFrecencyScore: 0,
+              modificationFrecencyScore: 0,
+              lineNumber: 2,
+              col: 8,
+              byteOffset: 20,
+              lineContent: 'needle',
+              matchRanges: [[0, 6]],
+              contextBefore: [],
+              contextAfter: []
+            }
+          ],
+          totalMatched: 1,
+          totalFilesSearched: 1,
+          totalFiles: 1,
+          filteredFileCount: 1,
+          nextCursor: null
+        }
+      })
+    })
+    const service = new FffSearchService({
+      moduleLoader: vi.fn().mockResolvedValue({ FileFinder: mock.FileFinder } as any)
+    })
+
+    try {
+      const hits = await service.grep('needle', {
+        workspaceRoot,
+        contextLines: 1,
+        maxResults: 5
+      })
+
+      expect(hits[0].snippet).toBe(
+        'const before = true\n  const needle = "full line from disk"\nconst after = true'
+      )
+    } finally {
+      await fs.rm(workspaceRoot, { recursive: true, force: true })
+    }
   })
 
   it('keeps extensionless file path scopes exact for grep constraints', async () => {

@@ -157,6 +157,36 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.metadata).toContain('"messageType":"compaction"')
   })
 
+  it('does not resort message ids when an existing message keeps the same order', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [buildUserMessage('m1', 's1', 1, 'hello')]
+    })
+
+    await store.loadMessages('s1')
+    const sortSpy = vi.spyOn(store.messageIds.value, 'sort')
+    streamListeners.updated[0]({
+      sessionId: 's1',
+      requestId: 'm1',
+      messageId: 'm1',
+      updatedAt: 2,
+      blocks: [
+        {
+          type: 'content',
+          content: 'streaming',
+          status: 'pending',
+          timestamp: 2
+        }
+      ]
+    })
+
+    expect(sortSpy).not.toHaveBeenCalled()
+    expect(store.messageIds.value).toEqual(['m1'])
+  })
+
   it('ignores stale loadMessages results', async () => {
     const { store, sessionClient } = await setupStore()
     const firstLoad = createDeferred<any[]>()

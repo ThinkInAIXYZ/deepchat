@@ -72,7 +72,8 @@ Input:
   "query": "string",
   "pathScope": ["src/main"],
   "contextLines": 2,
-  "maxResults": 50
+  "maxResults": 50,
+  "mode": "plain | regex | fuzzy"
 }
 ```
 
@@ -94,7 +95,10 @@ Output:
 - `FffSearchService` owns cached `FileFinder` instances per workspace root.
 - The service waits for FFF's initial scan and supports `AbortSignal` while waiting/searching.
 - `findFiles` uses `FileFinder.fileSearch`.
-- `grep` uses `FileFinder.grep` in plain mode with smart case.
+- `grep` uses `FileFinder.grep` with smart case, auto-selects regex mode for regex-like queries,
+  and accepts explicit `plain`, `regex`, or `fuzzy` mode.
+- `grep` hydrates snippets from the matched file and line number so returned JSON includes full
+  context lines instead of truncated native `lineContent` when the file is still readable.
 - `globFiles` uses `FileFinder.glob` for workspace file picker use cases.
 - FFF unavailable errors are returned as tool errors. They are not converted to shell commands.
 - Tool metadata reports only `source: "fff"`.

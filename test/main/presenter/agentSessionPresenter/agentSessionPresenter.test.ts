@@ -1850,10 +1850,16 @@ describe('AgentSessionPresenter', () => {
       ])
       configPresenter.listAgents.mockResolvedValue([
         { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+        { id: 'broken-deepchat', name: 'Broken', type: 'deepchat', enabled: true },
         { id: 'acp-cli', name: 'Acp', type: 'acp', enabled: true }
       ])
-      configPresenter.getDeepChatAgentConfig.mockResolvedValue({
-        disabledAgentTools: ['grep', 'exec']
+      configPresenter.getDeepChatAgentConfig.mockImplementation(async (agentId: string) => {
+        if (agentId === 'broken-deepchat') {
+          return { disabledAgentTools: 'grep' as any }
+        }
+        return {
+          disabledAgentTools: ['grep', 'exec']
+        }
       })
       configPresenter.updateDeepChatAgent.mockResolvedValue({
         id: 'deepchat',
@@ -1873,6 +1879,7 @@ describe('AgentSessionPresenter', () => {
           disabledAgentTools: ['exec']
         }
       })
+      expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledTimes(1)
       expect(sqlitePresenter.configTables.setAgentSetting).toHaveBeenLastCalledWith(
         'agent-disabled-search-tool-cleanup-v1',
         expect.objectContaining({

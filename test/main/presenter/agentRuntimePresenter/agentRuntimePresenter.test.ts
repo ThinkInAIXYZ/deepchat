@@ -661,6 +661,15 @@ describe('AgentRuntimePresenter', () => {
         rows = rows.filter((row) => row.session_id !== sessionId || row.order_seq < fromOrderSeq)
       }
     )
+    sqlitePresenter.deepchatMessagesTable.incrementOrderSeqFrom.mockImplementation(
+      (sessionId: string, fromOrderSeq: number) => {
+        rows = rows.map((row) =>
+          row.session_id === sessionId && row.order_seq >= fromOrderSeq
+            ? { ...row, order_seq: row.order_seq + 1 }
+            : row
+        )
+      }
+    )
     sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq.mockImplementation((sessionId: string) =>
       rows.reduce(
         (maxOrderSeq, row) =>

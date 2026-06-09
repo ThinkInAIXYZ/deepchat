@@ -29,7 +29,7 @@ DeepChat-owned code no longer spawns or injects bundled ripgrep.
    - Support `AbortSignal` during scan waits and before each search call.
    - Implement:
      - `findFiles(query, options)` with `fileSearch`
-     - `grep(query, options)` with `grep`
+     - `grep(query, options)` with `grep`, regex-like query detection, and full snippet hydration
      - `globFiles(pattern, options)` with `glob`
    - Normalize output to JSON-safe `{ path, score }` and
      `{ path, lineNumber, snippet, score }`.

@@ -14,6 +14,6 @@ find inside a project group.
 
 ## Non-Goals
 
-- Changing project group labels or collapse behavior.
-- Changing backend session pagination order.
-- Changing pinned-session ordering.
+- Project group labels and collapse behavior will remain as-is.
+- Backend session pagination order remains unchanged.
+- Pinned-session ordering will not be modified.

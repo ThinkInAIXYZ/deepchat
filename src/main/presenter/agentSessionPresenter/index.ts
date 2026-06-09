@@ -3469,7 +3469,7 @@ export class AgentSessionPresenter {
       }
 
       const config = await this.configPresenter.getDeepChatAgentConfig(agent.id)
-      if (!config?.disabledAgentTools) {
+      if (!Array.isArray(config?.disabledAgentTools)) {
         continue
       }
 
