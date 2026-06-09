@@ -67,16 +67,23 @@ export const useMessageStore = defineStore('message', () => {
 
   // --- Actions ---
 
+  function sortMessageIdsByOrderSeq(): void {
+    messageIds.value.sort((a, b) => {
+      const aSeq = messageCache.value.get(a)?.orderSeq ?? Number.MAX_SAFE_INTEGER
+      const bSeq = messageCache.value.get(b)?.orderSeq ?? Number.MAX_SAFE_INTEGER
+      if (aSeq !== bSeq) {
+        return aSeq - bSeq
+      }
+      return a.localeCompare(b)
+    })
+  }
+
   function upsertMessageRecord(record: ChatMessageRecord): void {
     messageCache.value.set(record.id, record)
     if (!messageIds.value.includes(record.id)) {
       messageIds.value.push(record.id)
-      messageIds.value.sort((a, b) => {
-        const aSeq = messageCache.value.get(a)?.orderSeq ?? Number.MAX_SAFE_INTEGER
-        const bSeq = messageCache.value.get(b)?.orderSeq ?? Number.MAX_SAFE_INTEGER
-        return aSeq - bSeq
-      })
     }
+    sortMessageIdsByOrderSeq()
   }
 
   function getParsedEntry(record: ChatMessageRecord) {

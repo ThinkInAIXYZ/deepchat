@@ -536,6 +536,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       options && Object.prototype.hasOwnProperty.call(options, 'projectDir')
         ? this.resolveProjectDir(sessionId, options.projectDir)
         : this.resolveProjectDir(sessionId)
+    const normalizedInput = this.normalizeUserMessageInput(content)
+    if (!normalizedInput.text.trim() && (normalizedInput.files?.length ?? 0) === 0) {
+      throw new Error('Message cannot be empty.')
+    }
 
     this.clearPendingQueuePauseIfEmpty(sessionId)
     const shouldClaimImmediately =
@@ -648,6 +652,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const normalizedInput = this.normalizeUserMessageInput(content)
+    if (!normalizedInput.text.trim() && (normalizedInput.files?.length ?? 0) === 0) {
+      throw new Error('Message cannot be empty.')
+    }
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
     const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
     const projectDir = this.resolveProjectDir(sessionId, context?.projectDir)
@@ -2249,6 +2256,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    if (messages.length === 0) {
+      throw new Error('Request was not sent because the prompt is empty.')
+    }
 
     const provider = (
       this.llmProviderPresenter as unknown as {
@@ -2417,6 +2427,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               }
               providerMessages = requestPreflight.messages
               providerMaxTokens = requestPreflight.effectiveMaxTokens
+            }
+            if (providerMessages.length === 0) {
+              throw new Error('Request was not sent because the prompt became empty.')
             }
 
             await llmProviderPresenter.executeWithRateLimit(state.providerId, {
@@ -3007,6 +3020,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+      const resumeTargetOrderSeq =
+        tapeReady.historyRecords.find((record) => record.id === messageId)?.orderSeq ??
+        this.messageStore.getMessage(messageId)?.orderSeq
       const summaryState = useContextBudget
         ? await this.resolveCompactionStateForResumeTurn({
             sessionId,
@@ -3023,6 +3039,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             preserveEmptyInterleavedReasoning:
               interleavedReasoning.preserveEmptyReasoningContent === true,
             historyRecords: tapeReady.historyRecords,
+            compactionMessageOrderSeq: resumeTargetOrderSeq,
             signal: preStreamAbortSignal
           })
         : this.sessionStore.getSummaryState(sessionId)
@@ -5420,10 +5437,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     historyRecords?: ChatMessageRecord[]
+    compactionMessageOrderSeq?: number
     signal?: AbortSignal
   }): Promise<SessionSummaryState> {
     const intent = await this.compactionService.prepareForResumeTurn(params)
-    return await this.applyCompactionIntent(params.sessionId, intent, { signal: params.signal })
+    return await this.applyCompactionIntent(params.sessionId, intent, {
+      compactionMessageOrderSeq: params.compactionMessageOrderSeq,
+      shiftMessagesFromCompactionOrderSeq: params.compactionMessageOrderSeq !== undefined,
+      signal: params.signal
+    })
   }
 
   private async applyCompactionIntent(
@@ -5431,6 +5453,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     intent: CompactionIntent | null,
     options?: {
       compactionMessageId?: string
+      compactionMessageOrderSeq?: number
+      shiftMessagesFromCompactionOrderSeq?: boolean
       startedExternally?: boolean
       signal?: AbortSignal
     }
@@ -5441,12 +5465,22 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const compactionMessageId =
       options?.compactionMessageId ??
-      this.messageStore.createCompactionMessage(
-        sessionId,
-        this.messageStore.getNextOrderSeq(sessionId),
-        'compacting',
-        intent.previousState.summaryUpdatedAt
-      )
+      (options?.compactionMessageOrderSeq !== undefined
+        ? this.messageStore.createCompactionMessageAtOrderSeq(
+            sessionId,
+            Math.max(1, Math.floor(options.compactionMessageOrderSeq)),
+            'compacting',
+            intent.previousState.summaryUpdatedAt,
+            {
+              shiftExistingMessages: options.shiftMessagesFromCompactionOrderSeq === true
+            }
+          )
+        : this.messageStore.createCompactionMessage(
+            sessionId,
+            this.messageStore.getNextOrderSeq(sessionId),
+            'compacting',
+            intent.previousState.summaryUpdatedAt
+          ))
 
     if (!options?.startedExternally) {
       this.emitMessageRefresh(sessionId, compactionMessageId)

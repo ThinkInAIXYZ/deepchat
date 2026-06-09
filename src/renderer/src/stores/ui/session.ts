@@ -182,6 +182,16 @@ function getProjectGroupLabel(projectGroupId: string): { label: string; labelKey
   return { label }
 }
 
+function sortProjectGroupSessions(items: UISession[]): UISession[] {
+  return [...items].sort((left, right) => {
+    if (left.updatedAt !== right.updatedAt) {
+      return right.updatedAt - left.updatedAt
+    }
+
+    return compareSessions(left, right)
+  })
+}
+
 function groupByProject(sessions: UISession[]): SessionGroup[] {
   const projectMap = new Map<string, UISession[]>()
   for (const session of sessions) {
@@ -195,7 +205,7 @@ function groupByProject(sessions: UISession[]): SessionGroup[] {
   return Array.from(projectMap.entries()).map(([projectGroupId, groupedSessions]) => ({
     id: projectGroupId,
     ...getProjectGroupLabel(projectGroupId),
-    sessions: groupedSessions
+    sessions: sortProjectGroupSessions(groupedSessions)
   }))
 }
 

@@ -354,6 +354,42 @@ describe('buildContext', () => {
     expect(result).toEqual([{ role: 'user', content: 'Hello' }])
   })
 
+  it('omits blank text-only user messages from prompts', () => {
+    const store = createMockMessageStore([makeUserRecord(1, '   ')])
+    const result = buildContext('s1', '   ', '', 10000, 4096, store)
+
+    expect(result).toEqual([])
+  })
+
+  it('keeps attachment-only user messages valid when text is blank', () => {
+    const store = createMockMessageStore([])
+    const result = buildContext(
+      's1',
+      {
+        text: '   ',
+        files: [
+          {
+            name: 'notes.txt',
+            path: '/tmp/notes.txt',
+            mimeType: 'text/plain',
+            content: 'important attachment content'
+          } as any
+        ]
+      },
+      '',
+      10000,
+      4096,
+      store
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: expect.stringContaining('important attachment content')
+      }
+    ])
+  })
+
   it('includes single prior exchange', () => {
     const messages = [makeUserRecord(1, 'First message'), makeAssistantRecord(2, 'First reply')]
     const store = createMockMessageStore(messages)
@@ -959,6 +995,35 @@ describe('buildResumeContext', () => {
 
     expect(result[0]).toEqual({ role: 'system', content: 'Sys' })
     expect(result.slice(-2)).toEqual([
+      { role: 'user', content: 'recent user' },
+      { role: 'assistant', content: 'partial answer' }
+    ])
+  })
+
+  it('keeps the protected resume turn even when no token budget remains', () => {
+    const messages = [
+      makeUserRecord(1, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 2,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          { type: 'content', content: 'partial answer', status: 'success', timestamp: Date.now() }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildResumeContext('s1', 'resume-target', '', 1, 100, store, false, {
+      fallbackProtectedTurnCount: 1
+    })
+
+    expect(result).toEqual([
       { role: 'user', content: 'recent user' },
       { role: 'assistant', content: 'partial answer' }
     ])
