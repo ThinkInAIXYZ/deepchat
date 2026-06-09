@@ -30,6 +30,10 @@ files:
 asarUnpack:
   - '**/node_modules/sharp/**/*'
   - '**/node_modules/@img/**/*'
+  - '**/node_modules/@ff-labs/fff-node/**/*'
+  - '**/node_modules/@ff-labs/fff-bin-*/**/*'
+  - '**/node_modules/ffi-rs/**/*'
+  - '**/node_modules/@yuuang/ffi-rs-*/**/*'
 extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime

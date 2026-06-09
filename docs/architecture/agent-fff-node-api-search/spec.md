@@ -23,6 +23,11 @@ install bundled ripgrep, and must not inject bundled ripgrep into command execut
   - no `replaceWithRuntimeCommand('rg', ...)` mapping
   - no `tiny-runtime-injector --type ripgrep` install step
 - Move workspace file picker search off ripgrep by using FFF glob search.
+- Keep FFF native dependencies package-safe for macOS by unpacking `fff-node`, platform FFF
+  libraries, `ffi-rs`, and platform `ffi-rs` native modules from ASAR so Electron's existing
+  codesign/notarization flow can sign them as real files.
+- Copy the target `@ff-labs/fff-bin-*` package during `afterPack` when pnpm/electron-builder does
+  not copy the transitive optional package automatically.
 
 ## Non-Goals
 
@@ -93,6 +98,7 @@ Output:
 - `globFiles` uses `FileFinder.glob` for workspace file picker use cases.
 - FFF unavailable errors are returned as tool errors. They are not converted to shell commands.
 - Tool metadata reports only `source: "fff"`.
+- Packaged apps load FFF from `app.asar.unpacked`, not from virtual `app.asar` paths.
 
 ## Prompt Requirements
 
@@ -109,5 +115,10 @@ Output:
 - Runtime installer scripts no longer download bundled ripgrep.
 - Workspace file search uses FFF glob search instead of `RipgrepSearcher`.
 - Codebase contains no `FffRipgrepFallback`, `runRipgrepSearch`, or bundled ripgrep runtime path.
+- macOS package configuration explicitly unpacks `fff-node`, `@ff-labs/fff-bin-*`, `ffi-rs`,
+  and `@yuuang/ffi-rs-*` so `.node` and `.dylib` files are available to the existing signing
+  flow and runtime loader.
+- `afterPack` ensures the target platform FFF native library package exists beside `fff-node` in
+  `app.asar.unpacked/node_modules`.
 - Tests cover FFF JSON shape, tool manager integration, abort handling, workspace glob search, and
   prompt/tool mapping.

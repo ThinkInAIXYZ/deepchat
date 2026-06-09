@@ -53,6 +53,17 @@
 - [x] Add prompt/tool-name mapping tests.
 - [x] Add workspace file search test for FFF glob and default excludes.
 - [x] Update runtime helper tests after ripgrep removal.
+- [x] Add build config test for FFF native dependency ASAR unpacking.
+
+## Packaging
+
+- [x] Check whether FFF native dependencies affect macOS signing/package loading.
+- [x] Unpack `@ff-labs/fff-node`, `@ff-labs/fff-bin-*`, `ffi-rs`, and `@yuuang/ffi-rs-*` for
+  packaged app loading and macOS codesign visibility.
+- [x] Copy target `@ff-labs/fff-bin-*` package during `afterPack` when electron-builder misses the
+  transitive optional dependency under pnpm.
+- [x] Verify an unpacked macOS package contains FFF native files under `app.asar.unpacked`.
+- [x] Cover both darwin arm64 and x64 FFF native package copying in `afterPack` tests.
 
 ## Validation
 
@@ -65,4 +76,5 @@
   unrelated failures outside this FFF change.
 - [x] Start a separate review agent.
 - [x] Fix review findings.
-- [ ] Commit, push, and create MR against `dev`.
+- [x] Run focused build config and `afterPack` tests.
+- [x] Commit, push, and create MR against `dev`.

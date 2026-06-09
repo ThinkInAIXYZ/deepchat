@@ -64,6 +64,15 @@ DeepChat-owned code no longer spawns or injects bundled ripgrep.
    - Keep default directory exclusions in TypeScript.
    - Delete `ripgrepSearcher.ts`.
 
+8. Keep packaged native loading compatible with macOS signing.
+   - Add `asarUnpack` entries for `@ff-labs/fff-node`, `@ff-labs/fff-bin-*`, `ffi-rs`, and
+     `@yuuang/ffi-rs-*`.
+   - In `afterPack`, copy the target `@ff-labs/fff-bin-*` package into unpacked node_modules when
+     Electron Builder misses the transitive optional dependency under pnpm.
+   - Let the existing Electron Builder mac signing flow sign unpacked native files inside
+     `Contents/Resources/app.asar.unpacked`.
+   - Do not add a runtime `rg` fallback or manual shell search path.
+
 ## Prompt Template
 
 ```text
@@ -104,6 +113,8 @@ Return and consume search results as JSON objects with path, lineNumber, snippet
 - Runtime helper tests:
   - bundled runtime PATH no longer includes ripgrep
   - `rg` is not mapped to a bundled runtime command
+- Build config tests:
+  - FFF and `ffi-rs` native dependency packages are explicitly listed in `asarUnpack`
 
 ## Validation Commands
 
@@ -113,13 +124,16 @@ pnpm run i18n
 pnpm run lint
 pnpm run typecheck
 pnpm exec vitest run --project main \
+  test/main/build/electronBuilderConfig.test.ts \
   test/main/lib/agentRuntime/fffSearchService.test.ts \
   test/main/lib/runtimeHelper.test.ts \
   test/main/presenter/workspacePresenter/fileSearcher.test.ts \
   test/main/presenter/toolPresenter/agentTools/agentFffSearchHandler.test.ts \
   test/main/presenter/toolPresenter/agentTools/agentToolManagerFffSearch.test.ts \
   test/main/presenter/toolPresenter/toolPresenter.test.ts \
-  test/main/presenter/skillPresenter/toolNameMapping.test.ts
+  test/main/presenter/skillPresenter/toolNameMapping.test.ts \
+  test/main/scripts/afterPack.test.ts
+pnpm exec electron-builder --dir --mac --arm64 -c.mac.identity=- -c.publish=never
 ```
 
 Full `pnpm test` should be run when possible, but this branch may inherit unrelated existing test
@@ -129,6 +143,11 @@ failures from the repository.
 
 - FFF native loading can fail on unsupported or improperly signed platforms. This is surfaced as a
   tool error instead of falling back to shell search.
+- macOS packaging needs the FFF/`ffi-rs` native dependency chain unpacked from ASAR so the existing
+  codesign/notarization flow sees real `.node` and `.dylib` files.
+- mac x64 and arm64 builds require the matching optional `@ff-labs/fff-bin-darwin-*` package to be
+  installed on the packaging host; `afterPack` fails early if the target package is missing instead
+  of shipping a broken native loader.
 - FFF warm repeated searches should outperform repeated process-based search. Cold startup can
   include indexing cost.
 - Removing bundled ripgrep install means any user shell command named `rg` will use the user's own
