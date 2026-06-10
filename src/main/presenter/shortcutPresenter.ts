@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import {
   app,
   globalShortcut,
@@ -50,7 +51,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
   }
 
   registerShortcuts(): void {
-    console.log('reg shortcuts')
+    logger.info('reg shortcuts')
     this.refreshShortcutKeys()
     this.installApplicationMenu()
     this.registerSystemShortcuts()
@@ -298,7 +299,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
   }
 
   unregisterShortcuts(): void {
-    console.log('unreg shortcuts')
+    logger.info('unreg shortcuts')
     this.registerSystemShortcuts()
   }
 

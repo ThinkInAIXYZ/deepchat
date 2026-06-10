@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { FloatingButtonWindow } from './FloatingButtonWindow'
 import { FloatingButtonConfig, FloatingButtonState, DEFAULT_FLOATING_BUTTON_CONFIG } from './types'
 import {
@@ -60,7 +61,7 @@ export class FloatingButtonPresenter {
   public async initialize(config?: Partial<FloatingButtonConfig>): Promise<void> {
     if (!FLOATING_BUTTON_AVAILABLE) {
       this.destroy()
-      console.log('FloatingButton is temporarily unavailable, skipping initialization')
+      logger.info('FloatingButton is temporarily unavailable, skipping initialization')
       return
     }
 
@@ -73,7 +74,7 @@ export class FloatingButtonPresenter {
       }
 
       if (!this.config.enabled) {
-        console.log('FloatingButton is disabled, skipping window creation')
+        logger.info('FloatingButton is disabled, skipping window creation')
         return
       }
 
@@ -116,7 +117,7 @@ export class FloatingButtonPresenter {
   public async enable(): Promise<void> {
     if (!FLOATING_BUTTON_AVAILABLE) {
       this.destroy()
-      console.log('FloatingButton is temporarily unavailable, skipping enable')
+      logger.info('FloatingButton is temporarily unavailable, skipping enable')
       return
     }
 
@@ -715,7 +716,7 @@ export class FloatingButtonPresenter {
 
   private exitApplication(): void {
     try {
-      console.log('Exiting application from floating button context menu')
+      logger.info('Exiting application from floating button context menu')
       app.quit()
     } catch (error) {
       console.error('Failed to exit application from floating button:', error)

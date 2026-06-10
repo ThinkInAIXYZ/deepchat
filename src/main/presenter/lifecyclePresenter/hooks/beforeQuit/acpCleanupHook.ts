@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Ensure ACP-related processes/PTYs are terminated during shutdown
  */
@@ -13,7 +14,7 @@ export const acpCleanupHook: LifecycleHook = {
   priority: 6,
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('[Lifecycle][ACP] acpCleanupHook: shutting down ACP resources')
+    logger.info('[Lifecycle][ACP] acpCleanupHook: shutting down ACP resources')
 
     try {
       killTerminal()

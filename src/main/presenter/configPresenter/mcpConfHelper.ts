@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { eventBus, SendTarget } from '@/eventbus'
 import { BuiltinKnowledgeConfig, MCPServerConfig } from '@shared/presenter'
 import { MCP_EVENTS } from '@/events'
@@ -384,7 +385,7 @@ export class McpConfHelper {
 
     for (const serverName of deprecatedBuiltInServers) {
       if (servers[serverName]) {
-        console.log(`Removing deprecated built-in MCP service: ${serverName}`)
+        logger.info(`Removing deprecated built-in MCP service: ${serverName}`)
         delete servers[serverName]
         hasChanges = true
       }
@@ -543,7 +544,7 @@ export class McpConfHelper {
         return
       }
       if (!updatedServers[serverName]) {
-        console.log(`Adding missing built-in MCP service: ${serverName}`)
+        logger.info(`Adding missing built-in MCP service: ${serverName}`)
         updatedServers[serverName] = {
           ...this.cloneServerConfig(serverConfig as MCPServerConfig),
           enabled: defaultEnabledServers.has(serverName)
@@ -583,7 +584,7 @@ export class McpConfHelper {
 
     // 移除不支持的平台特有服务
     for (const serverName of serversToRemove) {
-      console.log(`Removing service not supported on current platform: ${serverName}`)
+      logger.info(`Removing service not supported on current platform: ${serverName}`)
       delete updatedServers[serverName]
       hasChanges = true
     }
@@ -692,19 +693,19 @@ export class McpConfHelper {
   getEffectiveNpmRegistry(): string | null {
     const customRegistry = this.getCustomNpmRegistry()
     if (customRegistry) {
-      console.log(`[NPM Registry] Using custom registry: ${customRegistry}`)
+      logger.info(`[NPM Registry] Using custom registry: ${customRegistry}`)
       return customRegistry
     }
 
     if (this.getAutoDetectNpmRegistry() && this.isNpmRegistryCacheValid()) {
       const cache = this.getNpmRegistryCache()
       if (cache?.registry) {
-        console.log(`[NPM Registry] Using cached registry: ${cache.registry}`)
+        logger.info(`[NPM Registry] Using cached registry: ${cache.registry}`)
         return cache.registry
       }
     }
 
-    console.log('[NPM Registry] No effective registry found, will use default or detect')
+    logger.info('[NPM Registry] No effective registry found, will use default or detect')
     return null
   }
 
@@ -729,7 +730,7 @@ export class McpConfHelper {
     } else {
       const normalizedRegistry = this.normalizeNpmRegistryUrl(registry)
       this.mcpStore.set('customNpmRegistry', normalizedRegistry)
-      console.log(`[NPM Registry] Normalized custom registry: ${registry} -> ${normalizedRegistry}`)
+      logger.info(`[NPM Registry] Normalized custom registry: ${registry} -> ${normalizedRegistry}`)
     }
   }
 
@@ -814,7 +815,7 @@ export class McpConfHelper {
         // Check if server already exists
         if (existingServer && !overwriteExisting) {
           if (skipExisting) {
-            console.log(`Skipping existing MCP server: ${serverName}`)
+            logger.info(`Skipping existing MCP server: ${serverName}`)
             result.skipped++
             continue
           } else {
@@ -845,9 +846,9 @@ export class McpConfHelper {
         if (success || overwriteExisting) {
           if (existingServer && overwriteExisting) {
             await this.updateMcpServer(serverName, mcpConfig as unknown as Partial<MCPServerConfig>)
-            console.log(`Updated MCP server: ${serverName}`)
+            logger.info(`Updated MCP server: ${serverName}`)
           } else {
-            console.log(`Imported MCP server: ${serverName}`)
+            logger.info(`Imported MCP server: ${serverName}`)
           }
           result.imported++
         } else {
@@ -860,7 +861,7 @@ export class McpConfHelper {
       }
     }
 
-    console.log(
+    logger.info(
       `MCP batch import completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
     )
 
@@ -924,7 +925,7 @@ export class McpConfHelper {
   }
 
   public onUpgrade(oldVersion: string | undefined): void {
-    console.log('onUpgrade', oldVersion)
+    logger.info('onUpgrade', oldVersion)
 
     // Migrate filesystem/buildInFileSystem servers - these are now provided via Agent tools
     // Remove for all versions < 0.6.0
@@ -939,14 +940,14 @@ export class McpConfHelper {
 
         // Remove old filesystem server
         if (mcpServers.filesystem) {
-          console.log('Removing old filesystem MCP server (now provided via Agent tools)')
+          logger.info('Removing old filesystem MCP server (now provided via Agent tools)')
           delete mcpServers.filesystem
           hasChanges = true
         }
 
         // Remove buildInFileSystem server
         if (mcpServers.buildInFileSystem) {
-          console.log('Removing buildInFileSystem MCP server (now provided via Agent tools)')
+          logger.info('Removing buildInFileSystem MCP server (now provided via Agent tools)')
           delete mcpServers.buildInFileSystem
           hasChanges = true
         }
@@ -958,7 +959,7 @@ export class McpConfHelper {
 
         if (hasChanges) {
           this.mcpStore.set('mcpServers', mcpServers)
-          console.log('Migration: filesystem MCP servers removed (now available via Agent tools)')
+          logger.info('Migration: filesystem MCP servers removed (now available via Agent tools)')
         }
       } catch (error) {
         console.error('Error occurred while migrating filesystem server:', error)
@@ -972,11 +973,11 @@ export class McpConfHelper {
         const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
 
         if (mcpServers[customPromptsServerName]) {
-          console.log('Detected old version custom-prompts-server, starting removal')
+          logger.info('Detected old version custom-prompts-server, starting removal')
           delete mcpServers[customPromptsServerName]
           this.mcpStore.set('mcpServers', mcpServers)
 
-          console.log('Removal of custom-prompts-server completed')
+          logger.info('Removal of custom-prompts-server completed')
         }
       } catch (error) {
         console.error('Error occurred while removing custom-prompts-server:', error)
@@ -1003,7 +1004,7 @@ export class McpConfHelper {
         !mcpServers['deepchat/apple-server'] &&
         !removedBuiltInServers.has('deepchat/apple-server')
       ) {
-        console.log('Detected macOS platform, adding Apple system integration service')
+        logger.info('Detected macOS platform, adding Apple system integration service')
         mcpServers['deepchat/apple-server'] = {
           ...(PLATFORM_SPECIFIC_SERVERS['deepchat/apple-server'] as MCPServerConfig),
           enabled: true
@@ -1021,14 +1022,14 @@ export class McpConfHelper {
       }
 
       for (const serverName of serversToRemove) {
-        console.log(`Removing service not supported on current platform: ${serverName}`)
+        logger.info(`Removing service not supported on current platform: ${serverName}`)
         delete mcpServers[serverName]
         hasChanges = true
       }
 
       if (hasChanges) {
         this.mcpStore.set('mcpServers', mcpServers)
-        console.log('Platform-specific service upgrade completed')
+        logger.info('Platform-specific service upgrade completed')
       }
     } catch (error) {
       console.error('Error occurred while upgrading platform-specific services:', error)

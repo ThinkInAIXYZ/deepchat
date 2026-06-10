@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import * as path from 'path'
 import * as fs from 'fs'
 import { exec } from 'child_process'
@@ -96,7 +97,7 @@ class AcpInitHelper {
 
     try {
       fs.mkdirSync(acpTempDir, { recursive: true })
-      console.log('[ACP Init] ACP temp directory:', acpTempDir)
+      logger.info('[ACP Init] ACP temp directory:', acpTempDir)
     } catch (error) {
       console.error('[ACP Init] Failed to create ACP temp directory:', error)
       // Fallback to process.cwd() if directory creation fails
@@ -114,7 +115,7 @@ class AcpInitHelper {
 
     // Check if dependency supports current platform
     if (dep.platform && !dep.platform.includes(platform)) {
-      console.log(`[ACP Init] Dependency ${dep.name} not required on platform ${platform}`)
+      logger.info(`[ACP Init] Dependency ${dep.name} not required on platform ${platform}`)
       return true // Not required on this platform, consider it available
     }
 
@@ -123,11 +124,11 @@ class AcpInitHelper {
       try {
         const { stdout } = await execAsync(dep.checkCommand, { timeout: 5000 })
         if (stdout && stdout.trim().length > 0) {
-          console.log(`[ACP Init] Dependency ${dep.name} found via command: ${dep.checkCommand}`)
+          logger.info(`[ACP Init] Dependency ${dep.name} found via command: ${dep.checkCommand}`)
           return true
         }
       } catch {
-        console.log(`[ACP Init] Dependency ${dep.name} not found via command: ${dep.checkCommand}`)
+        logger.info(`[ACP Init] Dependency ${dep.name} not found via command: ${dep.checkCommand}`)
       }
     }
 
@@ -136,7 +137,7 @@ class AcpInitHelper {
       for (const checkPath of dep.checkPaths) {
         try {
           if (fs.existsSync(checkPath)) {
-            console.log(`[ACP Init] Dependency ${dep.name} found at path: ${checkPath}`)
+            logger.info(`[ACP Init] Dependency ${dep.name} found at path: ${checkPath}`)
             return true
           }
         } catch {
@@ -159,7 +160,7 @@ class AcpInitHelper {
 
         const { stdout } = await execAsync(findCommand, { timeout: 5000 })
         if (stdout && stdout.trim().length > 0) {
-          console.log(`[ACP Init] Dependency ${dep.name} found via system tool: ${findCommand}`)
+          logger.info(`[ACP Init] Dependency ${dep.name} found via system tool: ${findCommand}`)
           return true
         }
       } catch {
@@ -167,7 +168,7 @@ class AcpInitHelper {
       }
     }
 
-    console.log(`[ACP Init] Dependency ${dep.name} not found`)
+    logger.info(`[ACP Init] Dependency ${dep.name} not found`)
     return false
   }
 
@@ -183,7 +184,7 @@ class AcpInitHelper {
       (dep) => dep.requiredFor && dep.requiredFor.includes(agentId)
     )
 
-    console.log(`[ACP Init] Checking dependencies for agent ${agentId}:`, {
+    logger.info(`[ACP Init] Checking dependencies for agent ${agentId}:`, {
       totalDeps: requiredDeps.length,
       platform
     })
@@ -193,7 +194,7 @@ class AcpInitHelper {
       const isAvailable = await this.checkExternalDependency(dep)
       if (!isAvailable) {
         missingDeps.push(dep)
-        console.log(`[ACP Init] Missing dependency: ${dep.name}`)
+        logger.info(`[ACP Init] Missing dependency: ${dep.name}`)
       }
     }
 
@@ -211,7 +212,7 @@ class AcpInitHelper {
     uvRegistry: string | null,
     webContents?: WebContents
   ): Promise<IPty | null> {
-    console.log('[ACP Init] Initializing builtin agent:', {
+    logger.info('[ACP Init] Initializing builtin agent:', {
       agentId,
       useBuiltinRuntime,
       npmRegistry,
@@ -223,7 +224,7 @@ class AcpInitHelper {
     // Check external dependencies before initialization
     const missingDeps = await this.checkRequiredDependencies(agentId)
     if (missingDeps.length > 0) {
-      console.log('[ACP Init] Missing dependencies detected, blocking initialization:', {
+      logger.info('[ACP Init] Missing dependencies detected, blocking initialization:', {
         agentId,
         missingCount: missingDeps.length
       })
@@ -243,7 +244,7 @@ class AcpInitHelper {
       throw new Error(`Unknown builtin agent: ${agentId}`)
     }
 
-    console.log('[ACP Init] Agent config:', {
+    logger.info('[ACP Init] Agent config:', {
       description: initConfig.description,
       commands: initConfig.commands
     })
@@ -256,7 +257,7 @@ class AcpInitHelper {
     )
 
     const commands = initConfig.commands
-    console.log('[ACP Init] Starting interactive session with commands:', commands)
+    logger.info('[ACP Init] Starting interactive session with commands:', commands)
     return this.startInteractiveSession(commands, envVars, webContents)
   }
 
@@ -270,7 +271,7 @@ class AcpInitHelper {
     uvRegistry: string | null,
     webContents?: WebContents
   ): Promise<IPty | null> {
-    console.log('[ACP Init] Initializing custom agent:', {
+    logger.info('[ACP Init] Initializing custom agent:', {
       name: agent.name,
       command: agent.command,
       args: agent.args,
@@ -292,14 +293,14 @@ class AcpInitHelper {
     const args = agent.args || []
     const fullCommandStr = [command, ...args].join(' ')
 
-    console.log('[ACP Init] Starting interactive session with custom command:', fullCommandStr)
+    logger.info('[ACP Init] Starting interactive session with custom command:', fullCommandStr)
     return this.startInteractiveSession([fullCommandStr], envVars, webContents)
   }
 
   writeToTerminal(data: string) {
     if (this.activeShell) {
       try {
-        console.log('[ACP Init] Writing to terminal:', {
+        logger.info('[ACP Init] Writing to terminal:', {
           dataLength: data.length,
           dataPreview: data.substring(0, 50)
         })
@@ -314,7 +315,7 @@ class AcpInitHelper {
 
   killTerminal() {
     if (this.activeShell) {
-      console.log('[ACP Init] Killing active shell process:', {
+      logger.info('[ACP Init] Killing active shell process:', {
         pid: this.activeShell.pid
       })
       try {
@@ -323,9 +324,9 @@ class AcpInitHelper {
         console.warn('[ACP Init] Error killing shell:', error)
       }
       this.activeShell = null
-      console.log('[ACP Init] Shell process killed')
+      logger.info('[ACP Init] Shell process killed')
     } else {
-      console.log('[ACP Init] No active shell to kill')
+      logger.info('[ACP Init] No active shell to kill')
     }
   }
 
@@ -337,7 +338,7 @@ class AcpInitHelper {
     envVars: Record<string, string>,
     webContents?: WebContents
   ): IPty | null {
-    console.log('[ACP Init] Starting interactive session:', {
+    logger.info('[ACP Init] Starting interactive session:', {
       commands: initCommands,
       envVarCount: Object.keys(envVars).length,
       hasWebContents: !!webContents
@@ -370,7 +371,7 @@ class AcpInitHelper {
       }
     }
 
-    console.log('[ACP Init] Spawning shell with PTY:', {
+    logger.info('[ACP Init] Spawning shell with PTY:', {
       platform,
       shell,
       shellArgs,
@@ -386,7 +387,7 @@ class AcpInitHelper {
       env: { ...process.env, ...envVars } as Record<string, string>
     })
 
-    console.log('[ACP Init] PTY process spawned:', {
+    logger.info('[ACP Init] PTY process spawned:', {
       pid: pty.pid
     })
 
@@ -403,7 +404,7 @@ class AcpInitHelper {
     pty.onData((data: string) => {
       outputBuffer += data
 
-      console.log('[ACP Init] PTY data:', {
+      logger.info('[ACP Init] PTY data:', {
         length: data.length,
         preview: data.substring(0, 100).replace(/\n/g, '\\n'),
         shellReady,
@@ -418,7 +419,7 @@ class AcpInitHelper {
 
         if (hasPromptPattern || Date.now() - startTime > 500) {
           shellReady = true
-          console.log('[ACP Init] Shell detected as ready, output length:', outputBuffer.length)
+          logger.info('[ACP Init] Shell detected as ready, output length:', outputBuffer.length)
         }
       }
 
@@ -433,7 +434,7 @@ class AcpInitHelper {
         const separator = platform === 'win32' ? ';' : '&&'
         const initCmd = initCommands.join(` ${separator} `)
 
-        console.log('[ACP Init] Injecting initialization command (shell ready):', {
+        logger.info('[ACP Init] Injecting initialization command (shell ready):', {
           command: initCmd,
           outputBufferLength: outputBuffer.length
         })
@@ -442,7 +443,7 @@ class AcpInitHelper {
         setTimeout(() => {
           try {
             pty.write(initCmd + '\n')
-            console.log('[ACP Init] Command written to PTY')
+            logger.info('[ACP Init] Command written to PTY')
           } catch (error) {
             console.warn('[ACP Init] Error writing command to PTY:', error)
           }
@@ -452,7 +453,7 @@ class AcpInitHelper {
 
     // Handle process exit
     pty.onExit(({ exitCode, signal }) => {
-      console.log('[ACP Init] Process exited:', {
+      logger.info('[ACP Init] Process exited:', {
         pid: pty.pid,
         code: exitCode,
         signal,
@@ -463,7 +464,7 @@ class AcpInitHelper {
       }
       if (this.activeShell === pty) {
         this.activeShell = null
-        console.log('[ACP Init] Active shell cleared')
+        logger.info('[ACP Init] Active shell cleared')
       }
     })
 
@@ -471,13 +472,13 @@ class AcpInitHelper {
     // Also inject command if shell doesn't become ready within timeout
     setTimeout(() => {
       if (!webContents.isDestroyed()) {
-        console.log('[ACP Init] Sending start event (delayed to ensure listeners ready)')
+        logger.info('[ACP Init] Sending start event (delayed to ensure listeners ready)')
         webContents.send('acp-init:start', { command: shell })
       }
 
       // Fallback: inject command if shell hasn't become ready yet
       if (!commandInjected && initCommands.length > 0 && Date.now() - startTime < maxWaitTime) {
-        console.log('[ACP Init] Fallback: injecting command after delay (shell may be ready)')
+        logger.info('[ACP Init] Fallback: injecting command after delay (shell may be ready)')
         commandInjected = true
         const separator = platform === 'win32' ? ';' : '&&'
         const initCmd = initCommands.join(` ${separator} `)
@@ -485,7 +486,7 @@ class AcpInitHelper {
         setTimeout(() => {
           try {
             pty.write(initCmd + '\n')
-            console.log('[ACP Init] Fallback command written to PTY')
+            logger.info('[ACP Init] Fallback command written to PTY')
           } catch (error) {
             console.warn('[ACP Init] Error writing fallback command to PTY:', error)
           }
@@ -505,7 +506,7 @@ class AcpInitHelper {
     npmRegistry: string | null,
     uvRegistry: string | null
   ): Promise<Record<string, string>> {
-    console.log('[ACP Init] Building environment variables:', {
+    logger.info('[ACP Init] Building environment variables:', {
       useBuiltinRuntime,
       npmRegistry,
       uvRegistry,
@@ -514,7 +515,7 @@ class AcpInitHelper {
 
     let env = mergeCommandEnvironment()
     const systemEnvCount = Object.keys(env).length
-    console.log('[ACP Init] Added system environment variables:', systemEnvCount)
+    logger.info('[ACP Init] Added system environment variables:', systemEnvCount)
 
     try {
       const shellEnv = await getShellEnvironment()
@@ -531,18 +532,18 @@ class AcpInitHelper {
 
       if (uvRuntimePath) {
         prependPathSources.push(uvRuntimePath)
-        console.log('[ACP Init] Added UV runtime path:', uvRuntimePath)
+        logger.info('[ACP Init] Added UV runtime path:', uvRuntimePath)
       }
 
       if (process.platform === 'win32') {
         if (nodeRuntimePath) {
           prependPathSources.push(nodeRuntimePath)
-          console.log('[ACP Init] Added Node runtime path (Windows):', nodeRuntimePath)
+          logger.info('[ACP Init] Added Node runtime path (Windows):', nodeRuntimePath)
         }
       } else if (nodeRuntimePath) {
         const nodeBinPath = path.join(nodeRuntimePath, 'bin')
         prependPathSources.push(nodeBinPath)
-        console.log('[ACP Init] Added Node runtime path (Unix):', nodeBinPath)
+        logger.info('[ACP Init] Added Node runtime path (Unix):', nodeBinPath)
       }
 
       if (prependPathSources.length > 0) {
@@ -558,13 +559,13 @@ class AcpInitHelper {
       if (npmRegistry && npmRegistry !== '') {
         env.npm_config_registry = npmRegistry
         env.NPM_CONFIG_REGISTRY = npmRegistry
-        console.log('[ACP Init] Set NPM registry:', npmRegistry)
+        logger.info('[ACP Init] Set NPM registry:', npmRegistry)
       }
 
       if (uvRegistry && uvRegistry !== '') {
         env.UV_DEFAULT_INDEX = uvRegistry
         env.PIP_INDEX_URL = uvRegistry
-        console.log('[ACP Init] Set UV registry:', uvRegistry)
+        logger.info('[ACP Init] Set UV registry:', uvRegistry)
       }
 
       if (process.platform === 'win32' && this.runtimeHelper.isInstalledInSystemDirectory()) {
@@ -573,7 +574,7 @@ class AcpInitHelper {
         if (userNpmPrefix) {
           env.npm_config_prefix = userNpmPrefix
           env.NPM_CONFIG_PREFIX = userNpmPrefix
-          console.log(
+          logger.info(
             '[ACP Init] Set NPM prefix to user directory (system install detected):',
             userNpmPrefix
           )
@@ -583,7 +584,7 @@ class AcpInitHelper {
             includeDefaultPaths: false
           })
 
-          console.log('[ACP Init] Added user npm bin directory to PATH:', userNpmBinPath)
+          logger.info('[ACP Init] Added user npm bin directory to PATH:', userNpmBinPath)
         }
       }
     }
@@ -595,7 +596,7 @@ class AcpInitHelper {
       Object.entries(profile.env).forEach(([key, value]) => {
         if (value !== undefined && value !== '' && !['PATH', 'Path', 'path'].includes(key)) {
           env[key] = value
-          console.log('[ACP Init] Added custom env var:', key)
+          logger.info('[ACP Init] Added custom env var:', key)
         }
       })
 
@@ -604,16 +605,16 @@ class AcpInitHelper {
         setPathEntriesOnEnv(env, [customPathEntries, getPathEntriesFromEnv(env)], {
           includeDefaultPaths: false
         })
-        console.log('[ACP Init] Merged custom PATH from profile:', {
+        logger.info('[ACP Init] Merged custom PATH from profile:', {
           customPath: profile.env.PATH || profile.env.Path || profile.env.path,
           mergedPathLength: env[process.platform === 'win32' ? 'Path' : 'PATH']?.length || 0
         })
       }
 
-      console.log('[ACP Init] Added custom environment variables from profile:', customEnvCount)
+      logger.info('[ACP Init] Added custom environment variables from profile:', customEnvCount)
     }
 
-    console.log('[ACP Init] Environment variables built:', {
+    logger.info('[ACP Init] Environment variables built:', {
       totalEnvVars: Object.keys(env).length,
       pathLength: env[process.platform === 'win32' ? 'Path' : 'PATH']?.length || 0
     })

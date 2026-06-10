@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import type {
   CONVERSATION,
   CONVERSATION_SETTINGS,
@@ -138,7 +139,7 @@ export class ConversationManager {
     const existingWebContentsId = await this.findWebContentsForConversation(conversationId)
 
     if (existingWebContentsId !== null && existingWebContentsId !== webContentsId) {
-      console.log(
+      logger.info(
         `Conversation ${conversationId} is already bound to webContents ${existingWebContentsId}. Focusing that window.`
       )
       const currentWindowType = this.getWindowTypeForWebContents(webContentsId)

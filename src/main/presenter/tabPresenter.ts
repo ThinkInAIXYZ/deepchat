@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { eventBus } from '@/eventbus'
 import { WINDOW_EVENTS, CONFIG_EVENTS, SYSTEM_EVENTS, TAB_EVENTS } from '@/events'
@@ -152,7 +153,7 @@ export class TabPresenter implements ITabPresenter {
     url: string,
     options: TabCreateOptions = {}
   ): Promise<number | null> {
-    console.log('createTab', windowId, url, options)
+    logger.info('createTab', windowId, url, options)
     const window = BrowserWindow.fromId(windowId)
     if (!window) return null
     if (!this.windowTypes.has(windowId)) {
@@ -561,7 +562,7 @@ export class TabPresenter implements ITabPresenter {
     }
 
     // 未找到活动标签页
-    console.log(`TabPresenter: No active tab found for window ${windowId}.`)
+    logger.info(`TabPresenter: No active tab found for window ${windowId}.`)
     return undefined
   }
 
@@ -675,7 +676,7 @@ export class TabPresenter implements ITabPresenter {
         const state = this.tabState.get(tabId)
         if (state) {
           if (state.icon !== favicons[0]) {
-            console.log('page-favicon-updated', state.icon, favicons[0])
+            logger.info('page-favicon-updated', state.icon, favicons[0])
             state.icon = favicons[0]
             this.notifyWindowTabsUpdate(windowId).catch(console.error) // Call async function, handle potential rejection
           }
@@ -831,7 +832,7 @@ export class TabPresenter implements ITabPresenter {
     // 销毁所有标签页
     // 使用 `for...of` 循环确保每个 closeTab 调用都被 await
     for (const [tabId] of this.tabWindowMap.entries()) {
-      console.log(`Destroying resources for tab: ${tabId}`)
+      logger.info(`Destroying resources for tab: ${tabId}`)
       await this.closeTab(tabId)
     }
 
@@ -849,7 +850,7 @@ export class TabPresenter implements ITabPresenter {
    * 重排序窗口内的标签页
    */
   async reorderTabs(windowId: number, tabIds: number[]): Promise<boolean> {
-    console.log('reorderTabs', windowId, tabIds)
+    logger.info('reorderTabs', windowId, tabIds)
 
     const windowTabs = this.windowTabs.get(windowId)
     if (!windowTabs) return false
@@ -1022,7 +1023,7 @@ export class TabPresenter implements ITabPresenter {
    * @param tabId 标签页ID
    */
   async onRendererTabReady(tabId: number): Promise<void> {
-    console.log(`Tab ${tabId} renderer ready`)
+    logger.info(`Tab ${tabId} renderer ready`)
     // 通过事件总线通知其他模块
     eventBus.sendToMain(TAB_EVENTS.RENDERER_TAB_READY, tabId)
   }
@@ -1032,7 +1033,7 @@ export class TabPresenter implements ITabPresenter {
    * @param threadId 会话ID
    */
   async onRendererTabActivated(threadId: string): Promise<void> {
-    console.log(`Thread ${threadId} activated in renderer`)
+    logger.info(`Thread ${threadId} activated in renderer`)
     // 通过事件总线通知其他模块
     eventBus.sendToMain(TAB_EVENTS.RENDERER_TAB_ACTIVATED, threadId)
   }
@@ -1085,7 +1086,7 @@ export class TabPresenter implements ITabPresenter {
       // 转换为base64格式
       const base64Data = watermarkedImage.toDataURL()
 
-      console.log(`Successfully stitched ${imageDataList.length} images with watermark`)
+      logger.info(`Successfully stitched ${imageDataList.length} images with watermark`)
       return base64Data
     } catch (error) {
       console.error('Stitch images with watermark error:', error)
@@ -1132,7 +1133,7 @@ export class TabPresenter implements ITabPresenter {
 
   registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void {
     try {
-      console.log(`TabPresenter: Registering floating window as virtual tab, ID: ${webContentsId}`)
+      logger.info(`TabPresenter: Registering floating window as virtual tab, ID: ${webContentsId}`)
       if (this.tabs.has(webContentsId)) {
         console.warn(`TabPresenter: Tab ${webContentsId} already exists, skipping registration`)
         return
@@ -1145,7 +1146,7 @@ export class TabPresenter implements ITabPresenter {
       } as any
       this.webContentsToTabId.set(webContentsId, webContentsId)
       this.tabs.set(webContentsId, virtualView)
-      console.log(
+      logger.info(
         `TabPresenter: Virtual tab registered successfully for floating window ${webContentsId}`
       )
     } catch (error) {
@@ -1155,10 +1156,10 @@ export class TabPresenter implements ITabPresenter {
 
   unregisterFloatingWindow(webContentsId: number): void {
     try {
-      console.log(`TabPresenter: Unregistering floating window virtual tab, ID: ${webContentsId}`)
+      logger.info(`TabPresenter: Unregistering floating window virtual tab, ID: ${webContentsId}`)
       this.webContentsToTabId.delete(webContentsId)
       this.tabs.delete(webContentsId)
-      console.log(
+      logger.info(
         `TabPresenter: Virtual tab unregistered successfully for floating window ${webContentsId}`
       )
     } catch (error) {

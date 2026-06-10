@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { app, dialog } from 'electron'
 import { LifecycleManager, registerCoreHooks } from './presenter/lifecyclePresenter'
 import { getInstance, Presenter } from './presenter'
@@ -89,7 +90,7 @@ export function startApp(): void {
 
   const gotSingleInstanceLock = app.requestSingleInstanceLock()
   if (!gotSingleInstanceLock) {
-    console.log('Another DeepChat instance is already running. Exiting current process.')
+    logger.info('Another DeepChat instance is already running. Exiting current process.')
     app.quit()
     return
   }
@@ -97,14 +98,14 @@ export function startApp(): void {
   // Initialize presenter after ready
   let presenter: Presenter | undefined
 
-  console.log('Main process starting, checking for deeplink...')
-  console.log('Startup arguments received', { argc: process.argv.length })
+  logger.info('Main process starting, checking for deeplink...')
+  logger.info('Startup arguments received', { argc: process.argv.length })
   const startupDeepLink = findStartupDeepLink(process.argv, process.env)
   if (startupDeepLink) {
-    console.log('Found startup deeplink during initialization')
+    logger.info('Found startup deeplink during initialization')
     storeStartupDeepLink(startupDeepLink)
   } else {
-    console.log('No startup deeplink detected during initialization')
+    logger.info('No startup deeplink detected during initialization')
   }
 
   const focusExistingAppWindow = () => {
@@ -126,7 +127,7 @@ export function startApp(): void {
       return
     }
 
-    console.log(source)
+    logger.info(source)
     const normalizedUrl = storeStartupDeepLink(url)
     if (!normalizedUrl) {
       return
@@ -147,7 +148,7 @@ export function startApp(): void {
   // Also listen for second-instance events (Windows/Linux)
   if (gotSingleInstanceLock) {
     app.on('second-instance', (_event, commandLine) => {
-      console.log('Received second-instance event', { argc: commandLine.length })
+      logger.info('Received second-instance event', { argc: commandLine.length })
       focusExistingAppWindow()
 
       const deepLinkUrl = findDeepLinkArg(commandLine)
@@ -175,10 +176,10 @@ export function startApp(): void {
     // Set app user model id for windows
     electronApp.setAppUserModelId('com.wefonk.deepchat')
     try {
-      console.log('main: Application lifecycle startup')
+      logger.info('main: Application lifecycle startup')
       await lifecycleManager.start()
       presenter = getInstance(lifecycleManager)
-      console.log('main: Application lifecycle startup completed successfully')
+      logger.info('main: Application lifecycle startup completed successfully')
     } catch (error) {
       console.error('main: Application lifecycle startup failed:', error)
       dialog.showErrorBox(
@@ -203,7 +204,7 @@ export function startApp(): void {
 
     if (mainWindows.length === 0) {
       // When only floating button windows exist, quit app on non-macOS platforms
-      console.log('main: All main windows closed, requesting shutdown')
+      logger.info('main: All main windows closed, requesting shutdown')
       app.quit() // Keep this event to avoid unexpected situations
     }
   })

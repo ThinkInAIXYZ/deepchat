@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 import { LLM_PROVIDER } from '@shared/presenter'
 import { BaseLLMProvider } from '../baseProvider'
@@ -37,7 +38,7 @@ export class ProviderInstanceManager {
   }
 
   handleProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
-    console.log(`Handling batch provider update with ${batchUpdate.changes.length} changes`)
+    logger.info(`Handling batch provider update with ${batchUpdate.changes.length} changes`)
 
     this.providers.clear()
     batchUpdate.providers.forEach((provider) => {
@@ -110,7 +111,7 @@ export class ProviderInstanceManager {
 
     if (change.provider.enable && change.requiresRebuild) {
       try {
-        console.log(`Creating new provider instance: ${change.providerId}`)
+        logger.info(`Creating new provider instance: ${change.providerId}`)
         this.getProviderInstance(change.providerId)
       } catch (error) {
         console.error(`Failed to create provider instance ${change.providerId}:`, error)
@@ -140,7 +141,7 @@ export class ProviderInstanceManager {
     const enableStatusChanged = 'enable' in change.updates && wasEnabled !== isEnabled
 
     if (change.requiresRebuild) {
-      console.log(`Rebuilding provider instance: ${change.providerId}`)
+      logger.info(`Rebuilding provider instance: ${change.providerId}`)
       this.providerInstances.delete(change.providerId)
 
       if (updatedProvider.enable) {
@@ -148,28 +149,28 @@ export class ProviderInstanceManager {
           const instance = this.getProviderInstance(change.providerId)
           // For ACP provider, trigger model loading when enabled
           if (change.providerId === 'acp' && instance && 'handleEnableStateChange' in instance) {
-            console.log(`[ACP] Provider rebuilt and enabled, triggering model loading`)
+            logger.info(`[ACP] Provider rebuilt and enabled, triggering model loading`)
             void (instance as any).handleEnableStateChange()
           }
         } catch (error) {
           console.error(`Failed to rebuild provider instance ${change.providerId}:`, error)
         }
       } else if (enableStatusChanged && !isEnabled) {
-        console.log(`Provider ${change.providerId} disabled, cleaning up instance`)
+        logger.info(`Provider ${change.providerId} disabled, cleaning up instance`)
         this.cleanupProviderInstance(change.providerId)
       }
     } else {
       if (enableStatusChanged) {
         if (!isEnabled) {
-          console.log(`Provider ${change.providerId} disabled, cleaning up instance`)
+          logger.info(`Provider ${change.providerId} disabled, cleaning up instance`)
           this.cleanupProviderInstance(change.providerId)
         } else {
           try {
-            console.log(`Provider ${change.providerId} enabled, creating instance`)
+            logger.info(`Provider ${change.providerId} enabled, creating instance`)
             const instance = this.getProviderInstance(change.providerId)
             // For ACP provider, trigger model loading when enabled
             if (change.providerId === 'acp' && instance && 'handleEnableStateChange' in instance) {
-              console.log(`[ACP] Provider enabled, triggering model loading`)
+              logger.info(`[ACP] Provider enabled, triggering model loading`)
               void (instance as any).handleEnableStateChange()
             }
           } catch (error) {
@@ -190,7 +191,7 @@ export class ProviderInstanceManager {
   }
 
   private handleProviderReorder(_change: ProviderChange): void {
-    console.log(`Provider reorder completed, no instance rebuild required`)
+    logger.info(`Provider reorder completed, no instance rebuild required`)
   }
 
   private cleanupProviderInstance(providerId: string): void {
@@ -199,7 +200,7 @@ export class ProviderInstanceManager {
     )
 
     for (const [eventId, streamState] of activeStreamsToStop) {
-      console.log(`Stopping active stream for disabled provider ${providerId}: ${eventId}`)
+      logger.info(`Stopping active stream for disabled provider ${providerId}: ${eventId}`)
       try {
         streamState.abortController.abort()
       } catch (error) {
@@ -210,7 +211,7 @@ export class ProviderInstanceManager {
 
     const instance = this.providerInstances.get(providerId)
     if (instance) {
-      console.log(`Removing provider instance: ${providerId}`)
+      logger.info(`Removing provider instance: ${providerId}`)
       this.providerInstances.delete(providerId)
 
       if ('cleanup' in instance && typeof (instance as any).cleanup === 'function') {
@@ -226,7 +227,7 @@ export class ProviderInstanceManager {
 
     const currentProviderId = this.options.getCurrentProviderId()
     if (currentProviderId === providerId) {
-      console.log(`Clearing current provider as it was disabled: ${providerId}`)
+      logger.info(`Clearing current provider as it was disabled: ${providerId}`)
       this.options.setCurrentProviderId(null)
     }
   }

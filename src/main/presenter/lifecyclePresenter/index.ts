@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * LifecycleManager - Central orchestrator for application lifecycle phases
  */
@@ -130,7 +131,7 @@ export class LifecycleManager implements ILifecycleManager {
       phaseHooks.splice(insertIndex, 0, { id: hookId, hook })
     }
 
-    console.log(
+    logger.info(
       `Registered lifecycle hook '${hook.name}' for phase '${phase}' with priority ${priority}`
     )
     return hookId
@@ -424,7 +425,7 @@ export class LifecycleManager implements ILifecycleManager {
       if (!this.state.isShuttingDown) {
         // Check if update installation is in progress
         if (this.isUpdateInProgress) {
-          console.log(
+          logger.info(
             'LifecycleManager: Update installation in progress, allowing quit without hooks'
           )
           return // Allow normal quit without executing hooks
@@ -436,15 +437,15 @@ export class LifecycleManager implements ILifecycleManager {
 
         try {
           if (presenter?.windowPresenter) {
-            console.log('LifecycleManager: Setting application quitting flag via presenter')
+            logger.info('LifecycleManager: Setting application quitting flag via presenter')
             presenter.windowPresenter.setApplicationQuitting(true)
           } else {
-            console.log(
+            logger.info(
               'LifecycleManager: Presenter not available during shutdown, will be handled by hook if presenter initializes'
             )
           }
         } catch (error) {
-          console.log(
+          logger.info(
             'LifecycleManager: Could not access presenter during shutdown, will rely on hook fallback:',
             error
           )
@@ -460,7 +461,7 @@ export class LifecycleManager implements ILifecycleManager {
               presenter.windowPresenter.setApplicationQuitting(false)
             }
           } catch (error) {
-            console.log(
+            logger.info(
               'LifecycleManager: Failed to reset isQuitting flag after cancelled shutdown:',
               error
             )
@@ -471,7 +472,7 @@ export class LifecycleManager implements ILifecycleManager {
 
     // 监听强制退出应用事件 (例如：从菜单触发)，设置退出标志并调用 app.quit()
     eventBus.on(WINDOW_EVENTS.FORCE_QUIT_APP, () => {
-      console.log('Force quitting application.')
+      logger.info('Force quitting application.')
       this.forceShutdown()
     })
   }
@@ -482,33 +483,33 @@ export class LifecycleManager implements ILifecycleManager {
   private setupLifecycleEventListeners(): void {
     // Listen to phase started events for debugging
     eventBus.on(LIFECYCLE_EVENTS.PHASE_STARTED, (data: PhaseStartedEventData) => {
-      console.log(
+      logger.info(
         `[LifecycleManager] Starting lifecycle phase '${data.phase}' with ${data.hookCount} hooks`
       )
     })
 
     // Listen to phase completed events for debugging
     eventBus.on(LIFECYCLE_EVENTS.PHASE_COMPLETED, (data: PhaseCompletedEventData) => {
-      console.log(
+      logger.info(
         `[LifecycleManager] Completed lifecycle phase: ${data.phase} (${data.duration}ms)`
       )
     })
 
     // Listen to hook executed events
     eventBus.on(LIFECYCLE_EVENTS.HOOK_EXECUTED, (data: HookExecutedEventData) => {
-      console.log(
+      logger.info(
         `[LifecycleManager] Hook executed: ${data.name} [priority: ${data.priority}, critical: ${data.critical}]`
       )
     })
 
     // Listen to hook completed events
     eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPLETED, (data: HookExecutedEventData) => {
-      console.log(`[LifecycleManager] Hook completed: ${data.name}`)
+      logger.info(`[LifecycleManager] Hook completed: ${data.name}`)
     })
 
     // Listen to hook failed events
     eventBus.on(LIFECYCLE_EVENTS.HOOK_FAILED, (data: HookFailedEventData) => {
-      console.log(`[LifecycleManager] Hook failed: ${data.name}`, data.error)
+      logger.info(`[LifecycleManager] Hook failed: ${data.name}`, data.error)
     })
 
     // Listen to error events for monitoring
@@ -518,7 +519,7 @@ export class LifecycleManager implements ILifecycleManager {
 
     // Listen to progress updates for monitoring
     eventBus.on(LIFECYCLE_EVENTS.PROGRESS_UPDATED, (data: ProgressUpdatedEventData) => {
-      console.log(
+      logger.info(
         `[LifecycleManager] Progress update: ${data.phase} - ${data.progress}% - ${data.message}`
       )
     })
@@ -551,7 +552,7 @@ export class LifecycleManager implements ILifecycleManager {
   }
 
   private forceShutdown(): void {
-    console.log('Force shutdown requested')
+    logger.info('Force shutdown requested')
     this.state.isShuttingDown = true
     app.quit() // Main exit: force quit
   }
@@ -561,7 +562,7 @@ export class LifecycleManager implements ILifecycleManager {
    */
   private setupUpdateStateListener(): void {
     eventBus.on(UPDATE_EVENTS.STATE_CHANGED, (data: { isUpdating: boolean }) => {
-      console.log(`LifecycleManager: Update state changed to ${data.isUpdating}`)
+      logger.info(`LifecycleManager: Update state changed to ${data.isUpdating}`)
       this.isUpdateInProgress = data.isUpdating
     })
   }

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Floating destroy hook
  */
@@ -12,7 +13,7 @@ export const floatingDestroyHook: LifecycleHook = {
   priority: 10,
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('floatingDestroyHook: Destroy floating')
+    logger.info('floatingDestroyHook: Destroy floating')
 
     // Ensure presenter is available
     if (!presenter) {
@@ -27,6 +28,6 @@ export const floatingDestroyHook: LifecycleHook = {
         error
       )
     }
-    console.log('floatingDestroyHook: floating destroyed successfully')
+    logger.info('floatingDestroyHook: floating destroyed successfully')
   }
 }

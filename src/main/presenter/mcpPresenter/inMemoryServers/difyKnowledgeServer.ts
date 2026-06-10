@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
@@ -230,7 +231,7 @@ export class DifyKnowledgeServer {
         score_threshold: null
       }
 
-      console.log('performDifyKnowledgeSearch request', url, {
+      logger.info('performDifyKnowledgeSearch request', url, {
         query,
         score_threshold: scoreThreshold,
         retrieval_model: retrievalModel

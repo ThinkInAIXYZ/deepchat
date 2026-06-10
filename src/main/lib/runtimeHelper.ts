@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -480,7 +481,7 @@ export class RuntimeHelper {
       normalizedPath.includes('program files') || normalizedPath.includes('program files (x86)')
 
     if (isSystemDir) {
-      console.log('[RuntimeHelper] Application is installed in system directory:', appPath)
+      logger.info('[RuntimeHelper] Application is installed in system directory:', appPath)
     }
 
     return isSystemDir

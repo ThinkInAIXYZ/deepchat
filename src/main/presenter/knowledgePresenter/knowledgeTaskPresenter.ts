@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * KnowledgeTaskPresenter - Focused on global task scheduling and sequential execution
  * This class manages a queue of knowledge-related tasks, allowing for efficient processing and management of these tasks.
@@ -20,7 +21,7 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
   }
 
   addTask(task: KnowledgeChunkTask): void {
-    console.log(`[RAG TASK] Adding task: ${task.id}`)
+    logger.info(`[RAG TASK] Adding task: ${task.id}`)
     this.queue.push(task)
     this.controllers.set(task.id, new AbortController())
     this.processQueue()
@@ -30,7 +31,7 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
     // Remove tasks from the queue
     this.queue = this.queue.filter((task) => {
       if (filter(task)) {
-        console.log(`[RAG TASK] Removing queued task: ${task.id}`)
+        logger.info(`[RAG TASK] Removing queued task: ${task.id}`)
         this.terminateTask(task.id)
         return false
       }
@@ -40,7 +41,7 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
     // Terminate the currently running task if it matches
     for (const [taskId, task] of this.runningTasks) {
       if (filter(task)) {
-        console.log(`[RAG TASK] Terminating running task: ${taskId}`)
+        logger.info(`[RAG TASK] Terminating running task: ${taskId}`)
         this.terminateTask(taskId)
       }
     }
@@ -117,7 +118,7 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
   }
 
   destroy(): void {
-    console.log('[RAG TASK] Destroying TaskManager, all tasks will be terminated.')
+    logger.info('[RAG TASK] Destroying TaskManager, all tasks will be terminated.')
     // Remove all tasks (including current task)
     this.removeTasks(() => true)
     // Clear queue and reset state
@@ -153,7 +154,7 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
           }
         } catch (error) {
           if (error instanceof DOMException && error.name === 'AbortError') {
-            console.log(`[RAG TASK] Task ${task.id} aborted during execution.`)
+            logger.info(`[RAG TASK] Task ${task.id} aborted during execution.`)
             task.onTerminate?.()
           } else {
             console.error(`[RAG TASK] Task ${task.id} failed with error:`, error)
@@ -162,7 +163,7 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
         } finally {
           this.controllers.delete(task.id)
           this.runningTasks.delete(task.id)
-          console.log(`[RAG TASK] Task ${task.id} finished.`)
+          logger.info(`[RAG TASK] Task ${task.id} finished.`)
           this.processQueue()
         }
       })()

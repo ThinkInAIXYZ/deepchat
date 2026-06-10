@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 // src\main\presenter\windowPresenter\index.ts
 import {
   BrowserWindow,
@@ -103,7 +104,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // Listen for shortcut event: create new window
     eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_WINDOW, () => {
-      console.log('Creating new app window via shortcut.')
+      logger.info('Creating new app window via shortcut.')
       this.createAppWindow()
     })
 
@@ -131,7 +132,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 监听系统主题更新事件，通知所有窗口 Renderer
     eventBus.on(SYSTEM_EVENTS.SYSTEM_THEME_UPDATED, (isDark: boolean) => {
-      console.log('System theme updated, notifying all windows.')
+      logger.info('System theme updated, notifying all windows.')
       this.windows.forEach((window) => {
         if (!window.isDestroyed()) {
           window.webContents.send('system-theme-updated', isDark)
@@ -143,7 +144,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 监听内容保护设置变更事件，更新所有窗口并重启应用
     eventBus.on(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, (enabled: boolean) => {
-      console.log(`Content protection setting changed to ${enabled}, restarting application.`)
+      logger.info(`Content protection setting changed to ${enabled}, restarting application.`)
       this.windows.forEach((window) => {
         if (!window.isDestroyed()) {
           this.updateContentProtection(window, enabled)
@@ -159,7 +160,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 监听更新进程设置应用退出状态的事件
     eventBus.on(WINDOW_EVENTS.SET_APPLICATION_QUITTING, (data: { isQuitting: boolean }) => {
-      console.log(`WindowPresenter: Setting application quitting state to ${data.isQuitting}`)
+      logger.info(`WindowPresenter: Setting application quitting state to ${data.isQuitting}`)
       this.setApplicationQuitting(data.isQuitting)
     })
   }
@@ -211,7 +212,7 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     if (targetWindow && !targetWindow.isDestroyed()) {
-      console.log(`Previewing file: ${filePath}`)
+      logger.info(`Previewing file: ${filePath}`)
       if (process.platform === 'darwin') {
         targetWindow.previewFile(filePath)
       } else {
@@ -229,7 +230,7 @@ export class WindowPresenter implements IWindowPresenter {
   minimize(windowId: number): void {
     const window = this.windows.get(windowId)
     if (window && !window.isDestroyed()) {
-      console.log(`Minimizing window ${windowId}.`)
+      logger.info(`Minimizing window ${windowId}.`)
       window.minimize()
     } else {
       console.warn(`Failed to minimize window ${windowId}, window does not exist or is destroyed.`)
@@ -243,7 +244,7 @@ export class WindowPresenter implements IWindowPresenter {
   maximize(windowId: number): void {
     const window = this.windows.get(windowId)
     if (window && !window.isDestroyed()) {
-      console.log(`Maximizing/unmaximizing window ${windowId}.`)
+      logger.info(`Maximizing/unmaximizing window ${windowId}.`)
       if (window.isMaximized()) {
         window.unmaximize()
       } else {
@@ -271,7 +272,7 @@ export class WindowPresenter implements IWindowPresenter {
   close(windowId: number): void {
     const window = this.windows.get(windowId)
     if (window && !window.isDestroyed()) {
-      console.log(`Requesting to close window ${windowId}, calling window.close().`)
+      logger.info(`Requesting to close window ${windowId}, calling window.close().`)
       window.close() // 触发 'close' 事件
     } else {
       console.warn(
@@ -287,7 +288,7 @@ export class WindowPresenter implements IWindowPresenter {
    * @param forceClose 是否强制关闭 (当前实现由 isQuitting 标志控制，此参数未直接使用)。
    */
   async closeWindow(windowId: number, forceClose: boolean = false): Promise<void> {
-    console.log(`closeWindow(${windowId}, ${forceClose}) called.`)
+    logger.info(`closeWindow(${windowId}, ${forceClose}) called.`)
     const window = this.windows.get(windowId)
     if (window && !window.isDestroyed()) {
       window.close() // 触发 'close' 事件
@@ -306,13 +307,13 @@ export class WindowPresenter implements IWindowPresenter {
   hide(windowId: number): void {
     const window = this.windows.get(windowId)
     if (window && !window.isDestroyed()) {
-      console.log(`Hiding window ${windowId}.`)
+      logger.info(`Hiding window ${windowId}.`)
       // 处理全屏窗口隐藏时的黑屏问题
       if (window.isFullScreen()) {
-        console.log(`Window ${windowId} is fullscreen, exiting fullscreen before hiding.`)
+        logger.info(`Window ${windowId} is fullscreen, exiting fullscreen before hiding.`)
         // 退出全屏后监听 leave-full-screen 事件再隐藏
         window.once('leave-full-screen', () => {
-          console.log(`Window ${windowId} left fullscreen, proceeding with hide.`)
+          logger.info(`Window ${windowId} left fullscreen, proceeding with hide.`)
           if (!window.isDestroyed()) {
             window.hide()
           } else {
@@ -321,7 +322,7 @@ export class WindowPresenter implements IWindowPresenter {
         })
         window.setFullScreen(false) // 请求退出全屏
       } else {
-        console.log(`Window ${windowId} is not fullscreen, hiding directly.`)
+        logger.info(`Window ${windowId} is not fullscreen, hiding directly.`)
         window.hide() // 直接隐藏
       }
     } else {
@@ -340,7 +341,7 @@ export class WindowPresenter implements IWindowPresenter {
       // 未指定 ID，查找焦点窗口或第一个窗口
       targetWindow = this.getFocusedWindow() || this.getAllWindows()[0]
       if (targetWindow && !targetWindow.isDestroyed()) {
-        console.log(`Showing default window ${targetWindow.id}.`)
+        logger.info(`Showing default window ${targetWindow.id}.`)
       } else {
         console.warn('No window found to show.')
         return
@@ -348,7 +349,7 @@ export class WindowPresenter implements IWindowPresenter {
     } else {
       targetWindow = this.windows.get(windowId)
       if (targetWindow && !targetWindow.isDestroyed()) {
-        console.log(`Showing window ${windowId}.`)
+        logger.info(`Showing window ${windowId}.`)
       } else {
         console.warn(`Failed to show window ${windowId}, window does not exist or is destroyed.`)
         return
@@ -371,7 +372,7 @@ export class WindowPresenter implements IWindowPresenter {
    * @param windowId 窗口 ID。
    */
   private async handleWindowRestore(windowId: number): Promise<void> {
-    console.log(`Handling restore/show logic for window ${windowId}.`)
+    logger.info(`Handling restore/show logic for window ${windowId}.`)
     const window = this.windows.get(windowId)
     if (!window || window.isDestroyed()) {
       console.warn(
@@ -461,7 +462,7 @@ export class WindowPresenter implements IWindowPresenter {
    * @returns 如果消息已尝试发送，返回 true，否则返回 false。
    */
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean {
-    console.log(`Sending message "${channel}" to window ${windowId}.`)
+    logger.info(`Sending message "${channel}" to window ${windowId}.`)
 
     if (
       this.settingsWindow &&
@@ -588,7 +589,7 @@ export class WindowPresenter implements IWindowPresenter {
     x?: number
     y?: number
   }): Promise<number | null> {
-    console.log('Creating window via deprecated createShellWindow wrapper.')
+    logger.info('Creating window via deprecated createShellWindow wrapper.')
     return await this.createManagedWindow(options)
   }
 
@@ -698,7 +699,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口准备就绪时显示
     appWindow.on('ready-to-show', () => {
-      console.log(`Window ${windowId} is ready to show.`)
+      logger.info(`Window ${windowId} is ready to show.`)
       if (!appWindow.isDestroyed()) {
         appWindow.show()
         appWindow.focus()
@@ -714,7 +715,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口获得焦点
     appWindow.on('focus', () => {
-      console.log(`Window ${windowId} gained focus.`)
+      logger.info(`Window ${windowId} gained focus.`)
       this.focusedWindowId = windowId
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_FOCUSED, windowId)
       if (!appWindow.isDestroyed()) {
@@ -724,7 +725,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口失去焦点
     appWindow.on('blur', () => {
-      console.log(`Window ${windowId} lost focus.`)
+      logger.info(`Window ${windowId} lost focus.`)
       if (this.focusedWindowId === windowId) {
         this.focusedWindowId = null // 仅当失去焦点的窗口是当前记录的焦点窗口时才清空
       }
@@ -736,7 +737,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口最大化
     appWindow.on('maximize', () => {
-      console.log(`Window ${windowId} maximized.`)
+      logger.info(`Window ${windowId} maximized.`)
       if (!appWindow.isDestroyed()) {
         appWindow.webContents.send(WINDOW_EVENTS.WINDOW_MAXIMIZED)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_MAXIMIZED, windowId)
@@ -749,7 +750,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口取消最大化
     appWindow.on('unmaximize', () => {
-      console.log(`Window ${windowId} unmaximized.`)
+      logger.info(`Window ${windowId} unmaximized.`)
       if (!appWindow.isDestroyed()) {
         appWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
@@ -765,7 +766,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口从最小化恢复 (或通过 show 显式显示)
     const handleRestore = async () => {
-      console.log(`Window ${windowId} restored.`)
+      logger.info(`Window ${windowId} restored.`)
       this.handleWindowRestore(windowId).catch((error) => {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
@@ -776,7 +777,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口进入全屏
     appWindow.on('enter-full-screen', () => {
-      console.log(`Window ${windowId} entered fullscreen.`)
+      logger.info(`Window ${windowId} entered fullscreen.`)
       if (!appWindow.isDestroyed()) {
         appWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
@@ -792,7 +793,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口退出全屏
     appWindow.on('leave-full-screen', () => {
-      console.log(`Window ${windowId} left fullscreen.`)
+      logger.info(`Window ${windowId} left fullscreen.`)
       if (!appWindow.isDestroyed()) {
         appWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
@@ -814,7 +815,7 @@ export class WindowPresenter implements IWindowPresenter {
     // 'close' 事件：用户尝试关闭窗口 (点击关闭按钮等)。
     // 此处理程序决定是隐藏窗口还是允许其关闭/销毁。
     appWindow.on('close', (event) => {
-      console.log(
+      logger.info(
         `Window ${windowId} close event. isQuitting: ${this.isQuitting}, Platform: ${process.platform}.`
       )
 
@@ -828,16 +829,16 @@ export class WindowPresenter implements IWindowPresenter {
         const shouldPreventDefault = windowId === this.mainWindowId && !shouldQuitOnClose
 
         if (shouldPreventDefault) {
-          console.log(`Window ${windowId}: Preventing default close behavior, hiding instead.`)
+          logger.info(`Window ${windowId}: Preventing default close behavior, hiding instead.`)
           event.preventDefault() // 阻止默认窗口关闭行为
 
           // 处理全屏窗口隐藏时的黑屏问题 (同 hide 方法)
           if (appWindow.isFullScreen()) {
-            console.log(
+            logger.info(
               `Window ${windowId} is fullscreen, exiting fullscreen before hiding (close event).`
             )
             appWindow.once('leave-full-screen', () => {
-              console.log(`Window ${windowId} left fullscreen, proceeding with hide (close event).`)
+              logger.info(`Window ${windowId} left fullscreen, proceeding with hide (close event).`)
               if (!appWindow.isDestroyed()) {
                 appWindow.hide()
               } else {
@@ -848,24 +849,24 @@ export class WindowPresenter implements IWindowPresenter {
             })
             appWindow.setFullScreen(false)
           } else {
-            console.log(`Window ${windowId} is not fullscreen, hiding directly (close event).`)
+            logger.info(`Window ${windowId} is not fullscreen, hiding directly (close event).`)
             appWindow.hide()
           }
         } else {
           // 允许默认关闭行为。这将触发 'closed' 事件。
-          console.log(
+          logger.info(
             `Window ${windowId}: Allowing default close behavior (app is quitting or macOS last window configured to quit).`
           )
         }
       } else {
         // 如果 isQuitting 为 true，表示应用正在主动退出，允许窗口正常关闭
-        console.log(`Window ${windowId}: isQuitting is true, allowing default close behavior.`)
+        logger.info(`Window ${windowId}: isQuitting is true, allowing default close behavior.`)
       }
     })
 
     // 'closed' 事件：窗口实际关闭并销毁时触发 (在 'close' 事件之后，如果未阻止默认行为)
     appWindow.on('closed', () => {
-      console.log(
+      logger.info(
         `Window ${windowId} closed event triggered. isQuitting: ${this.isQuitting}, Map size BEFORE delete: ${this.windows.size}`
       )
       const windowIdBeingClosed = windowId // 捕获 ID
@@ -876,14 +877,14 @@ export class WindowPresenter implements IWindowPresenter {
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
       managedWindowState.unmanage() // 停止管理窗口状态
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
-      console.log(
+      logger.info(
         `Window ${windowIdBeingClosed} closed event handled. Map size AFTER delete: ${this.windows.size}`
       )
 
       // 如果在非 macOS 平台，且关闭的是最后一个窗口，如果应用并非正在退出，则发出警告。
       // 在隐藏到托盘逻辑下，'closed' 事件仅应在 isQuitting 为 true 时触发。
       if (this.windows.size === 0 && process.platform !== 'darwin') {
-        console.log(`Last window closed on non-macOS platform.`)
+        logger.info(`Last window closed on non-macOS platform.`)
         if (!this.isQuitting) {
           console.warn(
             `Warning: Last window on non-macOS platform triggered closed event, but app is not marked as quitting. This might indicate window destruction instead of hiding.`
@@ -895,12 +896,12 @@ export class WindowPresenter implements IWindowPresenter {
     // --- 加载 Renderer HTML 文件 ---
     // Standalone browser renderer has been removed. All windows load the main chat shell.
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      console.log(
+      logger.info(
         `Loading main renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}#/chat`
       )
       appWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/chat')
     } else {
-      console.log(
+      logger.info(
         `Loading packaged main renderer file: ${join(__dirname, '../renderer/index.html')}`
       )
       appWindow.loadFile(join(__dirname, '../renderer/index.html'), {
@@ -914,7 +915,7 @@ export class WindowPresenter implements IWindowPresenter {
       appWindow.webContents.openDevTools({ mode: 'detach' })
     }
 
-    console.log(`Window ${windowId} created successfully.`)
+    logger.info(`Window ${windowId} created successfully.`)
 
     if (this.mainWindowId == null) {
       this.mainWindowId = windowId // 如果这是第一个窗口，设置为主窗口 ID
@@ -932,7 +933,7 @@ export class WindowPresenter implements IWindowPresenter {
       console.warn(`Attempted to update content protection settings on a destroyed window.`)
       return
     }
-    console.log(`Updating content protection for window ${window.id}: ${enabled}`)
+    logger.info(`Updating content protection for window ${window.id}: ${enabled}`)
 
     // setContentProtection 阻止截图/屏幕录制
     window.setContentProtection(enabled)
@@ -959,7 +960,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     if (electronFocusedWindow) {
       const windowId = electronFocusedWindow.id
-      console.log(this.windows)
+      logger.info(this.windows)
       const ourWindow = this.windows.get(windowId)
 
       // 验证 Electron 报告的窗口是否在我们管理范围内且有效
@@ -1021,14 +1022,14 @@ export class WindowPresenter implements IWindowPresenter {
    * @returns 如果事件已发送到有效活动标签页，返回 true，否则返回 false。
    */
   async sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean> {
-    console.log(`Sending event "${channel}" to active tab of window ${windowId}.`)
+    logger.info(`Sending event "${channel}" to active tab of window ${windowId}.`)
     const tabPresenterInstance = presenter.tabPresenter as TabPresenter
     const activeTabId = await tabPresenterInstance.getActiveTabId(windowId)
     if (activeTabId) {
       const tab = await tabPresenterInstance.getTab(activeTabId)
       if (tab && !tab.webContents.isDestroyed()) {
         tab.webContents.send(channel, ...args)
-        console.log(`  - Event sent to tab ${activeTabId}.`)
+        logger.info(`  - Event sent to tab ${activeTabId}.`)
         return true
       } else {
         console.warn(
@@ -1040,7 +1041,7 @@ export class WindowPresenter implements IWindowPresenter {
       const targetWindow = BrowserWindow.fromId(windowId)
       if (targetWindow && !targetWindow.isDestroyed() && !targetWindow.webContents.isDestroyed()) {
         targetWindow.webContents.send(channel, ...args)
-        console.log(`  - No active tab, sent event directly to window ${windowId} webContents.`)
+        logger.info(`  - No active tab, sent event directly to window ${windowId} webContents.`)
         return true
       }
       console.warn(`No active tab found in window ${windowId}, cannot send event "${channel}".`)
@@ -1061,7 +1062,7 @@ export class WindowPresenter implements IWindowPresenter {
     switchToTarget: boolean = false,
     ...args: unknown[]
   ): Promise<boolean> {
-    console.log(`Sending message "${channel}" to default tab. Switch to target: ${switchToTarget}.`)
+    logger.info(`Sending message "${channel}" to default tab. Switch to target: ${switchToTarget}.`)
     try {
       // 优先使用当前获得焦点的窗口
       let targetWindow = this.getFocusedWindow()
@@ -1069,7 +1070,7 @@ export class WindowPresenter implements IWindowPresenter {
 
       if (targetWindow) {
         windowId = targetWindow.id
-        console.log(`  - Using focused window ${windowId}`)
+        logger.info(`  - Using focused window ${windowId}`)
       } else {
         // 如果没有焦点窗口，使用第一个有效窗口
         const windows = this.getAllWindows()
@@ -1079,7 +1080,7 @@ export class WindowPresenter implements IWindowPresenter {
         }
         targetWindow = windows[0]
         windowId = targetWindow.id
-        console.log(`  - No focused window, using first window ${windowId}`)
+        logger.info(`  - No focused window, using first window ${windowId}`)
       }
 
       // 获取目标窗口的所有标签页
@@ -1093,7 +1094,7 @@ export class WindowPresenter implements IWindowPresenter {
           !targetWindow.webContents.isDestroyed()
         ) {
           targetWindow.webContents.send(channel, ...args)
-          console.log(
+          logger.info(
             `  - Window ${windowId} has no tabs, sent message directly to window webContents.`
           )
           if (switchToTarget) {
@@ -1113,21 +1114,21 @@ export class WindowPresenter implements IWindowPresenter {
       if (targetTab && !targetTab.webContents.isDestroyed()) {
         // 向目标标签页发送消息
         targetTab.webContents.send(channel, ...args)
-        console.log(`  - Message sent to tab ${targetTabData.id} in window ${windowId}.`)
+        logger.info(`  - Message sent to tab ${targetTabData.id} in window ${windowId}.`)
 
         // 如果需要，切换到目标窗口和标签页
         if (switchToTarget) {
           try {
             // 激活目标窗口
             if (targetWindow && !targetWindow.isDestroyed()) {
-              console.log(`  - Switching to window ${windowId}`)
+              logger.info(`  - Switching to window ${windowId}`)
               targetWindow.show() // 确保窗口可见
               targetWindow.focus() // 将窗口带到前台
             }
 
             // 如果目标标签页不是活动标签页，则切换
             if (!targetTabData.isActive) {
-              console.log(`  - Switching to tab ${targetTabData.id}`)
+              logger.info(`  - Switching to tab ${targetTabData.id}`)
               await tabPresenterInstance.switchTab(targetTabData.id)
             }
             // switchTab 已经会调用 bringViewToFront 来设置焦点，无需额外调用
@@ -1152,14 +1153,14 @@ export class WindowPresenter implements IWindowPresenter {
 
   public async createFloatingChatWindow(): Promise<void> {
     if (this.floatingChatWindow) {
-      console.log('FloatingChatWindow already exists')
+      logger.info('FloatingChatWindow already exists')
       return
     }
 
     try {
       this.floatingChatWindow = new FloatingChatWindow()
       await this.floatingChatWindow.create()
-      console.log('FloatingChatWindow created successfully')
+      logger.info('FloatingChatWindow created successfully')
     } catch (error) {
       console.error('Failed to create FloatingChatWindow:', error)
       this.floatingChatWindow = null
@@ -1179,14 +1180,14 @@ export class WindowPresenter implements IWindowPresenter {
 
     if (this.floatingChatWindow) {
       this.floatingChatWindow.show(floatingButtonPosition)
-      console.log('FloatingChatWindow shown')
+      logger.info('FloatingChatWindow shown')
     }
   }
 
   public hideFloatingChatWindow(): void {
     if (this.floatingChatWindow) {
       this.floatingChatWindow.hide()
-      console.log('FloatingChatWindow hidden')
+      logger.info('FloatingChatWindow hidden')
     }
   }
 
@@ -1202,7 +1203,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     if (this.floatingChatWindow) {
       this.floatingChatWindow.toggle(floatingButtonPosition)
-      console.log('FloatingChatWindow toggled')
+      logger.info('FloatingChatWindow toggled')
     }
   }
 
@@ -1210,7 +1211,7 @@ export class WindowPresenter implements IWindowPresenter {
     if (this.floatingChatWindow) {
       this.floatingChatWindow.destroy()
       this.floatingChatWindow = null
-      console.log('FloatingChatWindow destroyed')
+      logger.info('FloatingChatWindow destroyed')
     }
   }
 
@@ -1232,7 +1233,7 @@ export class WindowPresenter implements IWindowPresenter {
     console.info('[Startup][Settings][Main] createSettingsWindow start')
     // If settings window already exists, just show and focus it
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      console.log('Settings window already exists, showing and focusing.')
+      logger.info('Settings window already exists, showing and focusing.')
       this.settingsWindow.show()
       this.settingsWindow.focus()
       activateAppOnMac()
@@ -1246,7 +1247,7 @@ export class WindowPresenter implements IWindowPresenter {
           })
 
           const targetUrl = this.getSettingsWindowTargetUrl(navigation)
-          console.log(`Settings window is not ready, reloading to target URL: ${targetUrl}`)
+          logger.info(`Settings window is not ready, reloading to target URL: ${targetUrl}`)
           console.info('[Startup][Settings][Main] loadURL start', targetUrl)
           await this.settingsWindow.loadURL(targetUrl)
           console.info(
@@ -1257,7 +1258,7 @@ export class WindowPresenter implements IWindowPresenter {
       return this.settingsWindow.id
     }
 
-    console.log('Creating new settings window.')
+    logger.info('Creating new settings window.')
 
     // Choose icon based on platform
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
@@ -1355,7 +1356,7 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     settingsWindow.on('closed', () => {
-      console.log(`Settings window ${windowId} closed.`)
+      logger.info(`Settings window ${windowId} closed.`)
       // Unmanage window state when window is closed
       settingsWindowState.unmanage()
       this.startupWorkloadCoordinator?.cancelTarget('settings')
@@ -1365,7 +1366,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // Load settings renderer HTML
     const targetUrl = this.getSettingsWindowTargetUrl(navigation)
-    console.log(`Loading settings renderer URL: ${targetUrl}`)
+    logger.info(`Loading settings renderer URL: ${targetUrl}`)
     console.info('[Startup][Settings][Main] loadURL start', targetUrl)
     await settingsWindow.loadURL(targetUrl)
 
@@ -1378,7 +1379,7 @@ export class WindowPresenter implements IWindowPresenter {
       settingsWindow.webContents.openDevTools({ mode: 'detach' })
     }
 
-    console.log(`Settings window ${windowId} created successfully.`)
+    logger.info(`Settings window ${windowId} created successfully.`)
     return windowId
   }
 
@@ -1434,7 +1435,7 @@ export class WindowPresenter implements IWindowPresenter {
    */
   public closeSettingsWindow(): void {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      console.log('Closing settings window.')
+      logger.info('Closing settings window.')
       const windowId = this.settingsWindow.id
       this.windows.delete(windowId)
       this.settingsWindow.close()
@@ -1508,7 +1509,7 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     this.pendingSettingsMessages.push({ channel, args: [navigation] })
-    console.log(`Reloading settings window to target URL: ${targetUrl}`)
+    logger.info(`Reloading settings window to target URL: ${targetUrl}`)
     console.info('[Startup][Settings][Main] loadURL start', targetUrl)
     void this.settingsWindow.webContents
       .loadURL(targetUrl)
@@ -1644,7 +1645,7 @@ export class WindowPresenter implements IWindowPresenter {
     const isXValid = x >= workArea.x && x + width <= workArea.x + workArea.width
     const isYValid = y >= workArea.y && y + height <= workArea.y + workArea.height
     if (!isXValid || !isYValid) {
-      console.log(
+      logger.info(
         `Window position out of bounds (x: ${x}, y: ${y}, width: ${width}, height: ${height}), centering window`
       )
       return {

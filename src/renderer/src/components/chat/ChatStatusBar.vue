@@ -1021,13 +1021,8 @@ import {
   resolveMoonshotKimiTemperaturePolicy
 } from '@shared/moonshotKimiPolicy'
 import {
-  ANTHROPIC_REASONING_VISIBILITY_VALUES,
-  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
-  isReasoningEffort,
-  isVerbosity,
-  normalizeAnthropicReasoningVisibilityValue,
   type AnthropicReasoningVisibility,
   type ReasoningPortrait
 } from '@shared/types/model-db'
@@ -1036,7 +1031,6 @@ import {
   parseFiniteNumericValue,
   toValidNonNegativeInteger,
   type GenerationNumericField,
-  type GenerationNumericValidationCode,
   validateGenerationNumericField
 } from '@shared/utils/generationSettingsValidation'
 import {
@@ -1053,6 +1047,18 @@ import {
   supportsOpenAICompatibleVideoGeneration
 } from '@shared/videoGenerationSettings'
 import { resolvePreferredChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
+import {
+  getReasoningEffortOptions,
+  getReasoningVisibilityOptions,
+  getVerbosityOptions,
+  hasThinkingBudgetSupport,
+  normalizeReasoningEffort,
+  normalizeReasoningVisibility,
+  normalizeVerbosity,
+  supportsReasoningEffort,
+  supportsVerbosity
+} from './composables/chatStatusBarReasoningOptions'
+import { useGenerationNumericInputs } from './composables/useGenerationNumericInputs'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
@@ -1089,9 +1095,6 @@ type ModelSelection = {
   modelId: string
 }
 
-type ReasoningEffortValue = NonNullable<SessionGenerationSettings['reasoningEffort']>
-type VerbosityValue = NonNullable<SessionGenerationSettings['verbosity']>
-
 const isSameModelSelection = (
   left: ModelSelection | null | undefined,
   right: ModelSelection | null | undefined
@@ -1121,11 +1124,6 @@ const TIMEOUT_STEP = 1000
 const TIMEOUT_MIN = MODEL_TIMEOUT_MIN_MS
 const TIMEOUT_MAX = MODEL_TIMEOUT_MAX_MS
 const THINKING_BUDGET_STEP = 128
-const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [
-  'low',
-  'medium',
-  'high'
-]
 
 const themeStore = useThemeStore()
 const modelStore = useModelStore()
@@ -1154,25 +1152,6 @@ const modelSettingsSelection = ref<ModelSelection | null>(null)
 const modelSettingsTargetConfig = ref<ModelConfig | null>(null)
 const modelSettingsTargetConfigSelection = ref<ModelSelection | null>(null)
 let modelSettingsTargetConfigToken = 0
-const activeNumericInput = ref<GenerationNumericField | null>(null)
-const numericInputDrafts = ref<Record<GenerationNumericField, string>>({
-  temperature: '',
-  topP: '',
-  contextLength: '',
-  maxTokens: '',
-  timeout: '',
-  thinkingBudget: ''
-})
-const numericInputErrors = ref<
-  Record<GenerationNumericField, GenerationNumericValidationCode | null>
->({
-  temperature: null,
-  topP: null,
-  contextLength: null,
-  maxTokens: null,
-  timeout: null,
-  thinkingBudget: null
-})
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
@@ -1189,6 +1168,26 @@ let generationLocalRevision = 0
 let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
 let cancelAcpConfigSyncTask: (() => void) | null = null
 const isSubagentToggleUpdating = ref(false)
+
+const {
+  numericInputDrafts,
+  clearNumericInputError,
+  setNumericInputError,
+  resetNumericInputFieldState,
+  resetNumericInputState,
+  hasNumericInputError,
+  startNumericInputEdit,
+  setNumericInputDraft,
+  stopNumericInputEdit,
+  getNumericInputValue,
+  getNumericInputErrorMessage
+} = useGenerationNumericInputs({
+  localSettings,
+  t,
+  onDraftChange: () => {
+    generationLocalRevision += 1
+  }
+})
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
@@ -1506,120 +1505,6 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
   return typeof candidate.providerId === 'string' && typeof candidate.modelId === 'string'
 }
 
-const getCommittedNumericInputValue = (field: GenerationNumericField): string => {
-  if (!localSettings.value) {
-    return ''
-  }
-
-  switch (field) {
-    case 'temperature':
-      return String(localSettings.value.temperature)
-    case 'topP': {
-      const value = localSettings.value.topP
-      return value === undefined ? '' : String(value)
-    }
-    case 'contextLength':
-      return String(localSettings.value.contextLength)
-    case 'maxTokens':
-      return String(localSettings.value.maxTokens)
-    case 'timeout':
-      return String(localSettings.value.timeout)
-    case 'thinkingBudget': {
-      const value = localSettings.value.thinkingBudget
-      return value === undefined ? '' : String(value)
-    }
-  }
-}
-
-const syncNumericInputDraft = (field: GenerationNumericField): void => {
-  numericInputDrafts.value[field] = getCommittedNumericInputValue(field)
-}
-
-const clearNumericInputError = (field: GenerationNumericField): void => {
-  numericInputErrors.value[field] = null
-}
-
-const setNumericInputError = (
-  field: GenerationNumericField,
-  code: GenerationNumericValidationCode
-): void => {
-  numericInputErrors.value[field] = code
-}
-
-const resetNumericInputFieldState = (field: GenerationNumericField): void => {
-  clearNumericInputError(field)
-  syncNumericInputDraft(field)
-}
-
-const resetNumericInputState = (): void => {
-  activeNumericInput.value = null
-  resetNumericInputFieldState('temperature')
-  resetNumericInputFieldState('topP')
-  resetNumericInputFieldState('contextLength')
-  resetNumericInputFieldState('maxTokens')
-  resetNumericInputFieldState('timeout')
-  resetNumericInputFieldState('thinkingBudget')
-}
-
-const hasNumericInputError = (field: GenerationNumericField): boolean =>
-  numericInputErrors.value[field] !== null
-
-const startNumericInputEdit = (field: GenerationNumericField): void => {
-  activeNumericInput.value = field
-  if (!hasNumericInputError(field)) {
-    syncNumericInputDraft(field)
-  }
-}
-
-const setNumericInputDraft = (field: GenerationNumericField, value: string | number): void => {
-  if (activeNumericInput.value !== field) {
-    activeNumericInput.value = field
-  }
-  const nextValue = typeof value === 'string' ? value : String(value)
-  if (numericInputDrafts.value[field] !== nextValue) {
-    generationLocalRevision += 1
-  }
-  numericInputDrafts.value[field] = nextValue
-  clearNumericInputError(field)
-}
-
-const stopNumericInputEdit = (field: GenerationNumericField): void => {
-  if (activeNumericInput.value === field) {
-    activeNumericInput.value = null
-  }
-}
-
-const getNumericInputValue = (field: GenerationNumericField): string => {
-  if (activeNumericInput.value === field || hasNumericInputError(field)) {
-    return numericInputDrafts.value[field]
-  }
-  return getCommittedNumericInputValue(field)
-}
-
-const getNumericInputErrorMessage = (field: GenerationNumericField): string => {
-  const code = numericInputErrors.value[field]
-  if (!code) {
-    return ''
-  }
-
-  switch (code) {
-    case 'finite_number':
-      return t('chat.advancedSettings.validation.finiteNumber')
-    case 'non_negative_integer':
-      return t('chat.advancedSettings.validation.nonNegativeInteger')
-    case 'context_length_below_max_tokens':
-      return t('chat.advancedSettings.validation.contextLengthAtLeastMaxTokens')
-    case 'max_tokens_exceed_context_length':
-      return t('chat.advancedSettings.validation.maxTokensWithinContextLength')
-    case 'timeout_too_small':
-      return t('settings.model.modelConfig.validation.timeoutMin')
-    case 'timeout_too_large':
-      return t('settings.model.modelConfig.validation.timeoutMax')
-    case 'top_p_out_of_range':
-      return t('chat.advancedSettings.validation.topPRange')
-  }
-}
-
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
   return modelStore.findChatSelectableModel(providerId, modelId)?.model ?? null
 }
@@ -1640,123 +1525,6 @@ const resolveCapabilityProviderIdForSelection = (
     },
     modelId
   )
-}
-
-const getReasoningEffortOptions = (
-  portrait: ReasoningPortrait | null | undefined
-): ReasoningEffortValue[] => {
-  if (
-    !portrait ||
-    portrait.mode === 'budget' ||
-    portrait.mode === 'level' ||
-    portrait.mode === 'fixed'
-  ) {
-    return []
-  }
-
-  const options = portrait?.effortOptions?.filter(isReasoningEffort)
-  if (options && options.length > 0) {
-    return options
-  }
-  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait?.effort)) {
-    return []
-  }
-
-  return FALLBACK_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
-    ? [...FALLBACK_REASONING_EFFORT_OPTIONS]
-    : [portrait.effort]
-}
-
-const getVerbosityOptions = (portrait: ReasoningPortrait | null | undefined): VerbosityValue[] => {
-  const options = portrait?.verbosityOptions?.filter(isVerbosity)
-  if (options && options.length > 0) {
-    return options
-  }
-  return isVerbosity(portrait?.verbosity) ? DEFAULT_VERBOSITY_OPTIONS.filter(isVerbosity) : []
-}
-
-const getReasoningVisibilityOptions = (
-  providerId: string,
-  portrait: ReasoningPortrait | null | undefined
-): AnthropicReasoningVisibility[] =>
-  hasAnthropicReasoningToggle(providerId, portrait)
-    ? [...ANTHROPIC_REASONING_VISIBILITY_VALUES]
-    : []
-
-const supportsReasoningEffort = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  portrait?.supported !== false && getReasoningEffortOptions(portrait).length > 0
-
-const supportsVerbosity = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  portrait?.supported !== false && getVerbosityOptions(portrait).length > 0
-
-const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  Boolean(
-    portrait &&
-    portrait.mode !== 'effort' &&
-    portrait.mode !== 'level' &&
-    portrait.mode !== 'fixed' &&
-    portrait.budget &&
-    (portrait.budget.default !== undefined ||
-      portrait.budget.min !== undefined ||
-      portrait.budget.max !== undefined ||
-      portrait.budget.auto !== undefined ||
-      portrait.budget.off !== undefined)
-  )
-
-const normalizeReasoningEffort = (
-  portrait: ReasoningPortrait | null | undefined,
-  value: unknown
-): SessionGenerationSettings['reasoningEffort'] | undefined => {
-  if (!isReasoningEffort(value)) {
-    return undefined
-  }
-
-  const options = getReasoningEffortOptions(portrait)
-  if (options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-    ? portrait.effort
-    : undefined
-}
-
-const normalizeVerbosity = (
-  portrait: ReasoningPortrait | null | undefined,
-  value: unknown
-): SessionGenerationSettings['verbosity'] | undefined => {
-  if (!isVerbosity(value)) {
-    return undefined
-  }
-
-  const options = getVerbosityOptions(portrait)
-  if (options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isVerbosity(portrait?.verbosity) && options.includes(portrait.verbosity)
-    ? portrait.verbosity
-    : undefined
-}
-
-const normalizeReasoningVisibility = (
-  providerId: string,
-  portrait: ReasoningPortrait | null | undefined,
-  value: unknown
-): SessionGenerationSettings['reasoningVisibility'] | undefined => {
-  if (!hasAnthropicReasoningToggle(providerId, portrait)) {
-    return undefined
-  }
-
-  return normalizeAnthropicReasoningVisibilityValue(value) ?? 'omitted'
 }
 
 const resolveModelName = (providerId?: string | null, modelId?: string | null): string => {

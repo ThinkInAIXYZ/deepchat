@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { RATE_LIMIT_EVENTS } from '@/events'
 import { eventBus, SendTarget } from '@/eventbus'
 import { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
@@ -38,7 +39,7 @@ export class RateLimitManager {
         })
       }
     }
-    console.log(
+    logger.info(
       `[RateLimitManager] Initialized rate limit configs for ${providers.length} providers`
     )
   }
@@ -69,7 +70,7 @@ export class RateLimitManager {
         }
       }
       this.configPresenter.setProviderById(providerId, updatedProvider)
-      console.log(`[RateLimitManager] Updated persistent config for ${providerId}`)
+      logger.info(`[RateLimitManager] Updated persistent config for ${providerId}`)
     }
   }
 
@@ -151,7 +152,7 @@ export class RateLimitManager {
 
       state.queue.push(queueItem)
       const snapshot = this.buildQueueSnapshot(providerId, state)
-      console.log(
+      logger.info(
         `[RateLimitManager] Request queued for ${providerId}, queue length: ${state.queue.length}`
       )
       eventBus.send(RATE_LIMIT_EVENTS.REQUEST_QUEUED, SendTarget.ALL_WINDOWS, {
@@ -170,7 +171,7 @@ export class RateLimitManager {
         const onAbort = () => {
           const removed = this.removeQueueItem(providerId, queueItem.id)
           if (removed) {
-            console.log(`[RateLimitManager] Request aborted while queued for ${providerId}`)
+            logger.info(`[RateLimitManager] Request aborted while queued for ${providerId}`)
           }
           queueItem.reject(createAbortError())
         }
@@ -214,7 +215,7 @@ export class RateLimitManager {
         }
       }
       this.providerRateLimitStates.delete(providerId)
-      console.log(`[RateLimitManager] Cleaned up rate limit state for ${providerId}`)
+      logger.info(`[RateLimitManager] Cleaned up rate limit state for ${providerId}`)
     }
   }
 
@@ -235,7 +236,7 @@ export class RateLimitManager {
     } else {
       currentState.config = newConfig
     }
-    console.log(`[RateLimitManager] Updated rate limit config for ${providerId}:`, newConfig)
+    logger.info(`[RateLimitManager] Updated rate limit config for ${providerId}:`, newConfig)
     eventBus.send(RATE_LIMIT_EVENTS.CONFIG_UPDATED, SendTarget.ALL_WINDOWS, {
       providerId,
       config: newConfig
@@ -281,7 +282,7 @@ export class RateLimitManager {
           if (queueItem) {
             this.recordRequest(providerId)
             queueItem.resolve()
-            console.log(
+            logger.info(
               `[RateLimitManager] Request executed for ${providerId}, remaining queue: ${state.queue.length}`
             )
           }

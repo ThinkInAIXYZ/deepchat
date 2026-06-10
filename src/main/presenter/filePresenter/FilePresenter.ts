@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { app, clipboard, dialog, nativeImage, net } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
@@ -171,7 +172,7 @@ export class FilePresenter implements IFilePresenter {
       throw new Error(`Could not determine MIME type for file: ${filePath}`)
     }
 
-    console.log(`Using MIME type: ${mimeType} for file: ${filePath}`)
+    logger.info(`Using MIME type: ${mimeType} for file: ${filePath}`)
 
     const adapterMap = getMimeTypeAdapterMap()
     const AdapterConstructor = this.findAdapterForMimeType(mimeType, adapterMap)
@@ -222,7 +223,7 @@ export class FilePresenter implements IFilePresenter {
     const fullPath = path.join(absPath)
     try {
       const adapter = await this.createFileAdapter(fullPath, typeInfo)
-      console.log('adapter', adapter)
+      logger.info('adapter', adapter)
       if (adapter) {
         await adapter.processFile()
         let content

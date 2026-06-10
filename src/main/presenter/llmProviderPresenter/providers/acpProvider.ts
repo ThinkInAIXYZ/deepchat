@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
@@ -181,12 +182,12 @@ export class AcpProvider extends BaseLLMProvider {
     try {
       const acpEnabled = await this.configPresenter.getAcpEnabled()
       if (!acpEnabled) {
-        console.log('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
+        logger.info('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
         this.configPresenter.setProviderModels(this.provider.id, [])
         return []
       }
       const agents = await this.configPresenter.getAcpAgents()
-      console.log(
+      logger.info(
         `[ACP] fetchProviderModels: found ${agents.length} agents, creating models for provider "${this.provider.id}"`
       )
 
@@ -217,7 +218,7 @@ export class AcpProvider extends BaseLLMProvider {
         return model
       })
 
-      console.log(
+      logger.info(
         `[ACP] fetchProviderModels: returning ${models.length} models, all with providerId="${this.provider.id}"`
       )
       this.configPresenter.setProviderModels(this.provider.id, models)
@@ -251,7 +252,7 @@ export class AcpProvider extends BaseLLMProvider {
       await this.fetchModels()
       await this.autoEnableModelsIfNeeded()
       // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
-      console.log(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
+      logger.info(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
       eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
       console.info('Provider initialized successfully:', this.provider.name)
     } catch (error) {
@@ -266,10 +267,10 @@ export class AcpProvider extends BaseLLMProvider {
   public async handleEnableStateChange(): Promise<void> {
     const acpEnabled = await this.configPresenter.getAcpEnabled()
     if (acpEnabled && this.provider.enable) {
-      console.log('[ACP] handleEnableStateChange: ACP enabled, triggering model fetch')
+      logger.info('[ACP] handleEnableStateChange: ACP enabled, triggering model fetch')
       await this.fetchModels()
       // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
-      console.log(
+      logger.info(
         `[ACP] handleEnableStateChange: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
       )
       eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
@@ -1701,7 +1702,7 @@ export class AcpProvider extends BaseLLMProvider {
       maxTokens,
       []
     )) {
-      console.log('[ACP] collectFromStream: chunk:', chunk)
+      logger.info('[ACP] collectFromStream: chunk:', chunk)
       if (chunk.type === 'text' && chunk.content) {
         content += chunk.content
       } else if (chunk.type === 'reasoning' && chunk.reasoning_content) {
@@ -2007,7 +2008,7 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   async cleanup(): Promise<void> {
-    console.log('[ACP] Cleanup: shutting down ACP sessions and processes')
+    logger.info('[ACP] Cleanup: shutting down ACP sessions and processes')
     try {
       await this.sessionManager.clearAllSessions()
     } catch (error) {

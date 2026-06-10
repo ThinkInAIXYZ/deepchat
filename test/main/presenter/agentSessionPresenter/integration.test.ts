@@ -4,6 +4,7 @@ import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
+import logger from '@shared/logger'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -1378,7 +1379,7 @@ describe('Integration: crash recovery', () => {
       }
     ])
 
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const loggerInfoMock = vi.mocked(logger.info)
 
     // Creating the agent triggers crash recovery
     new AgentRuntimePresenter(
@@ -1403,10 +1404,8 @@ describe('Integration: crash recovery', () => {
         timestamp: expect.any(Number)
       }
     ])
-    expect(consoleSpy).toHaveBeenCalledWith(
+    expect(loggerInfoMock).toHaveBeenCalledWith(
       'DeepChatAgent: recovered 2 pending messages to error status'
     )
-
-    consoleSpy.mockRestore()
   })
 })

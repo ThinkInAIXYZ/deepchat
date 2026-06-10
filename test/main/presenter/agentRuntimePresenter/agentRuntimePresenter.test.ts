@@ -6,6 +6,7 @@ import { app } from 'electron'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
+import logger from '@shared/logger'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import {
@@ -689,7 +690,7 @@ describe('AgentRuntimePresenter', () => {
     })
 
     it('logs recovered count when > 0', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const loggerInfoMock = vi.mocked(logger.info)
       sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
         {
           id: 'm1',
@@ -711,14 +712,13 @@ describe('AgentRuntimePresenter', () => {
         }
       )
 
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(loggerInfoMock).toHaveBeenCalledWith(
         'DeepChatAgent: recovered 1 pending messages to error status'
       )
-      consoleSpy.mockRestore()
     })
 
     it('only recovers claimed pending inputs for sessions that still exist', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const loggerInfoMock = vi.mocked(logger.info)
       sqlitePresenter.deepchatPendingInputsTable.listClaimed.mockReturnValue([
         {
           id: 'pending-existing',
@@ -768,10 +768,9 @@ describe('AgentRuntimePresenter', () => {
           claimed_at: null
         }
       )
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(loggerInfoMock).toHaveBeenCalledWith(
         'DeepChatAgent: recovered 1 sessions with claimed pending inputs'
       )
-      consoleSpy.mockRestore()
     })
   })
 

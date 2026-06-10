@@ -6,7 +6,7 @@
  */
 
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
-import { setLoggingEnabled } from '@shared/logger'
+import logger, { setLoggingEnabled } from '@shared/logger'
 import { proxyConfig, ProxyMode } from '@/presenter/proxyConfig'
 import { ConfigPresenter } from '@/presenter/configPresenter'
 import { LifecyclePhase } from '@shared/lifecycle'
@@ -17,7 +17,7 @@ export const configInitHook: LifecycleHook = {
   priority: 1, // first in init phase
   critical: true,
   execute: async (context: LifecycleContext) => {
-    console.log('configInitHook: Initializing application configuration')
+    logger.info('configInitHook: Initializing application configuration')
 
     // Ensure presenter is available (should be initialized by database hook)
     const configPresenter = new ConfigPresenter()
@@ -34,6 +34,6 @@ export const configInitHook: LifecycleHook = {
     // Store config in context for other hooks
     context.config = configPresenter
 
-    console.log('configInitHook: Application configuration initialized successfully')
+    logger.info('configInitHook: Application configuration initialized successfully')
   }
 }

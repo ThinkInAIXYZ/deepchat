@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { ModelConfig, MODEL_META } from '@shared/presenter'
@@ -72,7 +73,7 @@ export class ProviderModelHelper {
 
       const storeName = this.getStoreName(providerId)
       const storePath = path.join(this.userDataPath, PROVIDER_MODELS_DIR)
-      console.log(
+      logger.info(
         `[ProviderModelHelper] getProviderModelStore: creating isolated store "${storeName}" at "${storePath}" for provider "${providerId}"`
       )
       const store = new ElectronStore<IModelStore>({
@@ -84,7 +85,7 @@ export class ProviderModelHelper {
         }
       })
       this.stores.set(providerId, store as unknown as ProviderModelStore)
-      console.log(
+      logger.info(
         `[ProviderModelHelper] getProviderModelStore: store "${storeName}" created and cached for provider "${providerId}"`
       )
     }
@@ -213,7 +214,7 @@ export class ProviderModelHelper {
   }
 
   setProviderModels(providerId: string, models: MODEL_META[]): void {
-    console.log(
+    logger.info(
       `[ProviderModelHelper] setProviderModels: storing ${models.length} models for provider "${providerId}"`
     )
 
@@ -244,7 +245,7 @@ export class ProviderModelHelper {
     const store = this.getProviderModelStore(providerId)
     store.set('models', validatedModels)
     this.invalidateProviderModelsCache(providerId)
-    console.log(
+    logger.info(
       `[ProviderModelHelper] setProviderModels: stored ${validatedModels.length} models for provider "${providerId}"`
     )
   }

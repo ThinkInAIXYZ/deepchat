@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
@@ -219,7 +220,7 @@ export class RagflowKnowledgeServer {
 
     try {
       const url = `${config.endpoint.replace(/\/$/, '')}/api/v1/retrieval`
-      console.log('performRagflowKnowledgeSearch request', url, {
+      logger.info('performRagflowKnowledgeSearch request', url, {
         question: query,
         dataset_ids: config.datasetIds,
         top_k: topK,

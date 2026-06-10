@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { BrowserWindow } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
@@ -102,7 +103,7 @@ export class OAuthHelper {
           eventBus.send(CONFIG_EVENTS.OAUTH_LOGIN_ERROR, SendTarget.ALL_WINDOWS, error)
           reject(new Error(`OAuth授权失败: ${error}`))
         } else if (code) {
-          console.log('OAuth success, received authorization code')
+          logger.info('OAuth success, received authorization code')
           eventBus.send(CONFIG_EVENTS.OAUTH_LOGIN_SUCCESS, SendTarget.ALL_WINDOWS, code)
           resolve(code)
         } else {

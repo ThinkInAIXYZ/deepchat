@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import {
   LLM_PROVIDER,
   LLMResponse,
@@ -55,7 +56,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
         await this.fetchModels()
         await this.autoEnableModelsIfNeeded()
-        console.log(`[GitHub Copilot] Initialized successfully`)
+        logger.info(`[GitHub Copilot] Initialized successfully`)
       } catch (error) {
         console.warn(`[GitHub Copilot] Initialization failed:`, error)
         try {
@@ -441,11 +442,11 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       }
 
       // 添加详细的请求日志
-      console.log('📤 [GitHub Copilot] Sending stream request:')
-      console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
-      console.log(`   Model: ${modelId}`)
-      console.log(`   Headers: ${Object.keys(headers).join(', ')}`)
-      console.log(
+      logger.info('📤 [GitHub Copilot] Sending stream request:')
+      logger.info(`   URL: ${this.baseApiUrl}/chat/completions`)
+      logger.info(`   Model: ${modelId}`)
+      logger.info(`   Headers: ${Object.keys(headers).join(', ')}`)
+      logger.info(
         `   Request Body: { messages: ${formattedMessages.length}, model: "${modelId}", temperature: ${temperature}, max_tokens: ${_maxTokens} }`
       )
 
@@ -471,9 +472,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
-      console.log('📥 [GitHub Copilot] Stream API Response:')
-      console.log(`   Status: ${response.status} ${response.statusText}`)
-      console.log(`   OK: ${response.ok}`)
+      logger.info('📥 [GitHub Copilot] Stream API Response:')
+      logger.info(`   Status: ${response.status} ${response.statusText}`)
+      logger.info(`   OK: ${response.ok}`)
 
       if (!response.ok) {
         let errorBody = ''
@@ -620,11 +621,11 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       }
 
       // 添加详细的请求日志
-      console.log('📤 [GitHub Copilot] Sending completion request:')
-      console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
-      console.log(`   Model: ${modelId}`)
-      console.log(`   Headers: ${Object.keys(headers).join(', ')}`)
-      console.log(
+      logger.info('📤 [GitHub Copilot] Sending completion request:')
+      logger.info(`   URL: ${this.baseApiUrl}/chat/completions`)
+      logger.info(`   Model: ${modelId}`)
+      logger.info(`   Headers: ${Object.keys(headers).join(', ')}`)
+      logger.info(
         `   Request Body: { messages: ${formattedMessages.length}, model: "${modelId}", temperature: ${temperature}, max_tokens: ${_maxTokens} }`
       )
 
@@ -644,9 +645,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
-      console.log('📥 [GitHub Copilot] Completion API Response:')
-      console.log(`   Status: ${response.status} ${response.statusText}`)
-      console.log(`   OK: ${response.ok}`)
+      logger.info('📥 [GitHub Copilot] Completion API Response:')
+      logger.info(`   Status: ${response.status} ${response.statusText}`)
+      logger.info(`   OK: ${response.ok}`)
 
       if (!response.ok) {
         let errorBody = ''

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import {
   IConfigPresenter,
   MCPServerConfig,
@@ -21,8 +22,8 @@ export class ModelScopeSyncManager {
     providerId: string,
     syncOptions?: ModelScopeMcpSyncOptions
   ): Promise<ModelScopeMcpSyncResult> {
-    console.log(`[ModelScope MCP Sync] Starting sync for provider: ${providerId}`)
-    console.log(`[ModelScope MCP Sync] Sync options:`, syncOptions)
+    logger.info(`[ModelScope MCP Sync] Starting sync for provider: ${providerId}`)
+    logger.info(`[ModelScope MCP Sync] Sync options:`, syncOptions)
 
     if (providerId !== 'modelscope') {
       const error = 'MCP sync is only supported for ModelScope provider'
@@ -49,7 +50,7 @@ export class ModelScopeSyncManager {
 
     try {
       const syncTask = async () => {
-        console.log(`[ModelScope MCP Sync] Fetching MCP servers from ModelScope API...`)
+        logger.info(`[ModelScope MCP Sync] Fetching MCP servers from ModelScope API...`)
 
         const mcpResponse = await fetchModelScopeMcpServers(provider, syncOptions)
 
@@ -61,7 +62,7 @@ export class ModelScopeSyncManager {
         }
 
         const mcpServers = mcpResponse.data.mcp_server_list as ModelScopeMcpServer[]
-        console.log(`[ModelScope MCP Sync] Fetched ${mcpServers.length} MCP servers from API`)
+        logger.info(`[ModelScope MCP Sync] Fetched ${mcpServers.length} MCP servers from API`)
 
         interface ConvertedServer {
           name: string
@@ -84,7 +85,7 @@ export class ModelScopeSyncManager {
               const name = server.name || server.id
               const displayName = server.chinese_name || server.name || server.id
 
-              console.log(
+              logger.info(
                 `[ModelScope MCP Sync] Converted operational server: ${displayName} (${name})`
               )
               return { name, displayName, config }
@@ -97,7 +98,7 @@ export class ModelScopeSyncManager {
           })
           .filter((entry): entry is ConvertedServer => entry !== null)
 
-        console.log(
+        logger.info(
           `[ModelScope MCP Sync] Successfully converted ${convertedServers.length} servers`
         )
 
@@ -107,7 +108,7 @@ export class ModelScopeSyncManager {
             const serverName = serverEntry.name
 
             if (existingServers[serverName]) {
-              console.log(`[ModelScope MCP Sync] Server ${serverName} already exists, skipping`)
+              logger.info(`[ModelScope MCP Sync] Server ${serverName} already exists, skipping`)
               result.skipped++
               continue
             }
@@ -117,7 +118,7 @@ export class ModelScopeSyncManager {
               serverEntry.config
             )
             if (success) {
-              console.log(
+              logger.info(
                 `[ModelScope MCP Sync] Successfully imported server: ${serverEntry.displayName}`
               )
               result.imported++
@@ -133,7 +134,7 @@ export class ModelScopeSyncManager {
           }
         }
 
-        console.log(
+        logger.info(
           `[ModelScope MCP Sync] Sync completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
         )
         result.synced = result.imported + result.skipped

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import type {
   CONVERSATION,
   CONVERSATION_SETTINGS,
@@ -80,7 +81,7 @@ export class SessionPresenter implements ISessionPresenter {
         presenter.filePermissionService?.clearConversation(activeConversationId)
         presenter.settingsPermissionService?.clearConversation(activeConversationId)
         this.clearActiveConversationBindingInternal(webContentsId, { notify: true })
-        console.log(
+        logger.info(
           `SessionPresenter: Cleaned up conversation binding for closed webContents ${webContentsId}.`
         )
       }

@@ -387,7 +387,7 @@ export class SkillPresenter implements ISkillPresenter {
     for (const contribution of this.pluginSkillContributions.values()) {
       const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
       const dirName = path.basename(contribution.skillRoot)
-      if (!fs.existsSync(skillPath)) {
+      if (!(await this.pathExists(skillPath))) {
         logger.warn('[SkillPresenter] Plugin skill contribution is missing SKILL.md.', {
           ownerPluginId: contribution.ownerPluginId,
           skillRoot: contribution.skillRoot
@@ -413,7 +413,7 @@ export class SkillPresenter implements ISkillPresenter {
     ownerPluginId?: string
   ): Promise<SkillMetadata | null> {
     try {
-      const content = fs.readFileSync(skillPath, 'utf-8')
+      const content = await fs.promises.readFile(skillPath, 'utf-8')
       const { data } = matter(content)
 
       // Validate required fields
@@ -542,7 +542,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     try {
       // Check file size before reading to prevent memory exhaustion
-      const stats = fs.statSync(metadata.path)
+      const stats = await fs.promises.stat(metadata.path)
       if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
         console.error(
           `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
@@ -550,7 +550,7 @@ export class SkillPresenter implements ISkillPresenter {
         return null
       }
 
-      const rawContent = fs.readFileSync(metadata.path, 'utf-8')
+      const rawContent = await fs.promises.readFile(metadata.path, 'utf-8')
       const { content } = matter(rawContent)
       const renderedContent = this.replacePathVariables(content, metadata)
       const runtimeInstructions = await this.buildRuntimeInstructions(metadata)
@@ -560,7 +560,11 @@ export class SkillPresenter implements ISkillPresenter {
         content: [renderedContent.trim(), runtimeInstructions].filter(Boolean).join('\n\n')
       }
 
-      this.contentCache.set(name, skillContent)
+      // Discovery may have refreshed the caches while we were reading from disk;
+      // only cache when this skill's metadata entry is still the one we read from.
+      if (this.metadataCache.get(name) === metadata) {
+        this.contentCache.set(name, skillContent)
+      }
       return skillContent
     } catch (error) {
       console.error(`[SkillPresenter] Error loading skill content for ${name}:`, error)
@@ -603,14 +607,14 @@ export class SkillPresenter implements ISkillPresenter {
           }
         }
 
-        if (!fs.existsSync(resolvedPath)) {
+        if (!(await this.pathExists(resolvedPath))) {
           return {
             success: false,
             error: `Skill file not found: ${requestedFilePath}`
           }
         }
 
-        const stats = fs.statSync(resolvedPath)
+        const stats = await fs.promises.stat(resolvedPath)
         if (!stats.isFile()) {
           return {
             success: false,
@@ -636,7 +640,7 @@ export class SkillPresenter implements ISkillPresenter {
           category: metadata.category ?? null,
           skillRoot: metadata.skillRoot,
           filePath: path.relative(metadata.skillRoot, resolvedPath),
-          content: fs.readFileSync(resolvedPath, 'utf-8'),
+          content: await fs.promises.readFile(resolvedPath, 'utf-8'),
           platforms: metadata.platforms,
           metadata: metadata.metadata,
           isPinned
@@ -656,7 +660,7 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     try {
-      const stats = fs.statSync(metadata.path)
+      const stats = await fs.promises.stat(metadata.path)
       if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
         const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
         console.error(errorMessage)
@@ -666,7 +670,7 @@ export class SkillPresenter implements ISkillPresenter {
         }
       }
 
-      const rawContent = fs.readFileSync(metadata.path, 'utf-8')
+      const rawContent = await fs.promises.readFile(metadata.path, 'utf-8')
       const { content } = matter(rawContent)
       let nextIsPinned = isPinned
 
@@ -687,7 +691,7 @@ export class SkillPresenter implements ISkillPresenter {
         content: this.replacePathVariables(content, metadata),
         platforms: metadata.platforms,
         metadata: metadata.metadata,
-        linkedFiles: this.listSkillLinkedFiles(metadata.skillRoot),
+        linkedFiles: await this.listSkillLinkedFiles(metadata.skillRoot),
         isPinned: nextIsPinned
       }
     } catch (error) {
@@ -893,7 +897,7 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     const draftPath = this.getDraftPathForId(conversationId, normalizedDraftId)
-    if (!draftPath || !fs.existsSync(draftPath)) {
+    if (!draftPath || !(await this.pathExists(draftPath))) {
       return {
         success: false,
         action: 'view',
@@ -904,7 +908,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     try {
       const skillMdPath = path.join(draftPath, 'SKILL.md')
-      const stats = fs.statSync(skillMdPath)
+      const stats = await fs.promises.stat(skillMdPath)
       if (!stats.isFile()) {
         return {
           success: false,
@@ -921,7 +925,7 @@ export class SkillPresenter implements ISkillPresenter {
           error: `Draft skill file too large: ${stats.size} bytes`
         }
       }
-      const content = fs.readFileSync(skillMdPath, 'utf-8')
+      const content = await fs.promises.readFile(skillMdPath, 'utf-8')
       this.touchDraftActivity(draftPath)
       const parsed = this.validateDraftSkillDocument(content)
       return {
@@ -1628,17 +1632,17 @@ export class SkillPresenter implements ISkillPresenter {
   /**
    * Build folder tree recursively with depth limit and symlink protection
    */
-  private buildFolderTree(
+  private async buildFolderTree(
     dirPath: string,
     depth: number = 0,
     maxDepth: number = SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH
-  ): SkillFolderNode[] {
+  ): Promise<SkillFolderNode[]> {
     if (depth >= maxDepth) {
       return []
     }
 
     try {
-      const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
       const nodes: SkillFolderNode[] = []
 
       for (const entry of entries) {
@@ -1653,7 +1657,7 @@ export class SkillPresenter implements ISkillPresenter {
             name: entry.name,
             type: 'directory',
             path: fullPath,
-            children: this.buildFolderTree(fullPath, depth + 1, maxDepth)
+            children: await this.buildFolderTree(fullPath, depth + 1, maxDepth)
           })
         } else {
           nodes.push({
@@ -1682,12 +1686,12 @@ export class SkillPresenter implements ISkillPresenter {
   async getSkillExtension(name: string): Promise<SkillExtensionConfig> {
     this.ensureSkillsDir()
     const sidecarPath = this.getSidecarPath(name)
-    if (!fs.existsSync(sidecarPath)) {
+    if (!(await this.pathExists(sidecarPath))) {
       return createDefaultSkillExtensionConfig()
     }
 
     try {
-      const content = fs.readFileSync(sidecarPath, 'utf-8')
+      const content = await fs.promises.readFile(sidecarPath, 'utf-8')
       return sanitizeSkillExtensionConfig(JSON.parse(content))
     } catch (error) {
       logger.warn('[SkillPresenter] Failed to read skill sidecar, using defaults', {
@@ -1724,12 +1728,12 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     const scriptsDir = path.join(metadata.skillRoot, 'scripts')
-    if (!fs.existsSync(scriptsDir)) {
+    if (!(await this.pathExists(scriptsDir))) {
       return []
     }
 
     const extension = await this.getSkillExtension(name)
-    const descriptors = this.collectScriptDescriptors(scriptsDir, metadata.skillRoot).map(
+    const descriptors = (await this.collectScriptDescriptors(scriptsDir, metadata.skillRoot)).map(
       (script) => {
         const override = extension.scriptOverrides[script.relativePath] ?? {}
         return {
@@ -2015,7 +2019,7 @@ export class SkillPresenter implements ISkillPresenter {
       console.error('[SkillPresenter] File watcher error:', error)
     })
 
-    console.log('[SkillPresenter] File watcher started')
+    logger.info('[SkillPresenter] File watcher started')
   }
 
   /**
@@ -2025,7 +2029,7 @@ export class SkillPresenter implements ISkillPresenter {
     if (this.watcher) {
       this.watcher.close()
       this.watcher = null
-      console.log('[SkillPresenter] File watcher stopped')
+      logger.info('[SkillPresenter] File watcher stopped')
     }
   }
 
@@ -2084,12 +2088,12 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
-  private collectScriptDescriptors(
+  private async collectScriptDescriptors(
     currentDir: string,
     skillRoot: string,
     acc: SkillScriptDescriptor[] = []
-  ): SkillScriptDescriptor[] {
-    const entries = fs.readdirSync(currentDir, { withFileTypes: true })
+  ): Promise<SkillScriptDescriptor[]> {
+    const entries = await fs.promises.readdir(currentDir, { withFileTypes: true })
 
     for (const entry of entries) {
       if (entry.isSymbolicLink()) {
@@ -2098,7 +2102,7 @@ export class SkillPresenter implements ISkillPresenter {
 
       const fullPath = path.join(currentDir, entry.name)
       if (entry.isDirectory()) {
-        this.collectScriptDescriptors(fullPath, skillRoot, acc)
+        await this.collectScriptDescriptors(fullPath, skillRoot, acc)
         continue
       }
 
@@ -2184,7 +2188,7 @@ export class SkillPresenter implements ISkillPresenter {
     )
   }
 
-  private listSkillLinkedFiles(skillRoot: string): SkillLinkedFile[] {
+  private async listSkillLinkedFiles(skillRoot: string): Promise<SkillLinkedFile[]> {
     const linkedFiles: SkillLinkedFile[] = []
     for (const [dirName, kind] of [
       ['references', 'reference'],
@@ -2193,22 +2197,22 @@ export class SkillPresenter implements ISkillPresenter {
       ['assets', 'asset']
     ] as const) {
       const targetDir = path.join(skillRoot, dirName)
-      if (!fs.existsSync(targetDir)) {
+      if (!(await this.pathExists(targetDir))) {
         continue
       }
-      this.collectLinkedFiles(targetDir, skillRoot, kind, linkedFiles)
+      await this.collectLinkedFiles(targetDir, skillRoot, kind, linkedFiles)
     }
 
     return linkedFiles.sort((left, right) => left.path.localeCompare(right.path))
   }
 
-  private collectLinkedFiles(
+  private async collectLinkedFiles(
     currentDir: string,
     skillRoot: string,
     kind: SkillLinkedFile['kind'],
     acc: SkillLinkedFile[]
-  ): void {
-    const entries = fs.readdirSync(currentDir, { withFileTypes: true })
+  ): Promise<void> {
+    const entries = await fs.promises.readdir(currentDir, { withFileTypes: true })
 
     for (const entry of entries) {
       if (entry.isSymbolicLink()) {
@@ -2217,7 +2221,7 @@ export class SkillPresenter implements ISkillPresenter {
 
       const fullPath = path.join(currentDir, entry.name)
       if (entry.isDirectory()) {
-        this.collectLinkedFiles(fullPath, skillRoot, kind, acc)
+        await this.collectLinkedFiles(fullPath, skillRoot, kind, acc)
         continue
       }
 
@@ -2239,6 +2243,15 @@ export class SkillPresenter implements ISkillPresenter {
 
   private isBinaryLikeFile(filePath: string): boolean {
     return BINARY_LIKE_EXTENSIONS.has(path.extname(filePath).toLowerCase())
+  }
+
+  private async pathExists(target: string): Promise<boolean> {
+    try {
+      await fs.promises.access(target)
+      return true
+    } catch {
+      return false
+    }
   }
 
   private validateDraftSkillDocument(

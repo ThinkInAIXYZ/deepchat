@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { BrowserWindow } from 'electron'
 import { presenter } from '.'
 import * as http from 'http'
@@ -59,7 +60,7 @@ export class OAuthPresenter {
       const accessToken = await githubDeviceFlow.startDeviceFlow()
 
       // Validate token
-      console.log('Validating access token...')
+      logger.info('Validating access token...')
       const isValid = await this.validateGitHubAccessToken(accessToken)
       if (!isValid) {
         throw new Error('Obtained access token is invalid')
@@ -69,7 +70,7 @@ export class OAuthPresenter {
       if (provider) {
         provider.apiKey = accessToken
         presenter.configPresenter.setProviderById(providerId, provider)
-        console.log('[GitHub Copilot] Device Flow login completed successfully')
+        logger.info('[GitHub Copilot] Device Flow login completed successfully')
 
         // 触发provider更新事件，通知前端刷新UI
         eventBus.emit('providerUpdated', { providerId })
@@ -89,20 +90,20 @@ export class OAuthPresenter {
    */
   async startGitHubCopilotLogin(providerId: string): Promise<boolean> {
     try {
-      console.log(
+      logger.info(
         '[GitHub Copilot][OAuth] Starting traditional OAuth login for provider:',
         providerId
       )
 
       // 使用专门的GitHub Copilot OAuth实现
-      console.log('[GitHub Copilot][OAuth] Creating GitHub OAuth instance...')
+      logger.info('[GitHub Copilot][OAuth] Creating GitHub OAuth instance...')
       const provider = presenter.configPresenter.getProviderById(providerId)
       const githubOAuth = createGitHubCopilotOAuth(provider?.copilotClientId)
 
       // 开始OAuth登录
-      console.log('[GitHub Copilot][OAuth] Starting OAuth login flow...')
+      logger.info('[GitHub Copilot][OAuth] Starting OAuth login flow...')
       const authCode = await githubOAuth.startLogin()
-      console.log(
+      logger.info(
         '[GitHub Copilot][OAuth] OAuth login completed, auth code received:',
         authCode ? 'SUCCESS' : 'FAILED'
       )
@@ -111,24 +112,24 @@ export class OAuthPresenter {
         throw new Error('Failed to obtain authorization code')
       }
 
-      console.log('[GitHub Copilot][OAuth] Auth code received successfully')
+      logger.info('[GitHub Copilot][OAuth] Auth code received successfully')
 
       // 用授权码交换访问令牌
-      console.log('[GitHub Copilot][OAuth] Exchanging auth code for access token...')
+      logger.info('[GitHub Copilot][OAuth] Exchanging auth code for access token...')
       const accessToken = await githubOAuth.exchangeCodeForToken(authCode)
-      console.log(
+      logger.info(
         '[GitHub Copilot][OAuth] Token exchange completed, access token received:',
         accessToken ? 'SUCCESS' : 'FAILED'
       )
 
       if (accessToken) {
-        console.log('[GitHub Copilot][OAuth] Access token received successfully')
+        logger.info('[GitHub Copilot][OAuth] Access token received successfully')
       }
 
       // Validate token
-      console.log('[GitHub Copilot][OAuth] Validating access token...')
+      logger.info('[GitHub Copilot][OAuth] Validating access token...')
       const isValid = await githubOAuth.validateToken(accessToken)
-      console.log('[GitHub Copilot][OAuth] Token validation result:', isValid)
+      logger.info('[GitHub Copilot][OAuth] Token validation result:', isValid)
 
       if (!isValid) {
         console.error('[GitHub Copilot][OAuth] Token validation failed - token is invalid')
@@ -136,15 +137,15 @@ export class OAuthPresenter {
       }
 
       // 保存访问令牌到provider配置
-      console.log('[GitHub Copilot][OAuth] Saving access token to provider configuration...')
+      logger.info('[GitHub Copilot][OAuth] Saving access token to provider configuration...')
       if (provider) {
         provider.apiKey = accessToken
         presenter.configPresenter.setProviderById(providerId, provider)
-        console.log(
+        logger.info(
           '[GitHub Copilot][OAuth] Access token saved successfully to provider:',
           providerId
         )
-        console.log('[GitHub Copilot][OAuth] Traditional OAuth login completed successfully')
+        logger.info('[GitHub Copilot][OAuth] Traditional OAuth login completed successfully')
 
         // 触发provider更新事件，通知前端刷新UI
         eventBus.emit('providerUpdated', { providerId })
@@ -212,7 +213,7 @@ export class OAuthPresenter {
       this.callbackServer = http.createServer((req, res) => {
         const url = new URL(req.url!, `http://localhost:${this.callbackPort}`)
 
-        console.log('Callback server received request:', url.href)
+        logger.info('Callback server received request:', url.href)
 
         // Set CORS headers
         res.setHeader('Access-Control-Allow-Origin', '*')
@@ -287,7 +288,7 @@ export class OAuthPresenter {
       })
 
       this.callbackServer.listen(this.callbackPort, 'localhost', () => {
-        console.log(`OAuth callback server started on http://localhost:${this.callbackPort}`)
+        logger.info(`OAuth callback server started on http://localhost:${this.callbackPort}`)
         resolve()
       })
 
@@ -305,7 +306,7 @@ export class OAuthPresenter {
     if (this.callbackServer) {
       this.callbackServer.close()
       this.callbackServer = null
-      console.log('OAuth callback server stopped')
+      logger.info('OAuth callback server stopped')
     }
   }
 
@@ -321,7 +322,7 @@ export class OAuthPresenter {
       console.error('OAuth server callback error:', error)
       this.callbackReject?.(new Error(`OAuth authorization failed: ${error}`))
     } else if (code) {
-      console.log('OAuth server callback success, received authorization code')
+      logger.info('OAuth server callback success, received authorization code')
       this.callbackResolve?.(code)
     }
 
@@ -354,7 +355,7 @@ export class OAuthPresenter {
 
       // Build authorization URL
       const authUrl = this.buildAuthUrl(config)
-      console.log('Opening OAuth URL:', authUrl)
+      logger.info('Opening OAuth URL:', authUrl)
 
       // Load authorization page
       this.authWindow.loadURL(authUrl)
@@ -383,7 +384,7 @@ export class OAuthPresenter {
 
       // Monitor page navigation to check if callback page is reached
       this.authWindow.webContents.on('did-navigate', (_event, navigationUrl) => {
-        console.log('OAuth window navigated to:', navigationUrl)
+        logger.info('OAuth window navigated to:', navigationUrl)
         // If navigated to our callback page, authorization flow is complete
         if (navigationUrl.includes('deepchatai.cn/auth/github/callback')) {
           // Close authorization window as callback server handles remaining logic

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import type {
@@ -318,7 +319,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   let currentTools = [...tools]
   let toolCallCount = 0
 
-  console.log(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
+  logger.info(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
   let eventCount = 0
 
   try {
@@ -341,7 +342,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       for await (const event of stream) {
         eventCount++
         if (io.abortSignal.aborted) {
-          console.log(`[ProcessStream] aborted after ${eventCount} events`)
+          logger.info(`[ProcessStream] aborted after ${eventCount} events`)
           echo.stop()
           finalizeUserCanceledErrorIfNeeded(state, io)
           return {
@@ -371,7 +372,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         echo.schedule()
       }
 
-      console.log(
+      logger.info(
         `[ProcessStream] stream iteration done reason=${state.stopReason} events=${eventCount} blocks=${state.blocks.length}`
       )
 
@@ -390,7 +391,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
       // Check max tool call limit
       if (toolCallCount + state.completedToolCalls.length > MAX_TOOL_CALLS) {
-        console.log(
+        logger.info(
           `[ProcessStream] max tool calls reached (${toolCallCount + state.completedToolCalls.length} > ${MAX_TOOL_CALLS}), stopping`
         )
         break
@@ -435,7 +436,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       }
 
       if (executed.pendingInteractions.length > 0) {
-        console.log(
+        logger.info(
           `[ProcessStream] paused for user interaction count=${executed.pendingInteractions.length}`
         )
         finalizePaused(state, io)
@@ -513,7 +514,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     }
   } catch (err) {
     if (io.abortSignal.aborted || isAbortError(err)) {
-      console.log(`[ProcessStream] aborted via exception after ${eventCount} events`)
+      logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
       return {
         status: 'aborted' as const,
         stopReason: 'user_stop',

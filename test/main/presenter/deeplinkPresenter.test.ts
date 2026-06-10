@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SETTINGS_EVENTS } from '@/events'
+import logger from '@shared/logger'
 
 const browserWindowFromIdMock = vi.hoisted(() => vi.fn())
 const electronAppMock = vi.hoisted(() => ({
@@ -388,19 +389,22 @@ describe('DeeplinkPresenter', () => {
     }
     const rawData = Buffer.from(JSON.stringify(payload)).toString('base64')
     const url = `deepchat:provider/install?v=1&data=${rawData}`
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const loggerInfoMock = vi.mocked(logger.info)
 
     await deeplinkPresenter.handleDeepLink(url)
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
+    expect(loggerInfoMock).toHaveBeenCalledWith(
       'Received DeepLink:',
       'deepchat:provider/install?v=1&data=%5BREDACTED%5D'
     )
-    expect(consoleLogSpy).toHaveBeenCalledWith('Processing provider/install command, parameters:', {
-      v: '1',
-      data: '[REDACTED]'
-    })
-    const serializedLogs = consoleLogSpy.mock.calls
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      'Processing provider/install command, parameters:',
+      {
+        v: '1',
+        data: '[REDACTED]'
+      }
+    )
+    const serializedLogs = loggerInfoMock.mock.calls
       .flatMap((call) =>
         call.map((value) => (typeof value === 'string' ? value : JSON.stringify(value)))
       )

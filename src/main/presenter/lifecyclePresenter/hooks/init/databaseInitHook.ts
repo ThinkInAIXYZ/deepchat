@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Database initialization hook for the init phase
  * This hook initializes the database and makes it available to other components
@@ -14,7 +15,7 @@ export const databaseInitHook: LifecycleHook = {
   priority: 2, // Execute after config init
   critical: true,
   async execute(context: LifecycleContext): Promise<void> {
-    console.log('databaseInitHook: DatabaseInitHook: Starting database initialization')
+    logger.info('databaseInitHook: DatabaseInitHook: Starting database initialization')
 
     try {
       const databaseSecurity = new DatabaseSecurityPresenter()
@@ -53,7 +54,7 @@ export const databaseInitHook: LifecycleHook = {
       // Store database in context for other hooks
       context.database = database
 
-      console.log('databaseInitHook: Database initialization completed successfully')
+      logger.info('databaseInitHook: Database initialization completed successfully')
     } catch (error) {
       console.error('databaseInitHook: Database initialization failed:', error)
       throw error

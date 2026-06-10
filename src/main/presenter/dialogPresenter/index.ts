@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Message dialog implemented via the renderer process
  * The dialog is displayed on the current default window content. If it is in the background, it will automatically switch to the foreground.
@@ -73,7 +74,7 @@ export class DialogPresenter implements IDialogPresenter {
    */
   async handleDialogResponse(response: DialogResponse): Promise<void> {
     if (this.pendingDialogs.has(response.id)) {
-      console.log('[Dialog] response received:', response)
+      logger.info('[Dialog] response received:', response)
       const pendingDialog = this.pendingDialogs.get(response.id)
       this.pendingDialogs.delete(response.id)
       pendingDialog?.resolve(response.button)
