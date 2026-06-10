@@ -118,6 +118,8 @@ function createMockConfigPresenter() {
     listAgents: vi
       .fn()
       .mockResolvedValue([{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }]),
+    getDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
+    updateDeepChatAgent: vi.fn().mockResolvedValue(null),
     getAgentType: vi.fn().mockImplementation(async (agentId: string) => {
       if (agentId === 'deepchat') {
         return 'deepchat'
@@ -226,6 +228,10 @@ function createMockSqlitePresenter() {
   return {
     db,
     getDatabase: vi.fn(() => db),
+    configTables: {
+      getAgentSetting: vi.fn().mockReturnValue(null),
+      setAgentSetting: vi.fn()
+    },
     newSessionsTable: {
       create: vi.fn(),
       get: vi.fn().mockReturnValue({
@@ -1825,12 +1831,64 @@ describe('AgentSessionPresenter', () => {
         'exec'
       ])
 
-      expect(disabledTools).toEqual(['cdp_send', 'exec'])
+      expect(disabledTools).toEqual(['cdp_send', 'exec', 'grep'])
       expect(sqlitePresenter.newSessionsTable.updateDisabledAgentTools).toHaveBeenCalledWith('s1', [
+        'cdp_send',
+        'exec',
+        'grep'
+      ])
+      expect(deepChatAgent.invalidateSessionSystemPromptCache).toHaveBeenCalledWith('s1')
+    })
+
+    it('cleans legacy persisted grep without blocking new grep updates', async () => {
+      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue([
+        'grep',
+        'find',
+        'ls',
         'cdp_send',
         'exec'
       ])
-      expect(deepChatAgent.invalidateSessionSystemPromptCache).toHaveBeenCalledWith('s1')
+      configPresenter.listAgents.mockResolvedValue([
+        { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+        { id: 'broken-deepchat', name: 'Broken', type: 'deepchat', enabled: true },
+        { id: 'acp-cli', name: 'Acp', type: 'acp', enabled: true }
+      ])
+      configPresenter.getDeepChatAgentConfig.mockImplementation(async (agentId: string) => {
+        if (agentId === 'broken-deepchat') {
+          return { disabledAgentTools: 'grep' as any }
+        }
+        return {
+          disabledAgentTools: ['grep', 'exec']
+        }
+      })
+      configPresenter.updateDeepChatAgent.mockResolvedValue({
+        id: 'deepchat',
+        name: 'DeepChat',
+        type: 'deepchat',
+        enabled: true
+      })
+
+      await presenter.startDisabledSearchToolCleanupBackfill()
+
+      expect(sqlitePresenter.newSessionsTable.updateDisabledAgentTools).toHaveBeenCalledWith(
+        'session-1',
+        ['cdp_send', 'exec']
+      )
+      expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
+        config: {
+          disabledAgentTools: ['exec']
+        }
+      })
+      expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.configTables.setAgentSetting).toHaveBeenLastCalledWith(
+        'agent-disabled-search-tool-cleanup-v1',
+        expect.objectContaining({
+          status: 'completed',
+          processedCount: 1,
+          updatedCount: 1,
+          configUpdatedCount: 1
+        })
+      )
     })
   })
 

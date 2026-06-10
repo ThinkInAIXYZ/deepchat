@@ -191,6 +191,7 @@ function createMockSqlitePresenter() {
     insert: vi.fn(),
     updateContent: vi.fn(),
     updateStatus: vi.fn(),
+    incrementOrderSeqFrom: vi.fn(),
     updateContentAndStatus: vi.fn(),
     getBySession: vi.fn().mockReturnValue([]),
     getBySessionUpToOrderSeq: vi.fn().mockReturnValue([]),
@@ -660,6 +661,15 @@ describe('AgentRuntimePresenter', () => {
         rows = rows.filter((row) => row.session_id !== sessionId || row.order_seq < fromOrderSeq)
       }
     )
+    sqlitePresenter.deepchatMessagesTable.incrementOrderSeqFrom.mockImplementation(
+      (sessionId: string, fromOrderSeq: number) => {
+        rows = rows.map((row) =>
+          row.session_id === sessionId && row.order_seq >= fromOrderSeq
+            ? { ...row, order_seq: row.order_seq + 1 }
+            : row
+        )
+      }
+    )
     sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq.mockImplementation((sessionId: string) =>
       rows.reduce(
         (maxOrderSeq, row) =>
@@ -897,6 +907,15 @@ describe('AgentRuntimePresenter', () => {
       expect(assistantInsert.orderSeq).toBe(2)
       expect(assistantInsert.status).toBe('pending')
       expect(assistantInsert.content).toBe('[]')
+    })
+
+    it('rejects blank text-only messages before creating records', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await expect(agent.processMessage('s1', '   ')).rejects.toThrow('Message cannot be empty.')
+
+      expect(sqlitePresenter.deepchatMessagesTable.insert).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
     })
 
     it('calls processStream with correct params', async () => {
@@ -4427,6 +4446,91 @@ describe('AgentRuntimePresenter', () => {
         })
       )
       expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('inserts resume compaction indicators before the assistant message being resumed', async () => {
+      const previousSummary = {
+        summaryText: null,
+        summaryCursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      }
+      const nextSummary = {
+        summaryText: 'Compacted summary',
+        summaryCursorOrderSeq: 3,
+        summaryUpdatedAt: 111
+      }
+      vi.spyOn((agent as any).compactionService, 'prepareForResumeTurn').mockResolvedValue({
+        sessionId: 's1',
+        previousState: previousSummary,
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['old turn'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          contextLength: 8192
+        },
+        reserveTokens: 4096,
+        anchorName: 'compaction/resume'
+      })
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockResolvedValue({
+        succeeded: true,
+        summaryState: nextSummary
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        orderSeq: 3,
+        blocks: [
+          {
+            type: 'content',
+            content: 'Need a user choice.',
+            status: 'success',
+            timestamp: 1
+          },
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 2,
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 3,
+            content: 'Pick one',
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'Pick one',
+              questionOptions: [{ label: 'A' }]
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'A'
+      })
+
+      expect(result).toEqual({ resumed: true })
+      expect(sqlitePresenter.deepchatMessagesTable.incrementOrderSeqFrom).toHaveBeenCalledWith(
+        's1',
+        3
+      )
+      const compactionInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.find(
+        ([row]: any[]) =>
+          typeof row?.metadata === 'string' && row.metadata.includes('"messageType":"compaction"')
+      )?.[0]
+      expect(compactionInsert).toEqual(
+        expect.objectContaining({
+          sessionId: 's1',
+          orderSeq: 3,
+          role: 'assistant',
+          status: 'sent'
+        })
+      )
     })
 
     it('preserves reasoning_content when resuming after a question answer', async () => {

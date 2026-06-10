@@ -55,7 +55,6 @@ describe('RuntimeHelper', () => {
 
     expect(helper.getNodeRuntimePath()).toBeNull()
     expect(helper.getUvRuntimePath()).toBeNull()
-    expect(helper.getRipgrepRuntimePath()).toBeNull()
     expect(helper.getRtkRuntimePath()).toBeNull()
     expect(helper.getBundledRuntimeBinPaths()).toEqual([])
     expect(helper.prependBundledRuntimeToEnv({ PATH: 'C:\\Windows\\System32' })).toEqual({

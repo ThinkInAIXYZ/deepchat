@@ -92,7 +92,7 @@ interface ToolPresenterOptions {
   agentToolRuntime: AgentToolRuntimePort
 }
 
-const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'exec', 'process']
+const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
 const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
@@ -518,16 +518,34 @@ export class ToolPresenter implements IToolPresenter {
 
     if (toolNames.has('exec')) {
       lines.push(
-        'Use `exec` for file discovery, content search, git, build, test, lint, package manager, and other CLI workflows.'
+        'Use `exec` for git, build, test, lint, package manager, and other non-search CLI workflows.'
       )
       lines.push(
         '`exec.cwd` may target paths outside the workspace in Full Access mode; default mode asks before using external paths.'
       )
       lines.push(
-        'Prefer shell-native discovery and search inside `exec`, such as `rg -n`, `rg --files`, `git status`, and project verification commands.'
-      )
-      lines.push(
         'Use `background: true` when you know a command should detach immediately; otherwise a foreground `exec` may yield a running `sessionId` after `yieldMs`.'
+      )
+    }
+    const hasGlob = toolNames.has('glob')
+    const hasGrep = toolNames.has('grep')
+    if (hasGlob || hasGrep) {
+      if (hasGlob && hasGrep) {
+        lines.push(
+          'Use `glob` for file discovery and `grep` for content search; both return structured JSON.'
+        )
+        lines.push(
+          'Search order: `glob(query)` -> choose relevant `pathScope` -> `grep(query, pathScope, contextLines)` -> `read` concrete files.'
+        )
+      } else if (hasGlob) {
+        lines.push('Use `glob` for file discovery; it returns structured JSON.')
+      } else {
+        lines.push(
+          'Use `grep` for content search; it returns structured JSON and supports `mode: "regex"` for regular expressions.'
+        )
+      }
+      lines.push(
+        'Do not call shell commands for search, do not generate shell search commands (`rg`, shell `grep`, `find`, `fd`, or `ls`), and do not use `exec` for code search.'
       )
     }
     if (toolNames.has('read')) {
@@ -535,10 +553,13 @@ export class ToolPresenter implements IToolPresenter {
         'When `read` targets an image file, it returns an English description of the visible content and any legible text.'
       )
     }
-    if (toolNames.has('exec') && toolNames.has('read') && toolNames.has('edit')) {
-      lines.push(
-        'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'
-      )
+    if (
+      toolNames.has('glob') &&
+      toolNames.has('grep') &&
+      toolNames.has('read') &&
+      toolNames.has('edit')
+    ) {
+      lines.push('Recommended file task flow: `glob` / `grep` -> `read` -> `edit`/`write`.')
     }
     if (toolNames.has('process')) {
       lines.push(

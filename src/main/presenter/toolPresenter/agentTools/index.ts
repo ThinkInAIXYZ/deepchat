@@ -1,6 +1,7 @@
 export { AgentToolManager, type AgentToolCallResult } from './agentToolManager'
 export { AgentFileSystemHandler } from './agentFileSystemHandler'
 export { AgentBashHandler } from './agentBashHandler'
+export { AgentFffSearchHandler, GLOB_TOOL_NAME, GREP_TOOL_NAME } from './agentFffSearchHandler'
 export {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME

@@ -2,7 +2,7 @@ const CANONICAL_TOOL_NAMES = new Set([
   'read',
   'write',
   'edit',
-  'find',
+  'glob',
   'grep',
   'ls',
   'exec',
@@ -14,7 +14,8 @@ const TOOL_NAME_MAPPING: Record<string, string> = {
   read: 'read',
   write: 'write',
   edit: 'edit',
-  find: 'find',
+  find: 'glob',
+  glob: 'glob',
   grep: 'grep',
   ls: 'ls',
   exec: 'exec',
@@ -22,14 +23,13 @@ const TOOL_NAME_MAPPING: Record<string, string> = {
 
   // Claude Code common names
   multiedit: 'edit',
-  glob: 'find',
   bash: 'exec',
 
   // Legacy DeepChat names
   read_file: 'read',
   write_file: 'write',
   list_directory: 'ls',
-  glob_search: 'find',
+  glob_search: 'glob',
   grep_search: 'grep',
   edit_file: 'edit',
   execute_command: 'exec'

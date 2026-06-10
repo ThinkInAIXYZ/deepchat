@@ -523,6 +523,42 @@ describe('sessionStore.getFilteredGroups', () => {
     ])
   })
 
+  it('sorts sessions inside project groups by most recent update', async () => {
+    const { store } = await setupStore()
+    const now = Date.now()
+
+    await store.fetchSessions()
+    store.sessions.value = [
+      createSession({
+        id: 'old-alpha',
+        title: 'Alpha',
+        projectDir: '/tmp/workspace',
+        updatedAt: now - 10_000
+      }),
+      createSession({
+        id: 'new-zulu',
+        title: 'Zulu',
+        projectDir: '/tmp/workspace',
+        updatedAt: now
+      }),
+      createSession({
+        id: 'middle-bravo',
+        title: 'Bravo',
+        projectDir: '/tmp/workspace',
+        updatedAt: now - 5_000
+      })
+    ]
+
+    const groups = store.getFilteredGroups(null)
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.sessions.map((session: { id: string }) => session.id)).toEqual([
+      'new-zulu',
+      'middle-bravo',
+      'old-alpha'
+    ])
+  })
+
   it('keeps pinned sessions alphabetically sorted after pinning', async () => {
     const { store } = await setupStore()
 

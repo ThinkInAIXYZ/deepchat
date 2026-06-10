@@ -448,6 +448,33 @@ export function createUserChatMessage(
   }
 }
 
+function hasPromptMessageContent(message: ChatMessage): boolean {
+  if (typeof message.content === 'string' && message.content.trim().length > 0) {
+    return true
+  }
+
+  if (Array.isArray(message.content)) {
+    return message.content.some((part) => {
+      if (part.type === 'text') {
+        return part.text.trim().length > 0
+      }
+      if (part.type === 'image_url') {
+        return part.image_url.url.trim().length > 0
+      }
+      if (part.type === 'input_audio') {
+        return part.input_audio.data.trim().length > 0
+      }
+      return false
+    })
+  }
+
+  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+    return true
+  }
+
+  return typeof message.reasoning_content === 'string' && message.reasoning_content.length > 0
+}
+
 function estimateMessageTokens(message: ChatMessage): number {
   if (typeof message.content === 'string') {
     return approximateTokenSize(message.content)
@@ -568,12 +595,11 @@ export function recordToChatMessages(
 
   if (record.role === 'user') {
     const parsed = parseUserRecordContent(record.content)
-    return [
-      {
-        role: 'user',
-        content: buildUserMessageContent(parsed, supportsVision, supportsAudioInput)
-      }
-    ]
+    const message: ChatMessage = {
+      role: 'user',
+      content: buildUserMessageContent(parsed, supportsVision, supportsAudioInput)
+    }
+    return hasPromptMessageContent(message) ? [message] : []
   }
 
   const blocks = JSON.parse(record.content) as AssistantMessageBlock[]
@@ -642,12 +668,15 @@ export function recordToChatMessages(
       errorSummary
     )
     if (shouldPreserveReasoning) {
-      return [applyReasoningContent({ role: 'assistant', content: contentWithErrorSummary })]
+      const message = applyReasoningContent({ role: 'assistant', content: contentWithErrorSummary })
+      return hasPromptMessageContent(message) ? [message] : []
     }
     if (preserveEmptyInterleavedReasoning) {
-      return [{ role: 'assistant', content: contentWithErrorSummary }]
+      const message: ChatMessage = { role: 'assistant', content: contentWithErrorSummary }
+      return hasPromptMessageContent(message) ? [message] : []
     }
-    return [{ role: 'assistant', content: contentWithErrorSummary }]
+    const message: ChatMessage = { role: 'assistant', content: contentWithErrorSummary }
+    return hasPromptMessageContent(message) ? [message] : []
   }
 
   const toolCalls: NonNullable<ChatMessage['tool_calls']> = []
@@ -674,12 +703,15 @@ export function recordToChatMessages(
       errorSummary
     )
     if (shouldPreserveReasoning) {
-      return [applyReasoningContent({ role: 'assistant', content: contentWithErrorSummary })]
+      const message = applyReasoningContent({ role: 'assistant', content: contentWithErrorSummary })
+      return hasPromptMessageContent(message) ? [message] : []
     }
     if (preserveEmptyInterleavedReasoning) {
-      return [{ role: 'assistant', content: contentWithErrorSummary }]
+      const message: ChatMessage = { role: 'assistant', content: contentWithErrorSummary }
+      return hasPromptMessageContent(message) ? [message] : []
     }
-    return [{ role: 'assistant', content: contentWithErrorSummary }]
+    const message: ChatMessage = { role: 'assistant', content: contentWithErrorSummary }
+    return hasPromptMessageContent(message) ? [message] : []
   }
 
   const assistantMessage: ChatMessage = {
@@ -734,22 +766,24 @@ export function buildHistoryTurns(
     turns.push(currentTurn)
   }
 
-  return turns.map((turnRecords) => {
-    const messages = turnRecords.flatMap((record) =>
-      recordToChatMessages(
-        record,
-        supportsVision,
-        preserveInterleavedReasoning,
-        preserveEmptyInterleavedReasoning,
-        supportsAudioInput
+  return turns
+    .map((turnRecords) => {
+      const messages = turnRecords.flatMap((record) =>
+        recordToChatMessages(
+          record,
+          supportsVision,
+          preserveInterleavedReasoning,
+          preserveEmptyInterleavedReasoning,
+          supportsAudioInput
+        )
       )
-    )
-    return {
-      records: turnRecords,
-      messages,
-      tokens: estimateMessagesTokens(messages)
-    }
-  })
+      return {
+        records: turnRecords,
+        messages,
+        tokens: estimateMessagesTokens(messages)
+      }
+    })
+    .filter((turn) => turn.messages.length > 0)
 }
 
 function flattenTurns(turns: TokenizedTurn[]): ChatMessage[] {
@@ -826,8 +860,13 @@ function selectTurnHistory(
   availableTokens: number,
   fallbackProtectedTurnCount: number
 ): ChatMessage[] {
-  if (availableTokens <= 0 || turns.length === 0) {
+  if (turns.length === 0) {
     return []
+  }
+
+  const protectedCount = Math.max(0, Math.min(fallbackProtectedTurnCount, turns.length))
+  if (availableTokens <= 0) {
+    return protectedCount > 0 ? flattenTurns(turns.slice(-protectedCount)) : []
   }
 
   let total = turns.reduce((sum, turn) => sum + turn.tokens, 0)
@@ -836,7 +875,6 @@ function selectTurnHistory(
   }
 
   const remainingTurns = [...turns]
-  const protectedCount = Math.max(0, Math.min(fallbackProtectedTurnCount, remainingTurns.length))
 
   while (remainingTurns.length > protectedCount && total > availableTokens) {
     const removedTurn = remainingTurns.shift()
@@ -844,7 +882,10 @@ function selectTurnHistory(
   }
 
   const flattened = flattenTurns(remainingTurns)
-  if (estimateMessagesTokens(flattened) <= availableTokens) {
+  if (
+    estimateMessagesTokens(flattened) <= availableTokens ||
+    remainingTurns.length <= protectedCount
+  ) {
     return flattened
   }
 
@@ -903,7 +944,9 @@ export function buildContext(
     messages.push({ role: 'system', content: systemPrompt })
   }
   messages.push(...selectedHistory)
-  messages.push(newUserMessage)
+  if (hasPromptMessageContent(newUserMessage)) {
+    messages.push(newUserMessage)
+  }
   return messages
 }
 

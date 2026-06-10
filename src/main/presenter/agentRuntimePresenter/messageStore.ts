@@ -168,7 +168,7 @@ export class DeepChatMessageStore {
     return id
   }
 
-  createCompactionMessage(
+  private insertCompactionMessageRecord(
     sessionId: string,
     orderSeq: number,
     status: 'compacting' | 'compacted',
@@ -186,6 +186,32 @@ export class DeepChatMessageStore {
     })
     this.appendLiveTapeFacts(id)
     return id
+  }
+
+  createCompactionMessage(
+    sessionId: string,
+    orderSeq: number,
+    status: 'compacting' | 'compacted',
+    summaryUpdatedAt: number | null
+  ): string {
+    return this.insertCompactionMessageRecord(sessionId, orderSeq, status, summaryUpdatedAt)
+  }
+
+  createCompactionMessageAtOrderSeq(
+    sessionId: string,
+    orderSeq: number,
+    status: 'compacting' | 'compacted',
+    summaryUpdatedAt: number | null,
+    options?: { shiftExistingMessages?: boolean }
+  ): string {
+    let messageId = ''
+    this.runInDatabaseTransaction(() => {
+      if (options?.shiftExistingMessages) {
+        this.sqlitePresenter.deepchatMessagesTable.incrementOrderSeqFrom(sessionId, orderSeq)
+      }
+      messageId = this.insertCompactionMessageRecord(sessionId, orderSeq, status, summaryUpdatedAt)
+    })
+    return messageId
   }
 
   updateAssistantContent(messageId: string, blocks: AssistantMessageBlock[]): void {

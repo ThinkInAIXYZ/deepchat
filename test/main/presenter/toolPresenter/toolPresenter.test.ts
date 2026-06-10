@@ -264,8 +264,9 @@ describe('ToolPresenter', () => {
     )
     expect(defs.some((tool) => tool.function.name === 'read')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'exec')).toBe(false)
+    expect(defs.some((tool) => tool.function.name === 'glob')).toBe(true)
+    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(true)
     expect(defs.some((tool) => tool.function.name === 'find')).toBe(false)
-    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
   })
 
@@ -559,6 +560,14 @@ describe('ToolPresenter', () => {
           source: 'agent'
         },
         {
+          ...buildToolDefinition('glob', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('grep', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
           ...buildToolDefinition('exec', 'agent-filesystem'),
           source: 'agent'
         },
@@ -569,13 +578,32 @@ describe('ToolPresenter', () => {
       ]
     })
     expect(promptWithoutFocusedTools).toContain(
-      'Use canonical Agent tool names only: read, write, edit, exec, process.'
+      'Use canonical Agent tool names only: read, write, edit, glob, grep, exec, process.'
     )
     expect(promptWithoutFocusedTools).toContain(
-      'Prefer shell-native discovery and search inside `exec`, such as `rg -n`, `rg --files`, `git status`, and project verification commands.'
+      'Use `glob` for file discovery and `grep` for content search; both return structured JSON.'
     )
     expect(promptWithoutFocusedTools).toContain(
-      'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'
+      'Search order: `glob(query)` -> choose relevant `pathScope` -> `grep(query, pathScope, contextLines)` -> `read` concrete files.'
     )
+    expect(promptWithoutFocusedTools).toContain(
+      'Recommended file task flow: `glob` / `grep` -> `read` -> `edit`/`write`.'
+    )
+    expect(promptWithoutFocusedTools).not.toContain('rg -n')
+    expect(promptWithoutFocusedTools).not.toContain('rg --files')
+
+    const grepOnlyPrompt = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('grep', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    expect(grepOnlyPrompt).toContain(
+      'Use `grep` for content search; it returns structured JSON and supports `mode: "regex"` for regular expressions.'
+    )
+    expect(grepOnlyPrompt).not.toContain('Search order: `glob(query)`')
   })
 })

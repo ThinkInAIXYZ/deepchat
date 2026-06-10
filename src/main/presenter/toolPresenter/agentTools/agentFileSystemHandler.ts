@@ -6,11 +6,8 @@ import { getSessionsRoot } from '@/lib/agentRuntime/sessionPaths'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { diffLines } from 'diff'
-import logger from '@shared/logger'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
-import { spawn } from 'child_process'
-import { RuntimeHelper } from '../../../lib/runtimeHelper'
 import { glob } from 'glob'
 
 // Auto-truncate threshold for read to avoid triggering tool output offload
@@ -509,33 +506,7 @@ export class AgentFileSystemHandler {
       maxResults = 100
     } = options
 
-    // Validate pattern for ReDoS safety
     validateRegexPattern(pattern)
-
-    // Try to use ripgrep if available
-    const runtimeHelper = RuntimeHelper.getInstance()
-    runtimeHelper.initializeRuntimes()
-    const ripgrepPath = runtimeHelper.getRipgrepRuntimePath()
-
-    if (ripgrepPath) {
-      try {
-        return await this.runRipgrepSearch(rootPath, pattern, {
-          filePattern,
-          recursive,
-          caseSensitive,
-          includeLineNumbers,
-          contextLines,
-          maxResults
-        })
-      } catch (error) {
-        // Fall back to JavaScript implementation if ripgrep fails
-        logger.warn('[AgentFileSystemHandler] Ripgrep search failed, falling back to JS', {
-          error
-        })
-      }
-    }
-
-    // Fallback to JavaScript implementation
     return this.runJavaScriptGrepSearch(rootPath, pattern, {
       filePattern: filePattern || '*',
       recursive,
@@ -543,164 +514,6 @@ export class AgentFileSystemHandler {
       includeLineNumbers,
       contextLines,
       maxResults
-    })
-  }
-
-  private async runRipgrepSearch(
-    rootPath: string,
-    pattern: string,
-    options: {
-      filePattern?: string
-      recursive?: boolean
-      caseSensitive?: boolean
-      includeLineNumbers?: boolean
-      contextLines?: number
-      maxResults?: number
-    }
-  ): Promise<GrepResult> {
-    const {
-      filePattern,
-      recursive = true,
-      caseSensitive = false,
-      includeLineNumbers = true,
-      contextLines = 0,
-      maxResults = 100
-    } = options
-
-    const result: GrepResult = {
-      totalMatches: 0,
-      files: [],
-      matches: []
-    }
-
-    const runtimeHelper = RuntimeHelper.getInstance()
-    const ripgrepPath = runtimeHelper.getRipgrepRuntimePath()
-    if (!ripgrepPath) {
-      throw new Error('Ripgrep runtime path not found')
-    }
-
-    const rgExecutable =
-      process.platform === 'win32' ? path.join(ripgrepPath, 'rg.exe') : path.join(ripgrepPath, 'rg')
-
-    // Build ripgrep arguments
-    const args: string[] = []
-
-    // Search pattern
-    args.push('-e', pattern)
-
-    // Case sensitivity
-    if (caseSensitive) {
-      args.push('--case-sensitive')
-    } else {
-      args.push('-i')
-    }
-
-    // Context lines
-    if (contextLines > 0) {
-      args.push(`-C${contextLines}`)
-    }
-
-    // Max count
-    args.push('-m', String(maxResults))
-
-    // File pattern (glob)
-    if (filePattern) {
-      args.push('-g', filePattern)
-    }
-
-    // Recursive (default for rg, but add --no-recursive if not wanted)
-    if (!recursive) {
-      args.push('--no-recursive')
-    }
-
-    // Output format with line numbers
-    args.push('--with-filename')
-    args.push('--line-number')
-    args.push('--no-heading')
-
-    // Search path
-    const validatedPath = await this.validatePath(rootPath, undefined, {
-      enforceAllowed: false,
-      accessType: 'read'
-    })
-    args.push(validatedPath)
-
-    return new Promise((resolve, reject) => {
-      const ripgrep = spawn(rgExecutable, args, {
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
-
-      let stdout = ''
-      let stderr = ''
-      let settled = false
-      const timeout = setTimeout(() => {
-        if (settled) return
-        settled = true
-        ripgrep.kill('SIGKILL')
-        reject(new Error('Ripgrep search timed out after 30000ms'))
-      }, 30_000)
-
-      ripgrep.stdout.on('data', (data) => {
-        stdout += data.toString()
-      })
-
-      ripgrep.stderr.on('data', (data) => {
-        stderr += data.toString()
-      })
-
-      ripgrep.on('close', (code) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timeout)
-        if (code === 0 || code === 1) {
-          // 0 = matches found, 1 = no matches (both are OK)
-          // Parse ripgrep output
-          const lines = stdout.split('\n').filter((line) => line.trim())
-          const currentFileMatches = new Map<string, GrepMatch[]>()
-          const uniqueFiles = new Set<string>()
-
-          for (const line of lines) {
-            // Parse ripgrep output format: file:line:content
-            const lastColonIndex = line.lastIndexOf(':')
-            const lineNumberSeparator = line.lastIndexOf(':', lastColonIndex - 1)
-            if (lineNumberSeparator !== -1 && lastColonIndex !== -1) {
-              const file = line.slice(0, lineNumberSeparator)
-              const lineNum = line.slice(lineNumberSeparator + 1, lastColonIndex)
-              const content = line.slice(lastColonIndex + 1)
-              if (!/^\d+$/.test(lineNum)) {
-                continue
-              }
-              uniqueFiles.add(file)
-
-              const grepMatch: GrepMatch = {
-                file,
-                line: includeLineNumbers ? parseInt(lineNum, 10) : 0,
-                content
-              }
-
-              if (!currentFileMatches.has(file)) {
-                currentFileMatches.set(file, [])
-              }
-              currentFileMatches.get(file)!.push(grepMatch)
-              result.totalMatches++
-            }
-          }
-
-          result.files = Array.from(uniqueFiles)
-          result.matches = Array.from(currentFileMatches.values()).flat()
-
-          resolve(result)
-        } else {
-          reject(new Error(`Ripgrep failed with code ${code}: ${stderr}`))
-        }
-      })
-
-      ripgrep.on('error', (error) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timeout)
-        reject(new Error(`Ripgrep spawn error: ${error.message}`))
-      })
     })
   }
 

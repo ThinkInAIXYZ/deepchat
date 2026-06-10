@@ -67,15 +67,28 @@ export const useMessageStore = defineStore('message', () => {
 
   // --- Actions ---
 
-  function upsertMessageRecord(record: ChatMessageRecord): void {
-    messageCache.value.set(record.id, record)
-    if (!messageIds.value.includes(record.id)) {
-      messageIds.value.push(record.id)
-      messageIds.value.sort((a, b) => {
-        const aSeq = messageCache.value.get(a)?.orderSeq ?? Number.MAX_SAFE_INTEGER
-        const bSeq = messageCache.value.get(b)?.orderSeq ?? Number.MAX_SAFE_INTEGER
+  function sortMessageIdsByOrderSeq(): void {
+    messageIds.value.sort((a, b) => {
+      const aSeq = messageCache.value.get(a)?.orderSeq ?? Number.MAX_SAFE_INTEGER
+      const bSeq = messageCache.value.get(b)?.orderSeq ?? Number.MAX_SAFE_INTEGER
+      if (aSeq !== bSeq) {
         return aSeq - bSeq
-      })
+      }
+      return a.localeCompare(b)
+    })
+  }
+
+  function upsertMessageRecord(record: ChatMessageRecord): void {
+    const cachedRecord = messageCache.value.get(record.id)
+    const hasMessageId = messageIds.value.includes(record.id)
+    const shouldSort = !hasMessageId || cachedRecord?.orderSeq !== record.orderSeq
+
+    messageCache.value.set(record.id, record)
+    if (!hasMessageId) {
+      messageIds.value.push(record.id)
+    }
+    if (shouldSort) {
+      sortMessageIdsByOrderSeq()
     }
   }
 

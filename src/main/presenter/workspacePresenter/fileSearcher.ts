@@ -1,7 +1,8 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { ConcurrencyLimiter } from './concurrencyLimiter'
-import { RipgrepSearcher } from './ripgrepSearcher'
+import { minimatch } from 'minimatch'
+import { FffSearchService } from '@/lib/agentRuntime/fffSearchService'
 
 export interface SearchOptions {
   maxResults?: number
@@ -20,17 +21,34 @@ export interface SearchResult {
 const DEFAULT_PAGE_SIZE = 50
 const DEFAULT_CACHE_LIMIT = 200
 const MAX_CACHE_FILES = 500
+const FFF_GLOB_PAGE_SIZE = 500
 const CACHE_TTL_MS = 30_000
 const MAX_CACHE_ENTRIES = 50
 const MTIME_CACHE_TTL_MS = 60_000
+const DEFAULT_EXCLUDES = [
+  '.git',
+  'node_modules',
+  '.DS_Store',
+  'dist',
+  'build',
+  'out',
+  '.turbo',
+  '.next',
+  '.nuxt',
+  '.cache',
+  'coverage'
+]
 
 const statLimiter = new ConcurrencyLimiter(10)
 const mtimeCache = new Map<string, { mtimeMs: number; cachedAt: number }>()
+const fffSearchService = new FffSearchService()
 
 type CacheEntry = {
   files: string[]
   createdAt: number
   complete: boolean
+  globPattern: string
+  nextFffPageIndex: number
 }
 
 const searchCache = new Map<string, CacheEntry>()
@@ -56,6 +74,46 @@ const getCacheKey = (
 ) => {
   const excludes = excludePatterns?.slice().sort().join(',') ?? ''
   return `${workspacePath}::${pattern}::${sortBy ?? 'name'}::${excludes}`
+}
+
+const toPosixPath = (value: string) => value.split(path.sep).join('/')
+
+const normalizeGlobPattern = (pattern: string): string => {
+  const trimmed = pattern.trim()
+  if (!trimmed || trimmed === '*' || trimmed === '**' || trimmed === '**/*') {
+    return '**/*'
+  }
+  if (trimmed.includes('/') || trimmed.includes('\\')) {
+    return trimmed.replace(/\\/g, '/')
+  }
+  return `**/${trimmed}`
+}
+
+const isExcluded = (workspacePath: string, filePath: string, excludePatterns?: string[]) => {
+  const relativePath = toPosixPath(path.relative(workspacePath, filePath))
+  const segments = relativePath.split('/')
+  const patterns = [...new Set([...DEFAULT_EXCLUDES, ...(excludePatterns ?? [])])]
+
+  return patterns.some((pattern) => {
+    const normalizedPattern = pattern.trim().replace(/\\/g, '/').replace(/^\.\//, '')
+    if (!normalizedPattern) {
+      return false
+    }
+    const hasGlob = /[*?[{]/.test(normalizedPattern)
+    if (!hasGlob) {
+      return (
+        segments.includes(normalizedPattern) ||
+        relativePath === normalizedPattern ||
+        relativePath.startsWith(`${normalizedPattern}/`)
+      )
+    }
+
+    return (
+      minimatch(relativePath, normalizedPattern, { dot: true }) ||
+      minimatch(relativePath, `**/${normalizedPattern}`, { dot: true }) ||
+      minimatch(relativePath, `**/${normalizedPattern}/**`, { dot: true })
+    )
+  })
 }
 
 const getCachedEntry = (key: string) => {
@@ -118,6 +176,35 @@ const sortFilesByModified = async (files: string[]) => {
   return entries.map((entry) => entry.file)
 }
 
+const extendCacheEntry = async (
+  entry: CacheEntry,
+  workspacePath: string,
+  requiredCount: number,
+  excludePatterns: string[] | undefined
+) => {
+  const seen = new Set(entry.files)
+
+  while (!entry.complete && entry.files.length < requiredCount) {
+    const hits = await fffSearchService.globFiles(entry.globPattern, {
+      workspaceRoot: workspacePath,
+      maxResults: FFF_GLOB_PAGE_SIZE,
+      pageIndex: entry.nextFffPageIndex
+    })
+    entry.nextFffPageIndex += 1
+    if (hits.length < FFF_GLOB_PAGE_SIZE) {
+      entry.complete = true
+    }
+
+    for (const hit of hits) {
+      const normalized = path.normalize(path.join(workspacePath, hit.path))
+      if (isExcluded(workspacePath, normalized, excludePatterns)) continue
+      if (seen.has(normalized)) continue
+      seen.add(normalized)
+      entry.files.push(normalized)
+    }
+  }
+}
+
 export async function searchFiles(
   workspacePath: string,
   pattern: string,
@@ -126,50 +213,46 @@ export async function searchFiles(
   const pageSize = options.maxResults ?? DEFAULT_PAGE_SIZE
   const offset = decodeCursor(options.cursor)
   const sortBy = options.sortBy ?? 'name'
+  const requiredCount = Math.min(offset + pageSize + 1, MAX_CACHE_FILES + 1)
 
   const cacheKey = getCacheKey(workspacePath, pattern, sortBy, options.excludePatterns)
   let cached = getCachedEntry(cacheKey)
 
   if (!cached) {
-    const targetLimit = Math.min(
-      Math.max(offset + pageSize + 1, DEFAULT_CACHE_LIMIT),
-      MAX_CACHE_FILES
-    )
-    const maxResults = Math.min(targetLimit + 1, MAX_CACHE_FILES + 1)
-
-    const seen = new Set<string>()
-    const files: string[] = []
-
-    try {
-      for await (const filePath of RipgrepSearcher.files(pattern, workspacePath, {
-        maxResults,
-        excludePatterns: options.excludePatterns
-      })) {
-        const normalized = path.normalize(filePath)
-        if (seen.has(normalized)) continue
-        seen.add(normalized)
-        files.push(normalized)
-      }
-    } catch (error) {
-      console.warn('[WorkspaceSearch] Ripgrep search failed:', error)
-    }
-
-    const complete = files.length <= targetLimit
-    const trimmedFiles = complete ? files : files.slice(0, targetLimit)
-
-    const sortedFiles =
-      sortBy === 'modified'
-        ? await sortFilesByModified(trimmedFiles)
-        : sortFilesByName(trimmedFiles)
+    const targetLimit = Math.min(Math.max(requiredCount, DEFAULT_CACHE_LIMIT), MAX_CACHE_FILES + 1)
 
     cached = {
-      files: sortedFiles,
+      files: [],
       createdAt: Date.now(),
-      complete
+      complete: false,
+      globPattern: normalizeGlobPattern(pattern),
+      nextFffPageIndex: 0
+    }
+    try {
+      await extendCacheEntry(cached, workspacePath, targetLimit, options.excludePatterns)
+    } catch (error) {
+      console.warn('[WorkspaceSearch] FFF search failed:', error)
+      cached.complete = true
     }
 
     setCacheEntry(cacheKey, cached)
+  } else if (!cached.complete && cached.files.length < requiredCount) {
+    try {
+      await extendCacheEntry(cached, workspacePath, requiredCount, options.excludePatterns)
+    } catch (error) {
+      console.warn('[WorkspaceSearch] FFF search failed:', error)
+      cached.complete = true
+    }
   }
+
+  if (cached.files.length > MAX_CACHE_FILES) {
+    cached.files = cached.files.slice(0, MAX_CACHE_FILES)
+    cached.complete = false
+  }
+
+  cached.files =
+    sortBy === 'modified' ? await sortFilesByModified(cached.files) : sortFilesByName(cached.files)
+  cached.createdAt = Date.now()
 
   const files = cached.files.slice(offset, offset + pageSize)
   const hasMore = offset + pageSize < cached.files.length || !cached.complete
