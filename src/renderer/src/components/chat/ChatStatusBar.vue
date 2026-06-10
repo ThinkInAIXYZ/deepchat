@@ -1880,18 +1880,38 @@ const showVerbosity = computed(
     Boolean(localSettings.value)
 )
 
+const isAnthropicReasoningEnabled = computed(() => {
+  if (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value)) {
+    return true
+  }
+  if (!localSettings.value) {
+    return false
+  }
+
+  return getReasoningEffectiveEnabledForProvider(
+    capabilityProviderId.value,
+    capabilityReasoningPortrait.value,
+    {
+      reasoning: localSettings.value.reasoningEffort !== undefined ? true : undefined,
+      reasoningEffort: localSettings.value.reasoningEffort
+    }
+  )
+})
+
 const showReasoningEffort = computed(
   () =>
     !isAcpAgent.value &&
     supportsReasoningEffort(capabilityReasoningPortrait.value) &&
     Boolean(localSettings.value) &&
     (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
-      localSettings.value?.reasoningEffort !== undefined)
+      isAnthropicReasoningEnabled.value)
 )
 const showReasoningVisibility = computed(
   () =>
     !isAcpAgent.value &&
     Boolean(localSettings.value) &&
+    (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
+      isAnthropicReasoningEnabled.value) &&
     getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value)
       .length > 0
 )
