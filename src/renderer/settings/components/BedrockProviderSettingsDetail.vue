@@ -1,7 +1,12 @@
 <template>
-  <section class="w-full h-full">
-    <ScrollArea class="w-full h-full p-2 flex flex-col gap-2">
-      <div class="flex flex-col gap-4 p-2">
+  <ProviderSettingsShell
+    v-model:active-tab="activeTab"
+    :title="t(provider.name)"
+    :subtitle="region"
+    :enabled-count="enabledModels.length"
+  >
+    <template #connection>
+      <div class="flex flex-col gap-4">
         <!-- Auth mode selector -->
         <div class="flex flex-col items-start gap-2">
           <Label class="flex-1">{{ t('settings.provider.authMode') }}</Label>
@@ -141,34 +146,42 @@
         <div class="text-xs leading-4 text-muted-foreground">
           {{ t('settings.provider.bedrockLimitTip') }}
         </div>
-
-        <ProviderModelManager
-          :provider="provider"
-          :enabled-models="enabledModels"
-          :total-models-count="providerModels.length + customModels.length"
-          :provider-models="providerModels"
-          :custom-models="customModels"
-          @custom-model-added="handleAddModelSaved"
-          @disable-all-models="disableAllModelsConfirm"
-          @model-enabled-change="handleModelEnabledChange"
-          @config-changed="handleConfigChanged"
-        />
       </div>
-    </ScrollArea>
+    </template>
 
-    <ProviderDialogContainer
-      v-model:show-confirm-dialog="showConfirmDialog"
-      v-model:show-check-model-dialog="showCheckModelDialog"
-      v-model:show-disable-all-confirm-dialog="showDisableAllConfirmDialog"
-      v-model:show-delete-provider-dialog="showDeleteProviderDialog"
-      :provider="provider"
-      :model-to-disable="modelToDisable"
-      :check-result="checkResult"
-      @confirm-disable-model="confirmDisable"
-      @confirm-disable-all-models="confirmDisableAll"
-      @confirm-delete-provider="() => {}"
-    />
-  </section>
+    <template #models>
+      <ProviderModelManager
+        :provider="provider"
+        :enabled-models="enabledModels"
+        :total-models-count="providerModels.length + customModels.length"
+        :provider-models="providerModels"
+        :custom-models="customModels"
+        @custom-model-added="handleAddModelSaved"
+        @disable-all-models="disableAllModelsConfirm"
+        @model-enabled-change="handleModelEnabledChange"
+        @config-changed="handleConfigChanged"
+      />
+    </template>
+
+    <template #advanced>
+      <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
+    </template>
+
+    <template #dialogs>
+      <ProviderDialogContainer
+        v-model:show-confirm-dialog="showConfirmDialog"
+        v-model:show-check-model-dialog="showCheckModelDialog"
+        v-model:show-disable-all-confirm-dialog="showDisableAllConfirmDialog"
+        v-model:show-delete-provider-dialog="showDeleteProviderDialog"
+        :provider="provider"
+        :model-to-disable="modelToDisable"
+        :check-result="checkResult"
+        @confirm-disable-model="confirmDisable"
+        @confirm-disable-all-models="confirmDisableAll"
+        @confirm-delete-provider="() => {}"
+      />
+    </template>
+  </ProviderSettingsShell>
 </template>
 
 <script setup lang="ts">
@@ -177,7 +190,6 @@ import { useI18n } from 'vue-i18n'
 import { AWS_BEDROCK_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
@@ -189,8 +201,10 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
+import ProviderSettingsShell from './ProviderSettingsShell.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
+import ProviderRateLimitConfig from './ProviderRateLimitConfig.vue'
 
 const props = defineProps<{
   provider: AWS_BEDROCK_PROVIDER
@@ -212,6 +226,7 @@ const region = ref(props.provider.credential?.region || '')
 const profile = ref(props.provider.credential?.profile || '')
 const showAccessKeyId = ref(false)
 const showSecretAccessKey = ref(false)
+const activeTab = ref<'connection' | 'models' | 'advanced'>('connection')
 const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = computed(() => {
   const providerCustomModels = modelStore.customModels.find(
