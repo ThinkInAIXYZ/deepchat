@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.6-beta.3 (2026-06-10)
+- Added AWS Bedrock profile authentication support for easier account and credential switching
+- Improved agent runtime node discovery with FFF search and refreshed AI SDK packages plus bundled resources
+- Fixed AWS provider styling consistency in the provider configuration UI
+- 新增 AWS Bedrock profile 认证支持，方便切换账号与凭据
+- 改进 Agent 运行时节点发现，使用 FFF 搜索，并刷新 AI SDK 依赖与内置资源
+- 修复 AWS Provider 配置界面的样式一致性
+
 ## v1.0.6-beta.2 (2026-06-08)
 - Fixed release CI tooltip module resolution so macOS release builds can complete reliably
 - 修复发布 CI 中 tooltip 模块解析问题，让 macOS 发布构建可稳定完成
