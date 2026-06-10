@@ -122,7 +122,7 @@
     {
       "id": "cline",
       "name": "Cline",
-      "version": "3.0.22",
+      "version": "3.0.23",
       "description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
       "repository": "https://github.com/cline/cline",
       "website": "https://cline.bot/cli",
@@ -133,7 +133,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/cline.svg",
       "distribution": {
         "npx": {
-          "package": "cline@3.0.22",
+          "package": "cline@3.0.23",
           "args": [
             "--acp"
           ]
@@ -143,7 +143,7 @@
     {
       "id": "codebuddy-code",
       "name": "Codebuddy Code",
-      "version": "2.105.0",
+      "version": "2.105.1",
       "description": "Tencent Cloud's official intelligent coding tool",
       "website": "https://www.codebuddy.cn/cli/",
       "authors": [
@@ -152,7 +152,7 @@
       "license": "Proprietary",
       "distribution": {
         "npx": {
-          "package": "@tencent-ai/codebuddy-code@2.105.0",
+          "package": "@tencent-ai/codebuddy-code@2.105.1",
           "args": [
             "--acp"
           ]
@@ -433,7 +433,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.1.3",
+      "version": "0.1.5",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -442,7 +442,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.1.3",
+          "package": "dimcode@0.1.5",
           "args": [
             "acp"
           ]
@@ -474,7 +474,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.143.1",
+      "version": "0.144.1",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -483,7 +483,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "droid@0.143.1",
+          "package": "droid@0.144.1",
           "args": [
             "exec",
             "--output-format",
@@ -521,7 +521,7 @@
     {
       "id": "gemini",
       "name": "Gemini CLI",
-      "version": "0.45.3",
+      "version": "0.46.0",
       "description": "Google's official CLI for Gemini",
       "repository": "https://github.com/google-gemini/gemini-cli",
       "website": "https://geminicli.com",
@@ -531,7 +531,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@google/gemini-cli@0.45.3",
+          "package": "@google/gemini-cli@0.46.0",
           "args": [
             "--acp"
           ]
@@ -915,7 +915,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.1.15",
+      "version": "1.1.16",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -926,7 +926,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.1.15",
+          "package": "@compass-ai/nova@1.1.16",
           "args": [
             "acp"
           ]
@@ -936,7 +936,7 @@
     {
       "id": "opencode",
       "name": "OpenCode",
-      "version": "1.16.2",
+      "version": "1.17.0",
       "description": "The open source coding agent",
       "repository": "https://github.com/anomalyco/opencode",
       "website": "https://opencode.ai",
@@ -948,42 +948,42 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.16.2/opencode-darwin-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.17.0/opencode-darwin-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.16.2/opencode-darwin-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.17.0/opencode-darwin-x64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.16.2/opencode-linux-arm64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.17.0/opencode-linux-arm64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.16.2/opencode-linux-x64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.17.0/opencode-linux-x64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "windows-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.16.2/opencode-windows-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.17.0/opencode-windows-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.16.2/opencode-windows-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.17.0/opencode-windows-x64.zip",
             "cmd": "./opencode.exe",
             "args": [
               "acp"
@@ -1113,7 +1113,7 @@
     {
       "id": "sigit",
       "name": "siGit Code",
-      "version": "1.0.4",
+      "version": "1.1.0",
       "description": "Local-first coding agent. Runs entirely on your machine with optional on-device LLM inference via Onde.",
       "repository": "https://github.com/getsigit/sigit",
       "website": "https://github.com/getsigit/sigit",
@@ -1124,32 +1124,32 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.0.4/sigit-macos-arm64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.1.0/sigit-macos-arm64.tar.gz",
             "cmd": "./sigit"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.0.4/sigit-macos-amd64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.1.0/sigit-macos-amd64.tar.gz",
             "cmd": "./sigit"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.0.4/sigit-linux-arm64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.1.0/sigit-linux-arm64",
             "cmd": "./sigit-linux-arm64"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.0.4/sigit-linux-amd64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.1.0/sigit-linux-amd64",
             "cmd": "./sigit-linux-amd64"
           },
           "windows-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.0.4/sigit-win-arm64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.1.0/sigit-win-arm64.exe",
             "cmd": "./sigit-win-arm64.exe"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.0.4/sigit-win-amd64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.1.0/sigit-win-amd64.exe",
             "cmd": "./sigit-win-amd64.exe"
           }
         },
         "npx": {
-          "package": "@smbcloud/sigit@1.0.4"
+          "package": "@smbcloud/sigit@1.1.0"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/sigit.svg"
