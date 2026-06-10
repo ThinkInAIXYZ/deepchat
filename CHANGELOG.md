@@ -3,9 +3,11 @@
 ## v1.0.6-beta.3 (2026-06-10)
 - Added AWS Bedrock profile authentication support for easier account and credential switching
 - Improved agent runtime node discovery with FFF search and refreshed AI SDK packages plus bundled resources
+- Fixed Anthropic reasoning controls so supported thinking settings stay available after provider data refreshes
 - Fixed AWS provider styling consistency in the provider configuration UI
 - 新增 AWS Bedrock profile 认证支持，方便切换账号与凭据
 - 改进 Agent 运行时节点发现，使用 FFF 搜索，并刷新 AI SDK 依赖与内置资源
+- 修复 Anthropic 推理控制，让支持的 thinking 设置在 Provider 数据刷新后仍保持可用
 - 修复 AWS Provider 配置界面的样式一致性
 
 ## v1.0.6-beta.2 (2026-06-08)
