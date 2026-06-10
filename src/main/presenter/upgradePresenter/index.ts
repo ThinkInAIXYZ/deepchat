@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { app, shell } from 'electron'
 import {
   IUpgradePresenter,
@@ -146,7 +147,7 @@ export class UpgradePresenter implements IUpgradePresenter {
 
     // 错误处理
     autoUpdater.on('error', (e) => {
-      console.log('自动更新失败', e.message)
+      logger.info('自动更新失败', e.message)
       this._lock = false
       this._status = 'error'
       this._error = e.message
@@ -159,12 +160,12 @@ export class UpgradePresenter implements IUpgradePresenter {
 
     // 检查更新状态
     autoUpdater.on('checking-for-update', () => {
-      console.log('正在检查更新')
+      logger.info('正在检查更新')
     })
 
     // 无可用更新
     autoUpdater.on('update-not-available', () => {
-      console.log('无可用更新')
+      logger.info('无可用更新')
       this._lock = false
       this._status = 'not-available'
       this._error = null
@@ -178,7 +179,7 @@ export class UpgradePresenter implements IUpgradePresenter {
 
     // 有可用更新
     autoUpdater.on('update-available', (info) => {
-      console.log('检测到新版本', info)
+      logger.info('检测到新版本', info)
       this._lock = false
 
       // 版本号兜底保护：electron-updater 在 channel 错配时可能把当前 beta 安装包"更新"成更旧的正式版。
@@ -200,7 +201,7 @@ export class UpgradePresenter implements IUpgradePresenter {
       }
 
       if (isDowngradeOrSame) {
-        console.log('忽略降级或同版本的更新提示', {
+        logger.info('忽略降级或同版本的更新提示', {
           current: currentVersion,
           remote: remoteVersion
         })
@@ -220,7 +221,7 @@ export class UpgradePresenter implements IUpgradePresenter {
       this._progress = null
 
       if (this._previousUpdateFailed) {
-        console.log('上次更新失败，本次不进行自动更新，改为手动更新')
+        logger.info('上次更新失败，本次不进行自动更新，改为手动更新')
         this._status = 'error'
         this._error = '自动更新可能不稳定，请手动下载更新'
         this.emitStatusChanged({
@@ -261,7 +262,7 @@ export class UpgradePresenter implements IUpgradePresenter {
 
     // 下载完成
     autoUpdater.on('update-downloaded', (info) => {
-      console.log('更新下载完成', info)
+      logger.info('更新下载完成', info)
       this.markUpdateDownloaded(info)
     })
 
@@ -279,7 +280,7 @@ export class UpgradePresenter implements IUpgradePresenter {
         const content = fs.readFileSync(this._updateMarkerPath, 'utf8')
         const updateInfo = JSON.parse(content)
         const currentVersion = app.getVersion()
-        console.log('检查未完成的更新', updateInfo, currentVersion)
+        logger.info('检查未完成的更新', updateInfo, currentVersion)
 
         // 如果当前版本与目标版本相同，说明更新已完成
         if (updateInfo.version === currentVersion) {
@@ -295,14 +296,14 @@ export class UpgradePresenter implements IUpgradePresenter {
           const markerIsPre = isPrereleaseVersion(markerVersion)
           const currentIsPre = isPrereleaseVersion(currentVersion)
           if (markerIsPre !== currentIsPre) {
-            console.log('忽略跨渠道的旧 update marker', { marker: markerVersion, currentVersion })
+            logger.info('忽略跨渠道的旧 update marker', { marker: markerVersion, currentVersion })
             fs.unlinkSync(this._updateMarkerPath)
             return
           }
         }
 
         // 否则说明上次更新失败，标记为错误状态
-        console.log('检测到未完成的更新', updateInfo.version)
+        logger.info('检测到未完成的更新', updateInfo.version)
         this._status = 'error'
         this._error = '上次自动更新未完成'
         this._versionInfo = updateInfo
@@ -350,7 +351,7 @@ export class UpgradePresenter implements IUpgradePresenter {
       }
 
       fs.writeFileSync(this._updateMarkerPath, JSON.stringify(updateInfo, null, 2), 'utf8')
-      console.log('写入更新标记文件成功', this._updateMarkerPath)
+      logger.info('写入更新标记文件成功', this._updateMarkerPath)
     } catch (error) {
       console.error('写入更新标记文件失败', error)
     }
@@ -476,7 +477,7 @@ export class UpgradePresenter implements IUpgradePresenter {
         .downloadUpdate()
         .then(() => {
           if (this._status !== 'downloaded') {
-            console.log(
+            logger.info(
               'downloadUpdate resolved before update-downloaded event, applying fallback downloaded status'
             )
             this.markUpdateDownloaded()
@@ -506,23 +507,23 @@ export class UpgradePresenter implements IUpgradePresenter {
 
   // Execute quit and install update for all platforms
   private _doQuitAndInstall(): void {
-    console.log('Preparing to quit and install update')
+    logger.info('Preparing to quit and install update')
     this.beginInstallFlow(() => {
       if (process.platform === 'darwin') {
-        console.log('macOS update: calling quitAndInstall with forceRunAfter=true')
+        logger.info('macOS update: calling quitAndInstall with forceRunAfter=true')
         autoUpdater.quitAndInstall(false, true) // silent=false, forceRunAfter=true
         return
       }
 
-      console.log(`${process.platform} update: calling quitAndInstall`)
+      logger.info(`${process.platform} update: calling quitAndInstall`)
       autoUpdater.quitAndInstall()
     })
   }
 
   private _doMockQuitAndInstall(): void {
-    console.log('Preparing to run mock update restart flow')
+    logger.info('Preparing to run mock update restart flow')
     this.beginInstallFlow(() => {
-      console.log('Mock update: relaunching app instead of invoking installer')
+      logger.info('Mock update: relaunching app instead of invoking installer')
       app.relaunch()
       app.exit()
     })
@@ -532,7 +533,7 @@ export class UpgradePresenter implements IUpgradePresenter {
     try {
       this.emitWillRestart()
 
-      console.log('Update installation: setting application state for proper quit behavior')
+      logger.info('Update installation: setting application state for proper quit behavior')
       this.setUpdatingFlag(true)
       this.prepareFloatingUiForUpdateInstall()
       eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: true })
@@ -542,14 +543,14 @@ export class UpgradePresenter implements IUpgradePresenter {
       }, 500)
 
       setTimeout(() => {
-        console.log('Update installation timeout, force quit')
+        logger.info('Update installation timeout, force quit')
         app.quit() // Exit trigger: upgrade
       }, 30000)
     } catch (e) {
       console.error('Failed to start update installation flow', e)
       this.setUpdatingFlag(false)
 
-      console.log('Resetting application quitting flag after update error')
+      logger.info('Resetting application quitting flag after update error')
       eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: false })
 
       this.emitError(e instanceof Error ? e.message : String(e))
@@ -558,7 +559,7 @@ export class UpgradePresenter implements IUpgradePresenter {
 
   private prepareFloatingUiForUpdateInstall(): void {
     if (!presenter) {
-      console.log('Update installation: presenter not ready, skipping floating UI cleanup')
+      logger.info('Update installation: presenter not ready, skipping floating UI cleanup')
       return
     }
 
@@ -624,7 +625,7 @@ export class UpgradePresenter implements IUpgradePresenter {
 
   // 重启并更新
   restartToUpdate(): boolean {
-    console.log('重启并更新')
+    logger.info('重启并更新')
     if (this._status !== 'downloaded') {
       this.emitError('更新尚未下载完成')
       return false

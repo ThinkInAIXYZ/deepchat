@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { eventBus, SendTarget } from '@/eventbus'
 import {
   IConfigPresenter,
@@ -1852,7 +1853,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // Set sync function status
   setSyncEnabled(enabled: boolean): void {
-    console.log('setSyncEnabled', enabled)
+    logger.info('setSyncEnabled', enabled)
     this.setSetting('syncEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, SendTarget.ALL_WINDOWS, { enabled })
   }
@@ -2332,7 +2333,7 @@ export class ConfigPresenter implements IConfigPresenter {
     if (!provider || provider.enable === enabled) {
       return
     }
-    console.log(`[ACP] syncAcpProviderEnabled: updating provider enable state to ${enabled}`)
+    logger.info(`[ACP] syncAcpProviderEnabled: updating provider enable state to ${enabled}`)
     this.updateProviderAtomic('acp', { enable: enabled })
   }
 
@@ -2344,11 +2345,11 @@ export class ConfigPresenter implements IConfigPresenter {
     const changed = this.acpConfHelper.setGlobalEnabled(enabled)
     if (!changed) return
 
-    console.log('[ACP] setAcpEnabled: updating global toggle to', enabled)
+    logger.info('[ACP] setAcpEnabled: updating global toggle to', enabled)
     this.syncAcpProviderEnabled(enabled)
 
     if (!enabled) {
-      console.log('[ACP] Disabling: clearing provider models and status cache')
+      logger.info('[ACP] Disabling: clearing provider models and status cache')
       this.providerModelHelper.setProviderModels('acp', [])
       this.clearProviderModelStatusCache('acp')
     }
@@ -2773,7 +2774,7 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private notifyAcpAgentsChanged(agentIds?: string[]) {
-    console.log('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
+    logger.info('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
     eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
     eventBus.send(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS, { agentIds })
     eventBus.sendToRendererIfAvailable(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
@@ -2941,7 +2942,7 @@ export class ConfigPresenter implements IConfigPresenter {
         ? this.getSetting<Prompt[]>('customPrompts') || []
         : this.customPromptsStore.get('prompts') || []
       this.customPromptsCache = prompts
-      console.log(`[Config] Custom prompts cache loaded: ${prompts.length} prompts`)
+      logger.info(`[Config] Custom prompts cache loaded: ${prompts.length} prompts`)
       return prompts
     } catch (error) {
       console.error('[Config] Failed to load custom prompts:', error)
@@ -2958,7 +2959,7 @@ export class ConfigPresenter implements IConfigPresenter {
       await this.customPromptsStore.set('prompts', prompts)
     }
     this.clearCustomPromptsCache()
-    console.log(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
+    logger.info(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
     // Notify all windows about custom prompts change
     eventBus.send(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, SendTarget.ALL_WINDOWS, {
       count: prompts.length
@@ -2970,7 +2971,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const prompts = await this.getCustomPrompts()
     const updatedPrompts = [...prompts, prompt] // Create new array
     await this.setCustomPrompts(updatedPrompts)
-    console.log(`[Config] Added custom prompt: ${prompt.name}`)
+    logger.info(`[Config] Added custom prompt: ${prompt.name}`)
   }
 
   // 更新单个 prompt (optimized with cache)
@@ -2981,7 +2982,7 @@ export class ConfigPresenter implements IConfigPresenter {
       const updatedPrompts = [...prompts] // Create new array
       updatedPrompts[index] = { ...updatedPrompts[index], ...updates }
       await this.setCustomPrompts(updatedPrompts)
-      console.log(`[Config] Updated custom prompt: ${promptId}`)
+      logger.info(`[Config] Updated custom prompt: ${promptId}`)
     } else {
       console.warn(`[Config] Custom prompt not found for update: ${promptId}`)
     }
@@ -2999,7 +3000,7 @@ export class ConfigPresenter implements IConfigPresenter {
     }
 
     await this.setCustomPrompts(filteredPrompts)
-    console.log(`[Config] Deleted custom prompt: ${promptId}`)
+    logger.info(`[Config] Deleted custom prompt: ${promptId}`)
   }
 
   /**
@@ -3007,7 +3008,7 @@ export class ConfigPresenter implements IConfigPresenter {
    * 这将强制下次访问时重新加载
    */
   clearCustomPromptsCache(): void {
-    console.log('[Config] Clearing custom prompts cache')
+    logger.info('[Config] Clearing custom prompts cache')
     this.customPromptsCache = null
   }
 

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -952,7 +953,7 @@ export class McpClient {
       ? `MCP service ${this.serverName} has been stopped due to ${reason}`
       : `Disconnected from MCP server: ${this.serverName}`
 
-    console.log(logMessage)
+    logger.info(logMessage)
 
     // Trigger server status changed event to notify the system
     eventBus.send((MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {

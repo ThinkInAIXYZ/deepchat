@@ -166,6 +166,30 @@ vi.mock('electron', () => ({
   }
 }))
 
+// Mock shared logger so importing it never pulls in electron's `app`
+// (test files that need to assert on logger calls re-mock it locally)
+vi.mock('@shared/logger', () => ({
+  __esModule: true,
+  default: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    verbose: vi.fn(),
+    debug: vi.fn(),
+    silly: vi.fn(),
+    log: vi.fn()
+  },
+  setLoggingEnabled: vi.fn(),
+  originalConsole: {
+    log: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn()
+  }
+}))
+
 // Mock file system operations
 vi.mock('fs', () => {
   const mockedFs = {

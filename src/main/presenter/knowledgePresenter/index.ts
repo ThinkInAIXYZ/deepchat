@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -53,7 +54,7 @@ export class KnowledgePresenter implements IKnowledgePresenter {
   private knowledgeConfigSnapshot: BuiltinKnowledgeConfig[]
 
   constructor(configP: IConfigPresenter, dbDir: string, filePresenter: IFilePresenter) {
-    console.log('[RAG] Initializing Built-in Knowledge Presenter')
+    logger.info('[RAG] Initializing Built-in Knowledge Presenter')
     this.configP = configP
     this.filePresenter = filePresenter
     this.storageDir = path.join(dbDir, 'KnowledgeBase')
@@ -95,14 +96,14 @@ export class KnowledgePresenter implements IKnowledgePresenter {
 
     if (diffs.added.length > 0) {
       diffs.added.forEach((config) => {
-        console.log(`[RAG] New knowledge config added: ${config.id}`)
+        logger.info(`[RAG] New knowledge config added: ${config.id}`)
       })
     }
 
     if (diffs.updated.length > 0) {
       await Promise.all(
         diffs.updated.map((config) => {
-          console.log(`[RAG] Knowledge config updated: ${config.id}`)
+          logger.info(`[RAG] Knowledge config updated: ${config.id}`)
           return this.update(config)
         })
       )
@@ -438,13 +439,13 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    */
   async validateFile(filePath: string): Promise<FileValidationResult> {
     try {
-      console.log(`[RAG] Validating file for knowledge base: ${filePath}`)
+      logger.info(`[RAG] Validating file for knowledge base: ${filePath}`)
       const result = await this.filePresenter.validateFileForKnowledgeBase(filePath)
 
       if (!result.isSupported) {
         console.warn(`[RAG] File validation failed for ${filePath}: ${result.error}`)
       } else {
-        console.log(
+        logger.info(
           `[RAG] File validation successful for ${filePath}, MIME type: ${result.mimeType}`
         )
       }
@@ -468,9 +469,9 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    */
   async getSupportedFileExtensions(): Promise<string[]> {
     try {
-      console.log('[RAG] Getting supported file extensions')
+      logger.info('[RAG] Getting supported file extensions')
       const extensions = this.filePresenter.getSupportedExtensions()
-      console.log(`[RAG] Retrieved ${extensions.length} supported extensions`)
+      logger.info(`[RAG] Retrieved ${extensions.length} supported extensions`)
       return extensions
     } catch (error) {
       const errorMessage = `Error getting supported extensions: ${error instanceof Error ? error.message : 'Unknown error'}`

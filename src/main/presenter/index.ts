@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
 import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
@@ -800,7 +801,7 @@ export class Presenter implements IPresenter {
   private async initializeFloatingButton() {
     try {
       await this.floatingButtonPresenter.initialize()
-      console.log('FloatingButtonPresenter initialized successfully')
+      logger.info('FloatingButtonPresenter initialized successfully')
     } catch (error) {
       console.error('Failed to initialize FloatingButtonPresenter:', error)
     }
@@ -809,7 +810,7 @@ export class Presenter implements IPresenter {
   private async initializeYoBrowser() {
     try {
       await this.yoBrowserPresenter.initialize()
-      console.log('YoBrowserPresenter initialized')
+      logger.info('YoBrowserPresenter initialized')
     } catch (error) {
       console.error('Failed to initialize YoBrowserPresenter:', error)
     }
@@ -819,11 +820,11 @@ export class Presenter implements IPresenter {
     try {
       const { enableSkills } = this.configPresenter.getSkillSettings()
       if (!enableSkills) {
-        console.log('SkillPresenter disabled by config')
+        logger.info('SkillPresenter disabled by config')
         return
       }
       await (this.skillPresenter as SkillPresenter).initialize()
-      console.log('SkillPresenter initialized')
+      logger.info('SkillPresenter initialized')
       await this.skillSyncPresenter.initialize()
     } catch (error) {
       console.error('Failed to initialize SkillPresenter:', error)
@@ -838,7 +839,7 @@ export class Presenter implements IPresenter {
       }
       await this.skillSyncPresenter.initialize()
       await this.skillSyncPresenter.scanAndDetectNewDiscoveries()
-      console.log('SkillSyncPresenter background scan completed')
+      logger.info('SkillSyncPresenter background scan completed')
     } catch (error) {
       console.error('Failed to run SkillSyncPresenter background scan:', error)
     }
@@ -1024,7 +1025,7 @@ ipcMain.handle(
 
       // 记录调用日志
       if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-        console.log(
+        logger.info(
           `[IPC Call] WebContents:${context.webContentsId} Window:${context.windowId || 'unknown'} -> ${context.presenterName}.${context.methodName}`
         )
       }
@@ -1085,7 +1086,7 @@ ipcMain.handle(
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-        console.log(
+        logger.info(
           `[IPC Call] WebContents:${webContentsId} Window:${windowId || 'unknown'} -> remoteControlPresenter.${method}`
         )
       }

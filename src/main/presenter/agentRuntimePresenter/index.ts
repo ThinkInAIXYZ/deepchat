@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import fs from 'fs'
 import path from 'path'
 import type {
@@ -380,12 +381,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
-      console.log(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
+      logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
     }
 
     const recoveredPendingInputs = this.pendingInputCoordinator.recoverClaimedInputsAfterRestart()
     if (recoveredPendingInputs > 0) {
-      console.log(
+      logger.info(
         `DeepChatAgent: recovered ${recoveredPendingInputs} sessions with claimed pending inputs`
       )
     }
@@ -419,7 +420,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const projectDir = this.normalizeProjectDir(config.projectDir)
     const permissionMode: PermissionMode =
       config.permissionMode === 'default' ? 'default' : 'full_access'
-    console.log(
+    logger.info(
       `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} projectDir=${projectDir ?? '<none>'}`
     )
     const generationSettings = await this.sanitizeGenerationSettings(
@@ -658,7 +659,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
     const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
     const projectDir = this.resolveProjectDir(sessionId, context?.projectDir)
-    console.log(
+    logger.info(
       `[DeepChatAgent] processMessage session=${sessionId} content="${normalizedInput.text.slice(0, 60)}" projectDir=${projectDir ?? '<none>'}`
     )
 

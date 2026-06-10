@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { MODEL_META } from '@shared/presenter'
 import { IConfigPresenter } from '@shared/presenter'
 import { BaseLLMProvider } from '../baseProvider'
@@ -11,11 +12,11 @@ export class ModelManager {
   constructor(private readonly options: ModelManagerOptions) {}
 
   async getModelList(providerId: string): Promise<MODEL_META[]> {
-    console.log(`[ModelManager] getModelList: fetching models for provider "${providerId}"`)
+    logger.info(`[ModelManager] getModelList: fetching models for provider "${providerId}"`)
     const provider = this.options.getProviderInstance(providerId)
     let models = await provider.fetchModels()
 
-    console.log(
+    logger.info(
       `[ModelManager] getModelList: received ${models.length} models from provider "${providerId}"`
     )
 
@@ -64,7 +65,7 @@ export class ModelManager {
         `[ModelManager] getModelList: Found ${incorrectProviderIds.length} models with incorrect providerId for provider "${providerId}" after processing`
       )
     } else {
-      console.log(
+      logger.info(
         `[ModelManager] getModelList: returning ${models.length} validated models for provider "${providerId}"`
       )
     }

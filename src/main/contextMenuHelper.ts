@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
 import path from 'path'
 import sharp from 'sharp'
@@ -31,7 +32,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
   const disposables: (() => void)[] = []
   let isDisposed = false
 
-  console.log('contextMenu: initializing context menu', options.webContents.id)
+  logger.info('contextMenu: initializing context menu', options.webContents.id)
 
   // 确保 webContents 参数存在
   if (!options.webContents) {
@@ -66,7 +67,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
         label: options.labels?.copyImage || '复制图片',
         click: () => {
           options.webContents.copyImageAt(params.x, params.y)
-          console.log('contextMenu: copying image', params.srcURL)
+          logger.info('contextMenu: copying image', params.srcURL)
         }
       })
 
@@ -78,10 +79,10 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
           try {
             // 获取文件名和URL
             let url = params.srcURL || ''
-            console.log('contextMenu: all params available:', Object.keys(params))
-            console.log('contextMenu: srcURL:', params.srcURL)
-            console.log('contextMenu: linkURL:', params.linkURL)
-            console.log('contextMenu: pageURL:', params.pageURL)
+            logger.info('contextMenu: all params available:', Object.keys(params))
+            logger.info('contextMenu: srcURL:', params.srcURL)
+            logger.info('contextMenu: linkURL:', params.linkURL)
+            logger.info('contextMenu: pageURL:', params.pageURL)
 
             // 如果srcURL为空，尝试其他可能的URL来源
             if (!url && params.linkURL) {
@@ -91,7 +92,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
               url = params.pageURL
             }
 
-            console.log('contextMenu: final url:', url)
+            logger.info('contextMenu: final url:', url)
 
             if (!url) {
               throw new Error('无法获取图片URL，请检查图片源')
@@ -128,8 +129,8 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
               return
             }
 
-            console.log('contextMenu: start saving pic', filePath)
-            console.log('contextMenu: source URL:', url)
+            logger.info('contextMenu: start saving pic', filePath)
+            logger.info('contextMenu: source URL:', url)
 
             // 获取图片数据
             if (isBase64) {
@@ -190,7 +191,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
               await sharpInstance.toFile(filePath)
             }
 
-            console.log('contextMenu: pic saved ', filePath)
+            logger.info('contextMenu: pic saved ', filePath)
           } catch (error) {
             console.error('contextMenu: pic save failed', error)
           }
@@ -302,7 +303,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
     if (menuItems.length > 0) {
       try {
         const menu = Menu.buildFromTemplate(menuItems)
-        console.log('contextMenu: displaying menu')
+        logger.info('contextMenu: displaying menu')
         const window = BrowserWindow.fromWebContents(options.webContents)
         if (window) {
           menu.popup({
@@ -380,11 +381,11 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
   // 返回清理函数
   return () => {
     if (isDisposed) {
-      console.log('contextMenu: already disposed, skipping cleanup')
+      logger.info('contextMenu: already disposed, skipping cleanup')
       return
     }
 
-    console.log('contextMenu: starting cleanup')
+    logger.info('contextMenu: starting cleanup')
     // 清理所有监听器
     for (const dispose of disposables) {
       dispose()
@@ -392,6 +393,6 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
 
     disposables.length = 0
     isDisposed = true
-    console.log('contextMenu: cleanup completed')
+    logger.info('contextMenu: cleanup completed')
   }
 }

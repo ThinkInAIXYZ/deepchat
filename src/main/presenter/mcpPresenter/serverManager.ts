@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
 import { McpClient } from './mcpClient'
 import axios from 'axios'
@@ -55,11 +56,11 @@ export class ServerManager {
       } else {
         this.uvRegistry = null
       }
-      console.log(`[NPM Registry] Loaded effective registry: ${effectiveRegistry}`)
+      logger.info(`[NPM Registry] Loaded effective registry: ${effectiveRegistry}`)
     } else {
       this.npmRegistry = null
       this.uvRegistry = null
-      console.log('[NPM Registry] No effective registry, will use default or detect')
+      logger.info('[NPM Registry] No effective registry, will use default or detect')
     }
   }
 
@@ -73,7 +74,7 @@ export class ServerManager {
       } else {
         this.uvRegistry = null
       }
-      console.log(`[NPM Registry] Using custom registry: ${customRegistry}`)
+      logger.info(`[NPM Registry] Using custom registry: ${customRegistry}`)
       return customRegistry
     }
     if (useCache && this.configPresenter.isNpmRegistryCacheValid?.()) {
@@ -85,12 +86,12 @@ export class ServerManager {
         } else {
           this.uvRegistry = null
         }
-        console.log(`[NPM Registry] Using cached registry: ${cache.registry}`)
+        logger.info(`[NPM Registry] Using cached registry: ${cache.registry}`)
         return cache.registry
       }
     }
 
-    console.log('[NPM Registry] Testing registry speed...')
+    logger.info('[NPM Registry] Testing registry speed...')
     const timeout = 10000
     const testPackage = 'tiny-runtime-injector'
 
@@ -143,14 +144,14 @@ export class ServerManager {
     const successfulResults = results
       .filter((result) => result.success)
       .sort((a, b) => a.time - b.time)
-    console.log('[NPM Registry] Test results:', successfulResults)
+    logger.info('[NPM Registry] Test results:', successfulResults)
     let bestRegistry: string
     if (successfulResults.length === 0) {
-      console.log('[NPM Registry] All tests failed, using default registry')
+      logger.info('[NPM Registry] All tests failed, using default registry')
       bestRegistry = NPM_REGISTRY_LIST[0]
     } else {
       bestRegistry = successfulResults[0].registry
-      console.log(`[NPM Registry] Best registry: ${bestRegistry} (${successfulResults[0].time}ms)`)
+      logger.info(`[NPM Registry] Best registry: ${bestRegistry} (${successfulResults[0].time}ms)`)
     }
     this.npmRegistry = bestRegistry
     if (bestRegistry === 'https://registry.npmmirror.com/') {
@@ -175,25 +176,25 @@ export class ServerManager {
   }
 
   async refreshNpmRegistry(): Promise<string> {
-    console.log('[NPM Registry] Manual refresh triggered')
+    logger.info('[NPM Registry] Manual refresh triggered')
     return await this.testNpmRegistrySpeed(false) // Don't use cache
   }
 
   async updateNpmRegistryInBackground(): Promise<void> {
     try {
       if (this.isPrivacyModeEnabled()) {
-        console.log('[NPM Registry] Privacy mode enabled, skipping background update')
+        logger.info('[NPM Registry] Privacy mode enabled, skipping background update')
         return
       }
 
       // Check if update is needed
       if (this.configPresenter.isNpmRegistryCacheValid?.()) {
-        console.log('[NPM Registry] Cache is still valid, skipping background update')
+        logger.info('[NPM Registry] Cache is still valid, skipping background update')
         return
       }
-      console.log('[NPM Registry] Starting background registry update')
+      logger.info('[NPM Registry] Starting background registry update')
       await this.testNpmRegistrySpeed(false)
-      console.log('[NPM Registry] Background registry update completed')
+      logger.info('[NPM Registry] Background registry update completed')
     } catch (error) {
       console.error('[NPM Registry] Background update failed:', error)
     }

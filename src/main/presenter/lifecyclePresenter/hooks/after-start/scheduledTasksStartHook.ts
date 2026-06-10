@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Scheduled tasks start hook for after-start phase
  *
@@ -33,6 +34,6 @@ export const scheduledTasksStartHook: LifecycleHook = {
     }
 
     presenter.scheduledTasks.start()
-    console.log('scheduledTasksStartHook: Scheduler started')
+    logger.info('scheduledTasksStartHook: Scheduler started')
   }
 }

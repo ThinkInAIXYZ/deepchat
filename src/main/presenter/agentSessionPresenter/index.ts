@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import type {
   Agent,
   AgentTapeAnchorResult,
@@ -311,7 +312,7 @@ export class AgentSessionPresenter {
 
   async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
     const agentId = input.agentId || 'deepchat'
-    console.log(
+    logger.info(
       `[AgentSessionPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`
     )
     const normalizedInput = this.normalizeCreateSessionInput(input)
@@ -361,7 +362,7 @@ export class AgentSessionPresenter {
       deepChatAgentConfig,
       input.generationSettings
     )
-    console.log(`[AgentSessionPresenter] resolved provider=${providerId} model=${modelId}`)
+    logger.info(`[AgentSessionPresenter] resolved provider=${providerId} model=${modelId}`)
 
     if (!providerId || !modelId) {
       throw new Error('No provider or model configured. Please set a default model in settings.')
@@ -375,7 +376,7 @@ export class AgentSessionPresenter {
       disabledAgentTools,
       subagentEnabled
     })
-    console.log(`[AgentSessionPresenter] session created id=${sessionId} title="${title}"`)
+    logger.info(`[AgentSessionPresenter] session created id=${sessionId} title="${title}"`)
 
     // Initialize agent-side session
     const initConfig: {
@@ -401,7 +402,7 @@ export class AgentSessionPresenter {
       await this.cleanupFailedSessionInitialization(agent, sessionId, providerId)
       throw error
     }
-    console.log(`[AgentSessionPresenter] agent.initSession done`)
+    logger.info(`[AgentSessionPresenter] agent.initSession done`)
 
     // Bind to window and emit activated
     this.sessionManager.bindWindow(webContentsId, sessionId)
@@ -442,7 +443,7 @@ export class AgentSessionPresenter {
 
     // Start the first message (non-blocking) after returning session ID.
     if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
-      console.log(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
+      logger.info(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
       if (agent.queuePendingInput) {
         agent
           .queuePendingInput(sessionId, normalizedInput, {

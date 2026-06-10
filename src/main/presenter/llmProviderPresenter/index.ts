@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import {
   ILlmProviderPresenter,
   LLM_PROVIDER,
@@ -312,7 +313,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     maxTokens?: number
   ): Promise<string> {
     // Record input messages to the large model
-    console.log('generateCompletion', providerId, modelId, temperature, maxTokens, messages)
+    logger.info('generateCompletion', providerId, modelId, temperature, maxTokens, messages)
     const provider = this.getProviderInstance(providerId)
     const response = await provider.completions(messages, modelId, temperature, maxTokens)
     return response.content
@@ -666,7 +667,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
         }
       } else {
         // 如果没有提供modelId，使用provider自己的check方法进行基本验证
-        console.log(
+        logger.info(
           `[LLMProviderPresenter] No modelId provided, using provider's own check method for ${providerId}`
         )
         try {

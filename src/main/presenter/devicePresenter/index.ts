@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { IDevicePresenter, DeviceInfo, MemoryInfo, DiskInfo } from '../../../shared/presenter'
 import os from 'os'
 import { exec } from 'child_process'
@@ -350,11 +351,11 @@ export class DevicePresenter implements IDevicePresenter {
       switch (resetType) {
         case 'chat': {
           // 删除聊天数据
-          console.log('Resetting chat data...')
+          logger.info('Resetting chat data...')
           try {
             if (presenter.sqlitePresenter) {
               presenter.sqlitePresenter.close()
-              console.log('SQLite database connection closed')
+              logger.info('SQLite database connection closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 500))
           } catch (closeError) {
@@ -364,7 +365,7 @@ export class DevicePresenter implements IDevicePresenter {
           const mainDbFile = path.join(appDbPath, 'agent.db')
           try {
             removeFile(mainDbFile)
-            console.log('Removed chat database file')
+            logger.info('Removed chat database file')
           } catch (error) {
             console.warn('Failed to remove chat database file:', error)
           }
@@ -374,7 +375,7 @@ export class DevicePresenter implements IDevicePresenter {
             if (fs.existsSync(filePath)) {
               try {
                 removeFile(filePath)
-                console.log('Cleaned up auxiliary file:', fileName)
+                logger.info('Cleaned up auxiliary file:', fileName)
               } catch (error) {
                 console.warn('Failed to clean auxiliary file:', fileName, error)
               }
@@ -385,25 +386,25 @@ export class DevicePresenter implements IDevicePresenter {
 
         case 'knowledge': {
           // 删除知识库数据
-          console.log('Resetting knowledge base data...')
+          logger.info('Resetting knowledge base data...')
           try {
             if (presenter.knowledgePresenter) {
               await presenter.knowledgePresenter.destroy()
-              console.log('Knowledge database connections closed')
+              logger.info('Knowledge database connections closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 500))
           } catch (closeError) {
             console.warn('Error closing knowledge database connections:', closeError)
           }
           const knowledgeDbPath = path.join(userDataPath, 'app_db', 'KnowledgeBase')
-          console.log('Removing knowledge base directory:', knowledgeDbPath)
+          logger.info('Removing knowledge base directory:', knowledgeDbPath)
           removeDirectory(knowledgeDbPath)
           break
         }
 
         case 'config': {
           // 删除配置文件
-          console.log('Resetting configuration files')
+          logger.info('Resetting configuration files')
           const configFiles = [
             path.join(userDataPath, 'app-settings.json'),
             path.join(userDataPath, 'mcp-settings.json'),
@@ -414,7 +415,7 @@ export class DevicePresenter implements IDevicePresenter {
           configFiles.forEach((filePath) => {
             try {
               removeFile(filePath)
-              console.log('Removed config file:', filePath)
+              logger.info('Removed config file:', filePath)
             } catch (error) {
               console.warn('Failed to remove config file:', filePath, error)
             }
@@ -422,7 +423,7 @@ export class DevicePresenter implements IDevicePresenter {
 
           try {
             removeDirectory(path.join(userDataPath, 'provider_models'))
-            console.log('Removed provider_models directory')
+            logger.info('Removed provider_models directory')
           } catch (error) {
             console.warn('Failed to remove provider_models directory:', error)
           }
@@ -431,21 +432,21 @@ export class DevicePresenter implements IDevicePresenter {
 
         case 'all': {
           // 删除整个用户数据目录
-          console.log('Performing complete reset of user data...')
+          logger.info('Performing complete reset of user data...')
           try {
             if (presenter.sqlitePresenter) {
               presenter.sqlitePresenter.close()
-              console.log('SQLite database connection closed')
+              logger.info('SQLite database connection closed')
             }
             if (presenter.knowledgePresenter) {
               await presenter.knowledgePresenter.destroy()
-              console.log('Knowledge database connections closed')
+              logger.info('Knowledge database connections closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 1000))
           } catch (closeError) {
             console.warn('Error closing database connections:', closeError)
           }
-          console.log('Removing user data directory:', userDataPath)
+          logger.info('Removing user data directory:', userDataPath)
           removeDirectory(userDataPath)
           break
         }
@@ -464,7 +465,7 @@ export class DevicePresenter implements IDevicePresenter {
   private restartAppWithDelay(): void {
     try {
       if (is.dev) {
-        console.log('开发环境下数据重置完成，发送通知到渲染进程')
+        logger.info('开发环境下数据重置完成，发送通知到渲染进程')
         eventBus.sendToRenderer(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, SendTarget.ALL_WINDOWS)
         return
       }
@@ -512,7 +513,7 @@ export class DevicePresenter implements IDevicePresenter {
    * 重启应用程序
    */
   restartApp(): Promise<void> {
-    console.log('restartApp')
+    logger.info('restartApp')
     app.relaunch()
     app.exit()
     return Promise.resolve()
@@ -525,22 +526,22 @@ export class DevicePresenter implements IDevicePresenter {
    */
   async sanitizeSvgContent(svgContent: string): Promise<string | null> {
     try {
-      console.log('Sanitizing SVG content, length:', svgContent.length)
+      logger.info('Sanitizing SVG content, length:', svgContent.length)
       // Debug: 显示SVG前100个字符
-      console.log('SVG preview:', svgContent.substring(0, 100) + '...')
+      logger.info('SVG preview:', svgContent.substring(0, 100) + '...')
 
       // 使用SVG净化器处理内容
       const sanitizedContent = svgSanitizer.sanitize(svgContent)
 
       if (sanitizedContent) {
-        console.log('SVG content sanitized successfully, output length:', sanitizedContent.length)
-        console.log('Comments preserved:', /<!--/.test(sanitizedContent))
+        logger.info('SVG content sanitized successfully, output length:', sanitizedContent.length)
+        logger.info('Comments preserved:', /<!--/.test(sanitizedContent))
         return sanitizedContent
       } else {
         console.warn('SVG content was rejected by sanitizer')
         // Debug: 检查具体是哪一步失败了
-        console.log('Debug: SVG starts with <svg:', svgContent.trim().startsWith('<svg'))
-        console.log('Debug: SVG contains dangerous content:', svgContent.includes('<script'))
+        logger.info('Debug: SVG starts with <svg:', svgContent.trim().startsWith('<svg'))
+        logger.info('Debug: SVG contains dangerous content:', svgContent.includes('<script'))
         return null
       }
     } catch (error) {

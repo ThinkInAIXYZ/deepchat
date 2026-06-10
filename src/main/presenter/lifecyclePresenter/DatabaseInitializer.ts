@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { app } from 'electron'
 import path from 'path'
 import {
@@ -39,7 +40,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
     let repairAttempted = false
 
     try {
-      console.log('DatabaseInitializer: Starting database initialization')
+      logger.info('DatabaseInitializer: Starting database initialization')
 
       while (true) {
         try {
@@ -50,7 +51,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
             throw new Error('Database connection validation failed')
           }
 
-          console.log('DatabaseInitializer: Database initialization completed successfully')
+          logger.info('DatabaseInitializer: Database initialization completed successfully')
           return this.database
         } catch (error) {
           this.database?.close()
@@ -86,10 +87,10 @@ export class DatabaseInitializer implements IDatabaseInitializer {
     }
 
     try {
-      console.log('DatabaseInitializer: Starting database migration')
+      logger.info('DatabaseInitializer: Starting database migration')
       // Migration logic is already handled in SQLitePresenter constructor
       // This method is here for future migration needs that might be separate
-      console.log('DatabaseInitializer: Database migration completed')
+      logger.info('DatabaseInitializer: Database migration completed')
     } catch (error) {
       console.error('DatabaseInitializer: Database migration failed:', error)
       throw error

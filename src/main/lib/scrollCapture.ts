@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { NativeImage, WebContentsView, nativeImage } from 'electron'
 import sharp from 'sharp'
 
@@ -51,7 +52,7 @@ export class ScrollCaptureManager {
     }
 
     try {
-      console.log(`Starting scrollable capture for area:`, rect)
+      logger.info(`Starting scrollable capture for area:`, rect)
 
       // Get page information
       const pageInfo = await this.getPageInfo()
@@ -73,7 +74,7 @@ export class ScrollCaptureManager {
       )
       const segments = this.calculateSegments(rect, maxSegmentHeight)
 
-      console.log(`Splitting into ${segments.length} segments`)
+      logger.info(`Splitting into ${segments.length} segments`)
 
       // If only one segment, capture directly
       if (segments.length === 1) {
@@ -83,7 +84,7 @@ export class ScrollCaptureManager {
       // Capture segments sequentially
       const segmentImages: Buffer[] = []
       for (const segment of segments) {
-        console.log(
+        logger.info(
           `Capturing segment ${segment.segmentIndex + 1}/${segments.length} at scroll position ${segment.scrollY}`
         )
 
@@ -125,7 +126,7 @@ export class ScrollCaptureManager {
    * Hide specified elements
    */
   private async hideElements(selectors: string[]): Promise<void> {
-    console.log(`Hiding elements:`, selectors)
+    logger.info(`Hiding elements:`, selectors)
 
     for (const selector of selectors) {
       const elementInfo = await this.view.webContents.executeJavaScript(`
@@ -156,7 +157,7 @@ export class ScrollCaptureManager {
     let currentY = rect.y
     let segmentIndex = 0
 
-    console.log(
+    logger.info(
       `Calculating segments for rect: y=${rect.y}, height=${rect.height}, maxSegmentHeight=${maxSegmentHeight}`
     )
 
@@ -176,12 +177,12 @@ export class ScrollCaptureManager {
         segmentIndex: segmentIndex++
       })
 
-      console.log(`Segment ${segmentIndex}: scrollY=${currentY}, height=${actualSegmentHeight}`)
+      logger.info(`Segment ${segmentIndex}: scrollY=${currentY}, height=${actualSegmentHeight}`)
 
       currentY += actualSegmentHeight
     }
 
-    console.log(`Total segments calculated: ${segments.length}`)
+    logger.info(`Total segments calculated: ${segments.length}`)
     return segments
   }
 
@@ -220,7 +221,7 @@ export class ScrollCaptureManager {
       })()
     `)
 
-    console.log(`Segment ${segment.segmentIndex + 1} capture rect:`, captureRect)
+    logger.info(`Segment ${segment.segmentIndex + 1} capture rect:`, captureRect)
 
     // Capture current segment
     const segmentImage = await this.view.webContents.capturePage(captureRect)
@@ -291,14 +292,14 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
     return nativeImage.createFromBuffer(imageBuffers[0])
   }
 
-  console.log(`Starting to stitch ${imageBuffers.length} images using Sharp`)
+  logger.info(`Starting to stitch ${imageBuffers.length} images using Sharp`)
 
   // Get metadata for all images
   const imageInfos = await Promise.all(
     imageBuffers.map(async (buffer, index) => {
       try {
         const metadata = await sharp(buffer).metadata()
-        console.log(`Image ${index + 1} dimensions: ${metadata.width}x${metadata.height}`)
+        logger.info(`Image ${index + 1} dimensions: ${metadata.width}x${metadata.height}`)
         return {
           buffer,
           width: metadata.width || 0,
@@ -316,7 +317,7 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
   const maxWidth = Math.max(...imageInfos.map((info) => info.width))
   const totalHeight = imageInfos.reduce((sum, info) => sum + info.height, 0)
 
-  console.log(`Stitched image dimensions: ${maxWidth}x${totalHeight}`)
+  logger.info(`Stitched image dimensions: ${maxWidth}x${totalHeight}`)
 
   // Create blank canvas
   const canvas = sharp({
@@ -346,7 +347,7 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
       left: left
     })
 
-    console.log(`Image ${imageInfo.index + 1} will be placed at position (${left}, ${currentTop})`)
+    logger.info(`Image ${imageInfo.index + 1} will be placed at position (${left}, ${currentTop})`)
     currentTop += imageInfo.height
   }
 
@@ -356,6 +357,6 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
   // Create NativeImage
   const stitchedImage = nativeImage.createFromBuffer(stitchedBuffer)
 
-  console.log(`Successfully stitched ${imageBuffers.length} images using Sharp`)
+  logger.info(`Successfully stitched ${imageBuffers.length} images using Sharp`)
   return stitchedImage
 }

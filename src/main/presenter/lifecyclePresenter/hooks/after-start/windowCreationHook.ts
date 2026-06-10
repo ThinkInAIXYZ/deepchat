@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Window creation hook for after-start phase
  * Creates the initial application window and registers shortcuts
@@ -13,7 +14,7 @@ export const windowCreationHook: LifecycleHook = {
   priority: 1,
   critical: true,
   execute: async (_context: LifecycleContext) => {
-    console.log('windowCreationHook: Creating initial application window')
+    logger.info('windowCreationHook: Creating initial application window')
 
     // Ensure presenter is available
     if (!presenter) {
@@ -22,13 +23,13 @@ export const windowCreationHook: LifecycleHook = {
 
     // If no windows exist, create main window (first app startup)
     if (presenter.windowPresenter.getAllWindows().length === 0) {
-      console.log('windowCreationHook: Creating initial app window on app startup')
+      logger.info('windowCreationHook: Creating initial app window on app startup')
       try {
         const windowId = await presenter.windowPresenter.createAppWindow({
           initialRoute: 'chat'
         })
         if (windowId) {
-          console.log(
+          logger.info(
             `windowCreationHook: Initial app window created successfully with ID: ${windowId}`
           )
         } else {
@@ -39,12 +40,12 @@ export const windowCreationHook: LifecycleHook = {
         throw error
       }
     } else {
-      console.log('windowCreationHook: App windows already exist, skipping initial window creation')
+      logger.info('windowCreationHook: App windows already exist, skipping initial window creation')
     }
 
     // Register global shortcuts
     presenter.shortcutPresenter.registerShortcuts()
 
-    console.log('windowCreationHook: Initial application window created successfully')
+    logger.info('windowCreationHook: Initial application window created successfully')
   }
 }

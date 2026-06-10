@@ -42,8 +42,8 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('fs', () => ({
-  default: {
+vi.mock('fs', () => {
+  const fsMock = {
     existsSync: vi.fn(),
     mkdirSync: vi.fn(),
     readdirSync: vi.fn(),
@@ -57,16 +57,28 @@ vi.mock('fs', () => ({
       size: 1024,
       mtimeMs: Date.now()
     }),
-    promises: {
-      stat: vi.fn().mockResolvedValue({
-        isFile: () => true,
-        size: 1024
-      }),
-      readFile: vi.fn().mockResolvedValue('test')
-    },
     mkdtempSync: vi.fn().mockReturnValue('/mock/temp/deepchat-skill-123')
   }
-}))
+  // fs.promises delegates to the sync mocks so per-test sync stubs drive both code paths
+  const promises = {
+    stat: vi.fn(async (...args: unknown[]) => fsMock.statSync(...(args as [string]))),
+    readFile: vi.fn(async (...args: unknown[]) => fsMock.readFileSync(...(args as [string]))),
+    readdir: vi.fn(async (...args: unknown[]) => fsMock.readdirSync(...(args as [string]))),
+    access: vi.fn(async (target: string) => {
+      if (!fsMock.existsSync(target)) {
+        throw Object.assign(new Error(`ENOENT: no such file or directory, access '${target}'`), {
+          code: 'ENOENT'
+        })
+      }
+    })
+  }
+  return {
+    default: {
+      ...fsMock,
+      promises
+    }
+  }
+})
 
 vi.mock('path', () => ({
   default: {
@@ -141,7 +153,13 @@ vi.mock('../../../../src/main/events', () => ({
 
 vi.mock('@shared/logger', () => ({
   default: {
-    warn: vi.fn()
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    verbose: vi.fn(),
+    debug: vi.fn(),
+    silly: vi.fn(),
+    log: vi.fn()
   }
 }))
 
@@ -252,11 +270,23 @@ describe('SkillPresenter', () => {
       size: 1024,
       mtimeMs: Date.now()
     })
-    ;(fs.promises.stat as Mock).mockResolvedValue({
-      isFile: () => true,
-      size: 1024
+    ;(fs.promises.stat as Mock).mockImplementation(async (...args: unknown[]) =>
+      (fs.statSync as Mock)(...args)
+    )
+    ;(fs.promises.readFile as Mock).mockImplementation(async (...args: unknown[]) => {
+      const result = (fs.readFileSync as Mock)(...args)
+      return result === undefined ? 'test' : result
     })
-    ;(fs.promises.readFile as Mock).mockResolvedValue('test')
+    ;(fs.promises.readdir as Mock).mockImplementation(async (...args: unknown[]) =>
+      (fs.readdirSync as Mock)(...args)
+    )
+    ;(fs.promises.access as Mock).mockImplementation(async (target: string) => {
+      if (!(fs.existsSync as Mock)(target)) {
+        throw Object.assign(new Error(`ENOENT: no such file or directory, access '${target}'`), {
+          code: 'ENOENT'
+        })
+      }
+    })
     ;(matter as unknown as Mock).mockReturnValue({
       data: { name: 'test-skill', description: 'Test skill' },
       content: '# Test content'
@@ -1705,7 +1735,8 @@ describe('SkillPresenter', () => {
         '[SkillPresenter] Skill file too large: 6291456 bytes (max: 5242880)'
       )
 
-      expect(fs.promises.readFile).not.toHaveBeenCalled()
+      // Discovery parses frontmatter once; the oversized content must not be read after stat
+      expect(fs.promises.readFile).toHaveBeenCalledTimes(1)
     })
 
     it('should discover runnable scripts under scripts directory', async () => {

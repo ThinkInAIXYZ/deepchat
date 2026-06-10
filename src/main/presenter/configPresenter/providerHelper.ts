@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import {
@@ -107,7 +108,7 @@ export class ProviderHelper {
         repairedProviders.some((p) => !(p as any).apiType)
 
       if (listChanged) {
-        console.log(
+        logger.info(
           `[Config] Repaired providers store: ${providers.length} entries -> ${repairedProviders.length} valid providers`
         )
         this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, repairedProviders)

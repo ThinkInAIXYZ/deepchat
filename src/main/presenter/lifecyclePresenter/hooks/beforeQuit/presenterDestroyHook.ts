@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * presenter destroy hook
  */
@@ -12,7 +13,7 @@ export const presenterDestroyHook: LifecycleHook = {
   priority: Number.MAX_VALUE, // make sure presenter be destroyed lastest
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('presenterDestroyHook: Destroy system presenter')
+    logger.info('presenterDestroyHook: Destroy system presenter')
 
     // Ensure presenter is available
     if (!presenter) {
@@ -21,6 +22,6 @@ export const presenterDestroyHook: LifecycleHook = {
 
     await presenter.destroy()
 
-    console.log('presenterDestroyHook: System presenter destroyed successfully')
+    logger.info('presenterDestroyHook: System presenter destroyed successfully')
   }
 }

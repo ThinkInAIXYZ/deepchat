@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import {
   IMCPPresenter,
   IConfigPresenter,
@@ -38,7 +39,7 @@ export class McpPresenter implements IMCPPresenter {
   >()
 
   constructor(configPresenter?: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
-    console.log('Initializing MCP Presenter')
+    logger.info('Initializing MCP Presenter')
 
     this.configPresenter = configPresenter || presenter.configPresenter
     this.cacheImage = cacheImage
@@ -87,12 +88,12 @@ export class McpPresenter implements IMCPPresenter {
 
       // Initialize npm registry (prefer cache if available)
       if (this.isPrivacyModeEnabled()) {
-        console.log('[MCP] Privacy mode enabled, skipping automatic npm registry detection')
+        logger.info('[MCP] Privacy mode enabled, skipping automatic npm registry detection')
       } else {
-        console.log('[MCP] Initializing npm registry...')
+        logger.info('[MCP] Initializing npm registry...')
         try {
           await this.serverManager.testNpmRegistrySpeed(true)
-          console.log(`[MCP] npm registry initialized: ${this.serverManager.getNpmRegistry()}`)
+          logger.info(`[MCP] npm registry initialized: ${this.serverManager.getNpmRegistry()}`)
         } catch (error) {
           console.error('[MCP] npm registry initialization failed:', error)
         }
@@ -101,11 +102,11 @@ export class McpPresenter implements IMCPPresenter {
       // Check and start deepchat-inmemory/custom-prompts-server
       const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
       if (mcpEnabled && servers[customPromptsServerName]) {
-        console.log(`[MCP] Attempting to start custom prompts server: ${customPromptsServerName}`)
+        logger.info(`[MCP] Attempting to start custom prompts server: ${customPromptsServerName}`)
 
         try {
           await this.serverManager.startServer(customPromptsServerName)
-          console.log(`[MCP] Custom prompts server ${customPromptsServerName} started successfully`)
+          logger.info(`[MCP] Custom prompts server ${customPromptsServerName} started successfully`)
 
           // Notify renderer process that server has started
           eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, customPromptsServerName)
@@ -121,11 +122,11 @@ export class McpPresenter implements IMCPPresenter {
         for (const serverName of enabledServers) {
           const serverConfig = servers[serverName]
           if (serverConfig && (mcpEnabled || this.isPluginOwnedServerConfig(serverConfig))) {
-            console.log(`[MCP] Attempting to start enabled server: ${serverName}`)
+            logger.info(`[MCP] Attempting to start enabled server: ${serverName}`)
 
             try {
               await this.serverManager.startServer(serverName)
-              console.log(`[MCP] Enabled server ${serverName} started successfully`)
+              logger.info(`[MCP] Enabled server ${serverName} started successfully`)
 
               // Notify renderer process that server has started
               eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, serverName)
@@ -138,7 +139,7 @@ export class McpPresenter implements IMCPPresenter {
 
       // Mark initialization complete and emit event
       this.isInitialized = true
-      console.log('[MCP] Initialization completed')
+      logger.info('[MCP] Initialization completed')
       eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
 
       this.scheduleBackgroundRegistryUpdate()
@@ -219,7 +220,7 @@ export class McpPresenter implements IMCPPresenter {
       await this.configPresenter.updateMcpServer(update.name, update.config)
     }
 
-    console.log(`Updated Authorization for ${updates.length} mcprouter servers`)
+    logger.info(`Updated Authorization for ${updates.length} mcprouter servers`)
   }
 
   private scheduleBackgroundRegistryUpdate(): void {
@@ -391,11 +392,11 @@ export class McpPresenter implements IMCPPresenter {
 
     // If server was previously running, restart it to apply new configuration
     if (wasRunning) {
-      console.log(`[MCP] Configuration updated, restarting server: ${serverName}`)
+      logger.info(`[MCP] Configuration updated, restarting server: ${serverName}`)
       try {
         await this.stopServer(serverName) // stopServer will emit SERVER_STOPPED event
         await this.startServer(serverName) // startServer will emit SERVER_STARTED event
-        console.log(`[MCP] Server ${serverName} restarted successfully`)
+        logger.info(`[MCP] Server ${serverName} restarted successfully`)
       } catch (error) {
         console.error(`[MCP] Failed to restart server ${serverName}:`, error)
         // Even if restart fails, ensure correct state by marking as not running
@@ -720,7 +721,7 @@ export class McpPresenter implements IMCPPresenter {
   async getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown> {
     // Check if this is a custom prompt from deepchat/custom-prompts-server
     if (prompt.client.name === 'deepchat/custom-prompts-server') {
-      console.log(`[MCP] Getting custom prompt: ${prompt.name}`)
+      logger.info(`[MCP] Getting custom prompt: ${prompt.name}`)
       try {
         const customPrompts = await this.configPresenter.getCustomPrompts()
         const foundPrompt = customPrompts.find((p) => p.name === prompt.name)
@@ -775,11 +776,11 @@ export class McpPresenter implements IMCPPresenter {
     conversationId?: string
   ): Promise<void> {
     try {
-      console.log(
+      logger.info(
         `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}, conversationId: ${conversationId}`
       )
       await this.toolManager.grantPermission(serverName, permissionType, remember, conversationId)
-      console.log(
+      logger.info(
         `[MCP] Successfully granted ${permissionType} permission for server: ${serverName}`
       )
     } catch (error) {
@@ -823,9 +824,9 @@ export class McpPresenter implements IMCPPresenter {
   async setCustomNpmRegistry(registry: string | undefined): Promise<void> {
     this.configPresenter.setCustomNpmRegistry?.(registry)
     if (registry) {
-      console.log(`[MCP] Setting custom NPM registry: ${registry}`)
+      logger.info(`[MCP] Setting custom NPM registry: ${registry}`)
     } else {
-      console.log('[MCP] Clearing custom NPM registry')
+      logger.info('[MCP] Clearing custom NPM registry')
     }
     this.serverManager.loadRegistryFromCache()
   }
@@ -839,7 +840,7 @@ export class McpPresenter implements IMCPPresenter {
 
   async clearNpmRegistryCache(): Promise<void> {
     this.configPresenter.clearNpmRegistryCache?.()
-    console.log('[MCP] NPM Registry cache cleared')
+    logger.info('[MCP] NPM Registry cache cleared')
   }
 
   // Get npm registry (for ACP and other internal use)

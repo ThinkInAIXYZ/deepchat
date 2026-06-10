@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import Database from 'better-sqlite3-multiple-ciphers'
 import path from 'path'
 import fs from 'fs'
@@ -350,7 +351,7 @@ export class SQLitePresenter implements ISQLitePresenter {
           this.db.pragma('wal_checkpoint(TRUNCATE)')
         }
         fs.copyFileSync(this.dbPath, backupPath)
-        console.log(`Database backed up to: ${backupPath}`)
+        logger.info(`Database backed up to: ${backupPath}`)
       }
     } catch (error) {
       console.error('Error creating database backup:', error)
@@ -364,7 +365,7 @@ export class SQLitePresenter implements ISQLitePresenter {
       try {
         if (fs.existsSync(file)) {
           fs.unlinkSync(file)
-          console.log(`Deleted file: ${file}`)
+          logger.info(`Deleted file: ${file}`)
         }
       } catch (error) {
         console.error(`Error deleting file ${file}:`, error)
@@ -499,11 +500,11 @@ export class SQLitePresenter implements ISQLitePresenter {
     for (const version of versions) {
       const migrationSQLs = migrations.get(version) || []
       if (migrationSQLs.length > 0) {
-        console.log(`Executing migration version ${version}`)
+        logger.info(`Executing migration version ${version}`)
         this.db.transaction(() => {
           migrationSQLs.forEach((sqlBlock) => {
             for (const statement of splitSqlStatements(sqlBlock)) {
-              console.log(`Executing SQL: ${statement}`)
+              logger.info(`Executing SQL: ${statement}`)
               try {
                 this.db.exec(statement)
               } catch (error) {
