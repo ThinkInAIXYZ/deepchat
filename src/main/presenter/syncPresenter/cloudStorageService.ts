@@ -1,14 +1,7 @@
 import fs from 'fs'
 import path from 'path'
-import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  ListObjectsV2Command,
-  type _Object
-} from '@aws-sdk/client-s3'
+import { Operator, RetryLayer, TimeoutLayer, type Entry } from 'opendal'
 import type { SyncBackupInfo } from '@shared/presenter'
 
 /**
@@ -32,112 +25,83 @@ const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
  * "pull the latest backup" are implemented — it does not manage local backups.
  */
 export class CloudStorageService {
-  private readonly client: S3Client
-  private readonly bucket: string
+  private readonly operator: Operator
   private readonly prefix: string
 
   constructor(config: ResolvedCloudSyncConfig) {
-    this.bucket = config.bucket
     // Normalize the prefix to a trailing-slash-free key segment (empty means bucket root).
     this.prefix = config.prefix.replace(/^\/+|\/+$/g, '')
-    this.client = new S3Client({
+    this.operator = new Operator('s3', {
+      root: this.toOpendalRoot(this.prefix),
       endpoint: config.endpoint,
-      // R2 expects 'auto'; AWS expects a real region. Default upstream is 'auto'.
+      bucket: config.bucket,
       region: config.region || 'auto',
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey
-      },
-      // R2 / MinIO require path-style addressing.
-      forcePathStyle: true
+      access_key_id: config.accessKeyId,
+      secret_access_key: config.secretAccessKey,
+      // Cloudflare R2 requires exact multipart chunk sizes for non-trailing parts.
+      enable_exact_buf_write: 'true'
     })
+
+    const timeout = new TimeoutLayer()
+    timeout.timeout = 30_000
+    timeout.ioTimeout = 30_000
+    this.operator.layer(timeout.build())
+
+    const retry = new RetryLayer()
+    retry.maxTimes = 3
+    retry.jitter = true
+    this.operator.layer(retry.build())
   }
 
-  private buildKey(fileName: string): string {
-    return this.prefix ? `${this.prefix}/${fileName}` : fileName
+  private toOpendalRoot(prefix: string): string {
+    return prefix ? `/${prefix}` : '/'
   }
 
-  /** ListObjects probe used by the settings "test connection" button. */
+  /** Lightweight list probe used by the settings "test connection" button. */
   public async testConnection(): Promise<void> {
-    await this.client.send(
-      new ListObjectsV2Command({
-        Bucket: this.bucket,
-        Prefix: this.prefix ? `${this.prefix}/` : undefined,
-        MaxKeys: 1
-      })
-    )
+    const lister = await this.operator.lister('/')
+    await lister.next()
   }
 
   /** Upload a single local backup zip under the configured prefix. */
   public async uploadBackup(localZipPath: string, fileName: string): Promise<void> {
-    const body = fs.createReadStream(localZipPath)
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: this.buildKey(fileName),
-        Body: body,
-        ContentType: 'application/zip'
-      })
-    )
-  }
-
-  private toReadableStream(body: unknown): NodeJS.ReadableStream {
-    if (body instanceof Readable) {
-      return body
-    }
-
-    if (body && typeof (body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] === 'function') {
-      return Readable.from(body as AsyncIterable<Uint8Array>)
-    }
-
-    const withWebStream = body as { transformToWebStream?: () => unknown }
-    if (typeof withWebStream?.transformToWebStream === 'function') {
-      return Readable.fromWeb(
-        withWebStream.transformToWebStream() as Parameters<typeof Readable.fromWeb>[0]
-      )
-    }
-
-    throw new Error('sync.error.cloudDownloadFailed')
+    const writer = await this.operator.writer(fileName, { contentType: 'application/zip' })
+    await pipeline(fs.createReadStream(localZipPath), writer.createWriteStream())
   }
 
   /** List remote `backup-*.zip` objects, newest first. */
   public async listRemoteBackups(): Promise<SyncBackupInfo[]> {
     const backups: SyncBackupInfo[] = []
-    let continuationToken: string | undefined
+    const lister = await this.operator.lister('/', { recursive: true })
+    let entry: Entry | null
 
-    do {
-      const response = await this.client.send(
-        new ListObjectsV2Command({
-          Bucket: this.bucket,
-          Prefix: this.prefix ? `${this.prefix}/` : undefined,
-          ContinuationToken: continuationToken
-        })
-      )
-
-      for (const item of response.Contents ?? []) {
-        const info = this.toBackupInfo(item)
-        if (info) {
-          backups.push(info)
-        }
+    while ((entry = await lister.next()) !== null) {
+      const info = this.toBackupInfo(entry)
+      if (info) {
+        backups.push(info)
       }
-
-      continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined
-    } while (continuationToken)
+    }
 
     return backups.sort((a, b) => b.createdAt - a.createdAt)
   }
 
-  private toBackupInfo(item: _Object): SyncBackupInfo | null {
-    if (!item.Key) {
+  private toBackupInfo(entry: Entry): SyncBackupInfo | null {
+    const key = entry.path()
+    if (!key) {
       return null
     }
-    const fileName = item.Key.split('/').pop() || ''
+    const fileName = key.split('/').pop() || ''
     if (!BACKUP_FILE_NAME_REGEX.test(fileName)) {
       return null
     }
     const match = fileName.match(/backup-(\d+)\.zip$/)
-    const createdAt = match ? Number(match[1]) : (item.LastModified?.getTime() ?? 0)
-    return { fileName, createdAt, size: item.Size ?? 0 }
+    const metadata = entry.metadata()
+    const createdAt = match
+      ? Number(match[1])
+      : metadata.lastModified
+        ? Date.parse(metadata.lastModified)
+        : 0
+    return { fileName, createdAt, size: Number(metadata.contentLength ?? 0n) }
   }
 
   /**
@@ -151,20 +115,10 @@ export class CloudStorageService {
     }
 
     const latest = remoteBackups[0]
-    const response = await this.client.send(
-      new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: this.buildKey(latest.fileName)
-      })
-    )
-
-    if (!response.Body) {
-      throw new Error('sync.error.cloudDownloadFailed')
-    }
-
     fs.mkdirSync(targetDir, { recursive: true })
     const targetPath = path.join(targetDir, latest.fileName)
-    await pipeline(this.toReadableStream(response.Body), fs.createWriteStream(targetPath))
+    const reader = await this.operator.reader(latest.fileName)
+    await pipeline(reader.createReadStream(), fs.createWriteStream(targetPath))
     return latest.fileName
   }
 }
