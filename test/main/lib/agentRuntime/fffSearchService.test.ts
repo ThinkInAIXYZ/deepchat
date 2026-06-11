@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { existsSync } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
@@ -90,6 +91,93 @@ function createMockModule(overrides: Record<string, unknown> = {}) {
 }
 
 describe('FffSearchService', () => {
+  it('loads the packaged FFF module from app.asar.unpacked when available', async () => {
+    const resourcesPath = await fs.mkdtemp(path.join(os.tmpdir(), 'fff-packaged-resources-'))
+    const moduleRoot = path.join(
+      resourcesPath,
+      'app.asar.unpacked',
+      'node_modules',
+      '@ff-labs',
+      'fff-node'
+    )
+    const entryPath = path.join(moduleRoot, 'dist', 'src', 'index.js')
+    const originalResourcesPath = Object.getOwnPropertyDescriptor(process, 'resourcesPath')
+
+    await fs.mkdir(path.dirname(entryPath), { recursive: true })
+    await fs.writeFile(path.join(moduleRoot, 'package.json'), '{"type":"module"}', 'utf8')
+    await fs.writeFile(
+      entryPath,
+      `
+export const FileFinder = {
+  isAvailable() {
+    return true
+  },
+  create() {
+    return {
+      ok: true,
+      value: {
+        isDestroyed: false,
+        destroy() {},
+        waitForScan() {
+          return Promise.resolve({ ok: true, value: true })
+        },
+        fileSearch() {
+          return {
+            ok: true,
+            value: {
+              items: [
+                {
+                  relativePath: 'packaged.ts',
+                  fileName: 'packaged.ts',
+                  size: 1,
+                  modified: 1,
+                  accessFrecencyScore: 0,
+                  modificationFrecencyScore: 0,
+                  totalFrecencyScore: 0,
+                  gitStatus: 'clean'
+                }
+              ],
+              scores: [{ total: 999 }],
+              totalMatched: 1,
+              totalFiles: 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`,
+      'utf8'
+    )
+    vi.mocked(existsSync).mockImplementation((candidate) => String(candidate) === entryPath)
+
+    Object.defineProperty(process, 'resourcesPath', {
+      value: resourcesPath,
+      writable: true,
+      configurable: true
+    })
+    ;(process as NodeJS.Process & { resourcesPath?: string }).resourcesPath = resourcesPath
+
+    const service = new FffSearchService()
+    try {
+      const hits = await service.findFiles('packaged', {
+        workspaceRoot: resourcesPath,
+        maxResults: 1
+      })
+
+      expect(hits).toEqual([{ path: 'packaged.ts', score: 999 }])
+    } finally {
+      service.destroyAll()
+      if (originalResourcesPath) {
+        Object.defineProperty(process, 'resourcesPath', originalResourcesPath)
+      } else {
+        delete (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+      }
+      await fs.rm(resourcesPath, { recursive: true, force: true })
+    }
+  })
+
   it('maps file search results into DeepChat JSON shape', async () => {
     const mock = createMockModule()
     const service = new FffSearchService({
