@@ -1,9 +1,9 @@
 # Plan
 
 ## Approach
-Use the existing `afterPack` native-package copy pattern already used for FFF and extend it to OpenDAL. Resolve the package from either root `node_modules` or pnpm's virtual root, then copy it into `app.asar.unpacked/node_modules/@opendal/<package>` for the current target platform.
+Use the normal dependency-graph path used by native packages that are loaded through Node's module resolver. Add the platform OpenDAL binding packages as root optional dependencies so electron-builder sees them before creating `app.asar`, then unpack those packages with `asarUnpack`.
 
-Add `asarUnpack` patterns for `@opendal/lib-*` so native `.node` files are kept outside `app.asar`.
+Keep the FFF-only `afterPack` copy path separate. FFF resolves copied binaries by explicit file path; OpenDAL's generated loader uses `require()`, so its binding package must exist in the packed dependency graph.
 
 ## Validation
 - Run `pnpm run format`
