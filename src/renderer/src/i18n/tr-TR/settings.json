@@ -1801,7 +1801,7 @@
       "success": "Kurulum Başarılı",
       "successMessage": "Skill {name} başarıyla kuruldu",
       "failed": "Kurulum Başarısız",
-      "dragNotSupported": "Sürükleme desteklenmiyor, lütfen seçmek için tıklayın"
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
     },
     "delete": {
       "title": "Skill'yi sil",

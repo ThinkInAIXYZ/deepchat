@@ -1825,7 +1825,7 @@
     "emptyHint": "Cliquez sur le bouton « Ajouter une compétence » pour installer une nouvelle compétence",
     "install": {
       "description": "Choisir le mode d’installation de la skill",
-      "dragNotSupported": "Le glisser-déposer n’est pas pris en charge pour le moment. Veuillez cliquer pour sélectionner.",
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
       "failed": "Installation échouée",
       "folderHint": "Cliquez pour sélectionner le dossier skill",
       "folderTip": "Supporte l’importation directe depuis ~/.claude/skills/ et autres clients",

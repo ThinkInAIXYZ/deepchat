@@ -1834,7 +1834,7 @@
       "title": "Установить skill",
       "urlPlaceholder": "Введите адрес для скачивания skill ZIP",
       "zipHint": "Нажмите, чтобы выбрать ZIP-файл",
-      "dragNotSupported": "Перетаскивание пока не поддерживается. Пожалуйста, кликните для выбора.",
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
       "fromFolder": "Установка из папки",
       "installButton": "установка",
       "selectFolder": "Выберите папку skill",

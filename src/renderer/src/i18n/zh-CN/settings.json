@@ -1851,9 +1851,9 @@
       "tabUrl": "URL",
       "fromFolder": "从文件夹安装",
       "selectFolder": "选择 skill 文件夹",
-      "folderHint": "点击选择 skill 文件夹",
+      "folderHint": "点击或拖拽 skill 文件夹到此处",
       "folderTip": "支持从 ~/.claude/skills/ 等其他客户端直接导入",
-      "zipHint": "点击选择 ZIP 文件",
+      "zipHint": "点击或拖拽 ZIP 文件到此处",
       "urlPlaceholder": "输入 skill ZIP 下载地址",
       "urlHint": "输入 skill 包的下载链接",
       "installButton": "安装",
@@ -1861,7 +1861,7 @@
       "success": "安装成功",
       "successMessage": "skill {name} 已成功安装",
       "failed": "安装失败",
-      "dragNotSupported": "暂不支持拖拽，请点击选择"
+      "dragInvalid": "不支持的拖拽内容，请拖入 skill 文件夹或单个 .zip 文件。"
     },
     "delete": {
       "title": "删除 skill",

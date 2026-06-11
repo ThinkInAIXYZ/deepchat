@@ -1825,7 +1825,7 @@
     "emptyHint": "לחץ על כפתור „הוסף skill“ להתקנת skill חדש",
     "install": {
       "description": "בחר שיטת התקנת skill",
-      "dragNotSupported": "גרירה ושחרור זמנית לא נתמכות, נא ללחוץ לבחירה",
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
       "failed": "התקנה נכשלה",
       "folderHint": "לחץ כדי לבחור את תיקיית skill",
       "folderTip": "תומך בייבוא ישיר מ־~/.claude/skills/ ומקליינטים אחרים וכדומה",

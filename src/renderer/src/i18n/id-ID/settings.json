@@ -1801,7 +1801,7 @@
       "success": "Instalasi berhasil",
       "successMessage": "skill {name} berhasil diinstal",
       "failed": "Instalasi gagal",
-      "dragNotSupported": "Seret dan lepas belum didukung, silakan klik untuk memilih"
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
     },
     "delete": {
       "title": "Hapus skill",

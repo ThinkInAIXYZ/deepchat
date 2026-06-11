@@ -1825,7 +1825,7 @@
     "emptyHint": "「「スキル追加」ボタンをクリックして新しいスキルをインストール」",
     "install": {
       "description": "スキルのインストール方法を選択",
-      "dragNotSupported": "現在ドラッグ＆ドロップには対応していません。クリックして選択してください。",
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
       "failed": "インストール失敗",
       "folderHint": "skill フォルダを選択",
       "folderTip": "~/.claude/skills/ などの他のクライアントから直接インポートをサポート",

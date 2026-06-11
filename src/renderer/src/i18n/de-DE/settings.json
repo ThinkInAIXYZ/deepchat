@@ -1801,7 +1801,7 @@
       "success": "Installation erfolgreich",
       "successMessage": "skill {name} wurde erfolgreich installiert",
       "failed": "Installation fehlgeschlagen",
-      "dragNotSupported": "Drag-and-drop wird derzeit nicht unterstützt. Bitte klicken Sie zur Auswahl"
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
     },
     "delete": {
       "title": "skill löschen",

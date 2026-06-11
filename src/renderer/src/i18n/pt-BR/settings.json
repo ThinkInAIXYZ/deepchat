@@ -1825,7 +1825,7 @@
     "emptyHint": "Clique no botão “Adicionar skill” para instalar uma nova skill",
     "install": {
       "description": "Selecione o método de instalação do skill",
-      "dragNotSupported": "Não suporta arrastar e soltar no momento. Clique para selecionar.",
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
       "failed": "Instalação falhou",
       "folderHint": "Clique para selecionar a pasta skill",
       "folderTip": "Suporta importação direta de ~/.claude/skills/ e outros clientes",

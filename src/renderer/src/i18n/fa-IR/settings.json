@@ -1825,7 +1825,7 @@
     "emptyHint": "برای نصب skill جدید، روی دکمه «افزودن skill» کلیک کنید.",
     "install": {
       "description": "انتخاب روش نصب skill",
-      "dragNotSupported": "کشیدن و رها کردن فعلاً پشتیبانی نمی‌شود، لطفاً کلیک کنید تا انتخاب کنید",
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
       "failed": "نصب ناموفق",
       "folderHint": "کلیک کنید تا پوشه skill را انتخاب کنید",
       "folderTip": "پشتیبانی از وارد کردن مستقیم از ~/.claude/skills/ و سایر کلاینت‌ها",

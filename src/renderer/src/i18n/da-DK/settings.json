@@ -1758,7 +1758,7 @@
     "emptyHint": "Klik på knappen „Tilføj skill“ for at installere en ny skill",
     "install": {
       "description": "Vælg skill-installationsmetode",
-      "dragNotSupported": "Træk og slip understøttes ikke endnu. Klik venligst for at vælge.",
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
       "failed": "Installation mislykkedes",
       "folderHint": "Klik for at vælge skill-mappen",
       "folderTip": "Understøtter direkte import fra ~/.claude/skills/ og andre klienter",

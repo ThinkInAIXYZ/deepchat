@@ -1801,7 +1801,7 @@
       "success": "Cài đặt thành công",
       "successMessage": "Kỹ năng {name} đã được cài đặt thành công",
       "failed": "Cài đặt không thành công",
-      "dragNotSupported": "Kéo không được hỗ trợ, vui lòng bấm vào để chọn"
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
     },
     "delete": {
       "title": "Xóa kỹ năng",

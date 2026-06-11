@@ -1801,7 +1801,7 @@
       "success": "Instalacja pomyślna",
       "successMessage": "Umiejętność {name} została pomyślnie zainstalowana",
       "failed": "Instalacja nie powiodła się",
-      "dragNotSupported": "Przeciąganie nie jest obsługiwane. Kliknij, aby wybrać"
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
     },
     "delete": {
       "title": "Usuń umiejętność",
