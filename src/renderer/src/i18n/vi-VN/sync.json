@@ -24,6 +24,7 @@
     "cloudDownloadFailed": "Failed to download backup from cloud",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
-    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
+    "safeStorageUnavailable": "Keychain hệ thống không khả dụng; không thể lưu khóa bí mật một cách an toàn.",
+    "cloudUnauthorized": "Xác thực đám mây thất bại. Kiểm tra Endpoint, bucket, Access Key ID, Secret Access Key và quyền của token R2."
   }
 }

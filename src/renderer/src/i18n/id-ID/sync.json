@@ -24,6 +24,7 @@
     "cloudDownloadFailed": "Gagal mengunduh cadangan dari cloud",
     "cloudOperationFailed": "Operasi cloud gagal",
     "noLocalBackup": "Tidak ada cadangan lokal untuk diunggah. Jalankan pencadangan terlebih dahulu.",
-    "safeStorageUnavailable": "Keychain sistem tidak tersedia; kunci rahasia tidak dapat disimpan dengan aman"
+    "safeStorageUnavailable": "Keychain sistem tidak tersedia; kunci rahasia tidak dapat disimpan dengan aman.",
+    "cloudUnauthorized": "Autentikasi cloud gagal. Periksa Endpoint, bucket, Access Key ID, Secret Access Key, dan izin token R2."
   }
 }

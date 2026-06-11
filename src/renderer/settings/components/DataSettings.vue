@@ -165,7 +165,7 @@
             </Dialog>
           </div>
 
-          <div class="flex flex-col gap-3 border-t border-border pt-4" :dir="languageStore.dir">
+          <div class="flex flex-col gap-4 border-t border-border pt-4" :dir="languageStore.dir">
             <div class="flex flex-col gap-1">
               <span class="flex flex-row items-center gap-2">
                 <Icon icon="lucide:cloud" class="h-4 w-4 text-muted-foreground" />
@@ -176,44 +176,235 @@
               </p>
             </div>
 
+            <div
+              class="grid w-full gap-1 rounded-lg border border-border bg-muted/30 p-1 sm:w-fit sm:grid-cols-2"
+            >
+              <button
+                type="button"
+                data-testid="cloud-provider-r2"
+                :class="
+                  cn(
+                    'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium transition-colors',
+                    cloudProviderMode === 'r2'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )
+                "
+                @click="setCloudProviderMode('r2')"
+              >
+                <Icon icon="lucide:cloud" class="h-3.5 w-3.5" />
+                <span>{{ t('settings.data.cloudSync.providerR2') }}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="cloud-provider-custom"
+                :class="
+                  cn(
+                    'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium transition-colors',
+                    cloudProviderMode === 'custom'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )
+                "
+                @click="setCloudProviderMode('custom')"
+              >
+                <Icon icon="lucide:server-cog" class="h-3.5 w-3.5" />
+                <span>{{ t('settings.data.cloudSync.providerCustom') }}</span>
+              </button>
+            </div>
+
+            <div
+              v-if="cloudProviderMode === 'r2'"
+              class="rounded-md border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-muted-foreground"
+            >
+              <div class="flex gap-2">
+                <Icon icon="lucide:info" class="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                <div class="flex min-w-0 flex-col gap-2">
+                  <p class="text-foreground">
+                    {{ t('settings.data.cloudSync.r2GuideTitle') }}
+                  </p>
+                  <div class="grid gap-2">
+                    <div
+                      data-testid="cloud-r2-guide-endpoint"
+                      class="grid gap-1 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start"
+                    >
+                      <span class="font-medium text-foreground">
+                        {{ t('settings.data.cloudSync.endpoint') }}
+                      </span>
+                      <span>{{ t('settings.data.cloudSync.r2EndpointHint') }}</span>
+                    </div>
+                    <div
+                      data-testid="cloud-r2-guide-access-key"
+                      class="grid gap-1 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start"
+                    >
+                      <span class="font-medium text-foreground">
+                        {{ t('settings.data.cloudSync.accessKeyId') }}
+                      </span>
+                      <span>{{ t('settings.data.cloudSync.r2AccessKeyHint') }}</span>
+                    </div>
+                    <div
+                      data-testid="cloud-r2-guide-secret"
+                      class="grid gap-1 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start"
+                    >
+                      <span class="font-medium text-foreground">
+                        {{ t('settings.data.cloudSync.secretAccessKey') }}
+                      </span>
+                      <span>{{ t('settings.data.cloudSync.r2SecretHint') }}</span>
+                    </div>
+                  </div>
+                  <a
+                    :href="CLOUDFLARE_R2_S3_DOCS_URL"
+                    class="inline-flex w-fit items-center gap-1 text-blue-600 underline-offset-4 hover:underline dark:text-blue-400"
+                    @click.prevent="openExternalLink(CLOUDFLARE_R2_S3_DOCS_URL)"
+                  >
+                    {{ t('settings.data.cloudSync.r2DocsLink') }}
+                    <Icon icon="lucide:external-link" class="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+
             <div class="grid gap-3 sm:grid-cols-2">
               <div class="flex flex-col gap-1.5 sm:col-span-2">
-                <Label class="text-xs">{{ t('settings.data.cloudSync.endpoint') }}</Label>
+                <Label for="cloud-endpoint" class="text-xs">
+                  {{ t('settings.data.cloudSync.endpoint') }}
+                </Label>
                 <Input
+                  id="cloud-endpoint"
                   v-model="cloudForm.endpoint"
                   class="h-8!"
                   placeholder="https://<account>.r2.cloudflarestorage.com"
                 />
+                <p class="text-xs text-muted-foreground">
+                  {{
+                    cloudProviderMode === 'r2'
+                      ? t('settings.data.cloudSync.endpointR2Description')
+                      : t('settings.data.cloudSync.endpointCustomDescription')
+                  }}
+                </p>
               </div>
               <div class="flex flex-col gap-1.5">
-                <Label class="text-xs">{{ t('settings.data.cloudSync.bucket') }}</Label>
-                <Input v-model="cloudForm.bucket" class="h-8!" />
+                <Label for="cloud-bucket" class="text-xs">
+                  {{ t('settings.data.cloudSync.bucket') }}
+                </Label>
+                <Input id="cloud-bucket" v-model="cloudForm.bucket" class="h-8!" />
               </div>
-              <div class="flex flex-col gap-1.5">
-                <Label class="text-xs">{{ t('settings.data.cloudSync.region') }}</Label>
-                <Input v-model="cloudForm.region" class="h-8!" placeholder="auto" />
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <Label class="text-xs">{{ t('settings.data.cloudSync.accessKeyId') }}</Label>
-                <Input v-model="cloudForm.accessKeyId" class="h-8!" autocomplete="off" />
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <Label class="text-xs">{{ t('settings.data.cloudSync.secretAccessKey') }}</Label>
+              <div v-if="cloudProviderMode === 'custom'" class="flex flex-col gap-1.5">
+                <Label for="cloud-region" class="text-xs">
+                  {{ t('settings.data.cloudSync.region') }}
+                </Label>
                 <Input
+                  id="cloud-region"
+                  v-model="cloudForm.region"
+                  class="h-8!"
+                  placeholder="auto"
+                />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label for="cloud-access-key-id" class="text-xs">
+                  {{ t('settings.data.cloudSync.accessKeyId') }}
+                </Label>
+                <Input
+                  id="cloud-access-key-id"
+                  v-model="cloudForm.accessKeyId"
+                  class="h-8!"
+                  autocomplete="off"
+                />
+                <p
+                  v-if="cloudValidation.warnings.includes('r2AccessKeyLooksLikeAccountId')"
+                  data-testid="cloud-access-key-warning"
+                  class="text-xs text-amber-600 dark:text-amber-400"
+                >
+                  {{ t('settings.data.cloudSync.r2AccessKeyAccountIdWarning') }}
+                </p>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <Label for="cloud-secret-access-key" class="text-xs">
+                  {{ t('settings.data.cloudSync.secretAccessKey') }}
+                </Label>
+                <Input
+                  id="cloud-secret-access-key"
                   v-model="cloudForm.secretAccessKey"
+                  data-testid="cloud-secret-input"
                   type="password"
                   class="h-8!"
                   autocomplete="off"
-                  :placeholder="
-                    cloudConfig?.hasSecret ? t('settings.data.cloudSync.secretConfigured') : ''
+                  :aria-invalid="
+                    cloudValidation.errors.includes('r2SecretLooksLikeApiToken') ? 'true' : 'false'
                   "
+                  :placeholder="cloudSecretPlaceholder"
+                />
+                <p
+                  v-if="cloudValidation.errors.includes('r2SecretLooksLikeApiToken')"
+                  data-testid="cloud-secret-token-error"
+                  class="text-xs text-destructive"
+                >
+                  {{ t('settings.data.cloudSync.r2SecretApiTokenError') }}
+                </p>
+                <p v-else class="text-xs text-muted-foreground">
+                  {{ cloudSecretStatusText }}
+                </p>
+              </div>
+              <div
+                v-if="cloudProviderMode === 'custom'"
+                class="flex flex-col gap-1.5 sm:col-span-2"
+              >
+                <Label for="cloud-prefix" class="text-xs">
+                  {{ t('settings.data.cloudSync.prefix') }}
+                </Label>
+                <Input
+                  id="cloud-prefix"
+                  v-model="cloudForm.prefix"
+                  class="h-8!"
+                  placeholder="deepchat-backups"
                 />
               </div>
-              <div class="flex flex-col gap-1.5 sm:col-span-2">
-                <Label class="text-xs">{{ t('settings.data.cloudSync.prefix') }}</Label>
-                <Input v-model="cloudForm.prefix" class="h-8!" placeholder="deepchat-backups" />
-              </div>
             </div>
+
+            <details
+              v-if="cloudProviderMode === 'r2'"
+              class="group rounded-md border border-border/70 px-3 py-2"
+            >
+              <summary
+                class="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium"
+              >
+                <span>{{ t('settings.data.cloudSync.advancedTitle') }}</span>
+                <Icon
+                  icon="lucide:chevron-down"
+                  class="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                <div class="flex flex-col gap-1.5">
+                  <Label for="cloud-r2-region" class="text-xs">
+                    {{ t('settings.data.cloudSync.region') }}
+                  </Label>
+                  <Input
+                    id="cloud-r2-region"
+                    v-model="cloudForm.region"
+                    class="h-8!"
+                    placeholder="auto"
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('settings.data.cloudSync.r2RegionDescription') }}
+                  </p>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <Label for="cloud-r2-prefix" class="text-xs">
+                    {{ t('settings.data.cloudSync.prefix') }}
+                  </Label>
+                  <Input
+                    id="cloud-r2-prefix"
+                    v-model="cloudForm.prefix"
+                    class="h-8!"
+                    placeholder="deepchat-backups"
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('settings.data.cloudSync.prefixDescription') }}
+                  </p>
+                </div>
+              </div>
+            </details>
 
             <p
               v-if="cloudConfig && !cloudConfig.safeStorageAvailable"
@@ -226,24 +417,28 @@
               <Button
                 variant="default"
                 class="w-full sm:w-auto"
-                :disabled="isCloudBusy"
-                @click="handleSaveCloud"
+                data-testid="cloud-save-test"
+                :disabled="isCloudSaveDisabled"
+                @click="handleSaveAndTestCloud"
               >
-                <Icon icon="lucide:check" class="h-4 w-4" />
-                <span class="text-sm font-medium">{{ t('settings.data.cloudSync.save') }}</span>
+                <Icon
+                  :icon="isCloudBusy ? 'lucide:loader-2' : 'lucide:plug-zap'"
+                  class="h-4 w-4"
+                  :class="isCloudBusy ? 'animate-spin' : ''"
+                />
+                <span class="text-sm font-medium">
+                  {{ t('settings.data.cloudSync.saveAndTest') }}
+                </span>
               </Button>
               <Button
                 variant="outline"
                 class="w-full sm:w-auto"
-                :disabled="isCloudBusy"
-                @click="handleTestCloud"
+                data-testid="cloud-save-only"
+                :disabled="isCloudSaveDisabled"
+                @click="handleSaveCloud"
               >
-                <Icon
-                  :icon="isCloudBusy ? 'lucide:loader-2' : 'lucide:plug-zap'"
-                  class="h-4 w-4 text-muted-foreground"
-                  :class="isCloudBusy ? 'animate-spin' : ''"
-                />
-                <span class="text-sm font-medium">{{ t('settings.data.cloudSync.test') }}</span>
+                <Icon icon="lucide:save" class="h-4 w-4 text-muted-foreground" />
+                <span class="text-sm font-medium">{{ t('settings.data.cloudSync.saveOnly') }}</span>
               </Button>
             </div>
 
@@ -251,7 +446,8 @@
               <Button
                 variant="outline"
                 class="w-full sm:w-auto"
-                :disabled="isCloudBusy"
+                :disabled="isCloudOperationDisabled"
+                :title="!hasUsableCloudConfig ? t('settings.data.cloudSync.saveAndTestFirst') : ''"
                 @click="handleUploadToCloud"
               >
                 <Icon icon="lucide:cloud-upload" class="h-4 w-4 text-muted-foreground" />
@@ -260,7 +456,8 @@
               <Button
                 variant="outline"
                 class="w-full sm:w-auto"
-                :disabled="isCloudBusy"
+                :disabled="isCloudOperationDisabled"
+                :title="!hasUsableCloudConfig ? t('settings.data.cloudSync.saveAndTestFirst') : ''"
                 @click="handlePullFromCloud"
               >
                 <Icon icon="lucide:cloud-download" class="h-4 w-4 text-muted-foreground" />
@@ -283,6 +480,9 @@
                 </RadioGroup>
               </div>
             </div>
+            <p v-if="!hasUsableCloudConfig" class="text-xs text-muted-foreground">
+              {{ t('settings.data.cloudSync.saveAndTestFirst') }}
+            </p>
           </div>
         </div>
       </div>
@@ -797,10 +997,13 @@
       />
 
       <AlertDialog :open="!!syncStore.importResult && !syncStore.importResult?.success">
-        <AlertDialogContent>
+        <AlertDialogContent class="w-[calc(100vw-2rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>{{ t('settings.data.importErrorTitle') }}</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription
+              data-testid="sync-error-dialog-description"
+              class="max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-left"
+            >
               {{
                 syncStore.importResult?.message
                   ? t(syncStore.importResult.message, { count: syncStore.importResult.count || 0 })
@@ -808,8 +1011,8 @@
               }}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction @click="handleAlertAction">
+          <AlertDialogFooter data-testid="sync-error-dialog-footer" class="shrink-0">
+            <AlertDialogAction data-testid="sync-error-dialog-confirm" @click="handleAlertAction">
               {{ t('dialog.ok') }}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -865,6 +1068,13 @@ import { useLegacyPresenter } from '@api/legacy/presenters'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import { createDatabaseSecurityClient } from '@api/DatabaseSecurityClient'
 import { cn } from '@/lib/utils'
+import {
+  CLOUD_SYNC_DEFAULTS,
+  buildCloudSyncConfigInput,
+  createDefaultCloudSyncForm,
+  validateCloudSyncForm,
+  type CloudSyncProviderMode
+} from '@/lib/cloudSyncForm'
 import { useToast } from '@/components/use-toast'
 import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
@@ -874,6 +1084,7 @@ const PROVIDER_IMPORT_SECTION = 'provider-import'
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
 const PUBLIC_PROVIDER_CONF_URL = 'https://github.com/ThinkInAIXYZ/PublicProviderConf'
+const CLOUDFLARE_R2_S3_DOCS_URL = 'https://developers.cloudflare.com/r2/get-started/s3/'
 
 type SettingsWindowState = Window & {
   __deepchatSettingsPendingSection?: string | null
@@ -1108,15 +1319,17 @@ const handleSyncEnabledChange = (value: boolean) => {
 }
 
 // === Cloud sync (S3-compatible) ===
+const cloudProviderMode = ref<CloudSyncProviderMode>('r2')
 const cloudPullMode = ref<'increment' | 'overwrite'>('increment')
-const cloudForm = ref({
-  endpoint: '',
-  bucket: '',
-  region: 'auto',
-  prefix: 'deepchat-backups',
-  accessKeyId: '',
-  secretAccessKey: ''
-})
+const cloudForm = ref(createDefaultCloudSyncForm())
+
+const setCloudProviderMode = (mode: CloudSyncProviderMode) => {
+  cloudProviderMode.value = mode
+  if (mode === 'r2') {
+    cloudForm.value.region = cloudForm.value.region.trim() || CLOUD_SYNC_DEFAULTS.region
+    cloudForm.value.prefix = cloudForm.value.prefix.trim() || CLOUD_SYNC_DEFAULTS.prefix
+  }
+}
 
 watch(
   cloudConfig,
@@ -1126,8 +1339,8 @@ watch(
     }
     cloudForm.value.endpoint = config.endpoint
     cloudForm.value.bucket = config.bucket
-    cloudForm.value.region = config.region || 'auto'
-    cloudForm.value.prefix = config.prefix || 'deepchat-backups'
+    cloudForm.value.region = config.region || CLOUD_SYNC_DEFAULTS.region
+    cloudForm.value.prefix = config.prefix || CLOUD_SYNC_DEFAULTS.prefix
     cloudForm.value.accessKeyId = config.accessKeyId
     // never prefill the secret; empty means "keep existing"
     cloudForm.value.secretAccessKey = ''
@@ -1135,21 +1348,71 @@ watch(
   { immediate: true }
 )
 
-const handleSaveCloud = async () => {
-  await syncStore.saveCloudConfig({
-    endpoint: cloudForm.value.endpoint.trim(),
-    bucket: cloudForm.value.bucket.trim(),
-    region: cloudForm.value.region.trim() || 'auto',
-    prefix: cloudForm.value.prefix.trim(),
-    accessKeyId: cloudForm.value.accessKeyId.trim(),
-    // omit when empty so the existing secret is preserved
-    secretAccessKey: cloudForm.value.secretAccessKey || undefined
+const hasStoredCloudSecret = computed(() => Boolean(cloudConfig.value?.hasSecret))
+const cloudValidation = computed(() =>
+  validateCloudSyncForm(cloudForm.value, {
+    providerMode: cloudProviderMode.value,
+    hasStoredSecret: hasStoredCloudSecret.value
   })
+)
+const isCloudSecretWriteUnavailable = computed(
+  () =>
+    Boolean(cloudForm.value.secretAccessKey.trim()) &&
+    cloudConfig.value?.safeStorageAvailable === false
+)
+const isCloudSaveDisabled = computed(
+  () =>
+    Boolean(isCloudBusy.value) ||
+    !cloudValidation.value.canSave ||
+    isCloudSecretWriteUnavailable.value
+)
+const hasUsableCloudConfig = computed(() =>
+  Boolean(
+    cloudConfig.value?.endpoint?.trim() &&
+    cloudConfig.value?.bucket?.trim() &&
+    cloudConfig.value?.accessKeyId?.trim() &&
+    cloudConfig.value?.hasSecret
+  )
+)
+const isCloudOperationDisabled = computed(
+  () => Boolean(isCloudBusy.value) || !hasUsableCloudConfig.value
+)
+const cloudSecretPlaceholder = computed(() =>
+  hasStoredCloudSecret.value ? t('settings.data.cloudSync.secretConfigured') : ''
+)
+const cloudSecretStatusText = computed(() => {
+  if (hasStoredCloudSecret.value && !cloudForm.value.secretAccessKey) {
+    return t('settings.data.cloudSync.secretStoredDescription')
+  }
+  return t('settings.data.cloudSync.secretInputDescription')
+})
+
+const persistCloudConfig = async (): Promise<boolean> => {
+  if (isCloudSaveDisabled.value) {
+    return false
+  }
+  await syncStore.saveCloudConfig(buildCloudSyncConfigInput(cloudForm.value))
   cloudForm.value.secretAccessKey = ''
+  return true
+}
+
+const handleSaveCloud = async () => {
+  const saved = await persistCloudConfig()
+  if (!saved) {
+    return
+  }
   toast({
     title: t('settings.data.cloudSync.savedTitle'),
     duration: 3000
   })
+}
+
+const handleSaveAndTestCloud = async () => {
+  const saved = await persistCloudConfig()
+  if (!saved) {
+    return
+  }
+  await handleTestCloud()
 }
 
 const handleTestCloud = async () => {

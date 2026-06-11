@@ -589,6 +589,41 @@ describe('SyncPresenter backup import', () => {
     )
   })
 
+  it('normalizes R2 unauthorized cloud errors to a user-facing error key', async () => {
+    cloudStorageMocks.testConnection.mockRejectedValue(
+      new Error(
+        'Unexpected (permanent) at list, context: { response: Parts { status: 401 } } => S3Error { code: "Unauthorized", message: "Unauthorized" }'
+      )
+    )
+
+    await expect(presenter.testCloudConnection()).resolves.toEqual({
+      success: false,
+      message: 'sync.error.cloudUnauthorized'
+    })
+  })
+
+  it('normalizes invalid access key / signature errors to the unauthorized key', async () => {
+    cloudStorageMocks.testConnection.mockRejectedValue(
+      new Error(
+        'Unexpected (permanent) at list => S3Error { code: "InvalidAccessKeyId", message: "The Access Key Id you provided does not exist in our records." }'
+      )
+    )
+
+    await expect(presenter.testCloudConnection()).resolves.toEqual({
+      success: false,
+      message: 'sync.error.cloudUnauthorized'
+    })
+  })
+
+  it('keeps unknown cloud errors available for diagnostics', async () => {
+    cloudStorageMocks.testConnection.mockRejectedValue(new Error('network down'))
+
+    await expect(presenter.testCloudConnection()).resolves.toEqual({
+      success: false,
+      message: 'network down'
+    })
+  })
+
   it('imports v2 sqlite config rows incrementally without overwriting local rows', async () => {
     createLocalState(userDataDir, {
       conversations: [{ id: 'conv-1', title: 'Local conversation' }],
