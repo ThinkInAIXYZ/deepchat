@@ -1825,9 +1825,9 @@
     "emptyHint": "Cliquez sur le bouton « Ajouter une compétence » pour installer une nouvelle compétence",
     "install": {
       "description": "Choisir le mode d’installation de la skill",
-      "dragNotSupported": "Le glisser-déposer n’est pas pris en charge pour le moment. Veuillez cliquer pour sélectionner.",
+      "dragInvalid": "Contenu non pris en charge. Glissez un dossier skill ou un seul fichier .zip.",
       "failed": "Installation échouée",
-      "folderHint": "Cliquez pour sélectionner le dossier skill",
+      "folderHint": "Cliquez ou glissez un dossier skill ici",
       "folderTip": "Supporte l’importation directe depuis ~/.claude/skills/ et autres clients",
       "fromFolder": "Installer depuis le dossier",
       "installButton": "Installation",
@@ -1841,7 +1841,7 @@
       "title": "Installer skill",
       "urlHint": "Entrez le lien de téléchargement du package skill",
       "urlPlaceholder": "Saisir l'adresse de téléchargement du fichier ZIP skill",
-      "zipHint": "Cliquez pour sélectionner le fichier ZIP"
+      "zipHint": "Cliquez ou glissez un fichier ZIP ici"
     },
     "noResults": "Aucune compétence correspondante trouvée",
     "openFolder": "Ouvrir le dossier",

@@ -1825,9 +1825,9 @@
     "emptyHint": "לחץ על כפתור „הוסף skill“ להתקנת skill חדש",
     "install": {
       "description": "בחר שיטת התקנת skill",
-      "dragNotSupported": "גרירה ושחרור זמנית לא נתמכות, נא ללחוץ לבחירה",
+      "dragInvalid": "התוכן אינו נתמך. גרור תיקיית skill או קובץ .zip יחיד.",
       "failed": "התקנה נכשלה",
-      "folderHint": "לחץ כדי לבחור את תיקיית skill",
+      "folderHint": "לחץ או גרור לכאן תיקיית skill",
       "folderTip": "תומך בייבוא ישיר מ־~/.claude/skills/ ומקליינטים אחרים וכדומה",
       "fromFolder": "התקנה מתיקייה",
       "installButton": "התקנה",
@@ -1841,7 +1841,7 @@
       "title": "התקן skill",
       "urlHint": "הזן את קישור ההורדה של חבילת ה-skill",
       "urlPlaceholder": "הזן כתובת הורדת skill ZIP",
-      "zipHint": "לחץ כדי לבחור קובץ ZIP"
+      "zipHint": "לחץ או גרור לכאן קובץ ZIP"
     },
     "noResults": "לא נמצא כישור תואם",
     "openFolder": "פתח תיקייה",

@@ -1825,9 +1825,9 @@
     "emptyHint": "Clique no botão “Adicionar skill” para instalar uma nova skill",
     "install": {
       "description": "Selecione o método de instalação do skill",
-      "dragNotSupported": "Não suporta arrastar e soltar no momento. Clique para selecionar.",
+      "dragInvalid": "Conteúdo não suportado. Arraste uma pasta skill ou um único arquivo .zip.",
       "failed": "Instalação falhou",
-      "folderHint": "Clique para selecionar a pasta skill",
+      "folderHint": "Clique ou arraste uma pasta skill aqui",
       "folderTip": "Suporta importação direta de ~/.claude/skills/ e outros clientes",
       "fromFolder": "Instalar da pasta",
       "installButton": "Instalar",
@@ -1841,7 +1841,7 @@
       "title": "Instalar skill",
       "urlHint": "Digite o link de download do pacote skill",
       "urlPlaceholder": "Digite o endereço de download do skill ZIP",
-      "zipHint": "Clique para selecionar o arquivo ZIP"
+      "zipHint": "Clique ou arraste um arquivo ZIP aqui"
     },
     "noResults": "Skill correspondente não encontrada",
     "openFolder": "Abrir pasta",

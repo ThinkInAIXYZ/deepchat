@@ -1791,9 +1791,9 @@
       "tabUrl": "URL",
       "fromFolder": "Installa da cartella",
       "selectFolder": "Seleziona cartella skill",
-      "folderHint": "Fai clic per selezionare la cartella skill",
+      "folderHint": "Fai clic o trascina qui una cartella skill",
       "folderTip": "Supporta import diretto da altri client come ~/.claude/skills/",
-      "zipHint": "Fai clic per selezionare file ZIP",
+      "zipHint": "Fai clic o trascina qui un file ZIP",
       "urlPlaceholder": "Inserisci URL di download ZIP skill",
       "urlHint": "Inserisci il link di download del pacchetto skill",
       "installButton": "Installa",
@@ -1801,7 +1801,7 @@
       "success": "Installazione riuscita",
       "successMessage": "skill {name} installata correttamente",
       "failed": "Installazione non riuscita",
-      "dragNotSupported": "Trascinamento non supportato, fai clic per selezionare"
+      "dragInvalid": "Contenuto non supportato. Trascina una cartella skill o un singolo file .zip."
     },
     "delete": {
       "title": "Elimina skill",

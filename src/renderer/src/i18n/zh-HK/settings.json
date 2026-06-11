@@ -1825,9 +1825,9 @@
     "emptyHint": "點擊「新增 skill」按鈕安裝新 skill",
     "install": {
       "description": "選擇 skill 安裝方式",
-      "dragNotSupported": "暫不支援拖拽，請點擊選擇",
+      "dragInvalid": "不支援的拖放內容，請拖入 skill 資料夾或單一 .zip 檔案。",
       "failed": "安裝失敗",
-      "folderHint": "點擊選擇 skill 資料夾",
+      "folderHint": "點擊或拖放 skill 資料夾到此處",
       "folderTip": "支援從 ~/.claude/skills/ 等其他客戶端直接匯入",
       "fromFolder": "從資料夾安裝",
       "installButton": "安裝",
@@ -1841,7 +1841,7 @@
       "title": "安裝 skill",
       "urlHint": "輸入 skill 包的下載連結",
       "urlPlaceholder": "輸入 skill ZIP 下載地址",
-      "zipHint": "點擊選擇 ZIP 檔案"
+      "zipHint": "點擊或拖放 ZIP 檔案到此處"
     },
     "noResults": "未找到匹配的 skill",
     "openFolder": "開啟資料夾",

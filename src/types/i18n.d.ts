@@ -154,6 +154,25 @@ declare module 'vue-i18n' {
       audioInputUnsupportedTitle: string
       audioInputUnsupportedDescription: string
     }
+    skillDraft: {
+      confirmationTitle: string
+      confirmationQuestion: string
+      previewTitle: string
+      actions: {
+        view: string
+        viewDescription: string
+        install: string
+        installDescription: string
+        discard: string
+        discardDescription: string
+      }
+      result: {
+        viewed: string
+        installed: string
+        discarded: string
+        failed: string
+      }
+    }
     pendingInput: {
       steer: string
       queueCount: string
@@ -359,7 +378,7 @@ declare module 'vue-i18n' {
         success: string
         successMessage: string
         failed: string
-        dragNotSupported: string
+        dragInvalid: string
       }
       delete: {
         title: string
@@ -508,6 +527,7 @@ declare module 'vue-i18n' {
     workspace: {
       title: string
       collapse: string
+      expand: string
       sections: {
         files: string
         git: string
@@ -606,6 +626,10 @@ declare module 'vue-i18n' {
       allAgents: string
       expandSidebar: string
       collapseSidebar: string
+      themeToggle: string
+      themeLight: string
+      themeDark: string
+      themeSystem: string
       remoteControlDisabled: string
       remoteControlStatus: {
         disabled: string
@@ -659,6 +683,19 @@ declare module 'vue-i18n' {
       firstChat: {
         description: string
         caption: string
+      }
+    }
+    activityCollapse: {
+      workedFor: string
+      reasoningCount: string
+      toolCallCount: string
+      expandLabel: string
+      collapseLabel: string
+      duration: {
+        day: string
+        hour: string
+        minute: string
+        second: string
       }
     }
     loading: string
@@ -859,6 +896,51 @@ declare module 'vue-i18n' {
       description: string
       confirm: string
       tag: string
+    }
+    agentTransfer: {
+      deleteTitle: string
+      deleteDescription: string
+      moveTitle: string
+      moveDescription: string
+      loading: string
+      processing: string
+      totalSessions: string
+      movableSessions: string
+      emptyDrafts: string
+      blockedSessions: string
+      moveBeforeDeleteTitle: string
+      moveBeforeDeleteDescription: string
+      deleteSessionsTitle: string
+      deleteSessionsDescription: string
+      targetAgent: string
+      selectTarget: string
+      acpWorkdir: string
+      acpWorkdirPlaceholder: string
+      acpWorkdirHint: string
+      currentAgent: string
+      relatedSessions: string
+      blockedWarning: string
+      agentDeleteBlocked: string
+      deleteAgentAndSessions: string
+      moveAndDeleteAgent: string
+      moveConversation: string
+      agentType: {
+        deepchat: string
+        acp: string
+      }
+      blockReason: {
+        active: string
+        'pending-input': string
+        'missing-target-workdir': string
+        'missing-session': string
+        'same-agent': string
+      }
+      sampleState: {
+        ready: string
+        draft: string
+        subagent: string
+      }
+      deepChatTargetOnly: string
     }
     mutualExclusive: {
       title: {
@@ -1189,9 +1271,11 @@ declare module 'vue-i18n' {
       disableAll: string
       rename: string
       delete: string
+      switchWithShortcut: string
       cleanMessages: string
       pin: string
       unpin: string
+      moveConversation: string
       export: string
       exportText: string
       exportNowledgeMem: string
@@ -1564,6 +1648,28 @@ declare module 'vue-i18n' {
       importData: string
       incrementImport: string
       overwriteImport: string
+      cloudSync: {
+        title: string
+        description: string
+        endpoint: string
+        bucket: string
+        region: string
+        prefix: string
+        accessKeyId: string
+        secretAccessKey: string
+        secretConfigured: string
+        safeStorageUnavailable: string
+        save: string
+        test: string
+        upload: string
+        pull: string
+        savedTitle: string
+        testSuccessTitle: string
+        testFailedTitle: string
+        uploadSuccessTitle: string
+        uploadFailedTitle: string
+        pullSuccessTitle: string
+      }
       backupSelectLabel: string
       backupSelectDescription: string
       selectBackupPlaceholder: string
@@ -2495,11 +2601,16 @@ declare module 'vue-i18n' {
         customMethodRequired: string
         requestFailed: string
         methods: {
+          authenticate: string
           initialize: string
-          newSession: string
           loadSession: string
+          newSession: string
           prompt: string
           cancel: string
+          sessionClose: string
+          sessionFork: string
+          sessionList: string
+          sessionResume: string
           setSessionMode: string
           setSessionModel: string
           extMethod: string
@@ -2642,6 +2753,8 @@ declare module 'vue-i18n' {
         authorizedPrincipalsEmpty: string
         sessionBindingsTitle: string
         sessionBindingsDescription: string
+        acpDefaultWorkdirRequiredTitle: string
+        acpDefaultWorkdirRequiredDescription: string
       }
       hooks: {
         title: string

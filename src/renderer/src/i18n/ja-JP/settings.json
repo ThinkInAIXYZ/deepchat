@@ -1825,9 +1825,9 @@
     "emptyHint": "「「スキル追加」ボタンをクリックして新しいスキルをインストール」",
     "install": {
       "description": "スキルのインストール方法を選択",
-      "dragNotSupported": "現在ドラッグ＆ドロップには対応していません。クリックして選択してください。",
+      "dragInvalid": "対応していない内容です。skill フォルダまたは単一の .zip ファイルをドラッグしてください。",
       "failed": "インストール失敗",
-      "folderHint": "skill フォルダを選択",
+      "folderHint": "skill フォルダをクリックまたはドラッグ",
       "folderTip": "~/.claude/skills/ などの他のクライアントから直接インポートをサポート",
       "fromFolder": "フォルダーからインストール",
       "installButton": "インストール",
@@ -1841,7 +1841,7 @@
       "title": "スキルをインストール",
       "urlHint": "スキルパッケージのダウンロードリンクを入力",
       "urlPlaceholder": "skill ZIP ダウンロードアドレスを入力",
-      "zipHint": "ZIP ファイルをクリックして選択"
+      "zipHint": "ZIP ファイルをクリックまたはドラッグ"
     },
     "noResults": "一致するスキルが見つかりません",
     "openFolder": "フォルダを開く",

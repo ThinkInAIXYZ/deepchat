@@ -1791,9 +1791,9 @@
       "tabUrl": "URL",
       "fromFolder": "Zainstaluj z folderu",
       "selectFolder": "Wybierz folder umiejętności",
-      "folderHint": "Kliknij, aby wybrać folder umiejętności",
+      "folderHint": "Kliknij lub przeciągnij tutaj folder umiejętności",
       "folderTip": "Importuj umiejętności od innych klientów, np. ~/.claude/skills/",
-      "zipHint": "Kliknij, aby wybrać plik ZIP",
+      "zipHint": "Kliknij lub przeciągnij tutaj plik ZIP",
       "urlPlaceholder": "Wprowadź umiejętność pobierz ZIP URL",
       "urlHint": "Wprowadź link do pobrania pakietu umiejętności",
       "installButton": "Zainstaluj",
@@ -1801,7 +1801,7 @@
       "success": "Instalacja pomyślna",
       "successMessage": "Umiejętność {name} została pomyślnie zainstalowana",
       "failed": "Instalacja nie powiodła się",
-      "dragNotSupported": "Przeciąganie nie jest obsługiwane. Kliknij, aby wybrać"
+      "dragInvalid": "Nieobsługiwana zawartość. Przeciągnij folder umiejętności lub pojedynczy plik .zip."
     },
     "delete": {
       "title": "Usuń umiejętność",

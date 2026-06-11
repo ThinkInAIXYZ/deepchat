@@ -1791,9 +1791,9 @@
       "tabUrl": "URL",
       "fromFolder": "Instal dari folder",
       "selectFolder": "Pilih folder skill",
-      "folderHint": "Klik untuk memilih folder skill",
+      "folderHint": "Klik atau seret folder skill ke sini",
       "folderTip": "Mendukung impor langsung dari klien lain seperti ~/.claude/skills/",
-      "zipHint": "Klik untuk memilih file ZIP",
+      "zipHint": "Klik atau seret file ZIP ke sini",
       "urlPlaceholder": "Masukkan skill ZIP alamat unduhan",
       "urlHint": "Masukkan tautan unduhan untuk paket skill",
       "installButton": "Instalasi",
@@ -1801,7 +1801,7 @@
       "success": "Instalasi berhasil",
       "successMessage": "skill {name} berhasil diinstal",
       "failed": "Instalasi gagal",
-      "dragNotSupported": "Seret dan lepas belum didukung, silakan klik untuk memilih"
+      "dragInvalid": "Konten tidak didukung. Seret folder skill atau satu file .zip."
     },
     "delete": {
       "title": "Hapus skill",
