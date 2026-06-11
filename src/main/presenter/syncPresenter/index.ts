@@ -135,6 +135,18 @@ export class SyncPresenter implements ISyncPresenter {
     if (message.startsWith('sync.error.')) {
       return message
     }
+    const normalizedMessage = message.toLowerCase()
+    if (
+      normalizedMessage.includes('unauthorized') ||
+      normalizedMessage.includes('accessdenied') ||
+      normalizedMessage.includes('forbidden') ||
+      normalizedMessage.includes('status: 401') ||
+      normalizedMessage.includes('status code: 401') ||
+      normalizedMessage.includes('status: 403') ||
+      normalizedMessage.includes('status code: 403')
+    ) {
+      return 'sync.error.cloudUnauthorized'
+    }
     return message || 'sync.error.cloudOperationFailed'
   }
 

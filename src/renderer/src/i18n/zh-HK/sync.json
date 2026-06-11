@@ -24,6 +24,7 @@
     "cloudDownloadFailed": "Failed to download backup from cloud",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
-    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key"
+    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key",
+    "cloudUnauthorized": "雲端驗證失敗。請檢查 Endpoint、儲存桶、Access Key ID、Secret Access Key 以及 R2 權杖權限。"
   }
 }

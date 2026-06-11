@@ -37,6 +37,17 @@ const setup = async (
     isImporting: false,
     importResult: null,
     backups: [] as Array<{ fileName: string; createdAt: number; size: number }>,
+    cloudConfig: {
+      enabled: false,
+      endpoint: '',
+      bucket: '',
+      region: 'auto',
+      prefix: 'deepchat-backups',
+      accessKeyId: '',
+      hasSecret: false,
+      safeStorageAvailable: true
+    },
+    isCloudBusy: false,
     initialize: vi.fn().mockResolvedValue(undefined),
     selectSyncFolder: vi.fn(),
     openSyncFolder: vi.fn(),
@@ -45,7 +56,29 @@ const setup = async (
     importData: vi.fn().mockResolvedValue(null),
     clearImportResult: vi.fn(),
     setSyncEnabled: vi.fn(),
-    setSyncFolderPath: vi.fn()
+    setSyncFolderPath: vi.fn(),
+    saveCloudConfig: vi.fn().mockImplementation((config) => {
+      syncStore.cloudConfig = {
+        ...syncStore.cloudConfig,
+        ...config,
+        enabled: config.enabled ?? syncStore.cloudConfig.enabled,
+        hasSecret: Boolean(config.secretAccessKey) || syncStore.cloudConfig.hasSecret
+      }
+      return Promise.resolve(syncStore.cloudConfig)
+    }),
+    testCloud: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'sync.success.cloudConnected'
+    }),
+    uploadToCloud: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'sync.success.cloudUploaded'
+    }),
+    pullFromCloud: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'sync.success.cloudPulled',
+      count: 1
+    })
   })
   const uiSettingsStore = reactive({
     privacyModeEnabled: false,
@@ -164,6 +197,13 @@ const setup = async (
               'Manual checks and manual refresh actions stay available.',
             'settings.common.privacyModeIntegrations':
               'Configured third-party integrations stay available.',
+            'settings.data.cloudSync.providerR2': 'Cloudflare R2',
+            'settings.data.cloudSync.providerCustom': 'Custom S3-compatible',
+            'settings.data.cloudSync.r2SecretApiTokenError':
+              'Use the S3 Secret Access Key, not the Cloudflare API token value.',
+            'settings.data.cloudSync.saveAndTest': 'Save and Test',
+            'settings.data.cloudSync.saveOnly': 'Save Only',
+            'settings.data.cloudSync.testSuccessTitle': 'Connection succeeded',
             'settings.data.modelConfigUpdate.linkLabel': 'ThinkInAIXYZ/PublicProviderConf'
           }) as Record<string, string>
         )[key] ?? key
@@ -175,7 +215,9 @@ const setup = async (
       storeToRefs: () => ({
         backups: vue.toRef(syncStore, 'backups'),
         isBackingUp: vue.toRef(syncStore, 'isBackingUp'),
-        isImporting: vue.toRef(syncStore, 'isImporting')
+        isImporting: vue.toRef(syncStore, 'isImporting'),
+        cloudConfig: vue.toRef(syncStore, 'cloudConfig'),
+        isCloudBusy: vue.toRef(syncStore, 'isCloudBusy')
       })
     }
   })
@@ -307,6 +349,107 @@ describe('DataSettings', () => {
     expect(wrapper.text()).toContain('settings.data.databaseEncryption.systemCredentialStore')
   })
 
+  it('defaults cloud sync setup to the R2 guide with R2 defaults', async () => {
+    const { wrapper } = await setup()
+
+    expect(wrapper.get('[data-testid="cloud-provider-r2"]').text()).toContain('Cloudflare R2')
+    expect(wrapper.text()).toContain('settings.data.cloudSync.r2GuideTitle')
+    expect(wrapper.get('[data-testid="cloud-r2-guide-endpoint"]').text()).toContain(
+      'settings.data.cloudSync.endpoint'
+    )
+    expect(wrapper.get('[data-testid="cloud-r2-guide-access-key"]').text()).toContain(
+      'settings.data.cloudSync.accessKeyId'
+    )
+    expect(wrapper.get('[data-testid="cloud-r2-guide-secret"]').text()).toContain(
+      'settings.data.cloudSync.secretAccessKey'
+    )
+    expect((wrapper.get('#cloud-r2-region').element as HTMLInputElement).value).toBe('auto')
+    expect((wrapper.get('#cloud-r2-prefix').element as HTMLInputElement).value).toBe(
+      'deepchat-backups'
+    )
+  })
+
+  it('keeps long sync failure text wrapped inside the error dialog', async () => {
+    const { wrapper, syncStore } = await setup()
+    syncStore.importResult = {
+      success: false,
+      message:
+        'Unexpected (permanent) at list, context: { uri: https://account.r2.cloudflarestorage.com/deepchat?list-type=2&prefix=deepchat-backups%2F, response: Parts { status: 401, headers: {"content-type":"application/xml"} } } => S3Error { code: "Unauthorized", message: "Unauthorized" }'
+    }
+    await nextTick()
+
+    const description = wrapper.get('[data-testid="sync-error-dialog-description"]')
+    expect(description.classes()).toEqual(
+      expect.arrayContaining([
+        'max-h-[40vh]',
+        'overflow-y-auto',
+        'whitespace-pre-wrap',
+        'break-words'
+      ])
+    )
+    expect(wrapper.get('[data-testid="sync-error-dialog-footer"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="sync-error-dialog-confirm"]').exists()).toBe(true)
+  })
+
+  it('saves the cloud config before testing the cloud connection', async () => {
+    const { wrapper, syncStore, toast } = await setup()
+
+    await wrapper.get('#cloud-endpoint').setValue('https://account.r2.cloudflarestorage.com/')
+    await wrapper.get('#cloud-bucket').setValue('deepchat')
+    await wrapper.get('#cloud-access-key-id').setValue('access-key')
+    await wrapper.get('[data-testid="cloud-secret-input"]').setValue('secret-key')
+    await wrapper.get('[data-testid="cloud-save-test"]').trigger('click')
+    await flushPromises()
+
+    expect(syncStore.saveCloudConfig).toHaveBeenCalledWith({
+      endpoint: 'https://account.r2.cloudflarestorage.com',
+      bucket: 'deepchat',
+      region: 'auto',
+      prefix: 'deepchat-backups',
+      accessKeyId: 'access-key',
+      secretAccessKey: 'secret-key'
+    })
+    expect(syncStore.testCloud).toHaveBeenCalledTimes(1)
+    expect(syncStore.saveCloudConfig.mock.invocationCallOrder[0]).toBeLessThan(
+      syncStore.testCloud.mock.invocationCallOrder[0]
+    )
+    expect(toast).toHaveBeenCalledWith({
+      title: 'Connection succeeded',
+      description: undefined,
+      variant: 'default',
+      duration: 4000
+    })
+  })
+
+  it('blocks Cloudflare API token values in the R2 secret field', async () => {
+    const { wrapper, syncStore } = await setup()
+
+    await wrapper.get('#cloud-endpoint').setValue('https://account.r2.cloudflarestorage.com')
+    await wrapper.get('#cloud-bucket').setValue('deepchat')
+    await wrapper.get('#cloud-access-key-id').setValue('access-key')
+    await wrapper.get('[data-testid="cloud-secret-input"]').setValue('cfat_example')
+
+    expect(wrapper.get('[data-testid="cloud-secret-token-error"]').text()).toContain(
+      'Use the S3 Secret Access Key'
+    )
+    expect(wrapper.get('[data-testid="cloud-save-test"]').attributes('disabled')).toBeDefined()
+    expect(syncStore.saveCloudConfig).not.toHaveBeenCalled()
+  })
+
+  it('switches cloud sync setup to custom S3-compatible fields', async () => {
+    const { wrapper } = await setup()
+
+    await wrapper.get('[data-testid="cloud-provider-custom"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="cloud-provider-custom"]').text()).toContain(
+      'Custom S3-compatible'
+    )
+    expect(wrapper.find('#cloud-region').exists()).toBe(true)
+    expect(wrapper.find('#cloud-prefix').exists()).toBe(true)
+    expect(wrapper.find('#cloud-r2-region').exists()).toBe(false)
+  })
+
   it('renders a quiet danger zone entry and keeps reset choices in the dialog', async () => {
     const { wrapper } = await setup()
 
@@ -350,7 +493,7 @@ describe('DataSettings', () => {
     ).trigger('click')
     await nextTick()
 
-    const inputs = wrapper.findAll('input[type="password"]')
+    const inputs = wrapper.findAll('input[type="password"]:not([data-testid="cloud-secret-input"])')
     expect(inputs).toHaveLength(2)
 
     await inputs[0].setValue('sqlite-pass')
