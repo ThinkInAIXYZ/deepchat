@@ -341,7 +341,7 @@
                 >
                   {{ t('settings.data.cloudSync.r2SecretApiTokenError') }}
                 </p>
-                <p v-else-if="cloudSecretStatusText" class="text-xs text-muted-foreground">
+                <p v-else class="text-xs text-muted-foreground">
                   {{ cloudSecretStatusText }}
                 </p>
               </div>

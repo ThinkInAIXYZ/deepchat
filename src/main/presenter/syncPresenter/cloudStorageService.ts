@@ -59,7 +59,9 @@ export class CloudStorageService {
 
   /** Lightweight list probe used by the settings "test connection" button. */
   public async testConnection(): Promise<void> {
-    const lister = await this.operator.lister('/')
+    // Cap the underlying request to a single key — we only need to confirm the
+    // bucket is reachable and the credentials are accepted, not enumerate it.
+    const lister = await this.operator.lister('/', { limit: 1 })
     await lister.next()
   }
 

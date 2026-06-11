@@ -602,6 +602,19 @@ describe('SyncPresenter backup import', () => {
     })
   })
 
+  it('normalizes invalid access key / signature errors to the unauthorized key', async () => {
+    cloudStorageMocks.testConnection.mockRejectedValue(
+      new Error(
+        'Unexpected (permanent) at list => S3Error { code: "InvalidAccessKeyId", message: "The Access Key Id you provided does not exist in our records." }'
+      )
+    )
+
+    await expect(presenter.testCloudConnection()).resolves.toEqual({
+      success: false,
+      message: 'sync.error.cloudUnauthorized'
+    })
+  })
+
   it('keeps unknown cloud errors available for diagnostics', async () => {
     cloudStorageMocks.testConnection.mockRejectedValue(new Error('network down'))
 

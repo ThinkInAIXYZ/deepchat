@@ -130,6 +130,24 @@ export class SyncPresenter implements ISyncPresenter {
     return new CloudStorageService(resolved)
   }
 
+  /**
+   * S3-compatible auth/permission failures surface as opaque Rust error strings from
+   * OpenDAL (the napi binding does not expose a structured error code), so we fall back
+   * to substring matching. Keep the list focused on credential/permission signals that
+   * map cleanly to a single user-facing key.
+   */
+  private static readonly CLOUD_UNAUTHORIZED_SIGNALS = [
+    'unauthorized',
+    'accessdenied',
+    'forbidden',
+    'invalidaccesskeyid',
+    'signaturedoesnotmatch',
+    'status: 401',
+    'status code: 401',
+    'status: 403',
+    'status code: 403'
+  ]
+
   private normalizeCloudError(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error)
     if (message.startsWith('sync.error.')) {
@@ -137,13 +155,7 @@ export class SyncPresenter implements ISyncPresenter {
     }
     const normalizedMessage = message.toLowerCase()
     if (
-      normalizedMessage.includes('unauthorized') ||
-      normalizedMessage.includes('accessdenied') ||
-      normalizedMessage.includes('forbidden') ||
-      normalizedMessage.includes('status: 401') ||
-      normalizedMessage.includes('status code: 401') ||
-      normalizedMessage.includes('status: 403') ||
-      normalizedMessage.includes('status code: 403')
+      SyncPresenter.CLOUD_UNAUTHORIZED_SIGNALS.some((signal) => normalizedMessage.includes(signal))
     ) {
       return 'sync.error.cloudUnauthorized'
     }
