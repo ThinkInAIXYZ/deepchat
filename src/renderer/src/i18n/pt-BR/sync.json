@@ -24,7 +24,7 @@
     "cloudDownloadFailed": "Failed to download backup from cloud",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
-    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key",
+    "safeStorageUnavailable": "O chaveiro do sistema não está disponível; não é possível armazenar a chave secreta com segurança.",
     "cloudUnauthorized": "A autenticação na nuvem falhou. Verifique Endpoint, bucket, Access Key ID, Secret Access Key e as permissões do token R2."
   }
 }

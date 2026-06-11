@@ -24,7 +24,7 @@
     "cloudDownloadFailed": "从云端下载备份失败",
     "cloudOperationFailed": "云端操作失败",
     "noLocalBackup": "本地没有可上传的备份,请先执行一次备份",
-    "safeStorageUnavailable": "系统密钥链不可用,无法安全保存密钥",
+    "safeStorageUnavailable": "系统密钥链不可用，无法安全保存密钥。",
     "cloudUnauthorized": "云端鉴权失败。请检查 Endpoint、存储桶、Access Key ID、Secret Access Key 以及 R2 令牌权限。"
   }
 }

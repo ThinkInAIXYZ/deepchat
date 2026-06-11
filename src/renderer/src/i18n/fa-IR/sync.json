@@ -24,7 +24,7 @@
     "cloudDownloadFailed": "Failed to download backup from cloud",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
-    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key",
+    "safeStorageUnavailable": "Keychain سیستم در دسترس نیست؛ کلید محرمانه را نمی‌توان به‌صورت امن ذخیره کرد.",
     "cloudUnauthorized": "احراز هویت ابری ناموفق بود. Endpoint، bucket، Access Key ID، Secret Access Key و مجوزهای توکن R2 را بررسی کنید."
   }
 }

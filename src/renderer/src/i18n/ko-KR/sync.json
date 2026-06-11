@@ -24,7 +24,7 @@
     "cloudDownloadFailed": "Failed to download backup from cloud",
     "cloudOperationFailed": "Cloud operation failed",
     "noLocalBackup": "No local backup to upload. Run a backup first.",
-    "safeStorageUnavailable": "System keychain unavailable; cannot securely store the secret key",
+    "safeStorageUnavailable": "시스템 키체인을 사용할 수 없어 비밀 키를 안전하게 저장할 수 없습니다.",
     "cloudUnauthorized": "클라우드 인증에 실패했습니다. Endpoint, bucket, Access Key ID, Secret Access Key 및 R2 토큰 권한을 확인하세요."
   }
 }
