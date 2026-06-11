@@ -1,5 +1,7 @@
 import path from 'path'
+import { existsSync } from 'node:fs'
 import { readFile } from 'fs/promises'
+import { pathToFileURL } from 'url'
 import type { FileFinderApi, FileItem, GrepMatch, GrepMode, Result, Score } from '@ff-labs/fff-node'
 
 export type FffFileSearchHit = {
@@ -77,9 +79,43 @@ const MAX_FIND_LIMIT = 200
 const MAX_GREP_LIMIT = 200
 const MAX_GLOB_LIMIT = 1000
 const MAX_CONTEXT_LINES = 5
+const PACKAGED_FFF_NODE_ENTRY = path.join(
+  'app.asar.unpacked',
+  'node_modules',
+  '@ff-labs',
+  'fff-node',
+  'dist',
+  'src',
+  'index.js'
+)
 const GLOB_PATTERN = /[*?[{]/
 const WHITESPACE_PATTERN = /\s/
 const REGEX_INTENT_PATTERN = /(^|[^\\])(?:\||\(\?|\[[^\]]+\]|\.\*|\.\+|\\[bBdDsSwW]|\^|\$)/
+
+const getProcessResourcesPath = (): string | undefined => {
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+  return typeof resourcesPath === 'string' ? resourcesPath : undefined
+}
+
+const resolvePackagedFffNodeEntry = (
+  resourcesPath: string | undefined = getProcessResourcesPath()
+): string | null => {
+  if (!resourcesPath) {
+    return null
+  }
+
+  const candidate = path.join(resourcesPath, PACKAGED_FFF_NODE_ENTRY)
+  return existsSync(candidate) ? candidate : null
+}
+
+const loadFffModule = async (): Promise<FffModule> => {
+  const packagedEntry = resolvePackagedFffNodeEntry()
+  if (packagedEntry) {
+    return (await import(pathToFileURL(packagedEntry).href)) as FffModule
+  }
+
+  return import('@ff-labs/fff-node')
+}
 
 const clampInt = (value: number | undefined, fallback: number, max: number): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -261,7 +297,7 @@ export class FffSearchService {
   private readonly finders = new Map<string, Promise<FinderHandle>>()
 
   constructor(options: FffSearchServiceOptions = {}) {
-    this.moduleLoader = options.moduleLoader ?? (() => import('@ff-labs/fff-node'))
+    this.moduleLoader = options.moduleLoader ?? loadFffModule
     this.scanTimeoutMs = options.scanTimeoutMs ?? DEFAULT_SCAN_TIMEOUT_MS
     this.maxCachedFinders = options.maxCachedFinders ?? DEFAULT_MAX_CACHED_FINDERS
     this.now = options.now ?? (() => Date.now())
