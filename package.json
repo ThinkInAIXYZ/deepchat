@@ -1,6 +1,6 @@
 {
   "name": "DeepChat",
-  "version": "1.0.6-beta.4",
+  "version": "1.0.6-beta.5",
   "description": "DeepChat，一个简单易用的 Agent 客户端",
   "main": "./out/main/index.js",
   "author": "ThinkInAIXYZ",
@@ -213,6 +213,16 @@
     "vuedraggable": "^4.1.0",
     "yaml": "^2.9.0",
     "zod-to-json-schema": "^3.25.2"
+  },
+  "optionalDependencies": {
+    "@opendal/lib-darwin-arm64": "0.49.4",
+    "@opendal/lib-darwin-x64": "0.49.4",
+    "@opendal/lib-linux-arm64-gnu": "0.49.4",
+    "@opendal/lib-linux-arm64-musl": "0.49.4",
+    "@opendal/lib-linux-x64-gnu": "0.49.4",
+    "@opendal/lib-linux-x64-musl": "0.49.4",
+    "@opendal/lib-win32-arm64-msvc": "0.49.4",
+    "@opendal/lib-win32-x64-msvc": "0.49.4"
   },
   "simple-git-hooks": {
     "pre-commit": "node scripts/pre-commit.mjs",

@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.6-beta.5 (2026-06-11)
+- Fixed packaged app startup by bundling the OpenDAL native binding needed by cloud sync
+- 修复打包应用启动问题，补齐云同步所需的 OpenDAL native binding
+
 ## v1.0.6-beta.4 (2026-06-11)
 - Migrated cloud sync to OpenDAL and improved R2 setup for more reliable S3-compatible backups
 - Fixed agent runtime FFF loading from unpacked app builds and cleaned up logging, skill IO, and status bar behavior

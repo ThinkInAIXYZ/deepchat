@@ -39,6 +39,31 @@ function getFffBinaryPackages(platform, arch) {
   }
 }
 
+function getOpendalNativePackages(platform, arch) {
+  const archName = getArchName(arch)
+
+  if (platform === 'darwin' && archName === 'universal') {
+    return ['@opendal/lib-darwin-x64', '@opendal/lib-darwin-arm64']
+  }
+
+  switch (`${platform}:${archName}`) {
+    case 'darwin:x64':
+      return ['@opendal/lib-darwin-x64']
+    case 'darwin:arm64':
+      return ['@opendal/lib-darwin-arm64']
+    case 'win32:x64':
+      return ['@opendal/lib-win32-x64-msvc']
+    case 'win32:arm64':
+      return ['@opendal/lib-win32-arm64-msvc']
+    case 'linux:x64':
+      return ['@opendal/lib-linux-x64-gnu']
+    case 'linux:arm64':
+      return ['@opendal/lib-linux-arm64-gnu']
+    default:
+      return []
+  }
+}
+
 async function pathExists(filePath) {
   try {
     await fs.access(filePath)
@@ -61,7 +86,7 @@ async function resolveInstalledPackageDir(projectDir, packageName) {
     }
   }
 
-  throw new Error(`Unable to find installed FFF native package: ${packageName}`)
+  throw new Error(`Unable to find installed native package: ${packageName}`)
 }
 
 function getResourcesDir(context) {
@@ -103,6 +128,33 @@ async function copyFffNativePackages(context) {
   }
 }
 
+async function copyOpendalNativePackages(context) {
+  const { arch, electronPlatformName, packager } = context
+  const packageNames = getOpendalNativePackages(electronPlatformName, arch)
+
+  if (packageNames.length === 0) {
+    return
+  }
+
+  const nodeModulesDir = path.join(getResourcesDir(context), 'app.asar.unpacked', 'node_modules')
+  const opendalDir = path.join(nodeModulesDir, 'opendal')
+  const projectDir = packager?.projectDir ?? process.cwd()
+
+  for (const packageName of packageNames) {
+    const sourceDir = await resolveInstalledPackageDir(projectDir, packageName)
+    const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
+
+    await fs.mkdir(path.dirname(destinationDir), { recursive: true })
+    await fs.cp(sourceDir, destinationDir, { recursive: true, force: true, dereference: true })
+
+    const nativeFiles = (await fs.readdir(sourceDir)).filter((fileName) => fileName.endsWith('.node'))
+    await fs.mkdir(opendalDir, { recursive: true })
+    for (const nativeFile of nativeFiles) {
+      await fs.copyFile(path.join(sourceDir, nativeFile), path.join(opendalDir, nativeFile))
+    }
+  }
+}
+
 function isLinux(targets) {
   const re = /AppImage|snap|deb|rpm|freebsd|pacman/i
   return !!targets.find((target) => re.test(target.name))
@@ -120,6 +172,7 @@ async function afterPack(context) {
   const { targets, appOutDir } = context
 
   await copyFffNativePackages(context)
+  await copyOpendalNativePackages(context)
 
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })
