@@ -450,6 +450,32 @@ describe('DataSettings', () => {
     expect(wrapper.find('#cloud-r2-region').exists()).toBe(false)
   })
 
+  it('falls back a blank custom S3 region to auto when saving cloud config', async () => {
+    const { wrapper, syncStore } = await setup()
+
+    await wrapper.get('[data-testid="cloud-provider-custom"]').trigger('click')
+    await nextTick()
+    await wrapper.get('#cloud-endpoint').setValue('https://minio.example.com/')
+    await wrapper.get('#cloud-bucket').setValue('deepchat')
+    await wrapper.get('#cloud-region').setValue('')
+    await wrapper.get('#cloud-access-key-id').setValue('access-key')
+    await wrapper.get('[data-testid="cloud-secret-input"]').setValue('secret-key')
+
+    expect(wrapper.get('[data-testid="cloud-save-only"]').attributes('disabled')).toBeUndefined()
+
+    await wrapper.get('[data-testid="cloud-save-only"]').trigger('click')
+    await flushPromises()
+
+    expect(syncStore.saveCloudConfig).toHaveBeenCalledWith({
+      endpoint: 'https://minio.example.com',
+      bucket: 'deepchat',
+      region: 'auto',
+      prefix: 'deepchat-backups',
+      accessKeyId: 'access-key',
+      secretAccessKey: 'secret-key'
+    })
+  })
+
   it('renders a quiet danger zone entry and keeps reset choices in the dialog', async () => {
     const { wrapper } = await setup()
 
