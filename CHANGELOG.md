@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.6-beta.4 (2026-06-11)
+- Migrated cloud sync to OpenDAL and improved R2 setup for more reliable S3-compatible backups
+- Fixed agent runtime FFF loading from unpacked app builds and cleaned up logging, skill IO, and status bar behavior
+- 将云同步迁移到 OpenDAL，并优化 R2 设置，让 S3 兼容备份更可靠
+- 修复 Agent 运行时在 unpacked app 构建中的 FFF 加载，并清理日志、skill IO 与状态栏行为
+
 ## v1.0.6-beta.3 (2026-06-10)
 - Added AWS Bedrock profile authentication support for easier account and credential switching
 - Improved agent runtime node discovery with FFF search and refreshed AI SDK packages plus bundled resources
