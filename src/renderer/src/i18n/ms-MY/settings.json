@@ -1791,9 +1791,9 @@
       "tabUrl": "URL",
       "fromFolder": "Pasang daripada folder",
       "selectFolder": "Pilih folder skill",
-      "folderHint": "Klik untuk memilih folder skill",
+      "folderHint": "Klik atau seret folder skill ke sini",
       "folderTip": "Menyokong import langsung daripada pelanggan lain seperti ~/.claude/skills/",
-      "zipHint": "Klik untuk memilih fail ZIP",
+      "zipHint": "Klik atau seret fail ZIP ke sini",
       "urlPlaceholder": "Masukkan alamat muat turun skill ZIP",
       "urlHint": "Masukkan pautan muat turun untuk pakej skill",
       "installButton": "Pasang",
@@ -1801,7 +1801,7 @@
       "success": "Pemasangan berjaya",
       "successMessage": "skill {name} telah berjaya dipasang",
       "failed": "Pemasangan gagal",
-      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
+      "dragInvalid": "Kandungan tidak disokong. Seret folder skill atau satu fail .zip."
     },
     "delete": {
       "title": "Alih keluar skill",

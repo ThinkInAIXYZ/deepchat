@@ -1791,9 +1791,9 @@
       "tabUrl": "URL",
       "fromFolder": "Instalar desde carpeta",
       "selectFolder": "Seleccionar carpeta de Skill",
-      "folderHint": "Haz clic para seleccionar una carpeta de Skill",
+      "folderHint": "Haz clic o arrastra aquí una carpeta de Skill",
       "folderTip": "Permite importar directamente desde otros clientes, como ~/.claude/skills/",
-      "zipHint": "Haga clic para seleccionar un archivo ZIP",
+      "zipHint": "Haz clic o arrastra aquí un archivo ZIP",
       "urlPlaceholder": "Introduce la URL de descarga ZIP de la Skill",
       "urlHint": "Introduce el enlace de descarga del paquete de Skill",
       "installButton": "Instalar",
@@ -1801,7 +1801,7 @@
       "success": "Instalación exitosa",
       "successMessage": "La Skill {name} se ha instalado correctamente",
       "failed": "Instalación fallida",
-      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
+      "dragInvalid": "Contenido no admitido. Arrastra una carpeta de Skill o un único archivo .zip."
     },
     "delete": {
       "title": "Eliminar Skill",

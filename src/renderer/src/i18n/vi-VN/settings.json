@@ -1791,9 +1791,9 @@
       "tabUrl": "URL",
       "fromFolder": "Cài đặt từ thư mục",
       "selectFolder": "Chọn thư mục kỹ năng",
-      "folderHint": "Bấm để chọn thư mục kỹ năng",
+      "folderHint": "Bấm hoặc kéo thư mục kỹ năng vào đây",
       "folderTip": "Nhập kỹ năng từ các khách hàng khác như ~/.claude/skills/",
-      "zipHint": "Nhấp để chọn tệp ZIP",
+      "zipHint": "Bấm hoặc kéo tệp ZIP vào đây",
       "urlPlaceholder": "Nhập kỹ năng ZIP tải xuống URL",
       "urlHint": "Nhập link tải gói kỹ năng",
       "installButton": "cài đặt",
@@ -1801,7 +1801,7 @@
       "success": "Cài đặt thành công",
       "successMessage": "Kỹ năng {name} đã được cài đặt thành công",
       "failed": "Cài đặt không thành công",
-      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
+      "dragInvalid": "Nội dung không được hỗ trợ. Hãy kéo một thư mục kỹ năng hoặc một tệp .zip."
     },
     "delete": {
       "title": "Xóa kỹ năng",

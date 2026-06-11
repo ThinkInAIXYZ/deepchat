@@ -1758,9 +1758,9 @@
     "emptyHint": "Klik på knappen „Tilføj skill“ for at installere en ny skill",
     "install": {
       "description": "Vælg skill-installationsmetode",
-      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
+      "dragInvalid": "Indholdet understøttes ikke. Træk en skill-mappe eller en enkelt .zip-fil.",
       "failed": "Installation mislykkedes",
-      "folderHint": "Klik for at vælge skill-mappen",
+      "folderHint": "Klik eller træk en skill-mappe hertil",
       "folderTip": "Understøtter direkte import fra ~/.claude/skills/ og andre klienter",
       "fromFolder": "Installér fra mappe",
       "installButton": "installere",
@@ -1774,7 +1774,7 @@
       "title": "Installer skill",
       "urlHint": "Indtast downloadlinket til skill-pakken",
       "urlPlaceholder": "Indtast skill ZIP-downloadadresse",
-      "zipHint": "Klik for at vælge ZIP-fil"
+      "zipHint": "Klik eller træk en ZIP-fil hertil"
     },
     "noResults": "Ingen matchende skill fundet",
     "openFolder": "Åbn mappe",

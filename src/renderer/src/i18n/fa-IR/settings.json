@@ -1825,9 +1825,9 @@
     "emptyHint": "برای نصب skill جدید، روی دکمه «افزودن skill» کلیک کنید.",
     "install": {
       "description": "انتخاب روش نصب skill",
-      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
+      "dragInvalid": "محتوای کشیده‌شده پشتیبانی نمی‌شود. یک پوشه skill یا یک فایل .zip را بکشید.",
       "failed": "نصب ناموفق",
-      "folderHint": "کلیک کنید تا پوشه skill را انتخاب کنید",
+      "folderHint": "برای انتخاب پوشه skill کلیک کنید یا آن را به اینجا بکشید",
       "folderTip": "پشتیبانی از وارد کردن مستقیم از ~/.claude/skills/ و سایر کلاینت‌ها",
       "fromFolder": "نصب از پوشه",
       "installButton": "نصب",
@@ -1841,7 +1841,7 @@
       "title": "نصب مهارت",
       "urlHint": "لینک دانلود بسته skill را وارد کنید",
       "urlPlaceholder": "آدرس دانلود ZIP skill را وارد کنید",
-      "zipHint": "برای انتخاب فایل ZIP کلیک کنید"
+      "zipHint": "برای انتخاب فایل ZIP کلیک کنید یا آن را به اینجا بکشید"
     },
     "noResults": "مهارت مطابقی یافت نشد",
     "openFolder": "باز کردن پوشه",

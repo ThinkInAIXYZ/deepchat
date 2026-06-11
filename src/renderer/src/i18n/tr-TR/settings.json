@@ -1791,9 +1791,9 @@
       "tabUrl": "URL",
       "fromFolder": "Klasörden Yükle",
       "selectFolder": "Skill Klasörünü seçin",
-      "folderHint": "Bir skill klasörü seçmek için tıklayın",
+      "folderHint": "Bir skill klasörünü tıklayın veya buraya sürükleyin",
       "folderTip": "skills'yi ~/.claude/skills/ gibi diğer istemcilerden içe aktarın",
-      "zipHint": "Bir ZIP dosyası seçmek için tıklayın",
+      "zipHint": "Bir ZIP dosyasını tıklayın veya buraya sürükleyin",
       "urlPlaceholder": "skill ZIP indirmesini girin URL",
       "urlHint": "skill paketinin indirme bağlantısını girin",
       "installButton": "Düzenlemek",
@@ -1801,7 +1801,7 @@
       "success": "Kurulum Başarılı",
       "successMessage": "Skill {name} başarıyla kuruldu",
       "failed": "Kurulum Başarısız",
-      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
+      "dragInvalid": "Desteklenmeyen içerik. Bir skill klasörü veya tek bir .zip dosyası sürükleyin."
     },
     "delete": {
       "title": "Skill'yi sil",

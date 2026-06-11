@@ -1825,9 +1825,9 @@
     "emptyHint": "\\\"skill 추가\\\" 버튼을 클릭하여 새 skill을 설치하세요.",
     "install": {
       "description": "스킬 설치 방법 선택",
-      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
+      "dragInvalid": "지원하지 않는 항목입니다. skill 폴더 또는 단일 .zip 파일을 드래그하세요.",
       "failed": "설치 실패",
-      "folderHint": "skill 폴더를 클릭하여 선택하세요",
+      "folderHint": "skill 폴더를 클릭하거나 여기로 드래그하세요",
       "folderTip": "~/.claude/skills/ 등 다른 클라이언트에서 직접 가져오기 지원",
       "fromFolder": "폴더에서 설치",
       "installButton": "설치",
@@ -1841,7 +1841,7 @@
       "title": "스킬 설치",
       "urlHint": "스킬 패키지의 다운로드 링크 입력",
       "urlPlaceholder": "스킬 ZIP 다운로드 주소 입력",
-      "zipHint": "ZIP 파일 선택 클릭"
+      "zipHint": "ZIP 파일을 클릭하거나 여기로 드래그하세요"
     },
     "noResults": "일치하는 skill을 찾을 수 없습니다.",
     "sync": {
